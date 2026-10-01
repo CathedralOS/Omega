@@ -1,5 +1,11 @@
-// The release overlay disables the sole selected rule, so this must rejoin
-// the exact ordinary no-selection realization path on every hosted target.
+// One selected rule on an empty entry, realized on every hosted target.
+//
+// The corpus route supplies no release overlay — `build_native_fixture`
+// builds its request without one — so running this fixture exercises the
+// ordinary selected path and says nothing about rolling a rule back. The
+// disabled-rule rejoin is checked by `driver/tests/rollback_to_identity.rs`,
+// which supplies the overlay and compares the published module against a
+// build that selects nothing.
 
 machine build(builder: &mut Build) {
     builder.application("rollback_to_no_selection_empty_entry");

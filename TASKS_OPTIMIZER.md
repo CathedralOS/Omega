@@ -643,14 +643,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   entries tied to current owning catalogs and tests; the former inventory gate
   does not certify missing axes or an unsupported native composition.
 
-  Restore actual rollback-to-identity coverage. The corpus fixture
-  `optimizer/rollback_to_no_selection_empty_entry` enables ControlFlowCleanup,
-  but `corpus_runner::build_native_fixture` constructs a request with no rollback
-  overlay: running that fixture does not test its claimed disabled-rule rejoin.
-  Existing CLI negatives cover invalid names and product restrictions. Exercise
-  an authored selection with the real disable overlay, verify its requested/
-  applied/effective receipt, and compare publication with the ordinary empty
-  selection apart from explicit rollback provenance.
+  Rollback-to-identity coverage is restored.
+  `driver/tests/rollback_to_identity.rs` supplies the real disable overlay
+  through the compiler's own request and checks four things: the settled
+  receipt reads `requested=[ControlFlowCleanup]; applied=[ControlFlowCleanup];
+  effective=[]`, the rolled-back build publishes the exact semantic module a
+  build selecting nothing publishes, no overlay settles no receipt, and the
+  rule demonstrably changes the module it is rolled back from. That last
+  assertion is the one that keeps the comparison honest: on the corpus
+  fixture's `machine main() { }`, and on a chain of single-successor states,
+  `ControlFlowCleanup` leaves both the executable and the semantic module
+  byte-identical, so equality under rollback would have restated the receipt.
+  The fold needs a constant-condition transition whose untaken arm leaves a
+  block unreachable, which is what the driver fixture pair authors.
+
+  The corpus fixture `optimizer/rollback_to_no_selection_empty_entry` no
+  longer claims otherwise: `corpus_runner::build_native_fixture` still builds
+  its request with no overlay, and the fixture's comment now says so and
+  points at the test. Existing CLI negatives cover invalid names and product
+  restrictions. Comparing native executables cannot see a Psi-stage rule at
+  all — emission normalizes `ControlFlowCleanup` away — so this axis compares
+  `semantic_bytes()`.
 
   Acceptance: each applicable axis executes and independently replays through
   the rule's public entrance and compiler-produced publication. A fixed-point
