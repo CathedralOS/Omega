@@ -3,16 +3,16 @@
 //
 // A carrier `.len` is a COUNT, and a count is `u64` -- see
 // `wiki/spec/language/counts_and_addresses.md`. It is not carrier-free, and it
-// does not silently take the destination's type: `self.padding = 16 -
-// self.message.len` into an `i32 in Saturating` is a cross-carrier store and
+// does not silently take the destination's type: `let padding: i32 in Saturating
+// = 16 - message.len` is a cross-carrier initialization and
 // is refused, naming the `as` that spells it. Subtracting an unconverted
 // length from a literal would also be `u64` arithmetic, which underflows for
 // a message longer than the width, so the conversion is where the intent gets
 // stated rather than a formality.
 //
-// Converting at the read puts the subtraction in the destination's carrier,
-// where `Saturating` means an over-long message yields 0 padding instead of
-// underflowing. 16 - 10 = 6.
+// Converting at the read selects signed saturating arithmetic. For this message,
+// 16 - 10 = 6. A longer message could produce a negative result: saturation
+// clamps at the i32 bounds, not at zero.
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
@@ -28,23 +28,21 @@ requires
 
 data Main {
     console: Binding<Console>;
-    message: [u8; 32] in Utf8;
-    padding: i32 in Saturating;
-    pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
-    self.message = "ALERT temp";
-    self.padding = 16 - (self.message.len as i32 in Saturating);
-    self.console.write_line(self.message);
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
+    let message: [u8; 32] in Utf8 = "ALERT temp";
+    let padding: i32 in Saturating = 16 - (message.len as i32 in Saturating);
+    context.console.write_line(message);
 
-    transition { _ -> done() }
+    transition { _ -> done(context, padding) }
 
-    state done(&mut self) {
-        self.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.padding as i32);
+    state done(context: &mut Main, padding: i32 in Saturating) {
+        context.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");
+        context.console.write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block context.console.read_line(&mut pause);
+        context.console.exit_process(padding as i32);
     }
 }
