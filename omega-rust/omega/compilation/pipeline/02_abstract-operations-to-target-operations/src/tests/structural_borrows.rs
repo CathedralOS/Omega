@@ -1,5 +1,7 @@
 //! Authored borrows retain reference ABI placement after canonical Psi checking.
 
+mod direct_call_operands;
+
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, BlockId, CrashCause, EdgeId, IntegerSign,

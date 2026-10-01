@@ -195,15 +195,15 @@ struct Replay<'a> {
 /// establishments own their storage; caller and block parameters keep their
 /// declared access. `local_loan` marks an unrestricted, unqualified,
 /// claim-free operation result: the only local home Terminal verification lets
-/// a call borrow through the exact fixed-array window relation. `graph_home` marks an aggregate
-/// home established in this body: any call argument rooted there takes the
-/// live-graph lowering, never the parameter-roster one.
+/// a call borrow through the exact fixed-array window relation. `operation_home`
+/// marks addressable aggregate storage established in this body, independently
+/// of the other operands or the result of a call that borrows it.
 struct RootDeclaration {
     structural_type: StructuralTypeId,
     multiplicity: terminal_psi::StructuralMultiplicity,
     access: StructuralAccess,
     local_loan: bool,
-    graph_home: bool,
+    operation_home: bool,
 }
 
 impl RootDeclaration {
@@ -762,15 +762,6 @@ impl Replay<'_> {
         if *call_plan != expected_plan {
             return Err(psi_operation);
         }
-        // Lowering resolves a Unit call against the caller's parameter
-        // roster unless a result lands or an argument roots at a home this
-        // body established; those calls take the live graph instead.
-        let live_graph = !matches!(expected_result, BoundResult::Unit)
-            || structural_arguments.iter().any(|argument| {
-                self.roots
-                    .get(&argument.place)
-                    .is_some_and(|root| root.graph_home)
-            });
         self.scalar_arguments(
             psi_operation,
             actual_scalar,
@@ -791,7 +782,6 @@ impl Replay<'_> {
                 semantic,
                 declared,
                 &expected_plan,
-                live_graph,
             )?;
         }
         self.bind_result(
@@ -2731,7 +2721,6 @@ impl Replay<'_> {
         semantic: &StructuralArgument,
         declared: &StructuralParameterDeclaration,
         expected_plan: &CallPlan,
-        live_graph: bool,
     ) -> Result<(), OperationId> {
         if matches!(semantic.path.first(), Some(StructuralPathSegment::Referent)) {
             if self.returned_record_projection(psi_operation, actual, semantic, declared) {
@@ -2859,19 +2848,33 @@ impl Replay<'_> {
         {
             return Err(psi_operation);
         }
-        // Static subloans carry a pointer to the reconstructed leaf, not
-        // an array-view descriptor. Indexed paths need the same carrier
-        // and offset replay as fields. Only the parameter-roster lowering
-        // gives an owned root's indexed subloan the root array's transport
-        // metadata; a live-graph call lends the bare leaf of any root.
-        let static_borrow = (root.access != StructuralAccess::Owned || live_graph)
-            && semantic.access != StructuralAccess::Owned
-            && semantic.path.iter().all(|segment| {
-                matches!(
-                    segment,
-                    StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-                )
+        // Static subloans from borrowed roots or addressable homes carry the
+        // leaf address, as do record/sum reference formals. Reconstruct that
+        // presentation from this operand's declaration and storage, never from
+        // a sibling operand or the call's result kind.
+        let aggregate_reference = matches!(
+            declared.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) && declared.multiplicity
+            == terminal_psi::StructuralMultiplicity::Unrestricted
+            && declared.qualifications.is_empty()
+            && declared.projected_qualifications.is_empty()
+            && self.declarations.iter().any(|declaration| {
+                declaration.id == declared.structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+                    )
             });
+        let static_borrow =
+            (root.access != StructuralAccess::Owned || root.operation_home || aggregate_reference)
+                && semantic.access != StructuralAccess::Owned
+                && semantic.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                });
         if static_borrow
             || semantic
                 .path
@@ -3769,7 +3772,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
         };
-        let (place, structural_type, multiplicity, local_loan, graph_home) = match operation {
+        let (place, structural_type, multiplicity, local_loan, operation_home) = match operation {
             AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
@@ -3788,7 +3791,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             | AbstractOperation::MoveStructuralField { result, .. } => {
                 (result.place, result.structural_type, result.multiplicity, false, true)
             }
-            // Primitive storage and byte views stay roster-eligible.
+            // Primitive storage and byte views are not aggregate backing homes.
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. } => {
                 (result.place, result.structural_type, result.multiplicity, false, false)
@@ -3810,7 +3813,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             multiplicity,
             access: StructuralAccess::Owned,
             local_loan,
-            graph_home,
+            operation_home,
         });
     }
     for entry in &source.block_entries {
@@ -3823,7 +3826,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 multiplicity: parameter.multiplicity,
                 access: parameter.access,
                 local_loan: false,
-                graph_home: false,
+                operation_home: false,
             });
         }
     }
@@ -3833,7 +3836,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             multiplicity: parameter.multiplicity,
             access: parameter.access,
             local_loan: false,
-            graph_home: false,
+            operation_home: false,
         });
     }
     roots
