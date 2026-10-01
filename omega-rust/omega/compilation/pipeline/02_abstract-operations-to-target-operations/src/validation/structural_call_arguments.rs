@@ -3141,7 +3141,7 @@ impl Replay<'_> {
                     || *callee_result != declared
                     || declared.structural_type != expected.structural_type
                     || declared.multiplicity != expected.multiplicity
-                    || declared.qualifications != expected.qualifications
+                    || !declared_or_minted_qualifications(declared, expected)
                     || declared.projected_qualifications != expected.projected_qualifications
                     || (!declared.qualifications.is_empty()
                         && !bounded_owned_byte_result(
@@ -3149,7 +3149,6 @@ impl Replay<'_> {
                             self.declarations,
                         ))
                     || !declared.projected_qualifications.is_empty()
-                    || !expected.qualification_establishments.is_empty()
                     || !callee.entry_claims.is_empty()
                     // The retained leaf roster must equal the roster the
                     // caller's own custody replay derives; a forged path,
@@ -3258,6 +3257,32 @@ impl Replay<'_> {
         }
         Ok(())
     }
+}
+
+/// The retained caller roster is the callee's declared roster plus exactly the
+/// domains this call's own establishment rows mint; Terminal verification
+/// replays each row's route. Minted membership has no storage, so the result
+/// home stays the declared result's home. Any other caller domain refuses.
+fn declared_or_minted_qualifications(
+    declared: &StructuralResultDeclaration,
+    expected: &StructuralOperationResult,
+) -> bool {
+    let minted = expected
+        .qualification_establishments
+        .iter()
+        .map(|establishment| establishment.domain);
+    let roster = declared
+        .qualifications
+        .iter()
+        .copied()
+        .chain(minted)
+        .collect::<BTreeSet<_>>();
+    let retained = expected
+        .qualifications
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    retained.len() == expected.qualifications.len() && retained == roster
 }
 
 /// A bounded owner transports its exact semantic root roster beside the same

@@ -56,17 +56,11 @@ pub(super) fn validate(
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         result,
                         ..
-                    } if result.claims.is_empty()
-                        && result.qualification_establishments.is_empty() =>
-                    {
-                        (
-                            result.structural_type,
-                            result.multiplicity,
-                            result.qualifications == declared.qualifications
-                                && result.projected_qualifications
-                                    == declared.projected_qualifications,
-                        )
-                    }
+                    } if result.claims.is_empty() => (
+                        result.structural_type,
+                        result.multiplicity,
+                        returned_roster_matches(&result, declared),
+                    ),
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         ..
                     } => return Err(LegalizationError::custody()),
@@ -207,6 +201,34 @@ pub(super) fn validate(
         }
         _ => Err(LegalizationError::custody()),
     }
+}
+
+/// Domains minted by the producing call's own establishment rows are
+/// discharged evidence that sheds at the return edge, as Terminal return
+/// admission sheds them. The roster left after shedding must be exactly the
+/// declared result's roster; a retained domain the function does not declare
+/// still refuses.
+fn returned_roster_matches(
+    result: &terminal_psi::StructuralOperationResult,
+    declared: &terminal_psi::StructuralResultDeclaration,
+) -> bool {
+    let minted = |domain: semantic_vocabulary::StructuralDomainId| {
+        result
+            .qualification_establishments
+            .iter()
+            .any(|establishment| establishment.domain == domain)
+    };
+    result
+        .qualifications
+        .iter()
+        .copied()
+        .filter(|domain| !minted(*domain))
+        .eq(declared.qualifications.iter().copied())
+        && result
+            .projected_qualifications
+            .iter()
+            .filter(|projection| !minted(projection.domain))
+            .eq(declared.projected_qualifications.iter())
 }
 
 /// Root qualifications are semantic custody on the inline owner and do not
