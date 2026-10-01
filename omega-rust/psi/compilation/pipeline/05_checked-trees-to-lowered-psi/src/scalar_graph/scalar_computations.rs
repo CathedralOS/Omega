@@ -546,6 +546,25 @@ impl<'a> Expansion<'a> {
         Ok(continuation)
     }
 
+    /// One state that evaluates an already-lowered direct expression over the
+    /// whole input prefix and forwards it appended to `target`. A short-circuit
+    /// Boolean among them is staged through its own decision blocks at
+    /// emission, exactly as an expanded computation's binding is.
+    pub(crate) fn direct_value(
+        &mut self,
+        input_types: &[QualifiedScalarType],
+        target: usize,
+        expression: LoweredDirectExpression,
+    ) -> Result<usize, LoweringError> {
+        validate_direct_parameter_types(&expression, &scalar_carriers(input_types))?;
+        Ok(self.binding(
+            input_types,
+            input_types.len(),
+            target,
+            LoweredScalarBinding::Expression(expression),
+        ))
+    }
+
     fn binding(
         &mut self,
         input_types: &[QualifiedScalarType],

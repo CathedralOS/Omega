@@ -105,6 +105,7 @@ mod scalar_local_borrows;
 mod scalar_return_calls_source;
 mod scalar_storage_source;
 mod scalar_unit_calls;
+mod short_circuit_field_stores;
 mod signed_wrapping_conversion_values;
 mod state_local_record_lifetimes;
 mod structural_array_literals;
