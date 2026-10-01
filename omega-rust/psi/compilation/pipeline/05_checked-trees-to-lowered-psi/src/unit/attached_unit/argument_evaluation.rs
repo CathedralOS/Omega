@@ -982,17 +982,44 @@ impl Evaluation {
                 statement_index,
                 CheckedScalarExpressionRole::AssignmentValue,
             )?;
-            if expression.scalar_type() != scalar_type
-                || direct_expression_contains_short_circuit(&expression)
-            {
-                return unsupported("field store requires a matching branch-free pure value");
+            if expression.scalar_type() != scalar_type {
+                return unsupported("field store requires a matching pure value");
             }
             validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
-            return Ok(ValueDeclaration {
-                qualifications: Default::default(),
-                id: emit_direct_expression(&expression, values, next_value, operations),
-                scalar_type,
-            });
+            if !direct_expression_contains_short_circuit(&expression) {
+                return Ok(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: emit_direct_expression(&expression, values, next_value, operations),
+                    scalar_type,
+                });
+            }
+            // A short-circuit Boolean has no single-block value: it evaluates
+            // through its own decision blocks and rejoins with the result, the
+            // staging an expanded computation's binding receives.
+            let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
+                checked,
+                &qualifications,
+                machine,
+                1,
+            )
+            .enter_proof_scope(&self.erased_proof_formals);
+            let entry = expansion.direct_value(&source_types, 0, expression)?;
+            let states = expansion.finish();
+            let result = self.complete_expansion(
+                &states,
+                entry,
+                &[scalar_type.into()],
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                calls,
+            )?;
+            return match result.as_slice() {
+                [value] => Ok(*value),
+                _ => unsupported("field assignment has no single completed RHS"),
+            };
         }
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
