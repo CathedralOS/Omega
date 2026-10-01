@@ -1,0 +1,26 @@
+// A transition arm naming another machine is a terminal call whose normal
+// result completes the caller (wiki/spec/language/state_contracts.md,
+// "Terminal calls in transition arms"), so the callee's declared result must
+// be the caller's: a typed value keeps its carrier across completion exactly
+// as across a store. `forward` tail-calls a `u64` machine from an `i32`
+// machine on a guarded arm, and `finish` completes an `i32` machine with a
+// Unit callee on an unconditional arm. Both reject during checking; the value
+// arm `-> (widen(value) as i32)` is the explicit conversion.
+
+machine widen(value: i32) -> u64 {
+    transition { _ -> (7) }
+}
+
+machine record(value: i32) {
+}
+
+machine forward(value: i32) -> i32 {
+    transition value > 0 {
+        true -> widen(value)
+        false -> (0)
+    }
+}
+
+machine finish(value: i32) -> i32 {
+    transition { _ -> record(value) }
+}

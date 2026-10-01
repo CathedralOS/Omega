@@ -1,0 +1,2 @@
+machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`
+machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`
