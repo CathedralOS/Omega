@@ -230,6 +230,26 @@ pub(super) fn prepare(
                 ))?,
         )?;
     }
+    // A readable `&`-primitive formal is storage for the whole state: its
+    // referent place leads the primitive-storage table, exactly as an ordinary
+    // machine's and a composed state's formals do, so a bare referent read
+    // (`leaf == 70` over `leaf: &u8`) observes the caller's storage through
+    // the loan. The scalar slot namespace never receives a snapshot of it.
+    let parameter_references = source_custody::primitive_references::bindings(
+        checked,
+        state.state,
+        structural_namespace,
+        source_custody::primitive_references::ParameterNumbering::Dense,
+        structural_types,
+    )?;
+    let storage_before = |statement: u32| {
+        let mut storage = parameter_references.clone();
+        storage.extend(primitive_locals::storage_before(
+            primitive_locals,
+            statement,
+        ));
+        storage
+    };
     let mut immutable_ordinal = 0u32;
     let mut bindings = Vec::with_capacity(state.bindings.len());
     let mut units = state.unit_operations.iter().peekable();
@@ -240,9 +260,7 @@ pub(super) fn prepare(
         }) {
             let operation = units.next().expect("peeked Unit operation exists");
             let statement = unit_operations::statement_index(operation)?;
-            scalar_bindings = scalar_bindings.with_primitive_storage(
-                &primitive_locals::storage_before(primitive_locals, statement),
-            );
+            scalar_bindings = scalar_bindings.with_primitive_storage(&storage_before(statement));
             let source_bindings = scalar_bindings.clone();
             let prepared = prepare_operation(
                 checked,
@@ -265,9 +283,8 @@ pub(super) fn prepare(
             parameter_types = value_types.clone();
         }
         use checked_trees::CheckedScalarBindingDestination;
-        scalar_bindings = scalar_bindings.with_primitive_storage(
-            &primitive_locals::storage_before(primitive_locals, binding.statement_ordinal),
-        );
+        scalar_bindings =
+            scalar_bindings.with_primitive_storage(&storage_before(binding.statement_ordinal));
         let binding_ordinal = immutable_ordinal;
         let role = match binding.destination {
             CheckedScalarBindingDestination::Immutable => {
@@ -496,9 +513,7 @@ pub(super) fn prepare(
     }
     for operation in units {
         let statement = unit_operations::statement_index(operation)?;
-        scalar_bindings = scalar_bindings.with_primitive_storage(
-            &primitive_locals::storage_before(primitive_locals, statement),
-        );
+        scalar_bindings = scalar_bindings.with_primitive_storage(&storage_before(statement));
         let source_bindings = scalar_bindings.clone();
         let prepared = prepare_operation(
             checked,
@@ -520,10 +535,7 @@ pub(super) fn prepare(
         }));
         parameter_types = value_types.clone();
     }
-    scalar_bindings = scalar_bindings.with_primitive_storage(&primitive_locals::storage_before(
-        primitive_locals,
-        terminator_ordinal,
-    ));
+    scalar_bindings = scalar_bindings.with_primitive_storage(&storage_before(terminator_ordinal));
     Ok(Prepared {
         value_types,
         scalar_bindings,
