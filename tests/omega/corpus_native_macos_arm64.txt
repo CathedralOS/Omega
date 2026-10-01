@@ -665,8 +665,7 @@ pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1010ms exit:72 @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 882ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("primitive store lost its structural local destination"))
-pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 2309ms @9435ec134b74+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural scalar store names an unknown structural local"))
+pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 3323ms exit:70 @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1022ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit built 1062ms exit:70
@@ -1108,15 +1107,13 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1562ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1678ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 7)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1442ms @6ec9ff444c14+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 3605ms exit:70 @6bd4d1a87ff4+wt
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 35434ms exit:70 @5fb2e19e1f1+wt
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1646ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 4)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1422ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
-pass/wire/runtime_wire_exact_array_without_count_exit rejected 5737ms @48008365d839
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775820)))
+pass/wire/runtime_wire_exact_array_without_count_exit built 7111ms exit:70 @6bd4d1a87ff4+wt
 pass/wire/runtime_wire_policy_authored_plan_exit incomplete 22588ms @6ec9ff444c14+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 163884ms exit:70 @5fb2e19e1f1+wt
