@@ -48,22 +48,22 @@ machine Main::main(&mut self) reaches Console {
     self.sum = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.i < 5 {
-            true -> add()
-            _ -> render()
+    state step(main: &mut Main) {
+        transition main.i >= 0 && main.i < 5 {
+            true -> add(main)
+            _ -> render(main)
         }
     }
 
-    state add(&mut self) {
-        self.elem = self.nums[self.i];
-        self.sum = self.sum + self.elem;
-        self.i = self.i + 1;
+    state add(main: &mut Main) {
+        main.elem = main.nums[main.i];
+        main.sum = main.sum + main.elem;
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
@@ -76,40 +76,40 @@ machine Main::main(&mut self) reaches Console {
     // domain `requires valid_utf8(bytes)` cannot re-establish that domain, so each
     // write is dominated by a guard proving the byte is ASCII. A literal write
     // (`self.out[0] = 49`) needs no guard -- the literal proves itself.
-    state render(&mut self) {
-        self.out = "000";
-        self.digit = self.sum / 100;
-        self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
-        transition self.ch < 128 { true -> hundreds() _ -> bad() }
+    state render(main: &mut Main) {
+        main.out = "000";
+        main.digit = main.sum / 100;
+        main.digit = main.digit + 48;
+        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        transition main.ch < 128 { true -> hundreds(main) _ -> bad(main) }
     }
-    state hundreds(&mut self) {
-        self.out[0] = self.ch;
-        self.digit = self.sum / 10;
-        self.digit = self.digit % 10;
-        self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
-        transition self.ch < 128 { true -> tens() _ -> bad() }
+    state hundreds(main: &mut Main) {
+        main.out[0] = main.ch;
+        main.digit = main.sum / 10;
+        main.digit = main.digit % 10;
+        main.digit = main.digit + 48;
+        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        transition main.ch < 128 { true -> tens(main) _ -> bad(main) }
     }
-    state tens(&mut self) {
-        self.out[1] = self.ch;
-        self.digit = self.sum % 10;
-        self.digit = self.digit + 48;
-        self.ch = narrow_i32_to_u8_trapping(self.digit as i32);
-        transition self.ch < 128 { true -> ones() _ -> bad() }
+    state tens(main: &mut Main) {
+        main.out[1] = main.ch;
+        main.digit = main.sum % 10;
+        main.digit = main.digit + 48;
+        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        transition main.ch < 128 { true -> ones(main) _ -> bad(main) }
     }
-    state ones(&mut self) {
-        self.out[2] = self.ch;
-        self.console.write_line(self.out);
-        self.console.write_line("PASS: the sum 150 printed above (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state ones(main: &mut Main) {
+        main.out[2] = main.ch;
+        main.console.write_line(main.out);
+        main.console.write_line("PASS: the sum 150 printed above (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a computed digit char left ASCII (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a computed digit char left ASCII (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

@@ -774,3 +774,87 @@ arguments into typed locals emitted a replacement including its closing
 parenthesis while the pattern had consumed only up to the opening one,
 producing `Compose::dskip(compose, compose.t64)compose.t64);`. It had never
 been exercised before this package.
+
+## Correction: index proofs do carry to a state parameter
+
+Two commits in the entry-states series — `9bb4fecccb` and `f49236652a` — say
+that moving an index root from `self.i` to a state parameter loses the
+dominating guard that proved it, and name `cannot prove index `main.i` is
+non-negative (>= 0)` as evidence. That generalization is wrong, and it is
+recorded here because a commit message cannot be amended once published.
+
+Both shapes check. A parameter-rooted index whose guard sits in the same
+state:
+
+    state walk(main: &mut Main) {
+        transition main.i >= 0 && main.i < 8 { true -> accumulate(main) _ -> done() }
+    }
+    state accumulate(main: &mut Main) {
+        main.total = main.total + (main.table[main.i] as i32 in Wrapping);
+    }
+
+and the cross-edge form, with the guard in the entry body and the index in a
+state it reaches, both compile. The lower-bound route transports the guard
+across the entry-to-state edge.
+
+So the ~20 sample packages reverted under that diagnostic were not blocked by
+a compiler limitation. Something in the rewrite's output for those specific
+sources produced an index whose guard no longer dominated it, and that was
+never isolated — the packages were reverted on the gate result and the cause
+was inferred from the diagnostic's wording rather than reduced. Anyone
+resuming those samples should reduce one of them first; do not plan around a
+lower-bound gap that these probes do not show.
+
+The `rda_step`/`rda_drain` finding is separate and still stands: there the
+compiler accepts `self.rda_stack[self.rda_depth - 1]` and refuses the same
+*computed* index rooted in a parameter, which is a different claim from a
+plain field index.
+
+## Correction to the correction: inference is receiver-rooted, proofs are not
+
+The section above overcorrected. The original claim was closer, and the
+mechanism is now reduced to a matched pair.
+
+Identical sources apart from the root spelling. A receiver root compiles; a
+data-parameter root does not:
+
+    data Main { nums: [i32; 2]; i: i32; sum: i64 in Wrapping; }
+    machine Main::main(&mut self) {        // compiles
+        self.i = 0;
+        transition { _ -> step() }
+        state step(&mut self) { transition self.i < 2 { true -> add() _ -> done() } }
+        state add(&mut self) { self.sum = self.sum + (self.nums[self.i] as i64 in Wrapping); self.i = self.i + 1; transition { _ -> step() } }
+        state done() { }
+    }
+
+Respelled with `main: &mut Main` throughout — entry included, so this is not
+a mixed-spelling artifact — the same program reports `cannot prove index
+`main.i` is non-negative (>= 0)`.
+
+What differs is **inference**, not the proof system. Loop-invariant inference
+in `checks/ranges/loop_invariants.rs` asks `receiver_place_field` of a
+candidate counter, bound and collection in five places, so it recognizes
+`self.i` as machine storage and derives the counter's bounds; a root that
+arrives as the machine's data parameter is simply not a candidate. My earlier
+probe passed only because it carried an explicit `>= 0` guard, which bypasses
+inference entirely.
+
+Both bounds are affected, not just the lower one: migrating this group also
+produced `cannot prove index `main.i` is within length 5` and the same for
+`main.r` and `main.j`.
+
+The established remedy is to state the bound, which is what the samples
+already migrated upstream do — `horner_eval` guards `coefficient_index >= 0
+&& coefficient_index < 5`. Five packages in this group migrate that way
+(`sensor_min_max`, `print_number`, `array_sum`, `run_length_encode`,
+`caesar_cipher`). Generalizing the inference to accept a data-parameter root
+is the alternative, and it is real work: five gates in `loop_invariants.rs`
+plus two in `incoming_guards.rs`, and the helpers holding them take no
+machine or state, so the attachment identity has to be threaded to them.
+That is implementation, not language design.
+
+`cli/rendering/bouncing_particles` did not hang on this pass; it reported
+`index `main.b * 20 + main.a` is a computed expression` promptly. The earlier
+eleven-hour wedges happened with the disk at 98% and load average 46, so the
+hang is not reproduced and may have been resource exhaustion rather than a
+defect in the checker.
