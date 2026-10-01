@@ -1,0 +1,28 @@
+// RUN CANARY (exit 71): the mismatch control for utf8_equals_literal_exit. A
+// `&[u8] in Utf8` parameter compared with a string literal of the same length
+// must read the view's bytes: "look" against "quit" takes the `_` arm. A
+// comparison of descriptor words or lengths alone would select `finished`
+// and exit 70.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::classify(&self, text: &[u8] in Utf8) reaches Console {
+    transition text == "quit" {
+        true -> finished()
+        _ -> other()
+    }
+
+    state finished(&self) { self.console.exit_process(70); }
+    state other(&self) { self.console.exit_process(71); }
+}
+
+machine Main::main(&mut self) {
+    self.classify("look");
+}
