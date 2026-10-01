@@ -287,7 +287,30 @@ fn validate_structural_parameter(
         let shape = shapes.next().ok_or(LoweringError::Unsupported(
             "scalar graph view shape is absent",
         ))?;
-        if shapes.next().is_some() || shape.shape != expected_shape {
+        // The catalog keeps an element view's carrier identity, which peels an
+        // arithmetic policy the slice's own identity still spells
+        // (`&[i32 in Wrapping]` retains `i32`), and a byte view's carrier
+        // fixes its element whatever access the catalog records. Every other
+        // presentation must match the source exactly.
+        let retained_element = match (&shape.shape, &expected_shape) {
+            (
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity,
+                },
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. },
+            ) => Some(element_type_identity.as_str()),
+            (
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+                ),
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+                ),
+            ) => None,
+            (retained, expected) if retained == expected => None,
+            _ => return unsupported("scalar graph view shape differs from its source"),
+        };
+        if shapes.next().is_some() {
             return unsupported("scalar graph view shape differs from its source");
         }
         // Views retain the same element declaration as owned storage. Rebuild
@@ -298,7 +321,9 @@ fn validate_structural_parameter(
             owned_types::validate_referent_type(
                 checked,
                 element,
-                checked.normalized_type_identity(element).as_str(),
+                retained_element.ok_or(LoweringError::Unsupported(
+                    "scalar graph element view lost its element identity",
+                ))?,
             )?;
         }
         return Ok(());

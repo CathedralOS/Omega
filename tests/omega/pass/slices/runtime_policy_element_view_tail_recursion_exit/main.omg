@@ -1,0 +1,36 @@
+// A scalar-result machine recurses over a view whose element carries an
+// arithmetic policy (`&[i32 in Wrapping]`), shrinking the window by one each
+// tail call. The view's checked catalog keeps the element's carrier identity
+// (`i32`) while the slice identity spells the policy, so lowering must rejoin
+// the element to its source declaration rather than compare identity strings.
+// Sums [8, 12, 10, 5, 15, 10, 10] = 70; exits 70 only when every element
+// arrived through the narrowing view.
+
+use omega_language_std::console;
+
+machine sum_window(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+terminates by s -> Slice::Length;
+{
+    transition s.len > 0 {
+        true -> sum_window(s[1..], acc + s[0])
+        false -> (acc as i32)
+    }
+}
+
+machine main() reaches Console {
+    let values: [i32 in Wrapping; 7] = [8, 12, 10, 5, 15, 10, 10];
+    let view: &[i32 in Wrapping] = values.as_slice();
+    let total: i32 = sum_window(view, 0);
+    transition total == 70 {
+        true -> done()
+        _ -> refused(71)
+    }
+
+    state done() {
+        Console::exit_process(70);
+    }
+
+    state refused(code: i32) {
+        Console::exit_process(code);
+    }
+}
