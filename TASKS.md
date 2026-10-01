@@ -1282,15 +1282,7 @@ the complete product bar; focused successes below do not establish that baseline
   `runtime_bounded_carrier_write_read_exit` already execute with exit 70 on
   macOS ARM64. Projected byte-field reads, cyclic writes and the decimal
   divisor invariant are implemented; preserve these controls on the hosted
-  matrix. The separate `domains/utf8_equals_literal_exit`, which has no cycle,
-  checks its `&[u8] in Utf8` literal guard and its checked interpreter exits
-  70. Native production stops in Omega at a domain-qualified borrowed view
-  parameter: abstract-optimization validation
-  (`omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/byte_views.rs::validate_source`)
-  refuses its length and read source (`InvalidByteSequenceLength`), and
-  target lowering
-  (`omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/scalar/byte_views.rs`)
-  refuses the same observation next.
+  matrix.
 
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or
