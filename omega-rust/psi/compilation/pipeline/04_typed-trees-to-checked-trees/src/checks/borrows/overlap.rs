@@ -5,12 +5,16 @@
 //! Every judgment ends in one of two functions:
 //! `captured_place_compatibility_with_selector_snapshot` forms a new
 //! judgment, and `captured_place_compatibility_from_selector_snapshot`
-//! replays a retained one. Places with different valid roots are disjoint.
-//! Places with the same root are compared segment by segment (`segments`),
-//! and index segments by their evaluated bounds (`indexes`), using stated
-//! ordering premises (`premises`) where the bounds alone do not decide. Two
-//! reads never interfere; otherwise the places must be disjoint and must not
-//! name two sibling fields that one data `where` fact relates.
+//! replays a retained one. Places with different valid roots are disjoint,
+//! except that a place rooted at one of a machine's attached fields is first
+//! re-rooted under that machine when the other place is rooted at the machine
+//! itself: the whole `self` receiver contains each attached field
+//! (`receiver_namespace_places`). Places with the same root are compared
+//! segment by segment (`segments`), and index segments by their evaluated
+//! bounds (`indexes`), using stated ordering premises (`premises`) where the
+//! bounds alone do not decide. Two reads never interfere; otherwise the
+//! places must be disjoint and must not name two sibling fields that one data
+//! `where` fact relates.
 //!
 //! A new judgment records the evaluated index bounds (the selector snapshot)
 //! and the premises it consumed; the borrow checks keep both in their
@@ -79,13 +83,17 @@ pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceCompatibilityEvidence {
-    let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
-    let same_root = roots_valid && left.root_symbol == right.root_symbol;
+    let receiver_namespace = receiver_namespace_places(program, left, right);
+    let (left_place, right_place) = receiver_namespace
+        .as_ref()
+        .map_or((left, right), |(left, right)| (left, right));
+    let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
+    let same_root = roots_valid && left_place.root_symbol == right_place.root_symbol;
     let (segments_may_overlap, containment, closure) = if same_root {
         place_segments_compatibility_with_snapshot(
             program,
-            &left.segments,
-            &right.segments,
+            &left_place.segments,
+            &right_place.segments,
             premises,
             bound_lookup,
         )
@@ -103,9 +111,9 @@ pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
-            left.root_symbol,
-            &left.segments,
-            &right.segments,
+            left_place.root_symbol,
+            &left_place.segments,
+            &right_place.segments,
         );
     let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
         && matches!(right_access, checked_trees::BorrowAccessKind::Read);
@@ -134,13 +142,17 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
     recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
-    let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
-    let same_root = roots_valid && left.root_symbol == right.root_symbol;
+    let receiver_namespace = receiver_namespace_places(program, left, right);
+    let (left_place, right_place) = receiver_namespace
+        .as_ref()
+        .map_or((left, right), |(left, right)| (left, right));
+    let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
+    let same_root = roots_valid && left_place.root_symbol == right_place.root_symbol;
     let (segments_may_overlap, containment) = if same_root {
         place_segments_compatibility_from_snapshot(
             program,
-            &left.segments,
-            &right.segments,
+            &left_place.segments,
+            &right_place.segments,
             selector_snapshot,
             premises,
             recorded_premises,
@@ -159,9 +171,9 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
-            left.root_symbol,
-            &left.segments,
-            &right.segments,
+            left_place.root_symbol,
+            &left_place.segments,
+            &right_place.segments,
         );
     let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
         && matches!(right_access, checked_trees::BorrowAccessKind::Read);
@@ -171,6 +183,52 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
         disjoint,
         containment,
         non_interfering: both_shared || (disjoint && !shares_dependent_fact),
+    })
+}
+
+/// Borrow access places capture a direct `self.field` at the attached field's
+/// own root, while a bare `self` operand captures the machine root: the whole
+/// receiver. When one place is rooted at an attached machine and the other at
+/// one of that machine's attached fields, re-root the field place under the
+/// machine so both compare in the receiver's namespace. Any other pair keeps
+/// its own roots.
+fn receiver_namespace_places(
+    program: &typed_trees::TypedTrees,
+    left: &checked_trees::CapturedPlace,
+    right: &checked_trees::CapturedPlace,
+) -> Option<(checked_trees::CapturedPlace, checked_trees::CapturedPlace)> {
+    if !left.root_symbol.is_valid()
+        || !right.root_symbol.is_valid()
+        || left.root_symbol == right.root_symbol
+    {
+        return None;
+    }
+    if let Some(right) = attached_field_place_under_receiver(program, left, right) {
+        return Some((left.clone(), right));
+    }
+    attached_field_place_under_receiver(program, right, left).map(|left| (left, right.clone()))
+}
+
+fn attached_field_place_under_receiver(
+    program: &typed_trees::TypedTrees,
+    receiver: &checked_trees::CapturedPlace,
+    field_place: &checked_trees::CapturedPlace,
+) -> Option<checked_trees::CapturedPlace> {
+    let machine = program.machine_by_symbol(receiver.root_symbol)?;
+    let field = validation::exact_attached_field(
+        program,
+        machine,
+        field_place.root_symbol,
+        program.symbols.name(field_place.root_symbol),
+    )?;
+    let mut segments = Vec::with_capacity(field_place.segments.len() + 1);
+    segments.push(facts::PlaceSegment::Field {
+        symbol: field.symbol,
+    });
+    segments.extend_from_slice(&field_place.segments);
+    Some(checked_trees::CapturedPlace {
+        root_symbol: receiver.root_symbol,
+        segments,
     })
 }
 

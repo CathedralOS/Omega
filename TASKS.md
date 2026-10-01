@@ -3643,16 +3643,15 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   parent's mutation; exclusive children suspend the corresponding parent
   branch") and left-to-right argument evaluation. dd8524945d rejects a whole
   `&mut` receiver's summarized writes under the call's own retained argument
-  loans. Two shapes are still accepted on main and are unsound:
-  `main.read_after(&mut main.count)` whose callee writes through the argument
-  and then reads `self.count` (mutation summaries carry no receiver read
-  footprint), and `Main::take(self, self.arr[0..2])` with
-  `take(main: &mut Main, sub: &[i32])` writing `main.arr[0]` (the bare `self`
-  operand is collected as a copied read, not a retained Mutable access, in
-  `borrow/accesses.rs`). Keep copies evaluated before the call accepted
-  (`self.set(self.count + 1)`), and disjoint fields and subslices.
-  Acceptance: both shapes reject with a fail fixture each; the corpus check
-  leg and every sample's `--check` stay otherwise unchanged.
+  loans, and whole `self` operands are now judged against `self.field`
+  places (`fail/borrows/bare_self_mut_operand_beside_self_view`). One shape
+  is still accepted on main and is unsound: `main.read_after(&mut
+  main.count)` whose callee writes through the argument and then reads
+  `self.count` (mutation summaries carry no receiver read footprint). Keep
+  copies evaluated before the call accepted (`self.set(self.count + 1)`),
+  and disjoint fields and subslices.
+  Acceptance: that shape rejects with a fail fixture; the corpus check leg
+  and every sample's `--check` stay otherwise unchanged.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi
