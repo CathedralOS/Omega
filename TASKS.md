@@ -3705,9 +3705,12 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   [view custody](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views).
   Preserve exact backing, element identity, extent and loans through length,
   indexing and subslicing. `slices/callee_non_byte_view_len_index_subslice`
-  exercises all three in source but has no build entry: bind an executable
-  customer and verify its result rather than treating its `checked` corpus row
-  as realization. An empty forwarding callee is insufficient.
+  exercises all three through its `Main::run` build entry and exits 9 natively
+  on macOS ARM64 with checked-interpreter agreement;
+  `slices/runtime_subslice_and_element_read_call_operands_exit` and its Unit
+  state twin `runtime_unit_state_subslice_and_read_call_operands_exit` (exit
+  42 each) pass a subslice and an element read of one view to one call in both
+  authored orders.
 
   Reuse stage 04's `execution/terminal_unit/calls/view_subslice.rs` and stage
   05's `unit/attached_unit/view_ranges.rs`, `emission/operation_emission/view_subslice.rs`
@@ -3747,8 +3750,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
     plain scalar fields and fields under exactly one arithmetic policy; a
     ranged, erased or structural field still declines.
-  - Establish byte views over fixed byte fields for `runtime_subslice_len_exit`
-    and `wire/runtime_wire_encode_byte_slice_exit`; `field_collection` currently
+  - Establish byte views over fixed byte fields for
+    `wire/runtime_wire_encode_byte_slice_exit` (`runtime_subslice_len_exit`
+    now exits 70 natively); `field_collection` currently
     admits only non-byte element views. Preserve the wire fixture's five exact
     bytes and count, not merely its descriptor shape.
   - Preserve bounded and end-only subslices through ordinary control
@@ -4258,7 +4262,13 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     `control_flow/guarded_leaf_branch_expansion` and `text/runtime_alias_string_write`
     on the loose native-host route: corpus inputs supply package identities and
     no longer record the old `Utf8` collision, so they do not establish this
-    acceptance. Local identity repair need not await the versioned
+    acceptance. For the same reason `fail/build/package_local_calling_copy`
+    now checks on the corpus route: its package-local `calling` module no
+    longer collides with std's, while `callback_terminal_custody`'s
+    loose-root Rust test still rejects the copy as `duplicate data`. Decide
+    what that negative should pin once the loose route carries owners (for
+    example, a policy built from the copied types must not select as
+    `std::calling`). Local identity repair need not await the versioned
     [standalone-request extension](wiki/spec/build/compiler_request.md) shared
     with OMEGA-D/OMEGA-C; named-only OCREQ v1 cannot silently encode anonymous owners.
   - Finish typed/checked/Terminal use of generic type-scoped constant attachments,
