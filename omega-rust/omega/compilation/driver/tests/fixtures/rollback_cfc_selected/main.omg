@@ -1,0 +1,15 @@
+// A conditional on a constant boolean. `ControlFlowCleanup` folds it to the
+// selected edge and removes the block the untaken arm leaves unreachable, so
+// the published semantic module differs from the unoptimized one. That
+// difference is what makes the rejoin comparison falsifiable rather than a
+// restatement of the receipt.
+machine main() {
+    let decided: bool = true;
+    transition decided {
+        true -> taken()
+        _ -> untaken()
+    }
+
+    state taken() { }
+    state untaken() { }
+}

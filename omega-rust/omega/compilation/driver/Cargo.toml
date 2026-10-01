@@ -92,3 +92,7 @@ path = "tests/boundary_internal_call_evidence.rs"
 [[test]]
 name = "withheld_rewrite_reporting"
 path = "tests/withheld_rewrite_reporting.rs"
+
+[[test]]
+name = "rollback_to_identity"
+path = "tests/rollback_to_identity.rs"
