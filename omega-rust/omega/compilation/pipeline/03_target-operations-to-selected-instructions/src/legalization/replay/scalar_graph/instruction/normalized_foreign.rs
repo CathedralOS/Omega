@@ -13,7 +13,7 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
 use abstract_operations::AbstractOperationPlan;
-use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
+use calling_conventions::{CallSignature, ValueLocation};
 use legalized_operations::LegalizedScalarInstruction;
 use semantic_vocabulary::OperationId;
 use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
@@ -243,9 +243,7 @@ pub(super) fn validate(
                 .provider_plan_report_identity()
                 .get()
         || call.binding.requirement_identity() != declaration.identity
-        || call.binding.boundary_entry_plan.call.policy
-            != CallingPolicy::native_for_target(native.target)
-        || call.binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
+        || !call.binding.has_valid_entry_mechanism()
         || validated.plan() != &call.binding.boundary_entry_plan
         || call.binding.boundary_entry_plan.call.parameters.len()
             != scalar_shapes.len() + derived_structural.len() + private_ordinals.len()

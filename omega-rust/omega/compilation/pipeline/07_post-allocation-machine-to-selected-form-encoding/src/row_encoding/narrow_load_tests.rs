@@ -168,7 +168,15 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 resolved,
             )
             .unwrap();
-            crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+            crate::validation::row::validate(
+                target,
+                &selected_function(),
+                &selected,
+                &machine,
+                &physical,
+                &row,
+            )
+            .unwrap();
             assert_eq!(
                 machine.alternative.encoded.memory,
                 selected_instructions::MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -205,6 +213,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 assert!(
                     crate::validation::row::validate(
                         target,
+                        &selected_function(),
                         &selected,
                         &changed_machine,
                         &physical,
@@ -249,6 +258,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             assert!(
                 crate::validation::row::validate(
                     target,
+                    &selected_function(),
                     &selected,
                     &foreign_machine,
                     &physical,

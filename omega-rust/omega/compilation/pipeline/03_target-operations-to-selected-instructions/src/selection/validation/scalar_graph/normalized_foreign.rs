@@ -46,29 +46,31 @@ pub(super) fn validate(
         constraint,
         environment,
     )?;
-    let saved_controls = LocalStorageSlotId::Boundary {
+    let saved_controls = call.binding.import().map(|_| LocalStorageSlotId::Boundary {
         operation: operation.operation,
-    };
-    replay.transport.local_slots.push(SelectedLocalStorageSlot {
-        id: saved_controls,
-        byte_size: 8,
-        alignment: 8,
     });
-    replay.check_instruction(
-        SelectedInstructionKind::SaveFloatingControl {
-            slot: saved_controls,
-        },
-        replay
-            .constraints
-            .keys
-            .save_floating_control
-            .ok_or_else(|| replay.invalid())?,
-        &[],
-        &SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            ..Default::default()
-        },
-    )?;
+    if let Some(saved_controls) = saved_controls {
+        replay.transport.local_slots.push(SelectedLocalStorageSlot {
+            id: saved_controls,
+            byte_size: 8,
+            alignment: 8,
+        });
+        replay.check_instruction(
+            SelectedInstructionKind::SaveFloatingControl {
+                slot: saved_controls,
+            },
+            replay
+                .constraints
+                .keys
+                .save_floating_control
+                .ok_or_else(|| replay.invalid())?,
+            &[],
+            &SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                ..Default::default()
+            },
+        )?;
+    }
     let mut operands = Vec::new();
     for argument in &call.scalar_arguments {
         let value = argument.source.source_value();
@@ -273,21 +275,23 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
-    replay.check_instruction(
-        SelectedInstructionKind::RestoreFloatingControl {
-            slot: saved_controls,
-        },
-        replay
-            .constraints
-            .keys
-            .restore_floating_control
-            .ok_or_else(|| replay.invalid())?,
-        &[],
-        &SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            ..Default::default()
-        },
-    )?;
+    if let Some(saved_controls) = saved_controls {
+        replay.check_instruction(
+            SelectedInstructionKind::RestoreFloatingControl {
+                slot: saved_controls,
+            },
+            replay
+                .constraints
+                .keys
+                .restore_floating_control
+                .ok_or_else(|| replay.invalid())?,
+            &[],
+            &SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                ..Default::default()
+            },
+        )?;
+    }
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
         let output =
             replay.result_register(result.value, result.definition_site, result.scalar_type)?;

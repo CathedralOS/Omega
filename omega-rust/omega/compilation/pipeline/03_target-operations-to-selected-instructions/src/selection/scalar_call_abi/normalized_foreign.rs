@@ -8,15 +8,29 @@
 //! substituted locator, provider execution, plan, argument, or home fails
 //! closed; a missing or duplicated catalog row is not a match.
 use super::{
-    CallSignature, CallingPolicy, LegalizedScalarFunction, RegisterOperandAccess, ValueLocation,
-    ValueShape, scalar_shape,
+    CallSignature, LegalizedScalarFunction, RegisterOperandAccess, ValueLocation, ValueShape,
+    scalar_shape,
 };
 use crate::SelectedInstructionError;
-use calling_conventions::{EntryControl, validate_boundary_entry_plan};
+use calling_conventions::validate_boundary_entry_plan;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
 use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
+
+// The operand views alone cannot distinguish an import from kernel entry
+// (notably a zero-argument call). Mechanism selects the family; the complete
+// evaluated plan still selects and independently validates the exact row.
+fn entry_family(call: &LegalizedNormalizedForeignCall) -> register_model::RegisterConstraintFamily {
+    match call.binding.mechanism {
+        target_operations::NormalizedForeignCallMechanism::Import { .. } => {
+            register_model::RegisterConstraintFamily::Call
+        }
+        target_operations::NormalizedForeignCallMechanism::SystemCall(_) => {
+            register_model::RegisterConstraintFamily::SystemCall
+        }
+    }
+}
 
 /// The native ordinals the call's parameter-destination callbacks consume as
 /// private slots; field destinations mint no plan slot and never join here.
@@ -133,12 +147,17 @@ fn expected_implicit_uses(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<Vec<RegisterUnitId>> {
     let keys = environment.selected_keys();
-    let mut expected = keys.call_normalized_foreign.iter().find_map(|key| {
-        environment
-            .constraint(*key)
-            .filter(|row| row.operands.is_empty())
-            .map(|row| row.implicit_uses.clone())
-    })?;
+    let family = entry_family(call);
+    let mut expected = keys
+        .call_normalized_foreign
+        .iter()
+        .filter(|key| key.family == family)
+        .find_map(|key| {
+            environment
+                .constraint(*key)
+                .filter(|row| row.operands.is_empty())
+                .map(|row| row.implicit_uses.clone())
+        })?;
     let mut field_destination = false;
     for callback in &call.callbacks {
         let register = match &callback.destination {
@@ -195,18 +214,20 @@ pub(crate) fn call_key(
     let views = plan_operand_views(call, environment)?;
     let implicit_uses = expected_implicit_uses(call, environment)?;
     let keys = environment.selected_keys();
+    let family = entry_family(call);
     let mut matches = keys.call_normalized_foreign.iter().filter(|key| {
-        environment.constraint(**key).is_some_and(|row| {
-            row.implicit_uses == implicit_uses
-                && row.operands.len() == views.len()
-                && row
-                    .operands
-                    .iter()
-                    .zip(&views)
-                    .all(|(operand, (view, access))| {
-                        operand.access == *access && operand.fixed_view == Some(*view)
-                    })
-        })
+        key.family == family
+            && environment.constraint(**key).is_some_and(|row| {
+                row.implicit_uses == implicit_uses
+                    && row.operands.len() == views.len()
+                    && row
+                        .operands
+                        .iter()
+                        .zip(&views)
+                        .all(|(operand, (view, access))| {
+                            operand.access == *access && operand.fixed_view == Some(*view)
+                        })
+            })
     });
     let result = *matches.next()?;
     matches.next().is_none().then_some(result)
@@ -234,10 +255,9 @@ pub(crate) fn validate(
     };
     let plan = &call.binding.boundary_entry_plan;
     // Target applicability, calling policy, and entry control are exact
-    // coordinates; the locator's sealed target must name this environment.
+    // coordinates; the entry mechanism's sealed target must name this environment.
     if call.binding.native_target() != Some(environment.target())
-        || plan.call.policy != CallingPolicy::native_for_target(environment.target())
-        || plan.call.entry_control != EntryControl::CallReturn
+        || !call.binding.has_valid_entry_mechanism()
         || call.binding.provider_plan_report_identity()
             != call
                 .provider_execution

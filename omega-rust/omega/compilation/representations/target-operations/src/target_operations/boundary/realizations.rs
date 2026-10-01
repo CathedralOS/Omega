@@ -220,6 +220,14 @@ impl NormalizedForeignCallBinding {
         }
     }
 
+    /// Kernel coordinates remain in the existing external-call custody record.
+    pub fn system_call(&self) -> Option<&NormalizedSystemCallBinding> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
+            NormalizedForeignCallMechanism::Import { .. } => None,
+        }
+    }
+
     pub fn import(
         &self,
     ) -> Option<(

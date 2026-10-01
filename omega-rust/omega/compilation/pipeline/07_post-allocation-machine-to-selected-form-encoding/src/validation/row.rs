@@ -19,6 +19,7 @@ mod scalar_call;
 
 pub(crate) fn validate(
     target: NativeTarget,
+    selected_function: &selected_instructions::SelectedFunction,
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
@@ -156,6 +157,7 @@ pub(crate) fn validate(
             }
             normalized_foreign_call::validate(
                 target,
+                selected_function,
                 selected.id,
                 kind,
                 machine,

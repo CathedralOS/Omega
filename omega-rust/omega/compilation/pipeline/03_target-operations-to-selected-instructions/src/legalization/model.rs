@@ -94,11 +94,6 @@ pub enum LegalizationError {
     UnsupportedSourceShape {
         function: usize,
     },
-    /// Shared target call transport is implemented, but the supervisor-entry
-    /// register effects and native encoding are not yet selected by this stage.
-    UnsupportedSystemCallSelection {
-        boundary: semantic_vocabulary::BoundaryMachineId,
-    },
     UnsupportedCondition {
         function: usize,
     },

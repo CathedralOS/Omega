@@ -22,7 +22,7 @@ use super::{
     ValueId,
 };
 use crate::LegalizationError;
-use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
+use calling_conventions::{CallSignature, ValueLocation};
 use target_operations::{
     TargetOperationPlan, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
     TargetUnitScalarHomeRequirement,
@@ -62,14 +62,6 @@ pub(super) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
-    if matches!(
-        binding.mechanism,
-        target_operations::NormalizedForeignCallMechanism::SystemCall(_)
-    ) {
-        return Err(LegalizationError::UnsupportedSystemCallSelection {
-            boundary: *boundary,
-        });
-    }
     let mut declarations = plan
         .boundary_machines
         .iter()
@@ -249,9 +241,7 @@ pub(super) fn validate(
         || binding.provider_plan_report_identity()
             != provider_execution.provider_plan_report_identity().get()
         || binding.requirement_identity() != declaration.identity
-        || binding.boundary_entry_plan.call.policy
-            != CallingPolicy::native_for_target(native.target)
-        || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
+        || !binding.has_valid_entry_mechanism()
         || validated.plan() != &binding.boundary_entry_plan
         || binding.boundary_entry_plan.call.parameters.len()
             != scalar_shapes.len() + structural.len() + private_ordinals.len()

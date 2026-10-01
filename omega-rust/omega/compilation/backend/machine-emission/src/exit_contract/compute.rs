@@ -443,7 +443,10 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         instruction.kind,
                         SelectedInstructionKind::NormalizedForeignCall { .. }
                     ) {
-                        if function_frame.is_none() {
+                        if function_frame.is_none()
+                            && instruction.constraint.family
+                                != register_model::RegisterConstraintFamily::SystemCall
+                        {
                             return Err(WholeFunctionExitContractError::NonReturnControlEffect(
                                 instruction.id,
                             ));
@@ -452,6 +455,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             target,
                             stack_pointer,
                             instruction.id,
+                            instruction.constraint,
                             encoding_row,
                             resolved_row,
                         )?;

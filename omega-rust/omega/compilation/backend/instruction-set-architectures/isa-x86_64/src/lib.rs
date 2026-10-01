@@ -51,6 +51,9 @@ pub use register_model::{
 };
 mod selected_form_encoding;
 pub use register_model::{X86_64_RESTORE_FLOATING_CONTROL, X86_64_SAVE_FLOATING_CONTROL};
+pub use selected_form_encoding::system_call::{
+    encode_x86_64_selected_system_call_form, validate_x86_64_selected_system_call_form,
+};
 pub use selected_form_encoding::{
     encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
 };

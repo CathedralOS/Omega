@@ -285,7 +285,10 @@ pub(super) fn check(
                     instruction.kind,
                     SelectedInstructionKind::NormalizedForeignCall { .. }
                 ) {
-                    if function_frame.is_none() {
+                    if function_frame.is_none()
+                        && instruction.constraint.family
+                            != register_model::RegisterConstraintFamily::SystemCall
+                    {
                         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
                             instruction.id,
                         ));
@@ -294,6 +297,7 @@ pub(super) fn check(
                         machine.target,
                         context.stack_pointer,
                         instruction.id,
+                        instruction.constraint,
                         encoded,
                         resolved,
                     )?;
