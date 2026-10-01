@@ -174,3 +174,84 @@ fn composite_edge_arguments_reject_drifted_custody() {
         );
     }
 }
+
+#[test]
+fn indexed_composite_edge_arguments_reject_a_same_typed_selector() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Kind [copy] { case First; case Second; }
+        data Item [copy] { kind: Kind; value: u64; }
+        data Output { kind: Kind; value: u64; }
+        data Root {}
+        machine Root::enter(items: &[Item], index: u64, other: u64, output: &mut Output) {
+            transition index < items.len {
+                true -> write(items[index], output)
+                false -> {}
+            }
+            state write(item: Item, output: &mut Output) {
+                output.kind = item.kind;
+                output.value = item.value;
+            }
+        }
+        "#,
+    );
+    let original = plan(&checked);
+    admission::admit(&checked, &original).expect("source-exact indexed state argument");
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the guarded indexed argument lowers before any mutation");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the indexed argument retains independently verified bounds and custody");
+
+    let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+        jump,
+        return_when_true: false,
+        return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. },
+        ..
+    } = &original.states[0].terminator
+    else {
+        panic!("the length guard selects the indexed transfer");
+    };
+    let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment } =
+        &jump.transfers[0].source
+    else {
+        panic!("the indexed record is copied into a fresh edge value");
+    };
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
+        establishment.as_ref()
+    else {
+        panic!("ordinary structural establishment");
+    };
+    let mut changed = checked.clone();
+    let checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } =
+        &mut changed
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get_mut(*value)
+            .kind
+    else {
+        panic!("the mixed record uses the general structural copy route");
+    };
+    let [
+        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+            checked_trees::CheckedRuntimeIndex::Parameter { position },
+        ),
+    ] = source.path.as_mut_slice()
+    else {
+        panic!("one exact runtime selector belongs to the copied source");
+    };
+    assert_eq!(*position, 0, "index is the first scalar formal");
+    *position = 1; // `other` has the same u64 type, but is not this source occurrence.
+    assert!(
+        admission::admit(&changed, &original).is_err(),
+        "a same-typed selector cannot replace the authored indexed source"
+    );
+}
