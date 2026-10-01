@@ -955,7 +955,10 @@ fn read_access(
             } if result.place == place => (*psi_operation, result),
             _ => continue,
         };
-        if observes_byte_length
+        // Metadata reads observe the same established home as scalar fields.
+        // This does not authorize replacing an owned byte carrier: mutation
+        // keeps its separately checked borrowed-destination contract.
+        if purpose == AccessPurpose::ByteOwnerReplacement
             || result.multiplicity == StructuralMultiplicity::Linear
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()

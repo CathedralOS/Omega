@@ -481,6 +481,130 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
 }
 
 #[test]
+fn local_byte_length_membership_requires_the_exact_owned_home() {
+    use target_operations::{
+        TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+    };
+    use terminal_psi::StructuralOperationResult;
+
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for multiplicity in [
+        StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine,
+    ] {
+        let (mut function, mut target) = field_fixture(scalar);
+        let parameter = function.structural_parameters.remove(0);
+        target.graph.parameters.clear();
+        let producer = OperationId::new(2).unwrap();
+        let owner = StructuralOperationResult {
+            place: parameter.place,
+            structural_type: parameter.structural_type,
+            multiplicity,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            qualification_establishments: vec![],
+            claims: vec![],
+        };
+        let observation = OperationId::new(1).unwrap();
+        let result = AbstractResult {
+            value: ValueId::new(1).unwrap(),
+            scalar_type: scalar,
+        };
+        let source = StructuralArgument {
+            place: owner.place,
+            access: StructuralAccess::Owned,
+            path: vec![StructuralPathSegment::Field("inner".into())],
+        };
+        let field = StructuralFieldId::new(1).unwrap();
+        function.operations[0] = AbstractOperation::StructuralByteSequenceFieldLength {
+            psi_operation: observation,
+            result,
+            source: owner.place,
+            path: source.path.clone(),
+            field,
+        };
+        function.operations.insert(
+            0,
+            AbstractOperation::EstablishZeroedStructural {
+                psi_operation: producer,
+                result: owner.clone(),
+            },
+        );
+        target.graph.blocks[0].operations[0] =
+            TargetUnitOperation::StructuralByteSequenceFieldLength {
+                psi_operation: observation,
+                result,
+                source,
+                field,
+            };
+        target.graph.blocks[0].operations.insert(
+            0,
+            TargetUnitOperation::EstablishZeroedStructural {
+                psi_operation: producer,
+                result_home: TargetStructuralHomeRequirement {
+                    origin: TargetStructuralHomeOrigin::OperationResult {
+                        operation: producer,
+                        result: owner.clone(),
+                    },
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8)),
+                },
+            },
+        );
+        assert!(retained(&function, &function.operations[1], &target));
+        assert!(
+            super::read_access(
+                &function,
+                &target,
+                owner.place,
+                super::AccessPurpose::ByteOwnerReplacement
+            )
+            .is_none()
+        );
+        for mutation in 0..5 {
+            let mut changed = target.clone();
+            match mutation {
+                0 => {
+                    changed.graph.blocks[0].operations.remove(0);
+                }
+                1 | 2 => {
+                    let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
+                        &mut changed.graph.blocks[0].operations[0]
+                    else {
+                        panic!("owned home")
+                    };
+                    let TargetStructuralHomeOrigin::OperationResult { operation, result } =
+                        &mut result_home.origin
+                    else {
+                        panic!("owned producer")
+                    };
+                    if mutation == 1 {
+                        *operation = observation;
+                    } else {
+                        result.place = PlaceId::new(2).unwrap();
+                    }
+                }
+                3 => {
+                    let TargetUnitOperation::StructuralByteSequenceFieldLength { source, .. } =
+                        &mut changed.graph.blocks[0].operations[1]
+                    else {
+                        panic!("metadata")
+                    };
+                    source.access = StructuralAccess::SharedBorrow;
+                }
+                _ => {
+                    let duplicate = changed.graph.blocks[0].operations[1].clone();
+                    changed.graph.blocks[0].operations.push(duplicate);
+                }
+            }
+            assert!(
+                !retained(&function, &function.operations[1], &changed),
+                "mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn byte_replacement_membership_retains_every_operand_and_writable_access() {
     use semantic_vocabulary::ObligationId;
     use target_operations::TargetUnitScalarArgumentSource;

@@ -57,16 +57,18 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         AbstractOperation::WriteOnlyPrimitiveStore {
             psi_operation: operation,
             path: Vec::new(),
-            destination: StructuralParameterDeclaration {
-                place: result.place,
-                position: 0,
-                is_self: false,
-                structural_type: result.structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::MutableBorrow,
-                qualifications: vec![],
-                projected_qualifications: vec![],
-            },
+            destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+                StructuralParameterDeclaration {
+                    place: result.place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: result.structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                },
+            ),
             value: scalar,
         },
     ];
