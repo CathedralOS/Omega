@@ -48,15 +48,28 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(invalid());
     }
-    let (metadata_offset, _) =
-        crate::structural_inputs::structural_reference_input::byte_field_storage(
-            parameter.semantic.structural_type,
-            &source.path,
-            *field,
-            &signature.structural_types,
-        )
-        .ok_or_else(invalid)?;
-    let payload_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
+    // A bounded owner's bytes follow its inline length word. A shared view
+    // field stores a descriptor whose first word points at its bytes.
+    let geometry = match crate::structural_inputs::structural_reference_input::byte_field_storage(
+        parameter.semantic.structural_type,
+        &source.path,
+        *field,
+        &signature.structural_types,
+    ) {
+        Some((metadata_offset, _)) => crate::selection::field_bytes::FieldBytes::Inline(
+            metadata_offset.checked_add(8).ok_or_else(invalid)?,
+        ),
+        None => crate::selection::field_bytes::FieldBytes::Descriptor(
+            crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+                parameter.semantic.structural_type,
+                &source.path,
+                *field,
+                &signature.structural_types,
+            )
+            .ok_or_else(invalid)?,
+        ),
+    };
+    let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
     let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
     let count_type =
@@ -78,18 +91,38 @@ pub(in crate::selection) fn read_byte(
         .map(|(_, pointer)| *pointer)
         .ok_or_else(invalid)?;
     let payload = transport_register(builder, source.place, payload_offset)?;
-    builder.emit(
-        SelectedInstructionKind::AddressOffset {
-            byte_offset: payload_offset,
-        },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(invalid)?,
-        &[root, payload],
-        provenance(row),
-    )?;
+    match geometry {
+        crate::selection::field_bytes::FieldBytes::Inline(_) => builder.emit(
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: payload_offset,
+            },
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(invalid)?,
+            &[root, payload],
+            provenance(row),
+        )?,
+        crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
+            memory(
+                builder,
+                row,
+                source.place,
+                payload_offset,
+                8,
+                SelectedMemoryAccessRole::ReadPlace,
+            )?;
+            builder.emit(
+                SelectedInstructionKind::Load64 {
+                    byte_offset: payload_offset,
+                },
+                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                &[root, payload],
+                provenance(row),
+            )?
+        }
+    }
     let output = builder.register(
         definition.value,
         definition.definition_site,

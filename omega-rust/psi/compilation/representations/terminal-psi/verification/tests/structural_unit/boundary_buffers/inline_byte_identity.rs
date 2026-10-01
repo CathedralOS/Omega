@@ -2,9 +2,10 @@
 //!
 //! A byte field reaches a callee parameter through an inline presentation,
 //! which retains the owning root and path. Bounded-owner parameters additionally
-//! require the exact field capacity under `structural_access.md`. Neither
-//! presentation lets a field acquire a same-shaped declaration's identity at
-//! a path end and match the parameter directly.
+//! require the exact field capacity under `structural_access.md`, and a stored
+//! shared view field lends its own descriptor only to a shared view formal.
+//! No presentation lets a field acquire a same-shaped declaration's identity
+//! at a path end and match the parameter directly.
 use super::{
     AdmissionProfile, ModuleError, OperationKind, ProofBundle, StructuralAccess,
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
@@ -82,11 +83,8 @@ fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
 }
 
 #[test]
-fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
-    for access in [
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::SharedBorrow,
-    ] {
+fn a_borrowed_view_field_lends_only_a_shared_boundary_view() {
+    let module_with = |access| {
         let mut module = buffer_module();
         buffer_field(&mut module).field_type =
             StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
@@ -94,14 +92,19 @@ fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
             });
         arguments(&mut module)[0].access = access;
         module.boundary_machines[0].structural_parameters[0].access = access;
-        assert!(
-            matches!(
-                validate_module(&module),
-                Err(ModuleError::InvalidStructuralArgumentPath { .. })
-            ),
-            "{access:?} boundary loan of a borrowed-view field must reject"
-        );
-    }
+        module
+    };
+    // An exclusive loan of a stored shared view would widen its access.
+    assert!(
+        matches!(
+            validate_module(&module_with(StructuralAccess::MutableBorrow)),
+            Err(ModuleError::InvalidStructuralArgumentPath { .. })
+        ),
+        "a mutable boundary loan of a shared view field must reject"
+    );
+    // A shared loan lends the field's own stored descriptor in place.
+    validate_module(&module_with(StructuralAccess::SharedBorrow))
+        .expect("a shared boundary loan presents the stored view descriptor");
 }
 
 #[test]

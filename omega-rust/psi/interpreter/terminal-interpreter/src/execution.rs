@@ -582,6 +582,10 @@ impl TerminalExecution {
                         self.execute_structural_byte_sequence_field_store(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::StructuralByteViewFieldStore { .. } => {
+                        self.execute_structural_byte_view_field_store(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::StructuralByteSequenceFieldLength { .. } => {
                         self.execute_structural_byte_sequence_field_length(operation)?;
                         OperationFlow::Advance

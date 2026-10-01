@@ -72,6 +72,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*length);
             bytes.id(*obligation);
         }
+        O::StructuralByteViewFieldStore {
+            psi_operation,
+            destination,
+            path,
+            field,
+            source,
+        } => {
+            bytes.u8(98);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+            bytes.id(*source);
+        }
         O::ByteSequenceWrite {
             psi_operation,
             destination,

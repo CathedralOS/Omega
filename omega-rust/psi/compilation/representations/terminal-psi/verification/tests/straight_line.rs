@@ -47,6 +47,8 @@ mod shared_record_loans;
 mod shared_scalar_loans;
 #[path = "straight_line/structural_byte_sequence_store.rs"]
 mod structural_byte_sequence_store;
+#[path = "straight_line/structural_byte_view_field_store.rs"]
+mod structural_byte_view_field_store;
 #[path = "straight_line/unit_returns_and_certificates.rs"]
 mod unit_returns_and_certificates;
 #[path = "straight_line/wrapping_and_saturating_axioms.rs"]

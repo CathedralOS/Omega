@@ -447,6 +447,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                    destination,
+                    field,
+                    source,
+                } => {
+                    bytes.push(92);
+                    super::structural_types::encode_structural_argument(bytes, destination);
+                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::HostedReadByte {
                     boundary,
                     result,

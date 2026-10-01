@@ -367,6 +367,7 @@ fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
         OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::ByteSequenceStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+        | OperationKind::StructuralByteViewFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::StoreStructuralField { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }

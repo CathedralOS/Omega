@@ -25,6 +25,7 @@ pub(super) use entry::entry;
 mod byte_concatenation;
 mod byte_field_read;
 mod byte_field_store;
+mod byte_view_field_store;
 mod byte_views;
 mod leaf_copy;
 mod literals;
@@ -250,6 +251,13 @@ pub(super) fn operation(
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
     ) {
         byte_field_store::replace(source, builder, row)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
+    ) {
+        byte_view_field_store::replace(source, builder, row)?;
         return Ok(true);
     }
     if matches!(

@@ -60,6 +60,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::StructuralByteSequenceFieldRead { .. }
                 | AbstractOperation::ByteSequenceStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldStore { .. }
+                | AbstractOperation::StructuralByteViewFieldStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
@@ -256,7 +257,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
                     structural_fields::indexed_read_retained(abstracted, operation, targeted)
-                        && structural_fields::indexed_read_footprint_retained(operation, &selected.memory_accesses)
+                        && structural_fields::indexed_read_footprint_retained(
+                            structural_fields::reads_through_descriptor(abstracted, operation, targeted),
+                            operation,
+                            &selected.memory_accesses,
+                        )
+                }
+                AbstractOperation::StructuralByteViewFieldStore { .. } => {
+                    structural_fields::view_replacement_retained(abstracted, operation, targeted)
+                        && structural_fields::view_replacement_footprints_retained(
+                            operation,
+                            &selected.memory_accesses,
+                        )
                 }
                 AbstractOperation::ByteSequenceStore { .. } | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
                     structural_fields::replacement_retained(abstracted, operation, targeted)

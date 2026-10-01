@@ -281,9 +281,61 @@ pub(super) fn indexed_read_retained(
         && reads.next().is_none()
 }
 
-/// The one footprint row an indexed field byte read publishes: its source
-/// root, one byte, and its own selector, length and obligation.
+/// Whether an indexed field read follows a shared view field's descriptor
+/// pointer rather than addressing inline bounded-owned bytes. The carrier is
+/// resolved from the exact root declaration, never from a footprint shape.
+pub(super) fn reads_through_descriptor(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::StructuralByteSequenceFieldRead {
+        source,
+        path,
+        field,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    read_access(function, target, *source, AccessPurpose::Field).is_some_and(|(_, root)| {
+        field_carrier(target, root, path, *field)
+            == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            })
+    })
+}
+
+/// The declared byte carrier of `field` below `root` along a static path.
+fn field_carrier(
+    target: &TargetFunction,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<terminal_psi::ByteSequenceCarrier> {
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &terminal_semantics::runtime_structural_path_tip(
+            target.graph.structural_types.iter(),
+            root,
+            path,
+        )?
+        .shape
+    else {
+        return None;
+    };
+    fields
+        .iter()
+        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+        .field_type
+        .byte_sequence_carrier()
+}
+
+/// The footprint rows an indexed field byte read publishes: its source root,
+/// one byte, and its own selector, length and obligation. A read through a
+/// shared view field's descriptor first loads that descriptor's pointer word
+/// from the same root.
 pub(super) fn indexed_read_footprint_retained(
+    through_descriptor: bool,
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
 ) -> bool {
@@ -304,6 +356,14 @@ pub(super) fn indexed_read_footprint_retained(
     let mut effects = accesses
         .iter()
         .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    if through_descriptor {
+        let Some(pointer) = effects.next() else {
+            return false;
+        };
+        if pointer.place != *source || pointer.byte_count != 8 || pointer.role != Role::ReadPlace {
+            return false;
+        }
+    }
     let Some(read) = effects.next() else {
         return false;
     };
@@ -317,6 +377,95 @@ pub(super) fn indexed_read_footprint_retained(
         } if retained_index == *index && retained_length == *length
             && retained_obligation == *obligation)
         && effects.next().is_none()
+}
+
+/// Account for one descriptor replacement's exact graph occurrence: the
+/// exclusive destination, field and literal source the target retained.
+pub(super) fn view_replacement_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::StructuralByteViewFieldStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        source,
+    } = operation
+    else {
+        return false;
+    };
+    let Some(expected_destination) =
+        write_destination(function, target, *destination, path, AccessPurpose::Field)
+    else {
+        return false;
+    };
+    if source == destination {
+        return false;
+    }
+    let mut replacements = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation {
+            TargetUnitOperation::StructuralByteViewFieldStore {
+                psi_operation: identity,
+                destination,
+                field,
+                source,
+            } if identity == psi_operation => Some((destination, field, source)),
+            _ => None,
+        });
+    matches!(replacements.next(), Some((actual_destination, actual_field, actual_source))
+        if *actual_destination == expected_destination && actual_field == field
+            && actual_source == source)
+        && replacements.next().is_none()
+}
+
+/// The four footprint rows of a descriptor replacement: the literal
+/// descriptor's pointer and extent words read in order, then the same two
+/// words written at the field's descriptor in the destination root.
+pub(super) fn view_replacement_footprints_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::StructuralByteViewFieldStore {
+        psi_operation,
+        source,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation))
+        .collect::<Vec<_>>();
+    let [pointer, extent, pointer_write, extent_write] = effects.as_slice() else {
+        return false;
+    };
+    pointer.place == *source
+        && pointer.byte_offset == 0
+        && pointer.byte_count == 8
+        && pointer.role == Role::ReadPlace
+        && extent.place == *source
+        && extent.byte_offset == 8
+        && extent.byte_count == 8
+        && extent.role == Role::ReadPlace
+        && pointer_write.place == extent_write.place
+        && pointer_write.byte_count == 8
+        && extent_write.byte_count == 8
+        && pointer_write.role == Role::WritePlace
+        && extent_write.role == Role::WritePlace
+        && pointer_write.byte_offset.checked_add(8) == Some(extent_write.byte_offset)
+        && pointer.instruction < extent.instruction
+        && extent.instruction < pointer_write.instruction
+        && pointer_write.instruction < extent_write.instruction
 }
 
 /// Account for replacement's exact graph occurrence. Mandatory source/selection

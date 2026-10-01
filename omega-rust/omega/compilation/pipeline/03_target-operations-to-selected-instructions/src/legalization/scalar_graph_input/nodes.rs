@@ -92,6 +92,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::ByteSequenceStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
+    | AbstractOperation::StructuralByteViewFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
     | AbstractOperation::MoveStructuralField { psi_operation, .. }
@@ -550,6 +551,13 @@ pub(super) fn validate(
                 || !node.definitions.is_empty()
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
             {
+                return Err(LegalizationError::custody());
+            }
+            continue;
+        }
+        // A descriptor replacement has no scalar operand or result.
+        if let AbstractOperation::StructuralByteViewFieldStore { .. } = &node.operation {
+            if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
             }
             continue;

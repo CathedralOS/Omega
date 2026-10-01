@@ -106,6 +106,71 @@ impl TerminalExecution {
         field: StructuralFieldId,
         requires_mutation: bool,
     ) -> Result<(StructuralByteSequenceRuntimeField, u64), TerminalInterpretError> {
+        let (cell, carrier) =
+            self.resolve_structural_byte_field_carrier(root, path, field, requires_mutation)?;
+        let ByteSequenceCarrier::BoundedOwned { capacity } = carrier else {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        };
+        Ok((cell, capacity))
+    }
+
+    /// Dispatch charges fuel first. The verifier admitted only a literal
+    /// source, whose immutable bytes the field now shares: the descriptor is
+    /// replaced whole and the displaced view's backing is left untouched.
+    pub(crate) fn execute_structural_byte_view_field_store(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            source,
+        } = &operation.kind
+        else {
+            return Err(invalid());
+        };
+        if operation.result != OperationResult::Unit || destination == source {
+            return Err(invalid());
+        }
+        let (destination_field, carrier) =
+            self.resolve_structural_byte_field_carrier(*destination, path, *field, true)?;
+        if carrier
+            != (ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            })
+        {
+            return Err(invalid());
+        }
+        let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
+        if !source_value.path.is_empty()
+            || !matches!(self.program.structural_types.get(&source_value.structural_type),
+                Some(declaration) if declaration.shape.is_borrowed_byte_view())
+        {
+            return Err(invalid());
+        }
+        let view = self
+            .byte_sequence_values
+            .get(source)
+            .ok_or_else(invalid)?
+            .immutable()?
+            .clone();
+        self.structural_byte_sequence_fields
+            .insert(destination_field, view);
+        Ok(())
+    }
+
+    /// Resolve one byte field's runtime cell and its declared carrier below
+    /// the current home of `root`. Callers decide which carriers they admit.
+    pub(crate) fn resolve_structural_byte_field_carrier(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: StructuralFieldId,
+        requires_mutation: bool,
+    ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
+    {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
@@ -198,17 +263,16 @@ impl TerminalExecution {
             .iter()
             .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
             .ok_or_else(invalid)?;
-        let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            field_declaration.field_type.byte_sequence_carrier()
-        else {
-            return Err(invalid());
-        };
+        let carrier = field_declaration
+            .field_type
+            .byte_sequence_carrier()
+            .ok_or_else(invalid)?;
         Ok((
             StructuralByteSequenceRuntimeField {
                 parent: StructuralRuntimePlace::from(&parent),
                 field,
             },
-            capacity,
+            carrier,
         ))
     }
 }

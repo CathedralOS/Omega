@@ -1,0 +1,14 @@
+// A stored view's source must establish every predicate its field declares.
+// The `name` field is `in Utf8`, and the literal's octets are not valid UTF-8,
+// so the descriptor store is rejected rather than relaxing the field.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    name: &[u8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.name = "\xff";
+}

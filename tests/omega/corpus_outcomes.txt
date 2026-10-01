@@ -120,6 +120,8 @@ fail/borrow/undeclared_lifetime_tag rejected 260ms expected @2d8ed253669f
 	data `Bad` field `body` uses undeclared lifetime `'ghost'; declare it in the owner's generic parameter list
 fail/borrow/vec_view_invalidated_by_push rejected 775ms expected @2d8ed253669f
 	state `push` receives mutable receiver while local borrow `view` is still active
+fail/borrow/view_field_store_parameter_view_outlives_call rejected 152ms expected @1c0bb7bc95d0+wt
+	assignment stores a borrow-carrying value in persistent field `label` of machine `Main::keep`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/view_return_ambiguous_ref_inputs rejected 827ms expected @2d8ed253669f
 	machine `pick_either` returns a view but takes 2 candidate ref inputs (`a`, `b`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 fail/borrow/write_only_implicit_attenuation rejected 307ms expected @2d8ed253669f
@@ -563,6 +565,8 @@ fail/domains/semantic_cast_fact_false rejected 280ms expected @2d8ed253669f
 	`as ... in Km` cannot mint: a `Km` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 fail/domains/unit_membership_postcondition_unestablished rejected 323ms expected @45c8d6b8b1ce+wt
 	cannot prove ensures contract for exit from Main::spoil at statement 1: self.raw in [u8; N]::Utf8
+fail/domains/view_field_store_literal_outside_domain rejected 149ms expected @1c0bb7bc95d0+wt
+	cannot prove the value assigned to `self.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/drops/authored_cleanup_static_argument_rejected rejected 116ms expected @2d8ed253669f
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: parameter 0 has a different calling mode
 fail/drops/drop_ensures_unlocked_predicate rejected 703ms expected @2d8ed253669f
@@ -1466,8 +1470,7 @@ pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejec
 	native artifact native artifact lowering failed: Lowering(InvalidStructuralScalarFieldStore(OperationId(17)))
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 1073ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms @ca8c127c90c5
-pass/control_flow/runtime_string_literal_dispatch_exit rejected 745ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/control_flow/runtime_string_literal_dispatch_exit checked 805ms @1c0bb7bc95d0+wt
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 1457ms @84c87cb730d8
 pass/control_flow/runtime_tuple_case_destructure_exit checked 1792ms @84c87cb730d8
 pass/control_flow/runtime_tuple_transition_exit checked 649ms @350be0d2a211+wt
@@ -1567,11 +1570,11 @@ pass/domains/unit_membership_postcondition_exit checked 3141ms @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
 pass/domains/utf8_equals_literal_exit checked 1773ms @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 659ms @54a65e21a512+wt
-pass/domains/utf8_field_read_carries_domain_exit rejected 748ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
+pass/domains/utf8_field_read_carries_domain_exit checked 788ms @1c0bb7bc95d0+wt
 pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at structural field store: destination parameter, statement 1)") })
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
+pass/domains/view_field_literal_store_reads_exit checked 811ms @1c0bb7bc95d0+wt
 pass/drops/cleanup_machine_drop_shape checked 291ms @2d8ed253669f
 pass/drops/core_drop_explicit_consume checked 296ms @2d8ed253669f
 pass/drops/core_drop_owner_hook checked 290ms @2d8ed253669f
@@ -2154,8 +2157,8 @@ pass/text/runtime_bounded_carrier_normal_status_exit checked 1839ms @2d8ed253669
 pass/text/runtime_bounded_carrier_write_read_exit checked 2050ms @2d8ed253669f
 pass/text/runtime_carrier_indexed_read_exit checked 1382ms @2d8ed253669f
 pass/text/runtime_chained_string_append_exit checked 1690ms @2d8ed253669f
-pass/text/runtime_local_struct_string_field_concat_exit rejected 753ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/text/runtime_local_struct_string_field_concat_exit rejected 550ms @1c0bb7bc95d0+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 763ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit checked 2214ms @2d8ed253669f
@@ -2169,8 +2172,8 @@ pass/text/runtime_stdin_command_branch_exit rejected 773ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit checked 1229ms @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit checked 1760ms @2d8ed253669f
-pass/text/runtime_string_stored_suffix_exit rejected 761ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/text/runtime_string_stored_suffix_exit rejected 536ms @1c0bb7bc95d0+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
 pass/text/runtime_text_builder checked 1509ms @2d8ed253669f
 pass/text/runtime_text_not_equals_exit checked 2640ms @d0c1840f255b
 pass/text/runtime_utf16_literal_exit checked 1329ms @2d8ed253669f

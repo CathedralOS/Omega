@@ -315,6 +315,20 @@ pub(super) fn project(
                 node, optimized, unit, custody,
             )?
         }
+        AbstractOperation::StructuralByteViewFieldStore { field, source, .. } => {
+            LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                destination:
+                    crate::legalization::scalar_graph_input::structural_fields::view_replacement(
+                        optimized,
+                        &node.operation,
+                        &unit.structural_types,
+                        custody,
+                    )
+                    .ok_or(LegalizationError::custody())?,
+                field: *field,
+                source: *source,
+            }
+        }
         AbstractOperation::ByteSequenceWrite { .. } => {
             storage_instructions::project_byte_sequence_write(node, optimized, unit)?
         }

@@ -15,6 +15,7 @@ mod constraints;
 mod construction;
 mod edge_transfers;
 mod element_view_homes;
+mod field_bytes;
 mod established_view_input;
 mod identity;
 mod integer_conversion;

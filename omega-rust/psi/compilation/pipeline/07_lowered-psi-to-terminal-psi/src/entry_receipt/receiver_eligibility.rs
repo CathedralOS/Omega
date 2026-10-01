@@ -751,6 +751,25 @@ fn zero_valid_fields(
                     predicates.holds_for(&[])
                         && zero_valid_byte_field(checked, field_reference(field), capacity)
                 }
+                // Zero descriptor storage is the empty shared view: it
+                // borrows no backing, so it owes no lifetime, and a declared
+                // predicate must hold for the empty sequence
+                // (structural_access.md, zero-initialized attachment storage).
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                ) => zero_valid_view_field(checked, field_reference(field)),
+                StructuralFieldType::PredicateByteSequence {
+                    carrier:
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        },
+                    predicates,
+                } => {
+                    predicates.holds_for(&[])
+                        && zero_valid_view_field(checked, field_reference(field))
+                }
                 StructuralFieldType::Erased { .. } => is_receiver || determined_erased,
                 StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::PredicateByteSequence { .. } => false,
@@ -943,6 +962,47 @@ fn zero_valid_byte_field(
     )
 }
 
+/// Zero descriptor storage is the empty view. Rejoin the source field: it
+/// must declare a shared `&[u8]` view, and every declared domain must be a
+/// byte predicate the empty sequence satisfies.
+fn zero_valid_view_field(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
+    if !reference.is_valid()
+        || !checked_trees::byte_predicates::type_reference_domain_predicates(
+            &checked.typed,
+            reference,
+        )
+        .iter()
+        .all(|(_, predicate)| predicate.is_some_and(|predicate| predicate.holds_for(&[])))
+    {
+        return false;
+    }
+    // `&[u8] in D` constrains the referee, `(&[u8]) in D` the reference;
+    // either spelling denotes the same shared byte view.
+    let unconstrained = |mut carrier: TypeReferenceHandle| {
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            checked.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        carrier
+    };
+    let TypeReferenceNode::Reference {
+        access: ReferenceAccess::Shared,
+        referee,
+        ..
+    } = checked
+        .type_reference_table
+        .type_reference(unconstrained(reference))
+    else {
+        return false;
+    };
+    matches!(
+        checked.type_reference_table.type_reference(unconstrained(*referee)),
+        TypeReferenceNode::Slice { element_type }
+            if checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1065,6 +1125,26 @@ mod tests {
         ] {
             assert_eq!(determined_evidence_rows(ineligible), None, "{ineligible}");
         }
+    }
+
+    #[test]
+    fn zero_shared_view_fields_are_empty_views_only_where_their_domains_admit_empty() {
+        // `&[u8] in Text` constrains the referee; the empty view must satisfy
+        // every predicate the source domain names, not only the Terminal set.
+        let source = |predicate: &str| {
+            format!(
+                "domain [u8]::Text requires {predicate}(self);
+                 data Main {{ value: i32; plain: &[u8]; text: &[u8] in Text; }}
+                 machine Main::run(&mut self) {{ self.value = 7; }}"
+            )
+        };
+        let (module, eligible) = produce_run(&check_source(&source("valid_utf8"))).unwrap();
+        assert!(eligible, "zero view storage is the empty, valid UTF-8 view");
+        assert_zero_invalid_storage_refused(
+            &source("non_empty"),
+            &module,
+            "InvalidStructuralFieldIdentity",
+        );
     }
 
     #[test]
@@ -1522,8 +1602,9 @@ mod tests {
             "InvalidStructuralFieldIdentity",
         );
         for source in [
-            // A borrowed view payload has no owned bytes to provision.
-            "data Event { case Say(text: &[u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            // An exclusive view payload would alias storage provisioning cannot
+            // supply; a zero shared view is the empty view instead.
+            "data Event { case Say(text: &mut [u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
             // A range-gated payload beneath the zero tag is not an established
             // value; the same source gate also rejects this receiver earlier.
             "data Event { case Loud(gain: i32 [1..=9]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",

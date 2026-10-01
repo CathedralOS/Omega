@@ -117,6 +117,16 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Replace one shared borrowed-view field's two-word descriptor with the
+    /// whole source view's. No byte moves; the verifier admitted only a
+    /// literal source, whose image backing outlives every root.
+    StructuralByteViewFieldStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        source: PlaceId,
+    },
     /// Read one live field byte through the exact field's current length
     /// observation and the bounds obligation `index < length`.
     StructuralByteSequenceFieldRead {
@@ -706,6 +716,7 @@ impl AbstractOperation {
             | Self::StructuralCaseMembership { path, .. }
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
+            | Self::StructuralByteViewFieldStore { path, .. }
             | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }
             | Self::MoveStructuralField { path, .. } => vec![path.as_slice()],
@@ -744,6 +755,7 @@ impl AbstractOperation {
             | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
             | Self::ByteSequenceStore { psi_operation, .. }
             | Self::StructuralByteSequenceFieldStore { psi_operation, .. }
+            | Self::StructuralByteViewFieldStore { psi_operation, .. }
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }

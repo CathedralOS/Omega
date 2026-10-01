@@ -234,6 +234,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::IntegerStructuralField { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteViewFieldStore { .. }
         | O::BooleanStructuralField { .. }
         | O::StructuralCaseMembership { .. }
         // Borrowed-storage window operations move custody of structural

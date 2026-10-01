@@ -220,6 +220,23 @@ fn changes_length(
                 && field_path(module, machine, *destination, written, *field, true, false)
                     .is_none_or(|written| overlaps(path, &written))
         }
+        // A descriptor replacement installs another view, whose extent is the
+        // source's: no earlier observation of the replaced field stays current.
+        OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path: written,
+            field,
+            ..
+        } => {
+            *destination == root
+                && stored_field_identity(module, machine, root, written, field).is_none_or(
+                    |identity| {
+                        let mut written = written.clone();
+                        written.push(StructuralPathSegment::Field(identity));
+                        overlaps(path, &written)
+                    },
+                )
+        }
         // A whole-field move or reseat replaces the stored view descriptor an
         // element-view extent observation measured, so the observation is not
         // current across it. A root window replaces the whole referent, which

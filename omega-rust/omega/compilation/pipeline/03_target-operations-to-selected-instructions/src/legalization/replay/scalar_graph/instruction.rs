@@ -711,6 +711,31 @@ pub(super) fn validate(
             actual, node, optimized, plan, unit, operation, custody,
         )?,
         (
+            LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                destination,
+                field,
+                source,
+            },
+            AbstractOperation::StructuralByteViewFieldStore {
+                field: expected_field,
+                source: expected_source,
+                ..
+            },
+        ) => {
+            if Some(destination.clone())
+                != scalar_graph_input::structural_fields::view_replacement(
+                    optimized,
+                    &node.operation,
+                    &plan.structural_types,
+                    custody,
+                )
+                || field != expected_field
+                || source != expected_source
+            {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ElementViewWrite { .. },
             AbstractOperation::ElementViewWrite { .. },
         ) => storage_instructions::validate_element_view_write(

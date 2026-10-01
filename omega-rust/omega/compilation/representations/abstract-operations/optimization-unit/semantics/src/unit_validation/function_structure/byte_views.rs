@@ -70,6 +70,76 @@ pub(crate) fn byte_field_store_capacity(
         } => (destination, path, field),
         _ => return None,
     };
+    // A byte index bound proves address safety, not preservation of a whole
+    // carrier predicate such as UTF-8. A store into a predicate-bearing field
+    // is admitted here by its carrier alone; its accepted goal must carry the
+    // stored byte's class legs (the obligation catalog checks that) and a
+    // UTF-8 field must be all-ASCII on every path (`byte_predicates`).
+    let whole_field_store = matches!(
+        operation,
+        AbstractOperation::StructuralByteSequenceFieldStore { .. }
+    );
+    match writable_byte_field_carrier(
+        function,
+        *destination,
+        path,
+        *field,
+        whole_field_store,
+        structural_types,
+    )? {
+        ByteSequenceCarrier::BoundedOwned { capacity } => Some(capacity),
+        _ => None,
+    }
+}
+
+/// A descriptor replacement writes one shared borrowed-view field below the
+/// same exclusive destination a bounded field store names. Its source must
+/// be a literal place: image storage is the only backing the verifier
+/// admitted as outliving the destination root.
+pub(crate) fn byte_view_field_store_is_valid(
+    function: &PsiOptimizationFunction,
+    operation: &AbstractOperation,
+    source_kind: Option<&StructuralPlaceKind>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> bool {
+    let AbstractOperation::StructuralByteViewFieldStore {
+        destination,
+        path,
+        field,
+        source,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    destination != source
+        && matches!(source_kind, Some(StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. })
+        if structural_types.get(structural_type).is_some_and(|declaration| {
+            declaration.shape.is_borrowed_byte_view()
+        }))
+        && writable_byte_field_carrier(
+            function,
+            *destination,
+            path,
+            *field,
+            false,
+            structural_types,
+        ) == Some(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        })
+}
+
+/// The declared carrier of one byte field below an exclusive, unqualified,
+/// claim-free parameter or an explicit mutable-record `Referent` crossing.
+fn writable_byte_field_carrier(
+    function: &PsiOptimizationFunction,
+    destination: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+    whole_field_store: bool,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<ByteSequenceCarrier> {
+    let destination = &destination;
     let (root_type, storage_path) = if matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
@@ -80,19 +150,17 @@ pub(crate) fn byte_field_store_capacity(
             *destination,
             path,
         )?
-    } else if matches!(
-        operation,
-        AbstractOperation::StructuralByteSequenceFieldStore { .. }
-    ) && function.structural_places.iter().any(|place| {
-        place.id == *destination
-            && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
-    }) {
-        let owned =
-            super::super::operation_contracts::structural_source_contract(
-                function,
-                *destination,
-                false,
-            )?;
+    } else if whole_field_store
+        && function.structural_places.iter().any(|place| {
+            place.id == *destination
+                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+        })
+    {
+        let owned = super::super::operation_contracts::structural_source_contract(
+            function,
+            *destination,
+            false,
+        )?;
         if owned.access != StructuralAccess::Owned
             || owned.multiplicity != StructuralMultiplicity::Unrestricted
             || !owned.is_unqualified()
@@ -114,7 +182,7 @@ pub(crate) fn byte_field_store_capacity(
         }
         // The existing whole-unit availability walk still requires the exact
         // producer to dominate this write. Shape resolution grants no storage.
-        (owned.structural_type, path.as_slice())
+        (owned.structural_type, path)
     } else {
         let parameter = function
             .structural_parameters
@@ -148,7 +216,7 @@ pub(crate) fn byte_field_store_capacity(
         {
             return None;
         }
-        (parameter.structural_type, path.as_slice())
+        (parameter.structural_type, path)
     };
     if !terminal_psi::is_bounded_structural_scalar_store_path(storage_path) {
         return None;
@@ -161,18 +229,11 @@ pub(crate) fn byte_field_store_capacity(
     let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
         return None;
     };
-    let selected = fields
+    fields
         .iter()
-        .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
-    // A byte index bound proves address safety, not preservation of a whole
-    // carrier predicate such as UTF-8. A store into a predicate-bearing field
-    // is admitted here by its carrier alone; its accepted goal must carry the
-    // stored byte's class legs (the obligation catalog checks that) and a
-    // UTF-8 field must be all-ASCII on every path (`byte_predicates`).
-    match selected.field_type.byte_sequence_carrier() {
-        Some(ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
-        _ => None,
-    }
+        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+        .field_type
+        .byte_sequence_carrier()
 }
 
 pub(super) fn validate_byte_view_source(

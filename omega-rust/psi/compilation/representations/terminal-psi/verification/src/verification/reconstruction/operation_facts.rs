@@ -343,6 +343,7 @@ pub(super) fn append_operation(
         OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
+            | OperationKind::StructuralByteViewFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::MoveStructuralField { .. }
             | OperationKind::StoreStructuralField { .. }
@@ -386,6 +387,7 @@ pub(super) fn append_operation(
                     OperationKind::StructuralScalarFieldStore { destination, .. }
                     | OperationKind::ByteSequenceStore { destination, .. }
                     | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+                    | OperationKind::StructuralByteViewFieldStore { destination, .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
                     | OperationKind::StoreStructuralField { destination, .. } => *destination,
                     OperationKind::MoveStructuralField { source, .. } => *source,
@@ -721,6 +723,7 @@ pub(super) fn append_operation(
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteViewFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }

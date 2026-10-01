@@ -171,6 +171,8 @@ const BYTE_OWNER_LOAN_SEMANTICS_SOURCE: &[u8] =
     include_bytes!("../../semantics/src/call_composition/bounded_byte_owner.rs");
 const BYTE_FIELD_STORE_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/structural/byte_sequence_store.rs");
+const BYTE_VIEW_FIELD_STORE_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../verification/src/validation/structural/byte_view_field_store.rs");
 const BYTE_FIELD_ACCESS_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/structural/byte_sequence_fields.rs");
 const BYTE_FIELD_FRESHNESS_SOURCE: &[u8] = include_bytes!(
@@ -688,7 +690,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            44
+            45
         );
         assert_eq!(
             graph
@@ -704,7 +706,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            31
+            32
         );
         assert_eq!(
             graph
@@ -714,7 +716,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 85);
+        assert_eq!(OperationSemanticRow::ALL.len(), 87);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -784,7 +786,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            75
+            77
         );
         assert_eq!(
             OperationSemanticRow::ALL

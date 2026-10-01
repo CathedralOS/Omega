@@ -1,0 +1,58 @@
+// RUN CANARY (exit 70). A shared view field takes a literal's descriptor:
+// replacing `name` twice leaves the second literal, `raw` holds non-UTF-8
+// octets because its plain declaration imposes no predicate, and the
+// qualified `name` field is lent whole to a `&[u8] in Utf8` parameter.
+// Its length and bytes are observed through the stored descriptor, and a
+// later state compares the raw field with the same octets.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    name: &[u8] in Utf8;
+    raw: &[u8];
+}
+
+machine Main::check(&self, text: &[u8] in Utf8) reaches Console {
+    transition text == "Door" {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.name = "Gate";
+    self.raw = "\xff\x00";
+    self.name = "Door";
+
+    transition self.raw.len == 2 {
+        true -> raw_bytes()
+        false -> wrong()
+    }
+
+    state raw_bytes(&mut self) {
+        transition self.raw == "\xff\x00" {
+            true -> report()
+            false -> wrong()
+        }
+    }
+
+    state report(&mut self) {
+        self.check(self.name);
+    }
+
+    state wrong(&mut self) {
+        self.console.exit_process(72);
+    }
+}

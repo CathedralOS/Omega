@@ -139,6 +139,90 @@ fn writable_field(
     field: semantic_vocabulary::StructuralFieldId,
     owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
+    writable_byte_field(
+        function,
+        structural_types,
+        live,
+        destination,
+        path,
+        field,
+        owned_home,
+        |carrier| {
+            matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        },
+    )
+}
+
+/// Replace a shared view field's descriptor with an established literal
+/// view's. The verifier admitted only literal sources; this lowering keeps
+/// that join rather than relocating an arbitrary live view into the field.
+pub(super) fn replace_view_descriptor(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    let AbstractOperation::StructuralByteViewFieldStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        source,
+    } = operation
+    else {
+        return Err(unsupported());
+    };
+    let destination_argument = writable_byte_field(
+        function,
+        structural_types,
+        live,
+        *destination,
+        path,
+        *field,
+        None,
+        |carrier| {
+            carrier
+                == terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                }
+        },
+    )?;
+    let literal = live.views.get(source).is_some_and(|(producer, _)| {
+        function.operations.iter().any(|operation| {
+            matches!(operation, AbstractOperation::EstablishByteSequenceLiteral {
+                psi_operation, place, ..
+            } if psi_operation == producer && place.id == *source)
+        })
+    });
+    if source == destination || !literal {
+        return Err(unsupported());
+    }
+    operations.push(TargetUnitOperation::StructuralByteViewFieldStore {
+        psi_operation: *psi_operation,
+        destination: destination_argument,
+        field: *field,
+        source: *source,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+fn writable_byte_field(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    destination: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+    owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
+    carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
+) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let (root, root_type, access, path) = if let Some(home) = owned_home.filter(|home| {
         structural_types
             .get(&home.structural_type())
@@ -238,10 +322,10 @@ fn writable_field(
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if matching.next().is_some()
         || selected.relevance.is_erased()
-        || !matches!(
-            selected.field_type.byte_sequence_carrier(),
-            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-        )
+        || !selected
+            .field_type
+            .byte_sequence_carrier()
+            .is_some_and(carrier_admitted)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

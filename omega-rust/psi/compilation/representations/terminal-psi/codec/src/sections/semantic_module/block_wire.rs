@@ -221,6 +221,18 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             length,
             obligation,
         )?,
+        OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            source,
+        } => storage_operations::encode_structural_byte_view_field_store(
+            writer,
+            destination,
+            path,
+            field,
+            source,
+        )?,
         OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
@@ -799,6 +811,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         },
         operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
             storage_operations::decode_structural_byte_sequence_field_store(reader)?
+        }
+        operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
+            storage_operations::decode_structural_byte_view_field_store(reader)?
         }
         operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => {
             storage_operations::decode_structural_byte_sequence_field_length(reader)?

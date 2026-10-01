@@ -935,6 +935,9 @@ pub(super) fn validate_uses(
     }
     | OperationKind::StructuralByteSequenceFieldStore {
         destination, path, ..
+    }
+    | OperationKind::StructuralByteViewFieldStore {
+        destination, path, ..
     } = &operation.kind
         && path.first() == Some(&StructuralPathSegment::Referent)
         && !machine
@@ -1507,6 +1510,9 @@ pub(super) fn apply_operation(
             destination, path, ..
         }
         | OperationKind::StructuralByteSequenceFieldStore {
+            destination, path, ..
+        }
+        | OperationKind::StructuralByteViewFieldStore {
             destination, path, ..
         } => {
             if mutable_record_field_destination(module, machine, *destination, path).is_some() {

@@ -128,11 +128,19 @@ pub(super) fn readable_byte_field(
     };
     let mut matching = fields.iter().filter(|candidate| candidate.id == field);
     let selected = matching.next().ok_or_else(unsupported)?;
+    // A shared view field is observed through its stored descriptor: the
+    // length is the descriptor's extent word and bytes live behind its
+    // pointer. Neither observation creates a borrow of that backing.
     if matching.next().is_some()
         || selected.relevance.is_erased()
         || !matches!(
             selected.field_type.byte_sequence_carrier(),
-            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+            Some(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    }
+            )
         )
     {
         return Err(unsupported());

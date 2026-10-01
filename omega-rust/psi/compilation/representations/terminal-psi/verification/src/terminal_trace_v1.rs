@@ -341,6 +341,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteViewFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }

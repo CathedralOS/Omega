@@ -273,6 +273,18 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Replace one shared borrowed-view field's descriptor with a whole
+    /// immutable view: afterwards the field denotes the source's exact
+    /// backing and extent. No byte is copied, and the displaced descriptor's
+    /// backing is neither read nor released. A stored view must not outlive
+    /// its backing, so the source's backing must outlive the destination
+    /// root; source predicates must imply the field's declared predicates.
+    StructuralByteViewFieldStore {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        source: PlaceId,
+    },
     /// Read one byte of the exact field's live storage using its dominating
     /// length observation. `path` resolves from the root to the record
     /// containing `field`; the certificate proves index < length against the
@@ -1052,6 +1064,7 @@ impl OperationKind {
             | Self::EstablishMutableElementView { .. }
             | Self::ElementViewLength { .. }
             | Self::StructuralByteSequenceFieldLength { .. }
+            | Self::StructuralByteViewFieldStore { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::StoreDynamicDescriptor { .. }
             | Self::CallDynamicScalar { .. }

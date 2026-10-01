@@ -178,6 +178,18 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
+                O::StructuralByteViewFieldStore { source, .. } => {
+                    if !super::byte_views::byte_view_field_store_is_valid(
+                        function,
+                        &node.operation,
+                        place_kinds.get(source),
+                        structural_types,
+                    ) {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
                 O::StructuralByteSequenceFieldLength {
                     source,
                     path,
@@ -216,8 +228,13 @@ pub(crate) fn validate_structural_root_operations(
                             .is_some_and(|declaration| match &declaration.shape {
                                 terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().any(|candidate|
                                     candidate.id == *field && !candidate.relevance.is_erased()
+                                    // A shared view field is observed through
+                                    // its stored descriptor, like a whole view.
                                     && matches!(candidate.field_type.byte_sequence_carrier(), Some(
-                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))),
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                        | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                        }))),
                                 _ => false,
                             })
                         });

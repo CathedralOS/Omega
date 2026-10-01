@@ -432,6 +432,16 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
+        AbstractOperation::StructuralByteViewFieldStore { .. } => {
+            super::byte_write::replace_view_descriptor(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::ByteSequenceStore { .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { .. } => super::byte_write::replace(
             operation,

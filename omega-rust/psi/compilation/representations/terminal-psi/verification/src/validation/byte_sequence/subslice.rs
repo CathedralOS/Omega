@@ -204,6 +204,16 @@ pub(in crate::validation) fn validate_uses(
             require(*destination)?;
             require(*source)
         }
+        // The replaced field's home and the stored view must both be live
+        // here: a later arrival's establishment supplies neither.
+        OperationKind::StructuralByteViewFieldStore {
+            destination,
+            source,
+            ..
+        } => {
+            require_field(*destination)?;
+            require(*source)
+        }
         OperationKind::ByteSequenceLength { source }
         | OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }

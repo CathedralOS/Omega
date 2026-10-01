@@ -38,6 +38,8 @@ pub enum LoweringError {
     InvalidByteSequenceConcatenation(semantic_vocabulary::OperationId),
     /// Bounded byte-field replacement did not retain its Unit effect.
     InvalidStructuralByteSequenceFieldStore(semantic_vocabulary::OperationId),
+    /// Borrowed-view field descriptor replacement did not retain its Unit effect.
+    InvalidStructuralByteViewFieldStore(semantic_vocabulary::OperationId),
     /// Terminal verifies indexed reads on byte-sequence fields, but Omega has
     /// no target-neutral abstract operation for realizing the field read yet.
     UnsupportedStructuralByteSequenceFieldRead(semantic_vocabulary::OperationId),

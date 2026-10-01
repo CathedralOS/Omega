@@ -262,6 +262,12 @@ fn touched_regions(
             field,
             source,
             ..
+        }
+        | OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            source,
         } => vec![
             field_region(destination, path, *field),
             (*source, Vec::new()),

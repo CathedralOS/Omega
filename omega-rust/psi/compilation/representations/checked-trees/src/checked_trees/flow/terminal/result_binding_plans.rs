@@ -47,6 +47,13 @@ pub enum CheckedByteSequenceStoreDestination {
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,
         field_identity: String,
     },
+    /// One shared borrowed-view field whose descriptor the value replaces;
+    /// no bytes are copied. The value is a literal, whose image storage
+    /// outlives every root.
+    ViewField {
+        carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+        field_identity: String,
+    },
 }
 
 /// Pure byte values retain authored evaluation order through arena children.

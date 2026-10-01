@@ -164,6 +164,12 @@ pub(crate) fn structural_field_store_write_path(
             field,
             ..
         }
+        | OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
         | OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

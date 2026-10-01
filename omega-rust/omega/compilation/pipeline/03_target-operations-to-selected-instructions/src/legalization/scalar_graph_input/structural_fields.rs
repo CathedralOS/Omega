@@ -201,6 +201,75 @@ pub(in crate::legalization) fn replacement(
     })
 }
 
+/// The exclusive root a shared view field's descriptor replacement writes,
+/// rejoined like a bounded field replacement. The descriptor geometry must
+/// resolve, and the source must be an established literal: the verifier
+/// admitted no other view as outliving the destination root.
+pub(in crate::legalization) fn view_replacement(
+    function: &PsiOptimizationFunction,
+    operation: &AbstractOperation,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    custody: &super::reference_custody::Custody,
+) -> Option<terminal_psi::StructuralArgument> {
+    let AbstractOperation::StructuralByteViewFieldStore {
+        destination,
+        path,
+        field,
+        source,
+        ..
+    } = operation
+    else {
+        return None;
+    };
+    let (parameter, path) = if let Some(parameter) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)
+    {
+        (parameter.clone(), path.clone())
+    } else {
+        let resolved = super::reference_custody::writable_referent_destination(
+            custody,
+            function,
+            types,
+            *destination,
+            path,
+        )?;
+        (resolved.parameter, resolved.path)
+    };
+    if !matches!(
+        parameter.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || source == destination
+        || super::literals::declaration_producer(function, *source).is_none()
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == parameter.place)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == parameter.place)
+    {
+        return None;
+    }
+    crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+        parameter.structural_type,
+        &path,
+        *field,
+        types,
+    )?;
+    Some(terminal_psi::StructuralArgument {
+        place: parameter.place,
+        access: parameter.access,
+        path,
+    })
+}
+
 /// Rejoin byte-field observations to their original parameter or exact local
 /// producer. Whole-unit custody separately checks availability; neither the
 /// observation nor its field geometry creates storage or borrowed authority.
@@ -290,12 +359,24 @@ pub(in crate::legalization) fn byte_read(
     {
         return None;
     }
+    // A bounded owner holds its bytes inline; a shared view field holds a
+    // descriptor whose pointer the read follows.
     crate::structural_inputs::structural_reference_input::byte_field_storage(
         structural_type,
         path,
         *field,
         types,
-    )?;
+    )
+    .map(|_| ())
+    .or_else(|| {
+        crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+            structural_type,
+            path,
+            *field,
+            types,
+        )
+        .map(|_| ())
+    })?;
     Some(terminal_psi::StructuralArgument {
         place: *source,
         access,

@@ -1,0 +1,16 @@
+// A stored view must not outlive its backing. `keep` stores its call-scoped
+// parameter view into the persistent `self.label` field: the caller's loan
+// ends at return, so the field would outlive the bytes it denotes. Only a
+// quoted literal, whose image storage outlives every root, may be stored
+// without a lifetime relating the view to the record.
+data Main {
+    label: &[u8];
+}
+
+machine Main::keep(&mut self, text: &[u8]) {
+    self.label = text;
+}
+
+machine Main::main(&mut self) {
+    self.keep("Gate");
+}

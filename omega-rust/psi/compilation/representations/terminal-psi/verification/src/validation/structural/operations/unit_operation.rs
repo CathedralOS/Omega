@@ -110,6 +110,11 @@ pub(crate) fn validate_unit_operation_static(
                 module, machine, operation,
             )?;
         }
+        OperationKind::StructuralByteViewFieldStore { .. } => {
+            crate::validation::structural::byte_view_field_store::validate(
+                module, machine, operation,
+            )?;
+        }
         OperationKind::EstablishScalarCase { .. } => {
             crate::validation::scalar::case::fields(module, machine, operation)?;
         }

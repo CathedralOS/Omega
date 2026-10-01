@@ -228,7 +228,25 @@ pub(crate) fn structural_arguments_match(
                 parameter,
             )
             .is_some();
-        let byte_field_presentation = buffer_presentation || shared_buffer_presentation;
+        // A stored shared view field lends its own descriptor to a shared
+        // view formal; its declared predicates must imply the formal's.
+        let view_field_presentation = (projection == StructuralProjectionPolicy::Boundary
+            || (projection == StructuralProjectionPolicy::Unit && unrestricted_shared_subloan))
+            && terminal_semantics::stored_view_field_presentation(
+                types.values().copied(),
+                source.structural_type,
+                argument,
+                parameter,
+            )
+            .is_some_and(|declared| {
+                terminal_semantics::byte_parameter_predicates_in(
+                    domains.values().copied(),
+                    parameter,
+                )
+                .is_some_and(|required| declared.implies(required))
+            });
+        let byte_field_presentation =
+            buffer_presentation || shared_buffer_presentation || view_field_presentation;
         // Fixed windows borrow their real backing; they do not resolve to an
         // owned structural subtree. Reconstruct the exact array/view relation
         // even after optimization instead of treating equal lengths as identity.
@@ -490,6 +508,7 @@ pub(crate) fn structural_arguments_match(
             };
         if actual_multiplicity != parameter.multiplicity
             || (!bounded_owner_presentation
+                && !view_field_presentation
                 && parameter.qualifications.iter().any(|qualification| {
                     !source.carries_qualification(&argument.path, *qualification)
                 }))

@@ -743,6 +743,55 @@ pub(crate) fn bounded_byte_field_view(
     bounded_byte_field_borrow(source, argument, view_type, declarations, false)
 }
 
+/// A stored shared view field lent whole to a shared view formal: the
+/// argument points at the field's own two-word descriptor, which is the
+/// formal's referent. Returns that descriptor's offset in the root. No
+/// descriptor is synthesized and no backing byte is addressed.
+pub(crate) fn stored_view_field_argument(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<u32> {
+    use terminal_psi::StructuralAccess;
+    let Some((StructuralPathSegment::Field(name), prefix)) = argument.path.split_last() else {
+        return None;
+    };
+    if source.place != argument.place
+        || argument.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            source.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+        || !declarations.iter().any(|declaration| {
+            declaration.id == view_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+        })
+    {
+        return None;
+    }
+    let StructuralTypeShape::Record { fields } = &terminal_semantics::runtime_structural_path_tip(
+        declarations.iter(),
+        source.structural_type,
+        prefix,
+    )?
+    .shape
+    else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *name && !field.relevance.is_erased())?;
+    byte_view_field_descriptor(source.structural_type, prefix, field.id, declarations)
+}
+
 pub(crate) fn bounded_byte_field_owner(
     source: &terminal_psi::StructuralParameterDeclaration,
     argument: &terminal_psi::StructuralArgument,
@@ -1353,6 +1402,9 @@ fn scalar_field_geometry(
         let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
         offset = align(offset, layout.alignment)?;
         if candidate.id == field {
+            // A bounded owner's live length is its leading metadata word; a
+            // shared view field's is the extent word after its pointer.
+            let mut length_word = 0;
             let matches_type = match candidate.field_type {
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
@@ -1361,6 +1413,24 @@ fn scalar_field_geometry(
                     carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                     ..
                 } => {
+                    observes_byte_length
+                        && matches!(scalar, ScalarType::Integer(integer)
+                        if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned, 64))
+                }
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier:
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
+                    ..
+                } => {
+                    length_word = 8;
                     observes_byte_length
                         && matches!(scalar, ScalarType::Integer(integer)
                         if Ok(integer) == semantic_vocabulary::IntegerType::new(
@@ -1378,7 +1448,9 @@ fn scalar_field_geometry(
             if !matches_type {
                 return None;
             }
-            let offset = carrier_offset.checked_add(offset)?;
+            let offset = carrier_offset
+                .checked_add(offset)?
+                .checked_add(length_word)?;
             let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
             // A view root's descriptor is not the write's frame: the
             // referent's extent bounds the store, so the descriptor-size
@@ -1607,6 +1679,39 @@ pub(crate) fn byte_field_storage(
     (u64::from(offset).checked_add(8)?.checked_add(capacity)?
         <= u64::from(shape(structural_type, declarations)?.byte_size))
     .then_some((offset, capacity))
+}
+
+/// A shared view field stores a two-word descriptor in its record: the
+/// backing pointer, then the extent. Return the descriptor's offset from the
+/// root. The backing itself lies outside the root; its custody is the view's.
+pub(crate) fn byte_view_field_descriptor(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<u32> {
+    let scalar = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .ok()?,
+    );
+    let (length_word, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
+    let (carrier, _) = project(structural_type, path, declarations)?;
+    let StructuralTypeShape::Record { fields } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
+    else {
+        return None;
+    };
+    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
+    let selected = matching.next()?;
+    (matching.next().is_none()
+        && selected.field_type.byte_sequence_carrier()
+            == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }))
+    .then(|| length_word.checked_sub(8))
+    .flatten()
 }
 
 #[cfg(test)]
