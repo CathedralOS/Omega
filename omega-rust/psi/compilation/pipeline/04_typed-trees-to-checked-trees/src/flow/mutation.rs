@@ -134,6 +134,7 @@ pub(crate) fn call_receiver_write_accesses(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
+    loan: &CanonicalPlace,
 ) -> Vec<CanonicalPlace> {
     summary::instantiate_known_call_receiver_summary_places(
         program,
@@ -142,6 +143,7 @@ pub(crate) fn call_receiver_write_accesses(
         borrow,
         borrow_call,
         state_mutation_summaries,
+        loan,
     )
     .or_else(|| {
         call_receiver_mutated_place(

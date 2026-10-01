@@ -25,12 +25,12 @@
 //! through it. A state whose own body or receiver call cannot be placed has
 //! no footprint, and its callers treat their whole receiver as read.
 //!
-//! Each state keeps two footprints (`jump_loans`). The whole run includes
-//! every state it jumps to, because a call holds its argument loans until it
-//! returns. The held run serves a jump into the state, whose argument loans
-//! end at the first further jump that does not forward them: it includes the
-//! whole run of each call, the held run of each forwarding jump, and nothing
-//! of a releasing jump.
+//! Each state keeps whole-run and per-parameter footprints (`jump_loans`).
+//! The whole run includes every state it jumps to, because a call holds its
+//! argument loans until it returns. Each held footprint serves a jump into
+//! the state and ends when that parameter's loans stop being forwarded. It
+//! includes the whole run of each returning call and the relevant parameter
+//! footprints of each successor, not those of independently forwarded loans.
 //!
 //! Recursive states settle by a monotone fixed point: footprints only grow.
 //! An instantiated place deeper than `MAXIMUM_PLACE_DEPTH` widens to its
@@ -39,7 +39,7 @@
 
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
-use crate::flow::jump_loans::{TargetRun, target_run};
+use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{
     WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
     instantiate_call_relative_places,
@@ -69,8 +69,8 @@ struct StateReceiverReads {
     complete: bool,
     /// The whole run's reads.
     reads: Vec<CanonicalPlace>,
-    /// The held run's reads, a subset of `reads`.
-    held_reads: Vec<CanonicalPlace>,
+    /// Reads while each incoming parameter's loans remain held.
+    held_reads: Vec<HeldAccesses<CanonicalPlace>>,
 }
 
 /// The places `borrow_call`'s target may read through its receiver while
@@ -86,6 +86,7 @@ pub(crate) fn call_receiver_read_accesses(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     cache: &StateReceiverReadCache,
+    loan: Option<&CanonicalPlace>,
 ) -> Vec<CanonicalPlace> {
     let whole_receiver = || {
         call_receiver_mutated_place(
@@ -109,16 +110,14 @@ pub(crate) fn call_receiver_read_accesses(
     else {
         return whole_receiver();
     };
-    let reads = match target_run(
+    let run = target_run(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         borrow,
         borrow_call,
-    ) {
-        TargetRun::Whole => &footprint.reads,
-        TargetRun::Held | TargetRun::Released => &footprint.held_reads,
-    };
+    );
+    let reads = run.accesses(program, &footprint.reads, &footprint.held_reads, loan);
     let mut instantiated = Vec::new();
     for read in reads {
         let Some(places) = instantiate_call_relative_places(
@@ -243,7 +242,7 @@ fn build_state_receiver_reads(
         footprints.push(StateReceiverReads {
             state_symbol: state.symbol,
             complete,
-            held_reads: reads.clone(),
+            held_reads: held_accesses(program, state, &reads),
             reads,
         });
         owners.push(owner);
@@ -280,7 +279,7 @@ fn settle_receiver_call_reads(
                 continue;
             }
             let mut additions = Vec::new();
-            let mut held_additions = Vec::new();
+            let mut held_additions = vec![Vec::new(); footprints[index].held_reads.len()];
             for receiver_call in &receiver_calls[index] {
                 let target = receiver_call
                     .target
@@ -292,21 +291,34 @@ fn settle_receiver_call_reads(
                     receiver_call,
                     target.map(|target| target.reads.as_slice()),
                 );
-                match receiver_call.run {
-                    TargetRun::Whole => held_additions.extend(whole.iter().cloned()),
-                    TargetRun::Held => held_additions.extend(owner.instantiate(
+                for (incoming, additions) in
+                    footprints[index].held_reads.iter().zip(&mut held_additions)
+                {
+                    let loan = CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(incoming.parameter),
+                        segments: Vec::new(),
+                    };
+                    let selected = target.map(|target| {
+                        receiver_call
+                            .run
+                            .accesses(program, &target.reads, &target.held_reads, Some(&loan))
+                            .cloned()
+                            .collect::<Vec<_>>()
+                    });
+                    additions.extend(owner.instantiate(
                         program,
                         borrow,
                         receiver_call,
-                        target.map(|target| target.held_reads.as_slice()),
-                    )),
-                    TargetRun::Released => {}
+                        selected.as_deref(),
+                    ));
                 }
                 additions.extend(whole);
             }
             let footprint = &mut footprints[index];
             grew |= extend_new(&mut footprint.reads, additions);
-            grew |= extend_new(&mut footprint.held_reads, held_additions);
+            for (held, additions) in footprint.held_reads.iter_mut().zip(held_additions) {
+                grew |= extend_new(&mut held.accesses, additions);
+            }
         }
         if !grew {
             return;

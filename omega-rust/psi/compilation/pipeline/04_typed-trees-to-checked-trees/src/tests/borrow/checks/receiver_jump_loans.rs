@@ -184,6 +184,102 @@ fn a_jump_that_stops_forwarding_releases_the_loan() {
 }
 
 #[test]
+fn a_jump_releases_one_loan_while_forwarding_an_unrelated_view() {
+    assert_accepted(
+        "data Main { count: u64; }
+        machine Main::run(&mut self, bytes: &[u8]) -> u64 {
+            transition { _ -> snapshot(&self.count, bytes) }
+            state snapshot(&mut self, count: &u64, bytes: &[u8]) -> u64 {
+                let saved: u64 = count;
+                transition { _ -> writeback(saved, bytes) }
+            }
+            state writeback(&mut self, saved: u64, bytes: &[u8]) -> u64 {
+                self.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
+                (self.count)
+            }
+        }",
+    );
+}
+
+#[test]
+fn a_jump_releases_an_exclusive_loan_before_reading_its_backing() {
+    assert_accepted(
+        "data Main { count: u64; }
+        machine Main::run(&mut self, bytes: &[u8]) -> u64 {
+            transition { _ -> update(&mut self.count, bytes) }
+            state update(&mut self, count: &mut u64, bytes: &[u8]) -> u64 {
+                count = 67;
+                transition { _ -> observe(bytes) }
+            }
+            state observe(&mut self, bytes: &[u8]) -> u64 {
+                (((self.count as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64)
+            }
+        }",
+    );
+}
+
+#[test]
+fn a_jump_retains_a_loan_forwarded_through_a_local_reference_alias() {
+    assert_rejected(
+        "data Main { count: u64; }
+        machine Main::run(&mut self, bytes: &[u8]) -> u64 {
+            transition { _ -> first(&self.count, bytes) }
+            state first(&mut self, count: &u64, bytes: &[u8]) -> u64 {
+                let forwarded: &u64 = count;
+                transition { _ -> writeback(forwarded, bytes) }
+            }
+            state writeback(&mut self, observed: &u64, bytes: &[u8]) -> u64 {
+                self.count = bytes.len;
+                (observed)
+            }
+        }",
+        "state `first` receives `self.count` as read-only while its mutable receiver writes `self.count`",
+    );
+}
+
+#[test]
+fn a_jump_releases_the_exact_loan_after_same_typed_parameters_reorder() {
+    assert_accepted(
+        "data Main { count: u64; other: u64; }
+        machine Main::run(&mut self) -> u64 {
+            transition { _ -> first(&self.count, &self.other) }
+            state first(&mut self, count: &u64, other: &u64) -> u64 {
+                transition { _ -> swapped(other, count) }
+            }
+            state swapped(&mut self, count: &u64, other: &u64) -> u64 {
+                let saved: u64 = other;
+                transition { _ -> writeback(count, saved) }
+            }
+            state writeback(&mut self, other: &u64, saved: u64) -> u64 {
+                self.count = saved;
+                (other)
+            }
+        }",
+    );
+}
+
+#[test]
+fn a_jump_retains_the_exact_loan_after_same_typed_parameters_reorder() {
+    assert_rejected(
+        "data Main { count: u64; other: u64; }
+        machine Main::run(&mut self) -> u64 {
+            transition { _ -> first(&self.count, &self.other) }
+            state first(&mut self, count: &u64, other: &u64) -> u64 {
+                transition { _ -> swapped(other, count) }
+            }
+            state swapped(&mut self, count: &u64, other: &u64) -> u64 {
+                transition { _ -> writeback(other) }
+            }
+            state writeback(&mut self, observed: &u64) -> u64 {
+                self.count = 9;
+                (observed)
+            }
+        }",
+        "state `first` receives `self.count` as read-only while its mutable receiver writes `self.count`",
+    );
+}
+
+#[test]
 fn shared_successor_rejects_an_exclusive_child_argument() {
     // As for `self.next(&mut self.count)` into a `&self` callee, the shared
     // whole receiver overlaps the exclusive child whatever the body reads.
