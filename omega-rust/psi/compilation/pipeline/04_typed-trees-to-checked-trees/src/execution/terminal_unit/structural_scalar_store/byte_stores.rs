@@ -343,7 +343,9 @@ pub(super) fn field_store(
 }
 
 /// Preserve only the selected built-in byte law. Leaves are immutable literals
-/// or readable declared fields; there is no delayed call evaluation in this plan.
+/// or readable bounded parameters/declared fields; there is no delayed call
+/// evaluation in this plan. A whole parameter observes its current live extent,
+/// rather than padding the value to its carrier capacity.
 fn byte_value_plan(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -450,6 +452,40 @@ fn byte_value_plan(
                 })
             }) {
                 return None;
+            }
+            if place.segments.is_empty() {
+                let parameter = program.state_parameters(state).get(parameter_position)?;
+                if program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
+                    || !matches!(
+                        structural_access_for_type_reference(program, parameter.type_reference),
+                        Some(
+                            CheckedStructuralAccess::Owned
+                                | CheckedStructuralAccess::SharedBorrow
+                                | CheckedStructuralAccess::MutableBorrow
+                        )
+                    )
+                    || !source_domains.iter().all(|domain| {
+                        typed_trees::byte_predicates::domain_byte_predicate(program, *domain)
+                            .is_some()
+                            && program
+                                .domain_definitions()
+                                .iter()
+                                .find(|definition| definition.symbol == *domain)
+                                .is_some_and(|definition| {
+                                    definition.establishment_routes.is_empty()
+                                        && definition.semantic_roles == Default::default()
+                                })
+                    })
+                {
+                    return None;
+                }
+                return Some((
+                    plan.nodes.insert(Value::WholeParameter {
+                        parameter_position: u32::try_from(parameter_position).ok()?,
+                        capacity,
+                    }),
+                    capacity,
+                ));
             }
             let mut carrier_path = Vec::new();
             for segment in &place.segments {

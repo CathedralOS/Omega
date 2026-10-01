@@ -151,6 +151,73 @@ fn validate_value(
             )
         }
         (
+            ByteValue::WholeParameter {
+                parameter_position,
+                capacity,
+            },
+            _,
+        ) => {
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                state_symbol,
+            )?;
+            let source =
+                crate::emission::call_source_custody::projected_receivers::store_destination(
+                    checked,
+                    machine,
+                    state_symbol,
+                    Some(statement_index),
+                    expression,
+                )?;
+            let parameter = checked
+                .state_parameters(state)
+                .get(*parameter_position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "whole byte source parameter is absent",
+                ))?;
+            let carrier = crate::unit::attached_unit::structural_carrier_type(
+                checked,
+                parameter.type_reference,
+            )?;
+            let readable = match checked.type_reference_table.type_reference(carrier) {
+                checked_trees::types::TypeReferenceNode::FixedArray { .. } => true,
+                checked_trees::types::TypeReferenceNode::Reference { access, .. } => matches!(
+                    access,
+                    language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable
+                ),
+                _ => false,
+            };
+            let declared_capacity =
+                validation::bounded_byte_buffer_capacity(&checked.typed, parameter.type_reference)
+                    .or_else(|| {
+                        validation::loaned_bounded_byte_buffer_capacity(
+                            &checked.typed,
+                            parameter.type_reference,
+                        )
+                    })
+                    .and_then(|capacity| u64::try_from(capacity).ok());
+            if source.root != parameter.symbol
+                || !source.path.is_empty()
+                || !readable
+                || declared_capacity != Some(*capacity)
+                || checked.type_multiplicity(parameter.type_reference)
+                    != language_semantics::Multiplicity::Unrestricted
+            {
+                return unsupported(
+                    "whole byte source differs from its readable authored parameter",
+                );
+            }
+            validate_whole_parameter_custody(
+                checked,
+                machine,
+                state_symbol,
+                *parameter_position,
+                parameter,
+            )?;
+            Ok(())
+        }
+        (
             ByteValue::Field {
                 parameter_position,
                 carrier_path,
@@ -186,6 +253,112 @@ fn validate_value(
         }
         _ => unsupported("byte value differs from its authored expression"),
     }
+}
+
+/// Whole byte reads preserve the authored assumptions, not merely a compatible
+/// byte layout. Rejoin the selected formal before its qualification roster is
+/// lowered into Terminal's parameter assumptions.
+fn validate_whole_parameter_custody(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    position: u32,
+    source: &checked_trees::signature::StateParameter,
+) -> Result<(), LoweringError> {
+    use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
+    use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    let body = UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        machine,
+    )?;
+    let parameters = match body {
+        UnitBody::Ordinary(plan) if plan.state == state => plan.structural_parameters.as_slice(),
+        UnitBody::Composed(plan) => {
+            let mut states = plan
+                .states
+                .iter()
+                .filter(|candidate| candidate.state == state);
+            let row = states.next().ok_or(LoweringError::Unsupported(
+                "whole byte source state is absent",
+            ))?;
+            if states.next().is_some() {
+                return unsupported("whole byte source state is duplicated");
+            }
+            row.structural_parameters.as_slice()
+        }
+        _ => return unsupported("whole byte source state differs from its body"),
+    };
+    let mut candidates = parameters
+        .iter()
+        .filter(|parameter| parameter.position == position);
+    let parameter = candidates.next().ok_or(LoweringError::Unsupported(
+        "whole byte checked formal is absent",
+    ))?;
+    if candidates.next().is_some() {
+        return unsupported("whole byte checked formal is duplicated");
+    }
+    let mut reference = source.type_reference;
+    let mut access = checked_trees::CheckedStructuralAccess::Owned;
+    let mut qualifications = Vec::new();
+    let mut visited = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return unsupported("whole byte source type chain is invalid");
+        }
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in checked.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) if domain.semantic_id.is_valid() => {
+                            qualifications.push(domain.semantic_id)
+                        }
+                        TypeConstraintNode::ArithmeticDomain(_) => {}
+                        _ => {
+                            return unsupported(
+                                "whole byte source has an unsupported qualification",
+                            );
+                        }
+                    }
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Reference {
+                referee,
+                access: reference_access,
+                ..
+            } if access == checked_trees::CheckedStructuralAccess::Owned => {
+                access = match reference_access {
+                    language_semantics::ReferenceAccess::Shared => {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                    }
+                    language_semantics::ReferenceAccess::Mutable => {
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                    }
+                    _ => return unsupported("whole byte source is not readable"),
+                };
+                reference = *referee;
+            }
+            TypeReferenceNode::FixedArray { .. } => break,
+            _ => return unsupported("whole byte source has no bounded storage carrier"),
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    if parameter.access != access
+        || parameter.is_self != source.is_self
+        || parameter.multiplicity != checked.type_multiplicity(source.type_reference)
+        || parameter.type_identity != checked.normalized_type_identity(reference).as_str()
+        || parameter.qualifications != qualifications
+        || !parameter.projected_qualifications.is_empty()
+        || parameter.fused_service_erasure.is_some()
+    {
+        return unsupported("whole byte checked formal changed its authored custody");
+    }
+    Ok(())
 }
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
@@ -442,6 +615,81 @@ pub(crate) fn emit_owned_literal(
     emission.concatenate(literal, empty, structural_type, qualifications)
 }
 
+/// Materialize one literal at its exact call carrier. Borrowed views lend
+/// immutable bytes; owned formals get fresh concatenation backing. Both Unit
+/// control forms use this owner so neither can reinterpret image storage as
+/// mutable owned storage. The caller retains the returned argument place;
+/// `places` retains every supporting declaration, including that place.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_call_literal(
+    bytes: &[u8],
+    structural_type: StructuralTypeId,
+    access: checked_trees::CheckedStructuralAccess,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    structural_types: &[StructuralTypeDeclaration],
+    places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    next_value: &mut u64,
+    next_obligation: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let shape = structural_types
+        .iter()
+        .find(|row| row.id == structural_type)
+        .map(|row| &row.shape);
+    let declaration = match (access, shape) {
+        (
+            checked_trees::CheckedStructuralAccess::Owned,
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            )),
+        ) => {
+            emit_owned_literal(
+                bytes,
+                structural_type,
+                qualifications,
+                structural_types,
+                places,
+                next_place,
+                next_value,
+                next_obligation,
+                operations,
+            )?
+            .0
+        }
+        (
+            checked_trees::CheckedStructuralAccess::SharedBorrow,
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            )),
+        ) => {
+            let declaration = StructuralPlaceDeclaration {
+                id: place_id(allocate_dense(next_place)?),
+                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal: super::next_byte_sequence_literal_ordinal(places)?,
+                    structural_type,
+                },
+            };
+            let id = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id,
+                result: OperationResult::Unit,
+                kind: OperationKind::EstablishByteSequenceLiteral {
+                    destination: declaration.id,
+                    bytes: bytes.to_vec(),
+                    qualifications,
+                },
+            });
+            declaration
+        }
+        _ => return unsupported("literal call access differs from its storage carrier"),
+    };
+    places.push(declaration);
+    Ok(declaration)
+}
+
 /// The operation, place and value counters one byte materialization emits
 /// into. Literal views and owned concatenations are its only producers.
 struct ByteEmission<'input> {
@@ -602,6 +850,44 @@ impl ValueEmitter<'_> {
         }
         match self.plan.nodes.get(node) {
             ByteValue::Literal(bytes) => self.emission.literal(bytes),
+            ByteValue::WholeParameter {
+                parameter_position,
+                capacity,
+            } => {
+                let (_, parameter) = self
+                    .parameters
+                    .iter()
+                    .find(|(authored, _)| *authored == *parameter_position)
+                    .ok_or(LoweringError::Unsupported(
+                        "whole byte value parameter is absent",
+                    ))?;
+                if !matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                ) || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                    || !self.emission.structural_types.iter().any(|row| {
+                        row.id == parameter.structural_type
+                            && row.shape
+                                == StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                        capacity: *capacity,
+                                    },
+                                )
+                    })
+                {
+                    return unsupported(
+                        "whole byte parameter has different capacity or read authority",
+                    );
+                }
+                let source = parameter.place;
+                let length = self
+                    .emission
+                    .length(OperationKind::ByteSequenceLength { source })?;
+                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+            }
             ByteValue::Field {
                 parameter_position,
                 carrier_path,

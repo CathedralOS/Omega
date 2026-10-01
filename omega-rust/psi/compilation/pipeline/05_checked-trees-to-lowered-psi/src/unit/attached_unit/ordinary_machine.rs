@@ -183,7 +183,7 @@ pub(super) fn emit(
     let mut next_block = *block_counter;
     let mut next_operation = *operation_counter;
     let next_edge = *edge_counter;
-    let next_call_obligation = *call_obligation_counter;
+    let mut next_call_obligation = *call_obligation_counter;
     let parameters = &signature.parameters;
     let scalar_parameters = signature.scalar_parameters.clone();
     let scalar_parameter_count = scalar_parameters.len();
@@ -285,18 +285,20 @@ pub(super) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let (literal_places, operations) = establish_call_literals(
+    let (literal_places, call_literal_count, operations) = establish_call_literals(
         checked,
         plan,
         plans,
         lowered_boundary_parameters,
         type_ids,
         domain_ids,
+        structural_types,
         &mut next_place,
+        &mut next_value,
+        &mut next_call_obligation,
         next_operation,
     )?;
     let next_literal_argument = 0usize;
-    let call_literal_count = literal_places.len();
     let next_value_identity = next_value;
     let scalar_result_values = scalar_parameters.clone();
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
@@ -935,8 +937,9 @@ pub(super) fn emit(
 /// Establish every byte-sequence literal the body passes as a structural
 /// call argument: one private place per literal, qualified with the domain
 /// memberships the target parameter declares, and one establishment
-/// operation per place ahead of the body. Returns the places and the
-/// operation buffer that now starts with those establishments.
+/// materialization ahead of the body. Argument destinations remain a dense
+/// prefix, followed by supporting literal places for fresh owned backing.
+/// Returns the declarations, prefix length and establishment operations.
 fn establish_call_literals(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
@@ -944,9 +947,12 @@ fn establish_call_literals(
     lowered_boundary_parameters: &[super::operation_frame::BoundaryParameters],
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     next_place: &mut u64,
+    next_value: &mut u64,
+    next_obligation: &mut u64,
     next_operation: u64,
-) -> Result<(Vec<StructuralPlaceDeclaration>, OperationBuffer), LoweringError> {
+) -> Result<(Vec<StructuralPlaceDeclaration>, usize, OperationBuffer), LoweringError> {
     let mut literal_arguments = Vec::new();
     for operation in &plan.operations {
         let Some(call) = operation.call() else {
@@ -961,11 +967,17 @@ fn establish_call_literals(
                 .map(|(index, argument)| (argument, target_machine, index)),
         );
     }
-    let mut literal_qualifications = Vec::new();
-    let literal_places = literal_arguments
+    let mut private_places = Vec::new();
+    let operation_identity_base =
+        next_operation
+            .checked_sub(1)
+            .ok_or(LoweringError::Unsupported(
+                "terminal operation identity starts at one",
+            ))?;
+    let mut operations = OperationBuffer::new(operation_identity_base);
+    let mut literal_places = literal_arguments
         .iter()
-        .enumerate()
-        .map(|(ordinal, (argument, target_machine, argument_index))| {
+        .map(|(argument, target_machine, argument_index)| {
             // The literal occurrence replays the domain memberships checking
             // discharged on its bytes: the target parameter's declared
             // qualifications are exactly the admitted set.
@@ -1012,45 +1024,28 @@ fn establish_call_literals(
                     .collect::<Result<Vec<_>, _>>()?
                 }
             };
-            literal_qualifications.push(qualifications);
-            Ok(StructuralPlaceDeclaration {
-                id: place_id(allocate_dense(next_place)?),
-                kind: StructuralPlaceKind::ByteSequenceLiteral {
-                    declaration_ordinal: u32::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported("byte-sequence literal count exceeds u32")
-                    })?,
-                    structural_type: lookup_type_id(type_ids, &argument.type_identity)?,
-                },
-            })
+            crate::emission::structural_byte_sequence_store::emit_call_literal(
+                argument.byte_sequence_literal().ok_or(LoweringError::Unsupported("literal call payload is absent"))?,
+                lookup_type_id(type_ids, &argument.type_identity)?,
+                argument.access,
+                qualifications,
+                structural_types,
+                &mut private_places,
+                next_place,
+                next_value,
+                next_obligation,
+                &mut operations,
+            )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let operation_identity_base = next_operation
-        .checked_sub(1)
-        .expect("terminal operation identity starts at one");
-    let mut operations = OperationBuffer::new(operation_identity_base);
-    for ((argument, _, _), (place, qualifications)) in literal_arguments
-        .iter()
-        .zip(literal_places.iter().zip(&literal_qualifications))
-    {
-        let bytes = argument
-            .byte_sequence_literal()
-            .ok_or(LoweringError::Unsupported(
-                "byte-sequence literal payload is absent",
-            ))?;
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: terminal_psi::OperationResult::Unit,
-            kind: OperationKind::EstablishByteSequenceLiteral {
-                destination: place.id,
-                bytes: bytes.to_vec(),
-                qualifications: qualifications.clone(),
-            },
-        });
-    }
-    Ok((literal_places, operations))
+    let argument_count = literal_places.len();
+    private_places.retain(|place| {
+        !literal_places
+            .iter()
+            .any(|argument| argument.id == place.id)
+    });
+    literal_places.extend(private_places);
+    Ok((literal_places, argument_count, operations))
 }
 
 impl MachineEmission<'_> {

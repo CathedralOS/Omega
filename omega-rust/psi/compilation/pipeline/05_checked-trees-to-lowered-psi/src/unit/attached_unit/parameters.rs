@@ -678,13 +678,15 @@ pub(crate) fn validate_transfer_shape(
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             )
         {
-            // The target's domain requirements are arg satisfaction checked at
-            // the call site and carried forward on the emitted boundary's
-            // `requires` rows; the literal/subsurface source's custody is the
-            // whole immutable borrowed view.
+            // A literal can construct a fresh bounded owner; subslices still
+            // supply only shared views. Source replay checks the exact formal,
+            // and Terminal checks every emitted qualification from its bytes.
+            let owned_literal = argument.byte_sequence_literal().is_some()
+                && argument.access == checked_trees::CheckedStructuralAccess::Owned;
             if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
-                || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || (!owned_literal
+                    && argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow)
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
             {
@@ -693,12 +695,23 @@ pub(crate) fn validate_transfer_shape(
             let structural_type = lookup_type_id(type_ids, &argument.type_identity)?;
             if !structural_types.iter().any(|declaration| {
                 declaration.id == structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-                    )
+                    && match declaration.shape {
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                            ..
+                        }) => !owned_literal,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                            capacity,
+                        }) => {
+                            owned_literal
+                                && argument.byte_sequence_literal().is_some_and(|bytes| {
+                                    u64::try_from(bytes.len())
+                                        .is_ok_and(|length| length <= capacity)
+                                })
+                        }
+                        _ => false,
+                    }
             }) {
-                return unsupported("byte-sequence argument requires a borrowed-view type");
+                return unsupported("byte-sequence argument access differs from its carrier");
             }
             continue;
         }

@@ -107,7 +107,7 @@ fn whole_owner_replacement_rejects_previous_sources_length() {
 }
 
 #[test]
-fn whole_owner_replacement_cannot_read_write_only_source() {
+fn whole_owner_replacement_reads_owned_or_shared_but_not_exclusive_loans() {
     let (mut module, _) = qualified_owner_fixture(StructuralAccess::MutableBorrow);
     let machine = &mut module.machines[0];
     let mut source = machine.structural_parameters[0].clone();
@@ -130,11 +130,40 @@ fn whole_owner_replacement_cannot_read_write_only_source() {
         obligation: id(1),
     };
     validate_module(&module).expect("qualified shared owner may supply immutable bytes");
+    module.machines[0].structural_parameters[1].access = StructuralAccess::Owned;
+    validate_module(&module).expect("qualified owned parameter may supply its own bytes");
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    assert_eq!(obligations.len(), 1);
+    assert!(
+        obligations[0]
+            .semantic_axioms
+            .contains(&Proposition::LessOrEqual(measured(), count(3)))
+    );
+    assert!(
+        !obligations[0]
+            .semantic_axioms
+            .contains(&Proposition::Equal(measured(), count(3))),
+        "an owned buffer's capacity is not its live length"
+    );
     module.machines[0].structural_parameters[1].access = StructuralAccess::WriteOnlyBorrow;
     // Its metadata length remains readable; the payload copy must reject.
     assert_eq!(
         validate_module(&module).err(),
         Some(ModuleError::InvalidStructuralByteSequenceFieldStore(id(4)))
+    );
+    module.machines[0].structural_parameters[1].access = StructuralAccess::MutableBorrow;
+    assert_eq!(
+        validate_module(&module).err(),
+        Some(ModuleError::InvalidStructuralByteSequenceFieldStore(id(4)))
+    );
+    module.machines[0].structural_parameters[1].access = StructuralAccess::Owned;
+    module.machines[0].structural_parameters[1]
+        .qualifications
+        .clear();
+    assert_eq!(
+        validate_module(&module).err(),
+        Some(ModuleError::InvalidStructuralByteSequenceFieldStore(id(4))),
+        "ownership alone cannot establish the destination's UTF-8 predicate"
     );
 }
 

@@ -1479,21 +1479,48 @@ pub(crate) fn byte_sequence_literal_argument(
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if !byte_sequence_carrier(program, parameter_type, &[])?.is_borrowed_view()
-        || structural_access_for_type_reference(program, parameter_type)?
-            != CheckedStructuralAccess::SharedBorrow
-    {
-        return None;
-    }
     let ExpressionNode::String(bytes) = program.expression_table.expression(expression) else {
         return None;
     };
+    let access = structural_access_for_type_reference(program, parameter_type)?;
+    match (byte_sequence_carrier(program, parameter_type, &[])?, access) {
+        (
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+            CheckedStructuralAccess::SharedBorrow,
+        ) => {}
+        (
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
+            CheckedStructuralAccess::Owned,
+        ) if program.type_multiplicity(parameter_type) == Multiplicity::Unrestricted
+            && u64::try_from(bytes.len()).ok()? <= capacity =>
+        {
+            // This is construction at the formal, not ownership of immutable
+            // image storage. Lowering must establish fresh bounded backing.
+            for symbol in
+                crate::facts::field_domain::domain_constraint_symbols(program, parameter_type)
+            {
+                let domain = program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == symbol)?;
+                if !domain.establishment_routes.is_empty()
+                    || domain.semantic_roles != Default::default()
+                    || !crate::facts::field_domain::string_literal_expression_grants_domain(
+                        program, expression, symbol,
+                    )
+                {
+                    return None;
+                }
+            }
+        }
+        _ => return None,
+    }
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),
         },
         path: Vec::new(),
         type_identity: byte_sequence_type_identity(program, parameter_type, &[], &[])?,
-        access: CheckedStructuralAccess::SharedBorrow,
+        access,
     })
 }

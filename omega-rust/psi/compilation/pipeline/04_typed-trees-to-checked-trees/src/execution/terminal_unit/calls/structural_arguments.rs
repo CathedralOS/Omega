@@ -970,7 +970,14 @@ pub(crate) fn call_claim_transfers(
                 CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             )
         {
-            if !argument.path.is_empty() || argument.access != CheckedStructuralAccess::SharedBorrow
+            // Literal admission reconstructs either an immutable shared view
+            // or a fresh unrestricted bounded owner with plain byte domains.
+            // Neither supplies a claim. Any ownership event must still be
+            // accounted for by the complete event-roster check below.
+            let owned_literal = argument.byte_sequence_literal().is_some()
+                && argument.access == CheckedStructuralAccess::Owned;
+            if !argument.path.is_empty()
+                || (!owned_literal && argument.access != CheckedStructuralAccess::SharedBorrow)
             {
                 return None;
             }

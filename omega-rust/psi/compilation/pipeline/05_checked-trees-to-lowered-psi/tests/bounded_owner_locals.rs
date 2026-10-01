@@ -31,6 +31,133 @@ machine main() -> u64 {
 }
 "#;
 
+#[test]
+fn owned_literal_call_argument_establishes_its_declared_byte_predicates() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 16]::Text requires valid_utf8(self);
+        data Player { name: [u8; 16] in Text; }
+        data Factory {}
+        data Main { factory: Factory; player: Player; }
+        machine Factory::create(&mut self, name: [u8; 16] in Text, player: &mut Player) {
+            player.name = name;
+        }
+        machine Main::run(&mut self) {
+            self.factory.create("Wanderer", &mut self.player);
+            self.factory.create("Wanderer", &mut self.player);
+        }
+        "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("the owned literal has its own backing before the qualified call");
+    verify(&lowered).expect("the literal's actual bytes establish its declared predicates");
+    let owned_places = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == lowered.semantic_module.entry)
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::EstablishByteSequenceConcatenation { .. } => {
+                operation.result.structural().map(|result| result.place)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        owned_places.len(),
+        2,
+        "each call materializes an owned operand"
+    );
+    assert_ne!(
+        owned_places[0], owned_places[1],
+        "equal literals are not one owned argument"
+    );
+    let mut corrupted = lowered.semantic_module.clone();
+    let bytes = corrupted
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::EstablishByteSequenceLiteral { bytes, .. } if bytes == b"Wanderer" => {
+                Some(bytes)
+            }
+            _ => None,
+        })
+        .expect("the exact authored literal supplies the owned operand");
+    // Preserve length/capacity: rejection must not come from stale bounds.
+    bytes[0] = 0x80;
+    let error = terminal_verifier::verify_module(
+        &corrupted,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect_err("changing the literal to invalid UTF-8 cannot retain its qualification");
+    assert!(
+        format!("{error:?}").contains("InvalidByteSequenceConcatenation"),
+        "semantic predicate replay, not a changed proof identity, rejects: {error:?}"
+    );
+}
+
+#[test]
+fn whole_byte_parameter_store_replays_declared_access_and_qualifications() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 16]::Text requires valid_utf8(self);
+        data Destination { text: [u8; 16] in Text; }
+        machine copy(text: [u8; 16] in Text, destination: &mut Destination) {
+            destination.text = text;
+        }
+    "#,
+    );
+    let selected = checked_trees_to_lowered_psi::select_terminal_machine(
+        &checked,
+        TerminalMachineSelection::Name("copy"),
+    )
+    .expect("whole-byte store selection")
+    .machine;
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("copy"),
+    )
+    .expect("authored whole owned byte parameter lowers");
+    verify(&lowered).expect("declared whole byte source verifies independently");
+    for mutation in ["access", "qualifications"] {
+        let mut changed = checked.clone();
+        let source = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == selected)
+            .expect("ordinary copy plan")
+            .structural_parameters
+            .iter_mut()
+            .find(|parameter| parameter.position == 0)
+            .expect("owned byte formal");
+        match mutation {
+            "access" => source.access = checked_trees::CheckedStructuralAccess::SharedBorrow,
+            "qualifications" => source.qualifications.clear(),
+            _ => unreachable!(),
+        }
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("copy"),
+        )
+        .expect_err("same-layout source cannot change its authored custody");
+        assert!(
+            format!("{error:?}").contains("whole byte checked formal changed its authored custody"),
+            "exact source rejoin rejects {mutation}: {error:?}"
+        );
+    }
+}
+
 fn lower() -> lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(SOURCE);
     checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("main"))

@@ -115,7 +115,11 @@ pub(in crate::validation) fn validate_source(
                     )
             });
             if !(parameter.access == StructuralAccess::SharedBorrow
-                || (owned && parameter.access == StructuralAccess::MutableBorrow))
+                || (owned
+                    && matches!(
+                        parameter.access,
+                        StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                    )))
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || terminal_semantics::byte_parameter_predicates(module, parameter).is_none()
             {
@@ -185,6 +189,8 @@ pub(in crate::validation) fn validate_source(
 
 /// Replacement consumes an immutable payload. Readable owner metadata and
 /// concatenation inputs do not authorize a mutable owner as a copy source.
+/// An owned bounded formal supplies its own value, not an attenuated loan;
+/// availability and overlapping access remain checked by the custody pass.
 pub(in crate::validation) fn validate_replacement_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -202,7 +208,18 @@ pub(in crate::validation) fn validate_replacement_source(
                 .flat_map(|block| &block.structural_parameters),
         )
         .any(|parameter| {
-            parameter.place == source && parameter.access != StructuralAccess::SharedBorrow
+            parameter.place == source
+                && parameter.access != StructuralAccess::SharedBorrow
+                && !(parameter.access == StructuralAccess::Owned
+                    && module.structural_types.iter().any(|row| {
+                        row.id == parameter.structural_type
+                            && matches!(
+                                row.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    }))
         })
     {
         return Err(invalid());
