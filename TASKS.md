@@ -982,35 +982,31 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Restored application checkpoint `c9e4cf4` connects the command route and
-  Snapshot's deletion-aware page/count APIs, retaining global IDs and the
-  eight/seven-result oracle; it remains unpublished. Its retained local lock
-  records the previously reviewed 17-package acceptance with std
-  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`. On macOS ARM64, compiler
-  `50e826e7d0b` plus the complete-boundary-frame repair runs `omega run --target
-  linux_x86_64 samples/apps/squalr/squalr-tests/main.omg` to fresh package review,
-  exiting 200 with eight borrow diagnostics. Mutation summaries now retain the
-  shared resolver's complete boundary frames instead of treating a missing local
-  body as unknown writes to the entire receiver. The three `next_virtual_page`
-  and three `host_open_at` conflicts are gone. Summaries retain atomic writes for
-  value invalidation without inventing exclusive access for sealed shared atomic
-  operations; task cancellation through a shared case payload stays admitted.
-  `pass/borrow/runtime_boundary_receiver_disjoint_loan_exit` prints `OK` and exits
-  70 natively, retaining the receiver's field loan through an internal state and
-  a boundary call. The saved-dispatch-payload regression also still exits 70.
+  Current application `3e82e5fc5763`, with std
+  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, reaches 13 API borrow
+  diagnostics on macOS ARM64 using compiler `5ce122a775c` plus the per-parameter
+  loan-footprint repair. Reproduction: `omega update --project
+  samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1. The unchanged
+  `measure_value` now releases its payload loan when it stops forwarding it;
+  forwarding an independent byte view no longer prolongs that loan. Returning
+  calls retain their whole-run loans and unresolved origins remain conservative.
 
-  The current first refusal is `pick_previous`: `current_elements` is forwarded
-  mutably before `current_elements[0]` is read as a later argument;
-  `make_driver` does the same with `previous_elements[0]`. Other mutable/read
-  conflicts name `build_results`, `seal_store`, `copy_loop`, `inner`, and
-  `fill_order`. Preserve language argument order and scan behavior; snapshot
-  scalar values before lending. `seal_store` needs a distinct borrowing repair:
-  it retains shared candidate windows while forwarding the same arenas mutably;
-  separate arena construction from the shared sealing phase rather than weakening
-  the overlapping-loan check. Keep the application command and result oracles.
-  The separately retained application checkout `8bc13d5` stops earlier at an
-  unsupported `omega.lock` version; preserve its pins and obtain ordinary fresh
-  package review rather than transplanting the older accepted lock.
+  The first remaining refusal is `ValuedStructField::copy_from_bytes`:
+  `value_arm` replaces `self.field_data` while holding its shared payload loan
+  in the same state. Clone/update first, then transition with only the owned
+  replacement and scalar result to a writeback state. The other 12 diagnostics
+  report whole-receiver writes beside loans of `materialized_node_id_slab`,
+  `pointer_scan_level_candidates`, `materialized_nodes` and `page_key_cache`;
+  trace the shared frame/origin dependencies rather than adding exemptions.
+  The downstream scan package is not yet reached by this review. Its
+  `seal_store` still needs construction separated from shared sealing: retained
+  candidate windows cannot coexist with mutable forwarding of their arenas.
+
+  The public macOS native command stops at missing exact-target package review;
+  the existing Linux lock names a different checkout's local source identities.
+  Preserve pins and request ordinary fresh package review, not a transplanted
+  accepted lock or invented approval. Cross-target checking is not native
+  execution. Keep the application command and its exact result oracles.
 
   The earlier result-store frontier, not reached by this current review,
   isolates stage 04's

@@ -332,6 +332,99 @@ fn local_buffer_loans_preserve_fixed_and_slice_presentations() {
 }
 
 #[test]
+fn local_byte_windows_retain_backing_and_captured_shared_access() {
+    for (storage, operand, start, end) in [
+        ("let bytes: [u8; 4];", "bytes[..]", 0, 4),
+        ("let bytes: [u8; 4];", "bytes[1..]", 1, 4),
+        ("let bytes: [u8; 4];", "bytes[1..3]", 1, 3),
+        ("let buffer: Buffer;", "buffer.bytes[1..3]", 1, 3),
+    ] {
+        let source = format!(
+            "data Buffer {{ bytes: [u8; 4]; }}
+            machine observe(bytes: &[u8]) {{ let count: u64 = bytes.len; }}
+            machine run() {{ {storage} observe(&{operand}); }}"
+        );
+        let checked = checked_program(&source);
+        let machine = machine_named(&checked, "run");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{operand}: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                )
+            });
+        let argument = plan
+            .operations
+            .iter()
+            .find_map(|operation| operation.call()?.structural_arguments.first())
+            .expect("local byte-window argument");
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+        );
+        assert_eq!(
+            argument.path.last(),
+            Some(&CheckedUnitStructuralPathSegment::FixedByteRange { start, end })
+        );
+
+        let borrow_state = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+            .expect("caller borrow state");
+        let call = checked
+            .facts
+            .borrow
+            .calls
+            .span_or_empty(borrow_state.calls)
+            .first()
+            .expect("captured window call");
+        let mut facts = checked.facts.clone();
+        facts
+            .borrow
+            .argument_accesses
+            .get_mut(call.accesses.start())
+            .kind = checked_trees::BorrowAccessKind::Mutable;
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "{operand} accepted a changed loan access"
+        );
+    }
+}
+
+#[test]
+fn local_byte_window_rejects_bounds_outside_its_backing() {
+    assert!(
+        checked_program_result(
+            "machine observe(bytes: &[u8]) {}
+            machine run() { let bytes: [u8; 4]; observe(&bytes[1..5]); }"
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn state_local_zeroed_buffer_can_end_after_its_boundary_loan() {
     let checked = checked_program(
         r#"

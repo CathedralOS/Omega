@@ -48,11 +48,8 @@ pub(super) fn argument(
     target_identity: &str,
     allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let source_state = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|candidate| candidate.symbol == state)?;
+    let (source_machine, source_state) =
+        crate::semantic::calls::find_state_with_machine(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
         program,
         facts,
@@ -135,17 +132,68 @@ pub(super) fn argument(
     // from `allow_projection`: no custody moves.
     let projected_borrow = projected && access != CheckedStructuralAccess::Owned;
     let local_type = receiver_local_type(program, source_state, place, result);
+    // A range lends the original array's window, not the element type that
+    // generic indexing projects. Reuse the parameter operand's range walk,
+    // including omitted endpoints resolved from the declared backing extent.
+    let byte_window = projected_borrow
+        .then(|| {
+            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            if !validation::has_builtin_subslice_meaning(
+                program,
+                source_machine,
+                Some(source_state),
+                borrow.target,
+            ) {
+                return None;
+            }
+            super::argument_paths::fixed_byte_array_range_path(
+                program,
+                state,
+                call.statement_index,
+                place,
+                parameter.type_reference,
+            )
+            .or_else(|| {
+                super::argument_paths::open_byte_range_path(
+                    program,
+                    state,
+                    call.statement_index,
+                    place,
+                    parameter.type_reference,
+                )
+            })
+        })
+        .flatten();
+    // The window is projected, but its result binding still owns the entire
+    // local. Match that root's declaration for storage custody; the range
+    // walk above separately proves the selected backing and presentation.
+    let local_type = local_type.or_else(|| {
+        byte_window.as_ref()?;
+        receiver_local_type(
+            program,
+            source_state,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+            result,
+        )
+    });
     // A local array lends the same element view as an array parameter or
     // field. The local keeps its backing identity; the call presents only
     // the checked view, with its exact loan replayed below.
-    let array_view = access != CheckedStructuralAccess::Owned
-        && local_type.is_some_and(|source| {
-            super::boundary_admission::fixed_array_slice_view_is_admitted(
-                program,
-                source,
-                parameter.type_reference,
-            )
-        });
+    let array_view = byte_window.is_some()
+        || (access != CheckedStructuralAccess::Owned
+            && local_type.is_some_and(|source| {
+                super::boundary_admission::fixed_array_slice_view_is_admitted(
+                    program,
+                    source,
+                    parameter.type_reference,
+                )
+            }));
     // A projected owned-record operand carries its subtree's captured leaves
     // into the call; the same resolved path both proves that custody and
     // names the argument's projected edge below. A projected borrow resolves
@@ -156,12 +204,14 @@ pub(super) fn argument(
             // the parameter lanes do: the segment carries the checked
             // `RuntimeIndex` coordinate Terminal re-proves against the
             // container's extent.
-            projected_borrowed_path(program, machine, state, call.statement_index, place)
-                .filter(|(projected, _)| {
-                    base_type_identity(program, *projected, &[])
-                        .is_some_and(|identity| identity == target_identity)
-                })
-                .map(|(_, path)| path)
+            byte_window.or_else(|| {
+                projected_borrowed_path(program, machine, state, call.statement_index, place)
+                    .filter(|(projected, _)| {
+                        base_type_identity(program, *projected, &[])
+                            .is_some_and(|identity| identity == target_identity)
+                    })
+                    .map(|(_, path)| path)
+            })
         } else {
             projected_argument_path_with_identity(
                 program,
