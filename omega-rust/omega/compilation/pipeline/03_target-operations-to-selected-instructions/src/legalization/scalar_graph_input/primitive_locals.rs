@@ -72,6 +72,48 @@ fn valid_owned_result(
                     }
         })
 }
+/// The parameter a primitive read's root names: an entry parameter, a state's
+/// owned arrival (observed in its block home, as a field read observes it) or
+/// a block address join. Access, multiplicity and path rules stay with each
+/// caller; this only finds the declaration naming `place`.
+pub(in crate::legalization) fn read_parameter<'a>(
+    function: &'a PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .filter(|parameter| {
+                    parameter.access == StructuralAccess::Owned
+                        || abstract_operations::control_flow::address_joins::is_address_join_in(
+                            parameter, types,
+                        )
+                }),
+        )
+        .find(|parameter| parameter.place == place)
+}
+
+/// The declared storage type beneath a primitive read: an owned
+/// establishment's result, else the parameter `read_parameter` finds.
+pub(in crate::legalization) fn read_root_type(
+    function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    super::structural_case::source_result(function, place)
+        .ok()
+        .map(|(_, result)| result.structural_type)
+        .or_else(|| {
+            read_parameter(function, types, place).map(|parameter| parameter.structural_type)
+        })
+}
+
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -126,21 +168,7 @@ pub(super) fn validate(
                     }
                     local.structural_type
                 } else {
-                    let parameter = function
-                        .structural_parameters
-                        .iter()
-                        .chain(
-                            function
-                                .blocks
-                                .iter()
-                                .flat_map(|block| &block.structural_parameters)
-                                .filter(|parameter| {
-                                    abstract_operations::control_flow::address_joins::is_address_join_in(
-                                        parameter, types,
-                                    )
-                                }),
-                        )
-                        .find(|parameter| parameter.place == *source)
+                    let parameter = read_parameter(function, types, *source)
                         .ok_or(LegalizationError::custody())?;
                     if !(matches!(
                         parameter.access,

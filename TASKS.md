@@ -1636,9 +1636,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   replays each leaf and emits `EstablishScalarArray` as the record's field.
   `pass/structs/record_literal_array_field` runs natively with exit 0; it
   observes through `self` fields because same-state reads of such a record
-  local (`local_scalar_record_field`), element reads of a record state
-  parameter (Omega stage 00 `InvalidPrimitiveScalarRead`) and moving the local
-  into a field (`continuation cleanup owner`) are still refused.
+  local (`local_scalar_record_field`) and moving the local into a field
+  (`continuation cleanup owner`) are still refused. A state's owned record
+  arrival reads its array members in its block home:
+  `pass/structs/runtime_state_record_array_element_read_exit` exits 70
+  natively and on the checked interpreter.
   Named primitive-array operands now use ordinary `CopiedStructuralPlace`:
   `pass/structs/runtime_named_array_record_member_exit` exits 70 natively and
   on the checked interpreter. Copy permission is separate from root discovery,

@@ -572,26 +572,12 @@ pub(super) fn validate_operation(
             let elements = if terminal_psi::is_static_structural_path(expected_path) {
                 Vec::new()
             } else {
-                let root_type = crate::legalization::scalar_graph_input::structural_case::source_result(optimized, *expected_source)
-                    .ok()
-                    .map(|(_, result)| result.structural_type)
-                    .or_else(|| optimized
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        optimized
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters)
-                            .filter(|parameter| {
-                                abstract_operations::control_flow::address_joins::is_address_join_in(
-                                    parameter,
-                                    &unit.structural_types,
-                                )
-                            }),
+                let root_type =
+                    crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
+                        optimized,
+                        &unit.structural_types,
+                        *expected_source,
                     )
-                    .find(|parameter| parameter.place == *expected_source)
-                    .map(|parameter| parameter.structural_type))
                     .ok_or(LegalizationError::custody())?;
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     root_type,

@@ -1986,6 +1986,7 @@ pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed25366
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f
+pass/structs/runtime_state_record_array_element_read_exit checked 1222ms @1f53680d77f7+wt
 pass/structs/runtime_struct_array_literal_exit checked 10339ms @17039e6ea406+wt
 pass/structs/uninit_record_local_exit checked 1182ms @2d8ed253669f
 pass/structs/uninit_record_member_read checked 1316ms @2d8ed253669f

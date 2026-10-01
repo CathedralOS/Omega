@@ -807,6 +807,7 @@ pass/structs/runtime_declared_record_member_fill_exit built 748ms exit:70 @2688b
 pass/structs/runtime_local_record_policy_exit built 1277ms exit:70
 pass/structs/runtime_named_array_record_member_exit built 831ms exit:70 @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit built 724ms exit:70
+pass/structs/runtime_state_record_array_element_read_exit built 1422ms exit:70 @1f53680d77f7+wt
 pass/structs/runtime_struct_array_literal_exit built 1725ms exit:70 @17039e6ea406+wt
 pass/structs/uninit_record_local_exit built 590ms exit:70
 pass/structs/uninit_record_member_read built 1590ms exit:70 @fb2178def922

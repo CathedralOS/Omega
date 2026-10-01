@@ -94,11 +94,15 @@ pub(super) fn validate(
                             .blocks
                             .iter()
                             .flat_map(|block| &block.structural_parameters)
+                            // A state's owned parameter is observed in its
+                            // own value storage, as a field read observes it;
+                            // the projected-path rule below still applies.
                             .filter(|parameter| {
-                                abstract_operations::control_flow::address_joins::is_address_join(
-                                    parameter,
-                                    |identity| types.get(&identity).copied(),
-                                )
+                                parameter.access == StructuralAccess::Owned
+                                    || abstract_operations::control_flow::address_joins::is_address_join(
+                                        parameter,
+                                        |identity| types.get(&identity).copied(),
+                                    )
                             }),
                     )
                     .any(|parameter| {
