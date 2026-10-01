@@ -1,12 +1,14 @@
 // Checked provider-contract sample. No package dependencies: the bound
 // entry is inert and every declaration it checks comes from the bundled
-// core vocabulary, while native realization of the loan crossings is
-// still the toolchain's next edge.
+// core vocabulary — the protocol drivers stay unreachable because
+// BoundaryOpaque values cannot cross a reachable state signature until
+// Terminal unit plans admit them, and native realization of the ten loan
+// crossings is still the toolchain's next edge.
 
 machine build(builder: &mut Build) {
     builder.application("device_extent_access");
-    builder.accept_boundary<ExtentRootProvider>();
     builder.accept_boundary<DeviceLoanProvider>();
     builder.select_representation<DeviceLoan, DeviceLoanRepresentation>();
+    builder.select_representation<DeviceOrderingEvent, DeviceOrderingEventRepresentation>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

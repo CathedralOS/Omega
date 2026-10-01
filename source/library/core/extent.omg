@@ -45,6 +45,7 @@ requires
 established by
     ExtentRootProvider::grant,
     ProgramStorageEntry::enter,
+    DeviceLoanProvider::reserve,
     DeviceLoanProvider::acquire;
 
 // One stable semantic entry requirement owns the loader-provisioned image and
