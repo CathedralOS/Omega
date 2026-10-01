@@ -853,7 +853,7 @@ pass/relevance/erased_receiver_proof_machine_call checked 177ms
 pass/relevance/erased_record_parameter_exit built 631ms exit:70
 pass/slices/byte_sequence_literal_tail_return_compile rejected 281ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
-pass/slices/callee_non_byte_view_len_index_subslice checked 180ms
+pass/slices/callee_non_byte_view_len_index_subslice built 1975ms exit:9 @ed38350cbc69+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 218ms
 pass/slices/domained_runtime_end_subslice_exit rejected 964ms @c9c108ecb4ac+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
@@ -881,6 +881,7 @@ pass/slices/runtime_slice_index_transition_exit built 1631ms exit:111 @fb2178def
 pass/slices/runtime_slice_indexed_read_exit built 689ms exit:70
 pass/slices/runtime_slice_iteration_exit built 1558ms exit:91 @fb2178def922
 pass/slices/runtime_slice_record_field_offset_exit built 684ms exit:61
+pass/slices/runtime_subslice_and_element_read_call_operands_exit built 2159ms exit:42 @ed38350cbc69+wt
 pass/slices/runtime_subslice_dynamic_index_exit built 1652ms exit:207 @fb2178def922
 pass/slices/runtime_subslice_len_exit built 1323ms exit:70 @48008365d839
 pass/slices/runtime_subslice_range_pointer_exit built 1595ms exit:205 @fb2178def922
