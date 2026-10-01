@@ -503,7 +503,13 @@ pub fn validate_entry_shape(
     let StructuralTypeShape::Record { fields } = &carrier.shape else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    if domain.identity != image_root.domain()
+    // The module names a domain row by its family on its exact carrier; the
+    // bound contract names that family and carrier separately.
+    if domain.identity
+        != terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(
+            image_root.domain(),
+            image_root.carrier_identity(),
+        )
         || domain.carrier != carrier.id
         || carrier.identity != image_root.carrier_identity()
         || !matches!(fields.as_slice(), [base, length]
