@@ -102,18 +102,12 @@ build authority, and artifact verification remain separate obligations.
   scalar- and structural-result calls, the Console reader included
   (`pass/calls/static_state_context_field_window_exit`). The fully static
   `vending_machine`, `stack_vm` and `account_ledger` exit **70** natively and
-  interpreted on macOS ARM64. The static `game_of_life` now declares its
-  canonical collection invariant and passes every source check; it stops at
-  stage 04 `structural field store: carrier path` in `Main::init_board`,
-  because Terminal carries nothing for a collection-predicate `where` fact
-  (the integer-migration row owns that frontier).
-  `pass/time/runtime_duration_core_exit` recorded native exit **70** before
-  92f378e7809 made Duration arithmetic static. It now stops at Terminal
-  `InvalidStructuralLeafCopy` in `check_underflow`. There a sum result whose
-  call borrowed a local record (`let first: Duration = ..;` then
-  `Duration::checked_subtract(&first, second)`) transfers its
-  `Ok { duration }` payload to a successor. The same call over a parameter
-  operand runs.
+  interpreted on macOS ARM64. The static `game_of_life`, with its canonical
+  collection invariant, meets its native oracle;
+  `pass/time/runtime_duration_core_exit` and
+  `pass/calls/runtime_nested_value_call_guard_exit` exit **70** natively and
+  interpreted while carrying local Duration records and a call's operand copy
+  across state edges.
   A value-returning callee forwards a lent `&mut` record (a static context,
   or a local whole or by field) across its own states to scalar and record
   results (`pass/calls/state_graph_callee_forwards_mut_parameter_exit`,
@@ -629,15 +623,11 @@ the complete product bar; focused successes below do not establish that baseline
   records the last route entered and can misidentify the declining operation.
   Keep the algorithm, storage and observable behavior when migrating syntax.
 
-  At `63c8a7fff91` on macOS ARM64, `sample_native_gate.py --jobs 6 --timeout
-  600` records 122 of 143 scored samples meeting their documented oracles,
-  including `descriptor_walk` and `calculator_rpn`. None built with a wrong
-  exit or output. Since then, at `a9f373809a`, `probes/array_index_from_call`,
-  `text/roman_numeral`, `text/string_catalog` and `rendering/ripple_field` meet
-  their oracles (`--filter` over the four, `--jobs 4 --timeout 1800`, 4/4), and
-  `stack_vm` and `account_ledger` meet theirs again once scalar-graph state
-  loans reach their private exit blocks. The remaining non-building samples
-  are the rows below. `probes/trapping_probe` exceeded 600 s to build.
+  At `ca8c127c90` on macOS ARM64, `sample_native_gate.py --jobs 4 --timeout
+  1200` records 127 of 142 scored samples meeting their documented oracles
+  (149 samples; 6 document no oracle and `uefi_hello` is not host-runnable).
+  None built with a wrong exit or output, and no package review timed out.
+  The 15 that build no native program are the rows below.
 
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
