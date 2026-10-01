@@ -356,10 +356,24 @@ fn validate_structural_field_range_authority(
             } => {
                 // Check the current store, not merely the original Terminal
                 // write: a rewrite can change its RHS or selected declaration.
+                let (storage_type, storage_path) = if matches!(
+                    path.first(),
+                    Some(terminal_psi::StructuralPathSegment::Referent)
+                ) {
+                    super::references::mutable_record_field_destination(
+                        function,
+                        types,
+                        destination.place(),
+                        path,
+                    )
+                    .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?
+                } else {
+                    (destination.structural_type(), path.as_slice())
+                };
                 let parent = super::structural_catalog::resolve_structural_path(
                     types,
-                    destination.structural_type(),
-                    path,
+                    storage_type,
+                    storage_path,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
                 // A mixed shape's common fields are stored directly, like
@@ -541,4 +555,111 @@ pub(super) fn validate_final_authorities(
     }
     validate_root_service_reach(unit, machines, boundary_machines, services)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::fixtures::structural_catalog::structural_scalar_field_store_unit;
+    use crate::tests::support::id;
+    use terminal_psi::{
+        StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+    };
+
+    #[test]
+    fn reference_scalar_store_replays_referent_range_authority() {
+        // Exercise this receiving pass directly: whole-unit ownership and
+        // producer replay are separate gates covered by the authored fixture.
+        let mut unit = structural_scalar_field_store_unit();
+        let carrier = id(9_201, StructuralTypeId::new);
+        let parameter = &mut unit.functions[0].structural_parameters[0];
+        unit.structural_types
+            .make_mut()
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: carrier,
+                identity: "validation::mutable-store-reference".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: parameter.structural_type,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            });
+        parameter.structural_type = carrier;
+        parameter.access = StructuralAccess::Owned;
+        parameter.multiplicity = StructuralMultiplicity::Affine;
+        let retained = parameter.clone();
+        let abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+            destination,
+            path,
+            ..
+        } = &mut unit.functions[0].blocks[0].nodes[1].operation
+        else {
+            unreachable!()
+        };
+        *destination = abstract_operations::StructuralScalarStoreDestination::Parameter(retained);
+        path.insert(0, StructuralPathSegment::Referent);
+        let validate = |unit: &PsiOptimizationUnit| {
+            let types = unit
+                .structural_types
+                .iter()
+                .map(|declaration| (declaration.id, declaration))
+                .collect();
+            validate_structural_field_range_authority(unit, &unit.functions[0], &types)
+        };
+        assert!(
+            validate(&unit).is_ok(),
+            "unbounded field still owes exact referent geometry"
+        );
+        let mut malformed = unit.clone();
+        let abstract_operations::AbstractOperation::StructuralScalarFieldStore { path, .. } =
+            &mut malformed.functions[0].blocks[0].nodes[1].operation
+        else {
+            unreachable!()
+        };
+        path.remove(0);
+        assert!(
+            validate(&malformed).is_err(),
+            "carrier is not record backing"
+        );
+        let mut shared = unit.clone();
+        let StructuralTypeShape::Reference { access, .. } =
+            &mut shared.structural_types.make_mut().last_mut().unwrap().shape
+        else {
+            unreachable!()
+        };
+        *access = StructuralAccess::SharedBorrow;
+        assert!(validate(&shared).is_err());
+
+        let abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+            field, value, ..
+        } = unit.functions[0].blocks[0].nodes[1].operation
+        else {
+            unreachable!()
+        };
+        let ScalarType::Integer(integer) = value.scalar_type else {
+            unreachable!()
+        };
+        let selected = unit
+            .structural_types
+            .make_mut()
+            .iter_mut()
+            .find_map(|declaration| {
+                let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+                    return None;
+                };
+                fields.iter_mut().find(|candidate| candidate.id == field)
+            })
+            .unwrap();
+        selected.field_type = terminal_psi::StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                integer,
+                semantic_vocabulary::IntegerValue::Signed(-7),
+                semantic_vocabulary::IntegerValue::Signed(17),
+            )
+            .unwrap(),
+        );
+        assert!(
+            validate(&unit).is_err(),
+            "reference geometry cannot waive a bounded field obligation"
+        );
+    }
 }

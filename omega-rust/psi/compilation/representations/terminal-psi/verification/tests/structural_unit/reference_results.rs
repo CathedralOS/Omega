@@ -251,6 +251,290 @@ fn rejects_custody(module: &TerminalModule) {
     );
 }
 
+fn returned_record_store(projected: bool, byte_store: bool) -> TerminalModule {
+    use terminal_psi::{ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet};
+    let mut module = relay_module(false);
+    module.machines.truncate(2);
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    module.structural_types[0].identity = "Holder".into();
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![
+            StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "sibling".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(signed_i8()),
+            },
+            StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+                identity: "text".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::PredicateByteSequence {
+                    carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                    predicates,
+                },
+            },
+        ],
+    };
+    module.structural_types[1].identity = "MutableHolderReference".into();
+    let caller = &mut module.machines[0];
+    caller.blocks[0].operations.truncate(3);
+    caller.blocks[0].operations[1].kind = OperationKind::StructuralScalarFieldStore {
+        destination: place_id(2),
+        path: vec![StructuralPathSegment::Referent],
+        field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+        value: value_id(1),
+        range_obligation: None,
+    };
+    let Terminator::Return { value, .. } = &mut caller.blocks[0].terminator else {
+        unreachable!()
+    };
+    *value = value_id(1);
+    if projected {
+        module.structural_types.extend([
+            StructuralTypeDeclaration {
+                id: structural_type_id(4),
+                identity: "Holders".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: structural_type_id(1),
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: structural_type_id(5),
+                identity: "Bag".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(3).unwrap(),
+                        identity: "holders".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(structural_type_id(4)),
+                    }],
+                },
+            },
+        ]);
+        for machine in &mut module.machines {
+            machine.structural_parameters[0].structural_type = structural_type_id(5);
+        }
+        let path = vec![
+            StructuralPathSegment::Field("holders".into()),
+            StructuralPathSegment::FixedIndex(1),
+        ];
+        let relay = &mut module.machines[1];
+        let TerminalMachineResult::Structural(result) = &mut relay.result else {
+            unreachable!()
+        };
+        result.reference_sources[0].source.path = path.clone();
+        let OperationKind::EstablishReference { source } = &mut relay.blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        source.path = path;
+    }
+    if byte_store {
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type_id(3),
+            identity: "LiteralBytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }),
+        });
+        module
+            .structural_types
+            .sort_by_key(|declaration| declaration.id);
+        let caller = &mut module.machines[0];
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(5),
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 0,
+                structural_type: structural_type_id(3),
+            },
+        });
+        caller.blocks[0].operations[1].kind = OperationKind::StructuralByteSequenceFieldStore {
+            destination: place_id(2),
+            path: vec![StructuralPathSegment::Referent],
+            field: semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+            source: place_id(5),
+            length: value_id(10),
+            obligation: obligation_id(1),
+        };
+        caller.blocks[0].operations.splice(
+            1..1,
+            [
+                Operation {
+                    id: operation_id(10),
+                    result: OperationResult::Unit,
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    kind: OperationKind::EstablishByteSequenceLiteral {
+                        destination: place_id(5),
+                        bytes: b"Gate".to_vec(),
+                        qualifications: Vec::new(),
+                    },
+                },
+                Operation {
+                    id: operation_id(11),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: value_id(10),
+                        scalar_type: ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
+                        ),
+                        qualifications: Default::default(),
+                    }),
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    kind: OperationKind::ByteSequenceLength {
+                        source: place_id(5),
+                    },
+                },
+            ],
+        );
+    }
+    module
+}
+
+#[test]
+fn returned_record_field_store_retains_mutable_reference_custody() {
+    for projected in [false, true] {
+        verify_module(
+            &returned_record_store(projected, false),
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("scalar field store retains the returned record permission");
+        let module = returned_record_store(projected, true);
+        validate_module(&module).expect("byte replacement uses the same live mutable reference");
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "the byte capacity obligation remains mandatory"
+        );
+    }
+}
+
+#[test]
+fn returned_record_field_store_rejects_changed_origin_access_and_lifetime() {
+    for byte_store in [false, true] {
+        let module = returned_record_store(true, byte_store);
+        let store_position = if byte_store { 3 } else { 1 };
+        for corruption in 0..7 {
+            let mut changed = module.clone();
+            match corruption {
+                0 => {
+                    changed.machines[0].blocks[0]
+                        .operations
+                        .swap(store_position, store_position + 1);
+                }
+                1 => {
+                    let (OperationKind::StructuralScalarFieldStore { path, .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { path, .. }) =
+                        &mut changed.machines[0].blocks[0].operations[store_position].kind
+                    else {
+                        unreachable!()
+                    };
+                    path.clear();
+                }
+                2 => {
+                    let StructuralTypeShape::Reference { access, .. } =
+                        &mut changed.structural_types[1].shape
+                    else {
+                        unreachable!()
+                    };
+                    *access = StructuralAccess::SharedBorrow;
+                }
+                3 => {
+                    let TerminalMachineResult::Structural(result) = &mut changed.machines[1].result
+                    else {
+                        unreachable!()
+                    };
+                    result.reference_sources[0].source.path[1] =
+                        StructuralPathSegment::FixedIndex(0);
+                }
+                4 => {
+                    let OperationKind::EstablishReference { source } =
+                        &mut changed.machines[1].blocks[0].operations[0].kind
+                    else {
+                        unreachable!()
+                    };
+                    source.path[1] = StructuralPathSegment::FixedIndex(2);
+                }
+                5 => {
+                    let (OperationKind::StructuralScalarFieldStore { destination, .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { destination, .. }) =
+                        &mut changed.machines[0].blocks[0].operations[store_position].kind
+                    else {
+                        unreachable!()
+                    };
+                    *destination = place_id(99);
+                }
+                6 => {
+                    changed.machines[0].blocks[0]
+                        .operations
+                        .swap(0, store_position);
+                }
+                _ => unreachable!(),
+            }
+            validate_module(&changed)
+                .expect_err("reference field stores retain origin, access and lifetime");
+        }
+    }
+}
+
+#[test]
+fn returned_record_field_store_requires_a_complete_uncalled_callee_roster() {
+    let mut module = returned_record_store(true, false);
+    let caller = &mut module.machines[0];
+    caller.blocks[0].operations.clear();
+    caller
+        .structural_places
+        .retain(|place| place.id == place_id(1));
+    validate_module(&module).expect("the reference-returning callee need not have a caller");
+    let TerminalMachineResult::Structural(result) = &mut module.machines[1].result else {
+        unreachable!()
+    };
+    result.reference_sources.clear();
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(2),
+            reason: "reference result is missing source mappings",
+        })
+    );
+}
+
+#[test]
+fn returned_record_field_store_waits_for_child_release() {
+    let mut module = returned_record_store(true, false);
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(reference_place(3, 9));
+    caller.blocks[0]
+        .operations
+        .splice(1..1, [establish(9, 3, argument(2, true)), release(12, 3)]);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a returned record may be written after its child loan ends");
+    module.machines[0].blocks[0].operations.remove(2);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(1),
+            reason: "field destination reference remains suspended by a live child",
+        })
+    );
+}
+
 #[test]
 fn reference_result_replays_ordinary_relay_and_mark_before_return() {
     for mark in [false, true] {

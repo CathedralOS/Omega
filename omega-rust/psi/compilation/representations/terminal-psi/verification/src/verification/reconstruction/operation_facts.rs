@@ -69,6 +69,26 @@ pub(super) fn append_operation(
     // Private crash questions retain their own entry-origin discipline. A
     // current-value capture cannot manufacture an invocation-entry observation.
     let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);
+    if let OperationKind::EstablishReference { source } = &operation.kind
+        && let Some(result) = operation.result.structural()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(declaration.shape,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent, access: terminal_psi::StructuralAccess::MutableBorrow,
+                } if module.structural_types.iter().any(|declaration| {
+                    declaration.id == referent && matches!(declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. })
+                }))
+        })
+    {
+        // The loan may mutate through a different carrier identity. Retire
+        // captured-root observations now; release restores permission, not
+        // the pre-loan contents. Immutable scalar snapshots remain valid.
+        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+            !crate::validation::proposition_observes_places(proposition, &[source.place])
+        });
+    }
     runtime_index::append(
         module,
         machine,

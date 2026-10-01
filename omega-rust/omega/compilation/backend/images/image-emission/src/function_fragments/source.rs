@@ -263,6 +263,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && structural_fields::replacement_footprints_retained(
                             abstracted,
                             operation,
+                            Some(targeted),
                             &selected.memory_accesses,
                             &current.optimized_target().optimized().plan().structural_types,
                         )
@@ -455,13 +456,16 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::FloatResultPolicy { .. } => true,
                 // A static store writes one exact place row; a store through
                 // runtime-selected elements publishes one row per element.
-                AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. } => {
+                AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } => {
                     if operation.runtime_indices().is_empty() {
-                        selected.memory_accesses.iter().any(|access| {
-                            access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
-                                && access.place == destination.place()
-                                && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
-                        })
+                        structural_fields::scalar_store_place(abstracted, operation, targeted)
+                            .is_some_and(|write_place| {
+                                selected.memory_accesses.iter().any(|access| {
+                                    access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
+                                        && access.place == write_place
+                                        && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
+                                })
+                            })
                     } else {
                         structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                     }

@@ -246,6 +246,7 @@ pub(super) fn project_structural_scalar_field_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
@@ -259,18 +260,26 @@ pub(super) fn project_structural_scalar_field_store(
         unreachable!("dispatched project_structural_scalar_field_store")
     };
     let kind = {
+        let (destination, path) = scalar_graph_input::structural_fields::scalar_store_destination(
+            optimized,
+            destination,
+            path,
+            &unit.structural_types,
+            custody,
+        )
+        .ok_or(Error::custody())?;
         let (byte_offset, byte_size, elements) =
             crate::structural_inputs::structural_reference_input::store(
                 destination.structural_type(),
-                path,
+                &path,
                 *field,
                 value.scalar_type,
                 &unit.structural_types,
             )
             .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-            destination: destination.clone(),
-            path: path.clone(),
+            destination,
+            path,
             field: *field,
             value: *value,
             byte_offset,
@@ -330,6 +339,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldByteStore {
         psi_operation,
@@ -348,6 +358,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             optimized,
             &node.operation,
             &unit.structural_types,
+            custody,
         )
         .ok_or(Error::custody())?;
         let fact = unit
@@ -419,6 +430,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
@@ -436,6 +448,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
             optimized,
             &node.operation,
             &unit.structural_types,
+            custody,
         )
         .ok_or(Error::custody())?;
         let fact = unit
@@ -692,6 +705,7 @@ pub(super) fn project_byte_sequence_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ByteSequenceStore {
         psi_operation,
@@ -707,6 +721,7 @@ pub(super) fn project_byte_sequence_store(
         optimized,
         &node.operation,
         &unit.structural_types,
+        custody,
     )
     .ok_or(Error::custody())?;
     let fact = unit

@@ -835,6 +835,28 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedByteSequenceStorePlan,
     ) -> Result<(), LoweringError> {
+        use crate::emission::structural_byte_sequence_store::StoreRoot;
+        let root = match store.root {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                let (_, parameter) = self
+                    .evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(authored, _)| *authored == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-field store destination is absent",
+                    ))?;
+                StoreRoot::Parameter(parameter)
+            }
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                let (place, structural_type) =
+                    self.local_store_root(symbol, &LocalStoreRoot::BYTE_FIELD_STORE)?;
+                StoreRoot::Reference {
+                    place,
+                    structural_type,
+                }
+            }
+        };
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
@@ -842,6 +864,7 @@ impl OperationFrame<'_, '_> {
         }
         let kind = crate::emission::structural_byte_sequence_store::emit(
             store,
+            root,
             &self.evaluation.structural_parameters,
             &self.evaluation.structural_locals,
             self.structural_types.declarations(),
@@ -2498,6 +2521,13 @@ struct LocalStoreRoot {
 }
 
 impl LocalStoreRoot {
+    const BYTE_FIELD_STORE: Self = Self {
+        admits_mutable_borrow: true,
+        unknown_local: "byte-field store names an unknown structural local",
+        not_whole_home: "byte-field store local is not a whole produced reference",
+        unproduced: "byte-field store local has no produced reference",
+        lost_custody: Some("byte-field store local lost exclusive custody"),
+    };
     const OWNED_BYTE_WRITE: Self = Self {
         admits_mutable_borrow: false,
         unknown_local: "byte write names an unknown owned local",

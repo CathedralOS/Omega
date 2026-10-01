@@ -73,7 +73,7 @@ pub(super) fn replace(
                 length,
                 obligation,
                 Some((
-                    writable_field(function, structural_types, *destination, path, *field)?,
+                    writable_field(function, structural_types, live, *destination, path, *field)?,
                     *field,
                 )),
             ),
@@ -125,26 +125,39 @@ pub(super) fn replace(
 fn writable_field(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
     destination: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let parameter = function
+    let (parameter, path) = if let Some(parameter) = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == destination)
+    {
+        (parameter.clone(), path.to_vec())
+    } else {
+        let resolved = super::references::writable_referent_destination(
+            function,
+            live,
+            structural_types,
+            destination,
+            path,
+        )
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        (resolved.parameter, resolved.path)
+    };
     if !matches!(
         parameter.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     ) || parameter.multiplicity == StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || !terminal_psi::is_bounded_structural_scalar_store_path(&path)
         || function
             .entry_claims
             .iter()
-            .any(|claim| claim.input == destination)
+            .any(|claim| claim.input == parameter.place)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -153,7 +166,7 @@ fn writable_field(
     } else {
         crate::lowering::structural_layout::resolve_structural_projection_path(
             parameter.structural_type,
-            path,
+            &path,
             structural_types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
@@ -181,9 +194,9 @@ fn writable_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
-        place: destination,
+        place: parameter.place,
         access: parameter.access,
-        path: path.to_vec(),
+        path,
     })
 }
 
@@ -209,7 +222,7 @@ pub(super) fn replace_byte(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let destination_argument =
-        writable_field(function, structural_types, *destination, path, *field)?;
+        writable_field(function, structural_types, live, *destination, path, *field)?;
     // Current-IR validation proves all-path freshness. Retain that same exact
     // field observation and dominating scalar definitions in target custody.
     if !function.operations.iter().any(|operation| matches!(operation,

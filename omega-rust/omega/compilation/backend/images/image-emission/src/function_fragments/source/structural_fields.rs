@@ -369,23 +369,18 @@ pub(super) fn replacement_retained(
     else {
         return false;
     };
-    let Some((access, _)) = read_access(function, target, *destination, AccessPurpose::ByteLength)
-    else {
+    let Some(expected_destination) = write_destination(
+        function,
+        target,
+        *destination,
+        path,
+        AccessPurpose::ByteLength,
+    ) else {
         return false;
     };
-    if !matches!(
-        access,
-        terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) || source == destination
-    {
+    if source == destination {
         return false;
     }
-    let expected_destination = StructuralArgument {
-        place: *destination,
-        access,
-        path: path.clone(),
-    };
     let mut replacements = target
         .graph
         .blocks
@@ -418,6 +413,7 @@ pub(super) fn replacement_retained(
 pub(super) fn replacement_footprints_retained(
     function: &AbstractFunction,
     operation: &AbstractOperation,
+    target: Option<&TargetFunction>,
     accesses: &[selected_instructions::SelectedMemoryAccess],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
@@ -426,14 +422,14 @@ pub(super) fn replacement_footprints_retained(
     };
     let (AbstractOperation::ByteSequenceStore {
         psi_operation,
-        destination,
+        destination: _,
         source,
         length,
         obligation,
     }
     | AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
-        destination,
+        destination: _,
         source,
         length,
         obligation,
@@ -441,6 +437,27 @@ pub(super) fn replacement_footprints_retained(
     }) = operation
     else {
         return false;
+    };
+    let write_place = match operation {
+        AbstractOperation::ByteSequenceStore { destination, .. } => *destination,
+        AbstractOperation::StructuralByteSequenceFieldStore {
+            destination, path, ..
+        } => {
+            let Some(target) = target else {
+                return false;
+            };
+            match write_destination(
+                function,
+                target,
+                *destination,
+                path,
+                AccessPurpose::ByteLength,
+            ) {
+                Some(destination) => destination.place,
+                None => return false,
+            }
+        }
+        _ => return false,
     };
     let mut reads = accesses.iter().filter(|access| {
         access.origin == Origin::Operation(*psi_operation)
@@ -503,7 +520,7 @@ pub(super) fn replacement_footprints_retained(
         && read.byte_offset == source_byte_offset
         && read_length == *length
         && read_obligation == *obligation
-        && write.place == *destination
+        && write.place == write_place
         && write.byte_count == 0
         && write.role
             == Role::WriteByteSpan {
@@ -512,7 +529,7 @@ pub(super) fn replacement_footprints_retained(
                 accepted_fact,
             }
         && read.instruction == write.instruction
-        && metadata_write.place == *destination
+        && metadata_write.place == write_place
         && metadata_write.byte_count == 8
         && metadata_write.byte_offset.checked_add(8) == Some(write.byte_offset)
         && metadata_write.instruction > write.instruction
@@ -793,7 +810,7 @@ fn reference_root(
     semantic_vocabulary::PlaceId,
     Vec<terminal_psi::StructuralPathSegment>,
 )> {
-    target
+    let mut calls = target
         .graph
         .blocks
         .iter()
@@ -803,19 +820,119 @@ fn reference_root(
                 result:
                     target_operations::TargetCallResult::Structural {
                         result,
+                        result_home: None,
                         reference_results,
                         ..
                     },
                 ..
             } if result.place == place => Some(reference_results),
             _ => None,
+        });
+    let leaves = calls.next()?;
+    if calls.next().is_some() {
+        return None;
+    }
+    let mut roots = leaves.iter().filter(|leaf| leaf.path.is_empty());
+    let root = roots.next()?;
+    (roots.next().is_none()).then(|| (root.root, root.root_path.clone()))
+}
+
+/// Resolve a write spelled on a bare returned reference onto the exact root
+/// already retained by its call-result custody roster. The carrier remains
+/// zero-storage permission metadata; publication never treats it as a home or
+/// descriptor.
+fn write_destination(
+    function: &AbstractFunction,
+    target: &TargetFunction,
+    place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    purpose: AccessPurpose,
+) -> Option<StructuralArgument> {
+    if let Some((access, _)) = read_access(function, target, place, purpose) {
+        return matches!(
+            access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        )
+        .then(|| StructuralArgument {
+            place,
+            access,
+            path: path.to_vec(),
+        });
+    }
+    let (terminal_psi::StructuralPathSegment::Referent, tail) = path.split_first()? else {
+        return None;
+    };
+    let result = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if result.place == place => Some(result),
+            _ => None,
+        })?;
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !result.qualification_establishments.is_empty()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !target.graph.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Reference {
+                        access: terminal_psi::StructuralAccess::MutableBorrow,
+                        ..
+                    }
+                )
         })
-        .find_map(|leaves| {
-            leaves
-                .iter()
-                .find(|leaf| leaf.path.is_empty())
-                .map(|leaf| (leaf.root, leaf.root_path.clone()))
-        })
+    {
+        return None;
+    }
+    let (root, mut root_path) = reference_root(target, place)?;
+    let (access, _) = read_access(function, target, root, purpose)?;
+    if !matches!(
+        access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) {
+        return None;
+    }
+    root_path.extend_from_slice(tail);
+    Some(StructuralArgument {
+        place: root,
+        access,
+        path: root_path,
+    })
+}
+
+pub(super) fn scalar_store_place(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> Option<semantic_vocabulary::PlaceId> {
+    let AbstractOperation::StructuralScalarFieldStore {
+        destination, path, ..
+    } = operation
+    else {
+        return None;
+    };
+    if !matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        return Some(destination.place());
+    }
+    write_destination(
+        function,
+        target,
+        destination.place(),
+        path,
+        AccessPurpose::Field,
+    )
+    .map(|destination| destination.place)
 }
 
 fn read_access(

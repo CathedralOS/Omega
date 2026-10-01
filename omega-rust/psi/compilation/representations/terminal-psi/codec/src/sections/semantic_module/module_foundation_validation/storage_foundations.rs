@@ -11,6 +11,75 @@ use terminal_psi::{
     is_bounded_structural_scalar_store_path,
 };
 
+/// Resolve only the reference shell's declared geometry. Origin, live loan
+/// authority and the referent's owned-content restrictions remain independent
+/// verifier judgments; canonical encoding does not grant a storage permission.
+fn reference_store_carrier<'path>(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: semantic_vocabulary::PlaceId,
+    path: &'path [terminal_psi::StructuralPathSegment],
+) -> Option<(
+    semantic_vocabulary::StructuralTypeId,
+    &'path [terminal_psi::StructuralPathSegment],
+)> {
+    let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
+        return None;
+    };
+    let structural_type = structural_place_type(machine, destination)?;
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == destination);
+    let exact = if let Some(parameter) = parameter {
+        parameter.multiplicity == StructuralMultiplicity::Affine
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+    } else {
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| operation.result.structural())
+            .any(|result| {
+                result.place == destination
+                    && result.structural_type == structural_type
+                    && result.multiplicity == StructuralMultiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            })
+    };
+    if !exact {
+        return None;
+    }
+    let StructuralTypeShape::Reference {
+        referent,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+    } = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?
+        .shape
+    else {
+        return None;
+    };
+    module
+        .structural_types
+        .iter()
+        .any(|declaration| {
+            declaration.id == referent
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        })
+        .then_some((referent, suffix))
+}
+
 pub(super) fn validate_establish_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -85,23 +154,32 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     if operation.result != OperationResult::Unit {
         return malformed("byte field store requires Unit");
     }
-    let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)
-    else {
-        return malformed("byte field store destination is not a parameter");
+    let reference = reference_store_carrier(module, machine, *destination, path);
+    let (destination_type, carrier_path) = if let Some(reference) = reference {
+        reference
+    } else {
+        let Some(parameter) = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *destination)
+        else {
+            return malformed("byte field store destination is not a parameter");
+        };
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return malformed("byte field store has invalid destination custody");
+        }
+        (parameter.structural_type, path.as_slice())
     };
-    if !matches!(
-        parameter.access,
-        terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) || !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !is_bounded_structural_scalar_store_path(path)
+    if !is_bounded_structural_scalar_store_path(carrier_path)
         || machine
             .entry_claims
             .iter()
@@ -113,7 +191,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     {
         return malformed("byte field store has invalid destination custody");
     }
-    let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+    let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
     let bounded_field = module
         .structural_types
         .iter()
@@ -776,7 +854,10 @@ pub(super) fn validate_structural_scalar_field_store(
     if operation.result != OperationResult::Unit {
         return malformed("structural scalar field store declares a non-Unit result");
     }
-    let destination_type = if let Some(parameter) = machine
+    let reference = reference_store_carrier(module, machine, *destination, path);
+    let destination_type = if let Some((referent, _)) = reference {
+        referent
+    } else if let Some(parameter) = machine
         .structural_parameters
         .iter()
         .chain(
@@ -838,7 +919,8 @@ pub(super) fn validate_structural_scalar_field_store(
         // ordered availability and whole affine liveness belong to verification.
         result.structural_type
     };
-    if !terminal_psi::is_structural_scalar_store_path(path)
+    let carrier_path = reference.map_or(path.as_slice(), |(_, suffix)| suffix);
+    if !terminal_psi::is_structural_scalar_store_path(carrier_path)
         || machine
             .entry_claims
             .iter()
@@ -850,7 +932,7 @@ pub(super) fn validate_structural_scalar_field_store(
     {
         return malformed("structural scalar field store has invalid destination custody");
     }
-    let parent_type = validate_structural_path(module, destination_type, path)?;
+    let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
     let Some(expected) = module
         .structural_types
         .iter()

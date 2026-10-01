@@ -36,7 +36,7 @@ mod operations;
 mod owned_arguments;
 mod primitive_storage;
 mod records;
-mod references;
+pub(super) mod references;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;
 mod structural_case;

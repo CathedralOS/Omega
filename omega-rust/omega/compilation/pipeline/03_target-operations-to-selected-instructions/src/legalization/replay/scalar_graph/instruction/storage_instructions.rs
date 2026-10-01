@@ -155,6 +155,7 @@ pub(super) fn validate_structural_scalar_field_store(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -178,17 +179,26 @@ pub(super) fn validate_structural_scalar_field_store(
         unreachable!("dispatched validate_structural_scalar_field_store")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
+    let (expected, expected_path) =
+        scalar_graph_input::structural_fields::scalar_store_destination(
+            optimized,
+            expected,
+            expected_path,
+            &unit.structural_types,
+            custody,
+        )
+        .ok_or(invalid.clone())?;
     let (expected_offset, expected_size, elements) =
         crate::structural_inputs::structural_reference_input::store(
             expected.structural_type(),
-            expected_path,
+            &expected_path,
             *expected_field,
             expected_value.scalar_type,
             &unit.structural_types,
         )
         .ok_or(invalid.clone())?;
-    if destination != expected
-        || path != expected_path
+    if destination != &expected
+        || path != &expected_path
         || field != expected_field
         || value != expected_value
         || (*byte_offset, *byte_size) != (expected_offset, expected_size)
@@ -353,6 +363,7 @@ pub(super) fn validate_structural_byte_sequence_field_byte_store(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
@@ -382,6 +393,7 @@ pub(super) fn validate_structural_byte_sequence_field_byte_store(
             optimized,
             &node.operation,
             &plan.structural_types,
+            custody,
         )
         || field != expected_field
         || index != expected_index
@@ -458,6 +470,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
@@ -485,6 +498,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
             optimized,
             &node.operation,
             &plan.structural_types,
+            custody,
         )
         || field != expected_field
         || source != expected_source
@@ -686,6 +700,7 @@ pub(super) fn validate_byte_sequence_store(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     operation: OperationId,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::ByteSequenceStore {
@@ -715,6 +730,7 @@ pub(super) fn validate_byte_sequence_store(
             optimized,
             &node.operation,
             &plan.structural_types,
+            custody,
         )
         .is_none()
         || !unit.accepted_obligation_facts.iter().any(|fact| {

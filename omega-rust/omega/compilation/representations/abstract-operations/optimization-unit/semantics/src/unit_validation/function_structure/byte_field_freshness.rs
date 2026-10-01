@@ -86,8 +86,17 @@ pub(super) fn field_path(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<Vec<StructuralPathSegment>> {
     let (structural_type, _) = byte_field_root(function, root)?;
-    let carrier =
-        super::super::structural_catalog::resolve_structural_path(types, structural_type, path)?;
+    let (storage_type, storage_path) =
+        if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
+            super::super::references::mutable_record_field_destination(function, types, root, path)?
+        } else {
+            (structural_type, path)
+        };
+    let carrier = super::super::structural_catalog::resolve_structural_path(
+        types,
+        storage_type,
+        storage_path,
+    )?;
     let StructuralTypeShape::Record { fields } = &types.get(&carrier)?.shape else {
         return None;
     };

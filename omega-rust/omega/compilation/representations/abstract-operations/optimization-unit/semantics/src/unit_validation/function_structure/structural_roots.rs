@@ -111,6 +111,7 @@ pub(crate) fn validate_structural_root_operations(
                         O::EstablishRecord { psi_operation, result, .. }
                         | O::EstablishZeroedStructural { psi_operation, result }
                         | O::EstablishScalarArray { psi_operation, result, .. }
+                        | O::EstablishReference { psi_operation, result, .. }
                         | O::EstablishCase { psi_operation, result, .. }
                         | O::StructuralLeafCopy { psi_operation, result, .. }
                         | O::MoveStructuralField { psi_operation, result, .. }
@@ -189,13 +190,28 @@ pub(crate) fn validate_structural_root_operations(
                     field,
                     ..
                 } => {
+                    let geometry = if matches!(
+                        path.first(),
+                        Some(terminal_psi::StructuralPathSegment::Referent)
+                    ) {
+                        super::super::references::mutable_record_field_destination(
+                            function,
+                            structural_types,
+                            *source,
+                            path,
+                        )
+                    } else {
+                        super::byte_field_freshness::byte_field_root(function, *source)
+                            .map(|(root, _)| (root, path.as_slice()))
+                    };
                     let valid = super::byte_field_freshness::byte_field_root(function, *source)
-                        .is_some_and(|(structural_type, access)| {
+                        .is_some_and(|(_, access)| {
+                            let Some((structural_type, storage_path)) = geometry else { return false; };
                             (access != terminal_psi::StructuralAccess::WriteOnlyBorrow
                                 || matches!(node.operation, O::StructuralByteSequenceFieldLength { .. }))
-                            && terminal_psi::is_bounded_structural_scalar_store_path(path)
+                            && terminal_psi::is_bounded_structural_scalar_store_path(storage_path)
                             && super::super::structural_catalog::resolve_structural_path(
-                                structural_types, structural_type, path,
+                                structural_types, structural_type, storage_path,
                             ).and_then(|parent| structural_types.get(&parent))
                             .is_some_and(|declaration| match &declaration.shape {
                                 terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().any(|candidate|
@@ -317,11 +333,27 @@ pub(crate) fn validate_structural_root_operations(
                     range_obligation,
                     ..
                 } => {
-                    let parent = super::super::structural_catalog::resolve_structural_path(
-                        structural_types,
-                        destination.structural_type(),
-                        path,
-                    );
+                    let geometry = if matches!(
+                        path.first(),
+                        Some(terminal_psi::StructuralPathSegment::Referent)
+                    ) {
+                        super::super::references::mutable_record_field_destination(
+                            function,
+                            structural_types,
+                            destination.place(),
+                            path,
+                        )
+                    } else {
+                        Some((destination.structural_type(), path.as_slice()))
+                    };
+                    let parent = geometry.and_then(|(root, storage_path)| {
+                        terminal_psi::is_structural_scalar_store_path(storage_path).then_some(())?;
+                        super::super::structural_catalog::resolve_structural_path(
+                            structural_types,
+                            root,
+                            storage_path,
+                        )
+                    });
                     // The retained store destination must be the complete
                     // declaration of its actual root. A mutable address join
                     // supplies its incoming permission, never an entry ABI slot.
@@ -334,7 +366,6 @@ pub(crate) fn validate_structural_root_operations(
                             terminal_psi::StructuralMultiplicity::Unrestricted
                                 | terminal_psi::StructuralMultiplicity::Affine
                         )
-                        && terminal_psi::is_structural_scalar_store_path(path)
                         && function
                             .entry_claim_declarations
                             .iter()

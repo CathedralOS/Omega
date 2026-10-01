@@ -60,7 +60,7 @@ pub(super) fn lower_operation(
     // Reference custody: reads, writes and establishments cannot touch a
     // suspended referent, and a live carrier is never owned data. Call-shaped
     // operations route through the custody-aware argument lowering below.
-    let (accessed_root, referent_read) = match operation {
+    let (accessed_root, referent_access) = match operation {
         AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
         AbstractOperation::PrimitiveScalarRead { source, .. }
         | AbstractOperation::StructuralCaseMembership { source, .. }
@@ -92,9 +92,19 @@ pub(super) fn lower_operation(
         AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => {
             (Some(destination.place()), false)
         }
-        AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
-            (Some(destination.place()), false)
-        }
+        AbstractOperation::StructuralScalarFieldStore {
+            destination, path, ..
+        } => (
+            Some(destination.place()),
+            super::references::writable_referent_destination(
+                function,
+                live,
+                structural_types,
+                destination.place(),
+                path,
+            )
+            .is_some(),
+        ),
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => (Some(result.place), false),
         AbstractOperation::MoveStructuralField { source, .. } => (Some(source.place()), false),
         AbstractOperation::StoreStructuralField { destination, .. } => {
@@ -102,7 +112,7 @@ pub(super) fn lower_operation(
         }
         _ => (None, false),
     };
-    if !referent_read
+    if !referent_access
         && accessed_root.is_some_and(|place| super::references::check_root_access(live, place))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -541,12 +551,25 @@ pub(super) fn lower_operation(
             Ok(())
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
+            let reference_destination = match operation {
+                AbstractOperation::StructuralScalarFieldStore {
+                    destination, path, ..
+                } => super::references::writable_referent_destination(
+                    function,
+                    live,
+                    structural_types,
+                    destination.place(),
+                    path,
+                ),
+                _ => None,
+            };
             crate::lowering::unit::lower_field_store(
                 operation,
                 function,
                 structural_types,
                 parameters_by_place,
                 &live.structural_homes,
+                reference_destination,
                 &super::scalar_sources::ScalarSources::from(&*live),
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),

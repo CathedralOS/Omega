@@ -183,6 +183,24 @@ fn retired_in_body(
         })
         .chain(moved_into_calls)
         .collect::<Vec<_>>();
+    // A body release already consumed this exact carrier. Only loans whose
+    // last use belongs to a transition remain for the selected edge to drop.
+    for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal,
+            loan,
+            ..
+        } = operation
+            && !super::super::emission::reference_release_is_deferred(
+                checked,
+                machine,
+                state.state,
+                *loan,
+            )?
+        {
+            retired.push(*binding_ordinal);
+        }
+    }
     // A named affine result can end at a later call, before any state edge.
     // The graph's global discard flag is false for both live and moved locals;
     // it cannot prove this retirement. Rejoin the one whole call use and the
@@ -602,6 +620,17 @@ pub(super) fn local_discards(
     let mut discards = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {
+            continue;
+        }
+        // An ordinary structural return transfers its exact result; other
+        // local owners still need the same cleanup as a Unit completion.
+        if edge.is_none()
+            && matches!(&state.terminator,
+                checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned }
+                    if matches!(returned.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                            if binding_ordinal == result.binding_ordinal))
+        {
             continue;
         }
         // The case edges that consume a computed dispatch subject leave from

@@ -356,6 +356,20 @@ fn byte_field_predicates_in<'t>(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ByteSequencePredicateSet> {
     let (structural_type, _) = super::byte_field_freshness::byte_field_root(function, root)?;
+    // The carrier's affine permission and referent shape are reconstructed
+    // before traversing storage. Keep the explicit path on the operation.
+    let (structural_type, path) = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let catalog = types
+            .clone()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        super::super::references::mutable_record_field_destination(function, &catalog, root, path)?
+    } else {
+        (structural_type, path)
+    };
     let declaration =
         terminal_semantics::runtime_structural_path_tip(types, structural_type, path)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {

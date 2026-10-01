@@ -2011,6 +2011,26 @@ pub fn result_loan(
     // leaf custody.
     let mut members = Vec::new();
     let mut root = argument;
+    if mutable_view || shared_view {
+        // An explicit borrow passes the same captured place as an implicit
+        // borrowed argument. Peel only the requested access, then rejoin the
+        // authored root and the exact checked loan below; the wrapper itself
+        // neither creates result custody nor changes its release boundary.
+        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(root) {
+            let parameter = program.state_parameters(callee).get(position)?;
+            let expected_access = if view_source_parameter_is_mutable(program, parameter) {
+                language_semantics::ReferenceAccess::Mutable
+            } else if view_source_parameter_is_readable(program, parameter) {
+                language_semantics::ReferenceAccess::Shared
+            } else {
+                return None;
+            };
+            if borrow.access != expected_access {
+                return None;
+            }
+            root = borrow.target;
+        }
+    }
     while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
         members.push(member);
         root = member.receiver;

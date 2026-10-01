@@ -26,6 +26,9 @@ pub(in crate::lowering) fn lower_field_store(
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+    reference_destination: Option<
+        crate::lowering::control_flow::references::WritableReferentDestination,
+    >,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -43,12 +46,7 @@ pub(in crate::lowering) fn lower_field_store(
     else {
         unreachable!("projected field-store lowering receives only field stores")
     };
-    if !terminal_psi::is_structural_scalar_store_path(path) {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    }
-    let destination_storage = match destination {
+    let (destination, path, destination_storage) = match destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(destination) => {
             if !matches!(
                 destination.access,
@@ -72,8 +70,14 @@ pub(in crate::lowering) fn lower_field_store(
                     .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ))?;
-                target_operations::TargetStructuralArgumentSource::Placement(
-                    parameter.placement.clone(),
+                (
+                    abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        destination.clone(),
+                    ),
+                    path.clone(),
+                    target_operations::TargetStructuralArgumentSource::Placement(
+                        parameter.placement.clone(),
+                    ),
                 )
             } else {
                 let block = function
@@ -90,37 +94,80 @@ pub(in crate::lowering) fn lower_field_store(
                     .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ))?;
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block: block.block,
-                    place: destination.place,
-                }
+                (
+                    abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        destination.clone(),
+                    ),
+                    path.clone(),
+                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                        block: block.block,
+                        place: destination.place,
+                    },
+                )
             }
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
-            let home = structural_homes
-                .get(&result.place)
-                .filter(|home| home.operation_result() == Some((*producer, result)))
-                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ))?;
-            if home.has_claims()
-                || !home.qualifications().is_empty()
-                || !home.projected_qualifications().is_empty()
-                || !matches!(
-                    home.multiplicity(),
-                    terminal_psi::StructuralMultiplicity::Affine
-                        | terminal_psi::StructuralMultiplicity::Unrestricted
-                )
+            if let Some(resolved) = reference_destination
+                && resolved.producer == *producer
+                && resolved.result == *result
             {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
-            }
-            target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: *producer,
+                let parameter = parameters_by_place
+                    .get(&resolved.parameter.place)
+                    .copied()
+                    .filter(|parameter| {
+                        parameter.structural_type == resolved.parameter.structural_type
+                            && parameter.multiplicity == resolved.parameter.multiplicity
+                            && parameter.access == resolved.parameter.access
+                            && parameter.projected_qualifications
+                                == resolved.parameter.projected_qualifications
+                    })
+                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ))?;
+                (
+                    abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        resolved.parameter,
+                    ),
+                    resolved.path,
+                    target_operations::TargetStructuralArgumentSource::Placement(
+                        parameter.placement.clone(),
+                    ),
+                )
+            } else {
+                let home = structural_homes
+                    .get(&result.place)
+                    .filter(|home| home.operation_result() == Some((*producer, result)))
+                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ))?;
+                if home.has_claims()
+                    || !home.qualifications().is_empty()
+                    || !home.projected_qualifications().is_empty()
+                    || !matches!(
+                        home.multiplicity(),
+                        terminal_psi::StructuralMultiplicity::Affine
+                            | terminal_psi::StructuralMultiplicity::Unrestricted
+                    )
+                {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                (
+                    destination.clone(),
+                    path.clone(),
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: *producer,
+                    },
+                )
             }
         }
     };
+    if !terminal_psi::is_structural_scalar_store_path(&path) {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
+    }
     let destination_shape = super::super::structural_layout::structural_shape(
         destination.structural_type(),
         structural_types,
@@ -178,7 +225,7 @@ pub(in crate::lowering) fn lower_field_store(
     // element's bound stays the store's verified obligation.
     let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
         destination.structural_type(),
-        path,
+        &path,
         structural_types,
         shape_cache,
         active,
@@ -224,8 +271,8 @@ pub(in crate::lowering) fn lower_field_store(
         ))?;
     operations.push(TargetUnitOperation::StructuralScalarFieldStore {
         psi_operation: *psi_operation,
-        destination: destination.clone(),
-        path: path.clone(),
+        destination,
+        path,
         field: *field,
         destination_storage,
         field_byte_offset,

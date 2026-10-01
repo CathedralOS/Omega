@@ -24,32 +24,44 @@ pub(crate) fn capacity(
     else {
         return Err(invalid());
     };
+    let reference = crate::validation::references::mutable_record_field_destination(
+        module,
+        machine,
+        *destination,
+        path,
+    );
     let parameter = machine
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == *destination)
-        .ok_or_else(invalid)?;
-    if operation.result != OperationResult::Unit
-        || !matches!(
+        .find(|parameter| parameter.place == *destination);
+    let (root_type, carrier_path) = if let Some(reference) = reference {
+        reference
+    } else {
+        let parameter = parameter.ok_or_else(invalid)?;
+        if !matches!(
             parameter.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !matches!(
+        ) || !matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !machine.structural_places.iter().any(|place| {
+                place.id == *destination
+                    && place.kind
+                        == StructuralPlaceKind::Parameter {
+                            position: parameter.position,
+                            is_self: parameter.is_self,
+                        }
+            })
+        {
+            return Err(invalid());
+        }
+        (parameter.structural_type, path.as_slice())
+    };
+    if operation.result != OperationResult::Unit
         || *destination == *source
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-        || !machine.structural_places.iter().any(|place| {
-            place.id == *destination
-                && place.kind
-                    == StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    }
-        })
+        || !terminal_psi::is_bounded_structural_scalar_store_path(carrier_path)
         || machine
             .entry_claims
             .iter()
@@ -70,7 +82,7 @@ pub(crate) fn capacity(
         return Err(invalid());
     }
     let parent_type =
-        resolve_structural_path(module, parameter.structural_type, path).ok_or_else(invalid)?;
+        resolve_structural_path(module, root_type, carrier_path).ok_or_else(invalid)?;
     let declaration = module
         .structural_types
         .iter()

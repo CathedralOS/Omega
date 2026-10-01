@@ -222,6 +222,37 @@ fn referent(
     }
 }
 
+/// The sole aggregate bare-reference carrier native lowering realizes. Its
+/// mutable record referent is ordinary storage rather than a nested loan
+/// roster; shared, write-only and reference-bearing record referents remain
+/// outside this ABI.
+fn mutable_plain_record_referent(
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+) -> Option<StructuralTypeId> {
+    let StructuralTypeShape::Reference {
+        referent,
+        access: StructuralAccess::MutableBorrow,
+    } = &lookup(declarations, structural_type)?.shape
+    else {
+        return None;
+    };
+    matches!(
+        lookup(declarations, *referent).map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Record { .. })
+    )
+    .then_some(*referent)
+    .filter(|referent| !contains_reference(declarations, *referent))
+}
+
+fn bare_referent(
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+) -> Option<StructuralTypeId> {
+    referent(declarations, structural_type)
+        .or_else(|| mutable_plain_record_referent(declarations, structural_type))
+}
+
 /// The structural type a field-only path names beneath `root`: record and
 /// mixed fields descend structurally while a plain leaf field resolves to
 /// its canonical standalone declaration.
@@ -347,9 +378,55 @@ fn source_contract(
         .map(|leaf| (leaf.structural_type, leaf.multiplicity))
 }
 
+/// Resolve one exact borrowed ingress projection. Only statically declared
+/// field and fixed-index hops beneath a clean borrowed parameter qualify;
+/// dynamic selectors and local/result storage require their existing routes.
+fn static_ingress_type(
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Option<StructuralTypeId> {
+    if source.path.is_empty()
+        || source
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+    {
+        return None;
+    }
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source.place)?;
+    let access_is_compatible = match source.access {
+        StructuralAccess::SharedBorrow => matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ),
+        StructuralAccess::MutableBorrow => parameter.access == StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow => matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::Owned => false,
+    };
+    if !access_is_compatible
+        || parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || function
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == source.place)
+    {
+        return None;
+    }
+    leaf_type(declarations, parameter.structural_type, &source.path)
+}
+
 /// A `.., Referent` source names the suspended root of the located carrier
-/// leaf; an empty path names a primitive referent root place directly. Any
-/// other projection does not describe reference custody this lane admits.
+/// leaf; an empty path names a primitive referent root place directly. A
+/// static field/fixed-index path retains the exact borrowed ingress address.
 fn normalized_source(
     function: &AbstractFunction,
     custody: &Custody,
@@ -373,6 +450,8 @@ fn normalized_source(
         }
     } else if source.path.is_empty() {
         Some(Root::Place(source.place))
+    } else if static_ingress_type(function, declarations, source).is_some() {
+        Some(Root::Ingress(source.place, source.path.clone()))
     } else {
         None
     }
@@ -397,7 +476,11 @@ fn call_source(
 
 /// The formal origin a callee result mapping names: a borrowed primitive
 /// parameter or an ingress leaf path under an owned or shared carrier.
-fn formal_origin(function: &AbstractFunction, source: &StructuralArgument) -> Option<Root> {
+fn formal_origin(
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Option<Root> {
     let parameter = function
         .structural_parameters
         .iter()
@@ -416,6 +499,8 @@ fn formal_origin(function: &AbstractFunction, source: &StructuralArgument) -> Op
         )
     {
         Some(Root::Ingress(source.place, carrier_path.to_vec()))
+    } else if static_ingress_type(function, declarations, source).is_some() {
+        Some(Root::Ingress(source.place, source.path.clone()))
     } else {
         None
     }
@@ -539,6 +624,13 @@ fn call_result_leaves(
     if !contains_reference(declarations, result.structural_type) {
         return Some((Vec::new(), Vec::new()));
     }
+    if matches!(
+        lookup(declarations, result.structural_type).map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Reference { .. })
+    ) && bare_referent(declarations, result.structural_type).is_none()
+    {
+        return None;
+    }
     // The result place is fresh on an admissible plan: no live carrier leaf
     // may already name it.
     if custody
@@ -554,7 +646,7 @@ fn call_result_leaves(
     for mapping in &callee_result.reference_sources {
         let source = call_source(callee, structural_arguments, mapping)?;
         let leaf = if matches!(
-            formal_origin(callee, &mapping.source),
+            formal_origin(callee, declarations, &mapping.source),
             Some(Root::Ingress(..))
                 if mapping
                     .source
@@ -842,6 +934,7 @@ fn apply(
             // A result place already carrying leaves — or already established
             // as a home — cannot be re-established on an admissible plan.
             if custody.homes.contains_key(&result.place)
+                || bare_referent(declarations, result.structural_type).is_none()
                 || custody
                     .leaves
                     .keys()

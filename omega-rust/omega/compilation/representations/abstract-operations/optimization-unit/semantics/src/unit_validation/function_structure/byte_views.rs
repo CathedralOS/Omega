@@ -70,42 +70,58 @@ pub(crate) fn byte_field_store_capacity(
         } => (destination, path, field),
         _ => return None,
     };
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-        || function
-            .entry_claim_declarations
+    let (root_type, storage_path) = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        super::super::references::mutable_record_field_destination(
+            function,
+            structural_types,
+            *destination,
+            path,
+        )?
+    } else {
+        let parameter = function
+            .structural_parameters
             .iter()
-            .any(|claim| claim.input == *destination)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == *destination)
-        || !function.structural_places.iter().any(|place| {
-            place.id == *destination
-                && place.kind
-                    == StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    }
-        })
-    {
+            .find(|parameter| parameter.place == *destination)?;
+        if !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == *destination)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *destination)
+            || !function.structural_places.iter().any(|place| {
+                place.id == *destination
+                    && place.kind
+                        == StructuralPlaceKind::Parameter {
+                            position: parameter.position,
+                            is_self: parameter.is_self,
+                        }
+            })
+        {
+            return None;
+        }
+        (parameter.structural_type, path.as_slice())
+    };
+    if !terminal_psi::is_bounded_structural_scalar_store_path(storage_path) {
         return None;
     }
     let parent = super::super::structural_catalog::resolve_structural_path(
         structural_types,
-        parameter.structural_type,
-        path,
+        root_type,
+        storage_path,
     )?;
     let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
         return None;

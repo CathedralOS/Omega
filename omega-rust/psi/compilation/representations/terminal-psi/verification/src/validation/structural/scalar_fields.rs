@@ -207,7 +207,15 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
         path: path.to_vec(),
         field,
     };
-    let structural_type = if let Some(result) =
+    let reference = crate::validation::references::mutable_record_field_destination(
+        module,
+        machine,
+        destination,
+        path,
+    );
+    let structural_type = if let Some((referent, _)) = reference {
+        referent
+    } else if let Some(result) =
         crate::validation::record::completed_source(module, machine, destination)
     {
         result.structural_type
@@ -232,6 +240,7 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
         }
         parameter.structural_type
     };
+    let path = reference.map_or(path, |(_, path)| path);
     if !is_structural_scalar_store_path(path)
         || machine
             .entry_claims
@@ -269,11 +278,15 @@ pub(crate) fn structural_scalar_field_store_range(
     };
     let signature =
         crate::validation::structural::result_contracts::source_signature(machine, destination)?;
-    let parent = crate::validation::foundation::resolve_runtime_projection(
+    let (root_type, path) = crate::validation::references::mutable_record_field_destination(
         module,
-        signature.structural_type,
+        machine,
+        destination,
         path,
-    )?;
+    )
+    .unwrap_or((signature.structural_type, path));
+    let parent =
+        crate::validation::foundation::resolve_runtime_projection(module, root_type, path)?;
     let declaration = module
         .structural_types
         .iter()

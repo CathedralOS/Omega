@@ -21,6 +21,17 @@ use terminal_psi::control_flow::ByteSequenceOperand;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
+/// The ordered frame supplies a real formal or a previously produced local
+/// reference. Keeping these distinct prevents manufacturing parameter custody
+/// for a call result; source replay and Terminal verify the loan independently.
+pub(crate) enum StoreRoot<'a> {
+    Parameter(&'a StructuralParameterDeclaration),
+    Reference {
+        place: semantic_vocabulary::PlaceId,
+        structural_type: StructuralTypeId,
+    },
+}
+
 /// Shared callees must use the closure's existing carrier, not allocate one.
 pub(crate) fn existing_literal_view_type(
     types: &[StructuralTypeDeclaration],
@@ -61,31 +72,40 @@ pub(crate) fn validate_assignment(
         Some(statement_index),
         assignment.target,
     )?;
-    // Destinations remain parameter-rooted. A readable local source below does
-    // not acquire byte-owner or byte-field mutation authority here.
-    let Some(position) = store.root.parameter_position() else {
-        return unsupported("byte-field store has no parameter root");
+    let (root, mut path) = match store.root {
+        checked_trees::CheckedStoreRoot::Parameter { position } => {
+            let parameter = checked
+                .state_parameters(state)
+                .get(position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "byte-field store has no authored parameter",
+                ))?;
+            (parameter.symbol, Vec::new())
+        }
+        checked_trees::CheckedStoreRoot::Local { symbol } => {
+            crate::emission::structural_scalar_store_source::local_store_destination(
+                checked,
+                machine,
+                state,
+                state_symbol,
+                store.statement_index,
+                symbol,
+            )?
+        }
     };
-    let parameter = checked
-        .state_parameters(state)
-        .get(position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "byte-field store has no authored parameter",
-        ))?;
-    let path = match &store.destination {
-        Destination::Whole => Vec::new(),
+    match &store.destination {
+        Destination::Whole => {}
         Destination::Field {
             carrier_path,
             field_identity,
         } => {
-            let mut path = carrier_path.clone();
+            path.extend_from_slice(carrier_path);
             path.push(CheckedUnitStructuralPathSegment::Field(
                 field_identity.clone(),
             ));
-            path
         }
-    };
-    if source.root != parameter.symbol || source.path != path {
+    }
+    if source.root != root || source.path != path {
         return unsupported("byte-field store destination differs from its authored place");
     }
     validate_value(
@@ -530,6 +550,7 @@ pub(crate) fn literal_view_type(
 
 pub(crate) fn emit(
     store: &checked_trees::CheckedByteSequenceStorePlan,
+    root: StoreRoot<'_>,
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
     structural_types: &[StructuralTypeDeclaration],
@@ -539,19 +560,15 @@ pub(crate) fn emit(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
-    // Checked stores retain authored source positions. The evaluation binding
-    // carries their exact lowered declarations after scalar/structural partition.
-    let Some(position) = store.root.parameter_position() else {
-        return unsupported("byte-field store destination has no parameter root");
+    let destination = match &root {
+        StoreRoot::Parameter(parameter) => parameter.place,
+        StoreRoot::Reference { place, .. } => *place,
     };
-    let (_, parameter) = parameters
-        .iter()
-        .find(|(authored, _)| *authored == position)
-        .ok_or(LoweringError::Unsupported(
-            "byte-field store destination is absent",
-        ))?;
     let field_destination = match &store.destination {
         Destination::Whole => {
+            let StoreRoot::Parameter(parameter) = &root else {
+                return unsupported("whole byte store requires a borrowed bounded formal");
+            };
             if !matches!(
                 parameter.access,
                 terminal_psi::StructuralAccess::MutableBorrow
@@ -576,17 +593,44 @@ pub(crate) fn emit(
             carrier_path,
             field_identity,
         } => {
-            let (path, field) =
-                crate::emission::structural_scalar_store::lower_structural_field_place(
-                    store.statement_index,
-                    store.statement_index,
-                    parameter.position,
-                    carrier_path,
-                    field_identity,
-                    parameter,
-                    structural_types,
-                    crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-                )?;
+            let (path, field) = match &root {
+                StoreRoot::Parameter(parameter) => {
+                    crate::emission::structural_scalar_store::lower_structural_field_place(
+                        store.statement_index,
+                        store.statement_index,
+                        parameter.position,
+                        carrier_path,
+                        field_identity,
+                        parameter,
+                        structural_types,
+                        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                    )?
+                }
+                StoreRoot::Reference {
+                    structural_type, ..
+                } => {
+                    if !structural_types.iter().any(|declaration| {
+                        declaration.id == *structural_type
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference {
+                                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                                    ..
+                                }
+                            )
+                    }) {
+                        return unsupported(
+                            "byte-field local destination lost mutable reference custody",
+                        );
+                    }
+                    crate::emission::structural_scalar_store::lower_structural_field_path(
+                        *structural_type,
+                        carrier_path,
+                        field_identity,
+                        structural_types,
+                    )?
+                }
+            };
             if !matches!(
                 field.field_type.byte_sequence_carrier(),
                 Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
@@ -624,9 +668,9 @@ pub(crate) fn emit(
     let obligation = obligation_id(allocate_dense(next_obligation)?);
     match field_destination {
         Some((path, field)) => {
-            operations.invalidate_field_lengths_under(parameter.place, &path);
+            operations.invalidate_field_lengths_under(destination, &path);
             Ok(OperationKind::StructuralByteSequenceFieldStore {
-                destination: parameter.place,
+                destination,
                 path,
                 field,
                 source,
@@ -635,9 +679,9 @@ pub(crate) fn emit(
             })
         }
         None => {
-            operations.invalidate_field_lengths_under(parameter.place, &[]);
+            operations.invalidate_field_lengths_under(destination, &[]);
             Ok(OperationKind::ByteSequenceStore {
-                destination: parameter.place,
+                destination,
                 source,
                 length,
                 obligation,

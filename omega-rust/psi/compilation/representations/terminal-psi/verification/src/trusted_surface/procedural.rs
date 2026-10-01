@@ -257,8 +257,8 @@ rows! {
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
         WriteInvalidation,
-        "a structural field store whose canonical write path may resolve, or a whole bounded-byte-owner replacement whose write covers the destination root",
-        "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root",
+        "a structural field store whose canonical write path may resolve, a whole bounded-byte-owner replacement, or formation of a mutable record reference whose later stores use a different carrier identity",
+        "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root; mutable record reference formation retires source-root observations before indirect mutation, and release restores permission rather than old contents",
         &["scope:place-substitution", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural/operations/structural_paths.rs")]
     );
@@ -575,8 +575,8 @@ rows! {
     FORM_REFERENCES => (
         "formation:references",
         SharedFormation,
-        "the machine's establish/release discipline over `&mut` primitive referents and `&'a` shared named referents",
-        "reference operations validate against declared custody — a minted, projected, or returned reference never exceeds its source's access, and shared carriers never move an ingress leaf — before observations are reconstructed",
+        "the machine's establish/release discipline over mutable primitive or plain-owned record referents and shared named referents, including exact relevant-field/fixed-index ingress projections",
+        "reference operations validate against declared custody — a minted, projected, or returned reference never exceeds its source's access, and shared carriers never move an ingress leaf; field writes through an explicit Referent require an available live affine mutable carrier with no live child; every reference-returning declaration retains its complete exact source roster before observations are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/references.rs")]
     );
@@ -632,7 +632,7 @@ rows! {
         "formation:structural-scalar-fields",
         SharedFormation,
         "structural scalar field reads and bounded-integer field stores with their declared intervals; a store's carrier composes fields and literal or runtime elements and ends at a record or at a mixed shape whose common field it writes directly, and a read's carrier may end in one Case step naming a payload field of that exact declared case, or at a mixed shape whose common field it reads directly because that field sits beside the tag whatever case is active",
-        "field reads and stores validate and resolve their referents — a store's carrier resolves through its runtime elements as some element of each array, and its declared range obligation resolves against the declaration, independently of the stored value; a case-qualified read's carrier is type-only here, its active case proved separately from reconstructed membership facts — before equations and bounds are reconstructed",
+        "field reads and stores validate and resolve their referents — a store's carrier resolves through its runtime elements as some element of each array, and its declared range obligation resolves against the declaration, independently of the stored value; an explicit Referent store retains exact mutable record permission and separately validated live custody; a case-qualified read's carrier is type-only here, its active case proved separately from reconstructed membership facts — before equations and bounds are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/scalar_fields.rs"), ts!( "record_field.rs")]
     );
@@ -640,7 +640,7 @@ rows! {
         "formation:structural-byte-sequence-fields",
         SharedFormation,
         "structural byte-sequence fields, exact current extents and unchanged-length observations; replacement requires a bounded-owned carrier and immutable completed source whose independently replayed predicates imply the field restrictions; an indexed store into a UTF-8 field not declared ASCII-only needs every path to reach an ASCII-proved replacement of the identical field with only same-field stores or disjoint operations after it",
-        "byte-sequence fields validate before extent equations and capacity obligations are reconstructed",
+        "byte-sequence fields validate before extent equations and capacity obligations are reconstructed; an explicit Referent replacement resolves capacity and predicates from the exact mutable record referent while reference validation independently checks establishment, live permission and child suspension",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs"), ts!( "byte_sequence_predicates.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/structural.rs"]
     );

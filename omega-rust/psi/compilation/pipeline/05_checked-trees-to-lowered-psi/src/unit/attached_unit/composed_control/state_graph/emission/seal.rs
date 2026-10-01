@@ -49,6 +49,21 @@ impl StateGraphEmission<'_, '_> {
                 ..
             } = completion
             {
+                if evaluation.selection_cleanups.is_empty() {
+                    // A returned permission does not consume the temporary
+                    // slice descriptor used to select its referent. Dispose
+                    // all other live local roots, not only entry parameters.
+                    // Selected-owner joins keep their residual splice below.
+                    *trivial_affine_discards = super::state::return_root_discards(
+                        checked,
+                        plan,
+                        state,
+                        &operations,
+                        &evaluation,
+                        state_parameters,
+                    )?;
+                    continue;
+                }
                 let source = checked
                     .machines()
                     .iter()

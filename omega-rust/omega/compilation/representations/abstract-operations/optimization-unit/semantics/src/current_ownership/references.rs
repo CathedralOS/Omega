@@ -1,7 +1,7 @@
 //! Live loan replay over the current ownership frontier.
 //!
 //! This mirrors the verified Terminal-Psi reference walk: carriers own loan
-//! permission, never their primitive referent. Origins and immediate parents
+//! permission, never their referent storage. Origins and immediate parents
 //! are reconstructed from operations and checked call interfaces; no
 //! producer-supplied lifetime or origin table is authority.
 
@@ -23,6 +23,28 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclarati
 // this private verification-work capacity separate from resource authority;
 // local/result rosters remain bounded by their existing captured rows.
 const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
+
+#[cfg(test)]
+mod record_store_tests;
+
+fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
+    match origin {
+        ReferenceOrigin::Primitive(place) => *place,
+        ReferenceOrigin::IngressLeaf(identity) => identity.place,
+    }
+}
+
+fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
+    if origin_place(left) != origin_place(right) {
+        return false;
+    }
+    match (left, right) {
+        (ReferenceOrigin::IngressLeaf(left), ReferenceOrigin::IngressLeaf(right)) => {
+            left.path.starts_with(&right.path) || right.path.starts_with(&left.path)
+        }
+        _ => true,
+    }
+}
 
 fn invalid(
     function: &PsiOptimizationFunction,
@@ -164,9 +186,10 @@ fn check_root_access(
     live: &[LiveReference],
     place: PlaceId,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if live.iter().any(|reference| {
-        reference.root == ReferenceOrigin::Primitive(place) || reference.carrier == place
-    }) {
+    if live
+        .iter()
+        .any(|reference| origin_place(&reference.root) == place || reference.carrier == place)
+    {
         return Err(invalid(
             function,
             block,
@@ -177,9 +200,45 @@ fn check_root_access(
     Ok(())
 }
 
+fn check_record_field_access(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    place: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Result<(), OptimizationUnitValidationError> {
+    if !matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        return check_root_access(function, block, node, live, place);
+    }
+    let valid_shape = crate::unit_validation::references::mutable_record_field_destination(
+        function, types, place, path,
+    )
+    .is_some();
+    let mut carriers = live
+        .iter()
+        .filter(|reference| reference.carrier == place && reference.carrier_path.is_empty());
+    let available = carriers.next().is_some_and(|carrier| {
+        !live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity))
+    }) && carriers.next().is_none();
+    if !valid_shape || !available {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "record field access has no active mutable reference carrier",
+        ));
+    }
+    Ok(())
+}
+
 /// A `.., Referent` source names a suspended child of the located carrier
-/// leaf; an empty path names a primitive referent root directly. Any other
-/// projection does not describe reference custody this layer admits.
+/// leaf; an empty path names a referent root directly. An exact static
+/// projection of an entry loan retains that complete projected origin.
 fn normalized_source(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -246,11 +305,22 @@ fn normalized_source(
             place: source.place,
             path: carrier_path.to_vec(),
         });
+        if live
+            .iter()
+            .any(|reference| origins_overlap(&reference.root, &root))
+        {
+            return Err(invalid(
+                function,
+                block,
+                Some(node),
+                "projected referent remains suspended by a live reference",
+            ));
+        }
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
         if live
             .iter()
-            .any(|reference| reference.root == ReferenceOrigin::Primitive(source.place))
+            .any(|reference| origin_place(&reference.root) == source.place)
         {
             return Err(invalid(
                 function,
@@ -260,6 +330,31 @@ fn normalized_source(
             ));
         }
         let root = ReferenceOrigin::Primitive(source.place);
+        Ok((root.clone(), ReferenceParent::Root(root)))
+    } else if reference_source_type(function, structural_types, source).is_some()
+        && source.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: source.path.clone(),
+        });
+        if live
+            .iter()
+            .any(|reference| origins_overlap(&reference.root, &root))
+        {
+            return Err(invalid(
+                function,
+                block,
+                Some(node),
+                "projected referent remains suspended by a live reference",
+            ));
+        }
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else {
         Err(invalid(
@@ -571,9 +666,17 @@ pub(super) fn apply_operation(
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
         }
-        O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. } => {
-            check_root_access(function, block, node, live, *source)?;
+        O::StructuralByteSequenceFieldLength { source, path, .. }
+        | O::StructuralByteSequenceFieldRead { source, path, .. } => {
+            check_record_field_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *source,
+                path,
+            )?;
         }
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             // These operands name byte storage, not reference carriers whose
@@ -584,8 +687,48 @@ pub(super) fn apply_operation(
         O::WriteOnlyPrimitiveStore { destination, .. } => {
             check_root_access(function, block, node, live, destination.place())?
         }
-        O::StructuralScalarFieldStore { destination, .. } => {
-            check_root_access(function, block, node, live, destination.place())?
+        O::StructuralScalarFieldStore {
+            destination, path, ..
+        } => {
+            check_record_field_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                destination.place(),
+                path,
+            )?;
+        }
+        O::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            source,
+            ..
+        } => {
+            check_record_field_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *destination,
+                path,
+            )?;
+            check_root_access(function, block, node, live, *source)?;
+        }
+        O::StructuralByteSequenceFieldByteStore {
+            destination, path, ..
+        } => {
+            check_record_field_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *destination,
+                path,
+            )?;
         }
         O::EstablishPrimitiveLocal { result, .. } => {
             check_root_access(function, block, node, live, result.place)?
@@ -734,7 +877,7 @@ pub(super) fn apply_operation(
             .is_some_and(|source| contains_reference(structural_types, source.structural_type))
             || live
                 .iter()
-                .any(|reference| reference.root == ReferenceOrigin::Primitive(argument.place))
+                .any(|reference| origin_place(&reference.root) == argument.place)
         {
             if !is_reference_projection(function, structural_types, argument) {
                 return Err(invalid(
@@ -759,7 +902,7 @@ pub(super) fn apply_operation(
         if normalized_arguments[position + 1..].iter().any(
             |(other, other_access, other_reference_access)| {
                 (*reference_access || *other_reference_access)
-                    && root == other
+                    && origins_overlap(root, other)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
             },
@@ -938,7 +1081,10 @@ pub(super) fn apply_operation(
                     parent,
                 }
             };
-            if !roots.insert(reference.root.clone()) {
+            if roots
+                .iter()
+                .any(|root| origins_overlap(root, &reference.root))
+            {
                 return Err(invalid(
                     function,
                     block,
@@ -946,6 +1092,7 @@ pub(super) fn apply_operation(
                     "reference result aliases its mapped sources",
                 ));
             }
+            roots.insert(reference.root.clone());
             established.push(reference);
         }
         // Normal completion consumes the incoming owners. Returned carriers
