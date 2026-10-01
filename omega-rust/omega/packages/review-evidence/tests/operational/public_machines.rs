@@ -2,19 +2,62 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 #[test]
+fn borrowed_bindings_retain_exact_invocation_parameter_in_review() {
+    for borrow in ["&", "&mut "] {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"use omega::language::core::binding;
+pub boundary trait Host {{ machine ping() reaches Host; }}
+pub machine dispatch(first: {borrow}Binding<Host>, second: {borrow}Binding<Host>)
+reaches Host
+invokes second;
+{{ second.ping(); }}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .expect("borrowed binding invocation checks");
+        let review = project_checked_package_review(&checked)
+            .expect("review resolves the borrowed binding's exact service");
+        let dispatch = review
+            .callables()
+            .iter()
+            .find(|callable| callable.role() == PackageReviewCallableRole::Public)
+            .expect("public dispatch row");
+        let expected = [PackageReviewSynchronousInvocation::Parameter(1)];
+        assert_eq!(
+            dispatch.declared_synchronous_invocations(),
+            Some(&expected[..])
+        );
+        assert_eq!(dispatch.realized_synchronous_invocations(), &expected);
+    }
+}
+
+#[test]
 fn public_machine_cannot_hide_realized_reach_invocation_or_operational_effects() {
     let cases = [
         (
             "invocation",
-            r#"pub boundary trait Handler { machine handle(); }
-pub machine public_api(handler: &mut Handler) { handler.handle(); }
+            r#"use omega::language::core::binding;
+pub boundary trait Handler { machine handle(); }
+pub machine public_api(handler: &mut Binding<Handler>) { handler.handle(); }
 "#,
             &["omits `invokes handler;`"][..],
         ),
         (
             "operational",
-            r#"pub boundary trait Waiting { machine wait() reaches Waiting suspends; blocks; }
-pub machine public_api(waiting: &mut Waiting)
+            r#"use omega::language::core::binding;
+pub boundary trait Waiting { machine wait() reaches Waiting suspends; blocks; }
+pub machine public_api(waiting: &mut Binding<Waiting>)
 reaches Waiting
 invokes waiting;
 {
@@ -56,10 +99,11 @@ fn exact_synchronous_invocations_change_comparison_encoding() {
     let invoking = TempPackage::new();
     quiet.write(
         "main.omg",
-        r#"pub boundary trait Handler { machine handle(); }
+        r#"use omega::language::core::binding;
+pub boundary trait Handler { machine handle(); }
 pub boundary trait Host { machine ping() reaches Host; }
-pub machine dispatch(handler: &mut Handler)
-reaches Host
+pub machine dispatch(handler: &mut Binding<Handler>)
+reaches Host, Handler
 invokes handler;
 invokes Host;
 { }
@@ -67,9 +111,11 @@ invokes Host;
     );
     invoking.write(
         "main.omg",
-        r#"pub boundary trait Handler { machine handle(); }
+        r#"use omega::language::core::binding;
+pub boundary trait Handler { machine handle(); }
 pub boundary trait Host { machine ping() reaches Host; }
-pub machine dispatch(handler: &mut Handler)
+pub machine dispatch(handler: &mut Binding<Handler>)
+reaches Host, Handler
 invokes handler;
 invokes Host;
 {

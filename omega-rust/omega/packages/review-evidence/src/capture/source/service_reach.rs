@@ -254,10 +254,13 @@ fn derive_declared_service_reach(
             flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
                 .get(*ordinal as usize)
                 .map(|parameter| {
-                    typed_trees::service::exact_bound_service_requirement(
+                    typed_trees::service::classify_exact_service_parameter_carrier(
                         compilation,
                         parameter.type_reference,
                     )
+                    .ok()
+                    .flatten()
+                    .map(|parameter| parameter.carrier.requirement)
                     .unwrap_or_else(|| {
                         compilation
                             .type_reference_table
