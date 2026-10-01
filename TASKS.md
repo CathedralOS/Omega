@@ -1223,23 +1223,27 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `b8deb3c407`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `3b53db9e13`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::clear_level` stops at
-  `call operation: structural arguments: caller structural result`.
-  The method lends `&mut rooms[0]` from its local mutable view to
-  `clear_room`; trace the result argument's referent, projected access and
-  represented field constraints in Stage 04
-  `execution/terminal_unit/calls/result_arguments/mod.rs`.
+  `MazeBuilder::build` → `MazeBuilder::carve_room` stops at
+  `statement sequence: assignment: structural call result field store`.
+  Trace the helper-result stores to `room.label` and `room.description`
+  through Stage 04 `execution/terminal_unit/control/statement_sequence/assignments.rs`
+  and ordinary byte-field replacement. `clear_level` now admits its mutable
+  view element calls; projected loans and independent slice replay preserve
+  represented field constraints without applying owned-move restrictions.
   Readable owned projections now copy unrestricted nested records through
   ordinary field replacement and exact source replay; native argument
   transport retains bounded-owned byte fields and their declared predicates.
-  The focused `borrows/owned_nested_record_copy_exit` executes 70 with a
-  source reread, and four nearby native controls retain their authored exits.
-  Eleven copied-operand tests, seven layout tests and four ABI tests pass,
-  including same-typed source substitution rejection and borrowed-descriptor
-  exclusion. Preserve guarded Unit cleanup, selected-edge indexed arguments,
+  Both `borrows/owned_nested_record_copy_exit` and
+  `borrows/qualified_record_view_call_exit` execute 70; the latter performs
+  two successive mutable element calls and preserves both UTF8 labels.
+  Three neighboring native controls retain exits 70, 181 and 0. Twelve
+  call-argument tests and shared/mutable slice replay controls reject altered
+  root, path, type or access; bounds and write-only widening still reject.
+  Preserve exact copied-source replay, borrowed-descriptor exclusion,
+  guarded Unit cleanup, selected-edge indexed arguments,
   and whole-view descriptor copying separately from projected backing reads.
   Preserve the established local byte-copy, write-frame, stale-view,
   consumed/partial-owner and suspended-root controls. These dependency results
