@@ -13,6 +13,98 @@ use terminal_production::{
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
+fn returned_record_method_receiver_replays_its_live_permission() {
+    let checked = crate::front_end::checked_program(
+        "data Holder { value: u64; sibling: u64; }
+         data Bag { holders: [Holder; 2]; }
+         machine pick(bag: &mut Bag) -> &mut Holder {
+             let holders: &mut [Holder] = bag.holders.as_mut_slice();
+             transition { _ -> &mut holders[1] }
+         }
+         machine Holder::replace(&mut self) { self.value = 41; }
+         machine exercise(bag: &mut Bag, other_bag: &mut Bag) {
+             let selected: &mut Holder = pick(bag);
+             let other: &mut Holder = pick(other_bag);
+             selected.sibling = 29;
+             selected.replace();
+             selected.sibling = 31;
+             other.sibling = 17;
+         }",
+    );
+    let publish = |source: &checked_trees::CheckedTrees| {
+        terminal_production::TerminalProductionRequest::new(
+            source,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .map(|_| ())
+        .map_err(|error| format!("{error:?}"))
+    };
+    publish(&checked).expect("the returned reference supplies its method receiver");
+    let other_result = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|machine| checked.symbols.name(machine.machine) == "exercise")
+        .expect("caller plan")
+        .operations
+        .iter()
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call)
+        .filter_map(|call| call.structural_result())
+        .find(|result| result.statement_index == 1)
+        .expect("other live returned reference")
+        .binding_ordinal;
+    for corruption in 0..4 {
+        let mut changed = checked.clone();
+        let argument = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+            .flat_map(|call| &mut call.structural_arguments)
+            .find(|argument| {
+                argument.path == [checked_trees::CheckedUnitStructuralPathSegment::Referent]
+                    && argument
+                        .source_structural_result_binding_ordinal()
+                        .is_some()
+            })
+            .expect("returned-reference receiver argument");
+        match corruption {
+            0 => argument.path.clear(),
+            1 => argument.access = checked_trees::CheckedStructuralAccess::Owned,
+            2 => {
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: u32::MAX,
+                    }
+            }
+            3 => {
+                assert_ne!(
+                    argument.source_structural_result_binding_ordinal(),
+                    Some(other_result)
+                );
+                argument.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: other_result,
+                    };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            publish(&changed).is_err(),
+            "receiver custody corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn returned_record_field_call_replays_the_exact_projection() {
     let checked = crate::front_end::checked_program(
         "data Child { value: u64; }

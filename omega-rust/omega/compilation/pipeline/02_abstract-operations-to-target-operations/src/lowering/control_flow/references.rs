@@ -100,6 +100,14 @@ fn returned_mutable_record_projection(
     else {
         return None;
     };
+    // A whole `Referent` path is also the established primitive-reference
+    // spelling. Only a record referent may enter this aggregate-origin route.
+    if !matches!(
+        &types.get(referent)?.shape,
+        StructuralTypeShape::Record { .. }
+    ) {
+        return None;
+    }
     let producer = leaf.operation?;
     if *referent != leaf.referent
         || live
@@ -180,13 +188,11 @@ pub(super) fn returned_record_call_argument(
     else {
         return Ok(None);
     };
-    let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first() else {
+    let Some((StructuralPathSegment::Referent, _)) = argument.path.split_first() else {
         return Ok(None);
     };
-    if suffix.is_empty()
-        || argument.access == StructuralAccess::Owned
+    if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
-        || declaration.is_self
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
@@ -772,8 +778,7 @@ pub(super) fn call_arguments(
     let mut normalized = Vec::new();
     let mut moved = BTreeMap::new();
     for argument in arguments {
-        if argument.path.len() > 1
-            && matches!(argument.path.first(), Some(StructuralPathSegment::Referent))
+        if matches!(argument.path.first(), Some(StructuralPathSegment::Referent))
             && let Some(resolved) = returned_mutable_record_projection(
                 function,
                 live,
@@ -782,11 +787,7 @@ pub(super) fn call_arguments(
                 &argument.path,
             )
         {
-            let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first()
-            else {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            if suffix.is_empty() || argument.access == StructuralAccess::Owned {
+            if argument.access == StructuralAccess::Owned {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             normalized.push((

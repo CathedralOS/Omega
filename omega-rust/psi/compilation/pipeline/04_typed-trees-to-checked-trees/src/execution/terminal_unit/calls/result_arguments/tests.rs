@@ -842,3 +842,172 @@ fn a_view_result_keeps_its_local_loan_out_of_the_plain_result_lane() {
         "the view result keeps the lent local borrowed until its loan is released"
     );
 }
+
+#[test]
+fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
+    let checked = checked_program(
+        r#"
+        data Child { value: i32 in Wrapping; }
+        data Holder { child: Child; sibling: i32 in Wrapping; }
+        data Bag { holders: [Holder; 2]; }
+        data Main { bag: Bag; }
+        machine pick(bag: &mut Bag) -> &mut Holder {
+            let holders: &mut [Holder] = bag.holders.as_mut_slice();
+            transition { _ -> &mut holders[1] }
+        }
+        machine Holder::replace(&mut self) { self.child.value = 41; }
+        machine observe(holder: &Holder) { }
+        machine Main::run(&mut self) {
+            let selected: &mut Holder = pick(&mut self.bag);
+            selected.sibling = 29;
+            selected.replace();
+            selected.sibling = 31;
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let pick = machine_named(&checked, "pick");
+    let replace = machine_named(&checked, "replace");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "returned-record receiver plan: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let pick_call = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == pick)
+        .expect("reference producer call");
+    let result = pick_call
+        .structural_result()
+        .expect("reference result binding");
+    let replace_call = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == replace)
+        .expect("implicit receiver call");
+    let [receiver] = replace_call.structural_arguments.as_slice() else {
+        panic!(
+            "replace receives one returned referent: {:?}",
+            replace_call.structural_arguments
+        );
+    };
+    assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
+    assert_eq!(receiver.path, [CheckedUnitStructuralPathSegment::Referent]);
+    assert_eq!(
+        receiver.source_structural_result_binding_ordinal(),
+        Some(result.binding_ordinal)
+    );
+
+    // The returned permission must come from the exact initializer call.
+    // Removing its authored-expression identity leaves no producer that can
+    // authorize the receiver even though the result row is still present.
+    let producer = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find_map(|(handle, call)| {
+            (call.target_symbol == pick_call.target.state
+                && call.statement_index == result.statement_index as usize
+                && call.authored_expression.is_valid())
+            .then_some(handle)
+        })
+        .expect("exact reference producer fact");
+    let mut missing_producer = checked.facts.clone();
+    missing_producer
+        .flow
+        .control
+        .calls
+        .get_mut(producer)
+        .authored_expression = typed_trees::expression::ExpressionHandle::invalid();
+    let missing_producer_plan = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &missing_producer,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &missing_producer.flow.terminal_boundary_scalar_returns,
+            structural_returns: &missing_producer.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        missing_producer_plan.for_machine(machine).is_none(),
+        "a result row without its exact producer authorized the receiver"
+    );
+
+    // The implicit receiver must remain inside the producer's exact returned
+    // loan. Moving the retained last use without moving its weakening makes
+    // that lifetime stale and withdraws the caller plan.
+    let loan = pick_call
+        .structural_custody()
+        .map(|custody| custody.reference_loan)
+        .filter(|loan| loan.is_valid())
+        .expect("returned reference loan");
+    let mut stale_facts = checked.facts.clone();
+    let last_use = stale_facts.borrow.loans.get(loan).last_use_statement_index;
+    stale_facts
+        .borrow
+        .loans
+        .get_mut(loan)
+        .last_use_statement_index = last_use.checked_sub(1).expect("receiver follows producer");
+    let stale = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &stale_facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &stale_facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &stale_facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        stale.for_machine(machine).is_none(),
+        "a stale returned-reference lifetime authorized the receiver"
+    );
+
+    // A shared permission with the same referent spelling cannot be retagged
+    // as the mutable receiver. Keep all captured facts unchanged and corrupt
+    // only the selected local's declared reference access.
+    let observe = machine_named(&checked, "observe");
+    let shared_reference = checked
+        .typed
+        .machine_by_symbol(observe)
+        .and_then(|machine| checked.typed.machine_states(machine).first())
+        .and_then(|state| checked.typed.state_parameters(state).first())
+        .expect("shared Holder parameter")
+        .type_reference;
+    let mut shared = checked.typed.clone();
+    let statements = shared
+        .machine_by_symbol(machine)
+        .and_then(|machine| shared.machine_states(machine).first())
+        .expect("run state")
+        .statement_nodes;
+    let typed_trees::statement::StatementNode::LocalData(selected) =
+        &mut shared.statement_table.statements_mut(statements)[result.statement_index as usize]
+    else {
+        panic!("reference result local")
+    };
+    selected.type_reference = shared_reference;
+    let shared_as_mutable = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &shared,
+        &checked.facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        shared_as_mutable.for_machine(machine).is_none(),
+        "a shared returned carrier was retagged as a mutable receiver"
+    );
+}

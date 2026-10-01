@@ -29,6 +29,8 @@ mod anonymous_shared;
 mod bounded_owner;
 mod reference;
 
+pub(in crate::execution::terminal_unit) use reference::receiver_argument as reference_result_receiver_argument;
+
 #[cfg(test)]
 mod tests;
 

@@ -1,0 +1,29 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Child { value: u64; }
+data Holder { child: Child; sibling: u64; }
+data Bag { holders: [Holder; 2]; }
+data Main { console: Binding<Console>; bag: Bag; }
+
+machine pick(bag: &mut Bag) -> &mut Holder {
+    let holders: &mut [Holder] = bag.holders.as_mut_slice();
+    transition { _ -> &mut holders[1] }
+}
+
+machine Holder::replace(&mut self) { self.child.value = 41; }
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.holders[0].child.value = 17;
+    let selected: &mut Holder = pick(&mut self.bag);
+    selected.sibling = 29;
+    selected.replace();
+    selected.sibling = 31;
+    transition self.bag.holders[1].child.value == 41
+        && self.bag.holders[1].sibling == 31
+        && self.bag.holders[0].child.value == 17 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

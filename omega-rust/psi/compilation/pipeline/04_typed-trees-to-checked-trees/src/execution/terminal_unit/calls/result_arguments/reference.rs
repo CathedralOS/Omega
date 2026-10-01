@@ -6,8 +6,9 @@ use crate::execution::terminal_unit::calls::structural_arguments::exact_structur
 use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, state_flow};
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypeShape,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypeShape,
 };
 use language_semantics::{Multiplicity, ReferenceAccess};
 use symbols::SymbolHandle;
@@ -142,4 +143,56 @@ pub(super) fn argument(
         type_identity: target_identity.to_owned(),
         access: CheckedStructuralAccess::MutableBorrow,
     })
+}
+
+/// Reconcile an implicit mutable receiver with the same returned-reference
+/// custody used by an explicit whole-local argument. The result binding is a
+/// permission carrier: the emitted argument follows its `Referent`, and the
+/// producer loan and release boundary remain the authority for that access.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::execution::terminal_unit) fn receiver_argument(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &State,
+    call: &checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    local: &TableLocalData,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    target_state: SymbolHandle,
+    target: &CheckedUnitStructuralParameterPlan,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let target_state = crate::semantic::calls::find_state(program, target_state)?;
+    // Structural signatures retain the authored source position even when a
+    // scalar or erased sibling receives no structural slot. Reconstruct the
+    // unique authored receiver and compare that position rather than treating
+    // `target.position` as an index into a compact structural roster.
+    let mut target_parameters = program
+        .state_parameters(target_state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.is_self);
+    let (target_position, target_parameter) = target_parameters.next()?;
+    if target_parameters.next().is_some()
+        || u32::try_from(target_position).ok()? != target.position
+        || target.access != CheckedStructuralAccess::MutableBorrow
+        || target.multiplicity != program.type_multiplicity(target_parameter.type_reference)
+    {
+        return None;
+    }
+    let argument = argument(
+        program,
+        facts,
+        machine,
+        state,
+        call,
+        ExpressionHandle::invalid(),
+        place,
+        local,
+        result,
+        target_parameter,
+        &target.type_identity,
+    )?;
+    (argument.type_identity == target.type_identity && argument.access == target.access)
+        .then_some(argument)
 }

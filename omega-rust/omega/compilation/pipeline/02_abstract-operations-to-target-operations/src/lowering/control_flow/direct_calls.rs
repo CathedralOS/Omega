@@ -881,13 +881,11 @@ fn structural_argument(
     if route == DirectCallRoute::ParameterRoster {
         return from_parameter_roster();
     }
-    if argument.path.len() > 1
-        && matches!(
-            argument.path.first(),
-            Some(terminal_psi::StructuralPathSegment::Referent)
-        )
-    {
-        return super::references::returned_record_call_argument(
+    if matches!(
+        argument.path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let returned_record_argument = super::references::returned_record_call_argument(
             argument,
             declaration,
             destination,
@@ -895,8 +893,13 @@ fn structural_argument(
             prepared,
             live,
             types,
-        )?
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine));
+        )?;
+        if let Some(returned_record_argument) = returned_record_argument {
+            return Ok(returned_record_argument);
+        }
+        if argument.path.len() > 1 {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
     }
     if super::aggregate_borrows::is_reference(declaration, types) {
         return super::aggregate_borrows::argument(

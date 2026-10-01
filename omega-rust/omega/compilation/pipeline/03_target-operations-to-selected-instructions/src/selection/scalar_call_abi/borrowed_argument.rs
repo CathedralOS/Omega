@@ -22,7 +22,17 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
-    if semantic.path.len() > 1
+    // A whole returned record uses the same captured ingress as its children.
+    // Primitive referents keep their separate route below; the record validator
+    // independently rejoins the producer's exact Reference<Record> carrier.
+    if (semantic.path.len() > 1
+        || signature.structural_types.iter().any(|declaration| {
+            declaration.id == target.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        }))
         && matches!(
             semantic.path.first(),
             Some(terminal_psi::StructuralPathSegment::Referent)
@@ -605,15 +615,13 @@ fn validate_returned_record_projection(
     else {
         return None;
     };
-    if suffix.is_empty()
-        || !suffix.iter().all(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
-        || semantic.access == StructuralAccess::Owned
+    if !suffix.iter().all(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) || semantic.access == StructuralAccess::Owned
         || target.access != semantic.access
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()

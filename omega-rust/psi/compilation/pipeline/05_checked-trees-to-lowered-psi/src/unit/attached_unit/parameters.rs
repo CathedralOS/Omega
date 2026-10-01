@@ -1100,6 +1100,10 @@ pub(crate) fn validate_transfer_shape(
                     }
                 || (target.is_self
                     && !record_borrow
+                    // Receiver replay independently binds a returned reference
+                    // to its producer and live loan; its referent has the same
+                    // transfer shape as an explicit mutable argument.
+                    && !reference_borrow
                     && !element_view_borrow
                     && !case_receiver_borrow
                     && !(argument.access == checked_trees::CheckedStructuralAccess::Owned

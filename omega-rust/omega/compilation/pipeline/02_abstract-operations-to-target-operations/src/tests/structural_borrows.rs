@@ -2093,7 +2093,7 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
 
 #[test]
 fn returned_record_projected_call_rejects_forged_physical_origins() {
-    let source = source_plan(
+    returned_record_call_rejects_forged_physical_origins(
         r#"
             data Child { value: u64; }
             data Holder { child: Child; other: Child; sibling: u64; }
@@ -2109,7 +2109,34 @@ fn returned_record_projected_call_rejects_forged_physical_origins() {
                 replace(&mut selected.child);
             }
         "#,
+        true,
     );
+}
+
+#[test]
+fn returned_record_method_receiver_rejects_forged_physical_origins() {
+    returned_record_call_rejects_forged_physical_origins(
+        r#"
+            data Child { value: u64; }
+            data Holder { child: Child; other: Child; sibling: u64; }
+            data Bag { holders: [Holder; 2]; }
+            data Main { bag: Bag; }
+            machine pick(bag: &mut Bag) -> &mut Holder {
+                let holders: &mut [Holder] = bag.holders.as_mut_slice();
+                transition { _ -> &mut holders[1] }
+            }
+            machine Holder::replace(&mut self) { self.child.value = 41; }
+            machine Main::run(&mut self) {
+                let selected: &mut Holder = pick(&mut self.bag);
+                selected.replace();
+            }
+        "#,
+        false,
+    );
+}
+
+fn returned_record_call_rejects_forged_physical_origins(program: &str, projected: bool) {
+    let source = source_plan(program);
     let (caller, projected_call) = source
         .functions
         .iter()
@@ -2123,11 +2150,10 @@ fn returned_record_projected_call_rejects_forged_physical_origins() {
                         structural_arguments,
                         ..
                     } if structural_arguments.iter().any(|argument| {
-                        argument.path.len() > 1
-                            && matches!(
-                                argument.path.first(),
-                                Some(terminal_psi::StructuralPathSegment::Referent)
-                            )
+                        matches!(
+                            argument.path.first(),
+                            Some(terminal_psi::StructuralPathSegment::Referent)
+                        )
                     }) =>
                     {
                         Some((function.machine, *psi_operation))
@@ -2163,27 +2189,24 @@ fn returned_record_projected_call_rejects_forged_physical_origins() {
             .and_then(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(identity) => Some(identity.clone()),
                 _ => None,
-            })
-            .expect("selected child identity");
-        let sibling_field = source
-            .structural_types
-            .iter()
-            .find_map(|declaration| {
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                    return None;
-                };
-                let selected_type = fields.iter().find_map(|field| {
-                    (field.identity == selected_field).then_some(&field.field_type)
-                })?;
-                fields
-                    .iter()
-                    .find(|field| {
-                        field.identity != selected_field && &field.field_type == selected_type
-                    })
-                    .map(|field| field.identity.clone())
-            })
-            .expect("same-typed sibling identity");
-        for corruption in 0..3 {
+            });
+        let sibling_field = source.structural_types.iter().find_map(|declaration| {
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return None;
+            };
+            let selected_type = fields.iter().find_map(|field| {
+                (Some(&field.identity) == selected_field.as_ref()).then_some(&field.field_type)
+            })?;
+            fields
+                .iter()
+                .find(|field| {
+                    Some(&field.identity) != selected_field.as_ref()
+                        && &field.field_type == selected_type
+                })
+                .map(|field| field.identity.clone())
+        });
+        assert_eq!(sibling_field.is_some(), projected);
+        for corruption in 0..if projected { 4 } else { 3 } {
             let changed = mutate_call_row(
                 &target,
                 |operation| {
@@ -2211,10 +2234,12 @@ fn returned_record_projected_call_rejects_forged_physical_origins() {
                                 .expect("captured fixed index");
                             *index = terminal_psi::StructuralPathSegment::FixedIndex(0);
                         }
-                        2 => {
+                        2 => argument.source_byte_offset += 8,
+                        3 => {
                             let field = argument.path.last_mut().expect("selected child field");
-                            *field =
-                                terminal_psi::StructuralPathSegment::Field(sibling_field.clone());
+                            *field = terminal_psi::StructuralPathSegment::Field(
+                                sibling_field.clone().expect("same-typed sibling identity"),
+                            );
                         }
                         _ => unreachable!(),
                     }

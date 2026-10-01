@@ -42,6 +42,7 @@ pub(in crate::execution) use call_operations::build_call_operation;
 pub(crate) use computation_arguments::{
     structural_computation_argument, subslice_computation_argument,
 };
+pub(in crate::execution::terminal_unit) use result_arguments::reference_result_receiver_argument;
 pub(crate) use signatures::{
     ambient_self_scalar_graph_signature, boundary_owner_scalar_signature, entry_claims,
     free_structural_scalar_signature, free_structural_scalar_signature_traced,
