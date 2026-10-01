@@ -9,6 +9,7 @@ pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     match (&node.operation, &function.result) {
         (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
@@ -30,10 +31,11 @@ pub(super) fn validate(
                 .copied()
                 .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
                 .collect::<Vec<_>>();
-            let (structural_type, multiplicity) = if let Some(parameter) = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *source)
+            let (structural_type, multiplicity, source_roster_matches) = if let Some(parameter) =
+                function
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *source)
             {
                 if parameter.access != terminal_psi::StructuralAccess::Owned
                     || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
@@ -43,17 +45,41 @@ pub(super) fn validate(
                 {
                     return Err(LegalizationError::custody());
                 }
-                (parameter.structural_type, parameter.multiplicity)
+                (
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.qualifications == declared.qualifications
+                        && parameter.projected_qualifications == declared.projected_qualifications,
+                )
             } else {
                 match super::structural_case::source_owner(function, *source)? {
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         result,
                         ..
-                    } => (result.structural_type, result.multiplicity),
+                    } if result.claims.is_empty()
+                        && result.qualification_establishments.is_empty() =>
+                    {
+                        (
+                            result.structural_type,
+                            result.multiplicity,
+                            result.qualifications == declared.qualifications
+                                && result.projected_qualifications
+                                    == declared.projected_qualifications,
+                        )
+                    }
+                    legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                        ..
+                    } => return Err(LegalizationError::custody()),
                     legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         declaration,
                         ..
-                    } => (declaration.structural_type, declaration.multiplicity),
+                    } => (
+                        declaration.structural_type,
+                        declaration.multiplicity,
+                        declaration.qualifications == declared.qualifications
+                            && declaration.projected_qualifications
+                                == declared.projected_qualifications,
+                    ),
                     // `source_owner` never resolves a function parameter.
                     legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
                     | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
@@ -65,7 +91,9 @@ pub(super) fn validate(
             };
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity
-                || !declared.qualifications.is_empty()
+                || !source_roster_matches
+                || (!declared.qualifications.is_empty()
+                    && !bounded_owned_byte_result(declared.structural_type, structural_types))
                 || !declared.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
@@ -179,6 +207,24 @@ pub(super) fn validate(
         }
         _ => Err(LegalizationError::custody()),
     }
+}
+
+/// Root qualifications are semantic custody on the inline owner and do not
+/// change its aggregate return shape. A borrowed byte descriptor is a separate
+/// ABI family and never satisfies this result judgment.
+fn bounded_owned_byte_result(
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    structural_types.iter().any(|declaration| {
+        declaration.id == structural_type
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+    })
 }
 fn terminal_edge(
     node: &OptimizationNode,

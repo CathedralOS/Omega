@@ -1018,5 +1018,5 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
     }
-    super::control::validate(terminator, body, optimized)
+    super::control::validate(terminator, body, optimized, types)
 }

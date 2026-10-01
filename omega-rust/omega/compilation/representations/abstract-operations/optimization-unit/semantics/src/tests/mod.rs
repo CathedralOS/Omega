@@ -5,6 +5,7 @@ pub(crate) mod support;
 mod candidates;
 pub(crate) mod indexed_byte_fields;
 mod operation_contracts;
+mod owned_byte_call_results;
 mod services;
 mod sparse_conditional_constant_propagation;
 mod structural_cases;
