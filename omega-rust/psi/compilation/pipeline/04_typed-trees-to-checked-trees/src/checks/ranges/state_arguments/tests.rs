@@ -370,6 +370,45 @@ fn ensured_result_bounds_transport_through_transition_arguments() {
     assert_eq!(index.upper_bound.get(), Some(4));
 }
 
+/// A receiver length crosses each transition once. Both the receiver-length
+/// rows and the receiver storage rows render `self.text`'s exact length, and
+/// the destination seeds one dependency row per incoming row; keeping both
+/// renderings doubled the seeded rows at every state, so the 29- to 45-state
+/// sample machines never finished collecting. One row per state still carries
+/// the length to the end of the chain.
+#[test]
+fn receiver_lengths_cross_a_state_chain_once_per_extent() {
+    const CHAIN: usize = 12;
+    let mut states = String::new();
+    for position in 1..CHAIN {
+        states.push_str(&format!(
+            "state s{position}(&mut self) -> u8 {{ transition {{ _ -> s{}() }} }}\n",
+            position + 1
+        ));
+    }
+    let source = format!(
+        "domain [u8; 4]::Utf8 requires valid_utf8(self);
+         data Main {{ text: [u8; 4] in Utf8; }}
+         machine Main::run(&mut self) -> u8 {{
+             self.text = \"abcd\";
+             transition {{ _ -> s1() }}
+             {states}
+             state s{CHAIN}(&mut self) -> u8 {{ self.text[3] }}
+         }}"
+    );
+    let outcome = check_source(&source);
+    assert!(outcome.is_ok(), "{outcome:?}");
+    let (facts, _, _) = compare_machine(&source, Some("Main::run"));
+    assert_eq!(facts.len(), CHAIN);
+    for state in &facts {
+        assert_eq!(
+            state.receiver_lengths.as_ref().map(Vec::len),
+            Some(1),
+            "{state:?}"
+        );
+    }
+}
+
 #[test]
 fn grouped_scalar_meets_preserve_unseen_unknown_and_conflicting_inputs() {
     let values = [None, Some(3), Some(9)];
