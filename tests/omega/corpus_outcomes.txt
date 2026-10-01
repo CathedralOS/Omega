@@ -1380,6 +1380,7 @@ pass/collections/runtime_indexed_struct_field_rmw_exit checked 1328ms @2d8ed2536
 pass/collections/runtime_indexed_successor_argument_exit checked 1468ms @2d8ed253669f
 pass/collections/runtime_maze_pathfind_exit checked 4147ms @2d8ed253669f
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms @2d8ed253669f
+pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms @5f978f80e84b+wt
 pass/collections/runtime_signed_element_offset_read_exit checked 1469ms @2d8ed253669f
 pass/collections/runtime_vec_u32_growth_exit checked 22933ms @2d8ed253669f
 pass/collections/runtime_whole_array_value_copy_exit checked 834ms @a59d5a661528+wt
