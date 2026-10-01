@@ -2686,11 +2686,18 @@ completion syntax or other terminal service is a prerequisite.
 
 - **DEVICE-EXTENT-ACCESS.** Make `samples/cli/device/device_extent_access`
   execute provider-backed lending, completion and restored CPU access under
-  [device custody and ordering](wiki/spec/resources/device_access.md). Its
-  entrypoint is empty and it has no `build.omg`; `tools/sample_gate.py` therefore
-  excludes it. `source/library/core/device.omg` declares the loan boundary but
-  omits ordering roles. Select a concrete provider, invoke both loan directions,
-  and check the resulting CPU access and data.
+  [device custody and ordering](wiki/spec/resources/device_access.md). The
+  checked contract now checks clean: `build.omg` accepts both boundary slots,
+  `LoopbackDeviceLoanProvider` supplies eight
+  `via ForeignBinding::CompilerIntrinsic` crossings on macos_arm64 through
+  `provider_defaults`, and `device.omg` declares `DeviceOrderingEvent` with
+  Publication/CacheMaintenance/Notification/Completion roles plus retry
+  carriers (`DeviceCompletionAttempt`, `DeviceAcquisitionAttempt`), with
+  `Extent::Granted` issued by `DeviceLoanProvider::acquire`'s `Acquired`
+  payload. The drivers stage publish -> notify -> settle, maintain_cache ->
+  settle, then complete -> acquire with Pending-retry states, and
+  `sample_gate` reports 1/1. The frontier is realization: the eight crossings
+  have no runtime bodies, so `omega run` cannot execute the sample.
 
   Reuse `extents::{external_loans,ordering_events,mapping}`: exact confinement,
   release/fact checks, coverage rejection and retry custody already exist in
