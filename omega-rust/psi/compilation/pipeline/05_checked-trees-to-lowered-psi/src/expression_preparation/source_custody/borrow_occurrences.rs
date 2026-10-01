@@ -178,6 +178,7 @@ pub(crate) fn validate_place_argument_at(
                 other_position != position
                     && candidate.root_symbol == place.root_symbol
                     && (candidate.kind.is_exclusive() || expected_kind.is_exclusive())
+                    && observations_coexist(accesses, position, other_position)
             })
     {
         return Err(LoweringError::Unsupported(
@@ -185,4 +186,23 @@ pub(crate) fn validate_place_argument_at(
         ));
     }
     Ok(())
+}
+
+/// Whether two rows of one ordered roster are live at the same time. The
+/// earlier row stays live until its recorded end: a copied read ends at once,
+/// and a loan formed inside a nested scalar call ends when that call returns
+/// (stage 04 `borrow/accesses/collection.rs`). A row without an end is held
+/// through the invocation, and so is one whose recorded end does not fall
+/// after the row and inside the roster: a malformed end never separates rows.
+fn observations_coexist(
+    accesses: &[checked_trees::BorrowArgumentAccessFact],
+    first: usize,
+    second: usize,
+) -> bool {
+    let (earlier, later) = (first.min(second), first.max(second));
+    accesses.get(earlier).is_none_or(|access| {
+        access
+            .end_before_access
+            .is_none_or(|end| end > later || end <= earlier || end > accesses.len())
+    })
 }

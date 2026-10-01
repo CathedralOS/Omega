@@ -8,6 +8,12 @@ use crate::lowering_error::unsupported;
 
 /// Each result is the first access-row position of an authored formal actual.
 /// Scalar actuals may contribute zero, one, or several observation rows.
+///
+/// A row may also end before a later row begins: a copied read ends at once,
+/// and a loan formed inside a nested call that returns a plain copy ends when
+/// that call returns (`borrow/accesses/collection.rs` in stage 04). Ended rows
+/// no longer alias a later exclusive loan on the same root; a loan held
+/// through invocation still aliases every row that is live beside it.
 pub(crate) fn rejoin(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -28,9 +34,11 @@ pub(crate) fn rejoin(
     let mut position = 0;
     for argument in arguments {
         positions.push(position);
-        let mut pending = vec![(*argument, true, false)];
+        // Each pending expression carries the access its own named place
+        // records: a read, unless a nested borrow forms a loan of that place.
+        let mut pending = vec![(*argument, true, false, BorrowAccessKind::Read)];
         let mut active = Vec::new();
-        while let Some((expression, direct_argument, exiting)) = pending.pop() {
+        while let Some((expression, direct_argument, exiting, access)) = pending.pop() {
             if exiting {
                 active.pop();
                 continue;
@@ -41,17 +49,13 @@ pub(crate) fn rejoin(
                 );
             }
             active.push(expression);
-            pending.push((expression, direct_argument, true));
+            pending.push((expression, direct_argument, true, access.clone()));
             let mut children = Vec::new();
+            let mut children_access = BorrowAccessKind::Read;
             let (named, kind) = match table.expression(expression) {
-                ExpressionNode::Borrow(borrow) if direct_argument => (
-                    Some(borrow.target),
-                    match borrow.access {
-                        language_core::ReferenceAccess::Shared => BorrowAccessKind::Read,
-                        language_core::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-                        language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-                    },
-                ),
+                ExpressionNode::Borrow(borrow) if direct_argument => {
+                    (Some(borrow.target), borrow_access_kind(borrow.access))
+                }
                 ExpressionNode::Name(_) | ExpressionNode::StructLiteral(_)
                     if validation::scalar_case_constructor(checked, expression).is_some() =>
                 {
@@ -67,13 +71,15 @@ pub(crate) fn rejoin(
                     );
                     (None, BorrowAccessKind::Read)
                 }
-                ExpressionNode::Name(_) => (Some(expression), BorrowAccessKind::Read),
-                ExpressionNode::Member(_) => (Some(expression), BorrowAccessKind::Read),
+                ExpressionNode::Name(_) => (Some(expression), access),
+                ExpressionNode::Member(_) => (Some(expression), access),
                 // This follows borrow/accesses/read.rs: a nested call's own
-                // borrow formation has a separate call row. Here its actuals
-                // contribute reads to the enclosing argument's observation.
+                // borrow formation also has a separate call row. In the
+                // enclosing roster the borrowed place is a loan with the
+                // borrow's access, followed by its selector's reads.
                 ExpressionNode::Borrow(borrow) => {
                     children.push(borrow.target);
+                    children_access = borrow_access_kind(borrow.access);
                     (None, BorrowAccessKind::Read)
                 }
                 ExpressionNode::Atomic(atomic) => {
@@ -169,7 +175,7 @@ pub(crate) fn rejoin(
                     // already includes nested collection projections, so do
                     // not invent extra reads by walking that collection again.
                     children.push(indexed.index);
-                    (Some(expression), BorrowAccessKind::Read)
+                    (Some(expression), access)
                 }
                 ExpressionNode::Range(range) => {
                     if range.start.is_valid() {
@@ -225,10 +231,30 @@ pub(crate) fn rejoin(
                         "computed shared borrow substituted or reordered an observation",
                     );
                 }
+                // An observation ends after it begins and within this roster.
+                // A direct borrow actual is delivered to the invocation, so
+                // its loan never ends during operand evaluation.
+                if row
+                    .end_before_access
+                    .is_some_and(|end| end <= position || end > rows.len())
+                    || (direct_argument
+                        && matches!(table.expression(expression), ExpressionNode::Borrow(_))
+                        && row.end_before_access.is_some())
+                {
+                    return unsupported("computed shared borrow ends an observation out of order");
+                }
+                // The same rule as stage 04's roster rejoin: an exclusive loan
+                // held through invocation is the only live row on its root.
                 if kind.is_exclusive()
+                    && row.end_before_access.is_none()
                     && rows
                         .iter()
-                        .filter(|candidate| candidate.root_symbol == row.root_symbol)
+                        .filter(|candidate| {
+                            candidate.root_symbol == row.root_symbol
+                                && !candidate
+                                    .end_before_access
+                                    .is_some_and(|end| end <= position)
+                        })
                         .count()
                         != 1
                 {
@@ -240,7 +266,7 @@ pub(crate) fn rejoin(
                 children
                     .into_iter()
                     .rev()
-                    .map(|child| (child, false, false)),
+                    .map(|child| (child, false, false, children_access.clone())),
             );
         }
     }
@@ -248,6 +274,14 @@ pub(crate) fn rejoin(
         return unsupported("computed shared borrow has extra observation rows");
     }
     Ok(positions)
+}
+
+fn borrow_access_kind(access: language_core::ReferenceAccess) -> BorrowAccessKind {
+    match access {
+        language_core::ReferenceAccess::Shared => BorrowAccessKind::Read,
+        language_core::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+        language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+    }
 }
 
 fn is_array_value_projection(checked: &CheckedTrees, mut expression: ExpressionHandle) -> bool {

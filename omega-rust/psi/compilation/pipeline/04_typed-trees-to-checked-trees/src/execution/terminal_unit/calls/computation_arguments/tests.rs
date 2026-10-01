@@ -92,6 +92,18 @@ fn mutable_copy_operands_observe_storage_without_reading_static_qualifiers() {
             .iter()
             .all(|access| access.root_symbol == symbol)
     );
+    // The copy ends at once; the nested `&mut` is a mutable loan that ends
+    // when `stamp` returns its scalar, not a read of the same local.
+    assert_eq!(
+        observations
+            .iter()
+            .map(|access| (access.kind.clone(), access.end_before_access))
+            .collect::<Vec<_>>(),
+        [
+            (checked_trees::BorrowAccessKind::Read, Some(1)),
+            (checked_trees::BorrowAccessKind::Mutable, Some(2)),
+        ]
+    );
 }
 
 #[test]

@@ -55,6 +55,32 @@ fn nested_scalar_call_loans_end_on_return_but_outer_loans_remain() {
     );
 }
 
+/// A nested borrow records its loan, then the reads its place selector
+/// performs. The selector read still meets an earlier retained `&mut` of the
+/// selector's own storage, while a selector on other storage does not.
+#[test]
+fn nested_borrow_selector_reads_conflict_with_an_outer_mutable_loan() {
+    let accepted = "data Cell { value: i32; }
+        machine read_cell(cell: &Cell) -> i32 { cell.value }
+        machine consume(position: &mut u64, value: i32) {}
+        machine advance() {
+            let mut cells: [Cell; 4];
+            let mut position: u64 = 0;
+            let slot: u64 = 1;
+            consume(&mut position, read_cell(&cells[slot]));
+        }";
+    check_program(accepted).unwrap_or_else(|diagnostics| panic!("{accepted}: {diagnostics:#?}"));
+    let rejected = accepted.replace("&cells[slot]", "&cells[position]");
+    let diagnostics = check_program(&rejected)
+        .expect_err("the nested selector reads the mutably loaned position");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+        "{diagnostics:#?}"
+    );
+}
+
 #[test]
 fn evaluated_scalar_argument_ends_before_a_later_mutable_borrow() {
     for argument in ["counter.count", "counter.count + 1"] {
