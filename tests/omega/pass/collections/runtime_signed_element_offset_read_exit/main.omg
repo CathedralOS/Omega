@@ -7,7 +7,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::U640To3 requires self <= 3;
+domain u64::U640To3(value) requires value <= 3;
 data Main {
     console: Binding<Console>;
     tag: u64;

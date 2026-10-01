@@ -3,7 +3,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8; 8]::Utf8 requires valid_utf8(self);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Text [copy] { bytes: [u8; 8] in Utf8; }
 data Room [copy] { description: Text; }
 data Main { console: Binding<Console>; output: [u8; 8] in Utf8; }

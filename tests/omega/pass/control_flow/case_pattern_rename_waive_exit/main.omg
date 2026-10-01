@@ -5,7 +5,7 @@
 // target arguments see the renamed binding. The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain i32::Step requires 0 <= self && self <= 50;
+domain i32::Step(value) requires 0 <= value && value <= 50;
 data Msg {
     case Move(dx: i32 in Step, dy: i32 in Step);
     case Stop(code: i32);

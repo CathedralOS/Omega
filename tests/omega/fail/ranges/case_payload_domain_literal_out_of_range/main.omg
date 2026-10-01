@@ -6,7 +6,7 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 
-domain i32::Ten requires 0 <= self && self <= 10;
+domain i32::Ten(value) requires 0 <= value && value <= 10;
 
 data Level {
     case Dark;

@@ -2,9 +2,9 @@ data Quantity {
     value: i32;
 }
 
-domain Quantity::Additive
+domain Quantity::Additive(quantity)
 requires
-    self.value >= 0;
+    quantity.value >= 0;
 
 operator Quantity::Additive::combine(left: i32, right: i32) -> i32;
 operator Quantity::Additive::combine(left: i32, right: i32) -> u64;

@@ -4,9 +4,9 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-domain i64::Km
+domain i64::Km(value)
 requires
-    self >= 10;
+    value >= 10;
 machine Main::main(main: &mut Main) {
     let distance: i64 = 5 as i64 in Km;
     transition distance == 5 { true -> good(main) _ -> bad(main) }

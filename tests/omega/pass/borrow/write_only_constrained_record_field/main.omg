@@ -9,9 +9,9 @@
 // value exactly as it does for a `&mut` target. The `depth` bound (was:
 // `u8 [0..=10]` param suffix) is now the requires contract `depth <= 10`.
 
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 data Limited {
     value: u8;

@@ -12,9 +12,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8; 3]::Utf8
+domain [u8; 3]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 data Cell {
     text: [u8; 3] in Utf8;

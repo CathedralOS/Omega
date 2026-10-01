@@ -1,7 +1,7 @@
 use omega::language::core::binding;
-pub domain [u8]::Utf8
+pub domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 pub boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     reaches

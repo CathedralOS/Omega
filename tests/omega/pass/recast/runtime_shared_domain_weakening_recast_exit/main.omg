@@ -4,14 +4,14 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u32::Wide
+domain u32::Wide(value)
 requires
-    self <= 100;
+    value <= 100;
 
-domain u32::Narrow
+domain u32::Narrow(value)
 requires
-    self in u32::Wide;
-    self <= 10;
+    value in u32::Wide;
+    value <= 10;
 
 data Main {
     console: Binding<Console>;

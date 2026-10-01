@@ -3,9 +3,9 @@
 // verdict: `pick` returns only string literals, so the loan outlives every state
 // and the persistent-field store is admitted whether the call is written inline or
 // bound to an immutable local first (checks/borrows/persistent.rs).
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 data Main {
     out: &[u8] in Utf8;
 }

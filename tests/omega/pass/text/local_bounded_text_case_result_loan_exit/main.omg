@@ -5,12 +5,12 @@
 // entry binds the result and dispatches on it. Exits 70 only when the first
 // byte of "OK" (79) comes back; an empty or zero-filled reading exits 71 or 72.
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 16]::Utf8
+    valid_utf8(bytes);
+domain [u8; 16]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 
 data Leading {

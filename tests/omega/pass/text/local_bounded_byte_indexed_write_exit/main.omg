@@ -1,6 +1,6 @@
 // Live length remains two, not capacity eight. NUL is legal UTF-8; mutation
 // must affect only this owned home, not the sibling's identical literal.
-domain [u8; 8]::Utf8 requires valid_utf8(self);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 machine main() reaches Console {

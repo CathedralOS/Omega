@@ -9,8 +9,8 @@
 // MUST reject with the expected fragment.
 use omega::language::std::console;
 use omega::language::core::binding;
-domain i32::Fifty requires 0 <= self && self <= 50;
-domain i32::Thousand requires 0 <= self && self <= 1000;
+domain i32::Fifty(value) requires 0 <= value && value <= 50;
+domain i32::Thousand(value) requires 0 <= value && value <= 1000;
 data P { case One(v: i32 in Fifty); case Two(w: i32 in Thousand); }
 data Main { console: Binding<Console>; flag: bool; p: P; }
 machine Main::main(&mut self) reaches Console {

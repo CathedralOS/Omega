@@ -6,17 +6,17 @@
 // builtin `String`. A distinct destination keeps the static capacity proof
 // honest: `8 + 8 <= 16`.
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
-domain [u8; 16]::Utf8
+domain [u8; 16]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 use omega_language_std::console;
 use omega::language::core::binding;

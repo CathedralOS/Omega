@@ -1,5 +1,5 @@
 module units;
 
-pub domain u64::Distance
+pub domain u64::Distance(value)
 requires
-    self > 0;
+    value > 0;

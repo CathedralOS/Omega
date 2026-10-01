@@ -7,9 +7,9 @@
 // scalar sibling field misses through the conjunction. Exits 70 only when all
 // four are right.
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

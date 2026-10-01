@@ -2,9 +2,9 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 // Byte predicates remain on record fields through a borrowed crash-contract call.
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 trait Equatable {
     machine equals(&self, rhs: &Self) -> bool;

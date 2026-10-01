@@ -1,7 +1,7 @@
 use omega::language::core::binding;
-pub domain [u8]::Utf8
+pub domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 // The direct boundary caller declares Console. Ordinary wrappers propagate
 // that reach without repeating the declaration.
 

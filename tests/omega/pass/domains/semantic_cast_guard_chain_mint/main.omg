@@ -1,8 +1,8 @@
 // A dominating guard proves the callee's requirement, and that requirement in
 // turn proves the domain predicate at the qualification site.
-domain i64::Km
+domain i64::Km(value)
 requires
-    self >= 0;
+    value >= 0;
 machine qualify(raw: i64) -> i64
 requires
     raw >= 0

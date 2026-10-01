@@ -3,9 +3,9 @@
 // `ensures self.raw in Utf8` cannot be established at the exit and the
 // program rejects. Post-state publication passing over membership clauses
 // relies on this checker judgment.
-domain [u8; 5]::Utf8
+domain [u8; 5]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 data Main {
     raw: [u8; 5];

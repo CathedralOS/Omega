@@ -1,13 +1,13 @@
 // An owned bounded text carrier exposes its initialized prefix as a borrowed
 // byte view. Both runtimes must preserve the carrier's runtime length while
 // projecting the inline bytes; the view must not expose the unused capacity.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 use omega_language_std::console;
 use omega::language::core::binding;

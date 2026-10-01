@@ -6,9 +6,9 @@ use omega::language::core::binding;
 // Persistent room/line text uses bounded ownership; a borrowed view would need
 // an explicit outlives relation and retained loan, which this canary does not
 // exercise.
-pub domain [u8; 8]::Utf8
+pub domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 data CellId {
     case Empty;
     case A1;

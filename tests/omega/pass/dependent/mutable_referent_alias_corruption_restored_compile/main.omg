@@ -2,9 +2,9 @@
 // a domain-establishing write to the exact field before the return closes
 // it, so the return's referent consumption point is satisfied and the
 // sibling element's coverage was never disturbed.
-domain [u8; 4]::Utf8
+domain [u8; 4]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 data Room {
     label: [u8; 4] in Utf8;

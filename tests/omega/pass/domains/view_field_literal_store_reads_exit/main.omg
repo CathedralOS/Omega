@@ -4,9 +4,9 @@
 // qualified `name` field is lent whole to a `&[u8] in Utf8` parameter.
 // Its length and bytes are observed through the stored descriptor, and a
 // later state compares the raw field with the same octets.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

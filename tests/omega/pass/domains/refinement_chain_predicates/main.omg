@@ -8,13 +8,13 @@ data Player {
     health: i32;
 }
 
-domain Player::Alive
+domain Player::Alive(player)
 requires
-    self.health > 0;
+    player.health > 0;
 
-domain Player::Alive::Critical
+domain Player::Alive::Critical(player)
 requires
-    self.health <= 5;
+    player.health <= 5;
 
 machine Player::spawn() -> Player in Alive::Critical {
     Player { health: 3 }

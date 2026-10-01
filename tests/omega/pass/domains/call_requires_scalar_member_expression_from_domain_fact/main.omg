@@ -3,9 +3,9 @@ data Password {
     score: i32;
 }
 
-domain Password::Valid
+domain Password::Valid(password)
 requires
-    self.length > 0;
+    password.length > 0;
 
 data Main {
     password: Password;

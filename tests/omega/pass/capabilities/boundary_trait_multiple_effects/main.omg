@@ -1,7 +1,7 @@
 use omega::language::core::binding;
-pub domain [u8]::Utf8
+pub domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 // A single boundary machine may declare more than one service identity; the
 // declared set is the ceiling for that surface. This fetch reaches both `Net`
 // and `Allocator`, exercising a multi-service boundary declaration.

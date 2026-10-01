@@ -1,6 +1,6 @@
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 // A string literal supplied on a state edge to a `&[u8] in Utf8` state
 // parameter establishes that domain at the edge, and forwarding the
 // parameter to another `&[u8] in Utf8` state keeps it. The final state reads

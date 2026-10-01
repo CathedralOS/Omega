@@ -5,9 +5,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 boundary operator Text::from_utf8(bytes: &[u8]) -> &[u8] in Utf8
 ensures
     result in Utf8;

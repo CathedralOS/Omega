@@ -2,9 +2,9 @@
 // meaning and arithmetic policy remain static until an explicit bare `as`
 // target removes them.
 
-domain i32::Positive
+domain i32::Positive(value)
 requires
-    self >= 0;
+    value >= 0;
 
 domain i32::Degrees;
 

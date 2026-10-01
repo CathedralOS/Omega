@@ -2,7 +2,7 @@ data Player {
     health: i32;
 }
 
-domain Player::Odd requires self.health;
+domain Player::Odd(player) requires player.health;
 
 data Box<T> {
     value: T;
@@ -12,7 +12,7 @@ data Holder {
     slot: Box<i32>;
 }
 
-domain Holder::Invalid requires self.slot.value;
+domain Holder::Invalid(holder) requires holder.slot.value;
 
 data Main {}
 machine Main::main() {}

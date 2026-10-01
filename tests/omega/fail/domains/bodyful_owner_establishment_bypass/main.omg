@@ -5,9 +5,9 @@ data Token {
     value: u64;
 }
 
-domain Token::Positive
+domain Token::Positive(token)
 requires
-    self.value > 0
+    token.value > 0
 established by TokenIssuer::issue;
 
 trait TokenIssuer {
