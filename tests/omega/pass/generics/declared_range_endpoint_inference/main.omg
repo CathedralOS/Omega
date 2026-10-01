@@ -141,11 +141,11 @@ machine Main::main(&mut self) reaches Console {
     let symbolic: u64 = forwarded_bound(0);
     let relayed: u64 = relayed_bound(0);
     transition bound == 256 && forwarded == 256 && signed == -2 && narrow == -3 && wide == 18446744073709551615u64 && symbolic == 256 && relayed == 256 {
-        true -> passed()
-        false -> failed()
+        true -> passed(&mut self)
+        false -> failed(&mut self)
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }
 
 // A parameter retains its declared arithmetic policy during closed execution.

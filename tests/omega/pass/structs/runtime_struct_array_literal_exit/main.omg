@@ -31,17 +31,17 @@ machine Main::main(&mut self) reaches Console {
         pts: [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }],
     };
 
-    transition self.bag.nums[2] == 30 { true -> check_pt() _ -> bad() }
-    state check_pt(&mut self) {
-        transition self.bag.pts[1].x == 3 { true -> check_count() _ -> bad() }
+    transition self.bag.nums[2] == 30 { true -> check_pt(&mut self) _ -> bad(&mut self) }
+    state check_pt(main: &mut Main) {
+        transition main.bag.pts[1].x == 3 { true -> check_count(main) _ -> bad(main) }
     }
-    state check_count(&mut self) {
-        transition self.bag.count == 2 { true -> good() _ -> bad() }
+    state check_count(main: &mut Main) {
+        transition main.bag.count == 2 { true -> good(main) _ -> bad(main) }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

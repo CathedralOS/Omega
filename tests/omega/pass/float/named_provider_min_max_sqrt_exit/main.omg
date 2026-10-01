@@ -42,64 +42,64 @@ machine Main::main(&mut self) reaches Console {
     self.sqrt64 = F64::square_root(16.0);
 
     transition self.min_nan_first32 == one32 {
-        true -> check_min_nan_second32()
-        _ -> fail(71)
+        true -> check_min_nan_second32(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state check_min_nan_second32(&mut self) {
-        transition self.min_nan_second32 != self.min_nan_second32 {
-            true -> check_max_nan_first32()
-            _ -> fail(72)
+    state check_min_nan_second32(main: &mut Main) {
+        transition main.min_nan_second32 != main.min_nan_second32 {
+            true -> check_max_nan_first32(main)
+            _ -> fail(main, 72)
         }
     }
-    state check_max_nan_first32(&mut self) {
-        transition self.max_nan_first32 == 1.0f32 {
-            true -> check_equal32()
-            _ -> fail(73)
+    state check_max_nan_first32(main: &mut Main) {
+        transition main.max_nan_first32 == 1.0f32 {
+            true -> check_equal32(main)
+            _ -> fail(main, 73)
         }
     }
-    state check_equal32(&mut self) {
-        transition self.min_equal_reciprocal32 < 0.0f32 {
-            true -> check_sqrt32()
-            _ -> fail(74)
+    state check_equal32(main: &mut Main) {
+        transition main.min_equal_reciprocal32 < 0.0f32 {
+            true -> check_sqrt32(main)
+            _ -> fail(main, 74)
         }
     }
-    state check_sqrt32(&mut self) {
-        transition self.sqrt32 == 3.0f32 {
-            true -> check_min_nan_first64()
-            _ -> fail(75)
+    state check_sqrt32(main: &mut Main) {
+        transition main.sqrt32 == 3.0f32 {
+            true -> check_min_nan_first64(main)
+            _ -> fail(main, 75)
         }
     }
-    state check_min_nan_first64(&mut self) {
-        transition self.min_nan_first64 == 1.0 {
-            true -> check_min_nan_second64()
-            _ -> fail(76)
+    state check_min_nan_first64(main: &mut Main) {
+        transition main.min_nan_first64 == 1.0 {
+            true -> check_min_nan_second64(main)
+            _ -> fail(main, 76)
         }
     }
-    state check_min_nan_second64(&mut self) {
-        transition self.min_nan_second64 != self.min_nan_second64 {
-            true -> check_max_nan_first64()
-            _ -> fail(77)
+    state check_min_nan_second64(main: &mut Main) {
+        transition main.min_nan_second64 != main.min_nan_second64 {
+            true -> check_max_nan_first64(main)
+            _ -> fail(main, 77)
         }
     }
-    state check_max_nan_first64(&mut self) {
-        transition self.max_nan_first64 == 1.0 {
-            true -> check_equal64()
-            _ -> fail(78)
+    state check_max_nan_first64(main: &mut Main) {
+        transition main.max_nan_first64 == 1.0 {
+            true -> check_equal64(main)
+            _ -> fail(main, 78)
         }
     }
-    state check_equal64(&mut self) {
-        transition self.max_equal_reciprocal64 < 0.0 {
-            true -> check_sqrt64()
-            _ -> fail(79)
+    state check_equal64(main: &mut Main) {
+        transition main.max_equal_reciprocal64 < 0.0 {
+            true -> check_sqrt64(main)
+            _ -> fail(main, 79)
         }
     }
-    state check_sqrt64(&mut self) {
-        transition self.sqrt64 == 4.0 {
-            true -> good()
-            _ -> fail(80)
+    state check_sqrt64(main: &mut Main) {
+        transition main.sqrt64 == 4.0 {
+            true -> good(main)
+            _ -> fail(main, 80)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

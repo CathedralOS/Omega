@@ -17,15 +17,15 @@ machine Main::main(&mut self) reaches Console {
     self.copy = self.items[index];
 
     transition self.copy.value == 23 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(85);
+    state good(main: &mut Main) {
+        main.console.exit_process(85);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(86);
+    state bad(main: &mut Main) {
+        main.console.exit_process(86);
     }
 }

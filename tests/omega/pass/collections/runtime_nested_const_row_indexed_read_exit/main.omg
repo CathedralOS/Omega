@@ -20,27 +20,27 @@ machine Main::main(&mut self) reaches Console
     self.j = 2;
     self.got = self.grid[1][self.j];
     transition self.got == 42 {
-        true -> let_read()
-        false -> no()
+        true -> let_read(&mut self)
+        false -> no(&mut self)
     }
-    state let_read(&mut self)
+    state let_read(main: &mut Main)
     {
-        let picked: i32 = self.grid[1][self.j];
+        let picked: i32 = main.grid[1][main.j];
         transition picked == 42 {
-            true -> neighbor()
-            false -> no()
+            true -> neighbor(main)
+            false -> no(main)
         }
     }
-    state neighbor(&mut self)
+    state neighbor(main: &mut Main)
     {
-        self.got = self.grid[2][self.j];
-        transition self.got == 5 {
-            true -> yes()
-            false -> no()
+        main.got = main.grid[2][main.j];
+        transition main.got == 5 {
+            true -> yes(main)
+            false -> no(main)
         }
     }
-    state yes(&mut self)
-    { self.console.exit_process(1); }
-    state no(&mut self)
-    { self.console.exit_process(2); }
+    state yes(main: &mut Main)
+    { main.console.exit_process(1); }
+    state no(main: &mut Main)
+    { main.console.exit_process(2); }
 }

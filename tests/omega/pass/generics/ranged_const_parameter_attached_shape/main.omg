@@ -38,9 +38,9 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    transition { _ -> step(1) }
+    transition { _ -> step(&mut self, 1) }
 
-    state step(&mut self, count: i32) {
-        self.console.exit_process(0);
+    state step(main: &mut Main, count: i32) {
+        main.console.exit_process(0);
     }
 }

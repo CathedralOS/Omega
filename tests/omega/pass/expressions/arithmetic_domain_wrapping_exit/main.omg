@@ -20,9 +20,9 @@ machine Main::main(&mut self) reaches Console {
     // Operand-driven (decision 17): the Wrapping domain lives on a/b's types.
     let c: u8 in Wrapping = a + b;   // 300 wraps to 44 (u8)
     transition c == 44 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

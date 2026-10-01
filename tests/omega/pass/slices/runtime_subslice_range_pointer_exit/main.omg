@@ -19,15 +19,15 @@ machine Main::main(&mut self) reaches Console {
     let chosen: Entry = tail[0];
 
     transition chosen.value == 29 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(205);
+    state good(main: &mut Main) {
+        main.console.exit_process(205);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(206);
+    state bad(main: &mut Main) {
+        main.console.exit_process(206);
     }
 }

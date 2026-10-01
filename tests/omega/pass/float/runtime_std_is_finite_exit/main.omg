@@ -14,24 +14,24 @@ use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
-    transition { _ -> finite_leg(2.5, 0.0) }
-    state finite_leg(&mut self, v: f64, zero: f64) {
+    transition { _ -> finite_leg(&mut self, 2.5, 0.0) }
+    state finite_leg(main: &mut Main, v: f64, zero: f64) {
         let half: f64 = v * 0.5;
         let verdict: bool = is_finite(half);
-        transition verdict == true { true -> inf_leg(v, zero) _ -> bad_finite() }
+        transition verdict == true { true -> inf_leg(main, v, zero) _ -> bad_finite(main) }
     }
-    state inf_leg(&mut self, v: f64, zero: f64) {
+    state inf_leg(main: &mut Main, v: f64, zero: f64) {
         let inf: f64 = v / zero;
         let verdict: bool = is_finite(inf);
-        transition verdict == false { true -> nan_leg(zero) _ -> bad_inf() }
+        transition verdict == false { true -> nan_leg(main, zero) _ -> bad_inf(main) }
     }
-    state nan_leg(&mut self, zero: f64) {
+    state nan_leg(main: &mut Main, zero: f64) {
         let nan: f64 = zero / zero;
         let verdict: bool = is_finite(nan);
-        transition verdict == false { true -> good() _ -> bad_nan() }
+        transition verdict == false { true -> good(main) _ -> bad_nan(main) }
     }
-    state good(&self)       { self.console.exit_process(70); }
-    state bad_finite(&self) { self.console.exit_process(72); }
-    state bad_inf(&self)    { self.console.exit_process(73); }
-    state bad_nan(&self)    { self.console.exit_process(74); }
+    state good(main: &mut Main)       { main.console.exit_process(70); }
+    state bad_finite(main: &mut Main) { main.console.exit_process(72); }
+    state bad_inf(main: &mut Main)    { main.console.exit_process(73); }
+    state bad_nan(main: &mut Main)    { main.console.exit_process(74); }
 }

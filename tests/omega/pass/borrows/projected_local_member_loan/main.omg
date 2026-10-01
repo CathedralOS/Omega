@@ -11,17 +11,17 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let r: Inner = Inner { tag: 9 };
-    transition true { _ -> next(&r.tag) }
+    transition true { _ -> next(&mut self, &r.tag) }
 
-    state next(&mut self, leaf: &u32) {
-        transition leaf == 9 { true -> done() _ -> bad() }
+    state next(main: &mut Main, leaf: &u32) {
+        transition leaf == 9 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

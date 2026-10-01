@@ -18,9 +18,9 @@ terminates by k;
 machine Main::main(&mut self) reaches Console {
     let r: u64 = rot(3, 1, 2, 3);
     transition r == 1 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

@@ -22,17 +22,17 @@ machine Main::main(&mut self) reaches Console {
     self.sum = a + b;
     let doubled: f64 = b * 2.0;
     transition doubled == 8.0 {
-        true -> check_sum()
-        false -> fail(71)
+        true -> check_sum(&mut self)
+        false -> fail(&mut self, 71)
     }
 
-    state check_sum(&mut self) {
-        transition self.sum == 5.0 {
-            true -> good()
-            false -> fail(72)
+    state check_sum(main: &mut Main) {
+        transition main.sum == 5.0 {
+            true -> good(main)
+            false -> fail(main, 72)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

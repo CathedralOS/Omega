@@ -23,15 +23,15 @@ machine Main::main(&mut self) reaches Console {
     self.cmd = Command::Move { dx: 2 };
 
     transition (self.cmd in Command::Quit | Command::Move) {
-        (true) -> matched()
-        _ -> missed()
+        (true) -> matched(&mut self)
+        _ -> missed(&mut self)
     }
 
-    state matched(&mut self) {
-        self.console.exit_process(70);
+    state matched(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

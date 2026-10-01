@@ -8,24 +8,23 @@ use omega::language::core::float_operations;
 // runtime_float_nan_comparison_exit pins for distinct operands.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Operands {
+data Main {
+    console: Binding<Console>;
     f: f64;
 }
-data Main { console: Binding<Console>; }
-machine Main::main(context: &mut Main) reaches Console {
-    let mut operands: Operands;
-    operands.f = 0.0f64 / 0.0;
-    transition operands.f != operands.f {
-        true -> check_eq(context, &operands)
-        false -> bad(context)
+machine Main::main(&mut self) reaches Console {
+    self.f = 0.0f64 / 0.0;
+    transition self.f != self.f {
+        true -> check_eq(&mut self)
+        false -> bad(&mut self)
     }
-    state check_eq(context: &mut Main, operands: &Operands) {
+    state check_eq(main: &mut Main) {
         // NaN == NaN must be FALSE.
-        transition operands.f == operands.f {
-            true -> bad(context)
-            false -> good(context)
+        transition main.f == main.f {
+            true -> bad(main)
+            false -> good(main)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -45,11 +45,11 @@ machine Bracket::make(&mut self) -> Verdict {
 data Main { console: Binding<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
 machine Main::main(&mut self) reaches Console {
     self.v1 = self.probe.make();
-    transition self.v1 { Verdict::Yes -> step2() _ -> bad(71) }
-    state step2(&mut self) {
-        self.v2 = self.bracket.make();
-        transition self.v2 { Verdict::Yes -> good() _ -> bad(72) }
+    transition self.v1 { Verdict::Yes -> step2(&mut self) _ -> bad(&mut self, 71) }
+    state step2(main: &mut Main) {
+        main.v2 = main.bracket.make();
+        transition main.v2 { Verdict::Yes -> good(main) _ -> bad(main, 72) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

@@ -127,36 +127,36 @@ machine Main::main(&mut self) reaches Console {
     self.twin = self.gdt;
 
     transition self.twin.limit_low == 7 {
-        true -> check_low()
-        false -> bad()
+        true -> check_low(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_low(&mut self) {
-        transition self.twin.base_low == 20 {
-            true -> check_flags()
-            false -> bad()
+    state check_low(main: &mut Main) {
+        transition main.twin.base_low == 20 {
+            true -> check_flags(main)
+            false -> bad(main)
         }
     }
 
-    state check_flags(&mut self) {
-        transition self.twin.flags == 3 {
-            true -> check_high()
-            false -> bad()
+    state check_flags(main: &mut Main) {
+        transition main.twin.flags == 3 {
+            true -> check_high(main)
+            false -> bad(main)
         }
     }
 
-    state check_high(&mut self) {
-        transition self.twin.base_high == 40 {
-            true -> good()
-            false -> bad()
+    state check_high(main: &mut Main) {
+        transition main.twin.base_high == 40 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

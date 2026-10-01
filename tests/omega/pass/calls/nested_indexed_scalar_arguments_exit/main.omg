@@ -17,9 +17,9 @@ machine Main::main(&mut self) reaches Console {
     let explicit: u64 in Wrapping = combine(&self.cells[0], read_cell(&self.cells[self.position]));
     let receiver: u64 in Wrapping = combine(&self.cells[0], self.cells[self.position].read());
     transition explicit == 70 && receiver == 70 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

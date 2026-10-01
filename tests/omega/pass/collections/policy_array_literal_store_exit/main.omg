@@ -25,18 +25,18 @@ machine Main::main(&mut self) reaches Console {
     self.whole = [10, 11, 12];
     self.i = 1;
     self.rows[self.i] = [13, 14, 15];
-    transition { _ -> check() }
-    state check(&mut self) {
-        transition self.bare[2] == 3
-            && self.wrapped[1] == 5
-            && self.saturated[0] == 7
-            && self.whole[2] == 12
-            && self.rows[1][1] == 14 {
-            true -> finish(52)
-            _ -> finish(1)
+    transition { _ -> check(&mut self) }
+    state check(main: &mut Main) {
+        transition main.bare[2] == 3
+            && main.wrapped[1] == 5
+            && main.saturated[0] == 7
+            && main.whole[2] == 12
+            && main.rows[1][1] == 14 {
+            true -> finish(main, 52)
+            _ -> finish(main, 1)
         }
     }
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }

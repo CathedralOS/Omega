@@ -11,59 +11,58 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Operands {
+data Main {
+    console: Binding<Console>;
     i32sat: i32 in Saturating;
     i32wrap: i32 in Wrapping;
     u8sat: u8 in Saturating;
     u8wrap: u8 in Wrapping;
 }
-data Main { console: Binding<Console>; }
 
-machine Main::main(context: &mut Main) reaches Console {
-    let mut operands: Operands;
-    operands.i32sat = 2147483647;
-    operands.i32sat = operands.i32sat + 1;          // saturates to i32::MAX
+machine Main::main(&mut self) reaches Console {
+    self.i32sat = 2147483647;
+    self.i32sat = self.i32sat + 1;          // saturates to i32::MAX
 
-    operands.i32wrap = 2147483647;
-    operands.i32wrap = operands.i32wrap + 1;        // wraps to i32::MIN
+    self.i32wrap = 2147483647;
+    self.i32wrap = self.i32wrap + 1;        // wraps to i32::MIN
 
-    operands.u8sat = 255;
-    operands.u8sat = operands.u8sat + 1;            // saturates to 255
+    self.u8sat = 255;
+    self.u8sat = self.u8sat + 1;            // saturates to 255
 
-    operands.u8wrap = 0;
-    operands.u8wrap = operands.u8wrap - 1;          // wraps to 255
+    self.u8wrap = 0;
+    self.u8wrap = self.u8wrap - 1;          // wraps to 255
 
-    transition operands.i32sat == 2147483647 {
-        true -> check_wrap(context, &operands)
-        _ -> bad(context)
+    transition self.i32sat == 2147483647 {
+        true -> check_wrap(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state check_wrap(context: &mut Main, operands: &Operands) {
-        transition operands.i32wrap == 0 - 2147483648 {
-            true -> check_u8sat(context, operands)
-            _ -> bad(context)
+    state check_wrap(main: &mut Main) {
+        transition main.i32wrap == 0 - 2147483648 {
+            true -> check_u8sat(main)
+            _ -> bad(main)
         }
     }
 
-    state check_u8sat(context: &mut Main, operands: &Operands) {
-        transition operands.u8sat == 255 {
-            true -> check_u8wrap(context, operands)
-            _ -> bad(context)
+    state check_u8sat(main: &mut Main) {
+        transition main.u8sat == 255 {
+            true -> check_u8wrap(main)
+            _ -> bad(main)
         }
     }
 
-    state check_u8wrap(context: &mut Main, operands: &Operands) {
-        transition operands.u8wrap == 255 {
-            true -> good(context)
-            _ -> bad(context)
+    state check_u8wrap(main: &mut Main) {
+        transition main.u8wrap == 255 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(context: &mut Main) {
-        context.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(context: &mut Main) {
-        context.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

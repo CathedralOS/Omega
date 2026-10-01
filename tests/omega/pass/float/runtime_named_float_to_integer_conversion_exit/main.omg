@@ -49,10 +49,10 @@ machine Main::main(&mut self) reaches Console {
             && trapped_value == 70
             && saturated_i8_value == 127
             && saturated_u64_value == 0
-            && saturated_nan_value == 0 -> good()
-        _ -> bad()
+            && saturated_nan_value == 0 -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(77); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(77); }
 }

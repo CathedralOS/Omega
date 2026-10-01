@@ -22,9 +22,9 @@ requires n <= 10000
 machine Main::main(&mut self) reaches Console {
     self.p = Pair8::make(3500);
     transition self.p.a == 35 && self.p.b == 7 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

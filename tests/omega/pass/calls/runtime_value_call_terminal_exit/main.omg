@@ -33,18 +33,18 @@ machine cos_via_terminal(x: f64) -> f64 {
 }
 machine Main::main(&mut self) reaches Console {
     let d: i32 = dbl(35);
-    transition d == 70 { true -> a() _ -> bad_d() }
-    state a(&mut self) {
+    transition d == 70 { true -> a(&mut self) _ -> bad_d(&mut self) }
+    state a(main: &mut Main) {
         let p: i32 = pass_through(41);
-        transition p == 41 { true -> b() _ -> bad_p() }
+        transition p == 41 { true -> b(main) _ -> bad_p(main) }
     }
-    state b(&mut self) {
+    state b(main: &mut Main) {
         // cos(1) = 0.540302305868...
         let c: f64 = cos_via_terminal(1.0);
-        transition c > 0.54030230586 && c < 0.54030230587 { true -> good() _ -> bad_c() }
+        transition c > 0.54030230586 && c < 0.54030230587 { true -> good(main) _ -> bad_c(main) }
     }
-    state good(&mut self)  { self.console.exit_process(70); }
-    state bad_d(&mut self) { self.console.exit_process(72); }
-    state bad_p(&mut self) { self.console.exit_process(73); }
-    state bad_c(&mut self) { self.console.exit_process(74); }
+    state good(main: &mut Main)  { main.console.exit_process(70); }
+    state bad_d(main: &mut Main) { main.console.exit_process(72); }
+    state bad_p(main: &mut Main) { main.console.exit_process(73); }
+    state bad_c(main: &mut Main) { main.console.exit_process(74); }
 }

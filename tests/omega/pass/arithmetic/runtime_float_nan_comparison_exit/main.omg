@@ -6,19 +6,17 @@ use omega::language::core::float_operations;
 // below advances only on the IEEE-correct outcome; any wrong arm falls to `bad` (71).
 use omega_language_std::console;
 use omega::language::core::binding;
-data Operands { z: f64; nan: f64; g: f64; }
-data Main { console: Binding<Console>; }
-machine Main::main(context: &mut Main) reaches Console {
-    let mut operands: Operands;
-    operands.z = 0.0;
-    operands.nan = operands.z / operands.z;
-    operands.g = 5.0;
-    transition operands.nan != operands.g { true -> check_eq(context, &operands) _ -> bad(context) }
-    state check_eq(context: &mut Main, operands: &Operands) { transition operands.nan == operands.g { true -> bad(context) _ -> check_lt(context, operands) } }
-    state check_lt(context: &mut Main, operands: &Operands) { transition operands.nan <  operands.g { true -> bad(context) _ -> check_le(context, operands) } }
-    state check_le(context: &mut Main, operands: &Operands) { transition operands.nan <= operands.g { true -> bad(context) _ -> check_gt(context, operands) } }
-    state check_gt(context: &mut Main, operands: &Operands) { transition operands.nan >  operands.g { true -> bad(context) _ -> check_ge(context, operands) } }
-    state check_ge(context: &mut Main, operands: &Operands) { transition operands.nan >= operands.g { true -> bad(context) _ -> ok(context) } }
-    state ok(context: &mut Main)  { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+data Main { console: Binding<Console>; z: f64; nan: f64; g: f64; }
+machine Main::main(&mut self) reaches Console {
+    self.z = 0.0;
+    self.nan = self.z / self.z;
+    self.g = 5.0;
+    transition self.nan != self.g { true -> check_eq(&mut self) _ -> bad(&mut self) }
+    state check_eq(main: &mut Main) { transition main.nan == main.g { true -> bad(main) _ -> check_lt(main) } }
+    state check_lt(main: &mut Main) { transition main.nan <  main.g { true -> bad(main) _ -> check_le(main) } }
+    state check_le(main: &mut Main) { transition main.nan <= main.g { true -> bad(main) _ -> check_gt(main) } }
+    state check_gt(main: &mut Main) { transition main.nan >  main.g { true -> bad(main) _ -> check_ge(main) } }
+    state check_ge(main: &mut Main) { transition main.nan >= main.g { true -> bad(main) _ -> ok(main) } }
+    state ok(main: &mut Main)  { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

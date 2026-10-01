@@ -22,9 +22,9 @@ machine Main::main(&mut self) reaches Console {
     let first: i64 = choose64(wide, 2.0f64, 2.0f64);
     let fallback: i64 = choose32(outside, 1.0f32, 2.0f32);
     transition second == 9 && first == 7 && fallback == 11 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

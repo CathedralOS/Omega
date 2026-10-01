@@ -48,20 +48,20 @@ machine Main::main(&mut self) reaches Console {
     let mut counter: Counter = Counter { n: 1 };
 
     transition counter.pick() {
-        Msg::Small { v } -> small(v)
-        Msg::Mid { v } -> mid(v)
-        Msg::Big { v } -> big(v)
+        Msg::Small { v } -> small(&mut self, v)
+        Msg::Mid { v } -> mid(&mut self, v)
+        Msg::Big { v } -> big(&mut self, v)
     }
 
-    state small(&mut self, v: i32) {
-        self.console.exit_process(v);
+    state small(main: &mut Main, v: i32) {
+        main.console.exit_process(v);
     }
 
-    state mid(&mut self, v: i32) {
-        self.console.exit_process(v);
+    state mid(main: &mut Main, v: i32) {
+        main.console.exit_process(v);
     }
 
-    state big(&mut self, v: i32) {
-        self.console.exit_process(v);
+    state big(main: &mut Main, v: i32) {
+        main.console.exit_process(v);
     }
 }

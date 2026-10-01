@@ -24,15 +24,15 @@ machine Main::main(&mut self) reaches Console {
     self.password.score = 2;
 
     transition (self.password in Password::Valid | Password::Secure) {
-        (true) -> good()
-        _ -> bad()
+        (true) -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(241);
+    state good(main: &mut Main) {
+        main.console.exit_process(241);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(242);
+    state bad(main: &mut Main) {
+        main.console.exit_process(242);
     }
 }

@@ -4,7 +4,7 @@ data Main { console: Binding<Console>; small: i8; big: i32; }
 machine Main::main(&mut self) reaches Console {
     self.small = 44;
     self.big = 300;
-    transition self.small == self.big { true -> hit() _ -> miss() }
-    state hit(&mut self) { self.console.exit_process(1); }
-    state miss(&mut self) { self.console.exit_process(2); }
+    transition self.small == self.big { true -> hit(&mut self) _ -> miss(&mut self) }
+    state hit(main: &mut Main) { main.console.exit_process(1); }
+    state miss(main: &mut Main) { main.console.exit_process(2); }
 }

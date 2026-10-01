@@ -29,9 +29,9 @@ machine Main::main(&mut self) reaches Console {
     let first: i32 = echo(total);
     let third: i32 = seven();
     transition first == 70 && total == 70 && third == 7 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

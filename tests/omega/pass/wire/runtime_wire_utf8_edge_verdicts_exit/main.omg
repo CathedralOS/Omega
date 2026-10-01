@@ -44,65 +44,65 @@ machine Main::main(&mut self) reaches Console {
     decoded.label = "";
     LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
     transition self.verdict == WireVerdict::Sound {
-        true -> overlong()
-        false -> bad_euro()
+        true -> overlong(&mut self)
+        false -> bad_euro(&mut self)
     }
-    state overlong(&mut self) {
-        self.buffer[5] = 224;
-        self.buffer[6] = 128;
-        self.buffer[7] = 128;
+    state overlong(main: &mut Main) {
+        main.buffer[5] = 224;
+        main.buffer[6] = 128;
+        main.buffer[7] = 128;
         let d2: LabelSample;
         d2.count = 0;
         d2.label = "";
-        LabelMessage::decode(&mut d2, &self.buffer, &mut self.read, &mut self.verdict);
-        transition self.verdict == WireVerdict::Invalid {
-            true -> surrogate()
-            false -> bad_overlong()
+        LabelMessage::decode(&mut d2, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == WireVerdict::Invalid {
+            true -> surrogate(main)
+            false -> bad_overlong(main)
         }
     }
-    state surrogate(&mut self) {
-        self.buffer[5] = 237;
-        self.buffer[6] = 160;
-        self.buffer[7] = 128;
+    state surrogate(main: &mut Main) {
+        main.buffer[5] = 237;
+        main.buffer[6] = 160;
+        main.buffer[7] = 128;
         let d3: LabelSample;
         d3.count = 0;
         d3.label = "";
-        LabelMessage::decode(&mut d3, &self.buffer, &mut self.read, &mut self.verdict);
-        transition self.verdict == WireVerdict::Invalid {
-            true -> beyond()
-            false -> bad_surrogate()
+        LabelMessage::decode(&mut d3, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == WireVerdict::Invalid {
+            true -> beyond(main)
+            false -> bad_surrogate(main)
         }
     }
-    state beyond(&mut self) {
-        self.buffer[5] = 244;
-        self.buffer[6] = 144;
-        self.buffer[7] = 128;
+    state beyond(main: &mut Main) {
+        main.buffer[5] = 244;
+        main.buffer[6] = 144;
+        main.buffer[7] = 128;
         let d4: LabelSample;
         d4.count = 0;
         d4.label = "";
-        LabelMessage::decode(&mut d4, &self.buffer, &mut self.read, &mut self.verdict);
-        transition self.verdict == WireVerdict::Invalid {
-            true -> truncated()
-            false -> bad_beyond()
+        LabelMessage::decode(&mut d4, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == WireVerdict::Invalid {
+            true -> truncated(main)
+            false -> bad_beyond(main)
         }
     }
-    state truncated(&mut self) {
-        self.buffer[4] = 2;
-        self.buffer[5] = 240;
-        self.buffer[6] = 144;
+    state truncated(main: &mut Main) {
+        main.buffer[4] = 2;
+        main.buffer[5] = 240;
+        main.buffer[6] = 144;
         let d5: LabelSample;
         d5.count = 0;
         d5.label = "";
-        LabelMessage::decode(&mut d5, &self.buffer, &mut self.read, &mut self.verdict);
-        transition self.verdict == WireVerdict::Invalid {
-            true -> good()
-            false -> bad_truncated()
+        LabelMessage::decode(&mut d5, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == WireVerdict::Invalid {
+            true -> good(main)
+            false -> bad_truncated(main)
         }
     }
-    state good(&mut self)          { self.console.exit_process(70); }
-    state bad_euro(&mut self)      { self.console.exit_process(71); }
-    state bad_overlong(&mut self)  { self.console.exit_process(72); }
-    state bad_surrogate(&mut self) { self.console.exit_process(73); }
-    state bad_beyond(&mut self)    { self.console.exit_process(74); }
-    state bad_truncated(&mut self) { self.console.exit_process(75); }
+    state good(main: &mut Main)          { main.console.exit_process(70); }
+    state bad_euro(main: &mut Main)      { main.console.exit_process(71); }
+    state bad_overlong(main: &mut Main)  { main.console.exit_process(72); }
+    state bad_surrogate(main: &mut Main) { main.console.exit_process(73); }
+    state bad_beyond(main: &mut Main)    { main.console.exit_process(74); }
+    state bad_truncated(main: &mut Main) { main.console.exit_process(75); }
 }

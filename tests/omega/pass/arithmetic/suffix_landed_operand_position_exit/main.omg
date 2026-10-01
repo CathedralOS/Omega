@@ -10,14 +10,14 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(&mut self) reaches Console {
     let z: u64 in Wrapping = 0;
     let big: u64 in Wrapping = z - 1u64;
     let m: u64 in Wrapping = max(big, 5) + 0;
     transition m == big {
-        true -> good(context)
-        false -> bad(context)
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(context: &Main) { context.console.exit_process(77); }
-    state bad(context: &Main) { context.console.exit_process(78); }
+    state good(main: &mut Main) { main.console.exit_process(77); }
+    state bad(main: &mut Main) { main.console.exit_process(78); }
 }

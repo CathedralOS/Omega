@@ -37,23 +37,23 @@ machine Main::main(&mut self) reaches Console {
     self.b.set(true);
     let n: i32 = self.a.get();
     transition n == 42 {
-        true -> check_touches()
-        false -> no()
+        true -> check_touches(&mut self)
+        false -> no(&mut self)
     }
-    state check_touches(&mut self) {
-        let t: i32 in Wrapping = Cell::touch_count(&self.a);
+    state check_touches(main: &mut Main) {
+        let t: i32 in Wrapping = Cell::touch_count(&main.a);
         transition t == 2 {
-            true -> check_bool()
-            false -> no()
+            true -> check_bool(main)
+            false -> no(main)
         }
     }
-    state check_bool(&mut self) {
-        let f: bool = self.b.get();
+    state check_bool(main: &mut Main) {
+        let f: bool = main.b.get();
         transition f {
-            true -> yes()
-            false -> no()
+            true -> yes(main)
+            false -> no(main)
         }
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

@@ -20,24 +20,24 @@ machine Main::main(&mut self)
 reaches Console
 {
     self.sum = 70 as i32 in Wrapping;
-    transition { _ -> rd() }
+    transition { _ -> rd(&mut self) }
 
-    state rd(&mut self) {
-        let r: ByteRead = block self.console.read_byte();
+    state rd(main: &mut Main) {
+        let r: ByteRead = block main.console.read_byte();
         transition r {
-            ByteRead::Byte { value } -> acc(value)
-            _ -> fin()
+            ByteRead::Byte { value } -> acc(main, value)
+            _ -> fin(main)
         }
     }
 
-    state acc(&mut self, value: i32) {
+    state acc(main: &mut Main, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
-        self.sum = self.sum + b;
-        self.console.write_byte(value);
-        transition { _ -> rd() }
+        main.sum = main.sum + b;
+        main.console.write_byte(value);
+        transition { _ -> rd(main) }
     }
 
-    state fin(&mut self) {
-        self.console.exit_process(self.sum as i32);
+    state fin(main: &mut Main) {
+        main.console.exit_process(main.sum as i32);
     }
 }

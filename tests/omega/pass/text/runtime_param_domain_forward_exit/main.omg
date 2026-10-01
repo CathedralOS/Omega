@@ -18,18 +18,18 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     transition true {
-        true -> relay("yes", true)
-        false -> relay("no", false)
+        true -> relay(&mut self, "yes", true)
+        false -> relay(&mut self, "no", false)
     }
 
-    state relay(text: &[u8] in Utf8, go: bool) {
+    state relay(main: &mut Main, text: &[u8] in Utf8, go: bool) {
         transition go {
-            true -> consume(text)
-            false -> consume(text)
+            true -> consume(main, text)
+            false -> consume(main, text)
         }
     }
 
-    state consume(&mut self, text: &[u8] in Utf8) {
-        self.console.exit_process(70);
+    state consume(main: &mut Main, text: &[u8] in Utf8) {
+        main.console.exit_process(70);
     }
 }

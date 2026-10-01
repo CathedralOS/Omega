@@ -13,15 +13,15 @@ machine Main::main(&mut self) reaches Console {
     self.b = self.msg[17];
     self.c = self.msg[18];
     transition self.a == 72 {
-        true -> check_nl()
-        false -> bad()
+        true -> check_nl(&mut self)
+        false -> bad(&mut self)
     }
-    state check_nl(&mut self) {
-        transition self.b == 10 { true -> check_nul() false -> bad() }
+    state check_nl(main: &mut Main) {
+        transition main.b == 10 { true -> check_nul(main) false -> bad(main) }
     }
-    state check_nul(&mut self) {
-        transition self.c == 0 { true -> good() false -> bad() }
+    state check_nul(main: &mut Main) {
+        transition main.c == 0 { true -> good(main) false -> bad(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -49,53 +49,53 @@ machine Main::main(&mut self) reaches Console {
     let same: bool = self.a == self.b;
 
     transition same {
-        true -> check_callable()
-        _ -> missed()
+        true -> check_callable(&mut self)
+        _ -> missed(&mut self)
     }
 
-    state check_callable(&mut self) {
-        let callable: bool = self.a.equals(&self.b);
+    state check_callable(main: &mut Main) {
+        let callable: bool = main.a.equals(&main.b);
 
         transition callable {
-            true -> check_callable_unequal()
-            _ -> missed()
+            true -> check_callable_unequal(main)
+            _ -> missed(main)
         }
     }
 
-    state check_callable_unequal(&mut self) {
-        let callable: bool = self.a.equals(&self.c);
+    state check_callable_unequal(main: &mut Main) {
+        let callable: bool = main.a.equals(&main.c);
 
         transition callable {
-            false -> check_unequal()
-            _ -> missed()
+            false -> check_unequal(main)
+            _ -> missed(main)
         }
     }
 
-    state check_unequal(&mut self) {
-        let different: bool = self.a != self.c;
+    state check_unequal(main: &mut Main) {
+        let different: bool = main.a != main.c;
 
         transition different {
-            true -> check_written_override()
-            _ -> missed()
+            true -> check_written_override(main)
+            _ -> missed(main)
         }
     }
 
-    state check_written_override(&mut self) {
-        self.overridden_a.value = 1;
-        self.overridden_b.value = 1;
-        let written_result: bool = self.overridden_a == self.overridden_b;
+    state check_written_override(main: &mut Main) {
+        main.overridden_a.value = 1;
+        main.overridden_b.value = 1;
+        let written_result: bool = main.overridden_a == main.overridden_b;
 
         transition written_result {
-            false -> matched()
-            _ -> missed()
+            false -> matched(main)
+            _ -> missed(main)
         }
     }
 
-    state matched(&mut self) {
-        self.console.exit_process(70);
+    state matched(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

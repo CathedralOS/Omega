@@ -14,13 +14,13 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     let v: u32 = 7;
     let borrowed: &u32 = &v;
-    transition borrowed == 7 { true -> done() _ -> bad() }
+    transition borrowed == 7 { true -> done(&mut self) _ -> bad(&mut self) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

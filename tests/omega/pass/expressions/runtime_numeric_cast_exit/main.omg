@@ -27,34 +27,34 @@ machine Main::main(&mut self) reaches Console {
     // float -> int truncates toward zero (4.5 -> 4).
     self.truncated = (self.real_value as i32 in Saturating) as i32; // F4: proof-or-policy (in-range value; Saturating = same result)
     transition self.truncated == 4 {
-        true -> check_int_to_float()
-        false -> bad()
+        true -> check_int_to_float(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_int_to_float(&mut self) {
+    state check_int_to_float(main: &mut Main) {
         // int -> float (4 -> 4.0).
-        self.widened = self.truncated as f64;
-        transition self.widened == 4.0 {
-            true -> check_signed_widen()
-            false -> bad()
+        main.widened = main.truncated as f64;
+        transition main.widened == 4.0 {
+            true -> check_signed_widen(main)
+            false -> bad(main)
         }
     }
 
-    state check_signed_widen(&mut self) {
-        self.narrow_source = -100;
+    state check_signed_widen(main: &mut Main) {
+        main.narrow_source = -100;
         // signed integer widening sign-extends (-100 stays -100, not 2^32-100).
-        self.widened_int = self.narrow_source as i64;
-        transition self.widened_int == -100 {
-            true -> good()
-            false -> bad()
+        main.widened_int = main.narrow_source as i64;
+        transition main.widened_int == -100 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

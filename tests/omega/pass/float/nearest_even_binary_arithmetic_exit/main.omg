@@ -30,67 +30,67 @@ machine Main::main(&mut self) reaches Console {
     self.tenth32 = 0.1;
     let sum64: f64 = self.one64 + 0.000000000000000166533453693773481063544750213623046875;
     transition sum64 == 1.0000000000000002220446049250313080847263336181640625 {
-        true -> subtract64()
-        _ -> fail(71)
+        true -> subtract64(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state subtract64(&mut self) {
+    state subtract64(main: &mut Main) {
         let difference64: f64 =
-            self.one64 - 0.0000000000000000277555756156289135105907917022705078125;
+            main.one64 - 0.0000000000000000277555756156289135105907917022705078125;
         transition difference64 == 1.0 {
-            true -> multiply64()
-            _ -> fail(72)
+            true -> multiply64(main)
+            _ -> fail(main, 72)
         }
     }
 
-    state multiply64(&mut self) {
-        let product64: f64 = self.tenth64 * 3.0;
+    state multiply64(main: &mut Main) {
+        let product64: f64 = main.tenth64 * 3.0;
         transition product64 == 0.3000000000000000444089209850062616169452667236328125 {
-            true -> divide64()
-            _ -> fail(73)
+            true -> divide64(main)
+            _ -> fail(main, 73)
         }
     }
 
-    state divide64(&mut self) {
-        let quotient64: f64 = self.ten64 / 3.0;
+    state divide64(main: &mut Main) {
+        let quotient64: f64 = main.ten64 / 3.0;
         transition quotient64 == 3.333333333333333481363069950020872056484222412109375 {
-            true -> add32()
-            _ -> fail(74)
+            true -> add32(main)
+            _ -> fail(main, 74)
         }
     }
 
-    state add32(&mut self) {
-        let sum32: f32 = self.one32 + 0.0000000894069671630859375;
+    state add32(main: &mut Main) {
+        let sum32: f32 = main.one32 + 0.0000000894069671630859375;
         transition sum32 == 1.00000011920928955078125 {
-            true -> subtract32()
-            _ -> fail(75)
+            true -> subtract32(main)
+            _ -> fail(main, 75)
         }
     }
 
-    state subtract32(&mut self) {
-        let difference32: f32 = self.one32 - 0.00000001490116119384765625;
+    state subtract32(main: &mut Main) {
+        let difference32: f32 = main.one32 - 0.00000001490116119384765625;
         transition difference32 == 1.0 {
-            true -> multiply32()
-            _ -> fail(76)
+            true -> multiply32(main)
+            _ -> fail(main, 76)
         }
     }
 
-    state multiply32(&mut self) {
-        let product32: f32 = self.tenth32 * 3.0;
+    state multiply32(main: &mut Main) {
+        let product32: f32 = main.tenth32 * 3.0;
         transition product32 == 0.300000011920928955078125 {
-            true -> divide32()
-            _ -> fail(77)
+            true -> divide32(main)
+            _ -> fail(main, 77)
         }
     }
 
-    state divide32(&mut self) {
-        let quotient32: f32 = self.one32 / 3.0;
+    state divide32(main: &mut Main) {
+        let quotient32: f32 = main.one32 / 3.0;
         transition quotient32 == 0.3333333432674407958984375 {
-            true -> pass()
-            _ -> fail(78)
+            true -> pass(main)
+            _ -> fail(main, 78)
         }
     }
 
-    state pass(&self) { self.console.exit_process(70); }
-    state fail(&self, code: i32) { self.console.exit_process(code); }
+    state pass(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

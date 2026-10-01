@@ -22,15 +22,15 @@ machine Main::main(&mut self) reaches Console {
     let chosen: Entry = window[1];
 
     transition chosen.value == 37 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(215);
+    state good(main: &mut Main) {
+        main.console.exit_process(215);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(216);
+    state bad(main: &mut Main) {
+        main.console.exit_process(216);
     }
 }

@@ -26,11 +26,11 @@ machine Main::main(&mut self) reaches Console {
     Main::apply(&mut self, Event::Add { amount: 3 });
     Main::apply(&mut self, Event::Bonus);
     transition self.tally.total == 13 {
-        true -> report(70)
-        _ -> report(71)
+        true -> report(&mut self, 70)
+        _ -> report(&mut self, 71)
     }
-    state report(&mut self, code: i32 in Wrapping) {
-        self.console.exit_process(code as i32);
+    state report(main: &mut Main, code: i32 in Wrapping) {
+        main.console.exit_process(code as i32);
     }
 }
 

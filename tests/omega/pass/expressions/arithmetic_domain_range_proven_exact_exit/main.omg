@@ -23,9 +23,9 @@ machine Main::main(&mut self) reaches Console {
     self.y = 30;
     let z: i32 = self.x + self.y;   // proven in [0, 200] -> exact, no overflow
     transition z == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

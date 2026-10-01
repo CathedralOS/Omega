@@ -41,9 +41,9 @@ machine Main::main(&mut self) reaches Console {
     self.i = 1;
     self.other = self.cells[self.i].ready;
     transition self.selected && !self.other && self.scratch == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

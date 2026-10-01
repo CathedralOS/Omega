@@ -19,7 +19,7 @@ terminates by n -> Nat::Descending;
 }
 machine Main::main(&mut self) reaches Console {
     let x: f64 = self.pick(2, 1.5);
-    transition x > 1.0 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    transition x > 1.0 { true -> good(&mut self) _ -> bad(&mut self) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

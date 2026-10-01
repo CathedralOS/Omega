@@ -1,5 +1,5 @@
 // RUN canary (decision 17 S4 narrowing): min/max clamp narrowing lets a clamped
-// value feed EXACT arithmetic. `inputs.seed` is a full-range i32 (opaque). `max(_, 0)`
+// value feed EXACT arithmetic. `self.seed` is a full-range i32 (opaque). `max(_, 0)`
 // lower-bounds it at 0, `min(_, 60)` upper-bounds it at 60, so `bounded` is in
 // [0, 60] and `+ 70` is provably within i32 and stays EXACT (no `Wrapping`).
 // Without min/max result narrowing both clamps are unbounded and `+ 70` is a
@@ -12,22 +12,21 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Inputs {
+data Main {
+    console: Binding<Console>;
     seed: i32;
 }
-data Main { console: Binding<Console>; }
 
-machine Main::main(context: &mut Main) reaches Console {
-    let inputs: Inputs;
-    let lo: i32 = max(inputs.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
+machine Main::main(&mut self) reaches Console {
+    let lo: i32 = max(self.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
     let bounded: i32 = min(lo, 60);    // [0, 60]         (min upper-bounds)
     let s: i32 = bounded + 70;         // [70, 130] in i32 -> EXACT only because bounded
 
     transition s == 70 {
-        true -> good(context)
-        false -> bad(context)
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main) { context.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

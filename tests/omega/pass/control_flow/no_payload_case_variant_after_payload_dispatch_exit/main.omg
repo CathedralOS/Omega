@@ -47,9 +47,9 @@ machine Main::main(&mut self) reaches Console {
     Main::dispatch(&mut self, AlarmEvent::Trigger);
 
     transition self.fire_count == 2 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

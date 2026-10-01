@@ -31,28 +31,28 @@ machine Main::main(&mut self) reaches Console {
     self.tally.pad = 0;
 
     transition {
-        _ -> discard_call()
+        _ -> discard_call(&mut self)
     }
 
-    state discard_call(&mut self) {
-        _ = Main::roll(&mut self.tally);
+    state discard_call(main: &mut Main) {
+        _ = Main::roll(&mut main.tally);
 
         transition {
-            _ -> report()
+            _ -> report(main)
         }
     }
 
-    state report(&mut self) {
+    state report(main: &mut Main) {
         transition {
-            self.tally.calls == 41 -> exit_correct()
-            self.tally.calls == 40 -> exit_lost()
-            self.tally.calls == 42 -> exit_doubled()
-            _ -> exit_other()
+            main.tally.calls == 41 -> exit_correct(main)
+            main.tally.calls == 40 -> exit_lost(main)
+            main.tally.calls == 42 -> exit_doubled(main)
+            _ -> exit_other(main)
         }
     }
 
-    state exit_correct(&mut self) { self.console.exit_process(70); }
-    state exit_lost(&mut self) { self.console.exit_process(10); }
-    state exit_doubled(&mut self) { self.console.exit_process(3); }
-    state exit_other(&mut self) { self.console.exit_process(77); }
+    state exit_correct(main: &mut Main) { main.console.exit_process(70); }
+    state exit_lost(main: &mut Main) { main.console.exit_process(10); }
+    state exit_doubled(main: &mut Main) { main.console.exit_process(3); }
+    state exit_other(main: &mut Main) { main.console.exit_process(77); }
 }

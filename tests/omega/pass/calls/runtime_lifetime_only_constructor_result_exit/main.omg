@@ -47,9 +47,9 @@ machine Main::main(&mut self) reaches Console {
     let observed: u64 = Envelope::read_observed(envelope);
     let literal: u64 = Envelope::read_literal(envelope);
     transition result == 70 && marker == 70 && observed == 70 && literal == 70 {
-        true -> passed()
-        false -> failed()
+        true -> passed(&mut self)
+        false -> failed(&mut self)
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

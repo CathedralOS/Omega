@@ -50,7 +50,7 @@ machine Main::count(&mut self, path: &[u8]) -> i32 {
 machine Main::main(&mut self) reaches Console {
     self.n = 0;
     let c: i32 = self.count("a/b/c");
-    transition c == 2 { true -> good() _ -> bad(71) }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    transition c == 2 { true -> good(&mut self) _ -> bad(&mut self, 71) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

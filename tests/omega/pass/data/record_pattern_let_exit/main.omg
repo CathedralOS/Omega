@@ -24,7 +24,7 @@ machine Main::main(&mut self) reaches Console {
     self.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical, z as _ } = self.point;
     let total: i32 = x + vertical;
-    transition total == 70 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    transition total == 70 { true -> good(&mut self) _ -> bad(&mut self) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

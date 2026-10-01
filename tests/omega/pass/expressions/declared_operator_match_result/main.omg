@@ -50,15 +50,15 @@ machine Main::main(&mut self) reaches Console {
     let skipped: u64 = select_false();
     let named: u64 = by_name();
     transition selected == 260 && skipped == 1 && named == 260 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

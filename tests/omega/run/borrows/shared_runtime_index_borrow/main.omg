@@ -16,13 +16,13 @@ machine Main::main(&mut self) reaches Console {
     self.buf[0] = 3;
     self.off = 0;
     let borrowed: &u8 = &self.buf[self.off];
-    transition borrowed == self.buf[self.off] { true -> done() _ -> bad() }
+    transition borrowed == self.buf[self.off] { true -> done(&mut self) _ -> bad(&mut self) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

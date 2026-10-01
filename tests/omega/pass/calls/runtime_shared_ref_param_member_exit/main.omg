@@ -23,11 +23,11 @@ machine Main::main(&mut self) reaches Console {
     self.inner.b = 35;
     self.read(&self.inner);
     transition self.got == 42 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(42); }
-    state bad(&mut self) { self.console.exit_process(self.got as i32); }
+    state good(main: &mut Main) { main.console.exit_process(42); }
+    state bad(main: &mut Main) { main.console.exit_process(main.got as i32); }
 }
 machine Main::read(&mut self, r: &Inner) {
     // assignment RHS through the ref param (both fields), then a guard on one

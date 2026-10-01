@@ -31,10 +31,10 @@ terminates by (j, i) -> Nat::BoundedDistance;
 machine Main::main(&mut self) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
     self.total = self.count(4, 0);
-    transition self.total == 5 { true -> ck_hits() _ -> bad(71) }
-    state ck_hits(&mut self) {
-        transition self.hits == 5 { true -> good() _ -> bad(72) }
+    transition self.total == 5 { true -> ck_hits(&mut self) _ -> bad(&mut self, 71) }
+    state ck_hits(main: &mut Main) {
+        transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

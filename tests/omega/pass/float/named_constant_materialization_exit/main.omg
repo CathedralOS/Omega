@@ -18,9 +18,9 @@ machine Main::main(&mut self) reaches Console {
     let mut root: f32 = ROOT;
     let mut root64: f64 = ROOT64;
     transition NAN_CLASSIFIED && THROUGH_CALL && root == 2.0f32 && root64 == 3.0f64 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&self) { self.console.exit_process(70); }
-    state bad(&self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

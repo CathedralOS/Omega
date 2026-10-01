@@ -25,13 +25,13 @@ machine Main::main(&mut self) reaches Console {
     // asks the caller to assume a guarantee the helper never declared.
     let observed: i32 = read_x() as i32;
     transition observed == 0 {
-        true -> zero(observed)
-        _ -> bad()
+        true -> zero(&mut self, observed)
+        _ -> bad(&mut self)
     }
-    state zero(&mut self, value: i32 [0..=0]) {
-        self.console.exit_process(70 + value);
+    state zero(main: &mut Main, value: i32 [0..=0]) {
+        main.console.exit_process(70 + value);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

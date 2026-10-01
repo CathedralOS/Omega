@@ -35,67 +35,67 @@ machine Main::main(&mut self) reaches Console {
     self.below_short = -40000.75f32;
     let mut high: i32 = (huge as i32 in Saturating) as i32;
     transition high == 2147483647 {
-        true -> low()
-        _ -> fail(71)
+        true -> low(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state low(&mut self) {
-        let low: i32 in Saturating = self.negative_huge as i32 in Saturating;
+    state low(main: &mut Main) {
+        let low: i32 in Saturating = main.negative_huge as i32 in Saturating;
         let low_value: i32 = low as i32;
         transition low_value == -2147483648 {
-            true -> nan()
-            _ -> fail(72)
+            true -> nan(main)
+            _ -> fail(main, 72)
         }
     }
 
-    state nan(&mut self) {
-        let nan: f64 = self.zero / self.zero;
+    state nan(main: &mut Main) {
+        let nan: f64 = main.zero / main.zero;
         let nan_value: i32 = (nan as i32 in Saturating) as i32;
         transition nan_value == 0 {
-            true -> guard()
-            _ -> fail(73)
+            true -> guard(main)
+            _ -> fail(main, 73)
         }
     }
 
-    state guard(&mut self) {
-        transition (self.fraction as i32 in Saturating) as i32 == -7 {
-            true -> nested()
-            _ -> fail(74)
+    state guard(main: &mut Main) {
+        transition (main.fraction as i32 in Saturating) as i32 == -7 {
+            true -> nested(main)
+            _ -> fail(main, 74)
         }
     }
 
-    state nested(&mut self) {
-        let mut fahrenheit: i32 = ((self.celsius * 1.8 + 32.0) as i32 in Saturating) as i32;
+    state nested(main: &mut Main) {
+        let mut fahrenheit: i32 = ((main.celsius * 1.8 + 32.0) as i32 in Saturating) as i32;
         transition fahrenheit == 68 {
-            true -> unsigned_high()
-            _ -> fail(75)
+            true -> unsigned_high(main)
+            _ -> fail(main, 75)
         }
     }
 
-    state unsigned_high(&mut self) {
-        let mut byte_high: u8 = (self.above_byte as u8 in Saturating) as u8;
+    state unsigned_high(main: &mut Main) {
+        let mut byte_high: u8 = (main.above_byte as u8 in Saturating) as u8;
         transition byte_high == 255 {
-            true -> unsigned_low()
-            _ -> fail(76)
+            true -> unsigned_low(main)
+            _ -> fail(main, 76)
         }
     }
 
-    state unsigned_low(&mut self) {
-        let byte_low: u8 = (self.below_byte as u8 in Saturating) as u8;
+    state unsigned_low(main: &mut Main) {
+        let byte_low: u8 = (main.below_byte as u8 in Saturating) as u8;
         transition byte_low == 0 {
-            true -> short_low()
-            _ -> fail(77)
+            true -> short_low(main)
+            _ -> fail(main, 77)
         }
     }
 
-    state short_low(&mut self) {
-        let mut short_low: i16 = (self.below_short as i16 in Saturating) as i16;
+    state short_low(main: &mut Main) {
+        let mut short_low: i16 = (main.below_short as i16 in Saturating) as i16;
         transition short_low == -32768 {
-            true -> good()
-            _ -> fail(78)
+            true -> good(main)
+            _ -> fail(main, 78)
         }
     }
 
-    state good(&self) { self.console.exit_process(70); }
-    state fail(&self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

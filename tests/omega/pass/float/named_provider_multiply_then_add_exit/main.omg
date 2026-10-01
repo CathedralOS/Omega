@@ -40,24 +40,24 @@ machine Main::main(&mut self) reaches Console {
     );
 
     transition self.result32 == 0.0f32 {
-        true -> check64()
-        _ -> fail(71)
+        true -> check64(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state check64(&mut self) {
-        transition self.result64 == 0.0 {
-            true -> check_overflow32()
-            _ -> fail(72)
+    state check64(main: &mut Main) {
+        transition main.result64 == 0.0 {
+            true -> check_overflow32(main)
+            _ -> fail(main, 72)
         }
     }
 
-    state check_overflow32(&mut self) {
-        transition self.overflow32 > (self.maximum32 as f32) {
-            true -> good()
-            _ -> fail(73)
+    state check_overflow32(main: &mut Main) {
+        transition main.overflow32 > (main.maximum32 as f32) {
+            true -> good(main)
+            _ -> fail(main, 73)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

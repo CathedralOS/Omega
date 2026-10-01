@@ -34,26 +34,26 @@ machine Main::main(&mut self) reaches Console {
     Cell::publish(&self.cell, 10);
     let prior: u32 = Cell::mark(&self.cell, 5);
     transition prior == 10 {
-        true -> check_value()
-        false -> bad_prior()
+        true -> check_value(&mut self)
+        false -> bad_prior(&mut self)
     }
 
-    state check_value(&mut self) {
-        transition self.cell.value == 15 {
-            true -> good()
-            false -> bad_value()
+    state check_value(main: &mut Main) {
+        transition main.cell.value == 15 {
+            true -> good(main)
+            false -> bad_value(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad_prior(&mut self) {
-        self.console.exit_process(71);
+    state bad_prior(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state bad_value(&mut self) {
-        self.console.exit_process(72);
+    state bad_value(main: &mut Main) {
+        main.console.exit_process(72);
     }
 }

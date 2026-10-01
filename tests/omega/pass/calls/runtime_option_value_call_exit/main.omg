@@ -33,38 +33,38 @@ machine Main::main(&mut self) reaches Console {
     self.i = 0;
     self.acc = 0;
     self.nones = 0;
-    transition { _ -> loop() }
+    transition { _ -> loop(&mut self) }
 
-    state loop(&mut self) {
-        transition self.i >= 0 && self.i < 3 { true -> call() _ -> verify() }
+    state loop(main: &mut Main) {
+        transition main.i >= 0 && main.i < 3 { true -> call(main) _ -> verify(main) }
     }
-    state call(&mut self) {
-        self.x = self.vals[self.i] as i32 in Wrapping;
+    state call(main: &mut Main) {
+        main.x = main.vals[main.i] as i32 in Wrapping;
         // call the Option-returning function, bind, and match the result
-        let r: Opt = classify(self.x);
+        let r: Opt = classify(main.x);
         transition r {
-            Opt::Some { value } -> got(value)
-            Opt::None -> nada()
+            Opt::Some { value } -> got(main, value)
+            Opt::None -> nada(main)
         }
     }
-    state got(&mut self, v: i32 in Wrapping) {
-        self.acc = self.acc + v;
-        self.i = self.i + 1;
-        transition { _ -> loop() }
+    state got(main: &mut Main, v: i32 in Wrapping) {
+        main.acc = main.acc + v;
+        main.i = main.i + 1;
+        transition { _ -> loop(main) }
     }
-    state nada(&mut self) {
-        self.nones = self.nones + 1;
-        self.i = self.i + 1;
-        transition { _ -> loop() }
+    state nada(main: &mut Main) {
+        main.nones = main.nones + 1;
+        main.i = main.i + 1;
+        transition { _ -> loop(main) }
     }
 
-    state verify(&mut self) {
-        transition self.acc == 12 && self.nones == 1 { true -> good() _ -> wrong() }
+    state verify(main: &mut Main) {
+        transition main.acc == 12 && main.nones == 1 { true -> good(main) _ -> wrong(main) }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state wrong(&mut self) {
-        self.console.exit_process(self.acc as i32); // surface the sum on regression
+    state wrong(main: &mut Main) {
+        main.console.exit_process(main.acc as i32); // surface the sum on regression
     }
 }

@@ -26,49 +26,49 @@ machine Main::main(&mut self) reaches Console {
     self.best_val = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.i < 6 {
-            true -> body()
-            _ -> done()
+    state step(main: &mut Main) {
+        transition main.i < 6 {
+            true -> body(main)
+            _ -> done(main)
         }
     }
-    state body(&mut self) {
-        self.cur = self.arr[self.i];
-        transition self.cur > self.best_val {
-            true -> keep()
-            _ -> advance()
+    state body(main: &mut Main) {
+        main.cur = main.arr[main.i];
+        transition main.cur > main.best_val {
+            true -> keep(main)
+            _ -> advance(main)
         }
     }
     // New maximum: capture BOTH its value and its index.
-    state keep(&mut self) {
-        self.best_val = self.cur;
-        self.best_idx = self.i;
+    state keep(main: &mut Main) {
+        main.best_val = main.cur;
+        main.best_idx = main.i;
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
     // Re-guard before the increment so `i + 1` stays provably in [0..=6].
-    state advance(&mut self) {
-        transition self.i < 6 {
-            true -> bump()
-            _ -> step()
+    state advance(main: &mut Main) {
+        transition main.i < 6 {
+            true -> bump(main)
+            _ -> step(main)
         }
     }
-    state bump(&mut self) {
-        self.i = self.i + 1;
+    state bump(main: &mut Main) {
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
-    state done(&mut self) {
-        transition self.best_idx == 3 {
-            true -> ok()
-            false -> bad()
+    state done(main: &mut Main) {
+        transition main.best_idx == 3 {
+            true -> ok(main)
+            false -> bad(main)
         }
     }
-    state ok(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state ok(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

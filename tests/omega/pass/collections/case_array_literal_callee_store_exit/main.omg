@@ -15,11 +15,11 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.fill();
     transition self.grid[1] {
-        Cell::Door -> finish(7)
-        _ -> finish(1)
+        Cell::Door -> finish(&mut self, 7)
+        _ -> finish(&mut self, 1)
     }
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }
 machine Main::fill(&mut self) {

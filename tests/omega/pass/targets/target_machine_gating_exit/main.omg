@@ -40,10 +40,10 @@ data Main { console: Binding<Console>; helper: Helper; }
 machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.pick();
     let b: i32 = self.helper.delta();
-    transition a == 63 { true -> check_delta(b) _ -> bad(71) }
-    state check_delta(&mut self, b2: i32) {
-        transition b2 == 7 { true -> good() _ -> bad(72) }
+    transition a == 63 { true -> check_delta(&mut self, b) _ -> bad(&mut self, 71) }
+    state check_delta(main: &mut Main, b2: i32) {
+        transition b2 == 7 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
 }

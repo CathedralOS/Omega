@@ -21,12 +21,12 @@ machine opaque() -> u64 {
 machine Main::main(&mut self) reaches Console {
     let v: u64 = opaque();
     transition v >= 100u64 {
-        true -> bad()
-        _ -> then(v)
+        true -> bad(&mut self)
+        _ -> then(&mut self, v)
     }
-    state then(&mut self, v: u64) {
+    state then(main: &mut Main, v: u64) {
         check(v);
-        self.console.exit_process(70);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

@@ -24,16 +24,16 @@ machine Main::main(&mut self) reaches Console {
     self.mode = Mode::Run { speed: 70 };
 
     transition self.mode {
-        Mode::Walk { pace } -> bad(pace)
-        Mode::Run { speed } -> done(speed)
-        _ -> bad(72)
+        Mode::Walk { pace } -> bad(&mut self, pace)
+        Mode::Run { speed } -> done(&mut self, speed)
+        _ -> bad(&mut self, 72)
     }
 
-    state done(&mut self, speed: i32) {
-        self.console.exit_process(speed);
+    state done(main: &mut Main, speed: i32) {
+        main.console.exit_process(speed);
     }
 
-    state bad(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state bad(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }

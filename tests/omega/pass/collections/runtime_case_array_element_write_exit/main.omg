@@ -22,20 +22,20 @@ machine Main::main(&mut self) reaches Console {
     self.i = 2;
     self.plans[self.i] = FieldPlan::At { offset: 16, width: 8 };
     transition self.plans[0] {
-        FieldPlan::At { offset, width } -> first((offset as i64 in Wrapping) + (width as i64 in Wrapping))
-        FieldPlan::Skip -> bad()
+        FieldPlan::At { offset, width } -> first(&mut self, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
+        FieldPlan::Skip -> bad(&mut self)
     }
-    state first(&mut self, v: i64 in Wrapping) {
-        self.a = v;
-        transition self.plans[2] {
-            FieldPlan::At { offset, width } -> second((offset as i64 in Wrapping) + (width as i64 in Wrapping))
-            FieldPlan::Skip -> bad()
+    state first(main: &mut Main, v: i64 in Wrapping) {
+        main.a = v;
+        transition main.plans[2] {
+            FieldPlan::At { offset, width } -> second(main, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
+            FieldPlan::Skip -> bad(main)
         }
     }
-    state second(&mut self, v: i64 in Wrapping) {
-        self.b = v;
-        self.r = narrow_i64_to_i32_trapping((self.a + self.b) as i64);
-        self.console.exit_process(self.r);
+    state second(main: &mut Main, v: i64 in Wrapping) {
+        main.b = v;
+        main.r = narrow_i64_to_i32_trapping((main.a + main.b) as i64);
+        main.console.exit_process(main.r);
     }
-    state bad(&mut self) { self.console.exit_process(99); }
+    state bad(main: &mut Main) { main.console.exit_process(99); }
 }

@@ -27,34 +27,34 @@ machine Main::main(&mut self) reaches Console {
 
     // Establish the bound once, before the branch.
     transition self.idx < 4 {
-        true -> split()
-        _ -> bad()
+        true -> split(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state split(&mut self) {
-        transition self.flag {
-            true -> left()
-            _ -> right()
+    state split(main: &mut Main) {
+        transition main.flag {
+            true -> left(main)
+            _ -> right(main)
         }
     }
     // Neither arm rewrites `idx`, so `idx < 4` survives both paths to `merge`.
-    state left(&mut self) {
-        transition { _ -> merge() }
+    state left(main: &mut Main) {
+        transition { _ -> merge(main) }
     }
-    state right(&mut self) {
-        transition { _ -> merge() }
+    state right(main: &mut Main) {
+        transition { _ -> merge(main) }
     }
 
     // Multi-predecessor join: the meet carries `idx < 4` here without a re-guard.
-    state merge(&mut self) {
-        self.r = self.arr[self.idx] as i32 in Trapping;
-        transition self.r == 30 { true -> good() _ -> bad() }
+    state merge(main: &mut Main) {
+        main.r = main.arr[main.idx] as i32 in Trapping;
+        transition main.r == 30 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

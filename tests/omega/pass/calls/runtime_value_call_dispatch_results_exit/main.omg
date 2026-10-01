@@ -25,19 +25,19 @@ machine pick(x: i32) -> i32 {
 machine Main::main(&mut self) reaches Console {
     self.d = 1;
     self.vec = Main::delta(&self, self.d);
-    transition self.vec.x == 3 { true -> chk_y() _ -> bad(71) }
-    state chk_y(&mut self) {
-        transition self.vec.y == 4 { true -> chk_pick() _ -> bad(72) }
+    transition self.vec.x == 3 { true -> chk_y(&mut self) _ -> bad(&mut self, 71) }
+    state chk_y(main: &mut Main) {
+        transition main.vec.y == 4 { true -> chk_pick(main) _ -> bad(main, 72) }
     }
-    state chk_pick(&mut self) {
-        self.v = 0 - 5;
-        let n: i32 = pick(self.v);
-        transition n == 200 { true -> chk_pick_hi() _ -> bad(73) }
+    state chk_pick(main: &mut Main) {
+        main.v = 0 - 5;
+        let n: i32 = pick(main.v);
+        transition n == 200 { true -> chk_pick_hi(main) _ -> bad(main, 73) }
     }
-    state chk_pick_hi(&mut self) {
+    state chk_pick_hi(main: &mut Main) {
         let m: i32 = pick(9);
-        transition m == 100 { true -> good() _ -> bad(74) }
+        transition m == 100 { true -> good(main) _ -> bad(main, 74) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

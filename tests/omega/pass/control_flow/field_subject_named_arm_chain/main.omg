@@ -37,12 +37,12 @@ machine Main::main(&mut self) reaches Console {
     self.command = Command::A;
 
     transition self.command {
-        Command::A -> done()
-        Command::B -> done()
-        Command::C -> done()
+        Command::A -> done(&mut self)
+        Command::B -> done(&mut self)
+        Command::C -> done(&mut self)
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 }

@@ -30,10 +30,10 @@ reaches Console, Convert
     let ordinary: i32 = self.converter.convert(0);
     let saturated: i32 in Saturating = self.converter.convert(0);
     transition {
-        ordinary == 69 && saturated == (70 as i32 in Saturating) -> good()
-        _ -> bad()
+        ordinary == 69 && saturated == (70 as i32 in Saturating) -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(77); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(77); }
 }

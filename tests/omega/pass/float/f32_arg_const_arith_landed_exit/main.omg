@@ -11,10 +11,10 @@ use omega::language::core::binding;
 data Main { console: Binding<Console>; expected: f32; }
 machine Main::main(&mut self) reaches Console {
     self.expected = 1.00000011920928955078125;
-    transition { _ -> check(1.0 + 0.0000000596046483281043038005) }
-    state check(&mut self, got: f32) {
-        transition got == self.expected { true -> good() _ -> bad() }
+    transition { _ -> check(&mut self, 1.0 + 0.0000000596046483281043038005) }
+    state check(main: &mut Main, got: f32) {
+        transition got == main.expected { true -> good(main) _ -> bad(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main)  { main.console.exit_process(71); }
 }

@@ -34,15 +34,15 @@ machine Main::main(&mut self) reaches Console {
     let erased: &dyn Shape = &self.item as &dyn Item::Primary;
     let result: i32 = erased.code();
     transition result == 0 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -17,40 +17,40 @@ machine Main::main(&mut self) reaches Console {
         bat_defeated,
         treasure_taken
     ) {
-        (0, _, _, _) -> gate()
-        (1, true, _, _) -> spent()
-        (1, false, _, _) -> fountain()
-        (2, _, true, _) -> ambush_clear()
-        (2, _, false, _) -> ambush()
-        (3, _, _, true) -> looted()
-        _ -> vault()
+        (0, _, _, _) -> gate(&mut self)
+        (1, true, _, _) -> spent(&mut self)
+        (1, false, _, _) -> fountain(&mut self)
+        (2, _, true, _) -> ambush_clear(&mut self)
+        (2, _, false, _) -> ambush(&mut self)
+        (3, _, _, true) -> looted(&mut self)
+        _ -> vault(&mut self)
     }
 
-    state gate(&mut self) {
-        self.console.exit_process(70);
+    state gate(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state spent(&mut self) {
-        self.console.exit_process(71);
+    state spent(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state fountain(&mut self) {
-        self.console.exit_process(72);
+    state fountain(main: &mut Main) {
+        main.console.exit_process(72);
     }
 
-    state ambush_clear(&mut self) {
-        self.console.exit_process(73);
+    state ambush_clear(main: &mut Main) {
+        main.console.exit_process(73);
     }
 
-    state ambush(&mut self) {
-        self.console.exit_process(74);
+    state ambush(main: &mut Main) {
+        main.console.exit_process(74);
     }
 
-    state looted(&mut self) {
-        self.console.exit_process(75);
+    state looted(main: &mut Main) {
+        main.console.exit_process(75);
     }
 
-    state vault(&mut self) {
-        self.console.exit_process(76);
+    state vault(main: &mut Main) {
+        main.console.exit_process(76);
     }
 }
