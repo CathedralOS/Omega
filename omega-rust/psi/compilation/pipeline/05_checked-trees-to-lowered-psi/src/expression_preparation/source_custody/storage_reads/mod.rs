@@ -655,9 +655,10 @@ fn authored_read_path(
             .collect::<Result<Vec<_>, _>>()?;
         // Place-custody paths keep traversal order, and so do retained paths
         // for selectors reached through member positions (`x.cells[i].value`
-        // keeps `[cells, FixedIndex(i), value]`). Only a selector on the bare
-        // root collection retains after the members it reads into:
-        // `local[i].f` rejoins `[Field(f), FixedIndex(i)]`.
+        // keeps `[cells, FixedIndex(i), value]`) and every parameter-rooted
+        // literal path (`grid[1][2]` keeps `[FixedIndex(1), FixedIndex(2)]`).
+        // Only a selector on a bare local fixed carrier retains after the
+        // members it reads into: `local[i].f` rejoins `[Field(f), FixedIndex(i)]`.
         // A view-typed local roots its element reads at the view its
         // establishment published (`CheckedStorageRoot::ViewLocal`), whose
         // retained form is selector-only on either access family: a view is
@@ -668,7 +669,10 @@ fn authored_read_path(
             return Ok(None);
         }
         let mut path = path;
-        if matches!(path.first(), Some(Segment::FixedIndex(_))) && path.len() > 1 {
+        if matches!(path.first(), Some(Segment::FixedIndex(_)))
+            && path.len() > 1
+            && fixed_carrier_local(checked, state, scope, source.root).is_some()
+        {
             let selector = path.remove(0);
             path.push(selector);
         }
