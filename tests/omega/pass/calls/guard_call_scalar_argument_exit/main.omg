@@ -5,6 +5,8 @@
 // `scalar computation needs one checked expression and one source binding`.
 module guard_call_scalar_argument_exit;
 
+use omega_language_std::console;
+
 machine callee(v: u64) -> bool {
     transition v {
         0 -> (false)
@@ -21,9 +23,12 @@ machine guarded(v: u64) -> bool
     }
 }
 
-machine main() -> i32 {
+// exits: 70 = the `||` guard selected its true arm; 71 = it did not.
+machine main() reaches Console {
     transition guarded(7u64) {
-        true -> (0i32)
-        false -> (1i32)
+        true -> passed()
+        false -> failed()
     }
+    state passed() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
 }
