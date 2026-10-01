@@ -138,6 +138,7 @@ fn terminal_selected_keys(
         address_offset: keys.address_offset,
         store64: keys.store64,
         frame_address: keys.frame_address,
+        byte_literal_image_address: keys.byte_literal_image_address,
         call_unit: keys.call_unit.clone(),
         call_unit_mixed: keys.call_unit_mixed.clone(),
         call_scalar: keys.call_scalar.clone(),
@@ -436,6 +437,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::AddressOffset { .. } => MachineSemanticKind::AddressOffset,
         SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
         SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            MachineSemanticKind::ByteLiteralImageAddress
+        }
         SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
         SelectedInstructionKind::NormalizedForeignCall { .. } => {
             MachineSemanticKind::NormalizedForeignCall

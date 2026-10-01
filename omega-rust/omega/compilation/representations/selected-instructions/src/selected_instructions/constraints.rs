@@ -28,6 +28,9 @@ pub struct SelectedConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    /// PC-relative byte-literal image address; absent where the target has
+    /// no read-only image storage to name.
+    pub byte_literal_image_address: Option<RegisterConstraintKey>,
     /// Register-passed Unit call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no Unit-call form on this target.
     pub call_unit: Vec<RegisterConstraintKey>,

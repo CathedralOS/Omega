@@ -39,6 +39,8 @@ pub struct FunctionFragmentInstructionSpan {
     /// Unresolved normalized-foreign-call field awaiting object-level import
     /// binding. Internal calls and foreign imports never share one fixup.
     pub normalized_foreign_call_fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
+    /// Unresolved byte-literal image address awaiting its object relocation.
+    pub byte_literal_address_fixup: Option<crate::FunctionFragmentByteLiteralAddressFixup>,
     pub provenance: SelectedInstructionProvenance,
     pub control: FunctionFragmentControlProvenance,
 }

@@ -29,13 +29,18 @@ executable_digest!(PlacedExecutableGapBytesDigest);
 executable_digest!(StateFootprintEvidenceDigest);
 executable_digest!(PlacedExecutableRegionInventoryDigest);
 
-/// Closed origin vocabulary for executable bytes in the current image model.
-/// There is no admitted-leaf origin: adding one must also add certificate
-/// replay, so admitted leaves are absent by construction until that slice lands.
+/// Closed origin vocabulary for bytes in the image's read-only executable
+/// mapping. There is no admitted-leaf origin: adding one must also add
+/// certificate replay, so admitted leaves are absent by construction until
+/// that slice lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FinalExecutableRegionOrigin {
     CompilerFunction,
     ImportThunk,
+    /// Immutable compiler data placed after the compiler's code in the same
+    /// read-only mapping: today the byte-literal pool. It is never executed
+    /// and carries no machine-state footprint.
+    CompilerReadOnlyData,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -527,6 +532,7 @@ pub(crate) fn executable_inventory_digest(
         digest.update([match region.origin {
             FinalExecutableRegionOrigin::CompilerFunction => 1,
             FinalExecutableRegionOrigin::ImportThunk => 2,
+            FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
         }]);
         digest.update((region.section_offset as u64).to_le_bytes());
         digest.update(region.address.to_le_bytes());
@@ -622,6 +628,7 @@ pub(crate) fn executable_inventory_report_fingerprint(
             &[match region.origin {
                 FinalExecutableRegionOrigin::CompilerFunction => 1,
                 FinalExecutableRegionOrigin::ImportThunk => 2,
+                FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
             }],
         );
         fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());

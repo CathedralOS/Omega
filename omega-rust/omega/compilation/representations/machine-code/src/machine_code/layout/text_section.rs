@@ -38,6 +38,10 @@ pub enum TextSectionRelocationRequirements {
     /// fully resolved; foreign imports remain object relocations, never
     /// in-section patches.
     UnresolvedNormalizedForeignImportFieldsV1,
+    /// The section carries byte-literal image address fields, with or
+    /// without normalized-foreign import fields. Object construction binds
+    /// every one of them to a declared symbol; none is patched in section.
+    UnresolvedObjectSymbolFieldsV1,
 }
 
 /// One relocation-free, section-relative concatenation of validated function fragments.
@@ -71,6 +75,9 @@ pub struct RelocationFreeTextSectionPlacement {
     /// ordinal}` pair names; these fields are object relocations, never
     /// in-section patches.
     pub unresolved_normalized_foreign_calls: Vec<PlacedNormalizedForeignCallResolution>,
+    /// Section-relative evidence for every byte-literal image address whose
+    /// fields object construction binds to the literal's read-only symbol.
+    pub unresolved_byte_literal_addresses: Vec<crate::PlacedByteLiteralAddress>,
     pub relocation_requirements: TextSectionRelocationRequirements,
 }
 

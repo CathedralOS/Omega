@@ -57,6 +57,7 @@ fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint()
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
         };
         validate_non_return(instruction, kind, &encoding, &layout).unwrap();
         for mutation in 0..5 {

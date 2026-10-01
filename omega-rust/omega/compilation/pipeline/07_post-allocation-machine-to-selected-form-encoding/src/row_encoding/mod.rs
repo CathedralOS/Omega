@@ -104,6 +104,10 @@ pub(super) fn encode_row(
                 selected_function,
             )?
         }
+        RowRoute::ByteLiteralAddress => {
+            reject_unrouted_address(address)?;
+            byte_literal_address(target, selected.id, selected.kind, machine, physical)?
+        }
         RowRoute::DeferredControlFlow => {
             reject_unrouted_address(address)?;
             SelectedFormEncodingState::DeferredControl {
@@ -130,6 +134,60 @@ pub(super) fn encode_row(
         state,
         address,
     })
+}
+
+/// Encode the self-contained `adrp`/`add` or `lea [rip]` form, then name
+/// the address field(s) it leaves zero. The field offsets are the ISA's own
+/// declaration; `validation::row` re-derives them from the target alone.
+fn byte_literal_address(
+    target: NativeTarget,
+    instruction: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+    let SelectedInstructionKind::ByteLiteralImageAddress { operation, place } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let SelectedFormEncodingState::Encoded { bytes, footprint } = encode_scalar(
+        target,
+        instruction,
+        kind,
+        HostedChannel::None,
+        machine.alternative.key,
+        machine,
+        physical,
+    )?
+    else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    Ok(SelectedFormEncodingState::UnresolvedByteLiteralAddress {
+        bytes,
+        footprint,
+        fixup: machine_code::SelectedFormByteLiteralAddressFixup {
+            literal: machine_code::ByteLiteralReference { operation, place },
+            fields: byte_literal_address_fields(target.architecture),
+        },
+    })
+}
+
+/// The row-relative address field(s) of a byte-literal image address.
+pub(super) fn byte_literal_address_fields(
+    architecture: Architecture,
+) -> machine_code::ByteLiteralAddressFields {
+    match architecture {
+        Architecture::X86_64 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+            patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
+        },
+        Architecture::Aarch64 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset: u64::from(
+                isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
+            ),
+            page_offset_patch_offset: u64::from(
+                isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
+            ),
+        },
+    }
 }
 
 /// Routes declaring no address operation reject a resolved address on the

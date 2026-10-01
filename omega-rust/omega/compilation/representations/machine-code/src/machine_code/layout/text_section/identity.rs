@@ -108,9 +108,20 @@ pub fn relocation_free_text_section_identity(
         hasher.update([resolution.field_byte_width]);
         hasher.update(resolution.addend.to_le_bytes());
     }
+    // A section without byte-literal addresses keeps its earlier identity.
+    if !section.unresolved_byte_literal_addresses.is_empty() {
+        hasher.update(b"byte-literal-addresses");
+        hasher.update((section.unresolved_byte_literal_addresses.len() as u64).to_le_bytes());
+        for placed in &section.unresolved_byte_literal_addresses {
+            let mut identity = Vec::new();
+            placed.encode_identity(&mut identity);
+            hasher.update(identity);
+        }
+    }
     hasher.update([match section.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
+        TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     }]);
     TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finalize())
 }
@@ -204,6 +215,7 @@ mod tests {
             }],
             resolved_internal_machine_calls: Vec::new(),
             unresolved_normalized_foreign_calls: Vec::new(),
+            unresolved_byte_literal_addresses: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         };
@@ -278,6 +290,7 @@ mod tests {
                 },
             ],
             unresolved_normalized_foreign_calls: Vec::new(),
+            unresolved_byte_literal_addresses: Vec::new(),
             resolved_internal_machine_calls: vec![
                 PlacedInternalMachineCallResolution {
                     kind: InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,

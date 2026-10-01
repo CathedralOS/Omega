@@ -94,6 +94,12 @@ fn widen(
         for row in &mut block.instructions {
             if row.offset >= insertion {
                 row.offset = grow(row.offset)?;
+                if let Some(fixup) = &mut row.byte_literal_address_fixup {
+                    fixup.fields = fixup
+                        .fields
+                        .shifted(4)
+                        .ok_or(FrameApplicationError::OffsetOverflow)?;
+                }
                 if let Some(fixup) = &mut row.internal_machine_fixup {
                     fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
                     fixup.patch_function_offset = grow(fixup.patch_function_offset)?;

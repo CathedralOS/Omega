@@ -40,18 +40,23 @@ pub(in super::super) fn layout(
                     OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id),
                 );
             }
-            let (bytes, branch, internal_machine_fixup, normalized_foreign_call_fixup) =
-                row::resolve(
-                    architecture,
-                    block,
-                    instruction,
-                    instruction_offset,
-                    &layout.block_offsets,
-                    machine,
-                    pre,
-                    physical,
-                    layout.widened_branches.contains(&instruction.id),
-                )?;
+            let (
+                bytes,
+                branch,
+                internal_machine_fixup,
+                normalized_foreign_call_fixup,
+                byte_literal_address_fixup,
+            ) = row::resolve(
+                architecture,
+                block,
+                instruction,
+                instruction_offset,
+                &layout.block_offsets,
+                machine,
+                pre,
+                physical,
+                layout.widened_branches.contains(&instruction.id),
+            )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
             instructions.push(ResolvedSelectedFormRow {
@@ -62,6 +67,7 @@ pub(in super::super) fn layout(
                 branch,
                 internal_machine_fixup,
                 normalized_foreign_call_fixup,
+                byte_literal_address_fixup,
             });
             instruction_offset = instruction_offset
                 .checked_add(byte_count)

@@ -179,6 +179,46 @@ pub(crate) fn validate(
             }
             Ok(())
         }
+        kind @ SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            let SelectedFormEncodingState::UnresolvedByteLiteralAddress {
+                bytes,
+                footprint,
+                fixup,
+            } = &row.state
+            else {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            };
+            // The field coordinates come from the target's own declaration,
+            // never from the producer's fixup.
+            let fields = match architecture {
+                Architecture::X86_64 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+                    patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
+                },
+                Architecture::Aarch64 => {
+                    machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+                        page_patch_offset: u64::from(
+                            isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
+                        ),
+                        page_offset_patch_offset: u64::from(
+                            isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
+                        ),
+                    }
+                }
+            };
+            if fixup.literal != (machine_code::ByteLiteralReference { operation, place })
+                || fixup.fields != fields
+            {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            let encoded = SelectedFormEncodingRow {
+                state: SelectedFormEncodingState::Encoded {
+                    bytes: bytes.clone(),
+                    footprint: footprint.clone(),
+                },
+                ..row.clone()
+            };
+            validate_baseline(target, selected.id, kind, machine, physical, &encoded)
+        }
         kind => validate_baseline(target, selected.id, kind, machine, physical, row),
     }
 }

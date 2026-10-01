@@ -78,6 +78,7 @@ impl FunctionFragmentObjectContainerManifest {
         let relocation_requirements = match cursor.byte()? {
             1 => RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
             2 => RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+            3 => RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
             _ => {
                 return Err(
                     FunctionFragmentObjectContainerManifestDecodeError::UnknownRelocationRequirements,
@@ -154,6 +155,7 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
             1
         }
         RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
+        RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
     bytes.extend_from_slice(&record.statistics.sections.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.function_symbols.to_le_bytes());

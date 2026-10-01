@@ -146,6 +146,12 @@ pub const X86_64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
     variant: 702,
 };
 
+/// `lea r64, [rip+disp32]` naming one byte literal's read-only image storage.
+pub const X86_64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 791,
+};
+
 pub const X86_64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::SystemCall,
     variant: 0,
@@ -421,7 +427,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 91] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 92] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -579,4 +585,5 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 91] = [
     X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
     X86_64_FLOAT_RESULT_TRAPPING,
     X86_64_FLOAT_RESULT_SATURATING,
+    X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
 ];

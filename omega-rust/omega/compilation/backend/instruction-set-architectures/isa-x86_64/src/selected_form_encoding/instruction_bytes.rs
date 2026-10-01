@@ -469,6 +469,9 @@ pub(crate) fn encode_unchecked(
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());
         }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            bytes.extend(byte_literal_address_bytes(registers[0]));
+        }
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -803,4 +806,24 @@ pub(crate) fn encode_unchecked(
         }
     }
     Ok(bytes)
+}
+
+/// Byte offset of the disp32 field inside a byte-literal image address. The
+/// field is the instruction's last, so its PC-relative reference is the
+/// next instruction.
+pub const X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET: u16 = 3;
+
+/// `lea rD, [rip+0]` (`REX.W 8D /r` with mod=00, r/m=101): the zero disp32
+/// stays unresolved until object construction binds it to the literal's
+/// image symbol through one relative-32 relocation.
+pub(crate) const fn byte_literal_address_bytes(register: u8) -> [u8; 7] {
+    [
+        0x48 | ((register >> 3) << 2),
+        0x8d,
+        0x05 | ((register & 7) << 3),
+        0,
+        0,
+        0,
+        0,
+    ]
 }

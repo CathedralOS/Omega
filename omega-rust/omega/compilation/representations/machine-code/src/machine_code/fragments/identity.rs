@@ -61,6 +61,13 @@ pub fn function_fragment_emission_identity(
                     &mut hasher,
                     row.normalized_foreign_call_fixup.as_ref(),
                 );
+                // A row without a byte-literal address keeps its earlier identity.
+                if let Some(fixup) = row.byte_literal_address_fixup {
+                    let mut identity = b"byte-literal-address".to_vec();
+                    fixup.literal.encode_identity(&mut identity);
+                    fixup.fields.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
             }

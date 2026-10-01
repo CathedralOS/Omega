@@ -528,6 +528,7 @@ fn decode_alternative_for_version(
         25 => MachineAlternativeFamily::AddressOffset,
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
+        232 => MachineAlternativeFamily::ByteLiteralImageAddress,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,

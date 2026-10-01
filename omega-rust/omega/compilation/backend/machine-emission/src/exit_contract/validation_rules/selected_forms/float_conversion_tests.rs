@@ -67,6 +67,7 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
+                    byte_literal_address_fixup: None,
                 };
                 validate_non_return(instruction, kind, &encoding, &layout).unwrap();
                 let SelectedFormEncodingState::Encoded { footprint, .. } = &mut encoding.state

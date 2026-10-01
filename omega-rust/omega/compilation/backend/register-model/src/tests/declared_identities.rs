@@ -150,6 +150,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         address_offset: Some(instruction_key(35)),
         store64: Some(instruction_key(31)),
         frame_address: Some(instruction_key(32)),
+        byte_literal_image_address: None,
         hosted_read_byte: None,
         hosted_write_byte_i32: None,
         save_floating_control: None,
@@ -344,6 +345,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             frame_address: None,
+            byte_literal_image_address: None,
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

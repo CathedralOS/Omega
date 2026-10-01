@@ -194,6 +194,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
         SelectedInstructionKind::CallUnit { .. } => 19,
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
     });
     match kind {
         SelectedInstructionKind::LoadPacked { byte_offset, width }
@@ -384,6 +385,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
         }
     }
 }

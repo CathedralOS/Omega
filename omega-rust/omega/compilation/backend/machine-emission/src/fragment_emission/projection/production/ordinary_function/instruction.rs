@@ -32,6 +32,7 @@ pub(super) fn emit(
     let control = control::provenance(block, instruction);
     let internal_machine_fixup = translate_fixup(row, instruction)?;
     let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
+    let byte_literal_address_fixup = translate_byte_literal_fixup(row, instruction)?;
     bytes.extend_from_slice(&row.bytes);
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
@@ -82,9 +83,40 @@ pub(super) fn emit(
         }),
         internal_machine_fixup,
         normalized_foreign_call_fixup,
+        byte_literal_address_fixup,
         provenance: instruction.provenance.clone(),
         control,
     })
+}
+
+/// A row-relative literal address field becomes function-relative; the
+/// field itself stays zero for object-level symbol binding.
+fn translate_byte_literal_fixup(
+    row: &ResolvedSelectedFormRow,
+    instruction: &SelectedInstruction,
+) -> Result<
+    Option<machine_code::FunctionFragmentByteLiteralAddressFixup>,
+    ResolvedFragmentEmissionError,
+> {
+    let literal = match instruction.kind {
+        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            Some(machine_code::ByteLiteralReference { operation, place })
+        }
+        _ => None,
+    };
+    match (row.byte_literal_address_fixup, literal) {
+        (None, None) => Ok(None),
+        (Some(fixup), Some(literal)) if fixup.literal == literal && row.branch.is_none() => Ok(
+            Some(machine_code::FunctionFragmentByteLiteralAddressFixup {
+                literal,
+                fields: fixup
+                    .fields
+                    .shifted(row.offset)
+                    .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
+            }),
+        ),
+        _ => Err(ResolvedFragmentEmissionError::RootMismatch),
+    }
 }
 
 fn translate_fixup(
@@ -298,6 +330,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
         };
         assert_eq!(
             super::translate_foreign_fixup(&row, &instruction).unwrap(),
@@ -319,6 +352,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: Some(fixup),
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
         }
     }
 

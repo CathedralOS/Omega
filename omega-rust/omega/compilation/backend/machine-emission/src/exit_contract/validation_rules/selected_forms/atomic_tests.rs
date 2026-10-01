@@ -58,6 +58,7 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
         };
         validate_non_return(instruction, kind, &encoding, &layout).unwrap();
         for mutation in 0..7 {

@@ -74,6 +74,7 @@ impl NativePlacedImageEvidence {
             writer.u8(match region.origin {
                 image::FinalExecutableRegionOrigin::CompilerFunction => 1,
                 image::FinalExecutableRegionOrigin::ImportThunk => 2,
+                image::FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
             });
             writer.u64(region.section_offset as u64);
             writer.u64(region.address);
@@ -179,6 +180,7 @@ impl NativePlacedImageEvidence {
             let origin = match reader.u8()? {
                 1 => image::FinalExecutableRegionOrigin::CompilerFunction,
                 2 => image::FinalExecutableRegionOrigin::ImportThunk,
+                3 => image::FinalExecutableRegionOrigin::CompilerReadOnlyData,
                 tag => {
                     return Err(malformed(format!(
                         "unknown executable region origin tag {tag}"

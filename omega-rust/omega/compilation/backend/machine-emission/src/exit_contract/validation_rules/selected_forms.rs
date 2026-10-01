@@ -136,7 +136,8 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
             .chain(&footprint.implicit_clobbers)
             .any(|unit| units.contains(unit)),
         SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. } => footprint
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. }
+        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { footprint, .. } => footprint
             .implicit_defs
             .iter()
             .chain(&footprint.implicit_clobbers)
@@ -194,6 +195,9 @@ pub(in crate::exit_contract) fn validate_non_return(
             footprint, bytes, ..
         }
         | SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+            footprint, bytes, ..
+        }
+        | SelectedFormEncodingState::UnresolvedByteLiteralAddress {
             footprint, bytes, ..
         } => {
             let disposition_matches = match encoding.machine_disposition {
@@ -598,7 +602,8 @@ pub(in crate::exit_contract) fn validate_return(
             ));
         }
         SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => {
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. }
+        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. } => {
             return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
                 selected.id,
             ));

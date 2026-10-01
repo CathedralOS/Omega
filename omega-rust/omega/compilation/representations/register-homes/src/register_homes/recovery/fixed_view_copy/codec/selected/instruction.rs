@@ -164,6 +164,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
         SelectedInstructionKind::ExactRemainderU64 { .. } => 89,
         SelectedInstructionKind::WrappingSubtractI64 => 90,
@@ -327,6 +328,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
         _ => {}
@@ -515,6 +520,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         87 => SelectedInstructionKind::NormalizedForeignCall {
             boundary: decode_id(cursor, BoundaryMachineId::new)?,
             ordinal: cursor.u32()?,
+        },
+        232 => SelectedInstructionKind::ByteLiteralImageAddress {
+            operation: decode_id(cursor, OperationId::new)?,
+            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
         },
         14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,

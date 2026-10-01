@@ -76,6 +76,7 @@ fn keys() -> SelectedConstraintKeys {
         address_offset: Some(instruction(26)),
         store64: Some(instruction(21)),
         frame_address: Some(instruction(22)),
+        byte_literal_image_address: Some(instruction(58)),
         call_unit: vec![RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant: 2,
@@ -746,7 +747,7 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 117] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 118] = [
     (MachineAlternativeFamily::Crash, 111),
     (MachineAlternativeFamily::CopyBytes, 59),
     (MachineAlternativeFamily::BitwiseAndI64, 51),
@@ -793,6 +794,7 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 117] = [
     (MachineAlternativeFamily::Load64, 16),
     (MachineAlternativeFamily::Store64, 17),
     (MachineAlternativeFamily::FrameAddress, 18),
+    (MachineAlternativeFamily::ByteLiteralImageAddress, 232),
     (MachineAlternativeFamily::CallUnit, 19),
     (MachineAlternativeFamily::ByteViewAddress, 22),
     (MachineAlternativeFamily::HostedReadByte, 32),

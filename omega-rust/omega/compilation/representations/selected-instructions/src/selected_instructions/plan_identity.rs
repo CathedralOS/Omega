@@ -186,6 +186,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactDivideI64 { .. } => 112,
         SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
     });
     match instruction.kind {
         SelectedInstructionKind::CopyBytes => {}
@@ -387,6 +388,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
         }
     }
     encode_constraint_key(bytes, instruction.constraint);

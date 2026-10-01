@@ -80,6 +80,7 @@ pub(super) fn selected_environment_keys(
         address_offset: keys.address_offset,
         store64: keys.store64,
         frame_address: keys.frame_address,
+        byte_literal_image_address: keys.byte_literal_image_address,
         hosted_read_byte: keys.hosted_read_byte,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,
@@ -207,6 +208,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
                 store64: Some(isa_x86_64::X86_64_STORE64),
                 frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
+                byte_literal_image_address: Some(isa_x86_64::X86_64_BYTE_LITERAL_IMAGE_ADDRESS),
                 call_unit: isa_x86_64::x86_64_system_v_register_unit_call_keys(),
                 call_unit_mixed: isa_x86_64::x86_64_system_v_mixed_unit_call_keys(),
                 call_scalar: isa_x86_64::x86_64_system_v_register_call_keys()
@@ -297,6 +299,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
             store64: Some(isa_x86_64::X86_64_STORE64),
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
+            byte_literal_image_address: Some(isa_x86_64::X86_64_BYTE_LITERAL_IMAGE_ADDRESS),
             call_unit: isa_x86_64::x86_64_microsoft_register_unit_call_keys(),
             call_unit_mixed: isa_x86_64::x86_64_microsoft_mixed_unit_call_keys(),
             call_scalar: isa_x86_64::x86_64_microsoft_register_call_keys()
@@ -379,6 +382,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             address_offset: Some(isa_aarch64::AARCH64_ADDRESS_OFFSET),
             store64: Some(isa_aarch64::AARCH64_STORE64),
             frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
+            byte_literal_image_address: Some(isa_aarch64::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
             call_unit: isa_aarch64::aarch64_aapcs64_register_unit_call_keys(),
             call_unit_mixed: isa_aarch64::aarch64_aapcs64_mixed_unit_call_keys(),
             call_scalar: isa_aarch64::aarch64_aapcs64_register_call_keys()
@@ -468,6 +472,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             address_offset: Some(isa_aarch64::AARCH64_ADDRESS_OFFSET),
             store64: Some(isa_aarch64::AARCH64_STORE64),
             frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
+            byte_literal_image_address: Some(isa_aarch64::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
             call_unit: isa_aarch64::aarch64_darwin_register_unit_call_keys(),
             call_unit_mixed: isa_aarch64::aarch64_darwin_mixed_unit_call_keys(),
             call_scalar: isa_aarch64::aarch64_darwin_register_call_keys()

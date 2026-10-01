@@ -44,6 +44,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
+                || candidate.byte_literal_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -58,6 +59,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)
                 || candidate.normalized_foreign_call_fixup.is_some()
+                || candidate.byte_literal_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -72,6 +74,22 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
+                || candidate.byte_literal_address_fixup.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { bytes, fixup, .. },
+        ) => {
+            if !matches!(instruction.kind, SelectedInstructionKind::ByteLiteralImageAddress { operation, place } if fixup.literal == (machine_code::ByteLiteralReference { operation, place }))
+                || candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
+                || candidate.normalized_foreign_call_fixup.is_some()
+                || candidate.byte_literal_address_fixup != Some(*fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

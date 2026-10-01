@@ -233,6 +233,11 @@ pub(crate) enum DecodedInstruction {
     JumpIndirectRip {
         displacement: i32,
     },
+    /// `lea destination, [rip+0]`: the canonical unresolved form of a
+    /// byte-literal image address. Object construction owns the disp32.
+    UnresolvedRipRelativeAddress {
+        destination: u8,
+    },
 }
 
 pub(crate) fn decode_all(
@@ -507,6 +512,21 @@ pub(crate) fn decode_one(
     let rex_r = (rex >> 2) & 1;
     let rex_x = (rex >> 1) & 1;
     let rex_b = rex & 1;
+    if opcode == 0x8d
+        && rex_x == 0
+        && rex_b == 0
+        && let Some([modrm, 0, 0, 0, 0]) = bytes
+            .get(2..7)
+            .and_then(|field| <[u8; 5]>::try_from(field).ok())
+        && modrm & 0xc7 == 0x05
+    {
+        return Ok((
+            DecodedInstruction::UnresolvedRipRelativeAddress {
+                destination: ((modrm >> 3) & 7) | (rex_r << 3),
+            },
+            7,
+        ));
+    }
     if (0xb8..=0xbf).contains(&opcode) {
         let immediate = bytes
             .get(2..10)
@@ -934,6 +954,12 @@ pub(crate) fn validate_decoded(
                 == [DecodedInstruction::Materialize {
                     destination: registers[0],
                     value: integer_bits(value)?,
+                }]
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            decoded
+                == [DecodedInstruction::UnresolvedRipRelativeAddress {
+                    destination: registers[0],
                 }]
         }
         SelectedInstructionKind::MaterializeBooleanEqual
@@ -2004,7 +2030,10 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
             (vec![], vec![operands[0]], false)
         }
-        SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
+        SelectedInstructionKind::MaterializeI64 { .. }
+        | SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            (vec![], vec![operands[0]], false)
+        }
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
@@ -2177,7 +2206,8 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanI64LessThan
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                | SelectedInstructionKind::MaterializeI64 { .. } => vec![],
+                | SelectedInstructionKind::MaterializeI64 { .. }
+                | SelectedInstructionKind::ByteLiteralImageAddress { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -2227,7 +2257,8 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanI64LessThan
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                | SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
+                | SelectedInstructionKind::MaterializeI64 { .. }
+                | SelectedInstructionKind::ByteLiteralImageAddress { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16

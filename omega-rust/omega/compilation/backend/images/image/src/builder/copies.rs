@@ -29,22 +29,28 @@ pub(super) fn copy_object_symbols(image: &mut FinalImage, object: &ObjectPlan) {
         );
 }
 
+/// Function symbols become code regions; an object-kind text symbol is the
+/// compiler's read-only data placed in the same immutable mapping.
 pub(super) fn copy_object_executable_regions(image: &mut FinalImage, object: &ObjectPlan) {
     image.executable_regions.extend(
         object
             .layout
             .symbols
             .iter()
-            .filter(|(_, symbol)| {
-                symbol.kind == SymbolKind::Function
-                    && symbol.section == SymbolSection::Section(SectionKind::Text)
-            })
-            .map(|(_, symbol)| FinalExecutableRegion {
-                origin: FinalExecutableRegionOrigin::CompilerFunction,
-                section_offset: symbol.offset,
-                byte_count: symbol.size,
-                symbol: symbol.name.clone(),
-                footprint: None,
+            .filter(|(_, symbol)| symbol.section == SymbolSection::Section(SectionKind::Text))
+            .filter_map(|(_, symbol)| {
+                let origin = match symbol.kind {
+                    SymbolKind::Function => FinalExecutableRegionOrigin::CompilerFunction,
+                    SymbolKind::Object => FinalExecutableRegionOrigin::CompilerReadOnlyData,
+                    SymbolKind::Import => return None,
+                };
+                Some(FinalExecutableRegion {
+                    origin,
+                    section_offset: symbol.offset,
+                    byte_count: symbol.size,
+                    symbol: symbol.name.clone(),
+                    footprint: None,
+                })
             }),
     );
 }

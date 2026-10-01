@@ -14,6 +14,8 @@ pub(crate) mod atomic;
 mod boolean_materialization_tests;
 mod branch_forms;
 #[cfg(test)]
+mod byte_literal_address_tests;
+#[cfg(test)]
 mod byte_view_address_tests;
 mod copy_bytes;
 pub(crate) mod crash;
@@ -85,6 +87,7 @@ use selected_instructions::{
 };
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
+pub use crate::selected_form_encoding::instruction_bytes::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET;
 use crate::selected_form_encoding::instruction_bytes::encode_unchecked;
 use crate::selected_form_encoding::request_validation::{
     resolve_scalar_registers, validate_return_home,

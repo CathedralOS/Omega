@@ -299,6 +299,7 @@ fn selected_keys(
         address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
         store64: Some(crate::AARCH64_STORE64),
         frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
+        byte_literal_image_address: Some(crate::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
         call_unit_mixed: match abi {
             Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_mixed_unit_call_keys(),
             Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_mixed_unit_call_keys(),
@@ -496,6 +497,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
+        MachineSemanticKind::ByteLiteralImageAddress => (vec![], vec![0]),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan
         | MachineSemanticKind::MaterializeBooleanI64LessThan
@@ -772,6 +774,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
+        // `adrp` then `add #:lo12:`, both fields unresolved until object
+        // construction binds them to the literal's image symbol.
+        MachineSemanticKind::ByteLiteralImageAddress => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::SaveFloatingControl

@@ -24,6 +24,25 @@ pub(super) fn check(
             && span.provenance == selected.provenance,
     )?;
     control::check(block, selected, &span.control)?;
+    let literal = match selected.kind {
+        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
+            Some(machine_code::ByteLiteralReference { operation, place })
+        }
+        _ => None,
+    };
+    match (
+        row.byte_literal_address_fixup,
+        span.byte_literal_address_fixup,
+        literal,
+    ) {
+        (None, None, None) => {}
+        (Some(source), Some(actual), Some(literal)) => require(
+            source.literal == literal
+                && actual.literal == literal
+                && source.fields.shifted(row.offset) == Some(actual.fields),
+        )?,
+        _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
+    }
     match (row.branch.as_deref(), span.branch.as_deref()) {
         (None, None) => {}
         (

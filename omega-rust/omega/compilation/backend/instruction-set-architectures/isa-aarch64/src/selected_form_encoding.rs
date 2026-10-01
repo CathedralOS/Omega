@@ -8,6 +8,8 @@ pub(crate) mod atomic;
 mod boolean_materialization_tests;
 mod branch_forms;
 #[cfg(test)]
+mod byte_literal_address_tests;
+#[cfg(test)]
 mod byte_view_address_tests;
 mod copy_bytes;
 pub(crate) mod crash;
@@ -86,4 +88,8 @@ pub use scalar_call::{
     ValidatedAarch64SelectedScalarCallTemplate, encode_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_scalar_call_template,
 };
-pub use selected_forms::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
+pub use selected_forms::{
+    AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
+    AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
+    validate_aarch64_selected_form_encoding,
+};

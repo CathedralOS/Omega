@@ -208,6 +208,24 @@ fn validate_function(
                 candidate_row.normalized_foreign_call_fixup.clone(),
                 shift,
             )?;
+            let expected_literal = source_row
+                .byte_literal_address_fixup
+                .map(|fixup| {
+                    fixup
+                        .fields
+                        .shifted(shift)
+                        .map(
+                            |fields| machine_code::FunctionFragmentByteLiteralAddressFixup {
+                                fields,
+                                ..fixup
+                            },
+                        )
+                        .ok_or(FrameApplicationError::OffsetOverflow)
+                })
+                .transpose()?;
+            if candidate_row.byte_literal_address_fixup != expected_literal {
+                return Err(FrameApplicationError::ArtifactMismatch);
+            }
             cursor = advance(cursor, candidate_row.bytes.len())?;
         }
         if candidate_block.byte_count != cursor - block_start {

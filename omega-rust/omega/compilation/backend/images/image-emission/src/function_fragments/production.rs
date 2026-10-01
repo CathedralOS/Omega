@@ -193,7 +193,10 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         &mut text_bytes,
     )
     .map_err(Error::PrivateFunctions)?;
-    // The text section is sized last: it covers program and private bytes.
+    // Literal octets follow every byte of code, ahead of the import tail, so
+    // the symbol order is program, private, literal pool, import.
+    let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
+    // The text section is sized last: it covers program, private and pool bytes.
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
         size: text_bytes.len(),
@@ -203,7 +206,12 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
     // contributions on the ordinary object, not in a later image-only append.
     let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
         .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
-    let relocations = super::imports::publish(source, &mut object, &functions, &foreign_calls)?;
+    let mut relocations = super::imports::publish(source, &mut object, &functions, &foreign_calls)?;
+    super::byte_literals::publish_relocations(
+        byte_literal_pool.as_ref(),
+        &functions,
+        &mut relocations,
+    )?;
     let artifact = ObjectArtifact {
         hosted_receiver: None,
         requires_graph_storage_replay,
@@ -228,6 +236,7 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         port_effects: Vec::new(),
         boundary_settlements: super::structural::settlements(source)?,
         foreign_calls,
+        byte_literal_pool,
     };
     validate_function_fragment_object_artifact_with_private_functions(
         source,

@@ -59,6 +59,7 @@ pub(in crate::text_placement::placement) fn place(
     let mut functions = Vec::with_capacity(fragments.functions.len());
     let mut resolved = Vec::new();
     let mut unresolved_foreign = Vec::new();
+    let mut unresolved_literals = Vec::new();
     let mut seen_entry = BTreeSet::new();
 
     for (source_function_index, function) in fragments.functions.iter().enumerate() {
@@ -121,6 +122,16 @@ pub(in crate::text_placement::placement) fn place(
                         &function_bytes,
                     )?);
                 }
+                if let Some(fixup) = instruction.byte_literal_address_fixup {
+                    unresolved_literals.push(place_byte_literal_address(
+                        function.machine,
+                        block.block,
+                        instruction,
+                        section_offset,
+                        fixup,
+                        &function_bytes,
+                    )?);
+                }
             }
         }
         let blocks = block_spans::place(fragments.target.architecture, function, section_offset)?;
@@ -148,8 +159,16 @@ pub(in crate::text_placement::placement) fn place(
         .flat_map(|block| &block.instructions)
         .filter(|instruction| instruction.normalized_foreign_call_fixup.is_some())
         .count();
+    let source_literals = fragments
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| instruction.byte_literal_address_fixup.is_some())
+        .count();
     if resolved.len() != source_fixups
         || unresolved_foreign.len() != source_foreign
+        || unresolved_literals.len() != source_literals
         || usize_to_u64(bytes.len())? != next_offset
     {
         return Err(TextPlacementError::UnresolvedInternalMachineFixups);
@@ -170,15 +189,78 @@ pub(in crate::text_placement::placement) fn place(
         bytes,
         functions,
         resolved_internal_machine_calls: resolved,
-        relocation_requirements: if unresolved_foreign.is_empty() {
+        relocation_requirements: if !unresolved_literals.is_empty() {
+            TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
+        } else if unresolved_foreign.is_empty() {
             TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
         } else {
             TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
         },
         unresolved_normalized_foreign_calls: unresolved_foreign,
+        unresolved_byte_literal_addresses: unresolved_literals,
     };
     section.identity = section.recomputed_identity();
     Ok(section)
+}
+
+/// Keep a literal address field unresolved: record its section coordinates
+/// and require the placed bytes to still hold the canonical zero field.
+fn place_byte_literal_address(
+    machine: semantic_vocabulary::MachineId,
+    block: selected_instructions::SelectedBlockId,
+    instruction: &machine_code::FunctionFragmentInstructionSpan,
+    section_offset: u64,
+    fixup: machine_code::FunctionFragmentByteLiteralAddressFixup,
+    function_bytes: &[u8],
+) -> Result<machine_code::PlacedByteLiteralAddress, TextPlacementError> {
+    let instruction_end = instruction
+        .offset
+        .checked_add(usize_to_u64(instruction.bytes.len())?)
+        .ok_or(TextPlacementError::OffsetOverflow)?;
+    // The four field bytes, when they lie inside this instruction's span.
+    let field = |offset: u64| {
+        if offset < instruction.offset || offset.checked_add(4)? > instruction_end {
+            return None;
+        }
+        let start = usize::try_from(offset).ok()?;
+        function_bytes.get(start..start.checked_add(4)?)
+    };
+    let canonical = match fixup.fields {
+        machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            field(patch_offset) == Some(&[0, 0, 0, 0][..])
+        }
+        machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset,
+            page_offset_patch_offset,
+        } => {
+            // `adrp` with zero immlo/immhi, then `add` with a zero imm12.
+            let word = |offset| {
+                field(offset)
+                    .map(|field| u32::from_le_bytes([field[0], field[1], field[2], field[3]]))
+            };
+            word(page_patch_offset).is_some_and(|word| word & 0x9fff_ffe0 == 0x9000_0000)
+                && word(page_offset_patch_offset)
+                    .is_some_and(|word| word & 0xffff_fc00 == 0x9100_0000)
+        }
+    };
+    if !canonical || instruction.branch.is_some() {
+        return Err(TextPlacementError::SourceShapeMismatch);
+    }
+    Ok(machine_code::PlacedByteLiteralAddress {
+        machine,
+        block,
+        instruction: instruction.instruction,
+        literal: fixup.literal,
+        instruction_function_offset: instruction.offset,
+        instruction_section_offset: section_offset
+            .checked_add(instruction.offset)
+            .ok_or(TextPlacementError::OffsetOverflow)?,
+        instruction_byte_count: usize_to_u64(instruction.bytes.len())?,
+        fields: fixup
+            .fields
+            .shifted(section_offset)
+            .ok_or(TextPlacementError::OffsetOverflow)?,
+    })
 }
 
 fn exact_operation(operations: &[OperationId]) -> Result<OperationId, TextPlacementError> {

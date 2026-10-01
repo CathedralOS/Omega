@@ -66,13 +66,18 @@ pub(super) fn check(
 fn expected_requirements(
     fragments: &machine_code::FunctionFragmentEmissionPlan,
 ) -> TextSectionRelocationRequirements {
-    let has_foreign = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
-        .any(|row| row.normalized_foreign_call_fixup.is_some());
-    if has_foreign {
+    let rows = || {
+        fragments
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+    };
+    let has_foreign = rows().any(|row| row.normalized_foreign_call_fixup.is_some());
+    let has_literals = rows().any(|row| row.byte_literal_address_fixup.is_some());
+    if has_literals {
+        TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
+    } else if has_foreign {
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
     } else {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1

@@ -66,6 +66,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1, 0..=0)
         }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            (MachineAlternativeFamily::ByteLiteralImageAddress, 1, 0..=0)
+        }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
         SelectedInstructionKind::MaterializeBooleanEqual => {
             (MachineAlternativeFamily::MaterializeBooleanEqual, 1, 0..=0)

@@ -101,6 +101,7 @@ impl FunctionFragmentTextSectionManifest {
         let relocation_requirements = match cursor.byte()? {
             1 => TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
             2 => TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+            3 => TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
             tag => {
                 return Err(
                     FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(
@@ -200,6 +201,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.push(match record.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
+        TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
     bytes.extend_from_slice(&record.statistics.functions.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.blocks.to_le_bytes());
