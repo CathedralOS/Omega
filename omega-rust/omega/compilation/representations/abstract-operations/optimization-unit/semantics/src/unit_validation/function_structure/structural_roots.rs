@@ -131,6 +131,34 @@ pub(crate) fn validate_structural_root_operations(
                     operation == producer && actual == result
                 })
             }
+            // An owned arrival's home is established by its own block entry:
+            // the exact non-entry block declaration at that place, owned and
+            // unqualified. Whether the arrival is still live and whole at the
+            // store is the ownership walk's frontier check, not this catalog's.
+            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                block,
+                parameter,
+            } => {
+                place_kinds.get(&parameter.place)
+                    == Some(&StructuralPlaceKind::BlockParameter {
+                        block: *block,
+                        position: parameter.position,
+                    })
+                    && *block != function.entry
+                    && parameter.access == terminal_psi::StructuralAccess::Owned
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+                    && function
+                        .blocks
+                        .iter()
+                        .find(|candidate| candidate.id == *block)
+                        .is_some_and(|candidate| {
+                            candidate
+                                .structural_parameters
+                                .get(parameter.position as usize)
+                                == Some(parameter)
+                        })
+            }
         };
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
@@ -309,7 +337,13 @@ pub(crate) fn validate_structural_root_operations(
                     value,
                     ..
                 } => {
+                    // A primitive leaf store into an owned block home is not
+                    // realized natively yet; only the field store admits it.
                     let valid = exact_scalar_store_destination(destination)
+                        && !matches!(
+                            destination,
+                            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { .. }
+                        )
                         && (!matches!(
                             destination,
                             abstract_operations::StructuralScalarStoreDestination::OwnedResult { .. }

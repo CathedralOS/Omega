@@ -662,6 +662,23 @@ pub(super) fn validate(
                 } => super::structural_case::source_result(optimized, result.place).is_ok_and(
                     |(operation, declared)| operation == *producer && declared == result,
                 ),
+                // The same owned-arrival owner a field read of this place
+                // resolves to; only a field store writes it natively.
+                abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                    block,
+                    parameter,
+                } => {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::StructuralScalarFieldStore { .. }
+                    ) && matches!(
+                        super::structural_case::source_owner(optimized, parameter.place),
+                        Ok(legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                            block: owner,
+                            declaration,
+                        }) if owner == *block && declaration == *parameter
+                    )
+                }
             };
             if result.is_some()
                 || !node.definitions.is_empty()

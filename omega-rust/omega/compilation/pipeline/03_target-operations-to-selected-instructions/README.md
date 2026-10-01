@@ -351,6 +351,14 @@ fabricated ABI parameter. Receiving checks rejoin that identity and the complete
 projection; selection reuses the aggregate's activation-local pointer and checks
 the exact-width store independently. Linear or qualified homes remain excluded.
 
+A scalar field store may also write an owned structural block parameter: the
+arrival every incoming edge moved its whole value into. Its destination retains
+the owning block and exact declaration, and its storage is that block's own
+`StructuralBlockParameter` slot, whose address the block entry publishes for
+reads and stores alike; a lender's producer home, another block's arrival, a
+loan or a shared declaration is refused. Primitive leaf stores into such an
+arrival are not admitted yet.
+
 Primitive locals use operation-and-place identified activation slots. Each executed
 establishment forms its frame address and performs one exact-width initializing
 store. Loop reentry reuses the activation slot and executes initialization again;

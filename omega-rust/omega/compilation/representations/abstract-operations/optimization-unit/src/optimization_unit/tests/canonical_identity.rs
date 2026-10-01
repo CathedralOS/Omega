@@ -316,6 +316,52 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
 }
 
 #[test]
+fn owned_block_store_identity_binds_its_block_declaration_and_variant() {
+    use abstract_operations::StructuralScalarStoreDestination as Destination;
+
+    let schedule = FuelScheduleIdentity::new(70).unwrap();
+    let baseline = reconstruct_psi_optimization_unit_seed(&write_only_store_plan(), schedule)
+        .expect("store plan reconstructs");
+    let with_destination = |edit: &dyn Fn(&mut Destination)| {
+        let mut unit = baseline.clone();
+        let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
+            &mut unit.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("first node is the store")
+        };
+        edit(destination);
+        recompute_psi_optimization_unit_identity(&unit)
+    };
+    let owned = |block: u64, place: u64| {
+        move |destination: &mut Destination| {
+            let Destination::Parameter(parameter) = destination else {
+                panic!("parameter destination");
+            };
+            let mut parameter = parameter.clone();
+            parameter.access = terminal_psi::StructuralAccess::Owned;
+            parameter.place = id(place, PlaceId::new);
+            *destination = Destination::OwnedBlockParameter {
+                block: id(block, BlockId::new),
+                parameter,
+            };
+        }
+    };
+    let arrival = with_destination(&owned(71, 73));
+    assert_ne!(baseline.identity, arrival);
+    // Another block's arrival, or another place, is another destination.
+    assert_ne!(arrival, with_destination(&owned(79, 73)));
+    assert_ne!(arrival, with_destination(&owned(71, 78)));
+    // The same owned declaration retagged as a loan keeps its own identity.
+    let retagged = with_destination(&|destination: &mut Destination| {
+        let Destination::Parameter(parameter) = destination else {
+            panic!("parameter destination");
+        };
+        parameter.access = terminal_psi::StructuralAccess::Owned;
+    });
+    assert_ne!(arrival, retagged);
+}
+
+#[test]
 fn call_identity_binds_requirement_and_crash_rosters_independently() {
     let mut baseline =
         reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())

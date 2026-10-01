@@ -887,6 +887,29 @@ pub(super) fn validate_operation(
                                 operation == *producer && declared == result
                             })
                 }
+                // An owned arrival's storage is its own block home: the same
+                // block and declaration the owned-arrival owner resolves to,
+                // never a predecessor's producer home.
+                (
+                    abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                        block,
+                        parameter,
+                    },
+                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                        block: storage_block,
+                        place,
+                    },
+                ) => {
+                    storage_block == block
+                        && *place == parameter.place
+                        && matches!(
+                            super::super::structural_case::source_owner(optimized, parameter.place),
+                            Ok(legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                                block: owner,
+                                declaration,
+                            }) if owner == *block && declaration == *parameter
+                        )
+                }
                 _ => false,
             };
             let (offset, _, elements) =

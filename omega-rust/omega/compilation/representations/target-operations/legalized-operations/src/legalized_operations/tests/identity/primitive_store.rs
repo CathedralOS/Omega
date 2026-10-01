@@ -200,3 +200,63 @@ fn runtime_index(
         ),
     }
 }
+
+#[test]
+fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
+    use abstract_operations::StructuralScalarStoreDestination as Destination;
+
+    let plan = primitive_store_plan();
+    let field_store = |destination: Destination| {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
+        let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+            value, byte_size, ..
+        } = row.kind.clone()
+        else {
+            panic!("primitive store fixture")
+        };
+        row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+            destination,
+            value,
+            byte_size,
+            path: Vec::new(),
+            field: id(504),
+            byte_offset: 0,
+            indices: Vec::new(),
+        };
+        legalized_operation_plan_identity(&changed)
+    };
+    let declaration = |place: u64| StructuralParameterDeclaration {
+        place: id(place),
+        position: 0,
+        is_self: false,
+        structural_type: id(502),
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let arrival = |block: u64, place: u64| Destination::OwnedBlockParameter {
+        block: id(block),
+        parameter: declaration(place),
+    };
+    let identity = field_store(arrival(3, 501));
+    assert_eq!(identity, field_store(arrival(3, 501)));
+    // Another block's arrival, another place, or a loan with the same
+    // declaration are distinct stores.
+    assert_ne!(identity, field_store(arrival(4, 501)));
+    assert_ne!(identity, field_store(arrival(3, 999)));
+    assert_ne!(
+        identity,
+        field_store(Destination::Parameter(declaration(501)))
+    );
+    let mut shared = declaration(501);
+    shared.access = StructuralAccess::SharedBorrow;
+    assert_ne!(
+        identity,
+        field_store(Destination::OwnedBlockParameter {
+            block: id(3),
+            parameter: shared,
+        })
+    );
+}

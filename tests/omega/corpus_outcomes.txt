@@ -1479,8 +1479,7 @@ pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms @2d8ed253
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms @2d8ed253669f
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1271ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 1176ms @59d57ace39f0+wt
-pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejected 916ms @59d57ace39f0+wt
-	native artifact native artifact lowering failed: Lowering(InvalidStructuralScalarFieldStore(OperationId(17)))
+pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit checked 725ms @c260ca98bc09+wt
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 1073ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms @ca8c127c90c5
 pass/control_flow/runtime_string_literal_dispatch_exit checked 805ms @1c0bb7bc95d0+wt

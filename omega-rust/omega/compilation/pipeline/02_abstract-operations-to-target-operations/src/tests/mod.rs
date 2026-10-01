@@ -7,6 +7,7 @@ mod indexed_field_reads;
 mod native_boundaries;
 mod native_callback_arguments;
 mod normalized_foreign_calls;
+mod owned_block_stores;
 mod partial_affine;
 mod prelude;
 mod scalar;

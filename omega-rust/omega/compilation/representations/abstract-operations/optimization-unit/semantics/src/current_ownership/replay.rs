@@ -107,22 +107,32 @@ pub(super) fn validate_current_ownership_cfg(
             )?;
             validate_byte_observations(function, block_id, node_index, &node.operation, &frontier)?;
 
+            // A store into an owned home writes the value it holds right now:
+            // an owned result or an owned block arrival must still be whole
+            // and live on this exact frontier, never consumed by a move or
+            // an edge transfer and never mid-window.
             if let O::StructuralScalarFieldStore {
                 destination:
-                    abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                        result, ..
-                    },
+                    destination @ (abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                        ..
+                    }
+                    | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                        ..
+                    }),
                 ..
             } = &node.operation
-                && ((result.multiplicity != StructuralMultiplicity::Unrestricted
-                    && frontier.owned_places.get(&result.place) != Some(&result.multiplicity))
-                    || frontier.partial_custody_paths.contains_key(&result.place))
+                && ((destination.multiplicity() != StructuralMultiplicity::Unrestricted
+                    && frontier.owned_places.get(&destination.place())
+                        != Some(&destination.multiplicity()))
+                    || frontier
+                        .partial_custody_paths
+                        .contains_key(&destination.place()))
             {
                 return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                     machine: function.machine,
                     block: block_id,
                     node: node_index,
-                    place: result.place,
+                    place: destination.place(),
                 });
             }
 
