@@ -136,36 +136,15 @@ pub(super) fn validate(
                 result,
                 source: reference_source,
             } if reference_result => {
-                let expected = guarded_reference_source(checked, plan, source, state, expression)?;
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } = &reference_source.source
-                else {
-                    return unsupported("ordered reference return lost its ingress parameter");
-                };
-                let parameter = state
-                    .structural_parameters
-                    .get(*parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "ordered reference return ingress parameter is absent",
-                    ))?;
-                let candidate_count = plan
-                    .result_reference_sources
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.path.is_empty() && candidate.source == *reference_source
-                    })
-                    .count();
-                if expected != *reference_source
-                    || parameter.access != reference_source.access
-                    || parameter.multiplicity != Multiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || candidate_count != 1
-                {
-                    return unsupported(
-                        "ordered reference return differs from its exact candidate ingress",
-                    );
-                }
+                validate_reference_return(
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    expression,
+                    *statement_ordinal,
+                    operation,
+                )?;
                 if !returned_reference_sources.contains(reference_source) {
                     returned_reference_sources.push(reference_source.clone());
                 }
@@ -215,11 +194,145 @@ pub(super) fn validate(
     Ok(())
 }
 
-/// Rebuild one guarded `&mut place` arm from authored syntax and the checked
+/// Rejoin a selected reference producer to its authored return expression.
+/// Candidate coverage is machine-wide; this check independently authenticates
+/// the source of this arm even when its candidate receipt is changed with it.
+pub(super) fn validate_reference_return(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    authored: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    expression: checked_trees::expression::ExpressionHandle,
+    statement_ordinal: u32,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let (
+        checked_trees::CheckedControlResultPlan::Structural(signature),
+        CheckedUnitEffectOperationPlan::EstablishReference { result, source },
+    ) = (&plan.result, operation)
+    else {
+        return unsupported("reference return lost its structural producer or signature");
+    };
+    if result.statement_index != statement_ordinal
+        || result.type_identity != signature.type_identity
+        || result.multiplicity != signature.multiplicity
+    {
+        return unsupported("reference return exchanged its destination or value custody");
+    }
+    let expected = reference_source(checked, plan, authored, state, expression)?;
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        &source.source
+    else {
+        return unsupported("reference return lost its ingress parameter");
+    };
+    let parameter = state
+        .structural_parameters
+        .get(*parameter_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "reference return ingress parameter is absent",
+        ))?;
+    if expected != *source
+        || parameter.access != source.access
+        || parameter.multiplicity != Multiplicity::Unrestricted
+        || !parameter.qualifications.is_empty()
+        || plan
+            .result_reference_sources
+            .iter()
+            .filter(|candidate| candidate.path.is_empty() && candidate.source == *source)
+            .count()
+            != 1
+    {
+        return unsupported("reference return differs from its exact candidate ingress");
+    }
+    Ok(())
+}
+
+/// Compare the receipt against actual return producers across every state, not
+/// against one dispatch's subset. Body temporaries and successor arguments do
+/// not contribute candidates; repeated return arms share a single candidate.
+pub(super) fn validate_reference_roster(
+    plan: &CheckedComposedUnitControlMachinePlan,
+) -> Result<(), LoweringError> {
+    use checked_trees::{
+        CheckedClosedSumCaseOutcomePlan, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
+    };
+    let mut returned = Vec::new();
+    for state in &plan.states {
+        let mut operations = Vec::new();
+        match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
+                operations.extend(return_values);
+            }
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+                operations.extend(cases.iter().filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Return(arm) => arm.operation(),
+                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
+                }));
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
+                operations.extend(return_arm.operation());
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => {
+                operations.extend(when_true.operation());
+                operations.extend(when_false.operation());
+            }
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                operations.extend(arms.iter().filter_map(|arm| match arm {
+                    CheckedGuardedJumpArmPlan::Return(arm) => arm.return_arm.operation(),
+                    CheckedGuardedJumpArmPlan::Jump(_) => None,
+                }));
+                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
+                    operations.extend(arm.operation());
+                }
+            }
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                // Ordinary whole-value returns can forward an existing call
+                // or parameter carrier. Their source validator owns that
+                // receipt; do not substitute an unrelated prefix producer.
+                for candidate in &result.reference_sources {
+                    if !candidate.path.is_empty() {
+                        return unsupported("whole reference return has a nested candidate");
+                    }
+                    if !returned.contains(&candidate.source) {
+                        returned.push(candidate.source.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+        for operation in operations {
+            if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation {
+                if !returned.contains(source) {
+                    returned.push(source.clone());
+                }
+            }
+        }
+    }
+    if returned.len() != plan.result_reference_sources.len()
+        || plan
+            .result_reference_sources
+            .iter()
+            .enumerate()
+            .any(|(ordinal, candidate)| {
+                !candidate.path.is_empty()
+                    || !returned.contains(&candidate.source)
+                    || plan.result_reference_sources[..ordinal].contains(candidate)
+            })
+    {
+        return unsupported("reference returns do not cover their candidate roster");
+    }
+    Ok(())
+}
+
+/// Rebuild one selected `&mut place` arm from authored syntax and the checked
 /// loan ledger. The composed plan's candidate roster is only a correspondence
 /// receipt: admission must not let a producer and that receipt be forged to a
 /// different, same-typed ingress together.
-fn guarded_reference_source(
+fn reference_source(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     authored: &checked_trees::state::State,
