@@ -810,10 +810,16 @@ fn rejects_tampered_owned_carrier_for_source_literal() {
     literal_type.shape = checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
         checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 2 },
     );
+    // Literal materialization now owns both carrier forms: a shared formal
+    // lends an immutable view, an owned formal gets fresh bounded backing. A
+    // shared access over an owned carrier is refused there, before the call's
+    // transfer-shape replay could name the same mismatch.
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect_err("an owned carrier must not establish a borrowed source literal");
     assert!(
-        error.to_string().contains("requires a borrowed-view type"),
+        error
+            .to_string()
+            .contains("literal call access differs from its storage carrier"),
         "{error}"
     );
 }
