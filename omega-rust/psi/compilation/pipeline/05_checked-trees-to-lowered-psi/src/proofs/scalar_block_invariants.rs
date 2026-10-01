@@ -23,7 +23,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use semantic_vocabulary::{MachineId, ObligationId, Proposition, PropositionContext, ValueId};
+use semantic_vocabulary::{
+    MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ValueId,
+};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{
     ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,
@@ -65,6 +67,52 @@ fn queried_site(site: &terminal_verifier::ReconstructedTerminalObligation) -> Qu
         site.obligation.proposition.clone(),
         site.requirements.clone(),
         site.semantic_axioms.clone(),
+    )
+}
+
+/// What join transport reads from one question: its identity and goal, the
+/// equality leaves its arrival equations come from (conjunction members in
+/// place, in roster order, since the first definition of a value wins), and
+/// the top-level Boolean equalities it carries as path guards. A later round
+/// usually re-reconstructs a site only because a new invariant added order
+/// facts to its axioms, which transport never reads, so keying on the whole
+/// question re-transported nearly every site every round. Questions that
+/// agree here transport to the same candidates, which the first one already
+/// merged into the roster.
+type JoinQuery = (
+    ObligationId,
+    Proposition,
+    Vec<Proposition>,
+    Vec<Proposition>,
+);
+
+fn join_query(site: &terminal_verifier::ReconstructedTerminalObligation) -> JoinQuery {
+    fn equality_leaves(fact: &Proposition, leaves: &mut Vec<Proposition>) {
+        match fact {
+            Proposition::Equal(..) => leaves.push(fact.clone()),
+            Proposition::Conjunction(members) => {
+                for member in members {
+                    equality_leaves(member, leaves);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut equations = Vec::new();
+    for fact in &site.semantic_axioms {
+        equality_leaves(fact, &mut equations);
+    }
+    let guards = site
+        .semantic_axioms
+        .iter()
+        .filter(|fact| matches!(fact, Proposition::Equal(_, ScalarTerm::Boolean(_))))
+        .cloned()
+        .collect();
+    (
+        site.obligation.id,
+        site.obligation.proposition.clone(),
+        equations,
+        guards,
     )
 }
 
@@ -329,6 +377,7 @@ fn retain_provable_roster_bounded(
         &mut remaining,
         declines,
     ));
+    crate::proofs::proof_timing::discovery("field_bounds", 0, remaining, candidates.len());
     if remaining == 0 {
         declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
     }
@@ -339,6 +388,7 @@ fn retain_provable_roster_bounded(
         declines,
         &mut join_queried,
     ));
+    crate::proofs::proof_timing::discovery("joins", 0, remaining, candidates.len());
     if remaining == 0 {
         declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
     }
@@ -352,6 +402,7 @@ fn retain_provable_roster_bounded(
     let mut next = terminal_verifier::maximum_registered_obligation_id(module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut seeds = None;
+    let mut discovery_round = 0usize;
     'discovery: loop {
         // A block has one assertion and one exhaustive arrival group. Aggregate
         // optional range and guarantee proposals with the ordinary conjunction;
@@ -453,6 +504,13 @@ fn retain_provable_roster_bounded(
             declines,
             &mut arrival_queried,
         );
+        discovery_round += 1;
+        crate::proofs::proof_timing::discovery(
+            "arrival_bounds",
+            discovery_round,
+            remaining,
+            candidates.len(),
+        );
         candidates.extend(joins::candidates(
             module,
             &questions,
@@ -460,6 +518,12 @@ fn retain_provable_roster_bounded(
             declines,
             &mut join_queried,
         ));
+        crate::proofs::proof_timing::discovery(
+            "joins",
+            discovery_round,
+            remaining,
+            candidates.len(),
+        );
 
         if remaining == 0 {
             declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
