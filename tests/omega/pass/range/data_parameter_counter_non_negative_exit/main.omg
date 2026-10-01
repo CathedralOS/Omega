@@ -1,0 +1,54 @@
+// A monotone loop counter rooted at the state's DATA PARAMETER, not at `self`.
+//
+// `main.i` starts at 0 in the entry and only ever increments, so `i >= 0` is a
+// loop invariant and `main.nums[main.i]` owes no authored `>= 0` guard. The
+// roots are deliberately MIXED, the way a migrated machine's are: the entry
+// still takes `&mut self` and writes `self.i`, while every state names the
+// data it operates on.
+//
+// Two separate things have to see through that. Psi's loop-invariant
+// inference has to recognize the counter at all, which means resolving the
+// storage root a state actually binds rather than testing for the receiver
+// spelling. Then stage 05, which reconstructs the index obligation on its own,
+// has to hold the resulting bound at the loop header: forwarding the data
+// along the state edges gives each block its own parameter for it, so the
+// demand's own observation roots at the body block's parameter, which the
+// header cannot name. Both halves are load-bearing here -- with either one
+// missing this program does not compile.
+//
+// Only the index obligation is under test, so the loop carries no arithmetic
+// beyond the counter's own increment: it keeps the last element it read, and
+// that element, 11, is the exit code.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main {
+    console: Binding<Console>;
+    nums: [i32; 2];
+    i: i32;
+    last: i32;
+}
+machine Main::main(&mut self) reaches Console {
+    self.nums[0] = 7;
+    self.nums[1] = 11;
+    self.i = 0;
+    self.last = 0;
+    transition {
+        _ -> step(&mut self)
+    }
+    state step(main: &mut Main) {
+        transition main.i < 2 {
+            true -> add(main)
+            _ -> done(main)
+        }
+    }
+    state add(main: &mut Main) {
+        main.last = main.nums[main.i];
+        main.i = main.i + 1;
+        transition {
+            _ -> step(main)
+        }
+    }
+    state done(main: &mut Main) {
+        main.console.exit_process(main.last);
+    }
+}

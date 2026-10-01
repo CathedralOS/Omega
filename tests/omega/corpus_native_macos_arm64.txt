@@ -832,6 +832,7 @@ pass/providers/service_fused_root_establishment built 256ms
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 448ms exit:0
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
 pass/providers/token_machine_family_override_exit built 676ms exit:70
+pass/range/data_parameter_counter_non_negative_exit built 850ms exit:11 @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit built 673ms exit:7
 pass/range/runtime_guarded_runtime_index_increment_exit built 1769ms exit:1 @fb2178def922
 pass/ranges/sum_payload_range_arith_narrowed_exit built 1581ms exit:70 @fb2178def922
