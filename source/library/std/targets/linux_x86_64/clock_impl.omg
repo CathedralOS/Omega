@@ -4,8 +4,9 @@
 // The raw kernel ABI (fs/select.c), unlike libc's nfds_t spelling, takes an
 // unsigned int descriptor count and signed int timeout.
 // https://man7.org/linux/man-pages/man2/poll.2.html
-// Native execution still requires the general authored-syscall settlement
-// path. The checked adapter does not manufacture that execution evidence.
+// Admission retains the selected syscall and its exact ABI. Native execution
+// still requires general syscall lowering and emission; this checked adapter
+// supplies neither target instructions nor fabricated import-stack evidence.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 

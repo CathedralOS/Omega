@@ -31,7 +31,7 @@ pub fn realize_retained_native_artifact(
                 imports: request.imports,
             },
         )?;
-        let native_settlements = prepared.imports.settlements();
+        let native_settlements = prepared.bindings.settlements();
         crate::native::realize_native_artifact(
             artifact,
             compilation_products::NativeRealizationRequest {

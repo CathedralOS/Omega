@@ -398,13 +398,17 @@ policies, optimization selections, callbacks, FMA admission and physical evidenc
 reuse is an optimization, not review, proof or audit evidence.
 
 Direct compilation and retained Terminal re-entry share the Terminal entry stage's
-[source-import preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_imports.rs).
-It joins demanded imports to exact selected plans, derives execution and stack
+[source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs).
+It joins demanded imports and syscalls to exact selected plans, derives import execution and stack
 inputs when none are supplied, and rejects incomplete or substituted supplied
 rosters. The coordinator forwards the prepared settlements; it does not derive
 report identities, assign foreign-call stack reserves, or select import plans.
 Independent provider admission still checks strong plan commitments, retained
 locators, calling contracts, targets, stack custody and receiving authority.
+Direct syscalls derive execution coordinates but no foreign same-stack reserve;
+their settlement checks the exact kernel number, target and physical ABI.
+They still require general target lowering and instruction emission. Admission
+alone is not evidence that a syscall-backed program runs.
 
 ### Program-entry settlement
 

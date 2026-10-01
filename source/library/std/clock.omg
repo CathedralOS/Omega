@@ -24,10 +24,11 @@
 //   over a std-private `poll` requirement that reaches `Clock`, realized by
 //   the libSystem `poll` import (see its `clock_impl.omg`).
 // * `linux_x86_64` uses a checked adapter over the integer-only kernel poll
-//   wait. Its authored syscall leaf still needs native boundary settlement.
+//   wait. Its authored syscall leaf settles, but native lowering and emission
+//   remain unimplemented.
 // * `linux_arm64` still binds kernel nanosleep directly and does not sleep:
 //   the millisecond parameter cannot supply nanosleep's timespec pointer,
-//   and authored syscall leaves have no native settlement. See the target
+//   and authored syscall leaves still need native lowering. See the target
 //   `clock_impl.omg` files for these separate remaining dependencies.
 //
 // `macos_x86_64` is bundled but unadmitted (console's family has no

@@ -1,8 +1,8 @@
 // linux_arm64 `Clock` provider closure over the kernel `nanosleep` leaf
 // (linux_arm64 `nanosleep` is 101). This leg does not sleep yet, for two
-// reasons. Provider admission classifies an authored syscall leaf's mechanism
-// but settles no native realization for it, so target lowering rejects the
-// demanded leaf with `MissingBoundarySettlement`. And normalized syscall
+// reasons. Provider admission retains the authored syscall and its exact ABI,
+// but target lowering and emission remain unimplemented and reject with
+// `UnsupportedSystemCallRealization`. And normalized syscall
 // plans place each leaf parameter straight into a syscall register
 // (`evaluate_syscall` in `calling-conventions/src/plans/call_plan_evaluation.rs`),
 // so the millisecond count would reach `nanosleep` as its `timespec*` request

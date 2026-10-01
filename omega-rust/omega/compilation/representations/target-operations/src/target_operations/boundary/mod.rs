@@ -16,6 +16,7 @@ pub use realizations::{
     HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
     NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
+    NormalizedSystemCallBinding,
 };
 mod arguments;
 pub use arguments::{

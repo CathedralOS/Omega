@@ -177,7 +177,7 @@ pub(in crate::lowering) fn lower_boundary_call(
             let target_operations::BoundarySettlementRealization::Builtin(realization) =
                 binding.realization
             else {
-                unreachable!("normalized foreign settlement returns above")
+                return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
             };
             let target_result = match result {
                 abstract_operations::AbstractBoundaryResult::Unit => {

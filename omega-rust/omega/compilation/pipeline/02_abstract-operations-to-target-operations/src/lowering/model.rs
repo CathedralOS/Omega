@@ -62,6 +62,9 @@ pub enum LoweringError {
     DuplicateBoundarySettlement(BoundaryMachineId),
     UnknownBoundarySettlement(BoundaryMachineId),
     MissingBoundarySettlement(BoundaryMachineId),
+    /// Admission retains the exact kernel ABI; its target-operation transport
+    /// and independently replayed instruction selection remain unimplemented.
+    UnsupportedSystemCallRealization(BoundaryMachineId),
     UnusedBoundarySettlement(BoundaryMachineId),
     BoundaryRealizationMismatch(BoundaryMachineId),
     InvalidClaimCompletionOnlyShape {
