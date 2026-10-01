@@ -24,6 +24,18 @@ impl RangeFacts<'_> {
             })
     }
 
+    /// Every proven `(collection, index)` label pair, for callers that test
+    /// many pairs against one unchanged roster: one set lookup per pair
+    /// instead of a scan of the whole roster per pair.
+    pub(in crate::checks::ranges) fn proven_index_pairs(
+        &self,
+    ) -> std::collections::BTreeSet<(&str, &str)> {
+        self.proven_indexes
+            .iter()
+            .map(|(collection, index)| (collection.as_str(), index.as_str()))
+            .collect()
+    }
+
     /// The index labels proven valid inside `collection`, in seed order. Edge
     /// transport re-keys these pairs onto the callee's parameter names.
     pub(in crate::checks::ranges) fn proven_index_labels<'a>(

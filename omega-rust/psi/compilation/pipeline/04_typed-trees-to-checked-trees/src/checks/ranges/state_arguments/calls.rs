@@ -335,9 +335,26 @@ pub(super) fn collect_state_argument_facts_for_call(
             )
         })
         .collect();
+    // Every side pair asks the same unchanged proven roster. Resolve it once
+    // into a pair set, and skip a collection side no proven pair names, so
+    // an edge carrying many receiver storage rows tests each pair by lookup
+    // instead of scanning the roster for every one of its quadratic pairs.
+    // The pairs are still visited in the same order.
+    let proven_pairs = facts.proven_index_pairs();
+    let proven_collections = proven_pairs
+        .iter()
+        .map(|(collection, _)| *collection)
+        .collect::<std::collections::BTreeSet<_>>();
+    let proven_index_sides = proven_pairs
+        .iter()
+        .map(|(_, index)| *index)
+        .collect::<std::collections::BTreeSet<_>>();
     for (collection_source, collection_side) in &storage_sides {
+        if !proven_collections.contains(collection_source.as_str()) {
+            continue;
+        }
         for (index_source, index_side) in storage_sides.iter().chain(parameter_sides.iter()) {
-            if facts.index_is_proven(collection_source, index_source) {
+            if proven_pairs.contains(&(collection_source.as_str(), index_source.as_str())) {
                 index_proofs.push(ParameterIndexProof {
                     collection: collection_side.clone(),
                     index: index_side.clone(),
@@ -346,8 +363,11 @@ pub(super) fn collect_state_argument_facts_for_call(
         }
     }
     for (index_source, index_side) in &storage_sides {
+        if !proven_index_sides.contains(index_source.as_str()) {
+            continue;
+        }
         for (collection_source, collection_side) in &parameter_sides {
-            if facts.index_is_proven(collection_source, index_source) {
+            if proven_pairs.contains(&(collection_source.as_str(), index_source.as_str())) {
                 index_proofs.push(ParameterIndexProof {
                     collection: collection_side.clone(),
                     index: index_side.clone(),
