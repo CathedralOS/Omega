@@ -181,27 +181,14 @@ impl terminal_interpreter::TerminalEffectHandler for Observed {
     }
 }
 
-/// Lower `machine` as the selected root and verify the published module.
-fn lowers_and_verifies(source: &str, machine: &str) {
-    let checked = crate::front_end::checked_program(source);
-    state_graph(&checked, machine);
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
-        .unwrap_or_else(|error| panic!("{machine} lowers through the state graph: {error:?}"));
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap_or_else(|error| panic!("{machine} verifies: {error:?}"));
-}
-
 /// The `seek -> check -> seek` cycle never re-enters the entry. The scalar
-/// graph's loop plan owned only entry-backed cycles and declined it; the state
-/// graph carries any cycle of states, so the machine lowers and verifies.
+/// graph's loop plan once owned only entry-backed cycles and declined it, so
+/// the Unit state graph carried it. Since 5cb02a9c2cd the checked scalar graph
+/// retains each state's borrowed formals and ranks cycles of states, so it
+/// owns this machine; the cycle still lowers and verifies independently.
 #[test]
 fn forwarded_shared_view_cycle_lowers_and_verifies() {
-    lowers_and_verifies(
-        r#"
+    let source = r#"
             machine find_equals(line: &[u8], start: u64, end: u64) -> u64 {
                 transition { _ -> seek(line, start, end, start) }
                 state seek(line: &[u8], start: u64, end: u64, position: u64) -> u64 {
@@ -217,9 +204,29 @@ fn forwarded_shared_view_cycle_lowers_and_verifies() {
                     }
                 }
             }
-        "#,
-        "find_equals",
-    );
+        "#;
+    let checked = crate::front_end::checked_program(source);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.name.as_str() == "find_equals")
+        .expect("find_equals resolves")
+        .symbol;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .expect("the checked scalar graph owns the forwarded view cycle");
+    assert_eq!(graph.states.len(), 3, "entry, seek and check");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("find_equals"))
+        .unwrap_or_else(|error| panic!("find_equals lowers: {error:?}"));
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap_or_else(|error| panic!("find_equals verifies: {error:?}"));
 }
 
 /// Lower `Root::enter`, check the artifact independently, run it, and return
