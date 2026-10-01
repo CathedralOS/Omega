@@ -20,6 +20,49 @@ use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
 };
 
+/// Byte observations borrow storage without consuming it. Dominating producer
+/// evidence does not make a consumed or partially moved owner readable again.
+fn validate_byte_observations(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    operation: &O,
+    frontier: &CurrentOwnership,
+) -> Result<(), OptimizationUnitValidationError> {
+    let observe = |source| {
+        let invalid = || OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+            machine: function.machine,
+            block,
+            node,
+            place: source,
+        };
+        let signature = crate::unit_validation::operation_contracts::structural_source_contract(
+            function, source, true,
+        )
+        .ok_or_else(invalid)?;
+        if signature.access == StructuralAccess::Owned
+            && ((signature.multiplicity != StructuralMultiplicity::Unrestricted
+                && frontier.owned_places.get(&source) != Some(&signature.multiplicity))
+                || frontier.partial_custody_paths.contains_key(&source))
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    };
+    match operation {
+        O::StructuralByteSequenceFieldLength { source, .. }
+        | O::StructuralByteSequenceFieldRead { source, .. } => observe(*source),
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            observe(left.source())?;
+            observe(right.source())
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod byte_observation_tests;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
@@ -62,6 +105,7 @@ pub(super) fn validate_current_ownership_cfg(
                 &node.operation,
                 &mut frontier.live_references,
             )?;
+            validate_byte_observations(function, block_id, node_index, &node.operation, &frontier)?;
 
             if let O::StructuralScalarFieldStore {
                 destination:

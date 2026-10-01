@@ -92,38 +92,18 @@ pub(super) fn validate(
                         field,
                         length,
                     } => {
-                        let parameter = function
-                            .structural_parameters
-                            .iter()
-                            .find(|parameter| parameter.place == source.place)
-                            .ok_or_else(invalid)?;
+                        let (structural_type, access) =
+                            super::byte_field_freshness::byte_field_root(function, source.place)
+                                .ok_or_else(invalid)?;
                         if source.access != StructuralAccess::SharedBorrow
-                            || !matches!(
-                                parameter.access,
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
-                            || !matches!(
-                                parameter.multiplicity,
-                                StructuralMultiplicity::Unrestricted
-                                    | StructuralMultiplicity::Affine
-                            )
-                            || !parameter.qualifications.is_empty()
-                            || !parameter.projected_qualifications.is_empty()
+                            || access == StructuralAccess::WriteOnlyBorrow
                             || !terminal_psi::is_bounded_structural_scalar_store_path(&source.path)
-                            || !function.structural_places.iter().any(|place| {
-                                place.id == source.place
-                                    && place.kind
-                                        == (StructuralPlaceKind::Parameter {
-                                            position: parameter.position,
-                                            is_self: parameter.is_self,
-                                        })
-                            })
                         {
                             return Err(invalid());
                         }
                         let parent = super::super::structural_catalog::resolve_structural_path(
                             types,
-                            parameter.structural_type,
+                            structural_type,
                             &source.path,
                         )
                         .ok_or_else(invalid)?;

@@ -10,6 +10,134 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralAccess;
 
 #[test]
+fn view_backed_calls_invalidate_only_potentially_overlapping_fields() {
+    use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+    use terminal_psi::{StructuralArgument, StructuralPathSegment as S};
+
+    let unit = indexed_field_unit();
+    let mut function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap()
+        .clone();
+    let root = function.structural_parameters[0].place;
+    let element = function.structural_parameters[0].structural_type;
+    let view = id(990, PlaceId::new);
+    let producer = id(991, OperationId::new);
+    let mut view_type = unit.structural_types[0].clone();
+    view_type.id = id(992, StructuralTypeId::new);
+    view_type.shape = terminal_psi::StructuralTypeShape::ElementView { element };
+    let mut types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    types.insert(view_type.id, &view_type);
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: view,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: view_type.id,
+            },
+        });
+    let mut establishment = function.blocks[0].nodes[0].clone();
+    establishment.operation = O::EstablishElementView {
+        psi_operation: producer,
+        result: terminal_psi::StructuralOperationResult {
+            place: view,
+            structural_type: view_type.id,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        },
+        destination: view,
+        source: StructuralArgument {
+            place: root,
+            access: StructuralAccess::MutableBorrow,
+            path: vec![S::Field("left".into())],
+        },
+        element,
+    };
+    function.blocks[0].nodes.push(establishment);
+    let mut call = O::CallStructural {
+        psi_operation: id(993, OperationId::new),
+        callee: function.machine,
+        arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: view,
+            access: StructuralAccess::MutableBorrow,
+            path: vec![S::FixedIndex(0)],
+        }],
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
+    };
+    // Exercise current-IR mutation classification, not shape admission: the
+    // catalog and ownership validators independently check these projections.
+    let observed = vec![
+        S::Field("left".into()),
+        S::FixedIndex(0),
+        S::Field("out".into()),
+    ];
+    for (path, invalidated) in [
+        (observed.clone(), true),
+        (
+            vec![
+                S::Field("right".into()),
+                S::FixedIndex(0),
+                S::Field("out".into()),
+            ],
+            false,
+        ),
+        (
+            vec![
+                S::Field("left".into()),
+                S::FixedIndex(1),
+                S::Field("out".into()),
+            ],
+            false,
+        ),
+    ] {
+        assert_eq!(
+            super::changes_length(&function, &types, root, &path, &call),
+            invalidated
+        );
+    }
+    let O::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut call
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert!(!super::changes_length(
+        &function, &types, root, &observed, &call
+    ));
+    let O::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut call
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+    // A missing current producer must not turn an unresolved alias into a
+    // separate owner, even when its declaration still names the old producer.
+    function.blocks[0].nodes.pop();
+    assert!(super::changes_length(
+        &function, &types, root, &observed, &call
+    ));
+}
+
+#[test]
 fn primitive_writes_invalidate_only_potentially_overlapping_projections() {
     use crate::tests::indexed_byte_fields::indexed_field_with_primitive_sibling_unit;
     use terminal_psi::StructuralPathSegment as S;

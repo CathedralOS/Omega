@@ -336,7 +336,7 @@ struct Catalogs<Types, Domains> {
 }
 
 /// The declared byte predicates of one exact relevant byte field below a
-/// structural parameter; empty for a plain carrier, `None` when the path does
+/// structural root; empty for a plain carrier, `None` when the path does
 /// not resolve to a byte field.
 pub(crate) fn byte_field_predicates(
     unit: &PsiOptimizationUnit,
@@ -355,12 +355,9 @@ fn byte_field_predicates_in<'t>(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ByteSequencePredicateSet> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
+    let (structural_type, _) = super::byte_field_freshness::byte_field_root(function, root)?;
     let declaration =
-        terminal_semantics::runtime_structural_path_tip(types, parameter.structural_type, path)?;
+        terminal_semantics::runtime_structural_path_tip(types, structural_type, path)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };

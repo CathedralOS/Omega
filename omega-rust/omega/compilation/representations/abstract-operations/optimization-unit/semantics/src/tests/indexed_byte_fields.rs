@@ -18,6 +18,36 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(source)
 }
 
+pub(crate) fn local_byte_field_snapshot_unit() -> PsiOptimizationUnit {
+    indexed_field_source_unit(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record [copy] { out: [u8;3] in Utf8; }
+        machine fill(record: &mut Record) { record.out = "é"; }
+        machine Record::replace(&mut self) {
+            let local: Record;
+            fill(&mut local);
+            self.out = local.out;
+        }
+        "#,
+    )
+}
+
+#[test]
+fn local_byte_field_snapshot_preserves_current_owned_storage() {
+    let unit = local_byte_field_snapshot_unit();
+    validate_psi_optimization_unit(&unit).unwrap();
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap();
+    assert!(function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+        matches!(&node.operation, AbstractOperation::EstablishByteSequenceConcatenation { left, .. }
+            if matches!(left, terminal_psi::control_flow::ByteSequenceOperand::Field { .. }))
+    }));
+}
+
 pub(crate) fn indexed_field_with_primitive_sibling_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(
         r#"
