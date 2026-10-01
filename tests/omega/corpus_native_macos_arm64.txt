@@ -302,6 +302,7 @@ pass/control_flow/borrowed_state_argument built 980ms @48008365d839
 pass/control_flow/case_arm_payload_receiver_call rejected 414ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 1619ms exit:70 @48008365d839
+pass/control_flow/case_dispatch_unread_structural_payload_exit built 1167ms exit:70 @bd9a4018c019+wt
 pass/control_flow/case_pattern_rename_waive_exit built 1119ms exit:70 @48008365d839
 pass/control_flow/composite_state_parameter built 2594ms exit:70 @48008365d839
 pass/control_flow/conditional_unit_completion_exit built 554ms exit:70 @76bba5577e21+wt

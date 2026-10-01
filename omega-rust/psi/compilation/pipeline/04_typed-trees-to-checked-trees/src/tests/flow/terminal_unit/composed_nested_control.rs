@@ -118,3 +118,137 @@ fn composes_an_exact_case_pair_over_a_local_subject_without_an_authored_fallback
         panic!("the value arm establishes the structural result on its own edge")
     };
 }
+
+#[test]
+fn closed_case_dispatch_forwards_a_scalar_payload_beside_an_unread_structural_payload() {
+    // The std `IoResult { Error(kind: ErrorKind), Ok(count: u64) }` shape:
+    // the other case's payload is itself a sum. The arm that binds it leaves
+    // it unread, and the dispatch's one disposal of the plain-owned subject
+    // covers it, so the case roster still closes over a local subject.
+    let checked = checked(
+        r#"
+        data Fault {
+            case Other;
+            case Short;
+        }
+        data Reading {
+            case Failed(fault: Fault);
+            case Counted(count: u64);
+        }
+        data Outcome {
+            case Missing;
+            case Total(total: u64);
+        }
+        machine measure(value: u64) -> Reading {
+            transition value < 10 {
+                true -> (Reading::Counted { count: value })
+                false -> (Reading::Failed { fault: Fault::Short })
+            }
+        }
+        machine tally(value: u64) -> Outcome {
+            transition { _ -> step(value) }
+            state step(value: u64) -> Outcome {
+                let reading: Reading = measure(value);
+                transition reading {
+                    Reading::Counted { count } -> counted(count)
+                    Reading::Failed { fault } -> (Outcome::Missing)
+                }
+            }
+            state counted(count: u64) -> Outcome {
+                transition { _ -> (Outcome::Total { total: count }) }
+            }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "tally"))
+        .expect("an unread structural payload leaves the closed-sum dispatch admissible");
+    let [_entry, step, counted] = plan.states.as_slice() else {
+        panic!("the dispatch state and its payload destination remain")
+    };
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } =
+        &step.terminator
+    else {
+        panic!("the case pair dispatches on the local subject's closed roster")
+    };
+    let [counted_case, failed_case] = cases.as_slice() else {
+        panic!("the dispatch keeps both authored case arms in source order")
+    };
+    assert!(
+        failed_case.payloads.is_empty(),
+        "the structural payload is bound but never transferred"
+    );
+    let checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) =
+        &counted_case.outcome
+    else {
+        panic!("the scalar payload arm transfers to the named successor")
+    };
+    assert_eq!(successor.target_state, counted.state);
+    let [payload] = counted_case.payloads.as_slice() else {
+        panic!("the destructured count binds as the case payload")
+    };
+    assert_eq!(payload.target_scalar_parameter_index, 0);
+}
+
+#[test]
+fn closed_case_dispatch_never_copies_a_structural_payload_out_of_its_consumed_subject() {
+    // Forwarding the structural payload itself would read storage the
+    // dispatch consumes on that edge. The closed roster refuses the copy; an
+    // admitted plan keeps the arm on another route instead.
+    let checked = checked(
+        r#"
+        data Fault [copy] {
+            case Other;
+            case Short;
+        }
+        data Reading {
+            case Failed(fault: Fault);
+            case Counted(count: u64);
+        }
+        data Outcome {
+            case Missing;
+            case Total(total: u64);
+        }
+        machine measure(value: u64) -> Reading {
+            transition value < 10 {
+                true -> (Reading::Counted { count: value })
+                false -> (Reading::Failed { fault: Fault::Short })
+            }
+        }
+        machine tally(value: u64) -> Outcome {
+            transition { _ -> step(value) }
+            state step(value: u64) -> Outcome {
+                let reading: Reading = measure(value);
+                transition reading {
+                    Reading::Counted { count } -> counted(count)
+                    Reading::Failed { fault } -> failed(fault)
+                }
+            }
+            state counted(count: u64) -> Outcome {
+                transition { _ -> (Outcome::Total { total: count }) }
+            }
+            state failed(fault: Fault) -> Outcome {
+                transition { _ -> (Outcome::Missing) }
+            }
+        }
+        "#,
+    );
+    let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "tally"))
+    else {
+        return;
+    };
+    assert!(
+        plan.states.iter().all(|state| !matches!(
+            state.terminator,
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+        )),
+        "no closed-sum dispatch copies a payload out of the subject it consumes"
+    );
+}
