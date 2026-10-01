@@ -1534,15 +1534,12 @@ pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 193ms @8e9
 pass/dependent/collection_predicate_terminal_rows_exit checked 732ms @a7a8cec34dad+wt
 pass/dependent/collection_predicate_zero_initialized checked 184ms @8e99dd8cbe00+wt
 pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile checked 288ms @2d8ed253669f
-pass/dependent/data_where_callee_establishes rejected 399ms @2d8ed253669f
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_callee_establishes checked 704ms @eb125d7b2dcc
 pass/dependent/data_where_field_read_during_window_compile checked 277ms @2d8ed253669f
-pass/dependent/data_where_gated_literal_proves rejected 394ms @2d8ed253669f
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_gated_literal_proves checked 697ms @eb125d7b2dcc
 pass/dependent/data_where_invariant_window_restored_exit checked 695ms @a7a8cec34dad+wt
 pass/dependent/data_where_membership_literal_compile checked 304ms @2d8ed253669f
-pass/dependent/data_where_ranged_param_constructs rejected 404ms @2d8ed253669f
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_ranged_param_constructs checked 724ms @eb125d7b2dcc
 pass/dependent/data_where_relational_callee_restored_exit checked 707ms @a7a8cec34dad+wt
 pass/dependent/data_where_standing_bound_exit checked 1223ms @2d8ed253669f
 pass/dependent/local_alias_forwards_entry_origin checked 286ms @2d8ed253669f
