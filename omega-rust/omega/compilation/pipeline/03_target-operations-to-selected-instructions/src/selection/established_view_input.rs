@@ -91,12 +91,16 @@ fn declared_view_type(
         )
         .find(|parameter| parameter.place == place);
     if let Some(parameter) = parameter {
+        // A declared-domain shared view (`&[u8] in Utf8`) carries the same
+        // descriptor; its qualifications constrain contents it cannot change.
+        // A mutable view stays unqualified: its stores would have to preserve them.
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
         ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
+            || (!parameter.qualifications.is_empty()
+                && parameter.access != terminal_psi::StructuralAccess::SharedBorrow)
             || !parameter.projected_qualifications.is_empty()
         {
             return None;

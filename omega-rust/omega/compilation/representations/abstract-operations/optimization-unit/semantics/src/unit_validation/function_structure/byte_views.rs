@@ -186,6 +186,23 @@ pub(super) fn validate_source(
                 |identity| structural_types.get(&identity).copied(),
             )
     };
+    // A declared-domain shared view (`&[u8] in Utf8`) keeps the same borrowed
+    // descriptor; its qualifications constrain contents that reads and length
+    // observations cannot change, so only writes need an unqualified view.
+    let qualified_shared_view = |parameter: &terminal_psi::StructuralParameterDeclaration| {
+        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
+            && parameter.access == StructuralAccess::SharedBorrow
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && parameter.projected_qualifications.is_empty()
+            && structural_types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                    )
+                })
+    };
     // A by-value bounded owner supplies readable bytes from its own incoming
     // payload. This does not make it a mutable view or a borrowed descriptor.
     let owned_parameter = |parameter: &terminal_psi::StructuralParameterDeclaration| {
@@ -210,6 +227,7 @@ pub(super) fn validate_source(
                         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty())
+                        || qualified_shared_view(parameter)
                         || owner_loan(parameter))
             })
             .map(|parameter| parameter.structural_type),
@@ -222,6 +240,7 @@ pub(super) fn validate_source(
                         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty())
+                        || qualified_shared_view(parameter)
                         || owner_loan(parameter)
                         || owned_parameter(parameter))
             })

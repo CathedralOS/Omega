@@ -1545,8 +1545,7 @@ pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
 pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
 pass/domains/unit_membership_postcondition_exit checked 3141ms @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
-pass/domains/utf8_equals_literal_exit rejected 822ms @a5f40f5895bf+wt
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(InvalidByteSequenceLength { machine: MachineId(2), block: BlockId(7), node: 0 }))
+pass/domains/utf8_equals_literal_exit checked 1773ms @55e0349c204c+wt
 pass/domains/utf8_field_read_carries_domain_exit rejected 748ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
 pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f

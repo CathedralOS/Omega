@@ -482,6 +482,7 @@ pub(in crate::lowering) fn view_for_place(
     }) {
         if entry.block == function.entry
             || (!is_immutable_byte_parameter(parameter, structural_types)
+                && !is_immutable_byte_carrier_parameter(parameter, structural_types)
                 && !is_owner_loan(parameter, structural_types))
         {
             return Err(invalid());
@@ -518,7 +519,11 @@ pub(in crate::lowering) fn view_for_place(
                 8,
             )
         };
+        // A declared-domain view (`&[u8] in Utf8`) is observed through the
+        // same shared descriptor; its qualifications constrain contents this
+        // read-only view cannot change.
         if (!is_immutable_byte_parameter(semantic, structural_types)
+            && !is_immutable_byte_carrier_parameter(semantic, structural_types)
             && !is_owner_loan(semantic, structural_types)
             && !owned)
             || parameter.structural_type != semantic.structural_type
