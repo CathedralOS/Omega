@@ -27,7 +27,10 @@ pub(crate) fn construction_expression(
     match source {
         CheckedArrayConstructionSource::Statement => {
             match statements.get(statement_index as usize)? {
-                StatementNode::LocalData(local) if !local.is_mutable => {
+                // Replay the initializer independently of subsequent access.
+                // Mutable locals establish the same owned array home; writes
+                // and loans must still rejoin their own checked operations.
+                StatementNode::LocalData(local) => {
                     Some((local.initial_value, local.type_reference))
                 }
                 StatementNode::Expression(expression)

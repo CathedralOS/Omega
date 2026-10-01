@@ -1413,6 +1413,7 @@ pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms @2d8ed
 pass/collections/runtime_indexed_record_field_read_exit checked 1347ms @2d8ed253669f
 pass/collections/runtime_indexed_struct_field_rmw_exit checked 1328ms @2d8ed253669f
 pass/collections/runtime_indexed_successor_argument_exit checked 1468ms @2d8ed253669f
+pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms @2d8ed253669f
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms @2d8ed253669f
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms @5f978f80e84b+wt

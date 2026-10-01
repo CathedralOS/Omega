@@ -427,10 +427,9 @@ pub(super) fn plan(
             ExpressionNode::Call(_)
         )
     {
-        local_phase("statement sequence: local data: scalar array: immutable binding");
-        if local.is_mutable {
-            return None;
-        }
+        // Construction establishes owned storage once. The binding's later
+        // writes and loans retain their own checked place/access obligations;
+        // initializer evaluation does not require an immutable local.
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,

@@ -877,8 +877,8 @@ pub(super) fn validate(
                     result,
                     elements,
                 },
-                StatementNode::LocalData(local),
-            ) if !local.is_mutable && result.statement_index as usize == ordinal => {
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {
                 super::super::super::scalar_arrays::validate(
                     checked,
                     machine,

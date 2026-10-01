@@ -1488,10 +1488,24 @@ fn validate_projected_loan_source(
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
+            // A loan needs the local's original home, not a producer with an
+            // affine-disposal flag. Rejoin every structural result family;
+            // exclude call-owned temporaries and automatic return discards.
             let mut results = state
                 .operations
                 .iter()
-                .filter_map(result_custody::result)
+                .filter(|operation| {
+                    !matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            operand_source: Some(_),
+                            ..
+                        }
+                    ) && !operation
+                        .discardable_structural_result()
+                        .is_some_and(|(_, discard)| discard)
+                })
+                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
                 .filter(|result| result.binding_ordinal == binding_ordinal);
             let result = results.next().ok_or(LoweringError::Unsupported(
                 "Unit graph projected loan result missing",

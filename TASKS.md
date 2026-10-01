@@ -1919,7 +1919,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   affine local an edge call takes on one edge while sibling edges dispose of
   it; edge cleanup subtracts `CheckedStructuralControlSuccessorPlan::result_moves`
   and stage 05 rejoins each move to its ledger Transfer row
-  (`validation::transition_operand_moves`). Three legal sources still stop.
+  (`validation::transition_operand_moves`). Borrowed initialized-array locals
+  also reach native execution: `collections/runtime_initialized_array_state_loan_exit`
+  exits **70** on macOS ARM64, preserving untouched nested elements after a
+  runtime-indexed store and short-circuit reads through the state loan. The
+  ordinary result-binding join and private-block loan transport retain original
+  storage; this does not close owned array transfer. Three legal sources still stop.
   A by-value fixed array (`handle([30, 40])`, or a transferred `[i32; 2]`
   local) stops at `jump successor: parameter transfer`, and Terminal
   verification rejects an owned scalar-array block parameter, so the carrier

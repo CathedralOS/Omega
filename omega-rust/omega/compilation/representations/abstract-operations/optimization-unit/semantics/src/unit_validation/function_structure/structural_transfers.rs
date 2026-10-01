@@ -340,6 +340,7 @@ fn source_contract(
             | O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
+            | O::EstablishScalarArray { result, .. }
             | O::StructuralLeafCopy { result, .. }
                 if result.place == place
                     && matches!(
@@ -352,6 +353,8 @@ fn source_contract(
             {
                 // Producer identity, dominance and successful-completion ownership
                 // are independently replayed by operation and frontier validation.
+                // Initialized arrays own backing just as zeroed aggregates do;
+                // lending that address does not transfer or copy their payload.
                 Some((
                     result.structural_type,
                     StructuralAccess::Owned,
