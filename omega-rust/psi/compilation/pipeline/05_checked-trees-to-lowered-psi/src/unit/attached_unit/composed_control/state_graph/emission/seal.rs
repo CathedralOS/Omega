@@ -49,21 +49,6 @@ impl StateGraphEmission<'_, '_> {
                 ..
             } = completion
             {
-                if evaluation.selection_cleanups.is_empty() {
-                    // A returned permission does not consume the temporary
-                    // slice descriptor used to select its referent. Dispose
-                    // all other live local roots, not only entry parameters.
-                    // Selected-owner joins keep their residual splice below.
-                    *trivial_affine_discards = super::state::return_root_discards(
-                        checked,
-                        plan,
-                        state,
-                        &operations,
-                        &evaluation,
-                        state_parameters,
-                    )?;
-                    continue;
-                }
                 let source = checked
                     .machines()
                     .iter()
@@ -77,6 +62,25 @@ impl StateGraphEmission<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "structural return source state missing",
                     ))?;
+                // A returned permission does not consume the temporary slice
+                // descriptor used to select its referent. Dispose all other
+                // live local roots, not only entry parameters. An owned
+                // result keeps the parameter-only roster: its locals moved
+                // into calls or into the result carry no exit disposition.
+                // Selected-owner joins keep their residual splice below.
+                if evaluation.selection_cleanups.is_empty()
+                    && validation::reference_shell(&checked.typed, source.return_type).is_some()
+                {
+                    *trivial_affine_discards = super::state::return_root_discards(
+                        checked,
+                        plan,
+                        state,
+                        &operations,
+                        &evaluation,
+                        state_parameters,
+                    )?;
+                    continue;
+                }
                 *trivial_affine_discards =
                     edges::return_discards(checked, plan.machine, source, state)?
                         .into_iter()
