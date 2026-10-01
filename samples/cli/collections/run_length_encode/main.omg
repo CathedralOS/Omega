@@ -44,7 +44,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state step(main: &mut Main) {
-        transition main.i >= 0 && main.i < 20 {
+        transition main.i < 20 {
             true -> read(main)
             _ -> done(main)
         }
