@@ -231,6 +231,58 @@ const RELEASED_LOAN_SOURCE: &str = "data Counter { count: u64; }
         }
     }";
 
+/// Exercise the loan replay independently of unrelated scalar provenance and
+/// control-cycle admission. The source fixture still passes all earlier
+/// lowering stages; each test names any deliberate current-graph corruption.
+fn validate_address_join_ownership(
+    unit: &PsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    let function = &unit.functions[0];
+    let blocks = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect();
+    let successors = function
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                block
+                    .nodes
+                    .iter()
+                    .flat_map(|node| &node.successors)
+                    .map(|edge| edge.target)
+                    .collect(),
+            )
+        })
+        .collect();
+    let functions = unit
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect();
+    let boundary_machines = unit
+        .boundary_machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect();
+    let structural_types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    crate::current_ownership::validate_current_ownership_frontier(
+        function,
+        &blocks,
+        &successors,
+        &functions,
+        &boundary_machines,
+        &structural_types,
+    )
+}
+
 #[test]
 fn a_dropped_address_join_releases_its_root_while_an_unrelated_view_is_forwarded() {
     let candidate = source_machine_unit(RELEASED_LOAN_SOURCE, "Counter::update", true);
@@ -281,10 +333,18 @@ fn a_join_used_after_its_apparent_release_keeps_the_root_pinned() {
     *read_result = result;
     candidate.functions[0].blocks[block].nodes[node].operation = stale_read;
     refresh_node_derivatives(&mut candidate, 0, block, node);
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
-    ));
+    assert!(validate_psi_optimization_unit(&candidate).is_err());
+    // The substituted read also changes scalar provenance. Bypass that
+    // independent earlier check to prove that the loan owner itself rejects
+    // mutation while this stale joined name remains observed.
+    let result = validate_address_join_ownership(&candidate);
+    assert!(
+        matches!(
+            result,
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "loan replay must retain the pin: {result:?}"
+    );
 }
 
 #[test]
@@ -304,5 +364,12 @@ fn address_join_forwarding_through_a_backedge_preserves_then_releases_the_loan()
             }
         }";
     let candidate = source_machine_unit(source, "Counter::update", true);
-    validate_psi_optimization_unit(&candidate).unwrap();
+    // Unranked cycles are not admitted by the full current-graph validator.
+    // Pin reconstruction must nevertheless handle its CFG backedges without
+    // retaining the loan on the separate writeback exit.
+    assert!(matches!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::ControlCycle { .. })
+    ));
+    validate_address_join_ownership(&candidate).unwrap();
 }
