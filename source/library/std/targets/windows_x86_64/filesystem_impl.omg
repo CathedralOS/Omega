@@ -379,7 +379,9 @@ reaches FilesystemHost
         transition self.w_help_rc == 0 { true -> rds_open() _ -> rds_fail() }
     }
     state rds_open(&mut self) {
-        Filesystem::w_find_open(&mut self, self.w_pat_len);
+        // Copy the length before `&mut self` lends the whole receiver.
+        let pattern_len: u64 in Wrapping = self.w_pat_len;
+        Filesystem::w_find_open(&mut self, pattern_len);
         Filesystem::w_restore_nul(&mut self, 0);
         transition self.w_find >= 0 { true -> rds_c1() _ -> rds_fail() }
     }
@@ -443,7 +445,8 @@ reaches FilesystemHost
         self.rda_verdict = 0;
     }
     state rds_rmcur(&mut self) {
-        Filesystem::w_remove_dir_at(&mut self, self.w_path_len);
+        let path_len: u64 in Wrapping = self.w_path_len;
+        Filesystem::w_remove_dir_at(&mut self, path_len);
         transition self.rda_rc == 0 { true -> rds_ascend() _ -> rds_fail() }
     }
     state rds_ascend(&mut self) {
@@ -528,7 +531,8 @@ reaches FilesystemHost
     // FILE child: remove by full joined path, then truncate back to the
     // current directory (restore the NUL at w_path_len).
     state rds_unlink(&mut self) {
-        Filesystem::w_remove_file_at(&mut self, self.w_child_len);
+        let child_len: u64 in Wrapping = self.w_child_len;
+        Filesystem::w_remove_file_at(&mut self, child_len);
         transition self.rda_rc == 0 { true -> rds_untrunc() _ -> rds_fail() }
     }
     state rds_untrunc(&mut self) {
