@@ -7,6 +7,159 @@ use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId, ValueId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 #[test]
+fn qualified_bounded_bytes_return_through_the_exact_hidden_result_home() {
+    for target in [
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let mut source = owned_fixture(target);
+        let operation = OperationId::new(5).unwrap();
+        let place = PlaceId::new(4).unwrap();
+        let structural_type = StructuralTypeId::new(2).unwrap();
+        let qualification = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+        let signature = source.structural.as_mut().unwrap();
+        let declaration = signature
+            .structural_types
+            .make_mut()
+            .iter_mut()
+            .find(|declaration| declaration.id == structural_type)
+            .unwrap();
+        declaration.shape = terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 16 },
+        );
+        let row = source.blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|row| row.operation == operation)
+            .unwrap();
+        let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { result, .. } =
+            &mut row.kind
+        else {
+            panic!("owned byte constructor");
+        };
+        result.qualifications = vec![qualification];
+        let returned_result = result.clone();
+        signature.result = Some(terminal_psi::StructuralResultDeclaration {
+            reference_sources: Vec::new(),
+            place,
+            structural_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            qualifications: vec![qualification],
+            projected_qualifications: Vec::new(),
+        });
+        let shape = calling_conventions::ValueShape::integer(24, 8);
+        source.call_plan = super::evaluate_call_plan(
+            source.call_plan.policy,
+            &super::CallSignature {
+                parameters: source
+                    .call_plan
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.shape)
+                    .collect(),
+                result: Some(shape),
+            },
+        )
+        .unwrap();
+        returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Structural {
+            source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation,
+                result: returned_result,
+            },
+        };
+        assert!(
+            crate::selection::aggregate_result_input::indirect_result(
+                source.call_plan.result.as_ref().unwrap(),
+                source.call_plan.policy,
+            )
+            .is_some()
+        );
+
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        assert!(selected.local_storage_slots.iter().any(|slot| {
+            slot.id == selected_instructions::LocalStorageSlotId::Structural { operation, place }
+                && slot.byte_size == 24
+                && slot.alignment == 8
+        }));
+
+        let mut wrong_home = selected.clone();
+        wrong_home
+            .local_storage_slots
+            .iter_mut()
+            .find(|slot| {
+                slot.id
+                    == selected_instructions::LocalStorageSlotId::Structural { operation, place }
+            })
+            .unwrap()
+            .byte_size = 16;
+        assert!(validate(&wrong_home).is_err());
+
+        let mut wrong_qualification = source.clone();
+        wrong_qualification
+            .structural
+            .as_mut()
+            .unwrap()
+            .result
+            .as_mut()
+            .unwrap()
+            .qualifications
+            .clear();
+        let value = returned(&mut wrong_qualification.blocks[0]).value.clone();
+        assert!(
+            crate::selection::aggregate_result_input::returned(&wrong_qualification, &value)
+                .is_none()
+        );
+
+        let mut borrowed_descriptor = source.clone();
+        borrowed_descriptor
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .make_mut()
+            .iter_mut()
+            .find(|declaration| declaration.id == structural_type)
+            .unwrap()
+            .shape = terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
+        );
+        let value = returned(&mut borrowed_descriptor.blocks[0]).value.clone();
+        assert!(
+            crate::selection::aggregate_result_input::returned(&borrowed_descriptor, &value)
+                .is_none()
+        );
+    }
+}
+
+#[test]
 fn owned_concatenation_replays_live_copy_counts_and_inline_length() {
     for target in [
         target::NativeTarget::linux_x64(),

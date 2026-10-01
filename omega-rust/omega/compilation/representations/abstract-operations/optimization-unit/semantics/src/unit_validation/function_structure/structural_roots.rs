@@ -746,7 +746,12 @@ pub(crate) fn validate_structural_root_operations(
                                 .iter()
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
-                                    O::EstablishScalarArray { psi_operation, result, .. }
+                                    O::EstablishByteSequenceConcatenation {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::EstablishScalarArray { psi_operation, result, .. }
                                     | O::EstablishCase {
                                         psi_operation,
                                         result,
@@ -800,6 +805,16 @@ pub(crate) fn validate_structural_root_operations(
                                     _ => None,
                                 })
                             });
+                    let exact_bounded_owned_bytes = structural_types
+                        .get(&signature.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                        });
                     if source_contract.is_none_or(
                         |(structural_type, multiplicity, qualifications, projected, minted)| {
                             // Mirror the Terminal return-edge rule: domains
@@ -810,16 +825,24 @@ pub(crate) fn validate_structural_root_operations(
                             // result roster rather than equal it.
                             structural_type != signature.structural_type
                                 || multiplicity != signature.multiplicity
-                                || !qualifications
-                                    .iter()
-                                    .filter(|domain| !minted.contains(domain))
-                                    .all(|domain| signature.qualifications.contains(domain))
-                                || projected
-                                    .iter()
-                                    .filter(|projection| !minted.contains(&projection.domain))
-                                    .cloned()
-                                    .collect::<Vec<_>>()
-                                    != signature.projected_qualifications
+                                || if exact_bounded_owned_bytes {
+                                    !minted.is_empty()
+                                        || qualifications != signature.qualifications
+                                        || projected != signature.projected_qualifications
+                                } else {
+                                    !qualifications
+                                        .iter()
+                                        .filter(|domain| !minted.contains(domain))
+                                        .all(|domain| signature.qualifications.contains(domain))
+                                        || projected
+                                            .iter()
+                                            .filter(|projection| {
+                                                !minted.contains(&projection.domain)
+                                            })
+                                            .cloned()
+                                            .collect::<Vec<_>>()
+                                            != signature.projected_qualifications
+                                }
                         },
                     ) {
                         return Err(

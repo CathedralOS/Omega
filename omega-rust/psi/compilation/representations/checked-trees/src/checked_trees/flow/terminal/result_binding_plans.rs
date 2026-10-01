@@ -59,6 +59,14 @@ pub struct CheckedByteSequenceValuePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),
+    /// An already completed call, rejoined to its exact authored occurrence
+    /// and structural result binding before the store observes its live length.
+    CallResult {
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        binding_ordinal: u32,
+        capacity: u64,
+    },
     /// Read the current live bytes of a readable parameter or established local.
     /// Capacity is its carrier bound, not the observed content length.
     Whole {

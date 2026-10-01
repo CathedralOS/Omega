@@ -906,7 +906,16 @@ pub fn reconstruct_structural_call_custody(
         })
         .collect::<Vec<_>>();
     if result.multiplicity != Multiplicity::Linear {
-        if !result_qualifications.is_empty() || !transfers.is_empty() {
+        // Primitive byte predicates describe an independently established
+        // owned value, not resource claims. Preserve their exact signature
+        // roster; arbitrary qualified or loan-bearing results keep the fence.
+        let owned_bytes = result.multiplicity == Multiplicity::Unrestricted
+            && crate::bounded_byte_buffer_capacity(program, destination.return_type).is_some()
+            && crate::has_plain_owned_contents_with_represented_constraints(
+                program,
+                destination.return_type,
+            );
+        if (!result_qualifications.is_empty() && !owned_bytes) || !transfers.is_empty() {
             return Err("claim-bearing structural call has no returned claim frontier");
         }
         // A bare `&'a V` shared-view result is itself counted a reference
@@ -989,6 +998,7 @@ pub fn reconstruct_structural_call_custody(
         };
         return Ok(CheckedStructuralCallCustodyPlan {
             reference_loan,
+            result_qualifications,
             ..Default::default()
         });
     }

@@ -277,6 +277,9 @@ pub(super) fn header(
                         StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::FixedArray { .. }
                             | StructuralTypeShape::Mixed { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
                     )
             }) {
                 home_layout(

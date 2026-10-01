@@ -460,19 +460,40 @@ where
             producer,
             structural_type,
         } => {
+            super::byte_views::owned_byte_result(
+                function,
+                Some(&declaration.kind),
+                source,
+                |identity| {
+                    catalogs.types.clone().any(|declaration| {
+                        declaration.id == identity
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    })
+                },
+            )?;
             let node = function
                 .blocks
                 .iter()
                 .flat_map(|block| &block.nodes)
                 .find(|node| node.operation.psi_operation() == Some(producer))?;
-            let Operation::EstablishByteSequenceConcatenation {
-                result,
-                left,
-                right,
-                ..
-            } = &node.operation
-            else {
-                return None;
+            let (result, operands) = match &node.operation {
+                Operation::EstablishByteSequenceConcatenation {
+                    result,
+                    left,
+                    right,
+                    ..
+                } => (result, Some((left, right))),
+                Operation::CallStructural {
+                    result:
+                        abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } => (result, None),
+                _ => return None,
             };
             if result.place != source || result.structural_type != structural_type {
                 return None;
@@ -490,6 +511,13 @@ where
             {
                 return Some(declared);
             }
+            let Some((left, right)) = operands else {
+                // Ordinary call completion carries the callee's verified
+                // qualification roster on this exact result. Unlike a local
+                // concatenation it has no caller-side initializer operands to
+                // re-derive; later writes are checked against the same roster.
+                return Some(declared);
+            };
             let mut operand =
                 |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {

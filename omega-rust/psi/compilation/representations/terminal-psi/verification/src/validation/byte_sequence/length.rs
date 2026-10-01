@@ -152,6 +152,7 @@ pub(in crate::validation) fn validate_source(
         StructuralPlaceKind::OperationResult { .. } => {
             crate::validation::byte_sequence::subslice::borrowed_result(machine, source)
                 .or_else(|| super::concatenation::owned_result(machine, source))
+                .or_else(|| terminal_semantics::byte_owned_call_result(module, machine, source))
                 .ok_or_else(&invalid)?
                 .structural_type
         }
@@ -166,6 +167,7 @@ pub(in crate::validation) fn validate_source(
                         | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                 )
             ) || ((super::concatenation::owned_result(machine, source).is_some()
+                || terminal_semantics::byte_owned_call_result(module, machine, source).is_some()
                 || machine
                     .structural_parameters
                     .iter()

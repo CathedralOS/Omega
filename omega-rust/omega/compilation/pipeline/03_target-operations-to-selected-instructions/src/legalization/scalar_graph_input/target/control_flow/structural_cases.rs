@@ -61,6 +61,19 @@ pub(super) fn home_available(
                         } if home.place() == expected_source => {
                             Some((candidate.block, Some(home.clone())))
                         }
+                        TargetUnitOperation::EstablishByteSequenceConcatenation {
+                            result, ..
+                        } if result.place == expected_source => Some((
+                            candidate.block,
+                            Some(
+                                super::super::super::aggregate_results::result_home(
+                                    optimized,
+                                    expected_source,
+                                    plan,
+                                )
+                                .ok()?,
+                            ),
+                        )),
                         // A reference-only call result carries no physical
                         // home; the custody metadata roster stands in for it.
                         TargetUnitOperation::Call {

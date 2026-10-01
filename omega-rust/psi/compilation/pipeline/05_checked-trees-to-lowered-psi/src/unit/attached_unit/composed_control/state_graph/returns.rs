@@ -145,7 +145,11 @@ pub(super) fn signature_matches(
                     == Some(&result.projected_qualifications)
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
-                && (result.multiplicity == Multiplicity::Linear || validation::has_plain_owned_contents_with_numeric_constraints(
+                && (result.multiplicity == Multiplicity::Linear
+                    || (result.multiplicity == Multiplicity::Unrestricted
+                        && validation::bounded_byte_buffer_capacity(&checked.typed, source.return_type).is_some()
+                        && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
+                    || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     carrier,
                 ) || validation::has_owned_or_shared_view_fields(&checked.typed, carrier))
@@ -494,9 +498,10 @@ pub(super) fn validate_structural(
                 let result = match operation {
                     // A `&mut` view tail return's producer is the reference
                     // establishment minted at the transition.
-                    CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
-                        Some(result)
-                    }
+                    CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                        result, ..
+                    } => Some(result),
                     _ => super::result_custody::result(operation),
                 }?;
                 (result.binding_ordinal == binding_ordinal).then_some((operation, result))
@@ -539,6 +544,11 @@ pub(super) fn validate_structural(
                         state.state,
                         operation,
                     )?;
+                } else if matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                ) {
+                    super::super::super::literal_locals::validate(checked, state.state, operation)?;
                 } else if let CheckedUnitEffectOperationPlan::EstablishReference {
                     source, ..
                 } = operation

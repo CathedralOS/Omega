@@ -237,7 +237,9 @@ pub(super) fn validate(
             }
             return Err(LegalizationError::custody());
         }
-        if let Some((producer, structural_type)) = owned_concatenation(optimized, place.id) {
+        if let Some((producer, structural_type)) =
+            owned_byte_result(optimized, place.id, &plan.structural_types)
+        {
             if place.kind
                 != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
                     producer,
@@ -445,9 +447,10 @@ pub(super) fn contains_view(
             || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place))
 }
 
-pub(in crate::legalization) fn owned_concatenation(
+pub(in crate::legalization) fn owned_byte_result(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
@@ -461,12 +464,32 @@ pub(in crate::legalization) fn owned_concatenation(
                 psi_operation,
                 result,
                 ..
-            } if result.place == place => Some((*psi_operation, result.structural_type)),
+            }
+            | AbstractOperation::CallStructural {
+                psi_operation,
+                result:
+                    abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if result.place == place
+                && result.multiplicity
+                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty()
+                && types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                }) => Some((*psi_operation, result.structural_type)),
             _ => None,
         })
 }
 /// Whether a byte place reads the owner layout (length word at offset 0,
-/// bytes from offset 8): an owned concatenation in this activation, or a
+/// bytes from offset 8): a completed owned byte result in this activation, or a
 /// shared bounded owner loan whose signature or block parameter carries the
 /// owner's address.
 pub(in crate::legalization) fn reads_owner_layout(
@@ -474,7 +497,7 @@ pub(in crate::legalization) fn reads_owner_layout(
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    owned_concatenation(function, place).is_some()
+    owned_byte_result(function, place, types).is_some()
         || owner_loan(function, place, types).is_some()
         || owned_parameter(function, place, types).is_some()
 }
@@ -519,6 +542,7 @@ pub(in crate::legalization) fn owner_loan<'a>(
 pub(super) fn contains_readable_bytes(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    contains_view(function, place) || owned_concatenation(function, place).is_some()
+    contains_view(function, place) || owned_byte_result(function, place, types).is_some()
 }

@@ -34,8 +34,12 @@ pub(in crate::selection) fn entry(
     let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     let result = signature.result.as_ref().ok_or_else(|| invalid())?;
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
+        || (!result.qualifications.is_empty()
+            && !crate::selection::aggregate_result_input::bounded_owned_byte_type(
+                source,
+                result.structural_type,
+            ))
         || crate::structural_inputs::structural_reference_input::shape(
             result.structural_type,
             &signature.structural_types,

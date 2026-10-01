@@ -416,13 +416,24 @@ pub(super) fn account(
         } else {
             0
         };
-        let total = usize::from(consumed || stored || copied_into_construction)
-            + call_transfers
-            + cleanup_discards
-            + construction_transfers
-            + reference_releases
-            + reference_reborrows
-            + view_releases;
+        // A byte replacement copies the completed live prefix and length;
+        // it neither moves an affine owner nor invents a disposal receipt.
+        // The store's source replay separately rejoins the exact call.
+        let copied_into_byte_store = result.multiplicity == Multiplicity::Unrestricted
+            && operations[producer_index + 1..].iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+                    if store.value.nodes.iter().any(|(_, value)| matches!(value,
+                        checked_trees::CheckedByteSequenceValue::CallResult { binding_ordinal, .. }
+                            if *binding_ordinal == result.binding_ordinal)))
+            });
+        let total =
+            usize::from(consumed || stored || copied_into_construction || copied_into_byte_store)
+                + call_transfers
+                + cleanup_discards
+                + construction_transfers
+                + reference_releases
+                + reference_reborrows
+                + view_releases;
         if total != 1 {
             return None;
         }

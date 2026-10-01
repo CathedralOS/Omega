@@ -128,6 +128,7 @@ pub(in crate::validation) fn validate_uses(
     let require = |place| {
         if (borrowed_result(machine, place).is_some()
             || super::concatenation::owned_result(machine, place).is_some()
+            || terminal_semantics::byte_owned_call_result(module, machine, place).is_some()
             || machine.structural_parameters.iter().any(|parameter| {
                 parameter.place == place
                     && parameter.access == StructuralAccess::MutableBorrow

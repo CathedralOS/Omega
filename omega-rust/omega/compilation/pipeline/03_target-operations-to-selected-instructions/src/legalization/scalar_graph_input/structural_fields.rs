@@ -31,7 +31,7 @@ pub(in crate::legalization) fn replacement(
                         )
                     )
             })
-            || !super::byte_views::contains_readable_bytes(function, *source)
+            || !super::byte_views::contains_readable_bytes(function, *source, types)
             || function
                 .entry_claim_declarations
                 .iter()
@@ -85,8 +85,9 @@ pub(in crate::legalization) fn replacement(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == *destination || Some(claim.input.root) == source)
-        || source
-            .is_some_and(|source| !super::byte_views::contains_readable_bytes(function, source))
+        || source.is_some_and(|source| {
+            !super::byte_views::contains_readable_bytes(function, source, types)
+        })
     {
         return None;
     }

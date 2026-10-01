@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
@@ -232,17 +232,21 @@ pub(super) fn validate_source(
         Some(StructuralPlaceKind::OperationResult {
             producer,
             structural_type,
-        }) => function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .find_map(|node| match &node.operation {
+        }) => owned_byte_result(function, source_kind, source, |identity| {
+            structural_types.get(&identity).is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+                )
+            })
+        })
+        .or_else(|| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .find_map(|node| match &node.operation {
                 AbstractOperation::ByteSequenceSubslice {
-                    psi_operation,
-                    result,
-                    ..
-                }
-                | AbstractOperation::EstablishByteSequenceConcatenation {
                     psi_operation,
                     result,
                     ..
@@ -259,8 +263,7 @@ pub(super) fn validate_source(
                     && result.place == source
                     && result.structural_type == *structural_type
                     && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && (result.qualifications.is_empty()
-                        || matches!(node.operation, AbstractOperation::EstablishByteSequenceConcatenation { .. }))
+                    && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty() =>
@@ -268,7 +271,8 @@ pub(super) fn validate_source(
                     Some(result.structural_type)
                 }
                 _ => None,
-            }),
+            })
+        }),
         _ => None,
     };
     let valid = structural_type
@@ -276,17 +280,36 @@ pub(super) fn validate_source(
         .is_some_and(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. })
-            ) || (matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }))
-                && (function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == source))
-                    || function
-                        .structural_parameters
-                        .iter()
-                        .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
-                        .any(|parameter| parameter.place == source && owner_loan(parameter))
-                    || function.structural_parameters.iter().any(|parameter|
-                        parameter.place == source && owned_parameter(parameter))))
+                StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BorrowedView { .. }
+                        | ByteSequenceCarrier::BoundedView { .. }
+                )
+            ) || (matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            ) && (owned_byte_result(function, source_kind, source, |identity| {
+                structural_types.get(&identity).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+                    )
+                })
+            })
+            .is_some()
+                || function
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .any(|parameter| parameter.place == source && owner_loan(parameter))
+                || function
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == source && owned_parameter(parameter))))
         })
         && function
             .entry_claim_declarations
@@ -393,4 +416,53 @@ pub(super) fn validate_source(
         );
     }
     Ok(())
+}
+
+/// A bounded owner keeps the `{live length, capacity bytes}` layout whether it
+/// was established locally or completed by an ordinary structural call. The
+/// place declaration must name that exact producer and type; borrowed and
+/// boundary results remain descriptor/storage families owned elsewhere.
+pub(super) fn owned_byte_result(
+    function: &PsiOptimizationFunction,
+    source_kind: Option<&StructuralPlaceKind>,
+    source: semantic_vocabulary::PlaceId,
+    mut bounded_owned_type: impl FnMut(StructuralTypeId) -> bool,
+) -> Option<StructuralTypeId> {
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = source_kind?
+    else {
+        return None;
+    };
+    let mut matching = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| {
+            let (operation, result) = match &node.operation {
+                AbstractOperation::EstablishByteSequenceConcatenation {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | AbstractOperation::CallStructural {
+                    psi_operation,
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } => (psi_operation, result),
+                _ => return None,
+            };
+            (*operation == *producer
+                && result.place == source
+                && result.structural_type == *structural_type
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty()
+                && bounded_owned_type(*structural_type))
+            .then_some(*structural_type)
+        });
+    let structural_type = matching.next()?;
+    matching.next().is_none().then_some(structural_type)
 }

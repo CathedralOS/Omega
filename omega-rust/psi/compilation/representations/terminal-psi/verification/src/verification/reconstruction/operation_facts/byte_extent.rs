@@ -36,12 +36,23 @@ pub(super) fn length_fact(
     else {
         return Ok(None);
     };
-    if let StructuralPlaceKind::Parameter { position, is_self } = place_kind
-        && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-            parameter.place == *source
-                && parameter.position == position
-                && parameter.is_self == is_self
-        })
+    let owned_type = match place_kind {
+        StructuralPlaceKind::Parameter { position, is_self } => machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| {
+                parameter.place == *source
+                    && parameter.position == position
+                    && parameter.is_self == is_self
+            })
+            .map(|parameter| parameter.structural_type),
+        StructuralPlaceKind::OperationResult { .. } => {
+            terminal_semantics::byte_owned_call_result(module, machine, *source)
+                .map(|result| result.structural_type)
+        }
+        _ => None,
+    };
+    if let Some(structural_type) = owned_type
         && let Some(capacity) =
             module
                 .structural_types
@@ -49,12 +60,13 @@ pub(super) fn length_fact(
                 .find_map(|declaration| match declaration.shape {
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
                         capacity,
-                    }) if declaration.id == parameter.structural_type => Some(capacity),
+                    }) if declaration.id == structural_type => Some(capacity),
                     _ => None,
                 })
         && let Some(result) = current.result.scalar()
     {
-        // Validation binds this exact readable length operation to the formal.
+        // Validation binds this read to its formal or exact completed owned
+        // call result. The callee independently owes its construction capacity.
         // Capacity constrains the observed SSA snapshot, not its exact length
         // and not the owner's contents after a later mutation.
         let integer =

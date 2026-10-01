@@ -289,7 +289,7 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        nodes::validate(block, optimized)?;
+        nodes::validate(block, optimized, &plan.structural_types)?;
     }
     let entry = optimized
         .blocks

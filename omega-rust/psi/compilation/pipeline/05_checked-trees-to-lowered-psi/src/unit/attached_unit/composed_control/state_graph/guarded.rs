@@ -74,7 +74,7 @@ pub(super) fn validate(
         .operation_dependencies()
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        let Some((result, _)) = operation.discardable_structural_result() else {
+        let Some(result) = operation.structural_result_binding() else {
             continue;
         };
         if bindings.contains(&result.binding_ordinal) {
@@ -89,20 +89,21 @@ pub(super) fn validate(
         .chain(fallback.iter())
         .zip(return_values)
     {
-        let (
-            CheckedScalarBranchDestination::Return {
-                statement_ordinal,
-                is_continuation,
-            },
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                value,
-                discard_result_on_return: false,
-                ..
-            },
-        ) = (destination, operation)
+        let CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation,
+        } = destination
         else {
             return unsupported("ordered structural destination is not its retained value return");
+        };
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                discard_result_on_return: false,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => result,
+            _ => return unsupported("ordered return lost its structural producer"),
         };
         let expression = match statements.get(*statement_ordinal as usize) {
             Some(checked_trees::statement::StatementNode::Expression(expression))
@@ -127,27 +128,33 @@ pub(super) fn validate(
             }
             _ => return unsupported("ordered return has no exact authored expression"),
         };
-        let root = checked
-            .facts
-            .values
-            .structural_values
-            .root_for_expression(state.state, *statement_ordinal, expression)
-            .ok_or(LoweringError::Unsupported(
-                "ordered return lost its exact value root",
-            ))?;
         if result.statement_index != *statement_ordinal
             || result.type_identity != signature.type_identity
             || result.multiplicity != signature.multiplicity
-            || root.root != *value
         {
             return unsupported("ordered return exchanged its destination or value custody");
         }
-        crate::expression_preparation::source_custody::structural::validate(
-            checked,
-            plan.machine,
-            state.state,
-            operation,
-        )?;
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation {
+            let root = checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(state.state, *statement_ordinal, expression)
+                .ok_or(LoweringError::Unsupported(
+                    "ordered return lost its exact value root",
+                ))?;
+            if root.root != *value {
+                return unsupported("ordered return exchanged its authored value");
+            }
+            crate::expression_preparation::source_custody::structural::validate(
+                checked,
+                plan.machine,
+                state.state,
+                operation,
+            )?;
+        } else {
+            super::super::super::literal_locals::validate(checked, state.state, operation)?;
+        }
     }
     edges::return_discards(checked, plan.machine, source, state)?;
     Ok(())
@@ -341,8 +348,10 @@ pub(super) fn emit_return(
         next_edge,
         operations,
     )?;
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = operation else {
-        return unsupported("ordered return has no structural producer");
+    let result = match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => result,
+        _ => return unsupported("ordered return has no structural producer"),
     };
     let source = operations
         .structural_values

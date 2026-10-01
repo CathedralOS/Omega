@@ -33,29 +33,35 @@ pub(in crate::execution::terminal_unit) fn literal_octets(
     program: &TypedTrees,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<Vec<u8>> {
-    if !program
-        .expression_table
-        .expression_is_valid(local.initial_value)
-        || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
-        || structural_access_for_type_reference(program, local.type_reference)
+    expression_octets(program, local.type_reference, local.initial_value)
+}
+
+/// Literal construction is shared by local establishment and a selected
+/// normal result. Neither site gains a view or infers an encoding domain.
+pub(in crate::execution::terminal_unit) fn expression_octets(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<u8>> {
+    if !program.expression_table.expression_is_valid(expression)
+        || program.type_multiplicity(reference) != Multiplicity::Unrestricted
+        || structural_access_for_type_reference(program, reference)
             != Some(CheckedStructuralAccess::Owned)
     {
         return None;
     }
     let CheckedByteSequenceCarrier::BoundedOwned { capacity } =
-        byte_sequence_carrier(program, local.type_reference, &[])?
+        byte_sequence_carrier(program, reference, &[])?
     else {
         return None;
     };
-    let ExpressionNode::String(bytes) = program.expression_table.expression(local.initial_value)
-    else {
+    let ExpressionNode::String(bytes) = program.expression_table.expression(expression) else {
         return None;
     };
     if u64::try_from(bytes.len()).ok()? > capacity {
         return None;
     }
-    let domains =
-        crate::facts::field_domain::domain_constraint_symbols(program, local.type_reference);
+    let domains = crate::facts::field_domain::domain_constraint_symbols(program, reference);
     let plain_literal_domain = |symbol| {
         program
             .domain_definitions()
@@ -66,9 +72,7 @@ pub(in crate::execution::terminal_unit) fn literal_octets(
                     && domain.semantic_roles == Default::default()
             })
             && crate::facts::field_domain::string_literal_expression_grants_domain(
-                program,
-                local.initial_value,
-                symbol,
+                program, expression, symbol,
             )
     };
     domains

@@ -576,6 +576,17 @@ pub(super) fn validate_result_declaration(
                         });
             if result.multiplicity == StructuralMultiplicity::Unrestricted
                 && !exact_unrestricted_payloadless_result
+                && !(machine.blocks.iter().any(|block| {
+                    matches!(block.terminator, Terminator::ReturnStructural { .. })
+                }) && machine.blocks.iter().all(|block| match &block.terminator {
+                    Terminator::ReturnStructural { source, returned_claims, .. } => {
+                        returned_claims.is_empty()
+                            && super::super::structural::result_contracts::bounded_owned_byte_return_source(
+                                module, machine, *source, result,
+                            )
+                    }
+                    _ => true,
+                }))
                 && !(result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && terminal_semantics::scalar_array_leaf_shape(

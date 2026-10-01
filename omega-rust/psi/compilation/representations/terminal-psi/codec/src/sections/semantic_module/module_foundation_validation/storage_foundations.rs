@@ -139,7 +139,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     else {
         return malformed("byte field store source is unknown");
     };
-    let mut owned_concatenation = false;
+    let mut owned_source = false;
     let source_type = match source_place.kind {
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
@@ -190,35 +190,42 @@ pub(super) fn validate_structural_byte_sequence_field_store(
             let Some(producer) = producers.next() else {
                 return malformed("byte field store source has no producer");
             };
+            // Normal completion imports the exact declared byte owner, not a
+            // borrowed descriptor. Receiving verification still checks callee
+            // contents, predicate preservation, capacity and dominance.
+            let owned_call =
+                terminal_semantics::byte_owned_call_result(module, machine, *source).is_some();
             if producers.next().is_some()
-                || !matches!(
-                    producer.kind,
-                    OperationKind::ByteSequenceSubslice { .. }
-                        | OperationKind::EstablishByteSequenceConcatenation { .. }
-                )
+                || !(owned_call
+                    || matches!(
+                        producer.kind,
+                        OperationKind::ByteSequenceSubslice { .. }
+                            | OperationKind::EstablishByteSequenceConcatenation { .. }
+                    ))
                 || !producer.result.structural().is_some_and(|result| {
                     result.place == *source
                         && result.structural_type == structural_type
                         && result.multiplicity == StructuralMultiplicity::Unrestricted
-                        && result.qualifications.is_empty()
+                        && (owned_call || result.qualifications.is_empty())
                         && result.projected_qualifications.is_empty()
                         && result.claims.is_empty()
                 })
             {
                 return malformed("byte field store source has inexact producer custody");
             }
-            owned_concatenation = matches!(
-                producer.kind,
-                OperationKind::EstablishByteSequenceConcatenation { .. }
-            );
+            owned_source = owned_call
+                || matches!(
+                    producer.kind,
+                    OperationKind::EstablishByteSequenceConcatenation { .. }
+                );
             structural_type
         }
         _ => return malformed("byte field store source is not an immutable whole view"),
     };
     if !module.structural_types.iter().any(|declaration| declaration.id == source_type
         && match declaration.shape {
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => !owned_concatenation,
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => owned_concatenation,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => !owned_source,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => owned_source,
             _ => false,
         })
         || !machine.blocks.iter().flat_map(|block| &block.operations).any(|candidate| {

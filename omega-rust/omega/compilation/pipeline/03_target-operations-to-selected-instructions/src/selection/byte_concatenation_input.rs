@@ -12,19 +12,40 @@ pub(super) fn owned_type(
     function: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    function
+    let signature = function.structural.as_ref()?;
+    let mut matching = function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
-        .find_map(|row| {
-            let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                result, ..
-            } = &row.kind
-            else {
-                return None;
+        .filter_map(|row| {
+            let result = match &row.kind {
+                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                    result,
+                    ..
+                } => result,
+                LegalizedScalarInstructionKind::Call(call) => {
+                    super::aggregate_result_input::call_result(function, call)?.0
+                }
+                _ => return None,
             };
-            (result.place == place).then_some(result.structural_type)
-        })
+            (result.place == place
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty()
+                && signature.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                }))
+            .then_some(result.structural_type)
+        });
+    let structural_type = matching.next()?;
+    matching.next().is_none().then_some(structural_type)
 }
 
 /// A whole owned home presents a shared descriptor without changing storage

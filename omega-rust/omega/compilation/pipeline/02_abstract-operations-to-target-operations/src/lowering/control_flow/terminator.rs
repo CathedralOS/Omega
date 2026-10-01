@@ -339,9 +339,12 @@ pub(super) fn lower_terminator(
                 .structural_homes
                 .get(source)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let qualified_owned_bytes = bounded_owned_byte_return(result, home, structural_types);
             if result.structural_type != home.structural_type()
                 || result.multiplicity != home.multiplicity()
-                || !result.qualifications.is_empty()
+                || ((bounded_owned_byte_type(result.structural_type, structural_types)
+                    || !result.qualifications.is_empty())
+                    && !qualified_owned_bytes)
                 || !result.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
@@ -526,4 +529,36 @@ pub(super) fn lower_terminator(
         }
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }
+}
+
+fn bounded_owned_byte_return(
+    declaration: &terminal_psi::StructuralResultDeclaration,
+    home: &target_operations::TargetStructuralHomeRequirement,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    let Some((_, established)) = home.operation_result() else {
+        return false;
+    };
+    established.structural_type == declaration.structural_type
+        && established.multiplicity == declaration.multiplicity
+        && established.qualifications == declaration.qualifications
+        && established.projected_qualifications == declaration.projected_qualifications
+        && established.claims.is_empty()
+        && bounded_owned_byte_type(declaration.structural_type, structural_types)
+}
+
+fn bounded_owned_byte_type(
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    structural_types
+        .get(&structural_type)
+        .is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+        })
 }
