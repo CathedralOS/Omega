@@ -134,7 +134,7 @@ pub(crate) fn check_indexed_accesses(
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
             seed_dependent_param_orderings(program, &mut facts, machine, state);
             seed_incoming_guard_facts(program, machine, &mut facts, state, incoming_guard_facts);
-            seed_loop_invariant_facts(program, &mut facts, state, &loop_invariant_facts);
+            seed_loop_invariant_facts(program, machine, &mut facts, state, &loop_invariant_facts);
             for (statement_index, statement) in program
                 .statement_table
                 .statements(state.statement_nodes)

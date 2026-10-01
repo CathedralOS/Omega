@@ -18,7 +18,9 @@
 //! call result, and an indexed element (`declared_indexed_projection_type_raw`).
 //! It keeps reference and constraint shells; `declared_place_type` and
 //! `unwrapped_type_reference` remove them. The remaining children are queries
-//! of their own: `builtin_coordinates` (whether length, index and subslice
+//! of their own: `attached_storage` (the binding a declaration reaches the
+//! attached data through, receiver or data parameter, and the field query
+//! built on it), `builtin_coordinates` (whether length, index and subslice
 //! selectors have their builtin meaning), `local_scalar_record_field` (a
 //! scalar read of a field of a local record), `parameter_scoped` (types rooted
 //! in an abstract signature's parameters) and `result_shape` (whether an
@@ -490,6 +492,7 @@ pub(crate) fn bound_symbol_declared_type(
     found
 }
 
+mod attached_storage;
 mod builtin_coordinates;
 mod exact_self_field;
 mod local_scalar_record_field;
@@ -500,6 +503,9 @@ pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;
 mod projected_members;
 mod result_shape;
+pub use attached_storage::{
+    AttachedStorageRoot, attached_storage_root, exact_attached_storage_field,
+};
 pub use builtin_coordinates::place_has_builtin_coordinates;
 pub use builtin_coordinates::{
     assignment_target_selectors, collection_length_receiver, has_builtin_subslice_meaning,

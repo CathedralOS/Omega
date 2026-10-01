@@ -1,4 +1,6 @@
-use language_core::receiver_place_field;
+use language_core::{
+    PLACE_MEMBER_SEPARATOR, SELF_RECEIVER, receiver_place_field, receiver_place_label,
+};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -11,6 +13,8 @@ use typed_trees::statement::{
 
 use super::facts::RangeFacts;
 
+#[cfg(test)]
+mod tests;
 mod update_bounds;
 
 /// A sound, inductive loop-invariant range fact for a MONOTONE counter.
@@ -35,8 +39,9 @@ mod update_bounds;
 ///     obligation for an `i = 0; i < len; i = i + 1` loop with no `>= 0` guard.
 pub(super) struct LoopInvariant {
     state: SymbolHandle,
-    /// The display name of the counter as an index (`self.i`), matching
-    /// `expression_table.display_name` of the index expression.
+    /// The canonical (receiver-rooted) label of the counter as an index.
+    /// Seeding renders it back into the seeded state's own spelling, so it
+    /// matches `expression_table.display_name` of the index expression there.
     index_name: String,
     kind: InvariantKind,
 }
@@ -156,7 +161,8 @@ pub(super) fn collect_loop_invariant_facts(
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Assignment(assignment) = statement
-                    && let Some(field) = assignment_counter_field(program, machine, assignment)
+                    && let Some(field) =
+                        assignment_counter_field(program, machine, state, assignment)
                     && matches!(
                         classify_counter_write(program, machine, state, field, assignment),
                         CounterWrite::Decrement | CounterWrite::Increment
@@ -348,8 +354,14 @@ pub(super) fn collect_loop_invariant_facts(
 }
 
 /// Seed `facts` with every loop-invariant fact collected for `state`.
+///
+/// The collected labels are canonical; the fact store is keyed by the labels
+/// this state's own expressions render, so each one is rendered back into this
+/// state's spelling of the storage root first. A state that reaches no
+/// attached storage can spell no such place, and is seeded nothing.
 pub(super) fn seed_loop_invariant_facts(
-    _program: &typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
     facts: &mut RangeFacts<'_>,
     state: &State,
     invariants: &[LoopInvariant],
@@ -358,16 +370,24 @@ pub(super) fn seed_loop_invariant_facts(
         .iter()
         .filter(|invariant| invariant.state == state.symbol)
     {
+        let Some(index_name) = state_storage_path(program, machine, state, &invariant.index_name)
+        else {
+            continue;
+        };
         match &invariant.kind {
             InvariantKind::UpperBound(exclusive_upper_bound) => {
-                facts.prove_index_upper_bound(invariant.index_name.clone(), *exclusive_upper_bound);
+                facts.prove_index_upper_bound(index_name, *exclusive_upper_bound);
             }
             InvariantKind::NonNegative => {
-                facts.prove_non_negative(invariant.index_name.clone());
+                facts.prove_non_negative(index_name);
             }
             InvariantKind::IndexWithin(collection) => {
-                facts.prove_index(collection.clone(), invariant.index_name.clone());
-                facts.prove_range_bound(collection.clone(), invariant.index_name.clone());
+                let Some(collection) = state_storage_path(program, machine, state, collection)
+                else {
+                    continue;
+                };
+                facts.prove_index(collection.clone(), index_name.clone());
+                facts.prove_range_bound(collection, index_name);
             }
         }
     }
@@ -481,14 +501,121 @@ fn find_state(states: &[State], symbol: SymbolHandle) -> Option<&State> {
     states.iter().find(|state| state.symbol == symbol)
 }
 
+/// The binding `state` reaches this machine's attached storage through: the
+/// receiver, or the one parameter declared as the attached data.
+fn storage_root<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+) -> Option<validation::AttachedStorageRoot<'program>> {
+    validation::attached_storage_root(program, machine, program.state_parameters(state))
+}
+
+/// Whether `expression` names a place reached from this machine's attached
+/// storage in `state`, at any depth below the root.
+///
+/// The root is resolved by symbol, so a binding that merely shares the data
+/// parameter's spelling is not this storage. The depth below the root is
+/// deliberately unconstrained: what makes a deeper place usable as an
+/// invariant is the caller's own frame-stability walk, not its shape.
+fn expression_names_machine_storage(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(root) = storage_root(program, machine, state) else {
+        return false;
+    };
+    let mut current = expression;
+    for _ in 0..128 {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                current = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => current = indexed.collection,
+            ExpressionNode::Borrow(borrow) => current = borrow.target,
+            ExpressionNode::Name(path) => {
+                return path.symbol == root.symbol
+                    && path.head_symbol == root.symbol
+                    && matches!(program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == root.name);
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Render `label`, as `state` spells it, rooted at the receiver.
+///
+/// Cross-state path comparison and fact transport both need one spelling for
+/// one place. `self` cannot be shadowed, so the receiver is the spelling every
+/// declaration of a machine agrees on, while a data parameter's name belongs
+/// to its own declaration: a preheader that writes `self.i` and a loop state
+/// that reads `main.i` name the same storage and have to compare equal.
+///
+/// A label rooted anywhere else is returned unchanged: it already means the
+/// same thing in every state that can spell it, or it means nothing there.
+fn canonical_storage_path(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    label: &str,
+) -> String {
+    let Some(root) = storage_root(program, machine, state) else {
+        return label.to_owned();
+    };
+    if root.name == SELF_RECEIVER {
+        return label.to_owned();
+    }
+    match label
+        .strip_prefix(root.name)
+        .and_then(|below| below.strip_prefix(PLACE_MEMBER_SEPARATOR))
+    {
+        Some(field) => receiver_place_label(field),
+        None => label.to_owned(),
+    }
+}
+
+/// Render a canonical storage path back into `state`'s own spelling, so a fact
+/// seeded here is keyed exactly as this state's own expressions render.
+///
+/// `None` when the state reaches no attached storage at all: there is no
+/// spelling for the place there, so no fact about it belongs in that state.
+fn state_storage_path(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    canonical: &str,
+) -> Option<String> {
+    let Some(field) = receiver_place_field(canonical) else {
+        return Some(canonical.to_owned());
+    };
+    let root = storage_root(program, machine, state)?;
+    Some(if root.name == SELF_RECEIVER {
+        canonical.to_owned()
+    } else {
+        format!("{}{PLACE_MEMBER_SEPARATOR}{field}", root.name)
+    })
+}
+
 /// The counter field a state assignment targets, when the target is a direct
-/// `self.field` member. Returns the field symbol.
+/// field of the machine's attached data reached through whichever root this
+/// state binds (`self.field` or `main.field`). Returns the field symbol.
 fn assignment_counter_field(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    state: &State,
     assignment: &TableAssignment,
 ) -> Option<SymbolHandle> {
-    validation::exact_self_field(program, machine, assignment.target).map(|field| field.symbol)
+    validation::exact_attached_storage_field(
+        program,
+        machine,
+        program.state_parameters(state),
+        assignment.target,
+    )
+    .map(|field| field.symbol)
 }
 
 /// Classify a single write to `counter`: a decrement `self.i = self.i - c`, an
@@ -516,7 +643,7 @@ fn classify_counter_write(
     match binary.operator {
         BinaryOperator::Subtract => {
             // Not commutative: only `self.i - c` decreases `i`.
-            if expression_is_counter_member(program, machine, binary.left, counter)
+            if expression_is_counter_member(program, machine, state, binary.left, counter)
                 && is_positive_integer_literal(program, binary.right)
             {
                 CounterWrite::Decrement
@@ -526,9 +653,9 @@ fn classify_counter_write(
         }
         BinaryOperator::Add => {
             let left_is_counter =
-                expression_is_counter_member(program, machine, binary.left, counter);
+                expression_is_counter_member(program, machine, state, binary.left, counter);
             let right_is_counter =
-                expression_is_counter_member(program, machine, binary.right, counter);
+                expression_is_counter_member(program, machine, state, binary.right, counter);
             if (left_is_counter && is_positive_integer_literal(program, binary.right))
                 || (right_is_counter && is_positive_integer_literal(program, binary.left))
             {
@@ -679,7 +806,7 @@ fn source_arm_to_head_relational_upper(
         {
             return None;
         }
-        let edge_upper = parse_counter_relational_upper(program, machine, guard, counter)?;
+        let edge_upper = parse_counter_relational_upper(program, machine, source, guard, counter)?;
         if found.is_some() {
             return None;
         }
@@ -689,12 +816,16 @@ fn source_arm_to_head_relational_upper(
 }
 
 /// Parse `counter <[=] upper` (or `upper >[=] counter`) where `upper` is either
-/// a stable `self.*` place or `self.collection.len`. The parser unwraps the
-/// transition arm's synthesized `subject == true` shell. Source-state locals
-/// and parameters deliberately do not carry across a state boundary.
+/// a stable machine-storage place or that storage's `collection.len`. The
+/// parser unwraps the transition arm's synthesized `subject == true` shell.
+/// Locals and non-storage parameters of the source state deliberately do not
+/// carry across a state boundary; the storage the state operates on does, and
+/// the term it yields is canonical so edges parsed in states that spell their
+/// root differently still compare as the one place they name.
 fn parse_counter_relational_upper(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    source: &State,
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<RelationalUpper> {
@@ -703,26 +834,26 @@ fn parse_counter_relational_upper(
     };
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_relational_upper(program, machine, inner, counter);
+        return parse_counter_relational_upper(program, machine, source, inner, counter);
     }
     let (possible_length, strict) = match binary.operator {
         BinaryOperator::Less
-            if expression_is_counter_member(program, machine, binary.left, counter) =>
+            if expression_is_counter_member(program, machine, source, binary.left, counter) =>
         {
             (binary.right, true)
         }
         BinaryOperator::LessOrEqual
-            if expression_is_counter_member(program, machine, binary.left, counter) =>
+            if expression_is_counter_member(program, machine, source, binary.left, counter) =>
         {
             (binary.right, false)
         }
         BinaryOperator::Greater
-            if expression_is_counter_member(program, machine, binary.right, counter) =>
+            if expression_is_counter_member(program, machine, source, binary.right, counter) =>
         {
             (binary.left, true)
         }
         BinaryOperator::GreaterOrEqual
-            if expression_is_counter_member(program, machine, binary.right, counter) =>
+            if expression_is_counter_member(program, machine, source, binary.right, counter) =>
         {
             (binary.left, false)
         }
@@ -735,26 +866,34 @@ fn parse_counter_relational_upper(
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
         == Some(CollectionMeasure::Length)
     {
-        let collection = program.expression_table.display_name(member.receiver);
-        return receiver_place_field(&collection)
-            .is_some()
-            .then_some(RelationalUpper {
-                term: UpperTerm::CollectionLength(collection),
+        return expression_names_machine_storage(program, machine, source, member.receiver).then(
+            || RelationalUpper {
+                term: UpperTerm::CollectionLength(canonical_storage_path(
+                    program,
+                    machine,
+                    source,
+                    &program.expression_table.display_name(member.receiver),
+                )),
                 strict,
-            });
+            },
+        );
     }
-    let bound = program.expression_table.display_name(possible_length);
-    receiver_place_field(&bound)
-        .is_some()
-        .then_some(RelationalUpper {
-            term: UpperTerm::Place(bound),
+    expression_names_machine_storage(program, machine, source, possible_length).then(|| {
+        RelationalUpper {
+            term: UpperTerm::Place(canonical_storage_path(
+                program,
+                machine,
+                source,
+                &program.expression_table.display_name(possible_length),
+            )),
             strict,
-        })
+        }
+    })
 }
 
 /// Finite upper-bound chains named by authored machine-arrival requirements,
-/// from `bound` through zero or more stable `self.*` places to
-/// `self.collection.len`. This is not flow inference: the requirements are
+/// from `bound` through zero or more stable machine-storage places to that
+/// storage's `collection.len`. This is not flow inference: the requirements are
 /// already assumed machine contract facts. The caller separately proves every
 /// named place frame-stable before using the chain as a loop invariant.
 fn machine_bound_collection_chains(
@@ -766,6 +905,11 @@ fn machine_bound_collection_chains(
     use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
 
+    // Arrival requirements are authored on the machine's own declaration, so
+    // its spelling of the storage root is the one they use.
+    let Some(arrival) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
     let mut relations = Vec::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -775,7 +919,13 @@ fn machine_bound_collection_chains(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            collect_authored_upper_relations(program, machine, *expression, &mut relations);
+            collect_authored_upper_relations(
+                program,
+                machine,
+                arrival,
+                *expression,
+                &mut relations,
+            );
         }
     }
     relations.sort();
@@ -823,28 +973,29 @@ fn machine_bound_collection_chains(
 fn collect_authored_upper_relations(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    arrival: &State,
     expression: ExpressionHandle,
     relations: &mut Vec<AuthoredUpperRelation>,
 ) {
     if !validation::has_builtin_decomposed_guard_meaning(
         program,
         machine,
-        program.machine_states(machine).first(),
+        Some(arrival),
         expression,
     ) {
         return;
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            collect_authored_upper_relations(program, machine, atomic.value, relations);
+            collect_authored_upper_relations(program, machine, arrival, atomic.value, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            collect_authored_upper_relations(program, machine, binary.left, relations);
-            collect_authored_upper_relations(program, machine, binary.right, relations);
+            collect_authored_upper_relations(program, machine, arrival, binary.left, relations);
+            collect_authored_upper_relations(program, machine, arrival, binary.right, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
             if let Some(inner) = boolean_equality_inner(program, binary.left, binary.right) {
-                collect_authored_upper_relations(program, machine, inner, relations);
+                collect_authored_upper_relations(program, machine, arrival, inner, relations);
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -855,12 +1006,16 @@ fn collect_authored_upper_relations(
                 BinaryOperator::GreaterOrEqual => (binary.right, binary.left, false),
                 _ => return,
             };
-            let lower = program.expression_table.display_name(possible_lower);
-            if receiver_place_field(&lower).is_none() {
+            if !expression_names_machine_storage(program, machine, arrival, possible_lower) {
                 return;
             }
-            let upper = authored_upper_term(program, possible_upper);
-            let Some(upper) = upper else {
+            let lower = canonical_storage_path(
+                program,
+                machine,
+                arrival,
+                &program.expression_table.display_name(possible_lower),
+            );
+            let Some(upper) = authored_upper_term(program, machine, arrival, possible_upper) else {
                 return;
             };
             relations.push(AuthoredUpperRelation {
@@ -875,23 +1030,29 @@ fn collect_authored_upper_relations(
 
 fn authored_upper_term(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    arrival: &State,
     expression: ExpressionHandle,
 ) -> Option<UpperTerm> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
+    let canonical = |place| {
+        canonical_storage_path(
+            program,
+            machine,
+            arrival,
+            &program.expression_table.display_name(place),
+        )
+    };
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
         == Some(CollectionMeasure::Length)
     {
-        let collection = program.expression_table.display_name(member.receiver);
-        return receiver_place_field(&collection)
-            .is_some()
-            .then_some(UpperTerm::CollectionLength(collection));
+        return expression_names_machine_storage(program, machine, arrival, member.receiver)
+            .then(|| UpperTerm::CollectionLength(canonical(member.receiver)));
     }
-    let place = program.expression_table.display_name(expression);
-    receiver_place_field(&place)
-        .is_some()
-        .then_some(UpperTerm::Place(place))
+    expression_names_machine_storage(program, machine, arrival, expression)
+        .then(|| UpperTerm::Place(canonical(expression)))
 }
 
 /// Whether `path` stays unchanged throughout the natural loop. Direct writes
@@ -940,11 +1101,18 @@ fn state_preserves_path(
     path: &str,
 ) -> bool {
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if statement_may_write_path(machine, call_frames, statement, path) != Some(false) {
+        if statement_may_write_path(program, machine, state, call_frames, statement, path)
+            != Some(false)
+        {
             return false;
         }
         if let StatementNode::Assignment(assignment) = statement {
-            let target = program.expression_table.display_name(assignment.target);
+            let target = canonical_storage_path(
+                program,
+                machine,
+                state,
+                &program.expression_table.display_name(assignment.target),
+            );
             if validation::frame_paths_overlap(&target, path) {
                 return false;
             }
@@ -986,7 +1154,7 @@ fn source_arm_to_head_upper_bound(
         {
             return None;
         }
-        let edge_bound = parse_counter_upper_bound(program, machine, guard, counter)?;
+        let edge_bound = parse_counter_upper_bound(program, machine, source, guard, counter)?;
         if found.is_some() {
             return None; // more than one arm to head
         }
@@ -1002,6 +1170,7 @@ fn source_arm_to_head_upper_bound(
 fn parse_counter_upper_bound(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    source: &State,
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<i64> {
@@ -1011,10 +1180,12 @@ fn parse_counter_upper_bound(
     if binary.operator == BinaryOperator::Equal {
         // `subject == true` -> parse the subject; `== false` is a negation (no upper bound).
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
-        return parse_counter_upper_bound(program, machine, inner, counter);
+        return parse_counter_upper_bound(program, machine, source, inner, counter);
     }
-    let left_is_counter = expression_is_counter_member(program, machine, binary.left, counter);
-    let right_is_counter = expression_is_counter_member(program, machine, binary.right, counter);
+    let left_is_counter =
+        expression_is_counter_member(program, machine, source, binary.left, counter);
+    let right_is_counter =
+        expression_is_counter_member(program, machine, source, binary.right, counter);
     match binary.operator {
         BinaryOperator::Less if left_is_counter => integer_literal(program, binary.right),
         BinaryOperator::LessOrEqual if left_is_counter => {
@@ -1080,15 +1251,22 @@ fn is_positive_integer_literal(
     )
 }
 
-/// Whether `expression` is a direct `self.field` member naming `counter`.
+/// Whether `expression` is a direct attached-field member naming `counter`,
+/// reached through whichever root this state binds.
 fn expression_is_counter_member(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     counter: SymbolHandle,
 ) -> bool {
-    validation::exact_self_field(program, machine, expression)
-        .is_some_and(|field| field.symbol == counter)
+    validation::exact_attached_storage_field(
+        program,
+        machine,
+        program.state_parameters(state),
+        expression,
+    )
+    .is_some_and(|field| field.symbol == counter)
 }
 
 /// G1: every in-loop modification of `counter` moves in ONE monotone direction.
@@ -1111,20 +1289,30 @@ fn loop_modifications_direction(
             continue;
         };
         for statement in program.statement_table.statements(state.statement_nodes) {
-            if statement_may_write_path(machine, call_frames, statement, counter_path)? {
+            if statement_may_write_path(
+                program,
+                machine,
+                state,
+                call_frames,
+                statement,
+                counter_path,
+            )? {
                 return None;
             }
             if let StatementNode::Assignment(assignment) = statement {
-                if assignment_counter_field(program, machine, assignment) != Some(counter) {
-                    // A different syntactic receiver can alias self. Only a
-                    // complete disjoint store frame permits ignoring it.
+                if assignment_counter_field(program, machine, state, assignment) != Some(counter) {
+                    // A different syntactic receiver can alias the attached
+                    // storage. Only a complete disjoint store frame permits
+                    // ignoring it.
                     let writes = call_frames
                         .assignment_write_frame(machine, statement)
                         .into_complete_paths()?;
-                    if writes
-                        .iter()
-                        .any(|path| validation::frame_paths_overlap(path, counter_path))
-                    {
+                    if writes.iter().any(|path| {
+                        validation::frame_paths_overlap(
+                            &canonical_storage_path(program, machine, state, path),
+                            counter_path,
+                        )
+                    }) {
                         return None;
                     }
                     continue;
@@ -1255,19 +1443,29 @@ fn probe_state_init(
 ) -> InitProbe {
     let mut probe = InitProbe::Untouched;
     for statement in program.statement_table.statements(state.statement_nodes) {
-        match statement_may_write_path(machine, call_frames, statement, counter_path) {
+        match statement_may_write_path(
+            program,
+            machine,
+            state,
+            call_frames,
+            statement,
+            counter_path,
+        ) {
             Some(true) | None => probe = InitProbe::Unknown,
             Some(false) => {}
         }
         if let StatementNode::Assignment(assignment) = statement {
-            if assignment_counter_field(program, machine, assignment) != Some(counter) {
+            if assignment_counter_field(program, machine, state, assignment) != Some(counter) {
                 let disjoint = call_frames
                     .assignment_write_frame(machine, statement)
                     .into_complete_paths()
                     .is_some_and(|writes| {
-                        writes
-                            .iter()
-                            .all(|path| !validation::frame_paths_overlap(path, counter_path))
+                        writes.iter().all(|path| {
+                            !validation::frame_paths_overlap(
+                                &canonical_storage_path(program, machine, state, path),
+                                counter_path,
+                            )
+                        })
                     });
                 if !disjoint {
                     probe = InitProbe::Unknown;
@@ -1297,36 +1495,45 @@ fn probe_state_init(
     probe
 }
 
-/// Whether calls evaluated by `statement` may write `path`. The aggregate
-/// value-call frame is checked for every statement; a statement-position call
-/// adds its own frame. `None` is an opaque analysis and therefore blocks the
-/// invariant.
+/// Whether calls evaluated by `statement` may write `path`, which arrives
+/// canonical. The aggregate value-call frame is checked for every statement; a
+/// statement-position call adds its own frame. `None` is an opaque analysis and
+/// therefore blocks the invariant.
+///
+/// A frame renders its written places in the calling state's own spelling, so
+/// each one is canonicalized before the overlap test. Comparing a frame's
+/// `main.i` against a canonical `self.i` as plain text would report no overlap
+/// and call a written path preserved.
 fn statement_may_write_path(
+    program: &typed_trees::TypedTrees,
     machine: &Machine,
+    state: &State,
     call_frames: &validation::CallFrameResolver<'_>,
     statement: &StatementNode,
     path: &str,
 ) -> Option<bool> {
+    let overlaps = |written: &[String]| {
+        written.iter().any(|written| {
+            validation::frame_paths_overlap(
+                &canonical_storage_path(program, machine, state, written),
+                path,
+            )
+        })
+    };
     let value_writes = call_frames.statement_value_may_write_paths(machine, statement)?;
-    if value_writes
-        .iter()
-        .any(|written| validation::frame_paths_overlap(written, path))
-    {
+    if overlaps(&value_writes) {
         return Some(true);
     }
     let StatementNode::Call(call) = statement else {
         return Some(false);
     };
-    let statement_writes = call_frames.may_write_paths(machine, call)?;
-    Some(
-        statement_writes
-            .iter()
-            .any(|written| validation::frame_paths_overlap(written, path)),
-    )
+    Some(overlaps(&call_frames.may_write_paths(machine, call)?))
 }
 
-/// The display name of `counter` as it appears as an index (`self.i`), sourced
-/// from an actual monotone-write LHS so it renders identically to the index use.
+/// The canonical label of `counter` as an index, sourced from an actual
+/// monotone-write LHS so it names the place the index use names. The label is
+/// receiver-rooted whatever the writing state spells, because the invariant it
+/// keys is carried to other states and compared against their paths.
 fn counter_display_name(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
@@ -1342,11 +1549,16 @@ fn counter_display_name(
             let StatementNode::Assignment(assignment) = statement else {
                 continue;
             };
-            if assignment_counter_field(program, machine, assignment) != Some(counter) {
+            if assignment_counter_field(program, machine, state, assignment) != Some(counter) {
                 continue;
             }
-            if expression_is_counter_member(program, machine, assignment.target, counter) {
-                return Some(program.expression_table.display_name(assignment.target));
+            if expression_is_counter_member(program, machine, state, assignment.target, counter) {
+                return Some(canonical_storage_path(
+                    program,
+                    machine,
+                    state,
+                    &program.expression_table.display_name(assignment.target),
+                ));
             }
         }
     }

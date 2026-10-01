@@ -81,9 +81,10 @@ pub use value_custody::atomic_operations::{
 };
 pub use value_custody::locals::receiver_allows_mutation;
 pub use value_custody::places::{
-    LocalScalarRecordField, assignment_target_selectors, collection_length_receiver,
-    exact_attached_field, exact_data_member_field, exact_self_field, has_builtin_subslice_meaning,
-    local_scalar_record_field, place_has_builtin_coordinates,
+    AttachedStorageRoot, LocalScalarRecordField, assignment_target_selectors,
+    attached_storage_root, collection_length_receiver, exact_attached_field,
+    exact_attached_storage_field, exact_data_member_field, exact_self_field,
+    has_builtin_subslice_meaning, local_scalar_record_field, place_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
