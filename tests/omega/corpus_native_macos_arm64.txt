@@ -407,15 +407,12 @@ pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 564ms @480
 pass/dependent/collection_predicate_terminal_rows_exit built 1059ms exit:70 @a7a8cec34dad+wt
 pass/dependent/collection_predicate_zero_initialized checked 515ms @48008365d839
 pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile checked 174ms
-pass/dependent/data_where_callee_establishes rejected 460ms @48008365d839
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_callee_establishes built 873ms exit:70 @eb125d7b2dcc
 pass/dependent/data_where_field_read_during_window_compile checked 184ms
-pass/dependent/data_where_gated_literal_proves rejected 403ms @48008365d839
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_gated_literal_proves built 792ms exit:70 @eb125d7b2dcc
 pass/dependent/data_where_invariant_window_restored_exit built 864ms exit:70 @a7a8cec34dad+wt
 pass/dependent/data_where_membership_literal_compile checked 184ms
-pass/dependent/data_where_ranged_param_constructs rejected 428ms @48008365d839
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_ranged_param_constructs built 966ms exit:70 @eb125d7b2dcc
 pass/dependent/data_where_relational_callee_restored_exit built 971ms exit:70 @a7a8cec34dad+wt
 pass/dependent/data_where_standing_bound_exit built 584ms exit:70
 pass/dependent/local_alias_forwards_entry_origin checked 170ms

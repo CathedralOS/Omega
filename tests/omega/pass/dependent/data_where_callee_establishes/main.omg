@@ -1,8 +1,11 @@
 // R2 rung 3 slice 11 -- CROSS-MACHINE ESTABLISHMENT: recruit (a
-// single-state machine) definitely establishes self.champion on every
-// path; its summary joins main's tracking at the call site, so the read
-// AFTER the call passes the access gate (establishment is globally
-// monotone -- a call can only add it).
+// single-state machine) definitely establishes a Player on every path; its
+// result joins main's tracking at the call site, so the read AFTER the call
+// passes the access gate (establishment is globally monotone -- a call can
+// only add it). The Player arrives as the call's result rather than a context
+// field: a provisioned entry context must be valid at zero
+// (wiki/spec/build/entry_roots.md), so a gated record cannot be one of its
+// fields.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Player
@@ -11,14 +14,20 @@ where
 {
     health: i32;
 }
-data Main { console: Binding<Console>; champion: Player; }
-machine Main::recruit(&mut self, strength: i32) 
+data Main { console: Binding<Console>; }
+machine Main::recruit(strength: i32) -> Player
 requires 1 <= strength, strength <= 100
 {
-    self.champion = Player { health: strength };
+    Player { health: strength }
 }
-machine Main::main(&mut self) reaches Console {
-    self.recruit(50);
-    let power: i32 = self.champion.health;
-    self.console.exit_process(70);
+machine Main::main(context: &mut Main) reaches Console {
+    let champion: Player = Main::recruit(50);
+    let power: i32 = champion.health;
+    transition power == 50 {
+        true -> good(context)
+        _ -> bad(context)
+    }
+
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
 }

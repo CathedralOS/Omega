@@ -1,7 +1,9 @@
 // R2 rung 2b (ch12's Player example): a GATED type (zero health is not a
 // Player) constructs through a literal that PROVES the default domain --
 // health = 50 satisfies `health >= 1 && health <= 100`; construction is
-// the gate.
+// the gate. The Player is an ordinary local: a provisioned entry context
+// must be valid at zero (wiki/spec/build/entry_roots.md), so a gated record
+// cannot be one of its fields.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Player
@@ -11,11 +13,17 @@ where
 {
     health: i32;
 }
-data Main { console: Binding<Console>; champion: Player; }
-machine Main::main(&mut self) reaches Console {
-    self.champion = Player { health: 50 };
+data Main { console: Binding<Console>; }
+machine Main::main(context: &mut Main) reaches Console {
+    let champion: Player = Player { health: 50 };
     // The access gate opens after the proven construction: this read is
     // legal (rung 3 slice 2).
-    let strength: i32 = self.champion.health;
-    self.console.exit_process(70);
+    let strength: i32 = champion.health;
+    transition strength == 50 {
+        true -> good(context)
+        _ -> bad(context)
+    }
+
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
 }
