@@ -98,6 +98,9 @@ pub(crate) fn call_mutated_places(
 
 /// The access route retains the local loan owner; storage rebasing must not
 /// turn a write through that loan into an independent write to its referent.
+/// Only exclusive writes belong here. Shared atomic operations keep their
+/// ordinary call-access checks and remain writes in `call_mutated_places`,
+/// but do not freeze other shared loans as an ordinary store would.
 pub(crate) fn call_write_accesses(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -120,7 +123,7 @@ pub(crate) fn call_write_accesses(
 }
 
 /// The subset of `call_write_accesses` a call writes through its implicit
-/// receiver: the callee's complete summary writes reached through `self`, or
+/// receiver: the callee's complete exclusive writes reached through `self`, or
 /// the whole receiver place when no complete summary is known. Writes through
 /// explicit `&mut` arguments are excluded; argument checks own those.
 pub(crate) fn call_receiver_write_accesses(

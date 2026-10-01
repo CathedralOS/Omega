@@ -867,23 +867,27 @@ the complete product bar; focused successes below do not establish that baseline
   eight/seven-result oracle; it remains unpublished. Its retained local lock
   records the previously reviewed 17-package acceptance with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`. On macOS ARM64, compiler
-  `69b64648f5e` plus the saved-dispatch-payload repair runs `omega run --target
+  `50e826e7d0b` plus the complete-boundary-frame repair runs `omega run --target
   linux_x86_64 samples/apps/squalr/squalr-tests/main.omg` to fresh package review,
-  exiting 200 with 14 borrow diagnostics. The three false conflicts in the
-  unsigned-greater-than-zero rule's `greater` states are gone: a copied payload
-  reads the dispatch's saved call result rather than re-evaluating its receiver.
-  `pass/borrow/runtime_dispatch_call_payload_snapshot_exit` exits 70 natively,
-  preserving one subject evaluation, copied payload value, and later mutation;
-  its return cleanup accounts for the case edge's prior subject disposal.
+  exiting 200 with eight borrow diagnostics. Mutation summaries now retain the
+  shared resolver's complete boundary frames instead of treating a missing local
+  body as unknown writes to the entire receiver. The three `next_virtual_page`
+  and three `host_open_at` conflicts are gone. Summaries retain atomic writes for
+  value invalidation without inventing exclusive access for sealed shared atomic
+  operations; task cancellation through a shared case payload stays admitted.
+  `pass/borrow/runtime_boundary_receiver_disjoint_loan_exit` prints `OK` and exits
+  70 natively, retaining the receiver's field loan through an internal state and
+  a boundary call. The saved-dispatch-payload regression also still exits 70.
 
   The current first refusal is `pick_previous`: `current_elements` is forwarded
   mutably before `current_elements[0]` is read as a later argument;
   `make_driver` does the same with `previous_elements[0]`. Other mutable/read
   conflicts name `build_results`, `seal_store`, `copy_loop`, `inner`, and
-  `fill_order`. Preserve language argument order and scan behavior; where a
-  later read conflicts with an earlier loan, snapshot the value before lending.
-  `next_virtual_page` and `host_open_at` also report receiver/write-frame
-  conflicts; trace their actual mutations before changing admission.
+  `fill_order`. Preserve language argument order and scan behavior; snapshot
+  scalar values before lending. `seal_store` needs a distinct borrowing repair:
+  it retains shared candidate windows while forwarding the same arenas mutably;
+  separate arena construction from the shared sealing phase rather than weakening
+  the overlapping-loan check. Keep the application command and result oracles.
   The separately retained application checkout `8bc13d5` stops earlier at an
   unsupported `omega.lock` version; preserve its pins and obtain ordinary fresh
   package review rather than transplanting the older accepted lock.

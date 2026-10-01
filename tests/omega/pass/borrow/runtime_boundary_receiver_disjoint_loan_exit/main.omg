@@ -1,0 +1,20 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Main { console: Binding<Console>; bytes: [u8; 2]; }
+
+// The boundary writes its capability, not the receiver's borrowed byte field.
+// Keep the loan live through an internal state and a boundary invocation.
+machine Main::publish(&mut self, bytes: &[u8]) reaches Console {
+    transition { _ -> forward(bytes) }
+    state forward(&mut self, bytes: &[u8]) {
+        self.console.write_line(bytes);
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bytes[0] = 79;
+    self.bytes[1] = 75;
+    self.publish(self.bytes[0..2]);
+    self.console.exit_process(70);
+}
