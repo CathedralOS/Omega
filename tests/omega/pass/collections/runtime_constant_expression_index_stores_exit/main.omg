@@ -1,0 +1,56 @@
+// Store destinations whose selector is a constant integer expression name the
+// folded element. `rows[1].data[2 - 1]` writes element 1 of row 1 through a
+// `&mut [Row; 3]` parameter, and `cells[3 - 1]` writes element 2 of a local
+// array. The neighbouring elements hold their own values, so a store that
+// landed on another element, or that the compiler routed as a runtime
+// selector with a different value, cannot pass. Exits 70 only when every
+// element holds what was written to it.
+
+use omega_language_std::console;
+
+data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
+
+machine bump_rows(rows: &mut [Row; 3]) -> u64 {
+    rows[1].data[0] = 4;
+    rows[1].data[2 - 1] = 9;
+    rows[2].data[1] = 6;
+    let got: i32 in Wrapping = rows[1].data[1];
+    let below: i32 in Wrapping = rows[1].data[0];
+    let after: i32 in Wrapping = rows[2].data[1];
+    transition got == 9 && below == 4 && after == 6 {
+        true -> (1)
+        _ -> (0)
+    }
+}
+
+machine fold_local() -> u64 {
+    let mut cells: [u64; 4];
+    cells[1] = 5;
+    cells[3 - 1] = 7;
+    cells[3] = 8;
+    let got: u64 = cells[2];
+    let below: u64 = cells[1];
+    let after: u64 = cells[3];
+    transition got == 7 && below == 5 && after == 8 {
+        true -> (1)
+        _ -> (0)
+    }
+}
+
+machine main() reaches Console {
+    let mut rows: [Row; 3];
+    let row_result: u64 = bump_rows(&mut rows);
+    let local_result: u64 = fold_local();
+    transition row_result == 1 && local_result == 1 {
+        true -> done()
+        _ -> refused(71)
+    }
+
+    state done() {
+        Console::exit_process(70);
+    }
+
+    state refused(code: i32) {
+        Console::exit_process(code);
+    }
+}

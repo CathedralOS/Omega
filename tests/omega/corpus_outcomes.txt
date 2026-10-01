@@ -1370,6 +1370,7 @@ pass/collections/record_array_literal_field_store_exit checked 1646ms @2d8ed2536
 pass/collections/runtime_argmax_index_exit checked 1390ms @2d8ed253669f
 pass/collections/runtime_case_array_element_write_exit checked 2347ms @2d8ed253669f
 pass/collections/runtime_computed_index_direct_exit checked 1505ms @2d8ed253669f
+pass/collections/runtime_constant_expression_index_stores_exit checked 830ms @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit built 2524ms @2a68bc887d9+wt
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
