@@ -723,6 +723,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_representation_view.rs",
+        sha256: Some("ca272c0e1156c31c4abc70ccd4ee50f6ae91209c4688a649a86f32cac14e6b0a"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/semantic_rows.rs",
         sha256: Some("98ca78a0730ee37f492061744f19a386c9efebb205710fe401c69e03772a9226"),
         inventory_machinery: false,
@@ -1085,6 +1090,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_meaning.rs",
         sha256: Some("32b38cb250f5400852d001730927df5825b8036cc02b331b7879c43f412b1141"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar_representation_view.rs",
+        sha256: Some("be9d3fa8a4ecb82ee0d93cbb78b502066887f0f932f975c12b2426e85887335d"),
         inventory_machinery: false,
     },
     ImplementationSite {

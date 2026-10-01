@@ -1041,7 +1041,7 @@ fn retained_guard(
 fn guard_is_boolean(facts: &CheckFacts, guard: &checked_trees::CheckedCallScalarArgument) -> bool {
     match guard {
         checked_trees::CheckedCallScalarArgument::Pure(expression) => {
-            matches!(expression, CheckedScalarExpression::Boolean(_))
+            expression.primitive_type() == Some(PrimitiveType::Bool)
         }
         checked_trees::CheckedCallScalarArgument::Computation(root) => {
             facts

@@ -67,7 +67,9 @@ pub(super) fn normalization(
 
 /// The normalization that leaves a general register holding `scalar_type`'s
 /// stored bits in this graph's register form.
-fn register_form_normalization(scalar_type: ScalarType) -> selected_instructions::SelectedInstructionKind {
+fn register_form_normalization(
+    scalar_type: ScalarType,
+) -> selected_instructions::SelectedInstructionKind {
     match scalar_type {
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
             selected_instructions::SelectedInstructionKind::ZeroExtendU32

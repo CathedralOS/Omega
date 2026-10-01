@@ -18,8 +18,8 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Post-call float policies preserve raw arithmetic identity while
-        // adding explicit saturation and nonfinite-result trap semantics.
-        114
+        // Scalar representation views retain equal-width carrier changes
+        // and the checked byte-to-Boolean landing obligation.
+        115
     }
 }

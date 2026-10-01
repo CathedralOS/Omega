@@ -1,6 +1,6 @@
 //! Ordered graph operations and their durable scalar result homes.
-use super::LiveDefinitions;
 use super::observations;
+use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractDynamicDispatch, AbstractFunction, AbstractOperation};
@@ -330,7 +330,16 @@ pub(super) fn lower_operation(
                 shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(*target_type)
                     .ok_or(LoweringError::ValueTypeMismatch(*result))?,
             };
-            if live.scalar_homes.insert(*result, result_home).is_some() {
+            let duplicate = match target_type {
+                ScalarType::Integer(_) => live
+                    .integers
+                    .insert(*result, KnownUnitInteger::Home(result_home))
+                    .is_some(),
+                ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+                    live.scalar_homes.insert(*result, result_home).is_some()
+                }
+            };
+            if duplicate {
                 return Err(LoweringError::DuplicateValue(*result));
             }
             provenance.operations.push(*psi_operation);

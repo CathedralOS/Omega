@@ -18,8 +18,8 @@ use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::primitive_reference_read;
 use crate::values::scalar::structural_fields;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedIntegerRange,
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedBooleanExpression, CheckedIntegerRange, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression,
     CheckedStructuralPredicatePathSegment,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -1223,17 +1223,11 @@ fn view_place_read(
     if primitive_type == PrimitiveType::Bool
         && let CheckedScalarExpression::Boolean(_) = read
     {
-        // A read already spelled as the Boolean image (the recast operand's
-        // own `!(read == 0)` mint) meets the bool target carrier as itself;
-        // place-site retagging only applies to reads still at their source
-        // carrier.
+        // A Boolean source already has the requested carrier.
         return Some(read);
     }
     if !indexed_element {
         place_read_site(&read)?;
-    }
-    if primitive_type == PrimitiveType::Bool {
-        return retag_place_read(&read, primitive_type);
     }
     let source = read.primitive_type()?;
     if source == primitive_type {
@@ -1260,81 +1254,6 @@ fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
     })
 }
 
-/// Re-read one place site through the recast's stated target carrier. Bool
-/// targets produce the Boolean place leaf; every other carrier stays a
-/// scalar read.
-fn retag_place_read(
-    read: &CheckedScalarExpression,
-    primitive_type: PrimitiveType,
-) -> Option<CheckedScalarExpression> {
-    let site = place_read_site(read)?;
-    if primitive_type == PrimitiveType::Bool {
-        return Some(CheckedScalarExpression::Boolean(Box::new(
-            place_read_as_boolean(read)?,
-        )));
-    }
-    Some(match site {
-        PlaceReadSite::Storage(symbol) => CheckedScalarExpression::StorageRead {
-            symbol,
-            primitive_type,
-        },
-        PlaceReadSite::Parameter(position) => CheckedScalarExpression::Parameter {
-            position,
-            primitive_type,
-        },
-        PlaceReadSite::Local(position) => CheckedScalarExpression::Local {
-            position,
-            primitive_type,
-        },
-        PlaceReadSite::StructuralField(parameter_position, path) => {
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
-                path,
-                primitive_type,
-            }
-        }
-    })
-}
-
-/// The Boolean read of one place site through the `&place as &bool`
-/// recast. A declared Boolean leaf keeps its own observation; an integer
-/// leaf spells its `{0, 1}` bit image as `read != 0` — the same landing the
-/// store side mints for the inverse direction. A non-integer source has no
-/// flat Boolean image and refuses.
-fn place_read_as_boolean(read: &CheckedScalarExpression) -> Option<CheckedBooleanExpression> {
-    let site = place_read_site(read)?;
-    match read.primitive_type()? {
-        PrimitiveType::Bool => Some(place_read_site_as_boolean(site)),
-        source => {
-            let landed_type = match source {
-                PrimitiveType::I8 => LandedIntegerType::I8,
-                PrimitiveType::I16 => LandedIntegerType::I16,
-                PrimitiveType::I32 => LandedIntegerType::I32,
-                PrimitiveType::I64 => LandedIntegerType::I64,
-                PrimitiveType::U8 => LandedIntegerType::U8,
-                PrimitiveType::U16 => LandedIntegerType::U16,
-                PrimitiveType::U32 => LandedIntegerType::U32,
-                PrimitiveType::U64 => LandedIntegerType::U64,
-                _ => return None,
-            };
-            Some(CheckedBooleanExpression::Not(Box::new(
-                CheckedBooleanExpression::IntegerComparison {
-                    kind: CheckedIntegerComparisonKind::Equal,
-                    left: Box::new(read.clone()),
-                    right: Box::new(CheckedScalarExpression::IntegerLiteral {
-                        literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
-                            IntegerLanding {
-                                landed_type,
-                                domain: ArithmeticDomain::Exact,
-                            },
-                        ),
-                    }),
-                },
-            )))
-        }
-    }
-}
-
 /// Re-read one place site through the bool carrier -- the checked form of
 /// `&place as &bool` in a Boolean position.
 fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
@@ -1351,9 +1270,9 @@ fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
     }
 }
 
-/// The checked Boolean read of a `&place as &bool` operand: the source
-/// place's own read retagged to the bool carrier. Returns `None` when the
-/// source has no whole-place scalar read.
+/// A Boolean place keeps its ordinary Boolean read. A different source
+/// carrier remains a scalar representation view so its landing obligation
+/// reaches Terminal Psi through the ordinary scalar computation path.
 pub(crate) fn lower_recast_boolean_operand(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -1378,7 +1297,10 @@ pub(crate) fn lower_recast_boolean_operand(
         locals,
         exact_integer_casts,
     )?;
-    place_read_as_boolean(&read)
+    if read.primitive_type()? != PrimitiveType::Bool {
+        return None;
+    }
+    Some(place_read_site_as_boolean(place_read_site(&read)?))
 }
 
 /// One builtin element selection `collection[index]` over current structural

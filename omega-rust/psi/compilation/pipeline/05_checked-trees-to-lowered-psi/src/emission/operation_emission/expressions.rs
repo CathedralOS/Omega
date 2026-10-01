@@ -919,17 +919,19 @@ pub(crate) fn emit_direct_expression(
             // The landing obligation follows its operation identity exactly as
             // an exact cast's does; replay admitted the pair, so a pair the
             // shared table does not classify cannot reach emission.
-            let landing_obligation =
-                terminal_semantics::ScalarRepresentationViewPair::classify(source_type, *scalar_type)
-                    .filter(|pair| pair.requires_landing())
-                    .map(|_| {
-                        obligation_id(
-                            operation
-                                .get()
-                                .checked_add(1)
-                                .expect("landing obligation follows its operation identity"),
-                        )
-                    });
+            let landing_obligation = terminal_semantics::ScalarRepresentationViewPair::classify(
+                source_type,
+                *scalar_type,
+            )
+            .filter(|pair| pair.requires_landing())
+            .map(|_| {
+                obligation_id(
+                    operation
+                        .get()
+                        .checked_add(1)
+                        .expect("landing obligation follows its operation identity"),
+                )
+            });
             operations.push(Operation {
                 static_reach_binding: None,
                 suspension_crossing: None,
