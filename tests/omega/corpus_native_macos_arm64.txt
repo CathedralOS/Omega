@@ -273,6 +273,7 @@ pass/collections/record_array_field_access_exit rejected 660ms @765e6c51624f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`result_code`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @48008365d839
 pass/collections/runtime_argmax_index_exit built 750ms exit:70
+pass/collections/runtime_borrowed_fixed_array_state_reads_exit built 1010ms exit:70 @e94b9f79576e+wt
 pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2178def922
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
 pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit:70 @c864ec75728c+wt

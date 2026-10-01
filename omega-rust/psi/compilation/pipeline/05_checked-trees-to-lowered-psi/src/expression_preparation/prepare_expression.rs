@@ -692,8 +692,27 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             *position == parameter_position
                                 && element_views.contains_key(&parameter.structural_type)
                         });
+                    // A borrowed whole fixed array of non-byte elements
+                    // (`numbers: &[i32; 6]`) reads through its declared
+                    // extent exactly as an owned array parameter does; only
+                    // a byte array keeps its bounded byte-view carrier.
+                    let borrowed_fixed_array = path.is_empty()
+                        && !whole_element_view
+                        && !owned_parameter
+                        && matches!(
+                            crate::expression_preparation::bindings::structural_fields::resolve_indexed_array(
+                                structural_fields,
+                                parameter_position,
+                                path,
+                            ),
+                            Ok(Some((_, _, scalar_type)))
+                                if scalar_type != terminal_scalar_type(PrimitiveType::U8)?
+                        );
                     if !path.is_empty()
-                        || (!whole_element_view && (!element_path.is_empty() || owned_parameter))
+                        || (!whole_element_view
+                            && (!element_path.is_empty()
+                                || owned_parameter
+                                || borrowed_fixed_array))
                     {
                         let index = lower_checked_scalar_expression_with_parameters(
                             index,
