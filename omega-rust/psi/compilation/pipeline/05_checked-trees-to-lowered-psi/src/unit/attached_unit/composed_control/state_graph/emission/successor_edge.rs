@@ -854,7 +854,7 @@ impl StateGraphEmission<'_, '_> {
                     .rank,
                 )
             } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
-                if let Some(root) = self
+                let source = if let Some(root) = self
                     .admitted
                     .claim_transport
                     .aliased
@@ -862,30 +862,34 @@ impl StateGraphEmission<'_, '_> {
                     .and_then(|aliased| aliased.get(&(dense as u32)))
                 {
                     // An aliased rank subject is not an edge argument;
-                    // its byte length reads the retained entry place — taken
+                    // its length reads the retained entry place — taken
                     // from the machine parameters since the target's view
                     // roster drains when its block seals.
-                    self.parameters.get(*root as usize).map(|parameter| {
-                        crate::emission::operation_emission::emit_byte_length(
-                            parameter.place,
-                            next_value,
-                            operations,
-                        )
-                    })
+                    self.parameters
+                        .get(*root as usize)
+                        .map(|parameter| parameter.place)
                 } else {
-                    ranking::byte_argument_position(
+                    ranking::view_argument_position(
                         plan,
                         target_state,
                         &self.admitted.claim_transport.aliased[target],
                     )
-                    .map(|parameter_position| {
-                        crate::emission::operation_emission::emit_byte_length(
-                            structural_arguments[parameter_position].place,
+                    .map(|parameter_position| structural_arguments[parameter_position].place)
+                };
+                source
+                    .map(|source| {
+                        ranking::emit_view_rank(
+                            crate::terminal_identities::lookup_type_id(
+                                &self.catalogs.type_ids,
+                                &target_state.structural_parameters[dense].type_identity,
+                            )?,
+                            source,
+                            &self.catalogs.structural_types,
                             next_value,
                             operations,
                         )
                     })
-                }
+                    .transpose()?
             } else {
                 None
             }

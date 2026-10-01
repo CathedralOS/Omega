@@ -38,6 +38,9 @@ use terminal_psi::{
     TerminalNaturalRankEdge,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn validate_witness(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
@@ -308,6 +311,35 @@ pub(super) fn parameter_position(
         .position(|parameter| parameter.position == rank.parameter_position)
 }
 
+/// Observe the ranked descriptor in its declared units on both state entry
+/// and arrival. Slice::Length counts elements for element views, not bytes;
+/// using the same carrier selection at both sites preserves substitution.
+pub(super) fn emit_view_rank(
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    source: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<ValueId, LoweringError> {
+    let declaration = types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "view rank has no declared carrier",
+        ))?;
+    match declaration.shape {
+        terminal_psi::StructuralTypeShape::ByteSequence(_) => Ok(
+            crate::emission::operation_emission::emit_byte_length(source, next_value, operations),
+        ),
+        terminal_psi::StructuralTypeShape::ElementView { .. } => Ok(
+            crate::emission::operation_emission::expressions::emit_element_length(
+                source, next_value, operations,
+            ),
+        ),
+        _ => unsupported("view rank requires a byte or element sequence carrier"),
+    }
+}
+
 /// A scalar rank's operands as positions in the state's scalar parameter
 /// lane, which is also the order of an arriving edge's scalar arguments.
 #[derive(Clone, Copy)]
@@ -453,7 +485,7 @@ pub(super) fn has_rank(
 /// The subject's position among the successor edge's emitted structural
 /// arguments: the persistent receiver and claim-aliased parameters are not
 /// edge arguments, so neither occupies a slot here.
-pub(super) fn byte_argument_position(
+pub(super) fn view_argument_position(
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
     aliased: &BTreeMap<u32, u32>,

@@ -136,13 +136,17 @@ impl StateGraphEmission<'_, '_> {
             rank_ceiling = evaluated.ceiling;
             Some(evaluated.rank)
         } else {
-            ranking::parameter_position(plan, state).map(|parameter_position| {
-                crate::emission::operation_emission::emit_byte_length(
-                    state_parameters[parameter_position].place,
-                    &mut next_value,
-                    &mut operations,
-                )
-            })
+            ranking::parameter_position(plan, state)
+                .map(|parameter_position| {
+                    ranking::emit_view_rank(
+                        state_parameters[parameter_position].structural_type,
+                        state_parameters[parameter_position].place,
+                        &self.catalogs.structural_types,
+                        &mut next_value,
+                        &mut operations,
+                    )
+                })
+                .transpose()?
         };
         let bindings = scalars::emit_prefix(
             checked,
