@@ -1,13 +1,9 @@
-// WALL-POSITION PIN: runtime-index borrowed members as nested call
-// arguments — `Item::clone(&self.items[i])` as a transition Value target.
-// The authored-walk gate that rejected these ("nested structural arguments
-// contain unsupported syntax", call_source_custody/authored/nested.rs
-// Indexed arm) now admits any index selector walked the way the checker
-// numbers it (collection direct, index separate). The shape instead reaches
-// omega-side abstract-operations InitialValidation:
-// StructuralCallContractMismatch — the emitted runtime-index borrowed
-// argument has no contract slot in the callee's structural signature.
-// Revisit when that channel lands.
+// Runtime-index borrowed members as nested call arguments:
+// `Item::clone(&list.items[i])` as a transition value target. The selector
+// is walked the way the checker numbers it (collection direct, index
+// separate), and the borrowed element reaches the callee's structural
+// signature. `items[0]` holds 70, so probing index 0 exits 70; any other
+// element exits 71.
 
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -37,7 +33,10 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let l: List = List { enabled: true };
+    let l: List = List {
+        items: [Item { value: 70 }, Item { value: 1 }, Item { value: 2 }, Item { value: 3 }],
+        enabled: true,
+    };
     let cloned: Item = List::probe(&l, 0);
 
     transition cloned.value == 70 {

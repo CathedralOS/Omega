@@ -85,7 +85,7 @@ pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+w
 pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+wt
 pass/build/uefi_os_handoff_invocation rejected 1352ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
-pass/calls/ambient_receiver_scalar_return_exit built 1112ms @48008365d839
+pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1399ms exit:70 @48008365d839
 pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008365d839
 pass/calls/borrowed_float_result_exit built 3689ms exit:70 @48008365d839
@@ -104,11 +104,11 @@ pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted built 672ms @48008365d839
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt
-pass/calls/cyclic_affine_call_result_exit built 1546ms @48008365d839
+pass/calls/cyclic_affine_call_result_exit built 4106ms exit:70 @48d34a64a938+wt
 pass/calls/cyclic_mutable_borrow_block_parameter_call built 1348ms @48008365d839
-pass/calls/cyclic_projected_borrow_call_exit built 1518ms @48008365d839
-pass/calls/cyclic_scalar_query_reborrow_exit built 1450ms @48008365d839
-pass/calls/field_path_byte_subslice_exit built 3379ms @45c8d6b8b1ce+wt
+pass/calls/cyclic_projected_borrow_call_exit built 3929ms exit:70 @48d34a64a938+wt
+pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+wt
+pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c108ecb4ac+wt
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
@@ -134,7 +134,7 @@ pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/named_target_payload_dispatch built 1520ms @48008365d839
 pass/calls/negated_edge_guard_requires_exit built 1467ms exit:70 @48008365d839
 pass/calls/nested_call_init_transition built 1075ms @48008365d839
-pass/calls/nested_call_runtime_index_arg_exit built 1137ms @48008365d839
+pass/calls/nested_call_runtime_index_arg_exit built 4387ms exit:70 @48d34a64a938+wt
 pass/calls/nested_call_tail_roots_exit built 11200ms exit:0 @fb2178def922
 pass/calls/nested_indexed_scalar_arguments_exit built 747ms exit:70 @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation built 704ms
