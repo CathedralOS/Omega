@@ -4,6 +4,14 @@
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
+//! A boundary signature has no local state summary, but its complete frame is
+//! still a dependency: project its receiver and argument writes into caller
+//! storage before propagating them. Absence of a body is not opacity; absence
+//! of a complete frame or representable storage origin still is.
+//! Storage effects and exclusive access are separate: sealed atomic operations
+//! invalidate values but use shared access. Retain that operation provenance
+//! across calls instead of turning every caller-visible write into a mutable
+//! loan requirement. Ordinary replacement of an atomic cell remains exclusive.
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
@@ -39,7 +47,13 @@ impl StateMutationSummaryCache {}
 struct StateMutationSummary {
     state_symbol: SymbolHandle,
     complete: bool,
-    writes: Vec<CanonicalPlace>,
+    writes: Vec<MutationWrite>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MutationWrite {
+    place: CanonicalPlace,
+    requires_exclusive_access: bool,
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
@@ -57,14 +71,18 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
         state_mutation_summary_places(program, borrow, cache, target_state, call_frames)?;
 
     let mut instantiated = Vec::new();
-    for summary_place in summary_places {
+    for write in summary_places {
+        if matches!(namespace, WritePlaceNamespace::AccessRoute) && !write.requires_exclusive_access
+        {
+            continue;
+        }
         let places = instantiate_call_relative_places(
             program,
             caller_machine_symbol,
             caller_state_symbol,
             borrow,
             borrow_call,
-            summary_place,
+            &write.place,
             namespace,
             call_frames,
         )?;
@@ -94,7 +112,11 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
     let summary_places = state_mutation_summary_places(program, borrow, cache, target_state, None)?;
 
     let mut instantiated = Vec::new();
-    for summary_place in summary_places {
+    for write in summary_places {
+        if !write.requires_exclusive_access {
+            continue;
+        }
+        let summary_place = &write.place;
         let facts::PlaceRoot::Symbol(root) = summary_place.root else {
             return None;
         };
@@ -131,7 +153,7 @@ fn state_mutation_summary_places<'cache>(
     cache: &'cache StateMutationSummaryCache,
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<&'cache [CanonicalPlace]> {
+) -> Option<&'cache [MutationWrite]> {
     cache
         .states
         .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames))
@@ -151,9 +173,8 @@ fn build_state_mutation_summaries(
     let mut states = Vec::new();
     let mut inferred_completeness = Vec::new();
     let mut owned_frames = None;
-    if let Some(resolver) =
-        crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-    {
+    let call_frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
+    if let Some(resolver) = call_frames {
         for machine in program.machines() {
             for (state, frame) in program
                 .machine_states(machine)
@@ -245,8 +266,33 @@ fn propagate_state_mutation_summaries(
             let mut complete = true;
             for (call, target_index) in &calls[caller_index] {
                 let Some(target_index) = target_index else {
-                    complete = false;
-                    break;
+                    // Signature-only calls are already admitted by the shared
+                    // frame law. Import that frame in caller coordinates; an
+                    // unresolved frame/origin must not become an empty summary.
+                    let Some(writes) = super::shared_call_storage_places(
+                        program,
+                        caller_machine,
+                        caller_symbol,
+                        borrow,
+                        call,
+                        call_frames,
+                    ) else {
+                        complete = false;
+                        break;
+                    };
+                    for write in writes {
+                        let write = MutationWrite {
+                            place: write,
+                            requires_exclusive_access: true,
+                        };
+                        if state_summary_exposes_place(program, caller_state, &write.place)
+                            && !states[caller_index].writes.contains(&write)
+                            && !additions.contains(&write)
+                        {
+                            additions.push(write);
+                        }
+                    }
+                    continue;
                 };
                 let target = &states[*target_index];
                 if !target.complete {
@@ -260,7 +306,7 @@ fn propagate_state_mutation_summaries(
                         caller_symbol,
                         borrow,
                         call,
-                        write,
+                        &write.place,
                         WritePlaceNamespace::Storage,
                         call_frames,
                     ) else {
@@ -268,7 +314,11 @@ fn propagate_state_mutation_summaries(
                         break;
                     };
                     for instantiated in instantiated_places {
-                        if state_summary_exposes_place(program, caller_state, &instantiated)
+                        let instantiated = MutationWrite {
+                            place: instantiated,
+                            requires_exclusive_access: write.requires_exclusive_access,
+                        };
+                        if state_summary_exposes_place(program, caller_state, &instantiated.place)
                             && !states[caller_index].writes.contains(&instantiated)
                             && !additions.contains(&instantiated)
                         {
@@ -374,8 +424,9 @@ fn collect_state_mutation_summary_places(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
+) -> Option<Vec<MutationWrite>> {
     let machine_symbol = machine_symbol_for_state(program, state);
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let mut writes = Vec::new();
 
     for (statement_index, statement) in program
@@ -393,15 +444,29 @@ fn collect_state_mutation_summary_places(
                 call_frames,
             )?;
             for place in places {
-                if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
-                    writes.push(place);
+                let write = MutationWrite {
+                    place,
+                    requires_exclusive_access: true,
+                };
+                if state_summary_exposes_place(program, state, &write.place)
+                    && !writes.contains(&write)
+                {
+                    writes.push(write);
                 }
             }
             continue;
         }
-        let StatementNode::Assignment(_) = statement else {
+        let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
+        let requires_exclusive_access =
+            !(validation::atomic_assignment_carrier(program, assignment).is_some()
+                && validation::place_is_atomic_storage(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                ));
         let places = super::local_origins::assignment_storage_places(
             program,
             machine_symbol,
@@ -411,8 +476,13 @@ fn collect_state_mutation_summary_places(
             call_frames,
         )?;
         for place in places {
-            if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
-                writes.push(place);
+            let write = MutationWrite {
+                place,
+                requires_exclusive_access,
+            };
+            if state_summary_exposes_place(program, state, &write.place) && !writes.contains(&write)
+            {
+                writes.push(write);
             }
         }
     }
