@@ -1,4 +1,4 @@
-//! Record reads bind a declared field once, then resolve the current local place
+//! Record projections bind a declared field once, then resolve the current local place
 //! at each evaluation site. They materialize an ordinary scalar binding before
 //! later effects; neither a synthetic parameter nor a delayed return load may
 //! stand in for that observation. Source replay separately reconstructs custody.
@@ -20,6 +20,9 @@
 //! (`validation::recast_record_source_leaf`). Terminal then verifies an
 //! ordinary read of a field the source declares, with the source's stronger
 //! facts. A leaf whose carrier differs needs a re-view and refuses here.
+//! Stores use the same captured source and normalized geometry. A loan local
+//! is not a second storage home; write permission and concrete encoding fit
+//! remain separate obligations at the emitting operation.
 use super::super::{
     PrimitiveType, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, terminal_scalar_type,
@@ -82,9 +85,9 @@ pub(crate) struct Binding {
 }
 
 #[derive(Clone)]
-struct ByteOverlayField {
-    offset: u64,
-    stored_type: ScalarType,
+pub(crate) struct ByteOverlayField {
+    pub offset: u64,
+    pub stored_type: ScalarType,
 }
 
 struct ByteOverlaySource {
@@ -102,6 +105,39 @@ struct TypedRecordOverlay {
     referee: typed_trees::types::TypeReferenceHandle,
 }
 
+impl ByteOverlaySource {
+    fn field(
+        &self,
+        checked: &CheckedTrees,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+        field: symbols::SymbolHandle,
+        scalar_type: ScalarType,
+    ) -> Result<ByteOverlayField, LoweringError> {
+        let projection =
+            validation::recast_scalar_projection(&checked.typed, self.referee, path, field).ok_or(
+                LoweringError::Unsupported(
+                    "record byte overlay lost its checked projection geometry",
+                ),
+            )?;
+        if terminal_scalar_type(projection.primitive)? != scalar_type
+            || self.remaining_bytes.is_some_and(|remaining| {
+                u64::try_from(projection.footprint).map_or(true, |footprint| footprint > remaining)
+            })
+        {
+            return unsupported("record byte overlay changed its carrier or footprint");
+        }
+        Ok(ByteOverlayField {
+            offset: u64::try_from(projection.offset).map_err(|_| {
+                LoweringError::Unsupported("record byte overlay offset exceeds u64")
+            })?,
+            stored_type: projection
+                .stored_integer
+                .map(ScalarType::Integer)
+                .unwrap_or(scalar_type),
+        })
+    }
+}
+
 /// One authored segment of a shared loan's captured place: a declared record
 /// member projection, a literal index into a fixed array, or a runtime
 /// selector the loan's own obligations bound.
@@ -115,7 +151,7 @@ enum LoanedPathSegment {
 /// structural parameter (by dense roster index) or an owned structural local
 /// (by symbol, resolved through the ordinary argument join).
 #[derive(Clone, Copy)]
-enum LoanedSource {
+pub(crate) enum LoanedSource {
     Parameter(u32),
     Local(symbols::SymbolHandle),
 }
@@ -179,6 +215,7 @@ fn captured_subject_path(
 /// `u8` element (`&self.buf[0] as &T`) — the referee record the byte region
 /// overlays.
 struct RecordLoanSubject {
+    access: language_core::ReferenceAccess,
     source: LoanedSource,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
@@ -577,6 +614,7 @@ fn record_loan_subject(
         None => (Vec::new(), Vec::new()),
     };
     Ok(Some(RecordLoanSubject {
+        access: *access,
         source,
         path,
         carrier_path,
@@ -590,6 +628,117 @@ fn record_loan_subject(
         carrier,
         element_suffix,
     }))
+}
+
+pub(crate) struct LoanedStore {
+    pub source: LoanedSource,
+    pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub byte_overlay: Option<ByteOverlayField>,
+}
+
+/// Rejoin a field store to the same captured place used by observations.
+/// This resolves geometry, not live backing custody; the operation frame must
+/// still establish exclusive access to the returned root before emitting it.
+pub(crate) fn loaned_store(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    types: &[StructuralTypeDeclaration],
+) -> Result<Option<LoanedStore>, LoweringError> {
+    let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
+        return Ok(None);
+    };
+    let Some(loan) = record_loan_subject(checked, machine, state, symbol, types)? else {
+        return Ok(None);
+    };
+    if loan.access != language_core::ReferenceAccess::Mutable {
+        return unsupported("record store requires a mutable captured loan");
+    }
+    let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
+        store,
+        loan.terminal,
+        types,
+    )?;
+    let mut path = Vec::new();
+    for segment in &loan.carrier_path {
+        path.push(checked_path_segment(segment)?);
+    }
+    if let Some(selector) = loan.runtime_index {
+        // A field observation here would reload the index, not recover the
+        // loan's captured coordinate. Such loans need a retained snapshot.
+        if !matches!(
+            selector,
+            checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                | checked_trees::CheckedRuntimeIndex::Local { .. }
+        ) {
+            return unsupported("record store requires an immutable captured selector");
+        }
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector));
+    }
+    for segment in &loan.element_suffix {
+        path.push(checked_path_segment(segment)?);
+    }
+    let byte_overlay = if let Some(overlay) = loan.byte_overlay {
+        // Byte-region admission requires a recursively fact-free referee.
+        // The encoding-fit proof is not a semantic field-range proof: if that
+        // admission ever broadens, retain rather than silently drop the latter.
+        if field.requires_range_obligation {
+            return unsupported(
+                "byte record store requires separate semantic field-range evidence",
+            );
+        }
+        let (_, authored) =
+            crate::expression_preparation::source_custody::authored_state(checked, state)?;
+        let Some(StatementNode::Assignment(assignment)) = checked
+            .statement_table
+            .statements(authored.statement_nodes)
+            .get(store.statement_index as usize)
+        else {
+            return unsupported("record store lost its authored assignment");
+        };
+        let source = validation::local_scalar_record_field(
+            &checked.typed,
+            machine,
+            state,
+            store.statement_index,
+            assignment.target,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "record store lost its declared projection",
+        ))?;
+        if source.local != symbol
+            || source.path != store.carrier_path
+            || source.primitive_type != store.primitive_type
+        {
+            return unsupported("record store substituted its declared projection");
+        }
+        Some(overlay.field(
+            checked,
+            &source.path,
+            source.field,
+            terminal_scalar_type(store.primitive_type)?,
+        )?)
+    } else {
+        path.extend(store.carrier_path.iter().cloned());
+        None
+    };
+    Ok(Some(LoanedStore {
+        source: loan.source,
+        path,
+        byte_overlay,
+    }))
+}
+
+fn checked_path_segment(
+    segment: &terminal_psi::StructuralPathSegment,
+) -> Result<checked_trees::CheckedUnitStructuralPathSegment, LoweringError> {
+    use checked_trees::CheckedUnitStructuralPathSegment as Checked;
+    match segment {
+        terminal_psi::StructuralPathSegment::Field(field) => Ok(Checked::Field(field.clone())),
+        terminal_psi::StructuralPathSegment::FixedIndex(index) => Ok(Checked::FixedIndex(*index)),
+        _ => unsupported("record loan captured an unsupported structural segment"),
+    }
 }
 
 pub(crate) fn prepare(
@@ -846,34 +995,7 @@ pub(crate) fn prepare(
                 ));
             }
             let byte_overlay = byte_overlay
-                .map(|overlay| {
-                    let projection = validation::recast_scalar_projection(
-                        &checked.typed,
-                        overlay.referee,
-                        &source.path,
-                        source.field,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "record byte overlay lost its checked projection geometry",
-                    ))?;
-                    if terminal_scalar_type(projection.primitive)? != scalar_type
-                        || overlay.remaining_bytes.is_some_and(|remaining| {
-                            u64::try_from(projection.footprint)
-                                .map_or(true, |footprint| footprint > remaining)
-                        })
-                    {
-                        return unsupported("record byte overlay changed its carrier or footprint");
-                    }
-                    Ok::<_, LoweringError>(ByteOverlayField {
-                        offset: u64::try_from(projection.offset).map_err(|_| {
-                            LoweringError::Unsupported("record byte overlay offset exceeds u64")
-                        })?,
-                        stored_type: projection
-                            .stored_integer
-                            .map(ScalarType::Integer)
-                            .unwrap_or(scalar_type),
-                    })
-                })
+                .map(|overlay| overlay.field(checked, &source.path, source.field, scalar_type))
                 .transpose()?;
             let mut element_path = element_suffix;
             if runtime_index.is_some() {
@@ -980,16 +1102,51 @@ fn field_path_identity(
         ))
 }
 
-/// A member read's referee record can be owned by no signature, parameter,
-/// result, or operation: a shared-loan local peels to its captured record
-/// before the member projection, so the referee reaches the catalog only
-/// through the read itself.
+/// A projected loan's referee can be owned by no signature, result or
+/// operation. Catalog it from actual field reads and stores; neither a later
+/// read nor an unrelated reference declaration should decide write admission.
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<String>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut types = Vec::new();
+    // A write-only use of a mutable record loan has no scalar observation
+    // root. Its declared referee still owns projection geometry, so catalog
+    // it from the authored store rather than depending on a later read.
+    if let Some(owner) = checked
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == machine)
+    {
+        for state in checked.machine_states(owner) {
+            for (ordinal, statement) in checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let StatementNode::Assignment(assignment) = statement else {
+                    continue;
+                };
+                let Some(source) = validation::local_scalar_record_field(
+                    &checked.typed,
+                    machine,
+                    state.symbol,
+                    ordinal as u32,
+                    assignment.target,
+                ) else {
+                    continue;
+                };
+                let identity = checked
+                    .normalized_type_identity(source.type_reference)
+                    .into_string();
+                if !types.contains(&identity) {
+                    types.push(identity);
+                }
+            }
+        }
+    }
     for (_, root) in plans
         .roots
         .iter()
@@ -1285,6 +1442,147 @@ fn byte_overlay_read(
 
 #[cfg(test)]
 mod tests {
+    const NESTED_BYTE_STORE: &str = "
+        data Cell { value: u16; }
+        data Pair { first: Cell; second: Cell; }
+        data Main { bytes: [u8; 8]; }
+        machine Main::main(&mut self) {
+            let view: &mut Pair = &mut self.bytes[2] as &mut Pair;
+            view.second.value = 513;
+        }
+    ";
+
+    #[test]
+    fn nested_byte_overlay_store_without_read_keeps_backing_and_offset() {
+        let checked = crate::front_end::checked_program(NESTED_BYTE_STORE);
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("a mutable loan stores into its captured bytes without a later read");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the stores retain exclusive backing custody");
+        let paths = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. } => {
+                    Some(path.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            paths,
+            vec![
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("bytes".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(4)
+                ],
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("bytes".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(5)
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn byte_overlay_store_rejects_substituted_checked_projection_and_value() {
+        for replace_value in [false, true] {
+            let mut checked = crate::front_end::checked_program(NESTED_BYTE_STORE);
+            let store = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .flat_map(|plan| &mut plan.operations)
+                .find_map(|operation| match operation {
+                    checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                        store,
+                    ) => Some(store),
+                    _ => None,
+                })
+                .expect("the authored assignment has a checked store");
+            if replace_value {
+                let checked_trees::CheckedStoreValue::Pure(
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                ) = &mut store.value
+                else {
+                    panic!("the store retains its authored scalar literal");
+                };
+                *literal = numerics::literals::IntegerLiteral::from_parts(
+                    false,
+                    numerics::literals::IntegerRadix::Decimal,
+                    "514",
+                )
+                .unwrap();
+            } else {
+                store.carrier_path[0] =
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("first".into());
+            }
+            assert!(
+                crate::lower_machine(
+                    &checked,
+                    crate::TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
+                "a forged store must not substitute another occurrence or RHS value"
+            );
+        }
+    }
+
+    #[test]
+    fn runtime_byte_overlay_store_uses_the_captured_coordinate() {
+        let checked = crate::front_end::checked_program(
+            "data Cell { value: u16; }
+             data Pair { first: Cell; second: Cell; }
+             data Main { bytes: [u8; 8]; }
+             machine Main::main(&mut self) {
+                 transition { _ -> write(4) }
+                 state write(&mut self, offset: u32) requires offset <= 4 {
+                     let view: &mut Pair = &mut self.bytes[offset] as &mut Pair;
+                     view.second.value = 513;
+                 }
+             }",
+        );
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("the captured coordinate and normalized field offset compose");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("every byte owns a checked bound at the end of the backing");
+    }
+
+    #[test]
+    fn byte_overlay_store_does_not_promote_a_shared_loan() {
+        let source = NESTED_BYTE_STORE
+            .replace("&mut Pair", "&Pair")
+            .replace("&mut self.bytes", "&self.bytes");
+        let checked = crate::front_end::checked_program(&source);
+        assert!(
+            crate::lower_machine(
+                &checked,
+                crate::TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
+            "read geometry cannot grant write authority at Terminal production"
+        );
+    }
+
     #[test]
     fn nested_byte_overlay_keeps_repeated_field_occurrences_distinct() {
         let checked = crate::front_end::checked_program(

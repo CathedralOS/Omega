@@ -213,6 +213,26 @@ fn lower_structural_field_place_steps<'a>(
     ),
     LoweringError,
 > {
+    validate_root_access(parameter, access_policy)?;
+    if statement_index != expected_statement_index
+        || destination_parameter_position != parameter.position
+    {
+        return unsupported("structural scalar store lost exact exclusive custody");
+    }
+    lower_structural_field_steps(
+        parameter.structural_type,
+        carrier_path,
+        field_identity,
+        structural_types,
+    )
+}
+
+/// Typed field projections and representation-byte projections require the
+/// same live root authority. Geometry cannot turn a shared place exclusive.
+pub(crate) fn validate_root_access(
+    parameter: &StructuralParameterDeclaration,
+    access_policy: StoreAccessPolicy,
+) -> Result<(), LoweringError> {
     let access_matches = match access_policy {
         StoreAccessPolicy::MutableOnly => parameter.access == StructuralAccess::MutableBorrow,
         StoreAccessPolicy::Exclusive => matches!(
@@ -227,17 +247,10 @@ fn lower_structural_field_place_steps<'a>(
         )
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || statement_index != expected_statement_index
-        || destination_parameter_position != parameter.position
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
-    lower_structural_field_steps(
-        parameter.structural_type,
-        carrier_path,
-        field_identity,
-        structural_types,
-    )
+    Ok(())
 }
 
 /// Shared geometry follows exact declarations; callers separately establish the

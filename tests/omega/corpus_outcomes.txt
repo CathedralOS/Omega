@@ -694,6 +694,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
+fail/layouts/recast_integer_at_store_requires_fit rejected 274ms expected @2517a050d7b4+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f
@@ -1788,8 +1790,7 @@ pass/layouts/private_callback_slot_demand_compile rejected 41ms @2d8ed253669f
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
-pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 791ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 1, statement 2)
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 907ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 1)
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 923ms @9435ec134b74+wt
@@ -1982,6 +1983,7 @@ pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1259ms @2d8ed2
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 769ms @ca8c127c90c5
 pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 1993ms @b5d2bc92c85f
 	terminal-artifact production failed: Lowering(Unsupported("receiver alias escapes through a local initializer"))
+pass/recast/runtime_nested_record_byte_store_exit checked 961ms @2517a050d7b4+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1265ms @ca8c127c90c5
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 767ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
