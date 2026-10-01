@@ -27,20 +27,23 @@ use super::{Complete, Request};
 
 pub(super) fn closed_landed_literal(
     request: Request,
-    complete: &mut Complete,
+    complete: &mut dyn Complete,
 ) -> Option<ProofNode> {
     exact_value_bindings(request).find_map(|(citation, equality, root, literal)| {
+        if !complete.admits(root) {
+            return None;
+        }
         let equality = citation.proof(equality);
         closed_literal_bounds(literal, [(root, &equality)])
             .into_iter()
-            .find_map(|root_bound| complete(root, root_bound))
+            .find_map(|root_bound| complete.complete(root, root_bound))
     })
 }
 
 /// `root == alias` and `alias == literal` from two distinct cited equalities.
 pub(super) fn closed_landed_literal_through_alias(
     request: Request,
-    complete: &mut Complete,
+    complete: &mut dyn Complete,
 ) -> Option<ProofNode> {
     // Exact value bindings keyed by their value, as `(citation, reversed)`
     // orientations: a pure function of the scope, derived once per scope.
@@ -65,21 +68,22 @@ pub(super) fn closed_landed_literal_through_alias(
         if root.scalar_type() != alias.scalar_type() {
             return None;
         }
-        landings
-            .candidates(alias)
-            .iter()
-            .find_map(|&(citation, reversed)| {
-                let (inner_citation, inner_equality, _, literal) =
-                    oriented_equality(request, citation, reversed);
-                if std::ptr::eq(outer_equality, inner_equality) {
-                    return None;
-                }
-                let outer = outer_citation.proof(outer_equality);
-                let inner = inner_citation.proof(inner_equality);
-                closed_literal_bounds(literal, [(alias, &inner), (root, &outer)])
-                    .into_iter()
-                    .find_map(|root_bound| complete(root, root_bound))
-            })
+        let landed = landings.candidates(alias);
+        if landed.is_empty() || !complete.admits(root) {
+            return None;
+        }
+        landed.iter().find_map(|&(citation, reversed)| {
+            let (inner_citation, inner_equality, _, literal) =
+                oriented_equality(request, citation, reversed);
+            if std::ptr::eq(outer_equality, inner_equality) {
+                return None;
+            }
+            let outer = outer_citation.proof(outer_equality);
+            let inner = inner_citation.proof(inner_equality);
+            closed_literal_bounds(literal, [(alias, &inner), (root, &outer)])
+                .into_iter()
+                .find_map(|root_bound| complete.complete(root, root_bound))
+        })
     })
 }
 
@@ -103,13 +107,19 @@ fn closed_literal_bounds<const RENAMES: usize>(
     })
 }
 
-pub(super) fn goal_landed_literal(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn goal_landed_literal(
+    request: Request,
+    complete: &mut dyn Complete,
+) -> Option<ProofNode> {
     exact_value_bindings(request).find_map(|(citation, equality, root, literal)| {
         let equality = citation.proof(equality);
         [1, 0].into_iter().find_map(|endpoint| {
             let root_bound =
                 goal_literal_bound(request.goal, root, literal, endpoint, [(root, &equality)])?;
-            complete(root, root_bound)
+            if !complete.admits(root) {
+                return None;
+            }
+            complete.complete(root, root_bound)
         })
     })
 }
@@ -118,7 +128,7 @@ pub(super) fn goal_landed_literal(request: Request, complete: &mut Complete) -> 
 /// between integer subjects of one carrier.
 pub(super) fn goal_landed_literal_through_alias(
     request: Request,
-    complete: &mut Complete,
+    complete: &mut dyn Complete,
 ) -> Option<ProofNode> {
     let aliases_by_endpoint = EndpointEqualities::new(request);
     for (root_citation, root_equality) in cited_facts(request.assumptions, request.semantic_axioms)
@@ -126,10 +136,11 @@ pub(super) fn goal_landed_literal_through_alias(
         let Proposition::Equal(root_left, root_right) = root_equality else {
             continue;
         };
-        for (root, alias) in [(root_left, root_right), (root_right, root_left)] {
+        'root: for (root, alias) in [(root_left, root_right), (root_right, root_left)] {
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
+            let mut admitted = None;
             for (literal_citation, literal_equality, literal) in
                 aliases_by_endpoint.candidates(alias)
             {
@@ -142,6 +153,9 @@ pub(super) fn goal_landed_literal_through_alias(
                 if root.scalar_type() != ScalarType::Integer(integer_type) {
                     continue;
                 }
+                if !*admitted.get_or_insert_with(|| complete.admits(root)) {
+                    continue 'root;
+                }
                 let root_equality_proof = root_citation.proof(root_equality);
                 let literal_equality_proof = literal_citation.proof(literal_equality);
                 let renames = [
@@ -151,7 +165,7 @@ pub(super) fn goal_landed_literal_through_alias(
                 if let Some(proof) = [1, 0].into_iter().find_map(|endpoint| {
                     let root_bound =
                         goal_literal_bound(request.goal, root, literal, endpoint, renames)?;
-                    complete(root, root_bound)
+                    complete.complete(root, root_bound)
                 }) {
                     return Some(proof);
                 }
