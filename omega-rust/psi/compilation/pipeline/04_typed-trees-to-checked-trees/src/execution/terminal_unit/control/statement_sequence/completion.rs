@@ -7,16 +7,19 @@
 //! checked weakening boundary. A scalar body completes with its final
 //! expression's checked value. Scalar control admits only unrestricted
 //! structural results, and every flow call of the body must be planned.
+//! Exit weakening follows final-value evaluation. Statement-boundary weakening
+//! still precedes that statement, so it restores parent access at exactly the
+//! checked boundary without ending a loan needed by the final expression.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle, TypedTrees,
-    append_reference_releases, base_type_identity, consume_results, consume_value_places,
-    parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
-    returned_mutable_view, returned_named_view, returned_parameter, returned_reference_leaf,
-    returned_subslice, structural_operands,
+    append_exit_reference_releases, append_reference_releases, base_type_identity, consume_results,
+    consume_value_places, parameter_qualifications, retain_selected_sources,
+    returned_byte_sequence_literal, returned_mutable_view, returned_named_view, returned_parameter,
+    returned_reference_leaf, returned_subslice, structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
@@ -461,6 +464,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
+    append_exit_reference_releases(facts, machine.symbol, state.symbol, &mut operations)?;
     trace.phase("statement sequence: scalar control ownership");
     if scalar_control.is_some()
         && operations.iter().any(|operation| {

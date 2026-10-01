@@ -13,6 +13,47 @@ use terminal_production::{
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
+fn returned_shared_record_field_reads_replay_without_source() {
+    let checked = crate::front_end::checked_program(
+        "data Node { value: i32; }
+         data Holder { node: Node; }
+         machine first(holder: &Holder) -> &Node { transition { _ -> &holder.node } }
+         machine exercise(holder: &Holder) -> i32 {
+             let seen: &Node = first(holder);
+             seen.value
+         }",
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("exercise"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a returned shared carrier permits observation")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode artifact");
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("decode proof");
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independently verify a returned shared carrier's field observation");
+    let mut write_only = module;
+    for declaration in &mut write_only.structural_types {
+        if let terminal_psi::StructuralTypeShape::Reference { access, .. } = &mut declaration.shape
+        {
+            *access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+        }
+    }
+    assert!(
+        terminal_verifier::validate_module(&write_only).is_err(),
+        "a write-only carrier cannot supply field observation"
+    );
+}
+
+#[test]
 fn returned_record_method_receiver_replays_its_live_permission() {
     let checked = crate::front_end::checked_program(
         "data Holder { value: u64; sibling: u64; }

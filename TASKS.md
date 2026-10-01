@@ -3730,28 +3730,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
 
-- **TERMINAL-REFERENCE-CARRIER-READS.** (new-scope) Restore field reads through
-  a live readable reference carrier in trusted Terminal verification.
-  `pass/borrows/transition_shared_borrow_result` (`let seen: &Node =
-  self.first(); seen.value == 7`) exited 181 natively until f82f7bce51 routed
-  `IntegerStructuralField`, `BooleanStructuralField` and both byte-field reads
-  in `validation/references.rs::apply_operation` through `check_root_access`,
-  which refuses every read on a live reference carrier; it now stops at
-  `InvalidReferenceCustody` ("operation accesses suspended referent or treats
-  reference carrier as owned data"). The program is valid under the settled
-  contract: trusted `validation/structural/scalar_fields.rs` admits exactly this
-  read, and Omega's lowering and legalization already carry shared and
-  write-only record references natively. Admit a field read whose source is a
-  live reference carrier with an empty carrier path, shared or mutable access,
-  no live child loan of that reference, and no live reference rooted at the
-  carrier itself; every other use keeps `check_root_access`, so parent reads
-  before release still refuse. This edits a trusted site: re-record its digest
-  in `trusted_surface/sites.rs` and revalidate the reference-operation wording
-  in `trusted_surface/procedural.rs`, which describes carrier writes but not
-  reads. Acceptance: the fixture exits 181 natively and in the interpreter on
-  macOS ARM64, `writeonly_record_field_store` keeps exit 181, and the corpus is
-  otherwise unchanged.
-
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi
   production and Omega's `callback_settlement` already validate requirement

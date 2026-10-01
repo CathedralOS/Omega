@@ -273,9 +273,6 @@ pub(super) fn read_geometry(
                 }
                 result.structural_type
             } else {
-                if argument.access != StructuralAccess::Owned {
-                    return None;
-                }
                 let mut producers = source
                     .blocks
                     .iter()
@@ -286,7 +283,8 @@ pub(super) fn read_geometry(
                         // exact producer/type custody regardless of how that
                         // home's fields were initialized.
                         let result = match &row.kind {
-                            Instruction::EstablishRecord { result, .. }
+                            Instruction::EstablishReference { result, .. }
+                            | Instruction::EstablishRecord { result, .. }
                             | Instruction::EstablishZeroedStructural { result, .. }
                             | Instruction::StructuralLeafCopy { result, .. } => result,
                             Instruction::Call(call) => call.structural_result.as_ref()?,
@@ -311,8 +309,41 @@ pub(super) fn read_geometry(
                 {
                     return None;
                 }
+                let expected_access = if signature.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                }) {
+                    StructuralAccess::SharedBorrow
+                } else {
+                    StructuralAccess::Owned
+                };
+                if argument.access != expected_access {
+                    return None;
+                }
                 result.structural_type
             };
+            let (structural_type, path) =
+                if let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) =
+                    argument.path.split_first()
+                {
+                    let StructuralTypeShape::Reference {
+                        referent,
+                        access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                    } = signature
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)?
+                        .shape
+                    else {
+                        return None;
+                    };
+                    if argument.access != StructuralAccess::SharedBorrow || observes_byte_length {
+                        return None;
+                    }
+                    (referent, suffix)
+                } else {
+                    (structural_type, argument.path.as_slice())
+                };
             // A case-qualified read loads from its payload overlay; the
             // offset comes from that declared case's layout, never the row.
             let (offset, _) = match &row.kind {
@@ -320,7 +351,7 @@ pub(super) fn read_geometry(
                     case: Some(case), ..
                 } => crate::structural_inputs::structural_reference_input::case_field_read(
                     structural_type,
-                    &argument.path,
+                    path,
                     *case,
                     *field,
                     scalar,
@@ -329,7 +360,7 @@ pub(super) fn read_geometry(
                 _ if observes_byte_length => {
                     crate::structural_inputs::structural_reference_input::byte_field_length(
                         structural_type,
-                        &argument.path,
+                        path,
                         *field,
                         scalar,
                         &signature.structural_types,
@@ -337,7 +368,7 @@ pub(super) fn read_geometry(
                 }
                 _ => crate::structural_inputs::structural_reference_input::field_read(
                     structural_type,
-                    &argument.path,
+                    path,
                     *field,
                     scalar,
                     &signature.structural_types,

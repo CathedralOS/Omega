@@ -1295,7 +1295,6 @@ pub(in crate::execution::terminal_unit) fn build(
         )?;
     }
     trace.statement(None);
-    append_exit_reference_releases(facts, machine.symbol, state.symbol, &mut operations)?;
     completion::complete(completion::Completion {
         program,
         facts,

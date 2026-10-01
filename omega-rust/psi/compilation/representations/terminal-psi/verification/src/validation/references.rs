@@ -2,6 +2,9 @@
 //!
 //! Origins and immediate parents are reconstructed from operations and checked
 //! call interfaces. No producer-supplied lifetime or origin table is authority.
+//! Field observations through a reference use its live permission, not owned
+//! root access. Geometry checks validate the selected field separately; this
+//! frontier check keeps released carriers and suspended parents unreadable.
 
 use super::{
     BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, PlaceId, StructuralAccess,
@@ -1622,6 +1625,45 @@ pub(super) fn check_root_access(
     Ok(())
 }
 
+/// Reading a referent is not reading the carrier as owned storage. The type
+/// supplies access, but only the current frontier supplies live permission.
+fn check_field_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    source: PlaceId,
+) -> Result<(), ModuleError> {
+    let access = super::structural::result_contracts::source_signature(machine, source)
+        .and_then(|signature| reference_access(module, signature.structural_type));
+    let Some(access) = access else {
+        return check_root_access(machine, live, source);
+    };
+    if !matches!(
+        access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) {
+        return Err(invalid(
+            machine,
+            "field source reference does not permit observation",
+        ));
+    }
+    let reference = live
+        .iter()
+        .find(|reference| reference.carrier == source && reference.carrier_path.is_empty())
+        .ok_or_else(|| invalid(machine, "field source reference is no longer live"))?;
+    if live.iter().any(|child| {
+        origin_root(&child.root) == source
+            || matches!(&child.parent,
+                ReferenceParent::Reference(identity) if *identity == reference.identity)
+    }) {
+        return Err(invalid(
+            machine,
+            "field source reference remains suspended by a live loan",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn apply_operation(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1638,12 +1680,14 @@ pub(super) fn apply_operation(
             return establish_structural_case(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::StructuralCaseMembership { source, .. }
-        | OperationKind::IntegerStructuralField { source, .. }
+        | OperationKind::StructuralCaseMembership { source, .. } => {
+            check_root_access(machine, live, *source)?
+        }
+        OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralByteSequenceFieldRead { source, .. } => {
-            check_root_access(machine, live, *source)?
+            check_field_read(module, machine, live, *source)?
         }
         OperationKind::StructuralScalarFieldStore {
             destination, path, ..

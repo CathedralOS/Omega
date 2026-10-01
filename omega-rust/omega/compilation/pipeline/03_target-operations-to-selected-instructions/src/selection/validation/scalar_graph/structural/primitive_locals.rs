@@ -136,6 +136,14 @@ pub(in crate::selection) fn read(
             .map(|(_, pointer)| *pointer)
             .ok_or_else(|| replay.invalid())?
     };
+    let pointer = if matches!(&row.kind,
+        LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
+        if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
+    {
+        super::reference::load(replay, row, place, pointer)?
+    } else {
+        pointer
+    };
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
         _ => &[],

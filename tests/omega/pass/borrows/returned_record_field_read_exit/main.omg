@@ -1,0 +1,36 @@
+// Read the address actually returned by a runtime choice, including a nested
+// field offset. A static origin substituted for that address fails one choice.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Child { value: u64; }
+data Holder { padding: u64; child: Child; }
+data Bag { holders: [Holder; 2]; }
+data Main { console: Binding<Console>; bag: Bag; }
+
+machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
+    let holders: &mut [Holder] = bag.holders.as_mut_slice();
+    transition second {
+        true -> &mut holders[1]
+        false -> &mut holders[0]
+    }
+}
+
+machine inspect(bag: &mut Bag, second: bool) -> u64 {
+    let selected: &mut Holder = pick(bag, second);
+    selected.child.value
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.holders[0].padding = 7;
+    self.bag.holders[0].child.value = 17;
+    self.bag.holders[1].padding = 11;
+    self.bag.holders[1].child.value = 43;
+    let second: u64 = inspect(&mut self.bag, true);
+    let first: u64 = inspect(&mut self.bag, false);
+    transition second == 43 && first == 17 {
+        true -> finish(70)
+        false -> finish(71)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

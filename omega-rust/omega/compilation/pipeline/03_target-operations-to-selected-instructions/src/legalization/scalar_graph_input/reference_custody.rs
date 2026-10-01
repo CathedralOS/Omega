@@ -98,6 +98,73 @@ impl Custody {
     ) -> Option<&Leaf> {
         self.leaves.get(&(place, path.to_vec()))
     }
+
+    /// Observation needs the carrier's current permission, not merely its
+    /// declaration. The caller separately checks the reference's read access.
+    pub(in crate::legalization) fn readable_leaf(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&Leaf> {
+        let leaf = self.leaf(place, path)?;
+        (!self.leaves.values().any(|other| {
+            other.root.place() == place || other.parent.as_ref() == Some(&leaf.identity)
+        }))
+        .then_some(leaf)
+    }
+}
+
+#[cfg(test)]
+mod read_custody_tests {
+    use super::*;
+
+    #[test]
+    fn reference_read_requires_live_unsuspended_leaf() {
+        let carrier = PlaceId::new(1).unwrap();
+        let child_carrier = PlaceId::new(2).unwrap();
+        let root = PlaceId::new(3).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let result = StructuralOperationResult {
+            place: carrier,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        let leaf = Leaf {
+            identity: (carrier, Vec::new()),
+            root: Root::Place(root),
+            parent: None,
+            operation: OperationId::new(1),
+            result,
+            referent: structural_type,
+        };
+        let mut custody = Custody::default();
+        assert!(custody.readable_leaf(carrier, &[]).is_none());
+        custody.leaves.insert(leaf.identity.clone(), leaf.clone());
+        assert!(custody.readable_leaf(carrier, &[]).is_some());
+
+        let child_identity = (child_carrier, Vec::new());
+        let mut child = leaf.clone();
+        child.identity = child_identity.clone();
+        child.result.place = child_carrier;
+        child.parent = Some(leaf.identity.clone());
+        custody.leaves.insert(child_identity.clone(), child.clone());
+        assert!(custody.readable_leaf(carrier, &[]).is_none());
+        custody.leaves.remove(&child_identity);
+        assert!(custody.readable_leaf(carrier, &[]).is_some());
+
+        child.parent = None;
+        child.root = Root::Place(carrier);
+        custody.leaves.insert(child_identity.clone(), child);
+        assert!(custody.readable_leaf(carrier, &[]).is_none());
+        custody.leaves.remove(&child_identity);
+        assert!(custody.readable_leaf(carrier, &[]).is_some());
+        custody.leaves.remove(&leaf.identity);
+        assert!(custody.readable_leaf(carrier, &[]).is_none());
+    }
 }
 
 /// Live permission and referent-relative geometry behind a returned carrier.

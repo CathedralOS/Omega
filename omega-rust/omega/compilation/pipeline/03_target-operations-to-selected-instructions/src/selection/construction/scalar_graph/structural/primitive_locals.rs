@@ -137,6 +137,14 @@ pub(in crate::selection) fn read(
             .map(|(_, pointer)| *pointer)
             .ok_or_else(|| invalid())?
     };
+    let pointer = if matches!(&row.kind,
+        LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
+        if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
+    {
+        super::reference::load(builder, row, place, pointer)?
+    } else {
+        pointer
+    };
     // A primitive leaf reached through runtime elements scales each selector
     // into the address first; every other read loads at its static offset.
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {

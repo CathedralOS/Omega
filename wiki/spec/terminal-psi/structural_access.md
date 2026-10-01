@@ -86,11 +86,19 @@ its custody receipt includes re-legalization's exact-origin check. This does
 not admit a new escaping reference result or reference establishment from the
 projected child. Stores before and after the call continue to use the same
 parent permission until its existing release boundary.
+Scalar field observations through returned shared or mutable record carriers
+require live readable permission with no outstanding child loan. They read the
+captured referent address and then apply the declared field path; an origin set
+is not a choice of addresses for code generation. A released carrier cannot
+read, and the original parent remains suspended until release. Geometry and
+field-type validation remain separate from this permission check.
+
 Reference-valued entry parameters or host-entry results, reference projections
-into host-boundary calls, shared/write-only record carriers, runtime-indexed
+into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit
-implementation limits. The Terminal interpreter still declines alternative-origin
-result signatures; native address transport is not an interpreter implementation.
+implementation limits. The Terminal interpreter still limits reference execution
+to mutable primitive referents and declines alternative-origin result signatures;
+native address transport and checked interpretation do not implement that route.
 Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only
 access without creating such a carrier. None of the unsupported forms gains
 authority merely because its shape or source lifetime resembles an admitted

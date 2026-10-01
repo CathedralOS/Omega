@@ -1025,7 +1025,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         &function.operations[1],
         &grouped
     ));
-    assert!(super::reference_root(&grouped, carrier).is_none());
+    assert_reference_field_read_retains_carrier(&function, &grouped, holder_type);
     let TargetUnitOperation::Call {
         result: TargetCallResult::Structural {
             reference_results, ..
@@ -1204,6 +1204,125 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 &changed_target,
             ),
             "corruption {corruption}"
+        );
+    }
+}
+
+fn assert_reference_field_read_retains_carrier(
+    function: &AbstractFunction,
+    target: &TargetFunction,
+    holder_type: StructuralTypeId,
+) {
+    use target_operations::TargetCallResult;
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+
+    let mut function = function.clone();
+    let mut target = target.clone();
+    let AbstractOperation::StructuralByteSequenceFieldStore {
+        psi_operation,
+        destination: carrier,
+        field,
+        ..
+    } = function.operations[1]
+    else {
+        panic!("reference store fixture");
+    };
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let result = AbstractResult {
+        value: ValueId::new(2).unwrap(),
+        scalar_type: scalar,
+    };
+    let declaration = target
+        .graph
+        .structural_types
+        .make_mut()
+        .iter_mut()
+        .find(|declaration| declaration.id == holder_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        panic!("record referent");
+    };
+    fields[0].field_type = StructuralFieldType::Scalar(scalar);
+    function.operations[1] = AbstractOperation::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        source: carrier,
+        path: Vec::new(),
+        field,
+    };
+    target.graph.blocks[0].operations[1] = TargetUnitOperation::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        source: StructuralArgument {
+            place: carrier,
+            access: StructuralAccess::SharedBorrow,
+            path: vec![StructuralPathSegment::Referent],
+        },
+        case: None,
+        field,
+    };
+    assert!(retained(&function, &function.operations[1], &target));
+    for corruption in [
+        "missing crossing",
+        "static origin",
+        "producer",
+        "write-only",
+    ] {
+        let mut changed = target.clone();
+        match corruption {
+            "missing crossing" | "static origin" => {
+                let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+                    &mut changed.graph.blocks[0].operations[1]
+                else {
+                    panic!("reference read");
+                };
+                if corruption == "missing crossing" {
+                    source.path.clear();
+                } else {
+                    source.place = function.structural_parameters[0].place;
+                    source.path = vec![StructuralPathSegment::Field("holder".into())];
+                }
+            }
+            "producer" => {
+                let TargetUnitOperation::Call {
+                    result:
+                        TargetCallResult::Structural {
+                            result_home: Some(home),
+                            ..
+                        },
+                    ..
+                } = &mut changed.graph.blocks[0].operations[0]
+                else {
+                    panic!("reference result home");
+                };
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    ..
+                } = &mut home.origin
+                else {
+                    panic!("operation result");
+                };
+                *operation = OperationId::new(99).unwrap();
+            }
+            _ => {
+                let reference = changed
+                    .graph
+                    .structural_types
+                    .make_mut()
+                    .iter_mut()
+                    .find(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                    })
+                    .unwrap();
+                let StructuralTypeShape::Reference { access, .. } = &mut reference.shape else {
+                    panic!("reference type");
+                };
+                *access = StructuralAccess::WriteOnlyBorrow;
+            }
+        }
+        assert!(
+            !retained(&function, &function.operations[1], &changed),
+            "{corruption}"
         );
     }
 }
