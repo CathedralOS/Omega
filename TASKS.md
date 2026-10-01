@@ -423,13 +423,16 @@ the complete product bar; focused successes below do not establish that baseline
     reject; widening the verifier's pair check does not supply missing
     authority.
 
-  Account for deleted customers through equivalent current coverage or recover
-  their distinct behavior: `runtime_trailing_state_mut_param_phase_exit` at
-  `ba6e88a4101^` observes two mutations before its outer guard and three before
-  its trailing guard (exit 70). The old `rooted_residual_scalar_entry_cohort`
-  at `c60792d7bdd^` exercised `guarded_transition_dispatch` and
-  `record_array_field_access`, each returning 0 through a scalar callee;
-  preserve their case dispatch, record-array/string operations and output.
+  The deleted customers are recovered with explicit context parameters:
+  `calls/runtime_trailing_state_mut_param_phase_exit` (two mutations before the
+  outer guard, three before the trailing one) exits 70 natively, and
+  `control_flow/guarded_transition_dispatch_exit` exits 0 with `look` on stdout,
+  both agreeing with the checked interpreter.
+  `collections/record_array_field_access_exit` still stops in stage 04 before
+  its text-view member stores (`scalar field store sequence: write frame
+  agreement` in `result_code`); the receiver-spelled original stops at
+  `structural field store: borrowed view field`, whose store vocabulary rejects
+  reference crossings. Its oracle is exit 0 with three lines of output.
 
   Acceptance: every named customer has its actual entry and interpreter/native
   oracle accounted for. Use focused corpus filters and matching-host native

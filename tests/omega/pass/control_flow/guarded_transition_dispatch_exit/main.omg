@@ -1,0 +1,50 @@
+// A result-bearing machine stores a case into a record member, dispatches on
+// that member, and returns its result from the selected state after writing
+// one line. Only the selected arm writes; the result reaches the entry, which
+// exits with it.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data CommandKind {
+    case Quit;
+    case Look;
+    case Invalid;
+}
+
+data Command {
+    kind: CommandKind;
+}
+
+data Main {
+    console: Binding<Console>;
+    command: Command;
+}
+
+machine result_code(context: &mut Main) -> i32 reaches Console {
+    context.command.kind = CommandKind::Look;
+    transition context.command.kind {
+        CommandKind::Look -> look(context)
+        CommandKind::Quit -> quit(context)
+        _ -> invalid(context)
+    }
+
+    state look(context: &mut Main) -> i32 {
+        context.console.write_line("look");
+        0
+    }
+
+    state quit(context: &mut Main) -> i32 {
+        context.console.write_line("quit");
+        0
+    }
+
+    state invalid(context: &mut Main) -> i32 {
+        context.console.write_line("invalid");
+        1
+    }
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let result: i32 = result_code(context);
+    context.console.exit_process(result);
+}

@@ -147,6 +147,7 @@ pass/calls/runtime_shared_ref_param_member_exit built 2091ms exit:42 @fb2178def9
 pass/calls/runtime_std_math_sin_cos_exit rejected 1757ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/calls/runtime_structural_literal_call_initializer_exit built 1055ms exit:70
+pass/calls/runtime_trailing_state_mut_param_phase_exit built 1103ms exit:70 @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit built 2436ms exit:70 @fb2178def922
 pass/calls/runtime_value_call_dispatch_results_exit built 951ms exit:70
 pass/calls/runtime_value_call_literal_len_arm_guard_exit built 687ms exit:70
@@ -191,6 +192,8 @@ pass/capabilities/windows_provides_import_exit rejected 882ms
 	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: WindowsX64, locator_identity: ForeignLocatorIdentityDigest([144, 186, 40, 58, 248, 174, 194, 125, 207, 78, 218, 115, 81, 6, 179, 111, 153, 34, 35, 115, 153, 107, 151, 110, 248, 164, 120, 235, 163, 205, 22, 6]), implementation_contract: BoundaryCallingPlanCommitment([246, 184, 138, 50, 13, 152, 237, 214, 207, 93, 41, 7, 127, 141, 216, 133, 187, 126, 81, 213, 47, 186, 45, 181, 193, 80, 17, 8, 120, 50, 204, 58]), argument_contract: AdmittedPlan }) required by `named-callable(path(Beeper::beep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
 pass/collections/array_local_control checked 213ms
 pass/collections/owned_array_scalar_comparisons checked 198ms
+pass/collections/record_array_field_access_exit rejected 660ms @765e6c51624f+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`result_code`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/collections/runtime_argmax_index_exit built 750ms exit:70
 pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2178def922
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
@@ -238,6 +241,7 @@ pass/control_flow/field_view_transfer_exit built 582ms exit:0
 pass/control_flow/guarded_jump_field_view_forward rejected 201ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms
+pass/control_flow/guarded_transition_dispatch_exit built 1188ms exit:0 stdout:match @765e6c51624f+wt
 pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
 pass/control_flow/nested_parameter_receiver_call checked 179ms
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 758ms exit:70
