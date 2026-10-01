@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.3, "load1_start": 6.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.29, "load1_start": 7.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -68,6 +68,7 @@ pass/borrows/projected_local_member_loan built 2413ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_mut_member_loan built 786ms exit:0 @48008365d839
 pass/borrows/projected_param_member_loan built 839ms exit:0 @48008365d839
 pass/borrows/projected_scalar_member_loan built 2224ms exit:0 @bed5f45e9185+wt
+pass/borrows/qualified_record_view_call_exit built 1048ms exit:70 @30b8774b6d1c+wt
 pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
