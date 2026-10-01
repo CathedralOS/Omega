@@ -156,6 +156,21 @@ enum MemberShape {
     BorrowedSlice {
         element: SliceElement,
     },
+    /// A `FixedVec<E, N>` member: packed element varints behind a byte-length
+    /// varint, like a `&[E]` member, except the element count is the
+    /// vector's intrinsic `length` rather than a wire-carried count — the
+    /// byte length is the only framing the wire needs.
+    FixedVec {
+        element: ScalarKind,
+        capacity: usize,
+    },
+    /// A member whose type is another wire schema (`header: RoomHeader`):
+    /// a byte-length varint framing the nested declaration's own tag+content
+    /// sequence, with no era inside the sub-body. The `schema` name resolves
+    /// to a member list at emission through the collected schemas.
+    NestedMessage {
+        schema: String,
+    },
 }
 
 struct WireMemberShape {
@@ -215,24 +230,31 @@ pub(crate) fn generated_wire_codec_source(
     }
 
     // Plain `data` declarations also serve call-site typing: `&sample` names a
-    // `let sample: BlobSample`, `&mut self.buffer` a field of `Main`.
+    // `let sample: BlobSample`, `&mut self.buffer` a field of `Main`. The
+    // field map completes before member resolution so a nested-message
+    // member can name a declaration declared after it.
     let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
+    for handle in syntax_trees.roots.items.storage_slice() {
+        let Item::Data(data) = syntax_trees.tables.items.item(*handle) else {
+            continue;
+        };
+        if !product_sources.contains(&data.name.source_span().source_id.0) {
+            continue;
+        }
+        if let Some(fields) = collect_plain_fields(syntax_trees, data) {
+            data_fields.insert(data.name.as_str().to_string(), fields);
+        }
+    }
     let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
     for handle in syntax_trees.roots.items.storage_slice() {
         let Item::Data(data) = syntax_trees.tables.items.item(*handle) else {
             continue;
         };
         let source_id = data.name.source_span().source_id.0;
-        if !product_sources.contains(&source_id) {
+        if !product_sources.contains(&source_id) || scoped_sources.contains(&source_id) {
             continue;
         }
-        if let Some(fields) = collect_plain_fields(syntax_trees, data) {
-            data_fields.insert(data.name.as_str().to_string(), fields);
-        }
-        if scoped_sources.contains(&source_id) {
-            continue;
-        }
-        if let Some(members) = wire_schema_members(syntax_trees, data) {
+        if let Some(members) = wire_schema_members(syntax_trees, &data_fields, data) {
             schemas.push((data.name.as_str().to_string(), members));
         }
     }
@@ -280,6 +302,7 @@ pub(crate) fn generated_wire_codec_source(
                     sources,
                     &domains,
                     &data_fields,
+                    &schemas,
                     schema_name,
                     &signature,
                     members,
@@ -291,6 +314,7 @@ pub(crate) fn generated_wire_codec_source(
                     sources,
                     &domains,
                     &data_fields,
+                    &schemas,
                     schema_name,
                     &signature,
                     members,
@@ -498,6 +522,7 @@ fn collect_plain_fields(
 /// non-scalar field types — declines and keeps meeting the intrinsic wall.
 fn wire_schema_members(
     syntax_trees: &SyntaxTrees,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     data: &syntax_trees::item::DataDefinition,
 ) -> Option<Vec<WireMemberShape>> {
     if !data.lifetime_parameters.is_empty()
@@ -518,7 +543,7 @@ fn wire_schema_members(
             continue;
         }
         let number = field.identity?;
-        let shape = member_shape(syntax_trees, field.type_reference)?;
+        let shape = member_shape(syntax_trees, data_fields, field.type_reference)?;
         members.push(WireMemberShape {
             name: field.name.as_str().to_string(),
             number,
@@ -532,9 +557,37 @@ fn wire_schema_members(
     Some(members)
 }
 
-fn member_shape(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<MemberShape> {
+fn member_shape(
+    syntax_trees: &SyntaxTrees,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    handle: TypeReferenceHandle,
+) -> Option<MemberShape> {
     match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()).map(MemberShape::Scalar),
+        TypeReferenceNode::Named(name) => {
+            if let Some(kind) = scalar_kind(name.as_str()) {
+                Some(MemberShape::Scalar(kind))
+            } else if data_fields.contains_key(name.as_str()) {
+                Some(MemberShape::NestedMessage {
+                    schema: name.as_str().to_string(),
+                })
+            } else {
+                None
+            }
+        }
+        TypeReferenceNode::Generic {
+            base_name, arguments, ..
+        } if base_name.as_str() == "FixedVec" => {
+            let arguments = syntax_trees
+                .tables
+                .type_references
+                .type_reference_handles(*arguments);
+            if arguments.len() != 2 {
+                return None;
+            }
+            let element = scalar_kind_of_type(syntax_trees, arguments[0])?;
+            let capacity = const_literal_capacity(syntax_trees, arguments[1])?;
+            (capacity <= 64).then_some(MemberShape::FixedVec { element, capacity })
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(length),
@@ -576,6 +629,27 @@ fn scalar_kind_of_type(
 ) -> Option<ScalarKind> {
     match syntax_trees.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => scalar_kind(name.as_str()),
+        _ => None,
+    }
+}
+
+/// A const-generic capacity argument's literal value — `4` in
+/// `FixedVec<i32, 4>` currently parses as a bare `Named` type reference
+/// whose identifier text is the decimal literal (const-generic arguments
+/// are not yet elaborated into `ConstExpression` nodes); a
+/// `ConstExpression` wrapping an integer literal is also accepted, and any
+/// other spelling declines.
+fn const_literal_capacity(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<usize> {
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(identifier) => identifier.as_str().parse::<usize>().ok(),
+        TypeReferenceNode::ConstExpression(expression) => {
+            let ExpressionNode::Integer(literal) =
+                syntax_trees.tables.expressions.expression(*expression)
+            else {
+                return None;
+            };
+            usize::try_from(literal.value_u64()?).ok()
+        }
         _ => None,
     }
 }
@@ -973,43 +1047,107 @@ impl MachineEmitter<'_> {
     /// measured extent; the view's `.len` is re-read at each loop head so
     /// the index evidence stays the same name the element reads use.
     fn enc_packed_slice(&mut self, name: &str, field: &str, element: ScalarKind, next: &str) {
+        self.enc_packed(
+            name,
+            &format!("value.{field}.len"),
+            &format!("value.{field}"),
+            None,
+            element,
+            next,
+        );
+    }
+
+    /// Packed element varints behind a byte-length varint, shared by
+    /// borrowed-slice (`len` elements at `value.f[i]`) and `FixedVec`
+    /// (`length` elements at `value.f.items[i]`, index-bounded by the
+    /// constant `bound` capacity) members.
+    fn enc_packed(
+        &mut self,
+        name: &str,
+        len_expr: &str,
+        items_expr: &str,
+        bound_expr: Option<&str>,
+        element: ScalarKind,
+        next: &str,
+    ) {
+        // Slices guard on the view's intrinsic `.len` (the only form whose
+        // extent the index checker reads); `FixedVec` seeds a `slen` local
+        // because `value.samples.length` is a member path no predicate
+        // admits, bounded additionally by the const capacity.
+        let seed_len = bound_expr.is_some();
+        let (index_guard, loop_guard, carry, carry_arg) = match bound_expr {
+            Some(bound) => (
+                format!("i < slen && i < {bound}"),
+                "i < slen".to_string(),
+                ", slen: u64",
+                ", slen",
+            ),
+            None => (
+                format!("i < {len_expr}"),
+                format!("i < {len_expr}"),
+                "",
+                "",
+            ),
+        };
         let measure_entry = format!("{name}_measure");
         let measure_elem = format!("{name}_measure_elem");
         let measure_varint = format!("{name}_measure_varint");
         let length = format!("{name}_length");
         let emit_entry = format!("{name}_emit");
+        let emit_entry_target = if seed_len {
+            format!("{name}_emit_seed")
+        } else {
+            emit_entry.clone()
+        };
         let emit_elem = format!("{name}_emit_elem");
         let emit_varint = format!("{name}_emit_varint");
         let emit_last = format!("{name}_emit_last");
         let emit_last_put = format!("{name}_emit_last_put");
         let emit_more = format!("{name}_emit_more");
         let emit_more_put = format!("{name}_emit_more_put");
-        let len_expr = format!("value.{field}.len");
-        let bits_expr = |i: &str| element.encode_bits_expression(&format!("value.{field}[{i}]"));
-        self.hop(name, "", &measure_entry, ", 0, 0");
+        let bits_expr = |i: &str| element.encode_bits_expression(&format!("{items_expr}[{i}]"));
+        // The iteration bound rides as a seeded `slen` local: requires and
+        // transition predicates only admit parameter operands, never a
+        // member-path read like `value.samples.length`. Element-bound
+        // checks live only at the two entry states; the inner varint byte
+        // loops re-enter through them, so `bits < 128` alone decides.
+        if seed_len {
+            let seed = format!("{name}_seed");
+            self.state(
+                name,
+                "",
+                "",
+                &format!(
+                    "        let slen: u64 = {len_expr};\n        transition {{ _ -> {seed}(value, out, written, at, slen) }}\n"
+                ),
+            );
+            self.hop(&seed, "slen: u64", &measure_entry, ", 0, 0, slen");
+        } else {
+            self.hop(name, "", &measure_entry, ", 0, 0");
+        }
         self.state(
             &measure_entry,
-            "i: u64, acc: u64 in Wrapping",
+            &format!("i: u64, acc: u64 in Wrapping{carry}"),
             "",
             &format!(
-                "        transition i < {len_expr} {{\n            true -> {measure_elem}(value, out, written, at, i, acc)\n            _ -> {length}(value, out, written, at, i, acc)\n        }}\n"
+                "        transition {index_guard} {{\n            true -> {measure_elem}(value, out, written, at, i, acc{carry_arg})\n            _ -> {length}(value, out, written, at, i, acc)\n        }}\n"
             ),
         );
         self.state(
             &measure_elem,
-            "i: u64, acc: u64 in Wrapping",
-            &format!("i < {len_expr}"),
+            &format!("i: u64, acc: u64 in Wrapping{carry}"),
+            &index_guard,
             &format!(
-                "        let bits: u64 = {};\n        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits) }}\n",
+                "        let bits: u64 = {};\n        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits{carry_arg}) }}\n",
                 bits_expr("i")
             ),
         );
         self.state(
             &measure_varint,
-            "i: u64, acc: u64 in Wrapping, bits: u64",
-            "",
+            &format!("i: u64, acc: u64 in Wrapping, bits: u64{carry}"),
+            &loop_guard,
             &format!(
-                "        transition bits < 128 && i < {len_expr} {{\n            true -> {measure_entry}(value, out, written, at, i + 1, acc + 1)\n            _ -> {measure_varint}(value, out, written, at, i, acc + 1, bits >> 7)\n        }}\n"
+                "        transition bits < 128 && {loop_guard} {{\n            true -> {measure_entry}(value, out, written, at, i + 1, acc + 1{carry_arg})\n            _ -> {measure_varint}(value, out, written, at, i, acc + 1, bits >> 7{carry_arg})\n        }}\n"
             ),
         );
         self.state(
@@ -1050,7 +1188,7 @@ impl MachineEmitter<'_> {
                 "i: u64, byte: u8",
                 &format!("at < {}", self.limit),
                 &format!(
-                    "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, 0) }}\n"
+                    "        out[at] = byte;\n        transition {{ _ -> {emit_entry_target}(value, out, written, at + 1, 0) }}\n"
                 ),
             );
             self.state(
@@ -1071,65 +1209,176 @@ impl MachineEmitter<'_> {
                 ),
             );
         }
+        // The emit half re-seeds `slen` under `FixedVec` so the length-loop
+        // tail stays thin; slices enter `emit_entry` directly.
+        if seed_len {
+            self.state(
+                &emit_entry_target,
+                "i: u64",
+                "",
+                &format!(
+                    "        let slen: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, slen) }}\n"
+                ),
+            );
+        }
         self.state(
             &emit_entry,
-            "i: u64",
+            &format!("i: u64{carry}"),
             "",
             &format!(
-                "        transition i < {len_expr} {{\n            true -> {emit_elem}(value, out, written, at, i)\n            _ -> {next}(value, out, written, at)\n        }}\n"
+                "        transition {index_guard} {{\n            true -> {emit_elem}(value, out, written, at, i{carry_arg})\n            _ -> {next}(value, out, written, at)\n        }}\n"
             ),
         );
         self.state(
             &emit_elem,
-            "i: u64",
-            &format!("i < {len_expr}"),
+            &format!("i: u64{carry}"),
+            &index_guard,
             &format!(
-                "        let bits: u64 = {};\n        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits) }}\n",
+                "        let bits: u64 = {};\n        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits{carry_arg}) }}\n",
                 bits_expr("i")
             ),
         );
         self.state(
             &emit_varint,
-            "i: u64, bits: u64",
-            "",
+            &format!("i: u64, bits: u64{carry}"),
+            &loop_guard,
             &format!(
-                "        transition bits < 128 {{\n            true -> {emit_last}(value, out, written, at, i, bits)\n            _ -> {emit_more}(value, out, written, at, i, bits)\n        }}\n"
+                "        transition bits < 128 {{\n            true -> {emit_last}(value, out, written, at, i, bits{carry_arg})\n            _ -> {emit_more}(value, out, written, at, i, bits{carry_arg})\n        }}\n"
             ),
         );
         self.state(
             &emit_last,
-            "i: u64, bits: u64",
-            "",
+            &format!("i: u64, bits: u64{carry}"),
+            &loop_guard,
             &format!(
-                "        let byte: u8 = bits as u8;\n        transition at < {} && i < {len_expr} {{\n            true -> {emit_last_put}(value, out, written, at, i, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                "        let byte: u8 = bits as u8;\n        transition at < {} && {loop_guard} {{\n            true -> {emit_last_put}(value, out, written, at, i, byte{carry_arg})\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.state(
             &emit_last_put,
-            "i: u64, byte: u8",
-            &format!("at < {} && i < {len_expr}", self.limit),
+            &format!("i: u64, byte: u8{carry}"),
+            &format!("at < {} && {loop_guard}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, i + 1) }}\n"
+                "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, i + 1{carry_arg}) }}\n"
             ),
         );
         self.state(
             &emit_more,
-            "i: u64, bits: u64",
-            "",
+            &format!("i: u64, bits: u64{carry}"),
+            &loop_guard,
             &format!(
-                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} && i < {len_expr} {{\n            true -> {emit_more_put}(value, out, written, at, i, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} && {loop_guard} {{\n            true -> {emit_more_put}(value, out, written, at, i, byte, bits{carry_arg})\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.state(
             &emit_more_put,
-            "i: u64, byte: u8, bits: u64",
-            &format!("at < {} && i < {len_expr}", self.limit),
+            &format!("i: u64, byte: u8, bits: u64{carry}"),
+            &format!("at < {} && {loop_guard}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {emit_varint}(value, out, written, at + 1, i, bits >> 7) }}\n"
+                "        out[at] = byte;\n        transition {{ _ -> {emit_varint}(value, out, written, at + 1, i, bits >> 7{carry_arg}) }}\n"
             ),
         );
+    }
+
+    /// A nested-message member's sub-body: the byte length is the static
+    /// tag bytes plus each non-bool member's varint extent measured in
+    /// `acc`; the body then emits the nested schema's own tag+content
+    /// sequence with no era. `member_facts` admits scalar-only sub-members,
+    /// so a bool content is the branch byte and everything else a varint.
+    fn enc_nested(&mut self, name: &str, field: &str, sub_members: &[WireMemberShape], next: &str) {
+        let measure_stage = format!("{name}_measure");
+        let length = format!("{name}_length");
+        let mut static_bytes: u64 = 0;
+        let mut measured: Vec<&WireMemberShape> = Vec::new();
+        for sub in sub_members {
+            static_bytes += varint_bytes(sub.number).len() as u64;
+            match &sub.shape {
+                MemberShape::Scalar(ScalarKind::Bool) => static_bytes += 1,
+                MemberShape::Scalar(_) => measured.push(sub),
+                _ => continue,
+            }
+        }
+        let first = if measured.is_empty() {
+            length.clone()
+        } else {
+            measure_stage.clone()
+        };
+        self.hop(name, "", &first, &format!(", {static_bytes}"));
+        for (index, sub) in measured.iter().enumerate() {
+            let label = if index == 0 {
+                measure_stage.clone()
+            } else {
+                format!("{name}_measure_{index}")
+            };
+            let measure_next = if index + 1 == measured.len() {
+                length.clone()
+            } else {
+                format!("{name}_measure_{}", index + 1)
+            };
+            let MemberShape::Scalar(kind) = &sub.shape else {
+                continue;
+            };
+            self.enc_measure(
+                &label,
+                &kind.encode_bits_expression(&format!("value.{field}.{}", sub.name)),
+                &measure_next,
+            );
+        }
+        let first_sub = format!("{name}_subtag_0_0");
+        let sub_next = |index: usize| {
+            if index + 1 == sub_members.len() {
+                next.to_string()
+            } else {
+                format!("{name}_subtag_{}_0", index + 1)
+            }
+        };
+        self.state(
+            &length,
+            "acc: u64 in Wrapping",
+            "",
+            &format!(
+                "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, bits) }}\n"
+            ),
+        );
+        self.enc_varint_loop(&format!("{length}_loop"), &first_sub);
+        for (sub_index, sub) in sub_members.iter().enumerate() {
+            let after_sub = sub_next(sub_index);
+            let tag_bytes = varint_bytes(sub.number);
+            let content = format!("{name}_subcontent_{sub_index}");
+            for (index, byte) in tag_bytes.iter().enumerate() {
+                let label = format!("{name}_subtag_{sub_index}_{index}");
+                let byte_next = if index + 1 == tag_bytes.len() {
+                    content.clone()
+                } else {
+                    format!("{name}_subtag_{sub_index}_{}", index + 1)
+                };
+                self.enc_byte(&label, *byte, &byte_next);
+            }
+            let MemberShape::Scalar(kind) = &sub.shape else {
+                continue;
+            };
+            if *kind == ScalarKind::Bool {
+                self.state(
+                    &content,
+                    "",
+                    "",
+                    &format!(
+                        "        transition value.{field}.{} {{\n            true -> {content}_one{}\n            _ -> {content}_zero{}\n        }}\n",
+                        sub.name, self.call, self.call
+                    ),
+                );
+                self.enc_byte(&format!("{content}_one"), 1, &after_sub);
+                self.enc_byte(&format!("{content}_zero"), 0, &after_sub);
+            } else {
+                self.enc_varint(
+                    &content,
+                    &kind.encode_bits_expression(&format!("value.{field}.{}", sub.name)),
+                    &after_sub,
+                );
+            }
+        }
     }
 
     // ----- decode helpers (thread: value, buffer, read, verdict, at, bad) -----
@@ -1140,13 +1389,14 @@ impl MachineEmitter<'_> {
     fn dec_byte(&mut self, name: &str, byte: u8, next: &str, carry: &str, carry_arg: &str) {
         let check = format!("{name}_check");
         let oob = format!("{name}_oob");
+        let inner = self.call.trim_start_matches('(').trim_end_matches(')');
         self.state(
             name,
             carry,
             "",
             &format!(
-                "        transition at < {} {{\n            true -> {check}{}{carry_arg}\n            _ -> {oob}{}{carry_arg}\n        }}\n",
-                self.limit, self.call, self.call
+                "        transition at < {} {{\n            true -> {check}({inner}{carry_arg})\n            _ -> {oob}({inner}{carry_arg})\n        }}\n",
+                self.limit
             ),
         );
         self.state(
@@ -1249,7 +1499,8 @@ impl MachineEmitter<'_> {
     /// constraint facts; a failure flags `bad` and skips the store, matching
     /// `wire_scalar_in_range`. Signed members unzigzag to `wide: i64` before
     /// the guard, which doubles as the store state's `requires` so the
-    /// bounded assignment discharges.
+    /// bounded assignment discharges. `carry`/`carry_arg` thread extra state
+    /// (a length-prefixed body's `end`) through both states.
     fn dec_scalar_store(
         &mut self,
         name: &str,
@@ -1257,26 +1508,29 @@ impl MachineEmitter<'_> {
         kind: ScalarKind,
         next: &str,
         facts: &[String],
+        carry: &str,
+        carry_arg: &str,
     ) {
         let store = format!("{name}_write");
         let operand = if kind.decodes_signed() { "wide" } else { "raw" };
+        let entry_extras = carried_operand(carry, "raw: u64");
         let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
         guard.extend(facts.iter().map(|fact| substitute_self(fact, operand)));
         let requires = guard.join(" && ");
         let entry = if guard.is_empty() {
             format!(
-                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad, {operand}) }}\n"
+                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand}) }}\n"
             )
         } else {
             format!(
-                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg})\n        }}\n"
             )
         };
         match kind {
             ScalarKind::I32 | ScalarKind::I64 => {
                 self.state(
                     name,
-                    "raw: u64",
+                    &entry_extras,
                     "",
                     &format!(
                         "        let half: u64 = raw >> 1;\n        let mask: i64 = 0 - ((raw & 1) as i64);\n        let wide: i64 = ((half as i64 in Wrapping) ^ (mask as i64 in Wrapping)) as i64;\n{entry}"
@@ -1284,22 +1538,22 @@ impl MachineEmitter<'_> {
                 );
                 self.state(
                     &store,
-                    "wide: i64",
+                    &carried_operand(carry, "wide: i64"),
                     &requires,
                     &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad) }}\n",
+                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
                         kind.decode_store_expression("wide")
                     ),
                 );
             }
             ScalarKind::U32 | ScalarKind::Bool | ScalarKind::U64 => {
-                self.state(name, "raw: u64", "", &entry);
+                self.state(name, &entry_extras, "", &entry);
                 self.state(
                     &store,
-                    "raw: u64",
+                    &carried_operand(carry, "raw: u64"),
                     &requires,
                     &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad) }}\n",
+                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
                         kind.decode_store_expression("raw")
                     ),
                 );
@@ -1365,11 +1619,225 @@ impl MachineEmitter<'_> {
             );
         }
     }
+
+    /// `FixedVec<E, N>` member: a byte-length varint opens the `end` window,
+    /// then each capacity slot reads an element while bytes remain — element
+    /// `k` runs only behind `at < end`, so a shorter body lands `length = k`
+    /// and the close still proves `at == end`. A body longer than capacity
+    /// leaves `at < end` at the close and flags `bad` through it.
+    fn dec_fixed_vec(
+        &mut self,
+        name: &str,
+        field: &str,
+        element: ScalarKind,
+        capacity: usize,
+        next: &str,
+        facts: &[String],
+    ) {
+        let open = format!("{name}_open");
+        let open_in = format!("{name}_open_in");
+        let slack_state = format!("{name}_slack");
+        let end_state = format!("{name}_end");
+        let close = format!("{name}_close");
+        let first = format!("{name}_element_0");
+        // `end` derives as `buffer.len - ((buffer.len - at) - raw)`, one
+        // named local per state so each subtraction's bound is a requires
+        // premise — arithmetic call arguments cannot carry it. On failure
+        // `end = 0` stands in for the wrapped cursor sum and the close
+        // flags `bad`.
+        self.dec_varint(name, &open, "", "");
+        self.state(
+            &open,
+            "raw: u64",
+            "",
+            &format!(
+                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                self.limit
+            ),
+        );
+        self.state(
+            &open_in,
+            "raw: u64",
+            &format!("at <= {}", self.limit),
+            &format!(
+                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack_state}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+        self.state(
+            &slack_state,
+            "raw: u64, room: u64",
+            &format!("raw <= room && room <= {}", self.limit),
+            &format!(
+                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {end_state}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+        self.state(
+            &end_state,
+            "slack: u64, room: u64",
+            &format!("slack <= room && slack <= {} && room <= {}", self.limit, self.limit),
+            &format!(
+                "        let end: u64 = buffer.len - slack;\n        transition {{ _ -> {first}(value, buffer, read, verdict, at, bad, end) }}\n"
+            ),
+        );
+        for index in 0..capacity {
+            let element_state = format!("{name}_element_{index}");
+            let read = format!("{name}_element_{index}_read");
+            let store = format!("{name}_element_{index}_store");
+            let length_state = format!("{name}_length_{index}");
+            let after_element = format!("{name}_element_{}", index + 1);
+            self.state(
+                &element_state,
+                "end: u64",
+                "",
+                &format!(
+                    "        transition at < end {{\n            true -> {read}(value, buffer, read, verdict, at, bad, end)\n            _ -> {length_state}(value, buffer, read, verdict, at, bad, end)\n        }}\n"
+                ),
+            );
+            self.dec_varint(&read, &store, "end: u64", ", end");
+            self.dec_element_store(
+                &store,
+                &format!("{field}.items"),
+                index,
+                element,
+                &after_element,
+                facts,
+            );
+        }
+        for index in 0..=capacity {
+            let length_state = if index == capacity {
+                format!("{name}_element_{capacity}")
+            } else {
+                format!("{name}_length_{index}")
+            };
+            self.state(
+                &length_state,
+                "end: u64",
+                "",
+                &format!(
+                    "        value.{field}.length = {index};\n        transition {{ _ -> {close}(value, buffer, read, verdict, at, bad, end) }}\n"
+                ),
+            );
+        }
+        self.state(
+            &close,
+            "end: u64",
+            "",
+            &format!(
+                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+            ),
+        );
+    }
+
+    /// A nested-message member: a byte-length varint opens the `end` window,
+    /// the nested schema's own tag+scalar sequence decodes inside it with
+    /// `end` carried through every state, and the close flags `bad` unless
+    /// the cursor lands exactly on the bound.
+    fn dec_nested(
+        &mut self,
+        name: &str,
+        field: &str,
+        sub_members: &[WireMemberShape],
+        sub_facts: &[Vec<String>],
+        next: &str,
+    ) {
+        let open = format!("{name}_open");
+        let open_in = format!("{name}_open_in");
+        let slack_state = format!("{name}_slack");
+        let end_state = format!("{name}_end");
+        let close = format!("{name}_close");
+        let first = format!("{name}_subtag_0_0");
+        // Same window derivation as `dec_fixed_vec`: `end` comes out of
+        // complement subtraction through named locals, never `at + raw`.
+        self.dec_varint(name, &open, "", "");
+        self.state(
+            &open,
+            "raw: u64",
+            "",
+            &format!(
+                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                self.limit
+            ),
+        );
+        self.state(
+            &open_in,
+            "raw: u64",
+            &format!("at <= {}", self.limit),
+            &format!(
+                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack_state}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+        self.state(
+            &slack_state,
+            "raw: u64, room: u64",
+            &format!("raw <= room && room <= {}", self.limit),
+            &format!(
+                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {end_state}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+        self.state(
+            &end_state,
+            "slack: u64, room: u64",
+            &format!("slack <= room && slack <= {} && room <= {}", self.limit, self.limit),
+            &format!(
+                "        let end: u64 = buffer.len - slack;\n        transition {{ _ -> {first}(value, buffer, read, verdict, at, bad, end) }}\n"
+            ),
+        );
+        for (sub_index, sub) in sub_members.iter().enumerate() {
+            let content = format!("{name}_subcontent_{sub_index}");
+            let store = format!("{name}_substore_{sub_index}");
+            let tag_bytes = varint_bytes(sub.number);
+            for (index, byte) in tag_bytes.iter().enumerate() {
+                let label = format!("{name}_subtag_{sub_index}_{index}");
+                let byte_next = if index + 1 == tag_bytes.len() {
+                    content.clone()
+                } else {
+                    format!("{name}_subtag_{sub_index}_{}", index + 1)
+                };
+                self.dec_byte(&label, *byte, &byte_next, "end: u64", ", end");
+            }
+            let after_sub = if sub_index + 1 == sub_members.len() {
+                close.clone()
+            } else {
+                format!("{name}_subtag_{}_0", sub_index + 1)
+            };
+            self.dec_varint(&content, &store, "end: u64", ", end");
+            let MemberShape::Scalar(kind) = &sub.shape else {
+                continue;
+            };
+            self.dec_scalar_store(
+                &store,
+                &format!("{field}.{}", sub.name),
+                *kind,
+                &after_sub,
+                &sub_facts[sub_index],
+                "end: u64",
+                ", end",
+            );
+        }
+        self.state(
+            &close,
+            "end: u64",
+            "",
+            &format!(
+                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+            ),
+        );
+    }
 }
 
 impl ScalarKind {
     fn decodes_signed(self) -> bool {
         matches!(self, Self::I32 | Self::I64)
+    }
+}
+
+/// Extras list for a carried state: `{carry}, {operand}` when a carry
+/// threads through, else just `{operand}`.
+fn carried_operand(carry: &str, operand: &str) -> String {
+    if carry.is_empty() {
+        operand.to_string()
+    } else {
+        format!("{carry}, {operand}")
     }
 }
 
@@ -1403,6 +1871,7 @@ fn member_facts(
     sources: &SourceMap,
     domains: &HashMap<String, Vec<(String, SourceSpan)>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    schemas: &[(String, Vec<WireMemberShape>)],
     value_type: &str,
     members: &[WireMemberShape],
 ) -> Option<Vec<Vec<String>>> {
@@ -1439,10 +1908,98 @@ fn member_facts(
             all.push(Vec::new());
             continue;
         }
+        // A `FixedVec<E, N>` member's value field must spell the same
+        // instantiation; the element's own domain/range facts ride every
+        // element store's guard exactly like a fixed array's.
+        if let MemberShape::FixedVec { element, capacity } = &member.shape {
+            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
+                return None;
+            };
+            let TypeReferenceNode::Generic {
+                base_name, arguments, ..
+            } = syntax_trees.tables.type_references.type_reference(field_handle)
+            else {
+                return None;
+            };
+            let arguments = syntax_trees
+                .tables
+                .type_references
+                .type_reference_handles(*arguments);
+            if base_name.as_str() != "FixedVec"
+                || arguments.len() != 2
+                || scalar_kind_of_type(syntax_trees, arguments[0]) != Some(*element)
+                || const_literal_capacity(syntax_trees, arguments[1]) != Some(*capacity)
+            {
+                return None;
+            }
+            let Ok(facts) = value_field_facts(
+                syntax_trees,
+                sources,
+                domains,
+                Some(arguments[0]),
+                *element,
+                None,
+            ) else {
+                return None;
+            };
+            if *element == ScalarKind::Bool && !facts.is_empty() {
+                return None;
+            }
+            all.push(facts);
+            continue;
+        }
+        // A nested-message member's value field names the value mirror of
+        // the nested schema; every nested member must be a scalar whose
+        // value-side field resolves — non-scalar nesting stays on the
+        // intrinsic wall, and the sub-member store guards re-collect the
+        // scalar facts at emission.
+        if let MemberShape::NestedMessage { schema } = &member.shape {
+            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
+                return None;
+            };
+            let TypeReferenceNode::Named(value_name) = syntax_trees
+                .tables
+                .type_references
+                .type_reference(field_handle)
+            else {
+                return None;
+            };
+            let Some(nested_fields) = data_fields.get(value_name.as_str()) else {
+                return None;
+            };
+            let Some((_, sub_members)) = schemas
+                .iter()
+                .find(|(name, _)| name.as_str() == schema.as_str())
+            else {
+                return None;
+            };
+            for sub in sub_members {
+                let MemberShape::Scalar(kind) = &sub.shape else {
+                    return None;
+                };
+                let Ok(facts) = value_field_facts(
+                    syntax_trees,
+                    sources,
+                    domains,
+                    nested_fields.get(sub.name.as_str()).copied(),
+                    *kind,
+                    None,
+                ) else {
+                    return None;
+                };
+                if *kind == ScalarKind::Bool && !facts.is_empty() {
+                    return None;
+                }
+            }
+            all.push(Vec::new());
+            continue;
+        }
         let (expected, array_length) = match &member.shape {
             MemberShape::Scalar(kind) => (*kind, None),
             MemberShape::FixedScalarArray { element, length } => (*element, Some(*length)),
-            MemberShape::BorrowedSlice { .. } => unreachable!("handled above"),
+            MemberShape::BorrowedSlice { .. }
+            | MemberShape::FixedVec { .. }
+            | MemberShape::NestedMessage { .. } => unreachable!("handled above"),
         };
         let Ok(facts) = value_field_facts(
             syntax_trees,
@@ -1462,6 +2019,53 @@ fn member_facts(
     Some(all)
 }
 
+/// Per-sub-member store facts for a nested-message member: the value type's
+/// `member` field names the nested value mirror; each nested scalar member's
+/// facts resolve against that mirror's field map, one `Vec` per sub-member
+/// for the store guards.
+#[allow(clippy::too_many_arguments)]
+fn nested_sub_facts(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    value_type: &str,
+    member_name: &str,
+    schemas: &[(String, Vec<WireMemberShape>)],
+    schema: &str,
+) -> Option<Vec<Vec<String>>> {
+    let field_handle = data_fields.get(value_type)?.get(member_name).copied()?;
+    let TypeReferenceNode::Named(value_name) = syntax_trees
+        .tables
+        .type_references
+        .type_reference(field_handle)
+    else {
+        return None;
+    };
+    let nested_fields = data_fields.get(value_name.as_str())?;
+    let (_, sub_members) = schemas
+        .iter()
+        .find(|(name, _)| name.as_str() == schema)?;
+    let mut all = Vec::with_capacity(sub_members.len());
+    for sub in sub_members {
+        let MemberShape::Scalar(kind) = &sub.shape else {
+            return None;
+        };
+        all.push(
+            value_field_facts(
+                syntax_trees,
+                sources,
+                domains,
+                nested_fields.get(sub.name.as_str()).copied(),
+                *kind,
+                None,
+            )
+            .ok()?,
+        );
+    }
+    Some(all)
+}
+
 /// `machine S::encode(value: &V, out: &mut B, written: &mut u64)`: the era
 /// varint, then per field (number order) a tag varint and the member content,
 /// ending by publishing the cursor through `written`.
@@ -1471,6 +2075,7 @@ fn emit_encode_machine(
     sources: &SourceMap,
     domains: &HashMap<String, Vec<(String, SourceSpan)>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
     members: &[WireMemberShape],
@@ -1480,6 +2085,7 @@ fn emit_encode_machine(
         sources,
         domains,
         data_fields,
+        schemas,
         signature_value_type(signature),
         members,
     )
@@ -1575,6 +2181,31 @@ fn emit_encode_machine(
                     }
                 }
             }
+            MemberShape::FixedVec {
+                element, capacity, ..
+            } => {
+                // The vector's intrinsic `length` bounds the packed
+                // elements; the byte length is the only wire framing.
+                emitter.enc_packed(
+                    &content_label,
+                    &format!("value.{}.length", member.name),
+                    &format!("value.{}.items", member.name),
+                    Some(&capacity.to_string()),
+                    *element,
+                    &after,
+                );
+            }
+            MemberShape::NestedMessage { schema } => {
+                // `member_facts` already proved the nested schema resolves
+                // with scalar-only members.
+                let Some((_, sub_members)) = schemas
+                    .iter()
+                    .find(|(name, _)| name.as_str() == schema.as_str())
+                else {
+                    continue;
+                };
+                emitter.enc_nested(&content_label, &member.name, sub_members, &after);
+            }
             MemberShape::FixedScalarArray { element, length } => {
                 // Packed elements carry a byte-length prefix: measure each
                 // element's varint extent, emit that total, then the elements.
@@ -1640,6 +2271,7 @@ fn emit_decode_machine(
     sources: &SourceMap,
     domains: &HashMap<String, Vec<(String, SourceSpan)>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
     members: &[WireMemberShape],
@@ -1649,6 +2281,7 @@ fn emit_decode_machine(
         sources,
         domains,
         data_fields,
+        schemas,
         signature_value_type(signature),
         members,
     ) else {
@@ -1730,6 +2363,45 @@ fn emit_decode_machine(
                     *kind,
                     &after,
                     &facts_by_member[member_index],
+                    "",
+                    "",
+                );
+            }
+            MemberShape::FixedVec { element, capacity } => {
+                emitter.dec_fixed_vec(
+                    &content_label,
+                    &member.name,
+                    *element,
+                    *capacity,
+                    &after,
+                    &facts_by_member[member_index],
+                );
+            }
+            MemberShape::NestedMessage { schema } => {
+                let Some(sub_facts) = nested_sub_facts(
+                    syntax_trees,
+                    sources,
+                    domains,
+                    data_fields,
+                    signature_value_type(signature),
+                    &member.name,
+                    schemas,
+                    schema,
+                ) else {
+                    continue;
+                };
+                let Some((_, sub_members)) = schemas
+                    .iter()
+                    .find(|(name, _)| name.as_str() == schema.as_str())
+                else {
+                    continue;
+                };
+                emitter.dec_nested(
+                    &content_label,
+                    &member.name,
+                    sub_members,
+                    &sub_facts,
+                    &after,
                 );
             }
             MemberShape::BorrowedSlice {
