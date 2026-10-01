@@ -111,7 +111,7 @@ pub(super) fn field_path(
 /// Recover declaration custody, not availability or permission to read contents.
 /// The catalog validates producer identity; the CFG ownership walk separately
 /// requires a live, complete owner and rejects suspended loans at each use.
-pub(super) fn byte_field_root(
+pub fn byte_field_root(
     function: &PsiOptimizationFunction,
     root: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {

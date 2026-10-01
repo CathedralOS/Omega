@@ -110,7 +110,7 @@ pub(super) fn readable(
 /// the same declared storage type. The join lookup also rejoins its exact
 /// block/place declaration; an owned arrival is observed in its block home,
 /// exactly as a field read of that arrival is.
-fn read_parameter(
+pub(super) fn read_parameter(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
@@ -211,22 +211,13 @@ pub(super) fn read_geometry(
             if !signature.entry_claims.is_empty() {
                 return None;
             }
-            let structural_type = if let Some(parameter) = signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .find(|parameter| parameter.place == argument.place)
-            {
+            // Field length and scalar reads use the same exact incoming or
+            // state-owned storage declaration. Ownership does not hide the
+            // byte field's extent; it remains separate from content authority.
+            let structural_type = if let Some(parameter) = read_parameter(source, argument.place) {
                 if parameter.access != argument.access
                     || (parameter.access == StructuralAccess::WriteOnlyBorrow
                         && !observes_byte_length)
-                    || (parameter.access == StructuralAccess::Owned && observes_byte_length)
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()

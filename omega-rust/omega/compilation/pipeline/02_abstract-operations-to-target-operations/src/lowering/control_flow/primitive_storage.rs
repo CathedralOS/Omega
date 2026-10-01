@@ -58,7 +58,7 @@ fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, Loweri
     ))
 }
 
-/// The bounded byte field `path`/`field` beneath a borrowed parameter or
+/// The bounded byte field `path`/`field` beneath a parameter or
 /// established owned home, as the structural argument its observations keep. Neither a
 /// length nor a byte read establishes a borrowed view or other authority.
 pub(super) fn readable_byte_field(
@@ -98,12 +98,10 @@ pub(super) fn readable_byte_field(
             .iter()
             .find(|parameter| parameter.place == source)
             .ok_or_else(unsupported)?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity == StructuralMultiplicity::Linear
+        // Incoming ownership is as readable as ownership established here.
+        // The consuming operation separately checks whether its observation
+        // is permitted through the retained access (including write-only).
+        if parameter.multiplicity == StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {

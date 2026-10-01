@@ -1268,9 +1268,9 @@ impl ValueEmitter<'_> {
             ))
     }
 
-    /// Source reads retain the local's current whole owned home, not write
-    /// authority and not a copied constructor result. Receiving validation
-    /// independently checks that the produced owner remains live here.
+    /// Reading a field does not consume its root. Owned formals, borrowed
+    /// formals and completed local homes retain the same field-read operation;
+    /// the receiving validator separately checks live custody and loan conflicts.
     fn field_source(
         &self,
         root: checked_trees::CheckedStoreRoot,
@@ -1284,8 +1284,13 @@ impl ValueEmitter<'_> {
                     .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
                 if !matches!(
                     parameter.access,
-                    terminal_psi::StructuralAccess::SharedBorrow
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::SharedBorrow
                         | terminal_psi::StructuralAccess::MutableBorrow
+                ) || !matches!(
+                    parameter.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
                 ) || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {

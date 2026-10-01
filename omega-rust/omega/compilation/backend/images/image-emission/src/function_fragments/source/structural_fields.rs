@@ -238,7 +238,8 @@ pub(super) fn indexed_read_retained(
     };
     if !matches!(
         access,
-        terminal_psi::StructuralAccess::SharedBorrow
+        terminal_psi::StructuralAccess::Owned
+            | terminal_psi::StructuralAccess::SharedBorrow
             | terminal_psi::StructuralAccess::MutableBorrow
     ) {
         return false;
@@ -1235,8 +1236,8 @@ fn read_access(
         if parameter.position as usize != position
             || !(matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            ) || (parameter.access == StructuralAccess::Owned && !observes_byte_length)
+                StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
                 || (parameter.access == StructuralAccess::WriteOnlyBorrow && observes_byte_length))
             || parameter.multiplicity == StructuralMultiplicity::Linear
             // Whole-owner replacement carries the declared predicate roster;
@@ -1274,7 +1275,7 @@ fn read_access(
             // A block loan observes the original pointer retained by its
             // exact graph declaration, just as an owned arrival observes its
             // own home. Source/selection replay checks that pointer transport.
-            if observes_byte_length
+            if purpose == AccessPurpose::ByteOwnerReplacement
                 || !(parameter.access == StructuralAccess::Owned
                     || abstract_operations::control_flow::address_joins::is_address_join_in(
                         parameter,

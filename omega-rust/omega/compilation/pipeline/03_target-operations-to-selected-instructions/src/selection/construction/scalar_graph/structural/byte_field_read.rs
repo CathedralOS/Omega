@@ -6,8 +6,7 @@
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
-    memory,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -31,44 +30,8 @@ pub(in crate::selection) fn read_byte(
         return Err(invalid());
     };
     let definition = row.result.ok_or_else(invalid)?;
-    let signature = function.structural.as_ref().ok_or_else(invalid)?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == source.place)
-        .ok_or_else(invalid)?;
-    if parameter.semantic.access != source.access
-        || !matches!(
-            source.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
-        || !parameter.semantic.projected_qualifications.is_empty()
-    {
-        return Err(invalid());
-    }
-    // A bounded owner's bytes follow its inline length word. A shared view
-    // field stores a descriptor whose first word points at its bytes.
-    let geometry = match crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
-        parameter.semantic.structural_type,
-        &source.path,
-        *field,
-        &signature.structural_types,
-    ) {
-        Some((metadata_offset, _)) => crate::selection::field_bytes::FieldBytes::Inline(
-            metadata_offset.checked_add(8).ok_or_else(invalid)?,
-        ),
-        None => crate::selection::field_bytes::FieldBytes::Descriptor(
-            crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
-                parameter.semantic.structural_type,
-                &source.path,
-                *field,
-                &signature.structural_types,
-            )
-            .ok_or_else(invalid)?,
-        ),
-    };
+    let geometry = crate::selection::field_bytes::FieldBytes::resolve(function, source, *field)
+        .ok_or_else(|| invalid())?;
     let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
     let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;

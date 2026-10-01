@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 
 mod byte_concatenation;
 mod byte_field_freshness;
+pub use byte_field_freshness::byte_field_root;
 mod byte_predicates;
 mod byte_views;
 pub(crate) use byte_predicates::{
