@@ -1431,6 +1431,7 @@ pass/collections/runtime_maze_pathfind_exit checked 4147ms @2d8ed253669f
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms @2d8ed253669f
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms @5f978f80e84b+wt
 pass/collections/runtime_signed_element_offset_read_exit checked 1469ms @2d8ed253669f
+pass/collections/runtime_slice_record_copy_exit checked 1181ms @83d1d7229173+wt
 pass/collections/runtime_vec_u32_growth_exit checked 22933ms @2d8ed253669f
 pass/collections/runtime_whole_array_value_copy_exit checked 834ms @a59d5a661528+wt
 pass/collections/shared_slice_view_dropped_receiver checked 1238ms @ca8c127c90c5

@@ -104,6 +104,15 @@ access without creating such a carrier. None of the unsupported forms gains
 authority merely because its shape or source lifetime resembles an admitted
 reference.
 
+An unrestricted structural leaf copied from an element view retains the view's
+live extent, not an invented fixed-array length. Even a literal source selector
+lowers to a `RuntimeIndex` with an obligation against the same view's dominating
+`ElementViewLength` observation. Independent verification rejects replacing that
+segment with an obligation-free `FixedIndex`. Copying preserves the readable
+source and its loan; it creates only the unrestricted result. Fixed-array
+selectors remain statically bounded by their declarations. The current producer
+supports this copy through a root element view, not a nested view descriptor.
+
 Structural signatures derive from parameter declarations and resolved referent
 shapes through one exhaustive access classifier. All structural-call producers
 must use that construction; they cannot attach access to an independently

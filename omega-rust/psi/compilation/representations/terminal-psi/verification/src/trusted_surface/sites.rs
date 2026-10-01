@@ -1324,7 +1324,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/leaf_copy.rs",
-        sha256: Some("b7a647d1fa84f2595c0b770bba59b5ee9173c9c70858921d59699e22b64954d1"),
+        sha256: Some("1baf5a190b4b73d7d4f95daa38f853069fabe123a54430709f30094afda1e504"),
         inventory_machinery: false,
     },
     ImplementationSite {

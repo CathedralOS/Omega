@@ -96,6 +96,7 @@ mod receiver_call_source;
 mod receiver_scalar_store_source;
 mod receiver_state_graph_forwarding;
 mod reference_result_source;
+mod slice_record_copy_source;
 mod registered_callback_lifetime;
 mod result_signature_borrowed_byte_view;
 mod retained_borrow_custody;

@@ -14,8 +14,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralTypeShape};
 
-/// A leaf copy reads an owned home or a readable parameter root; the
-/// verifier's copyable-path replay already excluded every other source kind.
+/// A leaf copy reads an owned home, a readable parameter, or a dominating
+/// element-view establishment. The view stays the source identity; selection
+/// separately resolves its backing pointer rather than copying its descriptor.
 pub(super) fn copy(
     operation: &AbstractOperation,
     function: &AbstractFunction,
@@ -55,6 +56,13 @@ pub(super) fn copy(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         home.structural_type()
+    } else if let Some((_, structural_type)) = live.views.get(source) {
+        if !types.get(structural_type).is_some_and(|declaration| {
+            matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        }) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        *structural_type
     } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
         parameter.structural_type
     } else {

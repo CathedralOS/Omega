@@ -93,6 +93,30 @@ pub(in crate::validation) fn validate(
     let signature =
         crate::validation::structural::result_contracts::source_signature(machine, source)
             .ok_or_else(invalid)?;
+    // A static ordinal proves bounds only for a fixed array. Copying an
+    // unrestricted element out of a view must carry a RuntimeIndex obligation
+    // against that view's live length, even when the authored index is literal.
+    // Otherwise replacing RuntimeIndex by FixedIndex could erase the proof.
+    // Shared-reference results keep their separate loan-formation contract.
+    if result.multiplicity == StructuralMultiplicity::Unrestricted {
+        for (position, segment) in path.iter().enumerate() {
+            if matches!(segment, StructuralPathSegment::FixedIndex(_))
+                && crate::validation::foundation::resolve_runtime_projection(
+                    module,
+                    signature.structural_type,
+                    &path[..position],
+                )
+                .is_some_and(|container| {
+                    module.structural_types.iter().any(|declaration| {
+                        declaration.id == container
+                            && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                    })
+                })
+            {
+                return Err(invalid());
+            }
+        }
+    }
     let selected_type =
         resolve_leaf_copy_path(module, signature.structural_type, path).ok_or_else(invalid)?;
     // A `&`-leaf copy mints the reference descriptor over the selected

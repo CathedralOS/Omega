@@ -17,6 +17,7 @@ use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
+mod copied_place;
 mod dispatch;
 
 pub(super) type StructuralCallEmitter<'a> = dyn FnMut(
@@ -815,21 +816,7 @@ impl Emission<'_, '_, '_> {
                     {
                         return unsupported("copied projection changed its readable copy custody");
                     }
-                    let authored = crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
-                    )?;
-                    let mut argument =
-                        crate::expression_preparation::bindings::ScalarBindings::new(
-                            self.values.iter().map(|value| value.scalar_type),
-                        )
-                        .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals)
-                        .shared_structural_argument(
-                            copied,
-                            authored.0,
-                            self.checked.state_parameters(authored.1),
-                        )?;
+                    let mut argument = self.copied_place_argument(copied)?;
                     argument.path.extend(lower_structural_path(&path)?);
                     return self.copied_leaf_place(&argument, continuation);
                 }
@@ -880,56 +867,7 @@ impl Emission<'_, '_, '_> {
                 if lookup_type_id(self.type_ids, &identity)? != self.structural_type {
                     return unsupported("copied place changed its leaf type");
                 }
-                let authored = crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                )?;
-                let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
-                    self.values.iter().map(|value| value.scalar_type),
-                )
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals);
-                let parameters = self.checked.state_parameters(authored.1);
-                // A runtime-indexed copy source (`self.nodes[position]`)
-                // carries its selector in the caller's operand frame — a
-                // `Parameter` segment indexes the dense scalar operands, a
-                // `StructuralField` selector reads the field here — and each
-                // `RuntimeIndex` segment takes its bound obligation from the
-                // call context for the terminal verifier to replay.
-                let argument = if source.path.iter().any(|segment| {
-                    matches!(
-                        segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                    )
-                }) {
-                    let place =
-                        bindings.shared_structural_place(&source, authored.0, parameters)?;
-                    let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-                        &self.evaluation.structural_parameters,
-                        self.structural_types,
-                    );
-                    let mut selector_values =
-                        super::super::parameters::mint_runtime_index_selectors(
-                            std::slice::from_ref(&source),
-                            &fields,
-                            self.values.as_slice(),
-                            self.next_value,
-                            self.operations,
-                        )?
-                        .into_iter();
-                    StructuralArgument {
-                        place,
-                        path: crate::expression_preparation::bindings::structural_paths::lower_argument_path(
-                            &source.path,
-                            Some(self.values.as_slice()),
-                            &mut selector_values,
-                            Some(&mut *self.calls),
-                        )?,
-                        access: StructuralAccess::SharedBorrow,
-                    }
-                } else {
-                    bindings.shared_structural_argument(&source, authored.0, parameters)?
-                };
+                let argument = self.copied_place_argument(&source)?;
                 self.copied_leaf_place(&argument, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
@@ -2350,6 +2288,7 @@ impl Emission<'_, '_, '_> {
         argument: &StructuralArgument,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
+        let path = self.copied_place_path(argument)?;
         // Snapshot whole byte operands before later record members execute.
         // Copy the source's exact established roster, not the destination's
         // requested predicates; the independent copy checker rejoins both.
@@ -2400,7 +2339,7 @@ impl Emission<'_, '_, '_> {
             }),
             kind: OperationKind::StructuralLeafCopy {
                 source: argument.place,
-                path: argument.path.clone(),
+                path,
             },
         });
         self.temporary_places.push(StructuralPlaceDeclaration {

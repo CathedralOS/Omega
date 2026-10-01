@@ -51,6 +51,85 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
 }
 
 #[test]
+fn local_slice_record_copy_retains_view_identity_and_bound() {
+    let source = source_plan(
+        r#"
+            data Tag [copy] { case First; case Second; }
+            data Cell [copy] { tag: Tag; value: u64; }
+            data Bag { cells: [Cell; 2]; }
+            data Main {}
+            machine Main::run(source: &Bag, destination: &mut Bag) {
+                let input: &[Cell] = source.cells.as_slice();
+                let output: &mut [Cell] = destination.cells.as_mut_slice();
+                output[0] = input[1];
+            }
+        "#,
+    );
+    let (copy, copied_view, copied_path, copied_type) = source
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::StructuralLeafCopy {
+                psi_operation,
+                source,
+                path,
+                result,
+            } => Some((
+                *psi_operation,
+                *source,
+                path.clone(),
+                result.structural_type,
+            )),
+            _ => None,
+        })
+        .expect("source-produced record snapshot");
+    assert!(
+        source
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .any(|operation| matches!(operation,
+            AbstractOperation::EstablishElementView { result, source, .. }
+                if result.place == copied_view && source.place != copied_view
+                    && result.structural_type != copied_type))
+    );
+    let abstract_operations::StructuralCopyPath::Ordinary(path) = &copied_path else {
+        panic!("ordinary copied element path");
+    };
+    assert!(matches!(
+        path.as_slice(),
+        [terminal_psi::StructuralPathSegment::RuntimeIndex { .. }]
+    ));
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("copy through the established local view");
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("target retains structural source custody");
+        let copied = target.functions.iter().flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find(|operation| matches!(operation,
+                TargetUnitOperation::StructuralLeafCopy { psi_operation, .. } if *psi_operation == copy))
+            .expect("target copied element");
+        let TargetUnitOperation::StructuralLeafCopy {
+            source: actual_source,
+            path,
+            result_home,
+            indices,
+            ..
+        } = copied
+        else {
+            unreachable!()
+        };
+        assert_eq!(*actual_source, copied_view);
+        assert_eq!(*path, copied_path);
+        assert_eq!(result_home.structural_type(), copied_type);
+        assert_eq!(indices.len(), 1);
+    }
+}
+
+#[test]
 fn owned_state_argument_retains_destination_storage_and_rejects_substitution() {
     let source = source_plan(
         r#"
