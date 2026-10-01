@@ -2193,6 +2193,7 @@ pass/text/runtime_text_builder checked 1509ms @2d8ed253669f
 pass/text/runtime_text_not_equals_exit checked 2640ms @d0c1840f255b
 pass/text/runtime_utf16_literal_exit checked 1329ms @2d8ed253669f
 pass/text/utf8_boundary_established checked 302ms @2d8ed253669f
+pass/text/view_field_literal_store_outlives_helper_exit checked 1252ms @5676dbe78a95+wt
 pass/text/zii_default_string_equality_exit checked 4129ms @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms @8778c440081
 pass/time/runtime_duration_core_exit checked 24317ms @ca8c127c90c5

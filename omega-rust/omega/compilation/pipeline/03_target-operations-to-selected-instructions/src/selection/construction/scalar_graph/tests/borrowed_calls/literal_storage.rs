@@ -1,4 +1,5 @@
-//! Local literal bytes and descriptor storage are replayed from one source producer.
+//! A literal's descriptor storage and its image address are replayed from one
+//! source producer; its octets stay in image storage, never in the frame.
 use super::super::{EffectLink, FuelSettlement, IntegerValue, LegalizedScalarInstruction};
 use super::{
     CallSignature, CallingPolicy, LegalizedScalarArgument, LegalizedScalarFunction,
@@ -73,7 +74,7 @@ fn literal_call(target: target::NativeTarget, bytes: &[u8]) -> LegalizedScalarFu
 }
 
 #[test]
-fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
+fn literal_storage_replays_image_address_descriptor_geometry_and_single_fuel() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -136,25 +137,24 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
             let slot = LocalStorageSlotId::Structural { operation, place };
             assert_eq!(selected.local_storage_slots.len(), 1);
             assert_eq!(selected.local_storage_slots[0].id, slot);
-            assert_eq!(
-                selected.local_storage_slots[0].byte_size,
-                16 + (bytes.len() as u32).div_ceil(8) * 8
-            );
+            // Only the two-word descriptor is activation-local.
+            assert_eq!(selected.local_storage_slots[0].byte_size, 16);
             assert_eq!(selected.local_storage_slots[0].alignment, 8);
             assert!(selected.outgoing_arguments.is_empty());
-            let backing = selected
-                .memory_accesses
-                .iter()
-                .find(|access| {
-                    access.byte_offset == 16
-                        && matches!(access.role, SelectedMemoryAccessRole::AddressLocal { .. })
-                })
-                .unwrap();
-            assert_eq!(backing.byte_count, bytes.len() as u32);
             assert_eq!(
-                backing.role,
-                SelectedMemoryAccessRole::AddressLocal { slot }
+                selected
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .filter(|row| row.kind
+                        == SelectedInstructionKind::ByteLiteralImageAddress { operation, place })
+                    .count(),
+                1
             );
+            assert!(!selected.memory_accesses.iter().any(|access| {
+                access.byte_offset >= 16
+                    && matches!(access.role, SelectedMemoryAccessRole::AddressLocal { .. })
+            }));
             let settled = selected.blocks[0]
                 .instructions
                 .iter()
@@ -195,18 +195,20 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                     2 => changed.local_storage_slots[0].byte_size += 8,
                     3 => changed.local_storage_slots[0].alignment = 16,
                     4 => {
-                        let access = changed
-                            .memory_accesses
+                        let row = changed.blocks[0]
+                            .instructions
                             .iter_mut()
-                            .find(|access| {
-                                access.byte_offset == 16
-                                    && matches!(
-                                        access.role,
-                                        SelectedMemoryAccessRole::AddressLocal { .. }
-                                    )
+                            .find(|row| {
+                                matches!(
+                                    row.kind,
+                                    SelectedInstructionKind::ByteLiteralImageAddress { .. }
+                                )
                             })
                             .unwrap();
-                        access.byte_count += 1;
+                        row.kind = SelectedInstructionKind::ByteLiteralImageAddress {
+                            operation: OperationId::new(99).unwrap(),
+                            place,
+                        };
                     }
                     5 => changed.memory_accesses[0].place = PlaceId::new(99).unwrap(),
                     6 => {
@@ -292,14 +294,10 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                         unreachable!()
                     };
                     match mutation {
-                        0 => bytes.push(0),
-                        1 => {
-                            if let Some(byte) = bytes.first_mut() {
-                                *byte ^= 128;
-                            } else {
-                                bytes.push(128);
-                            }
-                        }
+                        // A changed extent changes the descriptor's length
+                        // word; equal-length octets are image emission's to
+                        // rejoin, so selection never encodes them.
+                        0 | 1 => bytes.push(0),
                         _ => destination.id = PlaceId::new(99).unwrap(),
                     }
                 }

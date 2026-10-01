@@ -227,7 +227,6 @@ whose view-carrying values never escape it by return, owned transfer out of the
 activation or whole-value store into a longer-lived root; it covers both
 customers. Adopt (B) when a persistent root needs a non-literal view.
 
-Native realization is a separate, unblocked limit: Omega currently places a
-literal's bytes in its establishing activation's frame rather than image
-storage, so it realizes a stored literal view only within the program entry's
-activation.
+Native realization no longer limits literal stores: Omega places a literal's
+octets in the image's read-only literal pool and addresses them PC-relatively,
+so a stored literal view outlives every activation.

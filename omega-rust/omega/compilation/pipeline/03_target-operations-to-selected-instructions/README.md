@@ -433,8 +433,12 @@ ABI transfers then realize the value; source literals introduce neither numeric
 conversion nor a separate call or store instruction family.
 
 Literal and transported subslice descriptors use activation-local homes, separately
-from ABI argument-copy slots. A subslice retains the original backing plus
-exact integer offset and length; a subslice used as a call or block argument acquires
+from ABI argument-copy slots. A literal's home holds only its 16-byte descriptor:
+`ByteLiteralImageAddress` names the octets' read-only image storage by the
+establishing operation and place, and image emission binds that address to the
+literal pool, so a copied literal descriptor outlives the activation. A subslice
+retains the original backing plus exact integer offset and length; a subslice used
+as a call or block argument acquires
 an addressable 16-byte descriptor. Repeated calls forward that descriptor,
 never a copy of its bytes. Producer/result identity, bounds, source-place availability
 and selected address lifetime remain required, including across guarded blocks.

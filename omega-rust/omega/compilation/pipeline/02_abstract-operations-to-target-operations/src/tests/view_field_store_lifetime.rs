@@ -1,9 +1,7 @@
-//! A stored literal view's native backing is a slot in its establishing
-//! activation's frame, so lowering admits the descriptor replacement only
-//! where that frame outlives every reader: the program entry's own
-//! provisioned parameter, written without a `Referent` crossing. Translation
-//! validation replays the same gate.
-use super::super::{LoweringError, TargetLoweringRequest, lower_to_target_operations};
+//! A stored literal view names immutable image storage, which outlives every
+//! root, so lowering admits the descriptor replacement in any activation:
+//! the program entry's own parameter and a callee's parameter alike.
+use super::super::{TargetLoweringRequest, lower_to_target_operations};
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, BlockId, EdgeId, MachineId, NativeTarget, OperationId, PlaceId,
@@ -11,7 +9,6 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, TargetUnitOperation, identity,
 };
-use crate::AbstractToTargetTranslationValidationError;
 
 const STORE: u64 = 21;
 
@@ -120,54 +117,25 @@ fn store(
 }
 
 #[test]
-fn the_entry_activation_replaces_its_own_parameter_field() {
-    let mut source = fixture();
-    store(&mut source, 0, 1, Vec::new());
-    for target in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
-        let lowered =
-            lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
-        assert!(
-            lowered.functions[0].graph.blocks[0]
-                .operations
-                .iter()
-                .any(|operation| matches!(
-                    operation,
-                    TargetUnitOperation::StructuralByteViewFieldStore { .. }
-                ))
-        );
-        crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
-    }
-}
-
-#[test]
-fn a_store_whose_root_may_outlive_the_literal_frame_fails_closed() {
-    let target = NativeTarget::macos_arm64();
-    let without_store =
-        lower_to_target_operations(&fixture(), TargetLoweringRequest::new(target)).unwrap();
-    let operation = OperationId::new(STORE).unwrap();
-    for (function, destination, path) in [
-        // A callee's parameter belongs to a root its caller keeps.
-        (1, 1, Vec::new()),
-        // A reference crossing reaches storage the entry does not own.
-        (0, 1, vec![terminal_psi::StructuralPathSegment::Referent]),
-        // Only a provisioned parameter is known to outlive the frame.
-        (0, 3, Vec::new()),
-    ] {
+fn every_activation_replaces_its_parameter_field_with_image_backed_literal() {
+    // Function 0 is the program entry; function 1 is a callee whose
+    // parameter belongs to a root its caller keeps.
+    for function in [0, 1] {
         let mut source = fixture();
-        store(&mut source, function, destination, path);
-        assert_eq!(
-            lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-            Err(LoweringError::UnsupportedViewFieldStoreLifetime(operation))
-        );
-        // A target graph that omits the store cannot turn independently
-        // replayed translation into admission.
-        assert_eq!(
-            crate::validate_abstract_to_target_translation(&source, target, &without_store),
-            Err(
-                AbstractToTargetTranslationValidationError::UnsupportedViewFieldStoreLifetime(
-                    operation
-                )
-            )
-        );
+        store(&mut source, function, 1, Vec::new());
+        for target in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+            let lowered =
+                lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
+            assert!(
+                lowered.functions[function].graph.blocks[0]
+                    .operations
+                    .iter()
+                    .any(|operation| matches!(
+                        operation,
+                        TargetUnitOperation::StructuralByteViewFieldStore { .. }
+                    ))
+            );
+            crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
+        }
     }
 }

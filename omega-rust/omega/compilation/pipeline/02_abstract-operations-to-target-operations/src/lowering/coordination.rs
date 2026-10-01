@@ -117,13 +117,6 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     {
         return Err(LoweringError::UnsupportedIeeeFloatFmaRealization(operation));
     }
-    // Literal backing lives in its establishing activation's frame. Only the
-    // entry activation spans the root it was provisioned, so a descriptor
-    // replacement elsewhere, or through a returned reference, would leave the
-    // field pointing into a dead frame.
-    if let Some(operation) = frame_outliving_view_field_store(plan) {
-        return Err(LoweringError::UnsupportedViewFieldStoreLifetime(operation));
-    }
     let installed_by_call =
         installed_provider_calls::index_installed_provider_calls(plan, installation)?;
     let boundary_calls = installed_provider_calls::index_boundary_calls(plan);
@@ -174,40 +167,4 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &native_callbacks_by_operation,
     )?;
     Ok(target_plan)
-}
-
-/// The first descriptor replacement whose destination root may outlive the
-/// literal backing the replacement stores: any outside the entry function,
-/// or one that does not write an entry structural parameter directly.
-fn frame_outliving_view_field_store(
-    plan: &AbstractOperationPlan,
-) -> Option<semantic_vocabulary::OperationId> {
-    plan.functions
-        .iter()
-        .flat_map(|function| {
-            function
-                .operations
-                .iter()
-                .filter_map(move |operation| match operation {
-                    AbstractOperation::StructuralByteViewFieldStore {
-                        psi_operation,
-                        destination,
-                        path,
-                        ..
-                    } if function.machine != plan.entry
-                        || matches!(
-                            path.first(),
-                            Some(terminal_psi::StructuralPathSegment::Referent)
-                        )
-                        || !function
-                            .structural_parameters
-                            .iter()
-                            .any(|parameter| parameter.place == *destination) =>
-                    {
-                        Some(*psi_operation)
-                    }
-                    _ => None,
-                })
-        })
-        .min()
 }

@@ -1,4 +1,4 @@
-//! Establish original immutable literal backing and its addressable descriptor.
+//! Establish a literal's addressable descriptor over its read-only image octets.
 use super::local_storage::{address, store};
 use super::{
     Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, SelectedInstructionKind,
@@ -34,9 +34,10 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    let length = u32::try_from(bytes.len()).map_err(|_| invalid())?;
-    let padded = length.checked_add(7).ok_or_else(|| invalid())? & !7;
-    let byte_size = padded.checked_add(16).ok_or_else(|| invalid())?;
+    // The octets stay in read-only image storage, never in this frame: only
+    // the two-word descriptor is activation-local, so a stored copy of it
+    // outlives the activation that established it.
+    let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: destination.id,
@@ -46,23 +47,25 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size,
+            byte_size: 16,
             alignment: 8,
         });
-    for (chunk_index, chunk) in bytes.chunks(8).enumerate() {
-        let offset = u32::try_from(chunk_index)
-            .ok()
-            .and_then(|value| value.checked_mul(8))
-            .and_then(|value| value.checked_add(16))
-            .ok_or_else(|| invalid())?;
-        let mut word = [0_u8; 8];
-        word[..chunk.len()].copy_from_slice(chunk);
-        let value = constant(builder, row, offset, u64::from_le_bytes(word))?;
-        store(builder, row, slot, offset, value)?;
-    }
-    let backing = address(builder, row, slot, 16, length, false)?;
+    let backing = transport_register(builder, destination.id, 16)?;
+    builder.emit(
+        SelectedInstructionKind::ByteLiteralImageAddress {
+            operation: row.operation,
+            place: destination.id,
+        },
+        builder
+            .constraints
+            .keys
+            .byte_literal_image_address
+            .ok_or_else(|| invalid())?,
+        &[backing],
+        provenance(row),
+    )?;
     store(builder, row, slot, 0, backing)?;
-    let length = constant(builder, row, 8, u64::from(length))?;
+    let length = constant(builder, row, 8, length)?;
     store(builder, row, slot, 8, length)?;
     let descriptor = address(builder, row, slot, 0, 16, true)?;
     builder
