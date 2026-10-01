@@ -58,8 +58,12 @@ pub(in crate::validation) fn validate_structural_argument(
                 "reference projections at host boundaries are not yet supported",
             ));
         }
-        if crate::validation::references::source_type(module, caller, argument)
-            != Some(expected.structural_type)
+        if crate::validation::references::call_source_type(
+            module,
+            caller,
+            argument,
+            ordinary_call && !reference_result_call,
+        ) != Some(expected.structural_type)
             || argument.access != expected.access
             || expected.multiplicity != StructuralMultiplicity::Unrestricted
             || !expected.qualifications.is_empty()
@@ -67,7 +71,7 @@ pub(in crate::validation) fn validate_structural_argument(
         {
             return Err(crate::validation::references::invalid(
                 caller,
-                "reference argument does not match its exact primitive parameter",
+                "reference argument does not match its exact parameter",
             ));
         }
         return Ok(());

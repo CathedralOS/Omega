@@ -61,6 +61,18 @@ impl Root {
     }
 }
 
+fn roots_overlap(left: &Root, right: &Root) -> bool {
+    if left.place() != right.place() {
+        return false;
+    }
+    match (left, right) {
+        (Root::Ingress(_, left), Root::Ingress(_, right)) => {
+            left.starts_with(right) || right.starts_with(left)
+        }
+        _ => true,
+    }
+}
+
 /// Live reference loans keyed by current carrier location, exactly mirroring
 /// the lowering-time custody map's membership.
 #[derive(Debug, Clone, Default)]
@@ -88,7 +100,7 @@ pub(in crate::legalization) struct WritableReferentDestination {
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
 }
 
-pub(in crate::legalization) fn writable_referent_destination(
+fn returned_mutable_record_projection(
     custody: &Custody,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
@@ -169,6 +181,111 @@ pub(in crate::legalization) fn writable_referent_destination(
         parameter: parameter.clone(),
         path: root_path,
     })
+}
+
+pub(in crate::legalization) fn writable_referent_destination(
+    custody: &Custody,
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    carrier: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<WritableReferentDestination> {
+    returned_mutable_record_projection(custody, function, types, carrier, path)
+}
+
+/// Rejoin one call-only projection through a returned mutable record. The
+/// carrier remains semantic custody; the target row transports the exact
+/// original ingress address with the captured root path and selected suffix.
+pub(in crate::legalization) fn returned_record_call_argument(
+    argument: &StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &calling_conventions::ValuePlacement,
+    caller: &PsiOptimizationFunction,
+    target_caller: &super::TargetFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+) -> Result<Option<target_operations::TargetStructuralArgument>, LegalizationError> {
+    let Some(resolved) =
+        returned_mutable_record_projection(custody, caller, types, argument.place, &argument.path)
+    else {
+        return Ok(None);
+    };
+    let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first() else {
+        return Ok(None);
+    };
+    if suffix.is_empty()
+        || argument.access == StructuralAccess::Owned
+        || argument.access != declaration.access
+        || declaration.is_self
+        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    let source = super::structural_parameters(target_caller)
+        .and_then(|parameters| {
+            parameters.iter().find(|source| {
+                source.place == resolved.parameter.place
+                    && source.structural_type == resolved.parameter.structural_type
+                    && source.access == resolved.parameter.access
+                    && source.multiplicity == resolved.parameter.multiplicity
+            })
+        })
+        .ok_or_else(invalid)?;
+    let access_is_compatible = resolved.parameter.access == StructuralAccess::MutableBorrow
+        && matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        );
+    let (selected, source_byte_offset) =
+        crate::structural_inputs::structural_reference_input::project(
+            source.structural_type,
+            &resolved.path,
+            types,
+        )
+        .ok_or_else(invalid)?;
+    let selected_shape =
+        crate::structural_inputs::structural_reference_input::shape(selected, types)
+            .ok_or_else(invalid)?;
+    let expected_shape = calling_conventions::ValueShape::borrowed_reference(
+        selected_shape.byte_size,
+        selected_shape.alignment,
+    );
+    let source_shape =
+        crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
+            .ok_or_else(invalid)?;
+    if !access_is_compatible
+        || selected != declaration.structural_type
+        || destination.shape != expected_shape
+        || source.shape
+            != calling_conventions::ValueShape::borrowed_reference(
+                source_shape.byte_size,
+                source_shape.alignment,
+            )
+        || selected_shape
+            .byte_size
+            .checked_add(source_byte_offset)
+            .is_none_or(|end| end > source_shape.byte_size)
+    {
+        return Err(invalid());
+    }
+    Ok(Some(target_operations::TargetStructuralArgument {
+        place: source.place,
+        access: argument.access,
+        path: resolved.path,
+        root_structural_type: source.structural_type,
+        structural_type: selected,
+        shape: destination.shape,
+        source_byte_offset,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: source.placement.clone().into(),
+        destination: destination.clone(),
+    }))
 }
 
 #[track_caller]
@@ -750,6 +867,30 @@ fn call_arguments(
     let mut normalized = Vec::new();
     let mut moved = BTreeMap::new();
     for argument in arguments {
+        if argument.path.len() > 1
+            && matches!(argument.path.first(), Some(StructuralPathSegment::Referent))
+            && let Some(resolved) = returned_mutable_record_projection(
+                custody,
+                function,
+                types,
+                argument.place,
+                &argument.path,
+            )
+        {
+            let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first()
+            else {
+                return Err(invalid());
+            };
+            if suffix.is_empty() || argument.access == StructuralAccess::Owned {
+                return Err(invalid());
+            }
+            normalized.push((
+                Root::Ingress(resolved.parameter.place, resolved.path),
+                argument.access,
+                true,
+            ));
+            continue;
+        }
         if argument_owns_references(function, custody, types, argument) {
             if !argument.path.is_empty() {
                 return Err(invalid());
@@ -809,7 +950,7 @@ fn call_arguments(
             .iter()
             .any(|(other, other_access, other_reference_access)| {
                 (*reference_access || *other_reference_access)
-                    && root == other
+                    && roots_overlap(root, other)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
             })

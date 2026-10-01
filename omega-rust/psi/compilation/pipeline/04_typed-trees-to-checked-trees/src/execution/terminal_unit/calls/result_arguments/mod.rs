@@ -3,7 +3,6 @@ use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
-use crate::execution::terminal_unit::CheckedUnitStructuralPathSegment;
 use crate::execution::terminal_unit::CheckedUnitStructuralResultBindingPlan;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
@@ -28,6 +27,7 @@ use crate::execution::terminal_unit::calls::structural_arguments::exact_structur
 
 mod anonymous_shared;
 mod bounded_owner;
+mod reference;
 
 #[cfg(test)]
 mod tests;
@@ -67,55 +67,26 @@ pub(super) fn argument(
         .statement_table
         .statements(source_state.statement_nodes)
         .get(result.statement_index as usize)
-        && super::super::reference_results::parts(program, local.type_reference).is_some()
+        && reference::is_carrier(program, local.type_reference)
         // Anonymous operand results carry their consuming statement's index,
         // which may be a `&mut` local binding that does not own this operand
         // place. Only an operand rooted at that local belongs to this lane;
         // other roots continue to the general argument checks below.
         && place.root == facts::PlaceRoot::Symbol(local.symbol)
     {
-        let (_, access) =
-            super::super::reference_results::parts(program, parameter.type_reference)?;
-        if !place.segments.is_empty()
-            || result.type_identity
-                != program
-                    .normalized_type_identity(local.type_reference)
-                    .as_str()
-            || program.normalized_type_identity(parameter.type_reference)
-                != program.normalized_type_identity(local.type_reference)
-        {
-            return None;
-        }
-        let flow = state_flow(facts, machine, state)?;
-        let producer = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(flow.calls)
-            .iter()
-            .find(|producer| producer.authored_expression == local.initial_value)?;
-        let loan = super::super::reference_results::result_loan(
+        return reference::argument(
             program,
             facts,
             machine,
             source_state,
-            producer,
+            call,
+            expression,
+            place,
+            local,
             result,
-        )?;
-        let end = super::super::reference_results::release_statement(facts, machine, state, loan)?;
-        if call.statement_index <= result.statement_index as usize
-            || call.statement_index >= end as usize
-        {
-            return None;
-        }
-        return Some(CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
-            path: vec![CheckedUnitStructuralPathSegment::Referent],
-            type_identity: target_identity.to_owned(),
-            access,
-        });
+            parameter,
+            target_identity,
+        );
     }
     // A bounded byte owner local lends its whole carrier to a formal of the
     // same carrier; the loan leaves the owner in place.

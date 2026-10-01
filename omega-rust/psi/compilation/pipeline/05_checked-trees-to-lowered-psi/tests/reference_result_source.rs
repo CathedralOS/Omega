@@ -12,6 +12,86 @@ use terminal_production::{
 };
 use terminal_psi::{OperationKind, Terminator};
 
+#[test]
+fn returned_record_field_call_replays_the_exact_projection() {
+    let checked = crate::front_end::checked_program(
+        "data Child { value: u64; }
+         data Holder { child: Child; other: Child; sibling: u64; }
+         data Bag { holders: [Holder; 2]; }
+         machine pick(bag: &mut Bag) -> &mut Holder {
+             let holders: &mut [Holder] = bag.holders.as_mut_slice();
+             transition { _ -> &mut holders[1] }
+         }
+         machine replace(child: &mut Child) { child.value = 41; }
+         machine exercise(bag: &mut Bag) {
+             let selected: &mut Holder = pick(bag);
+             selected.sibling = 29;
+             replace(&mut selected.child);
+             selected.sibling = 31;
+         }",
+    );
+    let publish = |source: &checked_trees::CheckedTrees| {
+        terminal_production::TerminalProductionRequest::new(
+            source,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .map(|_| ())
+        .map_err(|error| format!("{error:?}"))
+    };
+    publish(&checked).expect("the authored projected call publishes");
+    let sibling = checked
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| checked.data_members(definition))
+        .find_map(|member| match member {
+            checked_trees::data::DataMember::Field(field) if field.name.as_str() == "other" => {
+                Some(field.path_identity())
+            }
+            _ => None,
+        })
+        .expect("same-typed sibling field");
+    for corruption in 0..3 {
+        let mut changed = checked.clone();
+        let argument = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+            .flat_map(|call| &mut call.structural_arguments)
+            .find(|argument| {
+                matches!(
+                    argument.path.as_slice(),
+                    [
+                        checked_trees::CheckedUnitStructuralPathSegment::Referent,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                    ]
+                )
+            })
+            .expect("projected reference argument");
+        match corruption {
+            0 => {
+                argument.path[1] =
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(sibling.clone())
+            }
+            1 => {
+                argument.path.remove(0);
+            }
+            2 => argument.access = checked_trees::CheckedStructuralAccess::Owned,
+            _ => unreachable!(),
+        }
+        assert!(
+            publish(&changed).is_err(),
+            "source projection corruption {corruption}"
+        );
+    }
+}
+
 fn artifact(prefix: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = checked(prefix);
     terminal_production::TerminalProductionRequest::new(

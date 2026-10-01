@@ -22,6 +22,23 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
+    if semantic.path.len() > 1
+        && matches!(
+            semantic.path.first(),
+            Some(terminal_psi::StructuralPathSegment::Referent)
+        )
+    {
+        return validate_returned_record_projection(
+            source,
+            call,
+            operation,
+            argument_index,
+            semantic,
+            target,
+            indices,
+            signature,
+        );
+    }
     // A `.., Referent` argument transports its referent root's pointer; the
     // carrier place names loan custody only and is never a pointer source.
     if matches!(
@@ -549,6 +566,164 @@ pub(super) fn validate_borrowed_argument(
         }
     }
     Some(())
+}
+
+/// Validate the physical pointer row for a child borrowed through one
+/// returned mutable-record carrier. Selection checks the clean carrier and
+/// retained static geometry. The exact captured origin remains guarded by
+/// `validate_optimized_selection_custody`, which re-legalizes this immutable
+/// plan from the raw target/reference-result roster before publication.
+fn validate_returned_record_projection(
+    source: &LegalizedScalarFunction,
+    call: &LegalizedScalarCall,
+    operation: semantic_vocabulary::OperationId,
+    argument_index: usize,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    signature: &legalized_operations::LegalizedStructuralContract,
+) -> Option<()> {
+    let (terminal_psi::StructuralPathSegment::Referent, suffix) = semantic.path.split_first()?
+    else {
+        return None;
+    };
+    if suffix.is_empty()
+        || !suffix.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+        || semantic.access == StructuralAccess::Owned
+        || target.access != semantic.access
+        || target.fixed_array_length.is_some()
+        || target.element_stride.is_some()
+        || !indices.is_empty()
+        || !target.path.ends_with(suffix)
+    {
+        return None;
+    }
+    let mut producers = source
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| match &instruction.kind {
+            legalized_operations::LegalizedScalarInstructionKind::Call(produced)
+                if instruction.operation != operation
+                    && produced
+                        .structural_result
+                        .as_ref()
+                        .is_some_and(|result| result.place == semantic.place) =>
+            {
+                Some((instruction.operation, produced))
+            }
+            _ => None,
+        });
+    let (producer, produced) = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
+    let result = produced.structural_result.as_ref()?;
+    if producer == operation
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+    {
+        return None;
+    }
+    let (referent, access) = signature
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+        .and_then(|declaration| match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { referent, access } => {
+                Some((*referent, *access))
+            }
+            _ => None,
+        })?;
+    if access != StructuralAccess::MutableBorrow
+        || !signature.structural_types.iter().any(|declaration| {
+            declaration.id == referent
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        })
+    {
+        return None;
+    }
+    let root = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == target.place)?;
+    if root.semantic.access != StructuralAccess::MutableBorrow
+        || root.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !root.semantic.qualifications.is_empty()
+        || !root.semantic.projected_qualifications.is_empty()
+        || root.target.place != root.semantic.place
+        || root.target.structural_type != root.semantic.structural_type
+        || target.root_structural_type != root.semantic.structural_type
+        || target.source
+            != target_operations::TargetStructuralArgumentSource::Placement(
+                root.target.placement.clone(),
+            )
+    {
+        return None;
+    }
+    let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
+        root.semantic.structural_type,
+        &target.path,
+        &signature.structural_types,
+    )?;
+    let selected_shape = crate::structural_inputs::structural_reference_input::shape(
+        selected,
+        &signature.structural_types,
+    )?;
+    let shape = ValueShape::borrowed_reference(selected_shape.byte_size, selected_shape.alignment);
+    if target.structural_type != selected
+        || target.source_byte_offset != offset
+        || target.shape != shape
+        || target.destination.shape != shape
+    {
+        return None;
+    }
+    let expected = evaluate_call_plan(
+        source.call_plan.policy,
+        &CallSignature {
+            parameters: call
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(position, argument)| match argument {
+                    LegalizedScalarArgument::Scalar {
+                        source: value,
+                        placement,
+                    } => {
+                        let value_shape = scalar_shape(scalar_value_type(source, *value)?)?;
+                        (placement.shape == value_shape).then_some(value_shape)
+                    }
+                    LegalizedScalarArgument::Structural { target, .. } => {
+                        Some(if position == argument_index {
+                            shape
+                        } else {
+                            target.shape
+                        })
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?,
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|placement| placement.shape),
+        },
+    )
+    .ok()?;
+    (call.call_plan == expected
+        && Some(&target.destination) == expected.parameters.get(argument_index))
+    .then_some(())
 }
 
 /// Reconstruct the pointer displacement from source layout, never from a

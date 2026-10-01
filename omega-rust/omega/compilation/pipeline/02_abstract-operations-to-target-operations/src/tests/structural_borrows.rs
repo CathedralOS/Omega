@@ -2092,6 +2092,144 @@ fn structural_result_call_rejects_forged_reference_result_rows() {
 }
 
 #[test]
+fn returned_record_projected_call_rejects_forged_physical_origins() {
+    let source = source_plan(
+        r#"
+            data Child { value: u64; }
+            data Holder { child: Child; other: Child; sibling: u64; }
+            data Bag { holders: [Holder; 2]; }
+            data Main { bag: Bag; }
+            machine pick(bag: &mut Bag) -> &mut Holder {
+                let holders: &mut [Holder] = bag.holders.as_mut_slice();
+                transition { _ -> &mut holders[1] }
+            }
+            machine replace(child: &mut Child) { child.value = 41; }
+            machine Main::run(&mut self) {
+                let selected: &mut Holder = pick(&mut self.bag);
+                replace(&mut selected.child);
+            }
+        "#,
+    );
+    let (caller, projected_call) = source
+        .functions
+        .iter()
+        .find_map(|function| {
+            function
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    AbstractOperation::CallStructural {
+                        psi_operation,
+                        structural_arguments,
+                        ..
+                    } if structural_arguments.iter().any(|argument| {
+                        argument.path.len() > 1
+                            && matches!(
+                                argument.path.first(),
+                                Some(terminal_psi::StructuralPathSegment::Referent)
+                            )
+                    }) =>
+                    {
+                        Some((function.machine, *psi_operation))
+                    }
+                    _ => None,
+                })
+        })
+        .expect("projected call operation");
+    let expected =
+        crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+            machine: caller,
+            operation: projected_call,
+        };
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("projected returned-record call lowers");
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("honest projected origin validates");
+        let selected_field = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call {
+                    psi_operation,
+                    arguments,
+                    ..
+                } if *psi_operation == projected_call => arguments.first()?.path.last(),
+                _ => None,
+            })
+            .and_then(|segment| match segment {
+                terminal_psi::StructuralPathSegment::Field(identity) => Some(identity.clone()),
+                _ => None,
+            })
+            .expect("selected child identity");
+        let sibling_field = source
+            .structural_types
+            .iter()
+            .find_map(|declaration| {
+                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                    return None;
+                };
+                let selected_type = fields.iter().find_map(|field| {
+                    (field.identity == selected_field).then_some(&field.field_type)
+                })?;
+                fields
+                    .iter()
+                    .find(|field| {
+                        field.identity != selected_field && &field.field_type == selected_type
+                    })
+                    .map(|field| field.identity.clone())
+            })
+            .expect("same-typed sibling identity");
+        for corruption in 0..3 {
+            let changed = mutate_call_row(
+                &target,
+                |operation| {
+                    matches!(operation,
+                        TargetUnitOperation::Call { psi_operation, .. }
+                            if *psi_operation == projected_call)
+                },
+                |operation| {
+                    let TargetUnitOperation::Call { arguments, .. } = operation else {
+                        unreachable!()
+                    };
+                    let argument = arguments.first_mut().expect("projected argument");
+                    match corruption {
+                        0 => argument.place = PlaceId::new(999).unwrap(),
+                        1 => {
+                            let index = argument
+                                .path
+                                .iter_mut()
+                                .find(|segment| {
+                                    matches!(
+                                        segment,
+                                        terminal_psi::StructuralPathSegment::FixedIndex(_)
+                                    )
+                                })
+                                .expect("captured fixed index");
+                            *index = terminal_psi::StructuralPathSegment::FixedIndex(0);
+                        }
+                        2 => {
+                            let field = argument.path.last_mut().expect("selected child field");
+                            *field =
+                                terminal_psi::StructuralPathSegment::Field(sibling_field.clone());
+                        }
+                        _ => unreachable!(),
+                    }
+                },
+            );
+            assert_eq!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed),
+                Err(expected.clone()),
+                "forged returned-record physical origin {corruption}"
+            );
+        }
+    }
+}
+
+#[test]
 fn embedded_scalar_calls_replay_declared_signature_rows() {
     let source = super::unit_scalar_calls::attached_unit_scalar_call_plan();
     let expected =

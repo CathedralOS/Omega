@@ -452,7 +452,7 @@ pub(super) fn validate_consumer(
         return Ok(false);
     }
     super::structural_calls::validate_custody(checked, caller.machine, caller.state, producer)?;
-    let (_, state) =
+    let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
@@ -461,10 +461,60 @@ pub(super) fn validate_consumer(
     else {
         return unsupported("reference result consumer has no authored local");
     };
-    let (referent, _) =
-        validation::reference_result_custody::parts(&checked.typed, local.type_reference).ok_or(
-            LoweringError::Unsupported("reference local lost its declared reference type"),
+    let (referent, _) = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "reference local lost its declared reference type",
+    ))?;
+    let primitive = checked.primitive_type_reference(referent).is_some();
+    let plain_record = checked
+        .typed
+        .closed_data_definition(referent)
+        .is_some_and(|data| {
+            checked
+                .data_members(data)
+                .iter()
+                .all(|member| matches!(member, checked_trees::data::DataMember::Field(_)))
+                && validation::has_plain_owned_contents_with_represented_constraints(
+                    &checked.typed,
+                    referent,
+                )
+        });
+    if !primitive && !plain_record {
+        return unsupported("reference consumer has no plain record or primitive referent");
+    }
+    let (target, explicit_access) = match checked.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
+        _ => (expression, None),
+    };
+    let (projected_path, root) =
+        crate::expression_preparation::source_custody::structural_places::walk_exact_place(
+            checked, machine, state, target, false,
         )?;
+    if !projected_path.iter().all(|segment| {
+        matches!(
+            segment,
+            CheckedUnitStructuralPathSegment::Field(_)
+                | CheckedUnitStructuralPathSegment::FixedIndex(_)
+        )
+    }) || explicit_access
+        .is_some_and(|access| access != language_semantics::ReferenceAccess::Mutable)
+        || (!projected_path.is_empty() && explicit_access.is_none())
+    {
+        return unsupported("reference consumer is not an exact static mutable projection");
+    }
+    let selected = if projected_path.is_empty() {
+        referent
+    } else {
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), target).ok_or(
+            LoweringError::Unsupported("reference consumer projection lost its declared type"),
+        )?
+    };
+    let mut expected_path = Vec::with_capacity(projected_path.len() + 1);
+    expected_path.push(CheckedUnitStructuralPathSegment::Referent);
+    expected_path.extend(projected_path);
     let boundary = validation::reference_result_custody::release_statement(
         &checked.facts,
         caller.machine,
@@ -474,22 +524,80 @@ pub(super) fn validate_consumer(
     .ok_or(LoweringError::Unsupported(
         "reference consumer has no weakening boundary",
     ))?;
-    if argument.path != [CheckedUnitStructuralPathSegment::Referent]
+    if argument.path != expected_path
         || argument.access != CheckedStructuralAccess::MutableBorrow
         || parameter.access != argument.access
         || argument.type_identity != parameter.type_identity
-        || checked.normalized_type_identity(referent).as_str() != argument.type_identity
+        || checked.normalized_type_identity(selected).as_str() != argument.type_identity
+        || result.type_identity
+            != checked
+                .normalized_type_identity(local.type_reference)
+                .as_str()
+        || result.multiplicity != Multiplicity::Affine
         || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
         || parameter.multiplicity != Multiplicity::Unrestricted
         || coordinate.statement_index <= result.statement_index
         || coordinate.statement_index >= boundary
-        || !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(path)
+        || !matches!(checked.expression_table.expression(root), ExpressionNode::Name(path)
             if path.symbol == local.symbol && path.head_symbol == local.symbol
                 && checked.expression_table.name_path_members(path.members).len() == 1)
     {
         return unsupported("reference consumer differs from its live captured referent");
     }
+    if expected_path.len() > 1
+        && !active_result_loan(checked, caller, coordinate, custody.reference_loan)
+    {
+        return unsupported("projected reference consumer has no active captured parent loan");
+    }
     Ok(true)
+}
+
+fn active_result_loan(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> bool {
+    let flow = &checked.facts.flow;
+    let mut states = flow
+        .control
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .filter(|state| {
+            state.machine_symbol == caller.machine && state.state_symbol == caller.state
+        });
+    let Some(state) = states.next() else {
+        return false;
+    };
+    if states.next().is_some() {
+        return false;
+    }
+    let Some(statements) = flow.control.statements.span(state.statements) else {
+        return false;
+    };
+    let mut entries = statements
+        .iter()
+        .filter(|statement| statement.statement_index == coordinate.statement_index as usize);
+    let Some(entry) = entries.next() else {
+        return false;
+    };
+    entries.next().is_none()
+        && flow
+            .contexts
+            .constraint_refs
+            .span(entry.entry_constraints)
+            .is_some_and(|constraints| {
+                constraints
+                    .iter()
+                    .filter(|constraint| {
+                        matches!(constraint.kind,
+            checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan)
+                    })
+                    .count()
+                    == 1
+            })
 }
 
 pub(super) fn emit(

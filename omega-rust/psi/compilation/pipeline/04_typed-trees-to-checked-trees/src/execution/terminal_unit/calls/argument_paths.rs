@@ -814,10 +814,24 @@ pub(crate) fn ordinary_projected_call_is_supported(
             || (argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
-                && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
-                && argument.path[..argument.path.len() - 1]
-                    .iter()
-                    .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+                && (argument.path.split_last().is_some_and(|(last, prefix)| {
+                    *last == CheckedUnitStructuralPathSegment::Referent
+                        && prefix.iter().all(|segment| {
+                            matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+                        })
+                }) || argument.path.split_first().is_some_and(|(first, suffix)| {
+                    // A returned plain-record permission lends a static child
+                    // without moving the carrier or creating an escaping loan.
+                    *first == CheckedUnitStructuralPathSegment::Referent
+                        && !suffix.is_empty()
+                        && suffix.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                CheckedUnitStructuralPathSegment::Field(_)
+                                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                }))
                 && argument.access == CheckedStructuralAccess::MutableBorrow)
     }) {
         return true;

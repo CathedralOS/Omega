@@ -2831,6 +2831,19 @@ impl Replay<'_> {
         expected_plan: &CallPlan,
         live_graph: bool,
     ) -> Result<(), OperationId> {
+        if semantic.path.len() > 1
+            && matches!(semantic.path.first(), Some(StructuralPathSegment::Referent))
+        {
+            if !self.returned_record_projection(psi_operation, actual, semantic, declared) {
+                return Err(psi_operation);
+            }
+            let Some(destination) = expected_plan.parameters.get(plan_index) else {
+                return Err(psi_operation);
+            };
+            return (actual.destination == *destination)
+                .then_some(())
+                .ok_or(psi_operation);
+        }
         // A `.., Referent` argument transports the referent root's
         // pointer: `place` names the root whose canonical storage
         // `source` must identify (replayed by argument-source custody),
@@ -3045,6 +3058,144 @@ impl Replay<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Reconstruct a projected argument through one earlier returned mutable
+    /// record. The source argument keeps the permission carrier spelling;
+    /// the target row must instead name the exact original ingress and its
+    /// complete physical projection.
+    fn returned_record_projection(
+        &self,
+        call: OperationId,
+        actual: &TargetStructuralArgument,
+        semantic: &StructuralArgument,
+        declared: &StructuralParameterDeclaration,
+    ) -> bool {
+        let [StructuralPathSegment::Referent, suffix @ ..] = semantic.path.as_slice() else {
+            return false;
+        };
+        if suffix.is_empty()
+            || semantic.access == StructuralAccess::Owned
+            || actual.access != semantic.access
+            || actual.access != declared.access
+            || declared.is_self
+            || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !declared.qualifications.is_empty()
+            || !declared.projected_qualifications.is_empty()
+            || actual.fixed_array_length.is_some()
+            || actual.element_stride.is_some()
+            || !actual.indices.is_empty()
+        {
+            return false;
+        }
+        let Some(call_position) = self.source.operations.iter().position(|operation| {
+            matches!(operation, AbstractOperation::CallStructural { psi_operation, .. }
+                if *psi_operation == call)
+        }) else {
+            return false;
+        };
+        let mut producers = self.source.operations[..call_position].iter().filter_map(
+            |operation| match operation {
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    result:
+                        AbstractStructuralCallResult::Structural {
+                            result,
+                            returned_claim_transfers,
+                            selected_evidence,
+                        },
+                    ..
+                } if result.place == semantic.place => Some((
+                    *psi_operation,
+                    result,
+                    returned_claim_transfers,
+                    selected_evidence,
+                )),
+                _ => None,
+            },
+        );
+        let Some((producer, result, returned_claims, evidence)) = producers.next() else {
+            return false;
+        };
+        if producers.next().is_some()
+            || !returned_claims.is_empty()
+            || !evidence.is_empty()
+            || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+        {
+            return false;
+        }
+        let Some((referent, access)) = self.declarations.iter().find_map(|declaration| {
+            if declaration.id != result.structural_type {
+                return None;
+            }
+            match &declaration.shape {
+                StructuralTypeShape::Reference { referent, access } => Some((*referent, *access)),
+                _ => None,
+            }
+        }) else {
+            return false;
+        };
+        if access != StructuralAccess::MutableBorrow {
+            return false;
+        }
+        if !self.declarations.iter().any(|declaration| {
+            declaration.id == referent
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        }) {
+            return false;
+        }
+        let Some([reference]) = self
+            .expected_reference_results
+            .get(&producer)
+            .map(Vec::as_slice)
+        else {
+            return false;
+        };
+        if !reference.path.is_empty() || actual.place != reference.root {
+            return false;
+        }
+        let Some(root) = self.source.structural_parameters.iter().find(|parameter| {
+            parameter.place == reference.root
+                && parameter.access == StructuralAccess::MutableBorrow
+                && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        }) else {
+            return false;
+        };
+        let target_parameters = self
+            .target
+            .mixed_structural_scalar_abi
+            .as_ref()
+            .map(|abi| abi.structural_parameters.as_slice())
+            .unwrap_or(self.target.graph.parameters.as_slice());
+        let Some(target_root) = target_parameters.iter().find(|parameter| {
+            parameter.place == root.place
+                && parameter.structural_type == root.structural_type
+                && parameter.access == root.access
+                && parameter.multiplicity == root.multiplicity
+        }) else {
+            return false;
+        };
+        let mut path = reference.root_path.clone();
+        path.extend_from_slice(suffix);
+        let Ok((selected, offset)) =
+            structural_shapes::project_static_path(root.structural_type, &path, self.declarations)
+        else {
+            return false;
+        };
+        actual.path == path
+            && actual.root_structural_type == root.structural_type
+            && actual.structural_type == selected
+            && actual.structural_type == declared.structural_type
+            && actual.source_byte_offset == offset
+            && actual.source
+                == TargetStructuralArgumentSource::Placement(target_root.placement.clone())
+            && matches_projected_carrier(actual, selected, self.declarations)
     }
 
     /// The retained result row must be the source-declared result verbatim,

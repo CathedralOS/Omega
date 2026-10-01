@@ -540,10 +540,14 @@ pub(super) fn match_input(
                 return Err(LegalizationError::custody());
             }
             for (position, argument) in structural_arguments.iter().enumerate() {
-                // `.., Referent` spellings resolve through reference custody,
-                // which the ordered target replay below re-derives per node.
+                // Both a carrier's `.., Referent` and a returned record's
+                // leading `Referent, ..` resolve through ordered reference
+                // custody, which the target replay below re-derives per node.
                 if matches!(
                     argument.path.last(),
+                    Some(terminal_psi::StructuralPathSegment::Referent)
+                ) || matches!(
+                    argument.path.first(),
                     Some(terminal_psi::StructuralPathSegment::Referent)
                 ) {
                     continue;

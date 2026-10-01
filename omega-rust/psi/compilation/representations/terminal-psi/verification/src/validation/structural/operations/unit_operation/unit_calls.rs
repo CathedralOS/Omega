@@ -166,6 +166,9 @@ pub(in crate::validation) fn validate_call_unit(
                     .iter()
                     .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
                     && argument.access == StructuralAccess::WriteOnlyBorrow))
+                && !crate::validation::references::is_reference_projection(
+                    module, machine, argument,
+                )
                 && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 && !is_unrestricted_shared_subloan(module, machine, expected, argument)
                 && !is_unrestricted_mutable_subloan(module, machine, expected, argument)
