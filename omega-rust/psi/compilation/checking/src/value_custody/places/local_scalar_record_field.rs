@@ -280,7 +280,13 @@ fn local_plain_record(
     // Observation only selects a scalar path: unrelated arrays and sums do
     // not need to satisfy a second, scalar-record-only construction roster.
     // Their establishment remains the producer's independently checked work.
-    if !crate::has_plain_owned_contents_with_numeric_constraints(program, carrier) {
+    // A record mixing plain fields with shared views keeps that judgment:
+    // reading a scalar member moves no view custody, and the view carrier
+    // classifies the same owned-carrier shape the disposal and return paths
+    // already accept.
+    if !crate::has_plain_owned_contents_with_numeric_constraints(program, carrier)
+        && !crate::has_owned_or_shared_view_fields(program, carrier)
+    {
         return None;
     }
     let TypeReferenceNode::Named { symbol, .. } =
