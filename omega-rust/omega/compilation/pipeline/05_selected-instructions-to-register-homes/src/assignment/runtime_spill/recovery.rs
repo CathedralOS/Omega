@@ -104,8 +104,8 @@ pub(super) fn analyze(
 // spill them like any other value; admission still rejects the ones defined
 // by address-producing instructions. A committed rewrite can mint registers
 // — a split's fresh register keeps any pinned use over its own span — so the
-// pool re-derives against each step's plan; reloads from either recovery
-// form carry dedicated origins and never become new candidates.
+// pool re-derives against each step's plan. Reloads from either recovery form
+// restate the victim's own origin, so `retire_minted` keeps them out.
 pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
     plan.functions
         .iter()
@@ -125,6 +125,25 @@ pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualR
                 .map(move |register| (function, register.id))
         })
         .collect()
+}
+
+/// Retire every candidate a spill or rematerialization step minted. Their
+/// reloads and carriers restate the victim's origin — an instruction result
+/// or a structural observation — so `candidates` would readmit them, and
+/// each spill would mint the next victim: one pressured value then chains
+/// through a fresh reload per step, each step a whole-function analysis.
+/// A split's fresh register is the only minted register that joins the pool.
+pub(super) fn retire_minted(
+    retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
+    before: &SelectedInstructionPlan,
+    after: &SelectedInstructionPlan,
+) {
+    let existing: std::collections::BTreeSet<_> = candidates(before).into_iter().collect();
+    retired.extend(
+        candidates(after)
+            .into_iter()
+            .filter(|entry| !existing.contains(entry)),
+    );
 }
 
 /// Every recorded transformation this recovery produced, appended after the
@@ -483,8 +502,8 @@ fn recover_over(
         // overlaps. Re-derive the pool from the current plan minus every
         // consumed victim, or that fresh interval stays unreachable and the
         // same failure rotates through the remaining members forever.
-        // Reloads minted by spill and rematerialization carry dedicated
-        // origins and still never join.
+        // Reloads minted by spill and rematerialization retire as they are
+        // minted and never join.
         let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
             .into_iter()
             .filter(|entry| !tried.contains(entry))
@@ -618,6 +637,9 @@ fn recover_over(
             &rewrite.selected(),
         )?;
         let homes = assign(environment, &facts.ranges, &facts.legality);
+        if !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
+            retire_minted(&mut tried, selected.plan(), rewrite.selected().plan());
+        }
         steps.push(RuntimeSpillStep {
             function,
             register,
