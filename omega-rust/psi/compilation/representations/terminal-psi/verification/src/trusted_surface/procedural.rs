@@ -380,6 +380,9 @@ rows! {
     );
 
     // -- Shared formation and orchestration --
+    // Completed unrestricted records may return owned byte fields with their
+    // declared primitive predicates. Each return rejoins its exact completed
+    // producer/type/multiplicity; this does not admit unchecked construction.
     FORM_MODULE_STRUCTURE => (
         "formation:module-structure",
         SharedFormation,
@@ -620,6 +623,10 @@ rows! {
         &["formation:operation-validation"],
         &[tv!( "validation/structural/case_membership.rs")]
     );
+    // An ordinary call also transports a completed unrestricted owned record.
+    // The record's field declarations retain byte predicates; root/projected
+    // qualifications, result establishments and claims cannot be invented by
+    // the call. Both structural call encodings replay the exact callee result.
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
         SharedFormation,
@@ -640,7 +647,7 @@ rows! {
         "formation:structural-byte-sequence-fields",
         SharedFormation,
         "structural byte-sequence fields, exact current extents and unchanged-length observations; replacement requires a bounded-owned carrier and immutable completed source whose independently replayed predicates imply the field restrictions; an indexed store into a UTF-8 field not declared ASCII-only needs every path to reach an ASCII-proved replacement of the identical field with only same-field stores or disjoint operations after it",
-        "byte-sequence fields validate before extent equations and capacity obligations are reconstructed; an explicit Referent replacement resolves capacity and predicates from the exact mutable record referent while reference validation independently checks establishment, live permission and child suspension",
+        "byte-sequence fields validate before extent equations and capacity obligations are reconstructed; an explicit Referent replacement resolves capacity and predicates from the exact mutable record referent while reference validation independently checks establishment, live permission and child suspension; a whole-field replacement into a completed unrestricted owned record retains its actual local producer and declared field capacity and predicates, with record availability checked before each use; no borrowed-view field or indexed-write permission follows from this owned destination",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs"), ts!( "byte_sequence_predicates.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/structural.rs"]
     );

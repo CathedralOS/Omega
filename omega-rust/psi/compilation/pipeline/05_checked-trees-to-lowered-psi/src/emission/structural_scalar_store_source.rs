@@ -946,11 +946,17 @@ pub(crate) fn local_destination<'a>(
         || !validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,
-        ) && validation::reference_result_custody::mutable_borrowed_parts(
-            &checked.typed,
-            local.type_reference,
-        )
-        .is_none()
+        ) && !(checked.type_multiplicity(local.type_reference)
+            == language_semantics::Multiplicity::Unrestricted
+            && validation::has_plain_owned_contents_with_represented_constraints(
+                &checked.typed,
+                local.type_reference,
+            ))
+            && validation::reference_result_custody::mutable_borrowed_parts(
+                &checked.typed,
+                local.type_reference,
+            )
+            .is_none()
         || checked
             .primitive_type_reference(local.type_reference)
             .is_some()

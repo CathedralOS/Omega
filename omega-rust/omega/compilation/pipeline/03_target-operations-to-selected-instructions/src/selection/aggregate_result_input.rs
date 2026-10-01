@@ -526,6 +526,20 @@ pub(super) fn returned<'a>(
                     super::scalar_array_input::elements(source, row)?;
                     (result, *shape)
                 }
+                LegalizedScalarInstructionKind::StructuralLeafCopy { result, shape, .. } => {
+                    // A copied subtree returns its own completed storage, not
+                    // the root it observed. Rejoin the exact producer and
+                    // declaration-derived extent before using the return ABI.
+                    if home(source, result.place) != Some((*operation, result))
+                        || crate::structural_inputs::structural_reference_input::shape(
+                            result.structural_type,
+                            &source.structural.as_ref()?.structural_types,
+                        )? != *shape
+                    {
+                        return None;
+                    }
+                    (result, *shape)
+                }
                 LegalizedScalarInstructionKind::EstablishCase { result, layout, .. } => {
                     (result, layout.shape)
                 }

@@ -103,38 +103,88 @@ pub(in crate::legalization) fn replacement(
         } => (destination, path, field, None),
         _ => return None,
     };
-    let (parameter, path) = if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)
-    {
-        (parameter.clone(), path.clone())
-    } else {
-        let resolved = super::reference_custody::writable_referent_destination(
-            custody,
-            function,
-            types,
+    // Whole-field replacement may address the exact completed owned record.
+    // Indexed writes retain their existing borrowed-storage contract.
+    let owned_result = source.and_then(|_| {
+        super::structural_case::source_result(function, *destination)
+            .ok()
+            .filter(|(_, result)| {
+                types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Record { .. }
+                        )
+                })
+            })
+    });
+    let (root, root_type, access, path) = if let Some((producer, result)) = owned_result {
+        if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+            || !function.structural_places.iter().any(|place| {
+                place.id == *destination
+                    && place.kind
+                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type: result.structural_type,
+                        }
+            })
+        {
+            return None;
+        }
+        (
             *destination,
+            result.structural_type,
+            terminal_psi::StructuralAccess::Owned,
+            path.clone(),
+        )
+    } else {
+        let (parameter, path) = if let Some(parameter) = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *destination)
+        {
+            (parameter.clone(), path.clone())
+        } else {
+            let resolved = super::reference_custody::writable_referent_destination(
+                custody,
+                function,
+                types,
+                *destination,
+                path,
+            )?;
+            (resolved.parameter, resolved.path)
+        };
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        (
+            parameter.place,
+            parameter.structural_type,
+            parameter.access,
             path,
-        )?;
-        (resolved.parameter, resolved.path)
+        )
     };
-    if !matches!(
-        parameter.access,
-        terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+    if !terminal_psi::is_bounded_structural_scalar_store_path(&path)
         || source == Some(*destination)
         || function
             .entry_claim_declarations
             .iter()
-            .any(|claim| claim.input == parameter.place || Some(claim.input) == source)
+            .any(|claim| claim.input == root || Some(claim.input) == source)
         || function
             .content_entry_claims
             .iter()
-            .any(|claim| claim.input.root == parameter.place || Some(claim.input.root) == source)
+            .any(|claim| claim.input.root == root || Some(claim.input.root) == source)
         || source.is_some_and(|source| {
             !super::byte_views::contains_readable_bytes(function, source, types)
         })
@@ -142,14 +192,11 @@ pub(in crate::legalization) fn replacement(
         return None;
     }
     crate::structural_inputs::structural_reference_input::byte_field_storage(
-        parameter.structural_type,
-        &path,
-        *field,
-        types,
+        root_type, &path, *field, types,
     )?;
     Some(terminal_psi::StructuralArgument {
-        place: parameter.place,
-        access: parameter.access,
+        place: root,
+        access,
         path,
     })
 }

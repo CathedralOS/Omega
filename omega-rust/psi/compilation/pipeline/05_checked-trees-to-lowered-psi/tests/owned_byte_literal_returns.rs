@@ -4,6 +4,136 @@ use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectO
 use checked_trees_to_lowered_psi::{TerminalMachineSelection, lower_machine};
 
 #[test]
+fn qualified_record_call_results_replay_exact_field_store_sources() {
+    let checked = crate::front_end::checked_program(
+        "domain [u8; 8]::Utf8 requires valid_utf8(self);
+         data Leaf [copy] { name: [u8; 8] in Utf8; value: u64 in Wrapping; }
+         data Destination [copy] { first: Leaf; second: Leaf; guard: u64; }
+         data Builder { generated: u64 in Wrapping; }
+         machine Builder::make(&mut self) -> Leaf {
+             self.generated = self.generated + 1;
+             let leaf: Leaf;
+             leaf.name = \"bat\";
+             leaf.value = self.generated;
+             transition { _ -> leaf }
+         }
+         machine Builder::install(&mut self, destination: &mut Destination) {
+             destination.first = self.make();
+             destination.second = self.make();
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Builder::install"))
+        .expect("ordinary completed records retain their byte field predicates");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("record completion and field restoration replay");
+    let _production = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Builder::install"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("qualified record completions survive canonical publication");
+
+    for corruption in ["source", "order", "destination", "access", "producer"] {
+        let mut changed = checked.clone();
+        let operations = &mut changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine
+                    .operations
+                    .iter()
+                    .filter(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                        )
+                    })
+                    .count()
+                    == 2
+            })
+            .expect("caller with two record replacements")
+            .operations;
+        let stores = operations
+            .iter()
+            .enumerate()
+            .filter_map(|(position, operation)| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                )
+                .then_some(position)
+            })
+            .collect::<Vec<_>>();
+        let producers = operations
+            .iter()
+            .enumerate()
+            .filter_map(|(position, operation)| {
+                operation
+                    .call()
+                    .and_then(|call| call.structural_result())
+                    .map(|_| position)
+            })
+            .collect::<Vec<_>>();
+        match corruption {
+            "order" => operations.swap(producers[0], stores[0]),
+            "producer" => {
+                operations[producers[1]]
+                    .call_mut()
+                    .unwrap()
+                    .structural_result_mut()
+                    .unwrap()
+                    .0
+                    .binding_ordinal = operations[producers[0]]
+                    .call()
+                    .unwrap()
+                    .structural_result()
+                    .unwrap()
+                    .binding_ordinal;
+            }
+            "source" | "destination" | "access" => {
+                let first = operations[stores[0]].clone();
+                let CheckedUnitEffectOperationPlan::StoreStructuralField {
+                    destination: first_destination,
+                    value: first_value,
+                    ..
+                } = first
+                else {
+                    panic!("first store")
+                };
+                let CheckedUnitEffectOperationPlan::StoreStructuralField {
+                    destination, value, ..
+                } = &mut operations[stores[1]]
+                else {
+                    panic!("second store")
+                };
+                match corruption {
+                    "source" => *value = first_value,
+                    "destination" => *destination = first_destination,
+                    "access" => value.access = checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Builder::install")).is_err(),
+            "record field-store corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn nested_mutable_receiver_byte_results_replay_order_and_qualifications() {
     let checked = crate::front_end::checked_program(
         "domain [u8; 8]::Utf8 requires valid_utf8(self);

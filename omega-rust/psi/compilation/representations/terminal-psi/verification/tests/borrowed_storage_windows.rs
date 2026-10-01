@@ -301,6 +301,171 @@ fn assert_rejects(module: &TerminalModule, expected: ModuleError) {
     );
 }
 
+/// An ordinary call completes a copy record whose inline bytes retain Utf8;
+/// the caller replaces an existing borrowed field with that exact value.
+fn called_byte_record_window(scalar_arguments: bool) -> TerminalModule {
+    use terminal_psi::{ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet};
+    let mut module = window_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("Cell is a record");
+    };
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    fields[0].field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        predicates,
+    };
+
+    let mut callee = machine();
+    callee.id = id(2, MachineId::new);
+    callee.entry = id(2, BlockId::new);
+    callee.blocks[0].id = callee.entry;
+    callee.contract.id = id(2, ContractId::new);
+    callee.structural_parameters.clear();
+    callee.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: id(10, PlaceId::new),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(10, OperationId::new),
+                structural_type: cell(),
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: id(11, PlaceId::new),
+            kind: StructuralPlaceKind::Result,
+        },
+    ];
+    callee.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
+        place: id(11, PlaceId::new),
+        structural_type: cell(),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    });
+    let mut establishment = extract(id(10, OperationId::new), 10);
+    establishment.kind = OperationKind::EstablishZeroedStructural {};
+    callee.blocks[0].operations = vec![establishment];
+    callee.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: id(10, EdgeId::new),
+        source: id(10, PlaceId::new),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines.push(callee);
+
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: id(3, PlaceId::new),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(3, OperationId::new),
+            structural_type: cell(),
+        },
+    });
+    let mut call = extract(id(3, OperationId::new), 3);
+    call.kind = if scalar_arguments {
+        OperationKind::CallStructuralWithScalarArguments {
+            callee: id(2, MachineId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    } else {
+        OperationKind::CallStructural {
+            callee: id(2, MachineId::new),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            selected_evidence: Vec::new(),
+        }
+    };
+    caller.blocks[0].operations = vec![call, extract(id(1, OperationId::new), 2), repair(3)];
+    module
+}
+
+#[test]
+fn ordinary_byte_record_result_repairs_borrowed_field() {
+    for scalar_arguments in [false, true] {
+        let module = called_byte_record_window(scalar_arguments);
+        terminal_verifier::verify_module(&module, &Default::default(), &Default::default())
+            .unwrap_or_else(|error| {
+                panic!("completed byte record scalar_arguments={scalar_arguments}: {error:?}")
+            });
+    }
+}
+
+#[test]
+fn ordinary_byte_record_repair_rejects_forged_completion_and_storage() {
+    let valid = called_byte_record_window(false);
+    for corruption in 0..8 {
+        let mut module = valid.clone();
+        match corruption {
+            0 => module.machines[0].blocks[0].operations.rotate_left(1),
+            1 => {
+                let OperationKind::StoreStructuralField { value, .. } =
+                    &mut module.machines[0].blocks[0].operations[2].kind
+                else {
+                    panic!("repair")
+                };
+                value.access = StructuralAccess::SharedBorrow;
+            }
+            2 => {
+                let OperationKind::StoreStructuralField { field, .. } =
+                    &mut module.machines[0].blocks[0].operations[2].kind
+                else {
+                    panic!("repair")
+                };
+                *field = Some(right());
+            }
+            3 => {
+                module.machines[0].blocks[0].operations.pop();
+            }
+            4 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[0].blocks[0].operations[0].result
+                else {
+                    panic!("call result")
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+            }
+            5 => {
+                let mut other = module.structural_types[0].clone();
+                other.id = id(3, StructuralTypeId::new);
+                other.identity = "OtherCell".into();
+                module.structural_types.push(other);
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    panic!("callee result")
+                };
+                result.structural_type = id(3, StructuralTypeId::new);
+            }
+            6 => {
+                module.machines[0].blocks[0].operations[0].kind =
+                    OperationKind::EstablishRecord { fields: Vec::new() };
+            }
+            7 => {
+                module.machines[0].structural_places[2].kind =
+                    StructuralPlaceKind::OperationResult {
+                        producer: id(99, OperationId::new),
+                        structural_type: cell(),
+                    };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "corruption {corruption} accepted"
+        );
+    }
+}
+
 fn local_byte_window_module() -> TerminalModule {
     use terminal_psi::control_flow::ByteSequenceOperand;
     use terminal_psi::{ByteSequenceCarrier, StructuralPathSegment};

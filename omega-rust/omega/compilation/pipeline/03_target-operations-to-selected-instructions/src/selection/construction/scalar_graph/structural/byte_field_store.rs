@@ -63,20 +63,45 @@ pub(super) fn replace(
         ),
         _ => return Err(invalid()),
     };
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == destination.place)
-        .ok_or_else(|| invalid())?;
+    let destination_type = if destination.access == StructuralAccess::Owned && field.is_some() {
+        let (_, result) =
+            crate::selection::aggregate_result_input::home(function, destination.place)
+                .ok_or_else(|| invalid())?;
+        if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !signature.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. }
+                    )
+            })
+        {
+            return Err(invalid());
+        }
+        result.structural_type
+    } else {
+        let parameter = signature
+            .parameters
+            .iter()
+            .find(|parameter| parameter.semantic.place == destination.place)
+            .ok_or_else(|| invalid())?;
+        if parameter.semantic.access != destination.access
+            || !matches!(
+                destination.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+            || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || (field.is_some() && !parameter.semantic.qualifications.is_empty())
+            || !parameter.semantic.projected_qualifications.is_empty()
+        {
+            return Err(invalid());
+        }
+        parameter.semantic.structural_type
+    };
     if row.result.is_some()
-        || parameter.semantic.access != destination.access
-        || !matches!(
-            destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || (field.is_some() && !parameter.semantic.qualifications.is_empty())
-        || !parameter.semantic.projected_qualifications.is_empty()
         || *source == destination.place
         || crate::selection::established_view_input::readable_byte_type(function, *source).is_none()
     {
@@ -84,7 +109,7 @@ pub(super) fn replace(
     }
     let metadata_offset = if let Some(field) = field {
         crate::structural_inputs::structural_reference_input::byte_field_storage(
-            parameter.semantic.structural_type,
+            destination_type,
             &destination.path,
             field,
             &signature.structural_types,
@@ -93,7 +118,7 @@ pub(super) fn replace(
         .0
     } else {
         if !signature.structural_types.iter().any(|declaration| {
-            declaration.id == parameter.semantic.structural_type
+            declaration.id == destination_type
                 && matches!(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::ByteSequence(
@@ -131,13 +156,19 @@ pub(super) fn replace(
         )?;
         source_pointer = address;
     }
-    let root = builder
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == destination.place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| invalid())?;
+    let root = if destination.access == StructuralAccess::Owned {
+        // Borrow the completed record's actual home; no incoming ABI pointer
+        // or fabricated parameter represents this local value.
+        super::place_pointer(builder, row, destination.place, 0)?
+    } else {
+        builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(place, _)| *place == destination.place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| invalid())?
+    };
     let destination_pointer = transport_register(builder, destination.place, byte_offset)?;
     builder.emit(
         SelectedInstructionKind::AddressOffset { byte_offset },

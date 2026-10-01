@@ -36,6 +36,21 @@ pub(crate) fn capacity(
         .find(|parameter| parameter.place == *destination);
     let (root_type, carrier_path) = if let Some(reference) = reference {
         reference
+    } else if let Some(result) =
+        crate::validation::record::completed_source(module, machine, *destination).filter(
+            |result| {
+                result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && result.qualification_establishments.is_empty()
+                    && module.structural_types.iter().any(|declaration| {
+                        declaration.id == result.structural_type
+                            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                    })
+            },
+        )
+    {
+        // The result's establishment and dominance are independently checked;
+        // replacement preserves this owned home's exact declared field type.
+        (result.structural_type, path.as_slice())
     } else {
         let parameter = parameter.ok_or_else(invalid)?;
         if !matches!(

@@ -302,7 +302,15 @@ fn owned_local_root<'a>(
             && !validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,
-            ))
+            )
+            // A completed copy record owns its byte members as well as its
+            // scalar members. This admits its storage root, not a new value:
+            // establishment and each field's write obligations still apply.
+            && !(program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
+                && validation::has_plain_owned_contents_with_represented_constraints(
+                    program,
+                    local.type_reference,
+                )))
     {
         return None;
     }

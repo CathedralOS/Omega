@@ -290,8 +290,12 @@ fn validate_place_root(
         let Some((index, local)) = locals.next() else {
             return unsupported("borrowed selection loses its authored root");
         };
-        if locals.next().is_some() || index >= statement as usize || !local.initial_value.is_valid()
-        {
+        // A declaration whose complete type admits zero establishes its own
+        // storage without an initializer expression. The emitted producer and
+        // its dominance are still required when this exact local is read.
+        let established = local.initial_value.is_valid()
+            || validation::zeroed_structural_parts(&checked.typed, local.type_reference);
+        if locals.next().is_some() || index >= statement as usize || !established {
             return unsupported("borrowed selection root is not uniquely established");
         }
     }

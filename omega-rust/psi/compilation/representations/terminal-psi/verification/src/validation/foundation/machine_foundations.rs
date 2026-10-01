@@ -640,6 +640,17 @@ pub(super) fn validate_result_declaration(
                                     ) && super::super::structural::case::plain_return_source(
                                         module, machine, *source,
                                     ))
+                                    // Completed copy records preserve inline byte
+                                    // predicates through their exact owned type.
+                                    // This does not admit new record constructors.
+                                    || (types.get(&result.structural_type).is_some_and(|declaration|
+                                        matches!(declaration.shape, StructuralTypeShape::Record { .. }))
+                                        && super::super::structural::result_contracts::has_plain_owned_shape(
+                                            module, result.structural_type,
+                                        )
+                                        && super::super::record::completed_source(module, machine, *source)
+                                            .is_some_and(|source| source.structural_type == result.structural_type
+                                                && source.multiplicity == StructuralMultiplicity::Unrestricted))
                                     // A leaf copy is fresh owned storage by
                                     // construction: an `Unrestricted` result
                                     // may publish it whatever the leaf shape.

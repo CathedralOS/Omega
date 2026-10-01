@@ -1,7 +1,7 @@
 //! A call whose value lands in a structural result binding. A returned
 //! reference or borrowed view carries a loan whose operands must be the
 //! caller's structural parameters or earlier results; any other result must
-//! be a claim-free affine value. Either way the call becomes one ordinary
+//! be a claim-free owned value. Either way the call becomes one ordinary
 //! call with a structural result that carries the binding.
 
 use checked_trees::{
@@ -112,14 +112,13 @@ pub(super) fn build(
     // A result whose contents hold no reference, slice or cleanup owner
     // cannot retain a loan of its operands: whatever the callee read or wrote
     // through a borrowed argument stays in the lender's storage.
-    let owned_byte_result = result.multiplicity == Multiplicity::Unrestricted
-        && validation::bounded_byte_buffer_capacity(program, target_state.return_type).is_some()
+    let represented_copy_result = result.multiplicity == Multiplicity::Unrestricted
         && validation::has_plain_owned_contents_with_represented_constraints(
             program,
             target_state.return_type,
         );
     let result_retains_no_loan = !reference_loan.is_valid()
-        && (owned_byte_result
+        && (represented_copy_result
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
@@ -260,7 +259,7 @@ pub(super) fn build(
         });
     if args_ok
         && transfers.is_empty()
-        && (owned_byte_result || reference_loan.is_valid()
+        && (represented_copy_result || reference_loan.is_valid()
             || crate::execution::terminal_unit::reference_results::is_reference_record(
                 program,
                 target_state.return_type,
@@ -318,7 +317,7 @@ pub(super) fn build(
             transfers: CheckedUnitCallTransfers::StructuralCustody(
                 checked_trees::CheckedStructuralCallCustodyPlan {
                     reference_loan,
-                    result_qualifications: if owned_byte_result {
+                    result_qualifications: if represented_copy_result {
                         validation::structural_result_qualifications(
                             program,
                             target_state.return_type,

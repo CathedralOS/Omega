@@ -563,6 +563,106 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
             )
             .is_none()
         );
+        // The same home can receive a whole-field replacement only for an
+        // unrestricted record. This remains distinct from whole-byte-owner
+        // replacement and from indexed writes through borrowed formals.
+        let mut stored_function = function.clone();
+        let mut stored_target = target.clone();
+        stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            id: owner.structural_type,
+            identity: "test::OwnedBuffer".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: field,
+                    identity: "bytes".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                    ),
+                }],
+            },
+        }]
+        .into();
+        stored_function.operations[1] = AbstractOperation::StructuralByteSequenceFieldStore {
+            psi_operation: observation,
+            destination: owner.place,
+            path: Vec::new(),
+            field,
+            source: PlaceId::new(2).unwrap(),
+            length: result.value,
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        };
+        stored_target.graph.blocks[0].operations[1] =
+            TargetUnitOperation::StructuralByteSequenceFieldStore {
+                psi_operation: observation,
+                destination: StructuralArgument {
+                    place: owner.place,
+                    access: StructuralAccess::Owned,
+                    path: Vec::new(),
+                },
+                field,
+                source: PlaceId::new(2).unwrap(),
+                length: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value: result.value,
+                    scalar_type: scalar,
+                },
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            };
+        assert_eq!(
+            replacement_retained(
+                &stored_function,
+                &stored_function.operations[1],
+                &stored_target
+            ),
+            multiplicity == StructuralMultiplicity::Unrestricted
+        );
+        if multiplicity == StructuralMultiplicity::Unrestricted {
+            for corruption in 0..4 {
+                let mut changed = stored_target.clone();
+                match corruption {
+                    0 => {
+                        changed.graph.blocks[0].operations.remove(0);
+                    }
+                    1 => {
+                        let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
+                            &mut changed.graph.blocks[0].operations[0]
+                        else {
+                            panic!("owned home")
+                        };
+                        let TargetStructuralHomeOrigin::OperationResult { operation, .. } =
+                            &mut result_home.origin
+                        else {
+                            panic!("owned origin")
+                        };
+                        *operation = OperationId::new(99).unwrap();
+                    }
+                    2 | 3 => {
+                        let TargetUnitOperation::StructuralByteSequenceFieldStore {
+                            destination,
+                            ..
+                        } = &mut changed.graph.blocks[0].operations[1]
+                        else {
+                            panic!("replacement")
+                        };
+                        if corruption == 2 {
+                            destination.access = StructuralAccess::MutableBorrow;
+                        } else {
+                            destination.place = PlaceId::new(2).unwrap();
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    !replacement_retained(
+                        &stored_function,
+                        &stored_function.operations[1],
+                        &changed
+                    ),
+                    "forged owned replacement {corruption}"
+                );
+            }
+        }
         for mutation in 0..5 {
             let mut changed = target.clone();
             match mutation {

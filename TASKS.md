@@ -1248,22 +1248,25 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `ad4cf8611e`
-  plus the nested-byte-operand change on macOS ARM64, the closed-stdin
-  command exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `33d47d475b`
+  plus the completed-record result change on macOS ARM64, the closed-stdin
+  command gets past `clear_event` and exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::force_quiet_room` → `MazeBuilder::clear_event`
-  stops at `statement sequence: assignment: structural call result field store`.
-  Rejoin `event.enemy = self.empty_enemy()` and `event.reward = self.empty_reward()`
-  through Stage 04 `control/statement_sequence/assignments.rs` and ordinary
-  structural result custody; carry their field qualifications and effects
-  through publication and native storage. The scripted session cannot run yet.
-  `text/nested_mutable_receiver_byte_result_exit` now executes 70: two effectful
-  mutable-self byte-returning calls evaluate once in authored order, retain
-  independent qualified `[u8; 8]` owners and live lengths, and pass as ordinary
-  owned operands into a helper that writes their bytes into record fields.
-  Source and canonical replay retain the exact occurrences and predicates;
-  target transport preserves complete owners, never borrowed descriptors.
+  `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect` →
+  `Room::append_exit` stops at `structural field store: scalar field type: indexed
+  element destination` (state 1, statement 0), on
+  `self.exits[0] = Exit { command: command, direction: direction, destination: destination }`.
+  Stage 04 `structural_scalar_store/mod.rs` still refuses this record-element
+  destination. Carry ordinary qualified record construction into the existing
+  element-store path, preserving the command's `Utf8` bytes, direction, cell
+  identity and untouched exits. The scripted session cannot run yet.
+  `calls/qualified_record_call_result_field_exit` executes 70: two effectful
+  mutable-self calls return independently completed copy records with qualified
+  byte fields, then store them into separate fields. Exact call order, bytes,
+  live lengths, scalar fields and an untouched sibling are observed natively;
+  canonical and target replay reject wrong producers, homes and payload extents.
+  Keep `text/nested_mutable_receiver_byte_result_exit` as the ordered byte-owner
+  operand control (exit 70).
   Owned bounded-byte completions now retain predicates and live length through
   calls, ordinary parameter-rooted field replacement and native aggregate
   returns: `text/owned_byte_call_result_field_exit` executes 70, including a

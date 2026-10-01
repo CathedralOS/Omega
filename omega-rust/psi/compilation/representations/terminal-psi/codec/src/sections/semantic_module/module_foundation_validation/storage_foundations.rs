@@ -80,6 +80,46 @@ fn reference_store_carrier<'path>(
         .then_some((referent, suffix))
 }
 
+/// Canonical formation retains an existing owned record's producer and type.
+/// It does not prove establishment or dominance; receiving verification checks
+/// those independently before a store can mutate the home.
+fn owned_record_store_carrier(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: semantic_vocabulary::PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == destination)?
+        .kind
+    else {
+        return None;
+    };
+    let mut producers = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == producer);
+    let result = producers.next()?.result.structural()?;
+    (producers.next().is_none()
+        && result.place == destination
+        && result.structural_type == structural_type
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        }))
+    .then_some(structural_type)
+}
+
 pub(super) fn validate_establish_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -157,6 +197,9 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     let reference = reference_store_carrier(module, machine, *destination, path);
     let (destination_type, carrier_path) = if let Some(reference) = reference {
         reference
+    } else if let Some(structural_type) = owned_record_store_carrier(module, machine, *destination)
+    {
+        (structural_type, path.as_slice())
     } else {
         let Some(parameter) = machine
             .structural_parameters

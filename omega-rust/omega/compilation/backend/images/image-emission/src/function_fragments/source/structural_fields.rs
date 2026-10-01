@@ -854,12 +854,40 @@ fn write_destination(
     path: &[terminal_psi::StructuralPathSegment],
     purpose: AccessPurpose,
 ) -> Option<StructuralArgument> {
-    if let Some((access, _)) = read_access(function, target, place, purpose) {
-        return matches!(
-            access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        )
+    if let Some((access, structural_type)) = read_access(function, target, place, purpose) {
+        // Whole byte-field replacement may mutate an existing copy-record
+        // home. read_access has already rejoined its exact target producer;
+        // this adds no owned-parameter or indexed-store write authority.
+        let owned_record = purpose == AccessPurpose::ByteLength
+            && access == terminal_psi::StructuralAccess::Owned
+            && target.graph.structural_types.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. }
+                    )
+            })
+            && function.operations.iter().any(|operation| {
+                let result = match operation {
+                    AbstractOperation::EstablishRecord { result, .. }
+                    | AbstractOperation::EstablishZeroedStructural { result, .. }
+                    | AbstractOperation::StructuralLeafCopy { result, .. }
+                    | AbstractOperation::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { result, .. },
+                        ..
+                    } => result,
+                    _ => return false,
+                };
+                result.place == place
+                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && result.qualification_establishments.is_empty()
+            });
+        return (owned_record
+            || matches!(
+                access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ))
         .then(|| StructuralArgument {
             place,
             access,

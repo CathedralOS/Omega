@@ -162,15 +162,20 @@ fn completed_owned_byte_call_rejects_consumer_before_producer() {
 
 #[test]
 fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
-    check_owned_byte_parameter_store(16);
+    check_owned_byte_parameter_store(16, false);
 }
 
 #[test]
 fn register_carried_owned_byte_parameter_retains_entry_home() {
-    check_owned_byte_parameter_store(8);
+    check_owned_byte_parameter_store(8, false);
 }
 
-fn check_owned_byte_parameter_store(capacity: u64) {
+#[test]
+fn owned_record_byte_field_replacement_keeps_its_local_home() {
+    check_owned_byte_parameter_store(8, true);
+}
+
+fn check_owned_byte_parameter_store(capacity: u64, owned_destination: bool) {
     for native in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -249,6 +254,62 @@ fn check_owned_byte_parameter_store(capacity: u64) {
             },
             returned,
         ];
+        let source_parameter_index = if owned_destination {
+            function.structural_parameters.remove(0);
+            function.structural_parameters[0].position = 0;
+            function.operations.insert(
+                0,
+                AbstractOperation::EstablishZeroedStructural {
+                    psi_operation: id(3),
+                    result: terminal_psi::StructuralOperationResult {
+                        place: id(1),
+                        structural_type: id(1),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+            );
+            function.result = abstract_operations::AbstractFunctionResult::Structural(
+                terminal_psi::StructuralResultDeclaration {
+                    place: id(4),
+                    structural_type: id(1),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                },
+            );
+            function.operations.pop();
+            function.operations.extend([
+                AbstractOperation::StructuralLeafCopy {
+                    psi_operation: id(4),
+                    source: id(1),
+                    path: Vec::<terminal_psi::StructuralPathSegment>::new().into(),
+                    result: terminal_psi::StructuralOperationResult {
+                        place: id(3),
+                        structural_type: id(1),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+                AbstractOperation::ReturnStructural {
+                    psi_edge: id(1),
+                    source: id(3),
+                    returned_claims: Vec::new(),
+                    trivial_affine_locals: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ]);
+            0
+        } else {
+            1
+        };
         let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
             FuelScheduleIdentity::new(1).unwrap(),
@@ -285,7 +346,7 @@ fn check_owned_byte_parameter_store(capacity: u64) {
             StructuralAccess::WriteOnlyBorrow,
         ] {
             let mut changed = unit.clone();
-            changed.functions[0].structural_parameters[1].access = access;
+            changed.functions[0].structural_parameters[source_parameter_index].access = access;
             changed.identity =
                 optimization_unit::recompute_psi_optimization_unit_identity(&changed);
             assert!(
@@ -294,7 +355,7 @@ fn check_owned_byte_parameter_store(capacity: u64) {
             );
         }
         let mut unqualified = unit.clone();
-        unqualified.functions[0].structural_parameters[1]
+        unqualified.functions[0].structural_parameters[source_parameter_index]
             .qualifications
             .clear();
         unqualified.identity =
@@ -310,7 +371,7 @@ fn check_owned_byte_parameter_store(capacity: u64) {
         .unwrap_or_else(|error| {
             panic!("owned byte formal target lowering on {native:?}: {error:?}")
         });
-        let parameter = &target.functions[0].graph.parameters[1];
+        let parameter = &target.functions[0].graph.parameters[source_parameter_index];
         assert_eq!(parameter.access, StructuralAccess::Owned);
         assert_eq!(
             parameter.shape,
@@ -322,6 +383,68 @@ fn check_owned_byte_parameter_store(capacity: u64) {
             });
         crate::validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
             .expect("independently replay the owned source and qualified destination");
+        if owned_destination {
+            for corruption in 0..3 {
+                let mut changed = target.clone();
+                let target_operations::TargetControlTerminator::ReturnStructural {
+                    source: target_operations::TargetStructuralReturnSource::Home(home),
+                    ..
+                } = &mut changed.functions[0].graph.blocks[0].terminator
+                else {
+                    panic!("copied record returns its own home")
+                };
+                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result,
+                } = &mut home.origin
+                else {
+                    panic!("copied return has an operation origin")
+                };
+                match corruption {
+                    0 => *operation = id(3),
+                    1 => result.place = id(1),
+                    2 => {
+                        home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
+                            calling_conventions::ValueShape::integer(8, 8),
+                        )
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    crate::legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "{native:?}: forged copied-return home {corruption}"
+                );
+                assert!(
+                    crate::validate_legalized_operations(
+                        &changed,
+                        &source,
+                        &unit,
+                        legalized.plan().clone()
+                    )
+                    .is_err(),
+                    "{native:?}: receiving replay of forged copied-return home {corruption}"
+                );
+            }
+            let mut changed = legalized.plan().clone();
+            let copied = changed.scalar_functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| row.operation == id(4))
+                .expect("copied return producer");
+            let legalized_operations::LegalizedScalarInstructionKind::StructuralLeafCopy {
+                shape,
+                ..
+            } = &mut copied.kind
+            else {
+                panic!("copied return")
+            };
+            *shape = calling_conventions::ValueShape::integer(8, 8);
+            assert!(
+                crate::validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "{native:?}: shortened copied-return payload"
+            );
+        }
         let environment =
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legalized, &environment);
@@ -340,6 +463,64 @@ fn check_owned_byte_parameter_store(capacity: u64) {
             selected.plan().clone(),
         )
         .expect("replay live-length copying and owned backing geometry");
+
+        if owned_destination {
+            let slot = selected_instructions::LocalStorageSlotId::Structural {
+                operation: id(3),
+                place: id(1),
+            };
+            let home_index = selected.plan().functions[0]
+                .local_storage_slots
+                .iter()
+                .position(|home| home.id == slot)
+                .expect("record replacement uses its original completed home");
+            for corruption in 0..3 {
+                let mut changed = selected.plan().clone();
+                let function = &mut changed.functions[0];
+                match corruption {
+                    0 => {
+                        function.local_storage_slots.remove(home_index);
+                    }
+                    1 => function.local_storage_slots[home_index].byte_size -= 1,
+                    2 => {
+                        // The store may reuse the establishment's root pointer.
+                        // Its own address step must still select inline bytes
+                        // after the field's eight-byte live-length word.
+                        let address = function
+                            .blocks
+                            .iter_mut()
+                            .flat_map(|block| &mut block.instructions)
+                            .find(|instruction| {
+                                instruction.provenance.operations.contains(&id(2))
+                                    && matches!(instruction.kind,
+                                    selected_instructions::SelectedInstructionKind::AddressOffset {
+                                        byte_offset: 8,
+                                    })
+                            })
+                            .expect("replacement addresses the owned field's inline bytes");
+                        let selected_instructions::SelectedInstructionKind::AddressOffset {
+                            byte_offset,
+                        } = &mut address.kind
+                        else {
+                            unreachable!()
+                        };
+                        *byte_offset = 16;
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legalized,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed,
+                    )
+                    .is_err(),
+                    "{native:?}: forged record destination home {corruption}"
+                );
+            }
+        }
 
         let direct_fragments = parameter.placement.locations.iter().all(|location| {
             matches!(
@@ -405,7 +586,8 @@ fn check_owned_byte_parameter_store(capacity: u64) {
         }
 
         let mut borrowed_signature = target.clone();
-        borrowed_signature.functions[0].graph.parameters[1].access = StructuralAccess::SharedBorrow;
+        borrowed_signature.functions[0].graph.parameters[source_parameter_index].access =
+            StructuralAccess::SharedBorrow;
         assert!(
             crate::legalize_target_operations(&borrowed_signature, &source, &unit).is_err(),
             "an owned byte payload cannot be reinterpreted as a borrowed parameter"

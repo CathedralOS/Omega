@@ -22,11 +22,15 @@ use terminal_psi::control_flow::ByteSequenceOperand;
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
 
 /// The ordered frame supplies a real formal or a previously produced local
-/// reference. Keeping these distinct prevents manufacturing parameter custody
+/// reference or owned home. Keeping these distinct prevents manufacturing parameter custody
 /// for a call result; source replay and Terminal verify the loan independently.
 pub(crate) enum StoreRoot<'a> {
     Parameter(&'a StructuralParameterDeclaration),
     Reference {
+        place: semantic_vocabulary::PlaceId,
+        structural_type: StructuralTypeId,
+    },
+    Owned {
         place: semantic_vocabulary::PlaceId,
         structural_type: StructuralTypeId,
     },
@@ -562,7 +566,7 @@ pub(crate) fn emit(
 ) -> Result<OperationKind, LoweringError> {
     let destination = match &root {
         StoreRoot::Parameter(parameter) => parameter.place,
-        StoreRoot::Reference { place, .. } => *place,
+        StoreRoot::Reference { place, .. } | StoreRoot::Owned { place, .. } => *place,
     };
     let field_destination = match &store.destination {
         Destination::Whole => {
@@ -621,6 +625,48 @@ pub(crate) fn emit(
                     }) {
                         return unsupported(
                             "byte-field local destination lost mutable reference custody",
+                        );
+                    }
+                    crate::emission::structural_scalar_store::lower_structural_field_path(
+                        *structural_type,
+                        carrier_path,
+                        field_identity,
+                        structural_types,
+                    )?
+                }
+                StoreRoot::Owned {
+                    place,
+                    structural_type,
+                } => {
+                    // Resolve an existing whole local, never a fabricated formal
+                    // or a type-only promise that its fields are initialized.
+                    let produced = operations
+                        .operations
+                        .iter()
+                        .filter_map(|operation| operation.result.structural())
+                        .find(|result| result.place == *place)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte-field owned destination has no completed producer",
+                        ))?;
+                    if produced.structural_type != *structural_type
+                        || produced.multiplicity
+                            != terminal_psi::StructuralMultiplicity::Unrestricted
+                        || !produced.qualifications.is_empty()
+                        || !produced.projected_qualifications.is_empty()
+                        || !produced.qualification_establishments.is_empty()
+                        || !produced.claims.is_empty()
+                        || !locals.iter().any(|(_, local)| {
+                            local.place == *place
+                                && local.access == terminal_psi::StructuralAccess::Owned
+                                && local.path.is_empty()
+                        })
+                        || !structural_types.iter().any(|declaration| {
+                            declaration.id == *structural_type
+                                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                        })
+                    {
+                        return unsupported(
+                            "byte-field local destination lost owned record custody",
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(

@@ -1,4 +1,9 @@
 //! Binding scalar and structural call results to checked unit locals.
+//!
+//! Ordinary completion transfers an already established value, including byte
+//! predicates represented in its field types. Fresh construction does not gain
+//! that authority from its declaration: it must still establish each member.
+//! Both routes retain the exact carrier for the receiving custody replay.
 
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, parameter_qualifications, type_graph_requires_nominal_drop,
@@ -110,11 +115,11 @@ pub(crate) fn checked_structural_result_type(
     structural_result_type(program, shapes, result_type, binders, false)
 }
 
-/// The result binding of a value a literal constructs in place. Beyond
-/// [`checked_structural_result_type`], its scalar members may carry a plain
-/// domain that means exactly an interval: the construction proves membership
-/// through each member's own range obligation. Call results and other
-/// producers keep the narrower classifier.
+/// The result binding of a value a literal constructs in place. Scalar members
+/// may carry a plain domain that means exactly an interval: construction proves
+/// membership through each member's own range obligation. Unlike completed
+/// value transport, a declaration with byte predicates alone cannot establish
+/// a fresh record's contents.
 pub(crate) fn checked_constructed_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -238,6 +243,12 @@ fn structural_result_type(
                 program,
                 result_type,
             ) || validation::has_cleanup_owned_contents(program, result_type)
+                || (!constructed
+                    && multiplicity == Multiplicity::Unrestricted
+                    && validation::has_plain_owned_contents_with_represented_constraints(
+                        program,
+                        result_type,
+                    ))
                 || (constructed
                     && validation::has_structural_construction_contents(program, result_type))
                 || validation::is_closed_primitive_array_type(program, result_type)
