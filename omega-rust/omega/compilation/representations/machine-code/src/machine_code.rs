@@ -5,6 +5,7 @@
 //! Unplaced function fragments retain their own identity before image assembly.
 
 pub mod boundary;
+pub mod byte_literals;
 pub mod calls;
 pub mod control_flow;
 pub mod encoding;
@@ -21,6 +22,10 @@ pub use boundary::{
     BoundaryScalarResultRecord, BoundarySettlementRecord, BoundaryStructuralResultRecord,
     CompletionProviderCustodyBinding, PortEffectRecord, ProviderExecutionRecord,
     derive_completion_provider_custody, execution, ports, settlements,
+};
+pub use byte_literals::{
+    ByteLiteralAddressFields, ByteLiteralReference, FunctionFragmentByteLiteralAddressFixup,
+    PlacedByteLiteralAddress, SelectedFormByteLiteralAddressFixup,
 };
 pub use calls::{
     Aarch64ForeignCallFloatingControlRecord, CallbackAddressDestination, CallbackAddressEncoding,

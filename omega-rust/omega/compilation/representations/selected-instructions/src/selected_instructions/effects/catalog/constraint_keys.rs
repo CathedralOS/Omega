@@ -26,6 +26,7 @@ impl SelectedConstraintKeys {
             self.load8_indexed,
             self.store64,
             self.frame_address,
+            self.byte_literal_image_address,
             self.float32_to_bits,
             self.float64_to_bits,
             self.bits_to_float32,
@@ -158,6 +159,9 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::Load32 => return self.load32,
             MachineSemanticKind::Store64 => return self.store64,
             MachineSemanticKind::FrameAddress => return self.frame_address,
+            MachineSemanticKind::ByteLiteralImageAddress => {
+                return self.byte_literal_image_address;
+            }
             MachineSemanticKind::CallUnit => return None,
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,

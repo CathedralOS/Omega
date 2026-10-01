@@ -19,11 +19,12 @@ pub(crate) mod replay;
 pub(crate) mod stack_demand;
 
 pub use carriers::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction,
-    ObjectDynamicConformanceSlot, ObjectDynamicConformanceTable, ObjectForeignCall,
-    ObjectForwardedDynamicDescriptorAdapter, ObjectForwardedDynamicDescriptorSlot,
-    ObjectForwardedDynamicDescriptorTable, ObjectFunction, ObjectPortEffect, ObjectScalarCallStack,
-    ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
+    ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
+    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectDynamicConformanceSlot,
+    ObjectDynamicConformanceTable, ObjectForeignCall, ObjectForwardedDynamicDescriptorAdapter,
+    ObjectForwardedDynamicDescriptorSlot, ObjectForwardedDynamicDescriptorTable, ObjectFunction,
+    ObjectPortEffect, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,
+    ObjectUnitStack,
 };
 pub(crate) use construction::same_dynamic_table_application;
 pub(crate) use construction::text_emission::emit_private_functions;

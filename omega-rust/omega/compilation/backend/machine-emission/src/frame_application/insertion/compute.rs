@@ -201,6 +201,12 @@ fn apply_function(
             if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
                 shift_foreign_fixup(fixup, row.offset - source_row_offset)?;
             }
+            if let Some(fixup) = &mut row.byte_literal_address_fixup {
+                fixup.fields = fixup
+                    .fields
+                    .shifted(row.offset - source_row_offset)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
         }
         block.byte_count = block
             .byte_count
@@ -438,6 +444,7 @@ mod tests {
                 addend: 0,
             }),
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::DirectInternalCall { callee },
         };
@@ -452,6 +459,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::Return {
                 psi_return_edge: EdgeId::new(1).unwrap(),

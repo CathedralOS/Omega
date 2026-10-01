@@ -260,6 +260,27 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
             );
             encode_normalized_foreign_fixup(hasher, fixup);
         }
+        SelectedFormEncodingState::UnresolvedByteLiteralAddress {
+            bytes,
+            footprint,
+            fixup,
+        } => {
+            hasher.update([4]);
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(bytes);
+            encode_views(hasher, &footprint.register_reads);
+            encode_views(hasher, &footprint.register_writes);
+            encode_units(hasher, &footprint.implicit_defs);
+            encode_units(hasher, &footprint.implicit_clobbers);
+            selected_instructions::encode_machine_encoded_effects_identity(
+                hasher,
+                &footprint.encoded,
+            );
+            let mut identity = Vec::new();
+            fixup.literal.encode_identity(&mut identity);
+            fixup.fields.encode_identity(&mut identity);
+            hasher.update(identity);
+        }
     }
 }
 
@@ -338,6 +359,11 @@ fn encode_counts(hasher: &mut Sha256, counts: SelectedFormEncodingCounts) {
         counts.ordinary_normalized_foreign_import_fixups,
     ] {
         hasher.update(count.to_le_bytes());
+    }
+    // Absent byte-literal fixups leave every earlier encoding identity intact.
+    if counts.ordinary_byte_literal_address_fixups != 0 {
+        hasher.update(b"byte-literal-address-fixups");
+        hasher.update(counts.ordinary_byte_literal_address_fixups.to_le_bytes());
     }
 }
 

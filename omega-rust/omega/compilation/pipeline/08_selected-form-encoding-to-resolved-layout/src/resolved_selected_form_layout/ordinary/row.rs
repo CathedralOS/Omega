@@ -36,6 +36,7 @@ pub(super) fn resolve(
         Option<Box<ResolvedBranchEvidence>>,
         Option<SelectedFormInternalMachineFixup>,
         Option<SelectedFormNormalizedForeignCallFixup>,
+        Option<machine_code::SelectedFormByteLiteralAddressFixup>,
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
@@ -43,7 +44,7 @@ pub(super) fn resolve(
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => Ok((bytes.clone(), None, None, None)),
+        ) => Ok((bytes.clone(), None, None, None, None)),
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
@@ -57,6 +58,7 @@ pub(super) fn resolve(
                 bytes,
                 *fixup,
             )?),
+            None,
             None,
         )),
         (
@@ -73,6 +75,17 @@ pub(super) fn resolve(
                 bytes,
                 fixup.clone(),
             )?),
+            None,
+        )),
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { bytes, fixup, .. },
+        ) => Ok((
+            bytes.clone(),
+            None,
+            None,
+            None,
+            Some(validate_byte_literal_fixup(instruction, bytes, *fixup)?),
         )),
         (
             SelectedFormMachineDisposition::RetainedV1,
@@ -89,9 +102,44 @@ pub(super) fn resolve(
             physical,
             widened,
         )
-        .map(|(bytes, branch)| (bytes, branch, None, None)),
+        .map(|(bytes, branch)| (bytes, branch, None, None, None)),
         _ => unexpected(instruction.id),
     }
+}
+
+/// The literal address field stays unresolved through layout: bind the
+/// fixup to the instruction's own literal and keep its fields inside the row.
+fn validate_byte_literal_fixup(
+    instruction: &SelectedInstruction,
+    bytes: &[u8],
+    fixup: machine_code::SelectedFormByteLiteralAddressFixup,
+) -> Result<
+    machine_code::SelectedFormByteLiteralAddressFixup,
+    OptimizedResolvedSelectedFormLayoutError,
+> {
+    let SelectedInstructionKind::ByteLiteralImageAddress { operation, place } = instruction.kind
+    else {
+        return unexpected(instruction.id);
+    };
+    let row_len = u64::try_from(bytes.len())
+        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let fields_inside = match fixup.fields {
+        machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            patch_offset.checked_add(4) == Some(row_len)
+        }
+        machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset,
+            page_offset_patch_offset,
+        } => {
+            page_patch_offset.checked_add(4) == Some(page_offset_patch_offset)
+                && page_offset_patch_offset.checked_add(4) == Some(row_len)
+        }
+    };
+    if fixup.literal != (machine_code::ByteLiteralReference { operation, place }) || !fields_inside
+    {
+        return unexpected(instruction.id);
+    }
+    Ok(fixup)
 }
 
 fn validate_internal_fixup(

@@ -26,6 +26,7 @@ pub fn validate_relocation_free_object_from_text(
         || object.symbols.len() != text.functions.len()
         || object.unresolved_normalized_foreign_calls.len()
             != text.unresolved_normalized_foreign_calls.len()
+        || object.unresolved_byte_literal_addresses != text.unresolved_byte_literal_addresses
     {
         return Err(RelocationFreeObjectFromTextError::SourceMismatch);
     }
@@ -37,6 +38,9 @@ pub fn validate_relocation_free_object_from_text(
         ) | (
             RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
             TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+        ) | (
+            RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
+            TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
         )
     ) {
         return Err(RelocationFreeObjectFromTextError::SourceMismatch);

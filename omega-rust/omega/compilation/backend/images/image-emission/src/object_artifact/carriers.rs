@@ -44,9 +44,40 @@ pub struct ObjectArtifact {
     pub(crate) port_effects: Vec<ObjectPortEffect>,
     pub(crate) boundary_settlements: Vec<ObjectBoundarySettlement>,
     pub(crate) foreign_calls: Vec<ObjectForeignCall>,
+    /// The read-only image storage of every byte literal the program's code
+    /// addresses, placed after the compiler's code; `None` without literals.
+    pub(crate) byte_literal_pool: Option<ObjectByteLiteralPool>,
+}
+
+/// The byte-literal pool: one object-kind text symbol over the deduplicated
+/// literal octets, zero-padded to a 16-byte boundary so later text stays
+/// aligned. Every literal address field binds this symbol with the literal's
+/// pool offset as its addend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectByteLiteralPool {
+    pub symbol: ObjectSymbolHandle,
+    pub text_offset: usize,
+    pub byte_count: usize,
+    pub addresses: Vec<ObjectByteLiteralAddress>,
+}
+
+/// One literal address in the program text and the octets it names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectByteLiteralAddress {
+    pub machine: MachineId,
+    pub literal: machine_code::ByteLiteralReference,
+    /// Text-section coordinates of the instruction's unresolved field(s).
+    pub fields: machine_code::ByteLiteralAddressFields,
+    /// Offset of the literal's octets from the pool symbol.
+    pub pool_offset: usize,
+    pub byte_count: usize,
 }
 
 impl ObjectArtifact {
+    pub const fn byte_literal_pool(&self) -> Option<&ObjectByteLiteralPool> {
+        self.byte_literal_pool.as_ref()
+    }
+
     pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
         self.hosted_receiver.as_ref()
     }

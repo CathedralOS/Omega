@@ -106,7 +106,9 @@ pub(in crate::text_placement::placement) fn prove_none(
                 MachineAlternativeFamily::CallScalar
                 | MachineAlternativeFamily::CallUnit
                 | MachineAlternativeFamily::CallAggregate
-                | MachineAlternativeFamily::NormalizedForeignCall => {
+                | MachineAlternativeFamily::NormalizedForeignCall
+                // A literal address keeps an object relocation field.
+                | MachineAlternativeFamily::ByteLiteralImageAddress => {
                     return Err(TextPlacementError::UnsupportedRelocationShape);
                 }
                 MachineAlternativeFamily::CompareI64Zero

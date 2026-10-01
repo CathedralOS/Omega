@@ -175,6 +175,8 @@ pub enum MachineSemanticKind {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
+    /// PC-relative address of one byte literal's read-only image storage.
+    ByteLiteralImageAddress,
     /// One `Trapping` primitive at one carrier: the exact result, or an
     /// in-function architectural trap when the policy predicate holds.
     TrappingInteger(TrappingForm),
@@ -232,7 +234,7 @@ impl MachineSemanticKind {
         all
     };
 
-    const FIXED: [Self; 117] = [
+    const FIXED: [Self; 118] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -350,6 +352,7 @@ impl MachineSemanticKind {
         Self::SaturatingMultiply(SaturatingCarrier::U16),
         Self::SaturatingMultiply(SaturatingCarrier::U32),
         Self::SaturatingMultiply(SaturatingCarrier::U64),
+        Self::ByteLiteralImageAddress,
     ];
 }
 
@@ -438,6 +441,7 @@ pub enum MachineAlternativeFamily {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
+    ByteLiteralImageAddress,
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
@@ -519,6 +523,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
+            MachineSemanticKind::ByteLiteralImageAddress => Self::ByteLiteralImageAddress,
             MachineSemanticKind::CallUnit => Self::CallUnit,
             MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
             MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,

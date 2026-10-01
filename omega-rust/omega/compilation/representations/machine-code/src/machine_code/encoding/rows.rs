@@ -40,6 +40,14 @@ pub enum SelectedFormEncodingState {
         footprint: Box<SelectedFormDecodedFootprint>,
         fixup: crate::SelectedFormNormalizedForeignCallFixup,
     },
+    /// PC-relative address of a byte literal's read-only image storage whose
+    /// address field stays zero until object construction binds it to the
+    /// literal's image symbol.
+    UnresolvedByteLiteralAddress {
+        bytes: Vec<u8>,
+        footprint: Box<SelectedFormDecodedFootprint>,
+        fixup: crate::SelectedFormByteLiteralAddressFixup,
+    },
 }
 
 /// Closed rule-neutral disposition consumed by generic encoding and layout.
@@ -80,6 +88,9 @@ pub struct SelectedFormEncodingCounts {
     /// unresolved until object construction binds them to declared import
     /// symbols. These are not internal control fixups.
     pub ordinary_normalized_foreign_import_fixups: u64,
+    /// Encoded byte-literal image addresses whose fields stay unresolved
+    /// until object construction binds them to read-only image symbols.
+    pub ordinary_byte_literal_address_fixups: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

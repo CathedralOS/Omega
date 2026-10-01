@@ -35,6 +35,7 @@ pub(super) fn check(
     let fragments = input.fragments();
     let mut resolutions = section.resolved_internal_machine_calls.iter();
     let mut foreign = section.unresolved_normalized_foreign_calls.iter();
+    let mut literals = section.unresolved_byte_literal_addresses.iter();
     for (index, (source, placed)) in fragments
         .functions
         .iter()
@@ -197,12 +198,38 @@ pub(super) fn check(
                         candidate,
                     )?;
                 }
+                if let Some(fixup) = source_row.byte_literal_address_fixup {
+                    // The field stays the source's own zero bytes; only the
+                    // section coordinates are new.
+                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    }
+                    let candidate = literals
+                        .next()
+                        .ok_or(TextPlacementError::ArtifactMismatch)?;
+                    let expected = machine_code::PlacedByteLiteralAddress {
+                        machine: source.machine,
+                        block: source_block.block,
+                        instruction: source_row.instruction,
+                        literal: fixup.literal,
+                        instruction_function_offset: source_row.offset,
+                        instruction_section_offset: add(offset, source_row.offset)?,
+                        instruction_byte_count: source_row.bytes.len() as u64,
+                        fields: fixup
+                            .fields
+                            .shifted(offset)
+                            .ok_or(TextPlacementError::OffsetOverflow)?,
+                    };
+                    if *candidate != expected {
+                        return Err(TextPlacementError::ArtifactMismatch);
+                    }
+                }
             }
         }
         unchanged_bytes(&source.bytes, candidate_bytes, patches)?;
     }
 
-    if resolutions.next().is_some() || foreign.next().is_some() {
+    if resolutions.next().is_some() || foreign.next().is_some() || literals.next().is_some() {
         return Err(TextPlacementError::ArtifactMismatch);
     }
     Ok(())

@@ -16,6 +16,9 @@ pub struct ResolvedSelectedFormRow {
     /// Unresolved normalized-foreign-call field carried through resolved
     /// layout; object construction binds it to the declared import symbol.
     pub normalized_foreign_call_fixup: Option<crate::SelectedFormNormalizedForeignCallFixup>,
+    /// Unresolved byte-literal image address carried through resolved layout
+    /// row-relative; object construction binds it to the literal's symbol.
+    pub byte_literal_address_fixup: Option<crate::SelectedFormByteLiteralAddressFixup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

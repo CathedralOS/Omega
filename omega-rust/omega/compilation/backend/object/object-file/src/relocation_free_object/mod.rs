@@ -66,6 +66,10 @@ pub enum RelocationFreeObjectRelocationRequirements {
     /// object to declared import symbols. Internal control is fully resolved;
     /// foreign imports remain object relocations, never in-section patches.
     UnresolvedNormalizedForeignImportFieldsV1,
+    /// The section carries byte-literal image address fields, with or
+    /// without normalized-foreign import fields. Image emission binds each
+    /// literal field to the literal's read-only image symbol.
+    UnresolvedObjectSymbolFieldsV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,6 +142,10 @@ pub struct RelocationFreeObjectPlan {
     /// The section's unresolved import fields, each bound to its declared
     /// import symbol. Source order is preserved exactly.
     pub unresolved_normalized_foreign_calls: Vec<RelocationFreeObjectUnresolvedForeignCall>,
+    /// The section's unresolved byte-literal image addresses, in source
+    /// order. Image emission owns the literals' read-only storage and binds
+    /// each row's fields to it; this plan only carries their coordinates.
+    pub unresolved_byte_literal_addresses: Vec<machine_code::PlacedByteLiteralAddress>,
     pub relocation_record_count: u64,
     pub relocation_requirements: RelocationFreeObjectRelocationRequirements,
 }
@@ -193,6 +201,8 @@ pub enum RelocationFreeObjectError {
     UnusedForeignImport,
     ForeignFieldOutsideTextSection,
     ForeignFieldByteWidthMismatch,
+    ByteLiteralAddressesMissing,
+    ByteLiteralFieldOutsideTextSection,
     LengthOverflow,
 }
 
@@ -220,6 +230,8 @@ pub enum RelocationFreeObjectDecodeError {
     UnknownCallbackMaterialization(u8),
     UnknownCallbackDestination(u8),
     UnknownCallbackEncoding(u8),
+    UnknownByteLiteralFieldEncoding(u8),
+    InvalidPlace,
     InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
@@ -282,6 +294,7 @@ pub fn validate_relocation_free_object(
             if object.relocation_record_count != 0
                 || !object.normalized_imports.is_empty()
                 || !object.unresolved_normalized_foreign_calls.is_empty()
+                || !object.unresolved_byte_literal_addresses.is_empty()
             {
                 return Err(RelocationFreeObjectError::RelocationsPresent);
             }
@@ -292,11 +305,50 @@ pub fn validate_relocation_free_object(
             {
                 return Err(RelocationFreeObjectError::UnresolvedForeignCallsMissing);
             }
+            if !object.unresolved_byte_literal_addresses.is_empty() {
+                return Err(RelocationFreeObjectError::RelocationsPresent);
+            }
             if object.relocation_record_count
                 != u64::try_from(object.unresolved_normalized_foreign_calls.len())
                     .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
             {
                 return Err(RelocationFreeObjectError::RelocationCountMismatch);
+            }
+        }
+        RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => {
+            if object.unresolved_byte_literal_addresses.is_empty() {
+                return Err(RelocationFreeObjectError::ByteLiteralAddressesMissing);
+            }
+            if object.unresolved_normalized_foreign_calls.is_empty()
+                != object.normalized_imports.is_empty()
+            {
+                return Err(RelocationFreeObjectError::UnresolvedForeignCallsMissing);
+            }
+            if object.relocation_record_count
+                != u64::try_from(
+                    object.unresolved_normalized_foreign_calls.len()
+                        + object.unresolved_byte_literal_addresses.len(),
+                )
+                .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
+            {
+                return Err(RelocationFreeObjectError::RelocationCountMismatch);
+            }
+            for literal in &object.unresolved_byte_literal_addresses {
+                let last_field = match literal.fields {
+                    machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+                        patch_offset
+                    }
+                    machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+                        page_patch_offset,
+                        page_offset_patch_offset,
+                    } => page_patch_offset.max(page_offset_patch_offset),
+                };
+                if last_field
+                    .checked_add(4)
+                    .is_none_or(|end| end > object.text_section.byte_count)
+                {
+                    return Err(RelocationFreeObjectError::ByteLiteralFieldOutsideTextSection);
+                }
             }
         }
     }
@@ -523,8 +575,59 @@ fn encode_plan_content(
             1
         }
         RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
+        RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
+    // Only an object with literal addresses carries their rows, so every
+    // earlier container keeps its exact bytes and identity.
+    if object.relocation_requirements
+        == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
+    {
+        output.extend_from_slice(
+            &u64::try_from(object.unresolved_byte_literal_addresses.len())
+                .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
+                .to_le_bytes(),
+        );
+        for literal in &object.unresolved_byte_literal_addresses {
+            literal.encode_identity(&mut output);
+        }
+    }
     Ok(output)
+}
+
+fn decode_byte_literal_address(
+    cursor: &mut Cursor<'_>,
+) -> Result<machine_code::PlacedByteLiteralAddress, RelocationFreeObjectDecodeError> {
+    let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
+        .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
+    let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+    let operation = OperationId::new(u64::from_le_bytes(cursor.array()?))
+        .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
+    let place = semantic_vocabulary::PlaceId::new(u64::from_le_bytes(cursor.array()?))
+        .ok_or(RelocationFreeObjectDecodeError::InvalidPlace)?;
+    let instruction_function_offset = u64::from_le_bytes(cursor.array()?);
+    let instruction_section_offset = u64::from_le_bytes(cursor.array()?);
+    let instruction_byte_count = u64::from_le_bytes(cursor.array()?);
+    let fields = match cursor.byte()? {
+        1 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+            patch_offset: u64::from_le_bytes(cursor.array()?),
+        },
+        2 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset: u64::from_le_bytes(cursor.array()?),
+            page_offset_patch_offset: u64::from_le_bytes(cursor.array()?),
+        },
+        tag => return Err(RelocationFreeObjectDecodeError::UnknownByteLiteralFieldEncoding(tag)),
+    };
+    Ok(machine_code::PlacedByteLiteralAddress {
+        machine,
+        block,
+        instruction,
+        literal: machine_code::ByteLiteralReference { operation, place },
+        instruction_function_offset,
+        instruction_section_offset,
+        instruction_byte_count,
+        fields,
+    })
 }
 
 fn encode_normalized_foreign_resolution(
@@ -735,10 +838,21 @@ fn decode_plan_content(
             RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
         }
         2 => RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
+        3 => RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
         tag => {
             return Err(RelocationFreeObjectDecodeError::UnknownRelocationRequirements(tag));
         }
     };
+    let mut unresolved_byte_literal_addresses = Vec::new();
+    if relocation_requirements
+        == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
+    {
+        let literal_count = cursor.length()?;
+        unresolved_byte_literal_addresses.reserve(literal_count);
+        for _ in 0..literal_count {
+            unresolved_byte_literal_addresses.push(decode_byte_literal_address(cursor)?);
+        }
+    }
     Ok(RelocationFreeObjectPlan {
         identity,
         source_text_section,
@@ -754,6 +868,7 @@ fn decode_plan_content(
         semantic_entry_symbol,
         normalized_imports,
         unresolved_normalized_foreign_calls,
+        unresolved_byte_literal_addresses,
         relocation_record_count,
         relocation_requirements,
     })
@@ -1055,6 +1170,7 @@ mod tests {
             semantic_entry_symbol: ObjectLocalSymbolId::new(1).unwrap(),
             normalized_imports: vec![],
             unresolved_normalized_foreign_calls: vec![],
+            unresolved_byte_literal_addresses: Vec::new(),
             relocation_record_count: 0,
             relocation_requirements:
                 RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
@@ -1075,6 +1191,77 @@ mod tests {
         assert_eq!(
             container.identity,
             RelocationFreeObjectContainerIdentity::from_canonical_bytes(&container.bytes)
+        );
+    }
+
+    /// One AArch64 byte-literal address: `adrp x0, #0; add x0, x0, #0`.
+    fn literal_plan() -> RelocationFreeObjectPlan {
+        let mut object = plan();
+        object.text_section.bytes = [0x9000_0000_u32, 0x9100_0000_u32]
+            .iter()
+            .flat_map(|word| word.to_le_bytes())
+            .collect();
+        object.text_section.byte_count = 8;
+        object.symbols[0].byte_count = 8;
+        object.unresolved_byte_literal_addresses = vec![machine_code::PlacedByteLiteralAddress {
+            machine: object.semantic_entry,
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(0),
+            literal: machine_code::ByteLiteralReference {
+                operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                place: semantic_vocabulary::PlaceId::new(2).unwrap(),
+            },
+            instruction_function_offset: 0,
+            instruction_section_offset: 0,
+            instruction_byte_count: 8,
+            fields: machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+                page_patch_offset: 0,
+                page_offset_patch_offset: 4,
+            },
+        }];
+        object.relocation_record_count = 1;
+        object.relocation_requirements =
+            RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1;
+        object.identity = object.recomputed_identity().unwrap();
+        object
+    }
+
+    #[test]
+    fn byte_literal_addresses_round_trip_and_bind_their_requirement() {
+        let object = literal_plan();
+        let container = encode_relocation_free_object(&object).unwrap();
+        assert_eq!(
+            decode_relocation_free_object(&container.bytes),
+            Ok(object.clone())
+        );
+        // A literal row without its requirement, or the requirement without a
+        // row, or a field past the section, is not a canonical object.
+        let mut unrequired = object.clone();
+        unrequired.relocation_requirements =
+            RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1;
+        unrequired.relocation_record_count = 0;
+        unrequired.identity = unrequired.recomputed_identity().unwrap();
+        assert_eq!(
+            validate_relocation_free_object(&unrequired),
+            Err(RelocationFreeObjectError::RelocationsPresent)
+        );
+        let mut missing = object.clone();
+        missing.unresolved_byte_literal_addresses.clear();
+        missing.identity = missing.recomputed_identity().unwrap();
+        assert_eq!(
+            validate_relocation_free_object(&missing),
+            Err(RelocationFreeObjectError::ByteLiteralAddressesMissing)
+        );
+        let mut outside = object;
+        outside.unresolved_byte_literal_addresses[0].fields =
+            machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+                page_patch_offset: 4,
+                page_offset_patch_offset: 8,
+            };
+        outside.identity = outside.recomputed_identity().unwrap();
+        assert_eq!(
+            validate_relocation_free_object(&outside),
+            Err(RelocationFreeObjectError::ByteLiteralFieldOutsideTextSection)
         );
     }
 

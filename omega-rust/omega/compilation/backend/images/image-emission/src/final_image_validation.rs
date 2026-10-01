@@ -314,7 +314,59 @@ fn validate_terminal_image_with_import_count(
     output.validate_final_initialized_data_relocation_envelope(&encoded_final_data, relocations)?;
     validate_dynamic_conformance_tables(artifact, object, relocations, output)?;
     validate_callback_relocation_targets(artifact, object, relocations, output)?;
+    validate_byte_literal_address_targets(artifact, output)?;
     Ok(evidence)
+}
+
+/// Every byte-literal address in the final text must resolve to its octets in
+/// the pool, and the pool must still hold exactly those octets.
+fn validate_byte_literal_address_targets(
+    artifact: &ObjectArtifact,
+    output: &EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    let Some(pool) = artifact.byte_literal_pool() else {
+        return Ok(());
+    };
+    let final_pool = output
+        .final_text_bytes
+        .get(pool.text_offset..pool.text_offset.saturating_add(pool.byte_count))
+        .ok_or_else(|| Diagnostic::error("final byte-literal pool is truncated"))?;
+    if artifact.text_bytes().get(pool.text_offset..) != Some(final_pool) {
+        return Err(Diagnostic::error(
+            "final byte-literal pool differs from its object octets",
+        ));
+    }
+    let to_offset = |offset: u64| {
+        usize::try_from(offset)
+            .map_err(|_| Diagnostic::error("byte-literal address field offset overflows"))
+    };
+    for address in &pool.addresses {
+        let expected_target = output
+            .executable_regions
+            .text_address
+            .checked_add(pool.text_offset as u64)
+            .and_then(|pool_address| pool_address.checked_add(address.pool_offset as u64))
+            .ok_or_else(|| Diagnostic::error("byte-literal target address overflows"))?;
+        let actual_target = match address.fields {
+            machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+                decode_x86_relative_target(output, to_offset(patch_offset)?)?
+            }
+            machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+                page_patch_offset,
+                page_offset_patch_offset,
+            } => decode_aarch64_page_target(
+                output,
+                to_offset(page_patch_offset)?,
+                to_offset(page_offset_patch_offset)?,
+            )?,
+        };
+        if actual_target != expected_target {
+            return Err(Diagnostic::error(
+                "final byte-literal address does not resolve to its pool octets",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Reconstruct initialized data introduced by the image writer itself.

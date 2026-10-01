@@ -29,6 +29,9 @@ pub(super) fn validate(
                     .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
                 &mut counts.ordinary_normalized_foreign_import_fixups
             }
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. } => {
+                &mut counts.ordinary_byte_literal_address_fixups
+            }
         };
         *count = count
             .checked_add(1)

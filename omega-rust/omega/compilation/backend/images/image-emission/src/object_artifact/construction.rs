@@ -223,5 +223,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         port_effects,
         boundary_settlements,
         foreign_calls,
+        // The machine-code route carries no selected byte-literal addresses.
+        byte_literal_pool: None,
     })
 }

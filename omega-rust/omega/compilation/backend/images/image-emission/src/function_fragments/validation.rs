@@ -38,7 +38,7 @@ fn validate(
     // The text section covers the program text plus every retained private
     // carrier's own byte span; the roster replay below independently checks
     // each span against the materialized record.
-    let expected_text_len =
+    let code_text_len =
         artifact
             .private_functions
             .iter()
@@ -47,6 +47,12 @@ fn validate(
                     .checked_add(carrier.function.byte_count)
                     .ok_or(Error::Overflow)
             })?;
+    // The byte-literal pool, when present, follows every byte of code.
+    super::byte_literals::validate(source, artifact, code_text_len)?;
+    let pool = artifact.byte_literal_pool.as_ref();
+    let expected_text_len = code_text_len
+        .checked_add(pool.map_or(0, |pool| pool.byte_count))
+        .ok_or(Error::Overflow)?;
     let requires_graph_storage_replay =
         text.functions
             .iter()
@@ -76,6 +82,7 @@ fn validate(
         || layout.symbols.len()
             != text.functions.len()
                 + artifact.private_functions.len()
+                + usize::from(pool.is_some())
                 + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {

@@ -395,10 +395,16 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
     variant: 13,
 };
 
+/// `adrp`/`add` pair naming one byte literal's read-only image storage.
+pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 791,
+};
+
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 107] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 108] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -611,4 +617,5 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 107] = 
     AARCH64_IEEE_FLOAT_TERNARY,
     AARCH64_FLOAT_RESULT_TRAPPING,
     AARCH64_FLOAT_RESULT_SATURATING,
+    AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
 ];

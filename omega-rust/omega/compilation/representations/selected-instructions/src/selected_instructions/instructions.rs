@@ -3,7 +3,7 @@ use super::SaturatingCarrier;
 use super::{SelectedInstructionId, SelectedInstructionProvenance, SelectedOperand};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
-use semantic_vocabulary::{IntegerValue, MachineId, ObligationId};
+use semantic_vocabulary::{IntegerValue, MachineId, ObligationId, OperationId, PlaceId};
 
 use super::PackedByteWidth;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +99,15 @@ pub enum SelectedInstructionKind {
     FrameAddress {
         slot: super::FrameStorageSlotId,
         byte_offset: u32,
+    },
+    /// Address of the immutable image storage holding the exact octets of
+    /// the byte literal `operation` establishes at `place`. The address is
+    /// PC-relative and stays unresolved until object construction binds it
+    /// to that literal's read-only image symbol. No memory is accessed and
+    /// no activation storage backs the result, so it outlives every root.
+    ByteLiteralImageAddress {
+        operation: OperationId,
+        place: PlaceId,
     },
     CallUnit {
         callee: MachineId,

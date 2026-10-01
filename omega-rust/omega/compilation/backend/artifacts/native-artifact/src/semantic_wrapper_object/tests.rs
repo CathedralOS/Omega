@@ -95,6 +95,7 @@ fn child() -> RelocationFreeObjectPlan {
         semantic_entry_symbol: symbol,
         normalized_imports: vec![],
         unresolved_normalized_foreign_calls: vec![],
+        unresolved_byte_literal_addresses: Vec::new(),
         relocation_record_count: 0,
         relocation_requirements:
             RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,

@@ -287,6 +287,11 @@ pub(crate) enum DecodedWord {
         destination: u8,
     },
     Return,
+    /// `adrp destination, #0`: the canonical unresolved page field of a
+    /// byte-literal image address. Object construction owns the immediate.
+    UnresolvedPageAddress {
+        destination: u8,
+    },
 }
 
 pub(crate) fn decode_words(
@@ -306,6 +311,11 @@ pub(crate) fn decode_words(
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     if word == 0xd420_0000 {
         return Ok(DecodedWord::Crash);
+    }
+    if word & 0xffff_ffe0 == 0x9000_0000 {
+        return Ok(DecodedWord::UnresolvedPageAddress {
+            destination: (word & 31) as u8,
+        });
     }
     // Only the forward skip over one trap word is admitted.
     if word & 0xffff_fff0 == 0x5400_0040 {
@@ -678,6 +688,19 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            decoded
+                == [
+                    DecodedWord::UnresolvedPageAddress {
+                        destination: registers[0],
+                    },
+                    DecodedWord::AddImmediate {
+                        source: registers[0],
+                        immediate: 0,
+                        destination: registers[0],
+                    },
+                ]
         }
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
@@ -1120,6 +1143,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
         | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![0], false),
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => (vec![], vec![0], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16

@@ -19,7 +19,9 @@
 //!   [`image_output`]'s `emit_executable_image`, which selects the direct
 //!   writers it owns or the dynamic ELF lane in [`dynamic_elf`], with
 //!   [`final_image_validation`] replaying either; [`function_fragments`]
-//!   projects admitted current fragments into that same object.
+//!   projects admitted current fragments into that same object and places
+//!   every addressed byte literal's octets in one read-only pool after the
+//!   code, binding each literal address field to it.
 //! - **The canonical installation record wire format** lives in
 //!   [`installation_record`]: manifest metadata over the resulting sealed
 //!   image, its bytes under `installation_record/codec/` with one codec per
@@ -42,8 +44,9 @@ mod object_artifact;
 pub use object_artifact::replay::scalar::control_flow::reconstruct_scalar_control_flow;
 pub use object_artifact::stack_demand::{StackDemand, derive_stack_demand};
 pub use object_artifact::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction,
-    ObjectDynamicConformanceSlot, ObjectDynamicConformanceTable, ObjectError, ObjectForeignCall,
+    ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
+    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectDynamicConformanceSlot,
+    ObjectDynamicConformanceTable, ObjectError, ObjectForeignCall,
     ObjectForwardedDynamicDescriptorAdapter, ObjectForwardedDynamicDescriptorSlot,
     ObjectForwardedDynamicDescriptorTable, ObjectFunction, ObjectPortEffect, ObjectScalarCallStack,
     ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,

@@ -98,6 +98,10 @@ pub(super) enum RowRoute {
     /// stays unresolved until object construction binds it to the declared
     /// import symbol.
     NormalizedForeignCallTemplate,
+    /// The row encodes a PC-relative byte-literal image address whose field
+    /// stays unresolved until object construction binds it to the literal's
+    /// read-only image symbol.
+    ByteLiteralAddress,
     /// The row owns no bytes; resolved branch layout supplies them: the
     /// control-flow dimension of the row contract.
     DeferredControlFlow,
@@ -140,6 +144,7 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
             RowRoute::InternalCallTemplate
         }
         Kind::NormalizedForeignCall { .. } => RowRoute::NormalizedForeignCallTemplate,
+        Kind::ByteLiteralImageAddress { .. } => RowRoute::ByteLiteralAddress,
         Kind::ConditionalBranchNonZero
         | Kind::ConditionalBranchU64LessThan
         | Kind::ConditionalBranchI64LessThan

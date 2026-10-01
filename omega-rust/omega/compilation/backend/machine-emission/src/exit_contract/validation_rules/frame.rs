@@ -77,7 +77,8 @@ pub(in crate::exit_contract) fn validate_preservation_writes(
     let footprint = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, .. }
         | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. } => {
+        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. }
+        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { footprint, .. } => {
             Some(footprint)
         }
         SelectedFormEncodingState::DeferredControl { .. } => None,
@@ -329,6 +330,7 @@ mod tests {
                 branch: None,
                 internal_machine_fixup: None,
                 normalized_foreign_call_fixup: None,
+                byte_literal_address_fixup: None,
             };
             let validate = |encoding: &SelectedFormEncodingRow,
                             layout: &ResolvedSelectedFormRow| {

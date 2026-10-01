@@ -171,6 +171,7 @@ pub fn target_register_environment_identity(
         selected_keys.address_offset,
         selected_keys.store64,
         selected_keys.frame_address,
+        selected_keys.byte_literal_image_address,
         selected_keys.hosted_read_byte,
         selected_keys.hosted_write_byte_i32,
         selected_keys.save_floating_control,

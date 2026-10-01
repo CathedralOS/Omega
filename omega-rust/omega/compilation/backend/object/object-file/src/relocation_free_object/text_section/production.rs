@@ -115,6 +115,9 @@ fn assemble_object(
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => {
             RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
         }
+        TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => {
+            RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
+        }
     };
     let mut object = RelocationFreeObjectPlan {
         identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
@@ -135,9 +138,13 @@ fn assemble_object(
         semantic_entry: text.semantic_entry,
         semantic_entry_symbol,
         normalized_imports,
-        relocation_record_count: u64::try_from(unresolved_normalized_foreign_calls.len())
-            .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
+        relocation_record_count: u64::try_from(
+            unresolved_normalized_foreign_calls.len()
+                + text.unresolved_byte_literal_addresses.len(),
+        )
+        .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
         unresolved_normalized_foreign_calls,
+        unresolved_byte_literal_addresses: text.unresolved_byte_literal_addresses.clone(),
         relocation_requirements,
     };
     object.identity = object
@@ -195,6 +202,7 @@ mod tests {
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
             unresolved_normalized_foreign_calls: vec![],
+            unresolved_byte_literal_addresses: Vec::new(),
         }
     }
 

@@ -118,6 +118,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1)
         }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            (MachineAlternativeFamily::ByteLiteralImageAddress, 1)
+        }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
         SelectedInstructionKind::MaterializeBooleanEqual => {
             (MachineAlternativeFamily::MaterializeBooleanEqual, 1)
@@ -403,6 +406,10 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
+        }
+        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+            let [page, page_offset] = byte_literal_address_words(registers[0]);
+            words.extend([page, page_offset]);
         }
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
@@ -842,4 +849,20 @@ fn append_saturating(
         }
     }
     Ok(())
+}
+
+/// Byte offset of the `adrp` page field inside a byte-literal image address.
+pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET: u16 = 0;
+/// Byte offset of the `add #:lo12:` field inside a byte-literal image address.
+pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET: u16 = 4;
+
+/// `adrp xD, #0` then `add xD, xD, #0`: both immediates stay zero until
+/// object construction binds the pair to the literal's image symbol through
+/// a page and a page-offset relocation.
+pub(crate) const fn byte_literal_address_words(register: u8) -> [u32; 2] {
+    let register = register as u32;
+    [
+        0x9000_0000 | register,
+        0x9100_0000 | (register << 5) | register,
+    ]
 }

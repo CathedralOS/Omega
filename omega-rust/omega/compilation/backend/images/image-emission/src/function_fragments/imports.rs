@@ -172,6 +172,9 @@ pub(super) fn validate(
                 CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
             })
             .sum::<usize>();
+    // Byte-literal records trail the import rows; their own replay owns them.
+    let expected_records = expected_records
+        + super::byte_literals::relocation_count(artifact.byte_literal_pool.as_ref());
     if artifact.foreign_calls != calls
         || artifact.relocations.record_count() != expected_records
         || fields.len() != import_calls.len()
@@ -179,12 +182,14 @@ pub(super) fn validate(
         return Err(Error::Mismatch("fragment import relocation roster changed"));
     }
     let mut imports = layout.normalized_imports.iter();
-    // Import symbols trail the program functions and the compiler-private
-    // callback functions; skip both rosters to find the import tail.
-    let mut symbols = layout
-        .symbols
-        .iter()
-        .skip(artifact.functions.len() + artifact.private_functions.len());
+    // Import symbols trail the program functions, the compiler-private
+    // callback functions and the byte-literal pool; skip those rosters to
+    // find the import tail.
+    let mut symbols = layout.symbols.iter().skip(
+        artifact.functions.len()
+            + artifact.private_functions.len()
+            + usize::from(artifact.byte_literal_pool.is_some()),
+    );
     let mut prior_locators = Vec::new();
     for field in fields {
         let (_, locator) = call_for_import_field(&import_calls, field)?;

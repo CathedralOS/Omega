@@ -413,6 +413,7 @@ mod tests {
                     callback_materializations: Vec::new(),
                 },
             ],
+            unresolved_byte_literal_addresses: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
         };

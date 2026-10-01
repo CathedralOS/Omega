@@ -130,6 +130,13 @@ pub fn resolved_machine_layout_identity(
                     }
                 }
                 encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
+                // A row without a byte-literal address keeps its earlier identity.
+                if let Some(fixup) = instruction.byte_literal_address_fixup {
+                    let mut identity = b"byte-literal-address".to_vec();
+                    fixup.literal.encode_identity(&mut identity);
+                    fixup.fields.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
             }
         }
     }

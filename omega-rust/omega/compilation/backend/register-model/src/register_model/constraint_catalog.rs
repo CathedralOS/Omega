@@ -62,6 +62,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub address_offset: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    pub byte_literal_image_address: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,
     pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
     pub save_floating_control: Option<RegisterConstraintKey>,
