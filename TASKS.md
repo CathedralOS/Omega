@@ -142,26 +142,34 @@ evidence carriers without an exercising program. The
 the complete product bar; focused successes below do not establish that baseline.
 
 - **FORWARDED-CONTEXT-BLOCK-PARAMETER-MODULE.** (split-of:STATIC-MACHINE-MIGRATION)
-  Emit a valid Terminal module for a machine that forwards its attached data
-  across state edges beside other block parameters. `print_number`,
-  `run_length_encode` and `caesar_cipher` check and then stop at
-  `terminal-artifact production failed:
+  Admit a domain-qualified byte container among the attached data a machine
+  forwards to its states. `print_number`, `run_length_encode` and
+  `caesar_cipher` check and then stop at `terminal-artifact production failed:
   Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
-  BlockId(2), place: PlaceId(7) }))`, so stage 05 produces a module whose own
-  validation rejects it: block 2 names a structural place it does not declare.
-  Frontier: the refusal is independent of every range fact — the same three
-  samples give it with and without an authored `main.i >= 0` conjunct, and at
-  `6422c069252~` as well — and `sensor_min_max` and `array_sum`, the two
-  migrated siblings that do not hit it, meet their native oracle. So the
-  question is which block parameter the forwarded context's declaration misses,
-  not whether a proof is available. Owners are
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/`
-  for parameter declaration and the module validator in
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/`.
-  Acceptance: the three samples meet their documented oracle under
-  `tools/sample_native_gate.py` on a matching host, with a corpus fixture
-  pinning the forwarded-context block parameter shape that produced the
-  invalid module.
+  BlockId(2), place: PlaceId(2) }))`.
+  The reduction is committed as
+  [tests/omega/pending/storage/forwarded_context_bounded_byte_field](tests/omega/pending/storage/forwarded_context_bounded_byte_field/main.omg),
+  which the corpus runner does not walk: one unread `text: [u8; 5] in Utf8`
+  field beside a forwarded `main: &mut Main`. Spelling the field `[u8; 5]`
+  without the domain compiles; keeping the domain and giving every state
+  `&mut self` compiles. Neither half is the fault alone.
+  Frontier: the refusing clause is the structural-type admission in
+  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/block_views.rs`
+  — instrumented, `type_ok` is the only false conjunct for a `MutableBorrow`
+  parameter of the lent record. For that access it admits only what
+  `block_views/mutable_records.rs`'s `parameter_type` accepts, and its
+  `borrowed_carrier_type` walks the lent record's fields and returns false at
+  any child that is neither `FusedServiceBinding`, `Record`, nor
+  `record::plain_type`. A bounded byte owner is a `ByteSequence`, so the walk
+  refuses it; a plain `[u8; N]` is `plain_type` and the walk passes it.
+  Whether a `&mut` record loan may carry a bounded byte owner — the state
+  writes it through the root window and the caller observes, and the owner's
+  live length travels with it — is a verifier trust decision, and
+  `mutable_records.rs` plus its trusted-surface digest row are live
+  ARRAY-STATE-LOAN work, so this stops at that boundary rather than editing it.
+  Acceptance: the pending fixture moves to `pass/storage/` with an authored
+  exit and a golden row, and the three samples meet their documented oracle
+  under `tools/sample_native_gate.py` on a matching host.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and

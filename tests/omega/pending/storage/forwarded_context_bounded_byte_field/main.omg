@@ -1,0 +1,71 @@
+// A machine that forwards its attached data to its states cannot carry a
+// domain-qualified byte container among that data.
+//
+// This is the whole reduction. `main.text` is never read, written, or lent;
+// declaring it is enough. Stage 05 emits a module whose own validator then
+// refuses the forwarded `&mut Main` block parameter:
+//
+//   terminal-artifact production failed:
+//   Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter {
+//     block: BlockId(2), place: PlaceId(2) }))
+//
+// Two one-line variants bound it. Spell the same field `text: [u8; 5]`,
+// without the `in Utf8` domain, and the program compiles. Keep the domain and
+// give every state `&mut self` instead of `main: &mut Main`, and it compiles.
+// So neither the domain nor the forwarding is the fault on its own: it is the
+// pair, and the loop and counter are incidental.
+//
+// The refusing clause is the structural-type admission in
+// `terminal-psi/verification/src/validation/block_views.rs`, which for a
+// `MutableBorrow` parameter admits only what
+// `block_views::mutable_records::parameter_type` accepts. That delegates to
+// `borrowed_carrier_type`, which walks the lent record's fields and returns
+// false at any child that is neither a `FusedServiceBinding`, a `Record`, nor
+// `record::plain_type`. A bounded byte owner is a `ByteSequence`, so the walk
+// falls through to its refusal. A plain `[u8; 5]` is `plain_type` and the walk
+// continues past it, which is why dropping the domain compiles.
+//
+// This fixture lives under `pending/` because the corpus runner walks only
+// `pass`, `fail` and `run`: it is the committed witness, not a gate row. It
+// belongs in `pass/storage/` with an authored exit once the verifier admits
+// the shape. `print_number`, `run_length_encode` and `caesar_cipher` are the
+// three samples this blocks; each checks and then refuses here.
+//
+// Expected exit: 0.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 5]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+data Main {
+    console: Binding<Console>;
+    text: [u8; 5] in Utf8;
+    i: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.i = 0;
+
+    transition {
+        _ -> step(&mut self)
+    }
+
+    state step(main: &mut Main) {
+        transition main.i < 5 {
+            true -> advance(main)
+            _ -> done(main)
+        }
+    }
+
+    state advance(main: &mut Main) {
+        main.i = main.i + 1;
+        transition {
+            _ -> step(main)
+        }
+    }
+
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+}
