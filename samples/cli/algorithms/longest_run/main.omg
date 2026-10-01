@@ -1,8 +1,7 @@
-// Longest run of equal bytes in a string -- the core measure behind run-length encoding (RLE).
-// Scan the bytes left to right tracking the CURRENT run length and the MAXIMUM seen: each byte
-// either extends the current run (== previous) or starts a new one. For "aaabbbbccdaa" the longest
-// run is 4 (the "bbbb"). Showcases carrier `.len`-bounded iteration, per-byte reads into a u8
-// field, and run tracking over a state loop -- all on the working surface (no value-calls).
+// Longest run of equal bytes, the measure behind run-length encoding.
+// The input belongs to the invocation. States carry the cursor, previous byte,
+// current run length and maximum; the current byte is an iteration-local value.
+// For "aaabbbbccdaa", the longest run is 4 (the "bbbb").
 // Expected exit: 4.
 
 domain [u8]::Utf8
@@ -16,73 +15,64 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    pause: [u8; 256];
-    text: [u8; 16] in Utf8;
-    i: i32;
-    cur: i32 in Wrapping;
-    max: i32 in Wrapping;
-    prev: u8 in Wrapping;
-    b: u8 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
-    self.text = "aaabbbbccdaa";
-    self.i = 0;
-    self.cur = 0;
-    self.max = 0;
-    self.prev = 0;
-    transition { _ -> step() }
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
+    let text: [u8; 16] in Utf8 = "aaabbbbccdaa";
+    let maximum: i32 in Wrapping = longest_run(&text);
+    context.console.write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
+    context.console.write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block context.console.read_line(&mut pause);
+    context.console.exit_process(maximum as i32);
+}
 
-    // Walk the bytes, bounded by the carrier's runtime length.
-    state step(&mut self) {
-        transition self.i < self.text.len {
-            true -> read()
-            _ -> done()
+machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
+    transition { _ -> step(text, 0, 0, 0, 0) }
+
+    state step(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 {
+        transition index < text.len {
+            true -> read(text, index, previous, current, maximum)
+            _ -> maximum
         }
     }
-    state read(&mut self) {
-        self.b = self.text[self.i] as u8 in Wrapping;
-        transition self.b == self.prev {
-            true -> extend()
-            false -> reset()
+
+    state read(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 {
+        let byte: u8 = text[index];
+        transition byte == previous {
+            true -> update(text, index, byte, current + 1, maximum)
+            _ -> update(text, index, byte, 1, maximum)
         }
     }
-    state extend(&mut self) {
-        self.cur = self.cur + 1;
-        transition { _ -> update() }
-    }
-    state reset(&mut self) {
-        self.cur = 1;
-        self.prev = self.b;
-        transition { _ -> update() }
-    }
-    state update(&mut self) {
-        transition self.cur > self.max {
-            true -> set_max()
-            false -> advance()
+
+    state update(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+                 current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 {
+        transition current > maximum {
+            true -> advance(text, index, previous, current, current)
+            _ -> advance(text, index, previous, current, maximum)
         }
     }
-    state set_max(&mut self) {
-        self.max = self.cur;
-        transition { _ -> advance() }
-    }
-    // Re-guard against the carrier CAPACITY (16) so the increment's direct edge
-    // proves `i + 1` lands in [1..=16] -- len <= 16, so this is always true.
-    state advance(&mut self) {
-        transition self.i >= 0 && self.i < 16 {
-            true -> bump()
-            _ -> done()
+
+    // Retain the capacity guard immediately before the Exact cursor increment.
+    state advance(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+                  current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 {
+        transition index < 16 {
+            true -> bump(text, index, previous, current, maximum)
+            _ -> maximum
         }
     }
-    state bump(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> step() }
-    }
-    state done(&mut self) {
-        self.console.write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.max as i32);
+
+    state bump(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0
+    requires index < 16 {
+        transition { _ -> step(text, index + 1, previous, current, maximum) }
     }
 }
