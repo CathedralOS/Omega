@@ -69,6 +69,13 @@ impl ReceiverLength {
     pub(in crate::checks::ranges) fn same_extent(&self, other: &Self) -> bool {
         self.place == other.place && self.length == other.length
     }
+
+    /// Both rows seed the same destination facts: the same extent under the
+    /// same label. Only the observing expression differs, and the seeded
+    /// dependency row reads the place, not that expression.
+    pub(in crate::checks::ranges) fn same_seed(&self, other: &Self) -> bool {
+        self.same_extent(other) && self.label == other.label
+    }
 }
 
 impl<'field> RangeFacts<'field> {

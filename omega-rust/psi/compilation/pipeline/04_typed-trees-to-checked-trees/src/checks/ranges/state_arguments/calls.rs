@@ -9,7 +9,7 @@ use super::{
 use crate::checks::ranges::expressions::{
     ensured_call_result_bounds, expression_indexable_length, expression_integer_value,
 };
-use crate::checks::ranges::facts::RangeFacts;
+use crate::checks::ranges::facts::{RangeFacts, ReceiverLength};
 use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 use language_core::is_receiver_rooted;
 
@@ -167,7 +167,7 @@ pub(super) fn collect_state_argument_facts_for_call(
             &destination_place.segments,
         );
         if let Some(length) = facts.exact_length(source_label) {
-            incoming_lengths.push(crate::checks::ranges::facts::ReceiverLength::at_place(
+            incoming_lengths.push(ReceiverLength::at_place(
                 *expression,
                 destination_place.clone(),
                 destination_label.clone(),
@@ -193,6 +193,7 @@ pub(super) fn collect_state_argument_facts_for_call(
         }
     }
     super::merge_storage_rows(&mut entry.storage, &Some(incoming_storage));
+    let incoming_lengths = distinct_seeds(incoming_lengths);
     if let Some(existing) = &mut entry.receiver_lengths {
         existing.retain(|length| {
             incoming_lengths
@@ -355,6 +356,25 @@ pub(super) fn collect_state_argument_facts_for_call(
         }
     }
     entry.index_proofs.merge(index_proofs);
+}
+
+/// One row per seeded exact length. A transition renders every
+/// receiver-rooted length twice -- once from `receiver_lengths` and once
+/// from the receiver's storage rows -- and a state that reads a field it was
+/// seeded with records a second dependency row at the same place. The
+/// destination seeds one dependency row per incoming row and renders its own
+/// outgoing lengths from those rows, so keeping the repeats doubled the
+/// seeded rows at every transition depth. The 29- to 45-state sample
+/// machines never finished collecting, because `preserved_expression_labels`
+/// compares those rows pairwise on every assignment.
+fn distinct_seeds(lengths: Vec<ReceiverLength>) -> Vec<ReceiverLength> {
+    let mut distinct: Vec<ReceiverLength> = Vec::with_capacity(lengths.len());
+    for length in lengths {
+        if !distinct.iter().any(|kept| kept.same_seed(&length)) {
+            distinct.push(length);
+        }
+    }
+    distinct
 }
 
 fn argument_is_proven_index_for_collection(
