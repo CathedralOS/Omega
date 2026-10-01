@@ -1,3 +1,4 @@
+use super::dispatch_extraction::DispatchExtraction;
 use super::records;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
@@ -14,6 +15,7 @@ pub(super) struct BorrowAccessCollection<'a> {
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
+    dispatch_extraction: DispatchExtraction,
 }
 
 impl<'a> BorrowAccessCollection<'a> {
@@ -34,7 +36,20 @@ impl<'a> BorrowAccessCollection<'a> {
             state_symbol,
             statement_index,
             machine_symbol,
+            dispatch_extraction: DispatchExtraction::default(),
         }
+    }
+
+    /// Collect a transition arm's own target roster, whose payload bindings
+    /// were copied out of the dispatch's saved subject before the call.
+    pub(super) fn after_dispatch_extraction(mut self) -> Self {
+        self.dispatch_extraction = DispatchExtraction::of_transition_arm(
+            self.program,
+            self.state_symbol,
+            self.statement_index,
+            self.machine_symbol,
+        );
+        self
     }
 
     pub(super) fn borrow_access_place(
@@ -75,9 +90,18 @@ impl<'a> BorrowAccessCollection<'a> {
         access_place: BorrowAccessPlace,
         expression: ExpressionHandle,
     ) {
-        let end_before_access = self
-            .is_plain_copy(expression)
-            .then(|| self.access_count() + 1);
+        // A payload the dispatch already copied ended before the call's
+        // first access; any other copied read ends after its own row.
+        let end_before_access = self.is_plain_copy(expression).then(|| {
+            if self
+                .dispatch_extraction
+                .reads_extracted_copy(self, expression)
+            {
+                0
+            } else {
+                self.access_count() + 1
+            }
+        });
         self.append_access(access_place, BorrowAccessKind::Read, end_before_access);
     }
 
@@ -113,7 +137,7 @@ impl<'a> BorrowAccessCollection<'a> {
         }
     }
 
-    fn is_plain_copy(&self, expression: ExpressionHandle) -> bool {
+    pub(super) fn is_plain_copy(&self, expression: ExpressionHandle) -> bool {
         crate::flow::expression_type_reference_in_state(
             self.program,
             self.state_symbol,

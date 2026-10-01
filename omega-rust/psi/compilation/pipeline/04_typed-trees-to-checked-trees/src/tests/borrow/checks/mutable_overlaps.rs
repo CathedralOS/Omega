@@ -113,6 +113,94 @@ fn scalar_argument_still_conflicts_with_an_earlier_mutable_borrow() {
     );
 }
 
+/// A destructure arm copies a plain payload out of the dispatch's saved
+/// subject before its target evaluates any argument, so the copy may travel
+/// beside a forwarded `&mut` of the subject's root.
+#[test]
+fn dispatch_copied_payload_travels_beside_a_mutable_root() {
+    let declarations = "data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+        data Packet { case Empty; case Samples(values: [i32; 2]); }
+        data Main { never: Msg; packet: Packet; count: i32; }";
+    for (arm, target) in [
+        (
+            "Msg::Ping { x } -> chk(main, x)",
+            "chk(main: &mut Main, x: i32)",
+        ),
+        (
+            "Msg::Ping { x } -> chk(main, x + 1)",
+            "chk(main: &mut Main, x: i32)",
+        ),
+        (
+            "Msg::Pong { y, z } -> pair(main, y, z)",
+            "pair(main: &mut Main, y: i32, z: i32)",
+        ),
+    ] {
+        let source = format!(
+            "{declarations}
+             machine Main::build(main: &mut Main) {{
+                 transition main.never {{
+                     {arm}
+                     _ -> done(main)
+                 }}
+                 state {target} {{}}
+                 state done(main: &mut Main) {{}}
+             }}"
+        );
+        check_program(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+    let indexed = format!(
+        "{declarations}
+         machine Main::build(main: &mut Main) {{
+             transition main.packet {{
+                 Packet::Samples {{ values }} -> verify(main, values[0], values[1])
+                 _ -> done(main)
+             }}
+             state verify(main: &mut Main, first: i32, second: i32) {{}}
+             state done(main: &mut Main) {{}}
+         }}"
+    );
+    check_program(&indexed).unwrap_or_else(|diagnostics| panic!("{indexed}: {diagnostics:#?}"));
+}
+
+/// Only the dispatch's copy is exempt. An authored projection of the root, or
+/// a loan of the payload's storage, still overlaps the earlier `&mut` root.
+#[test]
+fn authored_projection_beside_a_forwarded_mutable_root_still_conflicts() {
+    let declarations = "data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+        data Main { never: Msg; count: i32; }";
+    for (arm, target) in [
+        ("_ -> chk(main, main.count)", "chk(main: &mut Main, x: i32)"),
+        (
+            "Msg::Ping { x } -> chk(main, main.count)",
+            "chk(main: &mut Main, x: i32)",
+        ),
+        (
+            "Msg::Ping { x } -> peek(main, &x)",
+            "peek(main: &mut Main, x: &i32)",
+        ),
+    ] {
+        let source = format!(
+            "{declarations}
+             machine Main::build(main: &mut Main) {{
+                 transition main.never {{
+                     {arm}
+                     _ -> done(main)
+                 }}
+                 state {target} {{}}
+                 state done(main: &mut Main) {{}}
+             }}"
+        );
+        let diagnostics =
+            check_program(&source).expect_err("the forwarded root retains its exclusive loan");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}
+
 #[test]
 fn shared_reference_argument_is_not_a_transient_scalar_read() {
     for argument in ["&counter.count", "borrow_count(&counter.count)"] {

@@ -1,4 +1,6 @@
-use crate::borrow::accesses::collect_call_argument_accesses;
+use crate::borrow::accesses::{
+    collect_call_argument_accesses, collect_transition_target_argument_accesses,
+};
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
@@ -46,6 +48,23 @@ impl<'a> BorrowCallCollection<'a> {
         target_symbol: SymbolHandle,
     ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
         collect_call_argument_accesses(
+            self.program,
+            self.access_segments,
+            self.argument_accesses,
+            arguments,
+            self.state.symbol,
+            self.statement_index,
+            self.machine.symbol,
+            target_symbol,
+        )
+    }
+
+    pub(super) fn collect_transition_target_argument_accesses(
+        &mut self,
+        arguments: &[ExpressionHandle],
+        target_symbol: SymbolHandle,
+    ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
+        collect_transition_target_argument_accesses(
             self.program,
             self.access_segments,
             self.argument_accesses,

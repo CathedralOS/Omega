@@ -373,6 +373,8 @@ pub struct BorrowArgumentAccessFact {
     /// First subsequent access in this call's roster after this observation
     /// ends. None retains the access through invocation. Copied reads end
     /// immediately; temporary nested-call loans end when that call returns.
+    /// A payload a transition arm's dispatch copied out of its saved subject
+    /// ended before the target's first access: 0.
     pub end_before_access: Option<usize>,
 }
 

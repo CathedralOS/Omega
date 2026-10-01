@@ -90,11 +90,16 @@ pub(super) fn check_call_access_conflicts<'p>(
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
             // A copied read or completed nested-call loan no longer observes
-            // its source when the later access begins. Earlier retained loans
-            // and the active local loans below still constrain that access.
+            // its source when the later access begins. A payload its arm's
+            // dispatch copied before the call (end 0) ended before the earlier
+            // access began. Retained loans and the active local loans below
+            // still constrain both.
             if access
                 .end_before_access
                 .is_some_and(|end| end <= other_index)
+                || other_access
+                    .end_before_access
+                    .is_some_and(|end| end <= index)
             {
                 continue;
             }
