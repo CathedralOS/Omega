@@ -70,6 +70,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "wrapping_bounds",
     },
     TestOnlySource {
+        path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/tests/wrapping_subtraction.rs",
+        parent: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/tests.rs",
+        module: "wrapping_subtraction",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/compilation/proof/admission/src/kernel/carrier_bounds.rs",
         parent: "omega-rust/psi/compilation/proof/admission/src/kernel.rs",
         module: "carrier_bounds",
@@ -409,7 +414,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping.rs",
-        sha256: Some("eb6bcd824c72f047aaed84508c65fb98cd019ea4d5ad7721463d7283c2c40b9b"),
+        sha256: Some("597800de03a2025068b81f208c9b040e3c429d94fe2a23c558275268bbac3c9a"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -419,7 +424,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("c23c9176ef968086866578197b37745c0d7cc71d68fd4fa3063d1a53cff87797"),
+        sha256: Some("80a2d4f0ac32735649a6c37e9cfe78d16eb85ea0264c8797e916cfe78bec7b6e"),
         inventory_machinery: false,
     },
     ImplementationSite {

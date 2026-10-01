@@ -229,9 +229,10 @@ fn map_integer_affine_bound_with_remainder_policy(
             // For `c > 0`, `v = (x + c) mod 2^w` never exceeds `x + c`, so an
             // upper bound on `x` maps unconditionally; a lower bound survives
             // only when the same definition proves `x <= maximum - c`, so the
-            // sum cannot reduce modulo the width. A negative `c` on a signed
-            // carrier mirrors this: `v` is never below `x + c`, and an upper
-            // bound needs `minimum - c <= x`.
+            // sum cannot reduce modulo the width. A negative `c` (a signed
+            // addend, or a subtracted literal on either carrier) mirrors this:
+            // `v` is never below `x + c`, and an upper bound needs
+            // `minimum - c <= x`.
             CheckedIntegerEndpointStep::WrappingAdd { operand, literal } => {
                 if wrapping_side_needs_evidence(current_is_lower, *literal) {
                     push_wrapping_evidence(
@@ -419,6 +420,14 @@ fn push_wrapping_evidence(
     literal: i128,
 ) -> Result<(), IntegerAffineBoundConversionError> {
     let evidence = match integer_type.maximum_value() {
+        // A subtracted literal can only cross zero: the operand must stay at
+        // or above the literal's magnitude, `minimum - literal <= operand`.
+        IntegerValue::Unsigned(_) if literal < 0 => {
+            let floor =
+                ScalarTerm::integer(integer_type, IntegerValue::Unsigned(literal.unsigned_abs()))
+                    .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+            Proposition::LessOrEqual(floor, operand.clone())
+        }
         IntegerValue::Unsigned(maximum) => {
             let headroom = maximum
                 .checked_sub(u128::try_from(literal).unwrap_or(u128::MAX))

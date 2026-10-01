@@ -44,6 +44,7 @@ fn affine_inputs(expression: &ScalarTerm) -> impl Iterator<Item = &ScalarTerm> {
         // Only the dividend of a wrapping division resumes a chain; the
         // divisor must resolve as a literal and never carries a bound.
         ScalarTerm::ExactIntegerSubtract { left, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, .. }
         | ScalarTerm::WrappingIntegerDivide { left, .. } => [Some(left.as_ref()), None],
         _ => [None, None],
     };
