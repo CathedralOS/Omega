@@ -227,8 +227,21 @@ pub(super) fn read_geometry(
                     return None;
                 }
                 result.structural_type
+            } else if observes_byte_length {
+                if argument.access != StructuralAccess::Owned {
+                    return None;
+                }
+                // Byte-length metadata uses the same exact established home
+                // as concatenation field operands. Rejoin its
+                // producer, place declaration and layout before resolving the
+                // field; a length observation never supplies content authority.
+                let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
+                if !result.qualifications.is_empty() {
+                    return None;
+                }
+                result.structural_type
             } else {
-                if argument.access != StructuralAccess::Owned || observes_byte_length {
+                if argument.access != StructuralAccess::Owned {
                     return None;
                 }
                 let mut producers = source

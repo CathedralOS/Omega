@@ -1,0 +1,27 @@
+// A field copy observes the local's current bytes after a completed call,
+// snapshots them, and preserves them when another call changes the source.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+data Text [copy] { bytes: [u8; 8] in Utf8; }
+data Room [copy] { description: Text; }
+data Main { console: Binding<Console>; output: [u8; 8] in Utf8; }
+
+machine fill(room: &mut Room) {
+    room.description.bytes = "before";
+    room.description.bytes = "é";
+}
+
+machine change(room: &mut Room) {
+    room.description.bytes = "changed";
+}
+
+machine Main::main(&mut self) reaches Console {
+    let room: Room;
+    fill(&mut room);
+    self.output = room.description.bytes;
+    change(&mut room);
+    self.console.write_line(self.output);
+    self.console.exit_process(70);
+}

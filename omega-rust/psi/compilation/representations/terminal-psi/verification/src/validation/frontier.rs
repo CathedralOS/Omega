@@ -535,6 +535,19 @@ fn validate_owned_reads(
         OperationKind::AtomicAccess { place, .. } => Some(place),
         _ => None,
     };
+    let byte_field_observations = match &operation.kind {
+        OperationKind::StructuralByteSequenceFieldLength { source, .. }
+        | OperationKind::StructuralByteSequenceFieldRead { source, .. } => [Some(*source), None],
+        OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => {
+            [left, right].map(|operand| match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Field { source, .. } => {
+                    Some(source.place)
+                }
+                _ => None,
+            })
+        }
+        _ => [None, None],
+    };
     let reads = arguments
         .iter()
         .filter(|argument| {
@@ -546,7 +559,8 @@ fn validate_owned_reads(
             )
         })
         .map(|argument| argument.place)
-        .chain(observation);
+        .chain(observation)
+        .chain(byte_field_observations.into_iter().flatten());
     for place in reads.filter(|place| {
         super::byte_sequence::subslice::borrowed_result(machine, *place).is_none()
             && super::element_view::subslice::borrowed_result(machine, *place).is_none()
@@ -555,6 +569,14 @@ fn validate_owned_reads(
             // validation requires it to dominate every loan of it.
             && super::byte_sequence::concatenation::owned_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
+            // These reads have independent exact-root and dominance checks.
+            // Unrestricted homes need no affine entry; affine homes still
+            // pass through the ordinary live/partially-moved frontier below.
+            && !(byte_field_observations.contains(&Some(*place))
+                && terminal_semantics::byte_field_root(machine, *place)
+                    .is_some_and(|(_, access)| access == StructuralAccess::Owned)
+                && super::structural::result_contracts::source_signature(machine, *place)
+                    .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted))
             // Copyable case results have no affine frontier entry. Their exact
             // producer and dominance are checked by crate::validation::scalar::case::validate_uses;
             // Shared observations can accompany owned copies of the same

@@ -2235,10 +2235,11 @@ fn validate_operand_producers(
             );
             // The producer roster includes every local, even while rejoining
             // another operand. Copy cases carry the same plain-owned custody
-            // as arrays and records; their exact carrier is still checked below.
+            // as arrays and records; represented byte predicates stay attached
+            // to the established home, and its exact carrier is checked below.
             if !local.symbol.is_valid()
                 || (result.multiplicity == Multiplicity::Unrestricted
-                    && !(validation::has_plain_owned_contents_with_numeric_constraints(
+                    && !(validation::has_plain_owned_contents_with_represented_constraints(
                         &checked.typed,
                         local.type_reference,
                     ) || view_carrier.is_some()

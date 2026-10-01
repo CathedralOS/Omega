@@ -2,9 +2,9 @@
 
 use crate::validation::{
     IntegerSign, IntegerType, ModuleError, OperationKind, OperationResult, PlaceId, ScalarType,
-    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
-    StructuralPathSegment, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
-    TerminalModule, resolve_structural_path,
+    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralPathSegment,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+    resolve_structural_path,
 };
 mod freshness;
 pub(crate) use freshness::field_content_length_is_current;
@@ -39,36 +39,23 @@ pub(in crate::validation) fn validate(
         } => (*source, path, *field, false, true),
         _ => return Err(invalid()),
     };
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)
-        .ok_or_else(invalid)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) && (writing || parameter.access != StructuralAccess::SharedBorrow)
-        || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-        || !machine.structural_places.iter().any(|place| {
-            place.id == root
-                && place.kind
-                    == StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    }
+    let (_, access) = terminal_semantics::byte_field_root(machine, root).ok_or_else(invalid)?;
+    let access_admitted = if writing {
+        matches!(
+            access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) && machine.structural_places.iter().any(|place| {
+            place.id == root && matches!(place.kind, StructuralPlaceKind::Parameter { .. })
         })
-        || machine.entry_claims.iter().any(|claim| claim.input == root)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == root)
-    {
+    } else {
+        matches!(
+            access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+        ) || (!element_result && access == StructuralAccess::WriteOnlyBorrow)
+    };
+    if !access_admitted || !terminal_psi::is_bounded_structural_scalar_store_path(path) {
         return Err(invalid());
     }
     field_path(
@@ -127,13 +114,9 @@ pub(crate) fn length_capacity_bound(
     };
     validate(module, machine, operation)?;
     let invalid = || ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id);
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *source)
-        .ok_or_else(invalid)?;
-    let carrier =
-        resolve_structural_path(module, parameter.structural_type, path).ok_or_else(invalid)?;
+    let (structural_type, _) =
+        terminal_semantics::byte_field_root(machine, *source).ok_or_else(invalid)?;
+    let carrier = resolve_structural_path(module, structural_type, path).ok_or_else(invalid)?;
     let declaration = module
         .structural_types
         .iter()
@@ -287,11 +270,16 @@ fn field_path(
     writing: bool,
     extent_observation: bool,
 ) -> Option<Vec<StructuralPathSegment>> {
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
-    let carrier = resolve_structural_path(module, parameter.structural_type, path)?;
+    let structural_type = if writing {
+        machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)?
+            .structural_type
+    } else {
+        terminal_semantics::byte_field_root(machine, root)?.0
+    };
+    let carrier = resolve_structural_path(module, structural_type, path)?;
     let declaration = module
         .structural_types
         .iter()

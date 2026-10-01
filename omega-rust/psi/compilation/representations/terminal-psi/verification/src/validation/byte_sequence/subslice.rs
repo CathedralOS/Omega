@@ -160,11 +160,39 @@ pub(in crate::validation) fn validate_uses(
             Ok(())
         }
     };
+    // Field-root declaration custody does not establish an operation result or
+    // a state-local name. Those homes must dominate this exact observation.
+    let require_field = |place| {
+        if machine.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::OperationResult { .. }
+                        | StructuralPlaceKind::BlockParameter { .. }
+                )
+        }) && !available.contains(&place)
+        {
+            return Err(ModuleError::ByteSequenceViewNotEstablished {
+                operation: operation.id,
+                place,
+            });
+        }
+        require(place)
+    };
+    let require_operand = |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand
+    {
+        terminal_psi::control_flow::ByteSequenceOperand::Field { source, .. } => {
+            require_field(source.place)
+        }
+        _ => require(operand.source()),
+    };
     match &operation.kind {
         OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => {
-            require(left.source())?;
-            require(right.source())
+            require_operand(left)?;
+            require_operand(right)
         }
+        OperationKind::StructuralByteSequenceFieldLength { source, .. }
+        | OperationKind::StructuralByteSequenceFieldRead { source, .. } => require_field(*source),
         OperationKind::ByteSequenceStore {
             destination,
             source,

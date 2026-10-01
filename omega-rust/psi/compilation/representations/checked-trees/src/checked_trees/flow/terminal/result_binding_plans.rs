@@ -66,7 +66,9 @@ pub enum CheckedByteSequenceValue {
         capacity: u64,
     },
     Field {
-        parameter_position: u32,
+        /// Exact readable parameter or established local home. The source is
+        /// observed at the store, not reconstructed from its initializer.
+        root: crate::CheckedStoreRoot,
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,
         field_identity: String,
         capacity: u64,

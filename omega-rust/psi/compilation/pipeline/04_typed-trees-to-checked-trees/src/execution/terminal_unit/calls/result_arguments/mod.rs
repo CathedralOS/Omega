@@ -418,6 +418,13 @@ pub(super) fn argument(
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                         program, storage,
                     )
+                    // A loan presents the existing local's declared carrier;
+                    // byte predicates remain attached to that same storage.
+                    || (access != CheckedStructuralAccess::Owned
+                        && local_type.is_some()
+                        && validation::has_plain_owned_contents_with_represented_constraints(
+                            program, storage,
+                        ))
                     // Owned snapshots retain the exact field declarations,
                     // including bounded live-byte predicates. The producer and
                     // source occurrence are rejoined below; this is not a loan
@@ -614,7 +621,7 @@ pub(super) fn argument(
                 //
                 // A loan leaves the value in the local's own storage and
                 // presents the declared type itself (both identities were
-                // matched above), so a field's numeric domain or range is
+                // matched above), so a field's represented domain or range is
                 // carried by that declaration rather than copied: the callee
                 // is checked against the same field constraints. An owned
                 // move still needs the plain-contents fence, because moving
@@ -622,7 +629,7 @@ pub(super) fn argument(
                 let owned_contents = if access == CheckedStructuralAccess::Owned {
                     validation::has_plain_owned_contents(program, local.type_reference)
                 } else {
-                    validation::has_plain_owned_contents_with_numeric_constraints(
+                    validation::has_plain_owned_contents_with_represented_constraints(
                         program,
                         local.type_reference,
                     )
@@ -657,7 +664,8 @@ pub(super) fn argument(
                                 || validation::has_plain_owned_contents_with_numeric_constraints(
                                     program,
                                     local.type_reference,
-                                )))
+                                )
+                                || (access != CheckedStructuralAccess::Owned && owned_contents)))
                         || base_type_identity(program, local.type_reference, &[])?
                             != result.type_identity)
                 {
@@ -926,9 +934,9 @@ pub(super) fn argument(
 }
 
 /// Shared references to a whole unrestricted closed carrier — a fixed
-/// primitive array or a record of plain-owned numerics — view storage the
-/// binding itself retains. Nested references and constrained carriers stay
-/// out, exactly as the owned argument lanes require.
+/// primitive array or a record of represented plain-owned fields — view storage
+/// the binding itself retains. Nested references and unsupported constraints
+/// stay out; the loan does not copy or establish the retained field predicates.
 fn shared_closed_referent(
     program: &TypedTrees,
     reference: typed_trees::types::TypeReferenceHandle,
@@ -943,7 +951,9 @@ fn shared_closed_referent(
     };
     (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
         && (validation::is_closed_primitive_array_type(program, *referee)
-            || validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)))
+            || validation::has_plain_owned_contents_with_represented_constraints(
+                program, *referee,
+            )))
     .then_some(*referee)
 }
 

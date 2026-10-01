@@ -1,4 +1,4 @@
-//! Reconstruct every scalar-leaf byte range of a zeroed establishment.
+//! Reconstruct every scalar or live-length cell of a zeroed establishment.
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -59,6 +59,23 @@ pub(super) fn storage<'a>(
                 *scalar_type,
                 declarations,
             )?,
+            terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField {
+                path,
+                field,
+                scalar_type,
+            } => {
+                // Empty storage exposes no payload bytes. Initialize only its
+                // exact length cell; capacity is not an initial live extent.
+                let (offset, width) =
+                    crate::structural_inputs::structural_reference_input::byte_field_length(
+                        result.structural_type,
+                        path,
+                        *field,
+                        *scalar_type,
+                        declarations,
+                    )?;
+                (offset, width, Vec::new())
+            }
             terminal_semantics::ZeroedStructuralLeaf::CaseField {
                 path,
                 case,

@@ -301,6 +301,134 @@ fn assert_rejects(module: &TerminalModule, expected: ModuleError) {
     );
 }
 
+#[test]
+fn repaired_local_window_expires_byte_field_length_observations() {
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    use terminal_psi::{ByteSequenceCarrier, StructuralPathSegment};
+    let mut module = window_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type =
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 4 });
+    let bytes_type = id(3, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: bytes_type,
+        identity: "Snapshot".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+    });
+    let machine = &mut module.machines[0];
+    machine.structural_parameters.clear();
+    machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: id(3, OperationId::new),
+        structural_type: envelope(),
+    };
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(3, PlaceId::new),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(5, OperationId::new),
+            structural_type: bytes_type,
+        },
+    });
+    let operations = &mut machine.blocks[0].operations;
+    // The displaced subtree is affine and consumed by its exact repair.
+    // The containing local stays owned and becomes whole again afterward.
+    let OperationResult::Structural(displaced) = &mut operations[0].result else {
+        unreachable!()
+    };
+    displaced.multiplicity = StructuralMultiplicity::Affine;
+    operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(3, OperationId::new),
+            result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: id(1, PlaceId::new),
+                structural_type: envelope(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishZeroedStructural {},
+        },
+    );
+    let path = vec![StructuralPathSegment::Field("left".into())];
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(4, OperationId::new),
+        result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(1, ValueId::new),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            ),
+        }),
+        kind: OperationKind::StructuralByteSequenceFieldLength {
+            source: id(1, PlaceId::new),
+            path: path.clone(),
+            field: flag(),
+        },
+    });
+    let operand = ByteSequenceOperand::Field {
+        source: StructuralArgument {
+            place: id(1, PlaceId::new),
+            access: StructuralAccess::SharedBorrow,
+            path,
+        },
+        field: flag(),
+        length: id(1, ValueId::new),
+    };
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(5, OperationId::new),
+        result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: id(3, PlaceId::new),
+            structural_type: bytes_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishByteSequenceConcatenation {
+            left: operand.clone(),
+            right: operand,
+            capacity_obligation: id(1, semantic_vocabulary::ObligationId::new),
+        },
+    });
+    validate_module(&module).expect("a fresh observation after exact local repair is valid");
+    let mut open_hole = module.clone();
+    let operations = &mut open_hole.machines[0].blocks[0].operations;
+    // Remove the later concatenation so freshness cannot mask the custody
+    // check: even an unrestricted local cannot observe absent storage.
+    operations.pop();
+    let observation = operations.remove(3);
+    operations.insert(2, observation);
+    assert_rejects(
+        &open_hole,
+        ModuleError::BorrowedStorageFieldAbsent {
+            operation: id(4, OperationId::new),
+            place: id(1, PlaceId::new),
+        },
+    );
+    let operations = &mut module.machines[0].blocks[0].operations;
+    let observation = operations.remove(3);
+    operations.insert(1, observation);
+    assert_rejects(
+        &module,
+        ModuleError::InvalidByteSequenceConcatenation(id(5, OperationId::new)),
+    );
+}
+
 fn block_window_module() -> TerminalModule {
     let mut module = window_module();
     let machine = &mut module.machines[0];

@@ -95,8 +95,11 @@ pub(super) fn declaration<'a>(
                             .is_ok()
                     })
             });
+    // Establishment already owns the declaration's represented byte predicates.
+    // Resolving its home must retain them, not exclude byte-bearing records or
+    // recover the initializer as if subsequent mutable calls had not happened.
     ((local.initial_value.is_valid() || zeroed_establishment || primitive_zero)
-        && validation::has_plain_owned_contents_with_numeric_constraints(
+        && validation::has_plain_owned_contents_with_represented_constraints(
             &checked.typed,
             local.type_reference,
         ))

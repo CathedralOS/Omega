@@ -105,31 +105,24 @@ pub(in crate::validation) fn validate(
                 field,
                 length,
             } => {
-                let parameter = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|row| row.place == source.place)
-                    .ok_or_else(invalid)?;
+                let (structural_type, access) =
+                    terminal_semantics::byte_field_root(machine, source.place)
+                        .ok_or_else(invalid)?;
                 // This is a content read, not the metadata-only authority a
                 // write-only parameter has for its destination capacity.
                 if source.access != StructuralAccess::SharedBorrow
                     || !matches!(
-                        parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
                     )
-                    || !matches!(
-                        parameter.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                    )
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                     || !terminal_psi::is_bounded_structural_scalar_store_path(&source.path)
                 {
                     return Err(invalid());
                 }
-                let parent =
-                    resolve_structural_path(module, parameter.structural_type, &source.path)
-                        .ok_or_else(invalid)?;
+                let parent = resolve_structural_path(module, structural_type, &source.path)
+                    .ok_or_else(invalid)?;
                 let declaration = module
                     .structural_types
                     .iter()

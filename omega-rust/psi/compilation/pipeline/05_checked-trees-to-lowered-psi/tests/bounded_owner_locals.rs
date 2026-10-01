@@ -32,6 +32,201 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn local_record_byte_field_copy_observes_completed_call_mutation() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Text [copy] { bytes: [u8; 8] in Utf8; }
+        data Room [copy] { description: Text; }
+        machine fill(room: &mut Room) {
+            room.description.bytes = "before";
+            room.description.bytes = "é";
+        }
+        machine copy(output: &mut [u8; 8] in Utf8)
+        ensures output in Utf8 {
+            let room: Room;
+            fill(&mut room);
+            output = room.description.bytes;
+        }
+        machine mirror(output: &mut Room) {
+            let room: Room;
+            fill(&mut room);
+            output.description.bytes = room.description.bytes;
+        }
+        "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("copy"),
+    )
+    .expect("a byte-field read uses the established local home after the call");
+    verify(&lowered).expect("local source identity, current length and UTF-8 replay independently");
+    let mut unqualified_source = lowered.semantic_module.clone();
+    let mut removed_predicates = 0;
+    for declaration in &mut unqualified_source.structural_types {
+        if let StructuralTypeShape::Record { fields } = &mut declaration.shape {
+            for field in fields {
+                if let terminal_psi::StructuralFieldType::PredicateByteSequence {
+                    carrier, ..
+                } = field.field_type
+                {
+                    field.field_type = terminal_psi::StructuralFieldType::ByteSequence(carrier);
+                    removed_predicates += 1;
+                }
+            }
+        }
+    }
+    assert!(removed_predicates > 0);
+    assert!(
+        terminal_verifier::validate_module(&unqualified_source).is_err(),
+        "owned storage alone cannot establish the destination's UTF-8 predicate"
+    );
+    for before_establishment in [false, true] {
+        let mut reordered = lowered.semantic_module.clone();
+        let entry_id = reordered.entry;
+        let entry = reordered
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == entry_id)
+            .unwrap();
+        let block = entry
+            .blocks
+            .iter_mut()
+            .find(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralByteSequenceFieldLength { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let length_index = block
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
+            })
+            .unwrap();
+        let length = block.operations.remove(length_index);
+        // Move only the observation, preserving its result and source identity.
+        // Before the call it is stale; before construction the home does not exist.
+        let destination_index = if before_establishment {
+            0
+        } else {
+            block
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::CallUnit { .. }
+                            | OperationKind::CallStructural { .. }
+                            | OperationKind::CallStructuralWithScalarArguments { .. }
+                    )
+                })
+                .expect("the helper mutates the established record before its bytes are read")
+        };
+        block.operations.insert(destination_index, length);
+        assert!(
+            terminal_verifier::validate_module(&reordered).is_err(),
+            "local field length must follow establishment and any overlapping call"
+        );
+    }
+
+    let mirrored = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("mirror"),
+    )
+    .expect("the same local source also composes with a field destination");
+    verify(&mirrored).expect("field replacement retains local source evidence");
+    let module = &mirrored.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let (path, field) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path, *field))
+            }
+            _ => None,
+        })
+        .expect("authored output field replacement");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &terminal_codec::encode_module(module).unwrap(),
+        &terminal_codec::encode_proof_section(module, &mirrored.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 81,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(
+        execution.structural_byte_sequence_field(81, path, field),
+        Some("é".as_bytes()),
+        "copy observes the helper's last bytes and live length, not zero or capacity"
+    );
+
+    let mut changed = checked.clone();
+    let mut substituted = 0;
+    for operation in changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.operations)
+    {
+        if let checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = operation {
+            if let checked_trees::CheckedByteSequenceValue::Field { root, .. } =
+                store.value.nodes.get_mut(store.value.root)
+                && matches!(root, checked_trees::CheckedStoreRoot::Local { .. })
+            {
+                *root = checked_trees::CheckedStoreRoot::Local {
+                    symbol: symbols::SymbolHandle::invalid(),
+                };
+                substituted += 1;
+            }
+        }
+    }
+    assert!(substituted > 0, "the retained plan names a local source");
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("copy")
+        )
+        .is_err(),
+        "another home cannot replace the authored source"
+    );
+}
+
+#[test]
 fn recursive_lookup_into_local_record_keeps_a_complete_write_frame() {
     let checked = crate::front_end::checked_program(
         r#"

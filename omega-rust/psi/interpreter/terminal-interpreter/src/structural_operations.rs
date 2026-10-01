@@ -513,8 +513,8 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
-    /// Materialize a zeroed establishment: every scalar leaf the admission
-    /// walk enumerated registers its zero under the fresh value's identity.
+    /// Materialize a zeroed establishment: scalar leaves receive zero and
+    /// bounded byte fields receive empty live backing under the fresh identity.
     pub(crate) fn execute_establish_zeroed_structural(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -587,6 +587,20 @@ impl TerminalExecution {
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
                         .insert(cell, zero(*scalar_type).ok_or_else(invalid)?);
+                }
+                terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField {
+                    path, field, ..
+                } => {
+                    self.structural_byte_sequence_fields.insert(
+                        StructuralByteSequenceRuntimeField {
+                            parent: StructuralRuntimePlace {
+                                opaque_identity: value.opaque_identity,
+                                path: path.clone(),
+                            },
+                            field: *field,
+                        },
+                        ByteSequenceView::new(Vec::new()),
+                    );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
                     path,

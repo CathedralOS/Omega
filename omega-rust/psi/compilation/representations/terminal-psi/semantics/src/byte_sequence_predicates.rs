@@ -8,6 +8,81 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
+/// Recover plain field-root declaration custody, not current availability or
+/// permission to mutate it. An owned result must rejoin its exact producer;
+/// root qualifications and claims cannot disappear through a field read.
+/// Consumers separately check dominance, live ownership, loan conflicts and
+/// whether the operation permits this access (in particular write-only reads).
+pub fn byte_field_root(
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess)> {
+    if machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == source)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source)
+    {
+        return None;
+    }
+    let place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let parameter = match place.kind {
+        StructuralPlaceKind::Parameter { position, is_self } => {
+            machine.structural_parameters.iter().find(|parameter| {
+                parameter.place == source
+                    && parameter.position == position
+                    && parameter.is_self == is_self
+            })?
+        }
+        StructuralPlaceKind::BlockParameter { block, position } => machine
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)?
+            .structural_parameters
+            .get(position as usize)
+            .filter(|parameter| {
+                parameter.place == source && parameter.position == position && !parameter.is_self
+            })?,
+        StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } => {
+            let operation = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| operation.id == producer)?;
+            let result = operation.result.structural()?;
+            return (result.place == source
+                && result.structural_type == structural_type
+                && matches!(
+                    result.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                )
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty())
+            .then_some((structural_type, StructuralAccess::Owned));
+        }
+        _ => return None,
+    };
+    (matches!(
+        parameter.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty())
+    .then_some((parameter.structural_type, parameter.access))
+}
+
 /// The exact plain byte predicates carried by a formal. Routed/content domains
 /// need their own evidence and cannot be treated as byte classifications.
 pub fn byte_parameter_predicates(
@@ -326,21 +401,20 @@ fn concatenation_operand_predicates(
             resolve_whole(*source)
         }
         terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
-            let parameter = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == source.place)?;
+            let (structural_type, access) = byte_field_root(machine, source.place)?;
             if source.access != StructuralAccess::SharedBorrow
                 || !matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
                 )
             {
                 return None;
             }
             let declaration = crate::runtime_structural_path_tip(
                 module.structural_types.iter(),
-                parameter.structural_type,
+                structural_type,
                 &source.path,
             )?;
             let StructuralTypeShape::Record { fields } = &declaration.shape else {

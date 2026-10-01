@@ -12,12 +12,19 @@ use terminal_psi::{
 /// strategy. Aggregate visits are bounded too, including empty element shapes.
 const MAX_ZEROED_LEAVES: usize = 65_536;
 
-/// One scalar leaf cell of a zero-constructible structural type, addressed the
-/// way runtime storage keys it: a record/common field or selected case field
+/// One zero-initialized leaf cell of a zero-constructible structural type,
+/// addressed the way runtime storage keys it: a record/common or selected case field
 /// under its parent path, or a scalar array element at its full indexed path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZeroedStructuralLeaf {
     RecordField {
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        scalar_type: ScalarType,
+    },
+    /// A bounded byte field begins with an empty live range. Its scalar cell
+    /// is the length metadata, not one of the unused capacity bytes.
+    ByteSequenceField {
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
@@ -51,16 +58,18 @@ impl ZeroedStructuralLeaf {
     pub fn path(&self) -> &[StructuralPathSegment] {
         match self {
             ZeroedStructuralLeaf::RecordField { path, .. }
+            | ZeroedStructuralLeaf::ByteSequenceField { path, .. }
             | ZeroedStructuralLeaf::CaseField { path, .. }
             | ZeroedStructuralLeaf::ArrayScalar { path, .. }
             | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
         }
     }
 
-    /// The leaf's plain scalar storage type.
+    /// The leaf's scalar storage type, including a byte field's length cell.
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             ZeroedStructuralLeaf::RecordField { scalar_type, .. }
+            | ZeroedStructuralLeaf::ByteSequenceField { scalar_type, .. }
             | ZeroedStructuralLeaf::CaseField { scalar_type, .. }
             | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. }
             | ZeroedStructuralLeaf::SumSelection { scalar_type, .. } => *scalar_type,
@@ -69,14 +78,16 @@ impl ZeroedStructuralLeaf {
 }
 
 /// Resolve whether a structural type's whole storage may begin zero: every
-/// leaf a plain primitive scalar or sum case tag, and every aggregate a
-/// record, fixed array, or admissible sum. A sum admits only when its first
+/// leaf a zero-valid scalar, sum case tag, or empty bounded byte field, and
+/// every aggregate a record, fixed array, or admissible sum. A sum admits only when its first
 /// declared case exists and every non-erased field of that case admits a zero
 /// scalar: the tag's all-zero bits select that case (tag = case ordinal).
 /// Bounded integer fields must contain the carrier's zero; nested composites
-/// in sum payloads still need case-aware leaf paths. References, views, byte
-/// sequences and erased members have no universally valid zero spelling, so
-/// they reject. Mixed shapes admit common fields and their first case. The
+/// in sum payloads still need case-aware leaf paths. Bounded byte fields admit
+/// only when all declared byte predicates hold for the empty live range.
+/// References, borrowed views, whole byte carriers and erased members have no
+/// admitted zero spelling through this structural operation, so they reject.
+/// Mixed shapes admit common fields and their first case. The
 /// declaration graph walk rejects unknown members and actual cycles without
 /// expanding array elements or applying the leaf enumeration resource ceiling.
 pub fn zeroed_structural_shape<'types>(
@@ -149,7 +160,7 @@ fn zeroed_declaration_graph(
             }
             if let StructuralFieldType::Structural(member) = field.field_type {
                 pending.push((member, false));
-            } else if zeroed_field_scalar(field).is_none() {
+            } else if zeroed_field_scalar(field).is_none() && !zeroed_byte_field(field) {
                 return false;
             }
         }
@@ -171,7 +182,16 @@ fn zeroed_field_scalar(field: &StructuralFieldDeclaration) -> Option<ScalarType>
     }
 }
 
-/// Enumerate every scalar leaf a zeroed establishment of `root` must
+fn zeroed_byte_field(field: &StructuralFieldDeclaration) -> bool {
+    !field.relevance.is_erased()
+        && matches!(
+            field.field_type.byte_sequence_carrier(),
+            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+        )
+        && field.field_type.byte_predicates().holds_for(&[])
+}
+
+/// Enumerate every leaf a zeroed establishment of `root` must
 /// materialize, or `None` when the shape is not zero-constructible or its
 /// expansion exceeds the resource ceiling. Record fields key by their
 /// parent path and field id; fixed-array elements key by the full indexed
@@ -206,6 +226,14 @@ pub fn zeroed_structural_leaves<'types>(
                     let mut member_path = path.clone();
                     member_path.push(StructuralPathSegment::Field(field.identity.clone()));
                     pending.push((member, member_path));
+                } else if zeroed_byte_field(field) {
+                    leaves.push(ZeroedStructuralLeaf::ByteSequenceField {
+                        path: path.clone(),
+                        field: field.id,
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
+                        ),
+                    });
                 } else {
                     leaves.push(ZeroedStructuralLeaf::RecordField {
                         path: path.clone(),
@@ -330,6 +358,122 @@ mod tests {
 
     fn signed_tag() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    #[test]
+    fn bounded_byte_fields_zero_only_the_empty_live_range() {
+        use terminal_psi::{ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet};
+        let mut predicates = ByteSequencePredicateSet::EMPTY;
+        for predicate in [
+            ByteSequencePredicate::ValidUtf8,
+            ByteSequencePredicate::AsciiOnly,
+            ByteSequencePredicate::NoNul,
+        ] {
+            predicates.insert(predicate);
+        }
+        for capacity in [0, 128] {
+            for field_type in [
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }),
+                StructuralFieldType::PredicateByteSequence {
+                    carrier: ByteSequenceCarrier::BoundedOwned { capacity },
+                    predicates,
+                },
+            ] {
+                let child = declaration(
+                    2,
+                    StructuralTypeShape::Record {
+                        fields: vec![field(7, field_type)],
+                    },
+                );
+                let root = declaration(
+                    1,
+                    StructuralTypeShape::Record {
+                        fields: vec![field(3, StructuralFieldType::Structural(child.id))],
+                    },
+                );
+                assert!(zeroed_structural_shape(
+                    [&root, &child].into_iter(),
+                    root.id
+                ));
+                let leaves =
+                    zeroed_structural_leaves([&root, &child].into_iter(), root.id).unwrap();
+                assert_eq!(
+                    leaves,
+                    vec![ZeroedStructuralLeaf::ByteSequenceField {
+                        path: vec![StructuralPathSegment::Field("f3".into())],
+                        field: StructuralFieldId::new(7).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+                        ),
+                    }]
+                );
+                assert_eq!(
+                    leaves[0].path(),
+                    &[StructuralPathSegment::Field("f3".into())]
+                );
+                assert_eq!(
+                    leaves[0].scalar_type(),
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn nonempty_borrowed_and_case_payload_byte_fields_cannot_zero_construct() {
+        use terminal_psi::{
+            ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet, StructuralAccess,
+        };
+        let mut nonempty = ByteSequencePredicateSet::EMPTY;
+        nonempty.insert(ByteSequencePredicate::NonEmpty);
+        let mut rejected = vec![StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BoundedOwned { capacity: 128 },
+            predicates: nonempty,
+        }];
+        for access in [
+            None,
+            Some(StructuralAccess::SharedBorrow),
+            Some(StructuralAccess::MutableBorrow),
+            Some(StructuralAccess::WriteOnlyBorrow),
+        ] {
+            rejected.push(StructuralFieldType::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { access },
+            ));
+        }
+        for field_type in rejected {
+            let root = declaration(
+                1,
+                StructuralTypeShape::Record {
+                    fields: vec![field(3, field_type)],
+                },
+            );
+            assert!(!zeroed_structural_shape([&root].into_iter(), root.id));
+            assert!(zeroed_structural_leaves([&root].into_iter(), root.id).is_none());
+        }
+        let payload = field(
+            3,
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+        );
+        let sum = declaration(
+            1,
+            StructuralTypeShape::Sum {
+                cases: vec![case(7, vec![payload.clone()])],
+            },
+        );
+        assert!(!zeroed_structural_shape([&sum].into_iter(), sum.id));
+        assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+        let mut erased_payload = payload;
+        erased(&mut erased_payload);
+        let erased_root = declaration(
+            1,
+            StructuralTypeShape::Record {
+                fields: vec![erased_payload],
+            },
+        );
+        assert!(!zeroed_structural_shape(
+            [&erased_root].into_iter(),
+            erased_root.id
+        ));
     }
 
     #[test]

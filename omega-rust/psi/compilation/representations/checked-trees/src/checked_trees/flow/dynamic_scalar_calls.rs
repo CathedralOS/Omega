@@ -695,8 +695,9 @@ impl CheckedStoreValue {
 /// consumer holding a dense roster maps the position through the checked
 /// structural parameters, whose own `position` is authored too. A local keeps
 /// symbol identity so ordered lowering can resolve its current home after
-/// copies or moves. A leaf with no local-rooted lowering (every byte leaf)
-/// refuses `Local` explicitly in its producer, replay and lowering.
+/// copies or moves. Byte-field source reads use that same home identity;
+/// destination leaves without local-rooted lowering still refuse `Local`
+/// explicitly in their producer, replay and lowering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStoreRoot {
     Parameter { position: u32 },
