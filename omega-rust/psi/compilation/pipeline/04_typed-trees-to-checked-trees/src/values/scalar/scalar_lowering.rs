@@ -153,7 +153,7 @@ pub(crate) fn lower_unit_scalar_argument(
         &parameter_types,
         &locals,
         expected_type,
-        &[],
+        &operators.exact_integer_casts,
     )
 }
 
