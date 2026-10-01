@@ -107,29 +107,29 @@ machine Main::main(&mut self) reaches Console {
     self.packed.code = 10;
 
     transition self.packed.present == true {
-        true -> check_mode()
-        false -> bad()
+        true -> check_mode(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_mode(&mut self) {
-        transition self.packed.mode == 5 {
-            true -> check_code()
-            false -> bad()
+    state check_mode(main: &mut Main) {
+        transition main.packed.mode == 5 {
+            true -> check_code(main)
+            false -> bad(main)
         }
     }
 
-    state check_code(&mut self) {
-        transition self.packed.code == 10 {
-            true -> good()
-            false -> bad()
+    state check_code(main: &mut Main) {
+        transition main.packed.code == 10 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

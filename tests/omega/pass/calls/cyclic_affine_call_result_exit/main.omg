@@ -60,15 +60,15 @@ machine Main::main(&mut self) reaches Console {
     self.holder.refresh();
 
     transition self.holder.cells[2].value == 30 {
-        true -> done()
-        false -> missed()
+        true -> done(&mut self)
+        false -> missed(&mut self)
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

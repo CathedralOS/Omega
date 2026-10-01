@@ -51,10 +51,10 @@ machine run() -> u64 {
 machine Main::main(&mut self) reaches Console {
     let outcome: u64 = run();
     transition outcome == 0 {
-        true -> passed()
-        _ -> failed()
+        true -> passed(&mut self)
+        _ -> failed(&mut self)
     }
 
-    state passed(&mut self) { self.console.exit_process(0); }
-    state failed(&mut self) { self.console.exit_process(1); }
+    state passed(main: &mut Main) { main.console.exit_process(0); }
+    state failed(main: &mut Main) { main.console.exit_process(1); }
 }

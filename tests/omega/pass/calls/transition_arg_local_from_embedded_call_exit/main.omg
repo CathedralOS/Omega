@@ -32,15 +32,15 @@ machine Main::main(&mut self) reaches Console {
     let mut base: i32 in Wrapping = 10;
     let r1: i32 in Wrapping = base + self.calc.double_val(6) * 3;  // 46
     transition r1 == 46 {
-        true -> step2(r1)
-        _ -> bad()
+        true -> step2(&mut self, r1)
+        _ -> bad(&mut self)
     }
-    state step2(&mut self, r1: i32 in Wrapping) {
+    state step2(main: &mut Main, r1: i32 in Wrapping) {
         transition r1 == 46 {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

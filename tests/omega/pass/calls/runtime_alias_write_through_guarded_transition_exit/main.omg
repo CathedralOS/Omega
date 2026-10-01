@@ -43,15 +43,15 @@ machine Main::main(&mut self) reaches Console {
     self.store.find(2, &mut found);
 
     transition found.val == 5 {
-        true -> check_key(found)
-        false -> bad()
+        true -> check_key(&mut self, found)
+        false -> bad(&mut self)
     }
-    state check_key(&mut self, found: Item) {
+    state check_key(main: &mut Main, found: Item) {
         transition found.key == 7 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

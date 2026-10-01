@@ -17,19 +17,19 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     let unsigned: u64 = 12u64 / 4u64;
     transition unsigned == 3u64 {
-        true -> finish((0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
-        false -> wrong()
+        true -> finish(&mut self, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
+        false -> wrong(&mut self)
     }
-    state finish(&mut self, value: i32) {
+    state finish(main: &mut Main, value: i32) {
         transition value == (0i32 - 5) {
-            true -> good()
-            false -> wrong()
+            true -> good(main)
+            false -> wrong(main)
         }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state wrong(&mut self) {
-        self.console.exit_process(71);
+    state wrong(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -53,70 +53,70 @@ machine Main::main(&mut self) reaches Console {
     self.positive_zero_reciprocal64 = 1.0 / self.positive_zero64;
 
     transition self.negative_zero_reciprocal32 < 0.0f32 {
-        true -> check_positive_zero32()
-        _ -> fail(71)
+        true -> check_positive_zero32(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state check_positive_zero32(&mut self) {
-        transition self.positive_zero_reciprocal32 > 0.0f32 {
-            true -> check_infinity32()
-            _ -> fail(72)
+    state check_positive_zero32(main: &mut Main) {
+        transition main.positive_zero_reciprocal32 > 0.0f32 {
+            true -> check_infinity32(main)
+            _ -> fail(main, 72)
         }
     }
-    state check_infinity32(&mut self) {
-        transition self.negative_infinity32 < 0.0f32 {
-            true -> check_nan32()
-            _ -> fail(73)
+    state check_infinity32(main: &mut Main) {
+        transition main.negative_infinity32 < 0.0f32 {
+            true -> check_nan32(main)
+            _ -> fail(main, 73)
         }
     }
-    state check_nan32(&mut self) {
-        transition self.nan_verdict32 { true -> check_infinity_not_nan32() _ -> fail(74) }
+    state check_nan32(main: &mut Main) {
+        transition main.nan_verdict32 { true -> check_infinity_not_nan32(main) _ -> fail(main, 74) }
     }
-    state check_infinity_not_nan32(&mut self) {
-        transition self.infinity_verdict32 == false {
-            true -> check_finite_not_nan32()
-            _ -> fail(75)
+    state check_infinity_not_nan32(main: &mut Main) {
+        transition main.infinity_verdict32 == false {
+            true -> check_finite_not_nan32(main)
+            _ -> fail(main, 75)
         }
     }
-    state check_finite_not_nan32(&mut self) {
-        transition self.finite_verdict32 == false {
-            true -> check_negative_zero64()
-            _ -> fail(76)
+    state check_finite_not_nan32(main: &mut Main) {
+        transition main.finite_verdict32 == false {
+            true -> check_negative_zero64(main)
+            _ -> fail(main, 76)
         }
     }
-    state check_negative_zero64(&mut self) {
-        transition self.negative_zero_reciprocal64 < 0.0 {
-            true -> check_positive_zero64()
-            _ -> fail(77)
+    state check_negative_zero64(main: &mut Main) {
+        transition main.negative_zero_reciprocal64 < 0.0 {
+            true -> check_positive_zero64(main)
+            _ -> fail(main, 77)
         }
     }
-    state check_positive_zero64(&mut self) {
-        transition self.positive_zero_reciprocal64 > 0.0 {
-            true -> check_infinity64()
-            _ -> fail(78)
+    state check_positive_zero64(main: &mut Main) {
+        transition main.positive_zero_reciprocal64 > 0.0 {
+            true -> check_infinity64(main)
+            _ -> fail(main, 78)
         }
     }
-    state check_infinity64(&mut self) {
-        transition self.negative_infinity64 < 0.0 {
-            true -> check_nan64()
-            _ -> fail(79)
+    state check_infinity64(main: &mut Main) {
+        transition main.negative_infinity64 < 0.0 {
+            true -> check_nan64(main)
+            _ -> fail(main, 79)
         }
     }
-    state check_nan64(&mut self) {
-        transition self.nan_verdict64 { true -> check_infinity_not_nan64() _ -> fail(80) }
+    state check_nan64(main: &mut Main) {
+        transition main.nan_verdict64 { true -> check_infinity_not_nan64(main) _ -> fail(main, 80) }
     }
-    state check_infinity_not_nan64(&mut self) {
-        transition self.infinity_verdict64 == false {
-            true -> check_finite_not_nan64()
-            _ -> fail(81)
+    state check_infinity_not_nan64(main: &mut Main) {
+        transition main.infinity_verdict64 == false {
+            true -> check_finite_not_nan64(main)
+            _ -> fail(main, 81)
         }
     }
-    state check_finite_not_nan64(&mut self) {
-        transition self.finite_verdict64 == false {
-            true -> good()
-            _ -> fail(82)
+    state check_finite_not_nan64(main: &mut Main) {
+        transition main.finite_verdict64 == false {
+            true -> good(main)
+            _ -> fail(main, 82)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

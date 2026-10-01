@@ -12,18 +12,18 @@ data Main where 0 <= i, i <= 4 {
 
 machine Main::main(&mut self) reaches Console
 {
-    transition { _ -> write() }
+    transition { _ -> write(&mut self) }
 
-    state write(&mut self)
+    state write(main: &mut Main)
     {
-        self.arr[self.i] = 30;
-        transition self.arr[0] == 30 {
-            true -> matched()
-            false -> unmatched()
+        main.arr[main.i] = 30;
+        transition main.arr[0] == 30 {
+            true -> matched(main)
+            false -> unmatched(main)
         }
     }
-    state matched(&mut self)
-    { self.console.exit_process(30); }
-    state unmatched(&mut self)
-    { self.console.exit_process(0); }
+    state matched(main: &mut Main)
+    { main.console.exit_process(30); }
+    state unmatched(main: &mut Main)
+    { main.console.exit_process(0); }
 }

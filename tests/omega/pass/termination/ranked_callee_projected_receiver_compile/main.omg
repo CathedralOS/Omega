@@ -43,15 +43,15 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.engine.cursor.remaining = 5;
     transition Engine::run(&mut self.engine) == 0 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

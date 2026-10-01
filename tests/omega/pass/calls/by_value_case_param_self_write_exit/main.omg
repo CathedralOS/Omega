@@ -29,17 +29,17 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     Main::apply(&mut self, Event::Insert { cents: 50 });
     transition self.register.balance == 50 {
-        true -> report(70)
-        _ -> not_fifty()
+        true -> report(&mut self, 70)
+        _ -> not_fifty(&mut self)
     }
-    state not_fifty(&mut self) {
-        transition self.register.balance == 0 {
-            true -> report(80)
-            _ -> report(81)
+    state not_fifty(main: &mut Main) {
+        transition main.register.balance == 0 {
+            true -> report(main, 80)
+            _ -> report(main, 81)
         }
     }
-    state report(&mut self, code: i32 in Wrapping) {
-        self.console.exit_process(code as i32);
+    state report(main: &mut Main, code: i32 in Wrapping) {
+        main.console.exit_process(code as i32);
     }
 }
 

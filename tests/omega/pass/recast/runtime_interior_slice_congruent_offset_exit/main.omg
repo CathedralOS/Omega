@@ -16,22 +16,22 @@ machine Main::main(&mut self) reaches Console {
     self.k = 2;
     let words: &mut [u16] = &mut self.bytes[self.k * 2] as &mut [u16];
     transition words.len > 1 {
-        true -> write_words(words)
-        _ -> bad_length()
+        true -> write_words(&mut self, words)
+        _ -> bad_length(&mut self)
     }
 
-    state write_words(&mut self, words: &mut [u16]) {
+    state write_words(main: &mut Main, words: &mut [u16]) {
     words[0] = 0x0201;
     words[1] = 0x0403;
     transition words.len == 2
-        && self.bytes[4] == 1 && self.bytes[5] == 2
-        && self.bytes[6] == 3 && self.bytes[7] == 4 {
-        true -> good()
-        _ -> bad_write()
+        && main.bytes[4] == 1 && main.bytes[5] == 2
+        && main.bytes[6] == 3 && main.bytes[7] == 4 {
+        true -> good(main)
+        _ -> bad_write(main)
     }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad_length(&mut self) { self.console.exit_process(71); }
-    state bad_write(&mut self) { self.console.exit_process(72); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad_length(main: &mut Main) { main.console.exit_process(71); }
+    state bad_write(main: &mut Main) { main.console.exit_process(72); }
 }

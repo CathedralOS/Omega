@@ -29,9 +29,9 @@ machine Worker::write(cell: &mut Cell) -> i32 {
 machine Main::main(&mut self) reaches Console {
     let result: i32 = Worker::write(&mut self.cell);
     transition self.cell.values[0] == 70 && self.cell.values[1] == 70 {
-        true -> success()
-        false -> failure()
+        true -> success(&mut self)
+        false -> failure(&mut self)
     }
-    state success(&mut self) { self.console.exit_process(self.cell.value); }
-    state failure(&mut self) { self.console.exit_process(71); }
+    state success(main: &mut Main) { main.console.exit_process(main.cell.value); }
+    state failure(main: &mut Main) { main.console.exit_process(71); }
 }

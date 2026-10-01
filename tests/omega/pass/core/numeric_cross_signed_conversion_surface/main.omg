@@ -47,117 +47,117 @@ machine Main::main(&mut self) reaches Console {
     self.expected_u64 = max_u64;
 
     transition self.unsigned_exact == 100 {
-        true -> check_unsigned_exact_wide()
-        _ -> bad1()
+        true -> check_unsigned_exact_wide(&mut self)
+        _ -> bad1(&mut self)
     }
 
-    state check_unsigned_exact_wide(&mut self) {
-        transition self.unsigned_exact_wide == 5000000000 {
-            true -> check_unsigned_wrapping()
-            _ -> bad2()
+    state check_unsigned_exact_wide(main: &mut Main) {
+        transition main.unsigned_exact_wide == 5000000000 {
+            true -> check_unsigned_wrapping(main)
+            _ -> bad2(main)
         }
     }
 
-    state check_unsigned_wrapping(&mut self) {
-        transition self.unsigned_wrapping == 0 - 1 {
-            true -> check_unsigned_saturating()
-            _ -> bad3()
+    state check_unsigned_wrapping(main: &mut Main) {
+        transition main.unsigned_wrapping == 0 - 1 {
+            true -> check_unsigned_saturating(main)
+            _ -> bad3(main)
         }
     }
 
-    state check_unsigned_saturating(&mut self) {
-        transition self.unsigned_saturating == 127 {
-            true -> check_unsigned_saturating_wide()
-            _ -> bad4()
+    state check_unsigned_saturating(main: &mut Main) {
+        transition main.unsigned_saturating == 127 {
+            true -> check_unsigned_saturating_wide(main)
+            _ -> bad4(main)
         }
     }
 
-    state check_unsigned_saturating_wide(&mut self) {
-        transition self.unsigned_saturating_wide == self.expected_i64 {
-            true -> check_unsigned_trapping()
-            _ -> bad5()
+    state check_unsigned_saturating_wide(main: &mut Main) {
+        transition main.unsigned_saturating_wide == main.expected_i64 {
+            true -> check_unsigned_trapping(main)
+            _ -> bad5(main)
         }
     }
 
-    state check_unsigned_trapping(&mut self) {
-        transition self.unsigned_trapping == 70 {
-            true -> check_unsigned_widening()
-            _ -> bad6()
+    state check_unsigned_trapping(main: &mut Main) {
+        transition main.unsigned_trapping == 70 {
+            true -> check_unsigned_widening(main)
+            _ -> bad6(main)
         }
     }
 
-    state check_unsigned_widening(&mut self) {
-        transition self.unsigned_widening == 65535 {
-            true -> check_signed_exact()
-            _ -> bad7()
+    state check_unsigned_widening(main: &mut Main) {
+        transition main.unsigned_widening == 65535 {
+            true -> check_signed_exact(main)
+            _ -> bad7(main)
         }
     }
 
-    state check_signed_exact(&mut self) {
-        transition self.signed_exact == 200 {
-            true -> check_signed_exact_wide()
-            _ -> bad8()
+    state check_signed_exact(main: &mut Main) {
+        transition main.signed_exact == 200 {
+            true -> check_signed_exact_wide(main)
+            _ -> bad8(main)
         }
     }
 
-    state check_signed_exact_wide(&mut self) {
-        transition self.signed_exact_wide == 5000000000 {
-            true -> check_signed_wrapping()
-            _ -> bad9()
+    state check_signed_exact_wide(main: &mut Main) {
+        transition main.signed_exact_wide == 5000000000 {
+            true -> check_signed_wrapping(main)
+            _ -> bad9(main)
         }
     }
 
-    state check_signed_wrapping(&mut self) {
-        transition self.signed_wrapping == 255 {
-            true -> check_signed_wrapping_wide()
-            _ -> bad10()
+    state check_signed_wrapping(main: &mut Main) {
+        transition main.signed_wrapping == 255 {
+            true -> check_signed_wrapping_wide(main)
+            _ -> bad10(main)
         }
     }
 
-    state check_signed_wrapping_wide(&mut self) {
-        transition self.signed_wrapping_wide == self.expected_u64 {
-            true -> check_signed_saturating_low()
-            _ -> bad11()
+    state check_signed_wrapping_wide(main: &mut Main) {
+        transition main.signed_wrapping_wide == main.expected_u64 {
+            true -> check_signed_saturating_low(main)
+            _ -> bad11(main)
         }
     }
 
-    state check_signed_saturating_low(&mut self) {
-        transition self.signed_saturating_low == 0 {
-            true -> check_signed_saturating_high()
-            _ -> bad12()
+    state check_signed_saturating_low(main: &mut Main) {
+        transition main.signed_saturating_low == 0 {
+            true -> check_signed_saturating_high(main)
+            _ -> bad12(main)
         }
     }
 
-    state check_signed_saturating_high(&mut self) {
-        transition self.signed_saturating_high == 255 {
-            true -> check_signed_trapping()
-            _ -> bad13()
+    state check_signed_saturating_high(main: &mut Main) {
+        transition main.signed_saturating_high == 255 {
+            true -> check_signed_trapping(main)
+            _ -> bad13(main)
         }
     }
 
-    state check_signed_trapping(&mut self) {
-        transition self.signed_trapping == 70 {
-            true -> good()
-            _ -> bad14()
+    state check_signed_trapping(main: &mut Main) {
+        transition main.signed_trapping == 70 {
+            true -> good(main)
+            _ -> bad14(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad1(&mut self) { self.console.exit_process(81); }
-    state bad2(&mut self) { self.console.exit_process(82); }
-    state bad3(&mut self) { self.console.exit_process(83); }
-    state bad4(&mut self) { self.console.exit_process(84); }
-    state bad5(&mut self) { self.console.exit_process(85); }
-    state bad6(&mut self) { self.console.exit_process(86); }
-    state bad7(&mut self) { self.console.exit_process(87); }
-    state bad8(&mut self) { self.console.exit_process(88); }
-    state bad9(&mut self) { self.console.exit_process(89); }
-    state bad10(&mut self) { self.console.exit_process(90); }
-    state bad11(&mut self) { self.console.exit_process(91); }
-    state bad12(&mut self) { self.console.exit_process(92); }
-    state bad13(&mut self) { self.console.exit_process(93); }
-    state bad14(&mut self) { self.console.exit_process(94); }
+    state bad1(main: &mut Main) { main.console.exit_process(81); }
+    state bad2(main: &mut Main) { main.console.exit_process(82); }
+    state bad3(main: &mut Main) { main.console.exit_process(83); }
+    state bad4(main: &mut Main) { main.console.exit_process(84); }
+    state bad5(main: &mut Main) { main.console.exit_process(85); }
+    state bad6(main: &mut Main) { main.console.exit_process(86); }
+    state bad7(main: &mut Main) { main.console.exit_process(87); }
+    state bad8(main: &mut Main) { main.console.exit_process(88); }
+    state bad9(main: &mut Main) { main.console.exit_process(89); }
+    state bad10(main: &mut Main) { main.console.exit_process(90); }
+    state bad11(main: &mut Main) { main.console.exit_process(91); }
+    state bad12(main: &mut Main) { main.console.exit_process(92); }
+    state bad13(main: &mut Main) { main.console.exit_process(93); }
+    state bad14(main: &mut Main) { main.console.exit_process(94); }
 }

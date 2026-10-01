@@ -48,15 +48,15 @@ machine Main::main(&mut self) reaches Console {
     let mut counter: Counter = Counter { n: 10 };
 
     transition counter.pick() {
-        Msg::Ping { x } -> pinged(x)
-        Msg::Pong { y } -> ponged(y)
+        Msg::Ping { x } -> pinged(&mut self, x)
+        Msg::Pong { y } -> ponged(&mut self, y)
     }
 
-    state pinged(&mut self, x: i32) {
-        self.console.exit_process(x);
+    state pinged(main: &mut Main, x: i32) {
+        main.console.exit_process(x);
     }
 
-    state ponged(&mut self, y: i32) {
-        self.console.exit_process(y);
+    state ponged(main: &mut Main, y: i32) {
+        main.console.exit_process(y);
     }
 }

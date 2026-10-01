@@ -33,13 +33,13 @@ machine Main::main(&mut self) reaches Console {
     let current: Counter = Counter { count: 0, timestamp: 0 };
     Counter::from_v1(old, &mut current);
     transition (current.count as i64) * 10 + (current.timestamp as i64) == 77 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

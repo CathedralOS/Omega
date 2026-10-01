@@ -15,30 +15,30 @@ machine Main::main(&mut self) reaches Console {
     self.signed_maximum = 9223372036854775807;
     self.unsigned_maximum = 18446744073709551615;
     transition self.signed < self.unsigned {
-        true -> boundaries()
-        _ -> promoted()
+        true -> boundaries(&mut self)
+        _ -> promoted(&mut self)
     }
 
-    state boundaries(&mut self) {
-        transition self.signed < self.unsigned_maximum
-            && self.signed <= self.unsigned_maximum
-            && !(self.signed > self.unsigned_maximum)
-            && !(self.signed >= self.unsigned_maximum)
-            && !(self.signed == self.unsigned_maximum)
-            && self.signed != self.unsigned_maximum
-            && self.unsigned_maximum > self.signed_maximum
-            && self.unsigned_maximum >= self.signed_maximum
-            && !(self.unsigned_maximum < self.signed_maximum)
-            && !(self.unsigned_maximum <= self.signed_maximum)
-            && !(self.unsigned_maximum == self.signed_maximum)
-            && self.unsigned_maximum != self.signed_maximum {
-            true -> correct()
-            _ -> promoted()
+    state boundaries(main: &mut Main) {
+        transition main.signed < main.unsigned_maximum
+            && main.signed <= main.unsigned_maximum
+            && !(main.signed > main.unsigned_maximum)
+            && !(main.signed >= main.unsigned_maximum)
+            && !(main.signed == main.unsigned_maximum)
+            && main.signed != main.unsigned_maximum
+            && main.unsigned_maximum > main.signed_maximum
+            && main.unsigned_maximum >= main.signed_maximum
+            && !(main.unsigned_maximum < main.signed_maximum)
+            && !(main.unsigned_maximum <= main.signed_maximum)
+            && !(main.unsigned_maximum == main.signed_maximum)
+            && main.unsigned_maximum != main.signed_maximum {
+            true -> correct(main)
+            _ -> promoted(main)
         }
     }
 
     // 70 when the compiler keeps `-1` negative, 71 when it promotes the
     // signed value into the unsigned carrier instead.
-    state correct(&mut self) { self.console.exit_process(70); }
-    state promoted(&mut self) { self.console.exit_process(71); }
+    state correct(main: &mut Main) { main.console.exit_process(70); }
+    state promoted(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -51,81 +51,81 @@ machine Main::main(&mut self) reaches Console {
     self.head = 0;
     self.tail = 1;
     self.count = 1;
-    transition { _ -> bfs_loop() }
+    transition { _ -> bfs_loop(&mut self) }
 
-    state bfs_loop(&mut self) {
-        transition self.count > 0 { true -> deq() _ -> verify() }
+    state bfs_loop(main: &mut Main) {
+        transition main.count > 0 { true -> deq(main) _ -> verify(main) }
     }
-    state deq(&mut self) {
-        transition self.head >= 0 && self.head < 32 { true -> deq_read() _ -> bad() }
+    state deq(main: &mut Main) {
+        transition main.head >= 0 && main.head < 32 { true -> deq_read(main) _ -> bad(main) }
     }
-    state deq_read(&mut self) {
-        self.c = self.queue[self.head] as i32 in Wrapping;
-        self.head = self.head + 1;
-        self.count = self.count - 1;
-        self.row = self.c / 5;
-        self.col = self.c % 5;
-        self.d = 0;
-        transition { _ -> dir_loop() }
+    state deq_read(main: &mut Main) {
+        main.c = main.queue[main.head] as i32 in Wrapping;
+        main.head = main.head + 1;
+        main.count = main.count - 1;
+        main.row = main.c / 5;
+        main.col = main.c % 5;
+        main.d = 0;
+        transition { _ -> dir_loop(main) }
     }
     // try each of the four grid neighbours
-    state dir_loop(&mut self) {
-        transition self.d >= 0 && self.d < 4 { true -> dir_read() _ -> bfs_loop() }
+    state dir_loop(main: &mut Main) {
+        transition main.d >= 0 && main.d < 4 { true -> dir_read(main) _ -> bfs_loop(main) }
     }
-    state dir_read(&mut self) {
-        self.ddr = self.dr[self.d] as i32 in Wrapping;
-        self.ddc = self.dc[self.d] as i32 in Wrapping;
-        self.nr = self.row + self.ddr;
-        self.nc = self.col + self.ddc;
-        transition self.nr >= 0 && self.nr < 5 && self.nc >= 0 && self.nc < 5 {
-            true -> nbr_cell()
-            _ -> next_d()
+    state dir_read(main: &mut Main) {
+        main.ddr = main.dr[main.d] as i32 in Wrapping;
+        main.ddc = main.dc[main.d] as i32 in Wrapping;
+        main.nr = main.row + main.ddr;
+        main.nc = main.col + main.ddc;
+        transition main.nr >= 0 && main.nr < 5 && main.nc >= 0 && main.nc < 5 {
+            true -> nbr_cell(main)
+            _ -> next_d(main)
         }
     }
-    state nbr_cell(&mut self) {
-        self.ncell = self.nr * 5 + self.nc;
-        transition self.ncell >= 0 && self.ncell < 25 { true -> nbr_wall() _ -> bad() }
+    state nbr_cell(main: &mut Main) {
+        main.ncell = main.nr * 5 + main.nc;
+        transition main.ncell >= 0 && main.ncell < 25 { true -> nbr_wall(main) _ -> bad(main) }
     }
-    state nbr_wall(&mut self) {
-        self.w = self.wall[self.ncell] as i32 in Wrapping;
-        transition self.w == 0 { true -> nbr_vis() _ -> next_d() }
+    state nbr_wall(main: &mut Main) {
+        main.w = main.wall[main.ncell] as i32 in Wrapping;
+        transition main.w == 0 { true -> nbr_vis(main) _ -> next_d(main) }
     }
-    state nbr_vis(&mut self) {
-        self.dn = self.dist[self.ncell] as i32 in Wrapping;
-        transition self.dn < 0 { true -> visit_guard() _ -> next_d() }
+    state nbr_vis(main: &mut Main) {
+        main.dn = main.dist[main.ncell] as i32 in Wrapping;
+        transition main.dn < 0 { true -> visit_guard(main) _ -> next_d(main) }
     }
-    state visit_guard(&mut self) {
-        transition self.c >= 0 && self.c < 25 && self.ncell >= 0 && self.ncell < 25
-            && self.tail >= 0 && self.tail < 32 {
-            true -> do_visit()
-            _ -> bad()
+    state visit_guard(main: &mut Main) {
+        transition main.c >= 0 && main.c < 25 && main.ncell >= 0 && main.ncell < 25
+            && main.tail >= 0 && main.tail < 32 {
+            true -> do_visit(main)
+            _ -> bad(main)
         }
     }
-    state do_visit(&mut self) {
-        self.cd = self.dist[self.c] as i32 in Wrapping;
-        self.nd = self.cd + 1;
-        self.dist[self.ncell] = self.nd as i32;
-        self.queue[self.tail] = self.ncell as i32;
-        self.tail = self.tail + 1;
-        self.count = self.count + 1;
-        transition { _ -> next_d() }
+    state do_visit(main: &mut Main) {
+        main.cd = main.dist[main.c] as i32 in Wrapping;
+        main.nd = main.cd + 1;
+        main.dist[main.ncell] = main.nd as i32;
+        main.queue[main.tail] = main.ncell as i32;
+        main.tail = main.tail + 1;
+        main.count = main.count + 1;
+        transition { _ -> next_d(main) }
     }
-    state next_d(&mut self) {
-        self.d = self.d + 1;
-        transition { _ -> dir_loop() }
+    state next_d(main: &mut Main) {
+        main.d = main.d + 1;
+        transition { _ -> dir_loop(main) }
     }
 
-    state verify(&mut self) {
-        self.r24 = self.dist[24] as i32 in Wrapping;
-        transition self.r24 == 16 { true -> good() _ -> wrong() }
+    state verify(main: &mut Main) {
+        main.r24 = main.dist[24] as i32 in Wrapping;
+        transition main.r24 == 16 { true -> good(main) _ -> wrong(main) }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state wrong(&mut self) {
-        self.console.exit_process(self.r24 as i32); // surface the wrong distance
+    state wrong(main: &mut Main) {
+        main.console.exit_process(main.r24 as i32); // surface the wrong distance
     }
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

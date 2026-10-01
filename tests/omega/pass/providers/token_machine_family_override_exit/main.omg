@@ -26,7 +26,7 @@ reaches Console
 {
     let signed: i32 = (3 as i32) - (30 as i32);
     let unsigned: u32 = (90 as u32) - (40 as u32);
-    transition signed == 30 && unsigned == 40 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    transition signed == 30 && unsigned == 40 { true -> good(&mut self) _ -> bad(&mut self) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

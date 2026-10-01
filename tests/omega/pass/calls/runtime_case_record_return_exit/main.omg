@@ -47,9 +47,9 @@ machine Main::main(&mut self) reaches Console {
     Main::direct(&mut self, Direction::Up);
     Main::direct(&mut self, Direction::Down);
     transition self.total == 80 {
-        true -> passed()
-        false -> failed()
+        true -> passed(&mut self)
+        false -> failed(&mut self)
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

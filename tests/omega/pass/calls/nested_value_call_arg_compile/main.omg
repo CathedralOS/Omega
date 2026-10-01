@@ -21,11 +21,11 @@ machine Main::main(&mut self) reaches Console
 {
     let out: i32 = double(inc(3));
     transition out == 8 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self)
-    { self.console.exit_process(1); }
-    state no(&mut self)
-    { self.console.exit_process(2); }
+    state yes(main: &mut Main)
+    { main.console.exit_process(1); }
+    state no(main: &mut Main)
+    { main.console.exit_process(2); }
 }

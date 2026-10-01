@@ -35,13 +35,13 @@ machine Main::main(&mut self) reaches Console {
     let v: u32 = Main::next(&mut self.tally);
 
     transition {
-        v == 41 -> exit_post()
-        v == 40 -> exit_stale()
-        _ -> exit_other()
+        v == 41 -> exit_post(&mut self)
+        v == 40 -> exit_stale(&mut self)
+        _ -> exit_other(&mut self)
     }
 
 
-    state exit_post(&mut self) { self.console.exit_process(70); }
-    state exit_stale(&mut self) { self.console.exit_process(2); }
-    state exit_other(&mut self) { self.console.exit_process(77); }
+    state exit_post(main: &mut Main) { main.console.exit_process(70); }
+    state exit_stale(main: &mut Main) { main.console.exit_process(2); }
+    state exit_other(main: &mut Main) { main.console.exit_process(77); }
 }

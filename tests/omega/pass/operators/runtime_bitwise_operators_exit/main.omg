@@ -24,29 +24,29 @@ machine Main::main(&mut self) reaches Console {
     self.xor_result = self.a ^ self.b; // 6
 
     transition self.and_result == 8 {
-        true -> check_or()
-        false -> bad()
+        true -> check_or(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_or(&mut self) {
-        transition self.or_result == 14 {
-            true -> check_xor()
-            false -> bad()
+    state check_or(main: &mut Main) {
+        transition main.or_result == 14 {
+            true -> check_xor(main)
+            false -> bad(main)
         }
     }
 
-    state check_xor(&mut self) {
-        transition self.xor_result == 6 {
-            true -> good()
-            false -> bad()
+    state check_xor(main: &mut Main) {
+        transition main.xor_result == 6 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

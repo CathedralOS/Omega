@@ -11,7 +11,8 @@
 // witness funnel. Exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Operands {
+data Main {
+    console: Binding<Console>;
     a: u32;
     b: u32;
     // Wrapping landing + S2-retagged ADD below: the Exact prover does not
@@ -21,31 +22,29 @@ data Operands {
     // unsigned selections over runtime fields.
     r: u32 in Wrapping;
 }
-data Main { console: Binding<Console>; }
-machine Main::main(context: &mut Main) reaches Console {
-    let mut operands: Operands;
-    operands.a = 3000000000;
-    operands.b = 1;
+machine Main::main(&mut self) reaches Console {
     // Fused guard: unsigned 3000000000 / 1 % 100 = 0 (signed: rem -96).
-    transition ((operands.a / operands.b) % 100 == 0) { true -> stored(context, &mut operands) _ -> bad1(context) }
-    state stored(context: &mut Main, operands: &mut Operands) {
+    self.a = 3000000000;
+    self.b = 1;
+    transition ((self.a / self.b) % 100 == 0) { true -> stored(&mut self) _ -> bad1(&mut self) }
+    state stored(main: &mut Main) {
         // The arg-materialization flavor of the same shape.
-        operands.r = ((operands.a / operands.b) % 100) as u32 in Wrapping;
-        transition operands.r == 0 { true -> ordered(context, operands) _ -> bad2(context) }
+        main.r = ((main.a / main.b) % 100) as u32 in Wrapping;
+        transition main.r == 0 { true -> ordered(main) _ -> bad2(main) }
     }
-    state ordered(context: &mut Main, operands: &mut Operands) {
+    state ordered(main: &mut Main) {
         // Ordered compare of a nested quotient: unsigned 1500000000 > 1000
         // (signed reading of the dividend would divide negative -> false).
-        operands.b = 2;
-        transition ((operands.a / operands.b) > 1000) { true -> shifted(context, operands) _ -> bad3(context) }
+        main.b = 2;
+        transition ((main.a / main.b) > 1000) { true -> shifted(main) _ -> bad3(main) }
     }
-    state shifted(context: &mut Main, operands: &mut Operands) {
+    state shifted(main: &mut Main) {
         // Logical shift-right of a nested quotient: 3000000000/1 >> 1 =
         // 1500000000 (arithmetic sar of the negative reading differs).
-        operands.b = 1;
-        transition ((operands.a / operands.b) >> 1 == 1500000000) { true -> write_fused(context, operands) _ -> bad4(context) }
+        main.b = 1;
+        transition ((main.a / main.b) >> 1 == 1500000000) { true -> write_fused(main) _ -> bad4(main) }
     }
-    state write_fused(context: &mut Main, operands: &mut Operands) {
+    state write_fused(main: &mut Main) {
         // The WRITE-side fused-operand builder shares the same witness
         // funnel: the nested div/mod inside this add's left operand must
         // also pick the unsigned forms. a/b arrive from EARLIER states so
@@ -55,21 +54,21 @@ machine Main::main(context: &mut Main) reaches Console {
         // obligation); the nested div/mod inside the left retag remain the
         // direction's subject.
         let mut z: u32 = 5;
-        transition z < 10 { true -> write_go(context, operands, z) _ -> bad5(context) }
+        transition z < 10 { true -> write_go(main, z) _ -> bad5(main) }
     }
-    state write_go(context: &mut Main, operands: &mut Operands, zz: u32)
+    state write_go(main: &mut Main, zz: u32)
     requires
         zz <= 9
     {
-        operands.r = (((operands.a / operands.b) % 100) as u32 in Wrapping)
+        main.r = (((main.a / main.b) % 100) as u32 in Wrapping)
             + (zz as u32 in Wrapping);
-        transition operands.r == 5 { true -> good(context) _ -> bad6(context) }
+        transition main.r == 5 { true -> good(main) _ -> bad6(main) }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad1(context: &mut Main) { context.console.exit_process(71); }
-    state bad2(context: &mut Main) { context.console.exit_process(72); }
-    state bad3(context: &mut Main) { context.console.exit_process(73); }
-    state bad4(context: &mut Main) { context.console.exit_process(74); }
-    state bad5(context: &mut Main) { context.console.exit_process(75); }
-    state bad6(context: &mut Main) { context.console.exit_process(76); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad1(main: &mut Main) { main.console.exit_process(71); }
+    state bad2(main: &mut Main) { main.console.exit_process(72); }
+    state bad3(main: &mut Main) { main.console.exit_process(73); }
+    state bad4(main: &mut Main) { main.console.exit_process(74); }
+    state bad5(main: &mut Main) { main.console.exit_process(75); }
+    state bad6(main: &mut Main) { main.console.exit_process(76); }
 }

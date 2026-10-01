@@ -27,12 +27,12 @@ terminates by (j, i) -> Nat::BoundedDistance;
 machine Main::main(&mut self) reaches Console {
     self.result = self.count(3, 0, 0);
     transition self.result {
-        Verdict::Yes { score } -> ck(score)
-        Verdict::Nope -> bad(71)
+        Verdict::Yes { score } -> ck(&mut self, score)
+        Verdict::Nope -> bad(&mut self, 71)
     }
-    state ck(&mut self, score: i32 in Wrapping) {
-        transition score == 15 { true -> good() _ -> bad(72) }
+    state ck(main: &mut Main, score: i32 in Wrapping) {
+        transition score == 15 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

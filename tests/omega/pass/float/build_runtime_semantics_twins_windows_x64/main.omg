@@ -126,9 +126,9 @@ machine Main::main(&mut self) reaches Console {
     let runtime_code: u64 = windows_x86_64_baseline_float_twin_code();
     self.slots[15] = 54;
     transition runtime_code == 16 && self.slots[15] == 54 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

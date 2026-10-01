@@ -55,16 +55,16 @@ machine Main::main(&mut self) reaches Console {
     Main::push(&mut self, 4);
 
     transition self.vm.stack[1] == 4 {
-        true -> check0()
-        _ -> bad()
+        true -> check0(&mut self)
+        _ -> bad(&mut self)
     }
-    state check0(&mut self) {
-        transition self.vm.stack[0] == 3 {
-            true -> good()
-            _ -> bad0()
+    state check0(main: &mut Main) {
+        transition main.vm.stack[0] == 3 {
+            true -> good(main)
+            _ -> bad0(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
-    state bad0(&mut self) { self.console.exit_process(72); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state bad0(main: &mut Main) { main.console.exit_process(72); }
 }

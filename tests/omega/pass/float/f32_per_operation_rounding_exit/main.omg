@@ -20,27 +20,27 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.value = 16777216.0;
     transition self.value == (16777216.0f32 + 1.0f32 + 1.0f32) {
-        true -> static_local_face()
-        _ -> bad(78)
+        true -> static_local_face(&mut self)
+        _ -> bad(&mut self, 78)
     }
 
-    state static_local_face(&mut self) {
+    state static_local_face(main: &mut Main) {
         let base: f32 = 16777216.0;
         let stepped: f32 = base + 1.0 + 1.0;
         transition stepped == base {
-            true -> runtime_face()
-            _ -> bad(79)
+            true -> runtime_face(main)
+            _ -> bad(main, 79)
         }
     }
 
-    state runtime_face(&mut self) {
-        let stepped: f32 = self.value + 1.0 + 1.0;
-        transition stepped == self.value {
-            true -> good()
-            _ -> bad(80)
+    state runtime_face(main: &mut Main) {
+        let stepped: f32 = main.value + 1.0 + 1.0;
+        transition stepped == main.value {
+            true -> good(main)
+            _ -> bad(main, 80)
         }
     }
 
-    state good(&self) { self.console.exit_process(77); }
-    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+    state good(main: &mut Main) { main.console.exit_process(77); }
+    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
 }

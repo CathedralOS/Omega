@@ -18,15 +18,15 @@ machine Worker::wrap() -> Outcome {
 machine Main::main(&mut self) reaches Console {
     let outcome: Outcome = Worker::wrap();
     transition outcome {
-        Outcome::Error { kind } -> inspect(kind)
-        _ -> failure()
+        Outcome::Error { kind } -> inspect(&mut self, kind)
+        _ -> failure(&mut self)
     }
-    state inspect(&mut self, kind: Kind) {
+    state inspect(main: &mut Main, kind: Kind) {
         transition kind {
-            Kind::Missing -> success()
-            _ -> failure()
+            Kind::Missing -> success(main)
+            _ -> failure(main)
         }
     }
-    state success(&mut self) { self.console.exit_process(70); }
-    state failure(&mut self) { self.console.exit_process(71); }
+    state success(main: &mut Main) { main.console.exit_process(70); }
+    state failure(main: &mut Main) { main.console.exit_process(71); }
 }

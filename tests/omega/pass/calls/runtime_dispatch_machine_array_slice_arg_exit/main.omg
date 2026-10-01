@@ -38,7 +38,7 @@ machine Main::main(&mut self) reaches Console {
     self.nums[3] = 8;
     // Loop to j == 2, then return s[2] == 7.
     let n: i32 = self.pick(self.nums, 2, 0);
-    transition n == 7 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    transition n == 7 { true -> good(&mut self) _ -> bad(&mut self) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

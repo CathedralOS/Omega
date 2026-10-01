@@ -30,9 +30,9 @@ machine Main::main(&mut self) reaches Console + ArrayReader {
     self.values[3] = 44;
     self.result = self.reader.inspect(30, self.values, 40);
     transition self.result == 70 && self.values[0] == 11 && self.values[3] == 44 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(72); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(72); }
 }

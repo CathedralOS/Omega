@@ -77,38 +77,38 @@ machine Main::main(&mut self) reaches Console {
     self.stored = Packet { samples: [5, 0 - 6, 7, 8] };
     let constructed: bool = true;
     transition constructed {
-        true -> check()
-        false -> bad()
+        true -> check(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check(&mut self) {
-        let ok: bool = self.filled.samples[0] == 4
-            && self.filled.samples[1] == 0 - 2
-            && self.filled.samples[2] == 7
-            && self.filled.samples[3] == 1
-            && self.pair.left[0] == 1
-            && self.pair.left[1] == 2
-            && self.pair.right[0] == 3
-            && self.pair.right[1] == 4
-            && self.grid.cells[0][1] == 2
-            && self.grid.cells[1][0] == 3
-            && self.framed.header.version == 9
-            && self.framed.samples[2] == 7
-            && self.framed.tag == 3
-            && self.outer.inner.samples[3] == 40
-            && self.outer.count == 2
-            && self.stored.samples[1] == 0 - 6;
+    state check(main: &mut Main) {
+        let ok: bool = main.filled.samples[0] == 4
+            && main.filled.samples[1] == 0 - 2
+            && main.filled.samples[2] == 7
+            && main.filled.samples[3] == 1
+            && main.pair.left[0] == 1
+            && main.pair.left[1] == 2
+            && main.pair.right[0] == 3
+            && main.pair.right[1] == 4
+            && main.grid.cells[0][1] == 2
+            && main.grid.cells[1][0] == 3
+            && main.framed.header.version == 9
+            && main.framed.samples[2] == 7
+            && main.framed.tag == 3
+            && main.outer.inner.samples[3] == 40
+            && main.outer.count == 2
+            && main.stored.samples[1] == 0 - 6;
         transition ok {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(0);
+    state good(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

@@ -41,23 +41,23 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Echo, Console, RecordSource {
-    transition { _ -> store() }
-    state store(&mut self) {
-        self.stored = self.echoer.echo(41);
-        self.seed = 19;
-        self.result = self.source.receive(self.seed);
-        self.earlier = self.result.first;
-        self.seed = 20;
-        self.result = self.source.receive(self.seed);
-        transition self.stored == 41 && self.earlier == 19 && self.result.first == 20 && self.result.second == 23 && self.result.third == 27 {
-            true -> done()
-            _ -> fail()
+    transition { _ -> store(&mut self) }
+    state store(main: &mut Main) {
+        main.stored = main.echoer.echo(41);
+        main.seed = 19;
+        main.result = main.source.receive(main.seed);
+        main.earlier = main.result.first;
+        main.seed = 20;
+        main.result = main.source.receive(main.seed);
+        transition main.stored == 41 && main.earlier == 19 && main.result.first == 20 && main.result.second == 23 && main.result.third == 27 {
+            true -> done(main)
+            _ -> fail(main)
         }
     }
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state fail(&mut self) {
-        self.console.exit_process(71);
+    state fail(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

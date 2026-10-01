@@ -17,9 +17,9 @@ machine Main::main(&mut self) reaches Console {
     let before: i32 = Settings::observe(settings, Settings::stamp(&mut settings, 25));
     let after: i32 = Settings::observe(settings, 0);
     transition before == 17 && after == 25 && settings.count == 25 {
-        true -> success()
-        false -> failure()
+        true -> success(&mut self)
+        false -> failure(&mut self)
     }
-    state success(&mut self) { self.console.exit_process(42); }
-    state failure(&mut self) { self.console.exit_process(1); }
+    state success(main: &mut Main) { main.console.exit_process(42); }
+    state failure(main: &mut Main) { main.console.exit_process(1); }
 }

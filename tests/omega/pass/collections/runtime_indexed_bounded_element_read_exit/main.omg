@@ -20,9 +20,9 @@ machine Main::main(&mut self) reaches Console {
     self.cells[2].v = 7;
     self.k = 2;
     transition self.cells[self.k].v == 7 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self) { self.console.exit_process(70); }
-    state no(&mut self) { self.console.exit_process(3); }
+    state yes(main: &mut Main) { main.console.exit_process(70); }
+    state no(main: &mut Main) { main.console.exit_process(3); }
 }

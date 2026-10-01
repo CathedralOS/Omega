@@ -41,65 +41,65 @@ machine Main::main(&mut self) reaches Console {
     self.count = 3;
     let product_sum: f64 = self.a * self.b + self.c;
     transition product_sum == 14.0 {
-        true -> grouped()
-        _ -> fail(71)
+        true -> grouped(&mut self)
+        _ -> fail(&mut self, 71)
     }
 
-    state grouped(&mut self) {
-        let grouped_product: f64 = self.a * (self.b + self.c);
+    state grouped(main: &mut Main) {
+        let grouped_product: f64 = main.a * (main.b + main.c);
         transition grouped_product == 18.0 {
-            true -> field_stores()
-            _ -> fail(72)
+            true -> field_stores(main)
+            _ -> fail(main, 72)
         }
     }
 
-    state field_stores(&mut self) {
-        self.difference = self.c - self.a * self.b;
-        self.quotient = self.a / (self.b - self.c);
-        transition self.difference == -10.0 {
-            true -> quotient_check()
-            _ -> fail(73)
+    state field_stores(main: &mut Main) {
+        main.difference = main.c - main.a * main.b;
+        main.quotient = main.a / (main.b - main.c);
+        transition main.difference == -10.0 {
+            true -> quotient_check(main)
+            _ -> fail(main, 73)
         }
     }
 
-    state quotient_check(&mut self) {
-        transition self.quotient == 1.5 {
-            true -> guards()
-            _ -> fail(74)
+    state quotient_check(main: &mut Main) {
+        transition main.quotient == 1.5 {
+            true -> guards(main)
+            _ -> fail(main, 74)
         }
     }
 
-    state guards(&mut self) {
-        transition self.a * self.b + self.c == 14.0 {
-            true -> rounding()
-            _ -> fail(75)
+    state guards(main: &mut Main) {
+        transition main.a * main.b + main.c == 14.0 {
+            true -> rounding(main)
+            _ -> fail(main, 75)
         }
     }
 
-    state rounding(&mut self) {
-        transition self.tenth * 3.0 - 0.3 == 0.000000000000000055511151231257827021181583404541015625 {
-            true -> conversions()
-            _ -> fail(76)
+    state rounding(main: &mut Main) {
+        transition main.tenth * 3.0 - 0.3 == 0.000000000000000055511151231257827021181583404541015625 {
+            true -> conversions(main)
+            _ -> fail(main, 76)
         }
     }
 
-    state conversions(&mut self) {
-        let converted: f64 = F64::from_i32(self.count) * 0.5 + self.c;
+    state conversions(main: &mut Main) {
+        let converted: f64 = F64::from_i32(main.count) * 0.5 + main.c;
         transition converted == 3.5 {
-            true -> extrema()
-            _ -> fail(77)
+            true -> extrema(main)
+            _ -> fail(main, 77)
         }
     }
 
-    state extrema(&mut self) {
-        let bounded: f64 = F64::maximum(self.c - self.a, 0.5);
-        self.difference = min(self.a * self.b, 11.5);
-        transition self.difference == 11.5 && bounded == 0.5 {
-            true -> pass()
-            _ -> fail(78)
+    state extrema(main: &mut Main) {
+        let bounded: f64 = F64::maximum(main.c - main.a, 0.5);
+        main.difference = min(main.a * main.b, 11.5);
+        transition main.difference == 11.5 && bounded == 0.5 {
+            true -> pass(main)
+            _ -> fail(main, 78)
         }
     }
 
-    state pass(&self) { self.console.exit_process(70); }
-    state fail(&self, code: i32) { self.console.exit_process(code); }
+    state pass(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

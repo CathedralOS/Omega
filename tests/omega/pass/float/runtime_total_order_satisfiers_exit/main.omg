@@ -118,36 +118,35 @@ machine Main::main(&mut self) reaches Console {
         && f64_positive_payload_ok;
 
     transition f32_negative_payload_ok {
-        true -> check_f32_negative_nan(
-            f32_negative_nan_ok,
+        true -> check_f32_negative_nan(&mut self, f32_negative_nan_ok,
             f32_zero_ok,
             f32_positive_nan_ok,
             f32_positive_payload_ok,
             f64_ok
         )
-        false -> bad_f32_negative_payload()
+        false -> bad_f32_negative_payload(&mut self)
     }
 
-    state check_f32_negative_nan(&mut self, ok: bool, b: bool, c: bool, d: bool, f64_ok: bool) {
-        transition ok { true -> check_f32_zero(b, c, d, f64_ok) false -> bad_f32_negative_nan() }
+    state check_f32_negative_nan(main: &mut Main, ok: bool, b: bool, c: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_zero(main, b, c, d, f64_ok) false -> bad_f32_negative_nan(main) }
     }
-    state check_f32_zero(&mut self, ok: bool, c: bool, d: bool, f64_ok: bool) {
-        transition ok { true -> check_f32_positive_nan(c, d, f64_ok) false -> bad_f32_zero() }
+    state check_f32_zero(main: &mut Main, ok: bool, c: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_positive_nan(main, c, d, f64_ok) false -> bad_f32_zero(main) }
     }
-    state check_f32_positive_nan(&mut self, ok: bool, d: bool, f64_ok: bool) {
-        transition ok { true -> check_f32_positive_payload(d, f64_ok) false -> bad_f32_positive_nan() }
+    state check_f32_positive_nan(main: &mut Main, ok: bool, d: bool, f64_ok: bool) {
+        transition ok { true -> check_f32_positive_payload(main, d, f64_ok) false -> bad_f32_positive_nan(main) }
     }
-    state check_f32_positive_payload(&mut self, ok: bool, f64_ok: bool) {
-        transition ok { true -> check_f64(f64_ok) false -> bad_f32_positive_payload() }
+    state check_f32_positive_payload(main: &mut Main, ok: bool, f64_ok: bool) {
+        transition ok { true -> check_f64(main, f64_ok) false -> bad_f32_positive_payload(main) }
     }
-    state check_f64(&mut self, ok: bool) {
-        transition ok { true -> good() false -> bad_f64() }
+    state check_f64(main: &mut Main, ok: bool) {
+        transition ok { true -> good(main) false -> bad_f64(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad_f32_negative_payload(&mut self) { self.console.exit_process(71); }
-    state bad_f32_negative_nan(&mut self) { self.console.exit_process(72); }
-    state bad_f32_zero(&mut self) { self.console.exit_process(73); }
-    state bad_f32_positive_nan(&mut self) { self.console.exit_process(74); }
-    state bad_f32_positive_payload(&mut self) { self.console.exit_process(75); }
-    state bad_f64(&mut self) { self.console.exit_process(77); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad_f32_negative_payload(main: &mut Main) { main.console.exit_process(71); }
+    state bad_f32_negative_nan(main: &mut Main) { main.console.exit_process(72); }
+    state bad_f32_zero(main: &mut Main) { main.console.exit_process(73); }
+    state bad_f32_positive_nan(main: &mut Main) { main.console.exit_process(74); }
+    state bad_f32_positive_payload(main: &mut Main) { main.console.exit_process(75); }
+    state bad_f64(main: &mut Main) { main.console.exit_process(77); }
 }

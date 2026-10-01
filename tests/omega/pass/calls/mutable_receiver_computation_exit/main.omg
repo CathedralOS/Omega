@@ -18,19 +18,19 @@ machine Main::main(&mut self) reaches Console {
     self.base = 10;
     self.counter.count = 0;
     let result: i32 in Wrapping = self.base + Counter::double(&mut self.counter, 6) * 3;
-    transition { _ -> observe(result) }
-    state observe(&mut self, result: i32 in Wrapping) {
+    transition { _ -> observe(&mut self, result) }
+    state observe(main: &mut Main, result: i32 in Wrapping) {
         transition result == 46 {
-            true -> count()
-            _ -> bad()
+            true -> count(main)
+            _ -> bad(main)
         }
     }
-    state count(&mut self) {
-        transition self.counter.count == 1 {
-            true -> good()
-            _ -> bad()
+    state count(main: &mut Main) {
+        transition main.counter.count == 1 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

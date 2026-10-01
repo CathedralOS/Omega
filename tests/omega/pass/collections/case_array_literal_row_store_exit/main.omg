@@ -23,16 +23,16 @@ machine Main::main(&mut self) reaches Console {
     self.i = 1;
     self.rows[self.i] = [Cell::Floor, Cell::Door];
     transition self.rows[1][1] {
-        Cell::Door -> check_row()
-        _ -> finish(1)
+        Cell::Door -> check_row(&mut self)
+        _ -> finish(&mut self, 1)
     }
-    state check_row(&mut self) {
-        transition self.rows[0][1] {
-            Cell::Wall -> finish(3)
-            _ -> finish(2)
+    state check_row(main: &mut Main) {
+        transition main.rows[0][1] {
+            Cell::Wall -> finish(main, 3)
+            _ -> finish(main, 2)
         }
     }
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }

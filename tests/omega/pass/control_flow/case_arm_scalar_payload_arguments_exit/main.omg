@@ -47,47 +47,47 @@ machine line_read() -> LineRead {
 machine Main::main(&mut self) reaches Console {
     let root: NextToken = next_token();
     transition root {
-        NextToken::Token { start, end } -> root_token(start, end)
-        _ -> refused()
+        NextToken::Token { start, end } -> root_token(&mut self, start, end)
+        _ -> refused(&mut self)
     }
 
-    state root_token(&mut self, start: u64, end: u64) {
+    state root_token(main: &mut Main, start: u64, end: u64) {
         transition start == 2 && end == 3 {
-            true -> attached()
-            _ -> refused()
+            true -> attached(main)
+            _ -> refused(main)
         }
     }
-    state attached(&mut self) {
+    state attached(main: &mut Main) {
         let token: NextToken = NextToken::Token { start: 5, end: 7 };
         transition NextToken::span(&token) == 7 {
-            true -> read_line()
-            _ -> refused()
+            true -> read_line(main)
+            _ -> refused(main)
         }
     }
-    state read_line(&mut self) {
+    state read_line(main: &mut Main) {
         let result: LineRead = line_read();
         transition result {
-            LineRead::LineComplete { count } -> got_line(count, false)
-            LineRead::EndOfInput { count } -> got_line(count, true)
-            _ -> refused()
+            LineRead::LineComplete { count } -> got_line(main, count, false)
+            LineRead::EndOfInput { count } -> got_line(main, count, true)
+            _ -> refused(main)
         }
     }
-    state got_line(&mut self, count: u64, end_after: bool) {
+    state got_line(main: &mut Main, count: u64, end_after: bool) {
         transition end_after {
-            true -> refused()
-            false -> check_count(count)
+            true -> refused(main)
+            false -> check_count(main, count)
         }
     }
-    state check_count(&mut self, count: u64) {
+    state check_count(main: &mut Main, count: u64) {
         transition count == 30 {
-            true -> done()
-            _ -> refused()
+            true -> done(main)
+            _ -> refused(main)
         }
     }
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state refused(&mut self) {
-        self.console.exit_process(71);
+    state refused(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

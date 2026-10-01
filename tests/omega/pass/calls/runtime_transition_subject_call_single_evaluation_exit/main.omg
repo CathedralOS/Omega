@@ -39,28 +39,28 @@ machine Main::main(&mut self) reaches Console {
     self.tally.pad = 0;
 
     transition {
-        _ -> decide()
+        _ -> decide(&mut self)
     }
 
 
-    state decide(&mut self) {
-        transition Main::roll(&mut self.tally) {
-            true -> report()
-            false -> report()
+    state decide(main: &mut Main) {
+        transition Main::roll(&mut main.tally) {
+            true -> report(main)
+            false -> report(main)
         }
     }
 
-    state report(&mut self) {
+    state report(main: &mut Main) {
         transition {
-            self.tally.calls == 40 -> exit_never_ran()
-            self.tally.calls == 41 -> exit_once()
-            self.tally.calls == 42 -> exit_twice()
-            _ -> exit_other()
+            main.tally.calls == 40 -> exit_never_ran(main)
+            main.tally.calls == 41 -> exit_once(main)
+            main.tally.calls == 42 -> exit_twice(main)
+            _ -> exit_other(main)
         }
     }
 
-    state exit_never_ran(&mut self) { self.console.exit_process(10); }
-    state exit_once(&mut self) { self.console.exit_process(70); }
-    state exit_twice(&mut self) { self.console.exit_process(2); }
-    state exit_other(&mut self) { self.console.exit_process(77); }
+    state exit_never_ran(main: &mut Main) { main.console.exit_process(10); }
+    state exit_once(main: &mut Main) { main.console.exit_process(70); }
+    state exit_twice(main: &mut Main) { main.console.exit_process(2); }
+    state exit_other(main: &mut Main) { main.console.exit_process(77); }
 }

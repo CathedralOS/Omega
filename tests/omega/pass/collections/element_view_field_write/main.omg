@@ -24,23 +24,23 @@ machine Main::main(&mut self) reaches Console {
     fill(&mut self.bag);
 
     transition self.bag.cells[2].value == 7 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        transition self.bag.cells[2].tag == 9 {
-            true -> finish()
-            false -> bad()
+    state good(main: &mut Main) {
+        transition main.bag.cells[2].tag == 9 {
+            true -> finish(main)
+            false -> bad(main)
         }
     }
 
-    state finish(&mut self) {
-        self.console.exit_process(181);
+    state finish(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(90);
+    state bad(main: &mut Main) {
+        main.console.exit_process(90);
     }
 }
 

@@ -22,9 +22,9 @@ terminates by remaining;
 machine Main::main(&mut self) reaches Console {
     let value: u64 = self.countdown(3);
     transition value == 7 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self) { self.console.exit_process(70); }
-    state no(&mut self)  { self.console.exit_process(71); }
+    state yes(main: &mut Main) { main.console.exit_process(70); }
+    state no(main: &mut Main)  { main.console.exit_process(71); }
 }

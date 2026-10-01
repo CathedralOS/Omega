@@ -26,9 +26,9 @@ machine Main::main(&mut self) reaches Console {
     select(true, &mut self.stopped);
     select(false, &mut self.continued);
     transition self.stopped.value == 5 && self.continued.value == 7 {
-        true -> good()
-        false -> bad()
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

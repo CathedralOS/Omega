@@ -29,67 +29,67 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     let observed: LineReadResult = block self.console.read_line(&mut self.line);
     transition observed {
-        LineReadResult::LineComplete { count } -> bounded_input(count, true)
-        LineReadResult::EndOfInput { count } -> bounded_input(count, false)
-        LineReadResult::Full { count } -> invalid()
-        LineReadResult::Invalid -> invalid()
+        LineReadResult::LineComplete { count } -> bounded_input(&mut self, count, true)
+        LineReadResult::EndOfInput { count } -> bounded_input(&mut self, count, false)
+        LineReadResult::Full { count } -> invalid(&mut self)
+        LineReadResult::Invalid -> invalid(&mut self)
     }
 
     // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
-    state bounded_input(&mut self, count: u64, complete: bool) {
-        transition count <= self.line.len {
-            true -> normal_input(count, complete)
-            false -> invalid()
+    state bounded_input(main: &mut Main, count: u64, complete: bool) {
+        transition count <= main.line.len {
+            true -> normal_input(main, count, complete)
+            false -> invalid(main)
         }
     }
-    state normal_input(&mut self, count: u64, complete: bool) {
+    state normal_input(main: &mut Main, count: u64, complete: bool) {
         transition complete {
-            true -> completed_input(count)
-            false -> parsed_input(count)
+            true -> completed_input(main, count)
+            false -> parsed_input(main, count)
         }
     }
-    state completed_input(&mut self, count: u64) {
-        transition count > 0 && count <= self.line.len {
-            true -> trim_carriage_return(count - 1)
-            false -> invalid()
+    state completed_input(main: &mut Main, count: u64) {
+        transition count > 0 && count <= main.line.len {
+            true -> trim_carriage_return(main, count - 1)
+            false -> invalid(main)
         }
     }
-    state trim_carriage_return(&mut self, count: u64) {
-        transition count > 0 && count <= self.line.len {
-            true -> inspect_carriage_return(count, count - 1)
-            false -> parsed_input(count)
+    state trim_carriage_return(main: &mut Main, count: u64) {
+        transition count > 0 && count <= main.line.len {
+            true -> inspect_carriage_return(main, count, count - 1)
+            false -> parsed_input(main, count)
         }
     }
-    state inspect_carriage_return(&mut self, count: u64, byte_index: u64) {
-        transition byte_index < self.line.len && self.line[byte_index] == 13 {
-            true -> parsed_input(byte_index)
-            false -> parsed_input(count)
+    state inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
+        transition byte_index < main.line.len && main.line[byte_index] == 13 {
+            true -> parsed_input(main, byte_index)
+            false -> parsed_input(main, count)
         }
     }
 
-    state parsed_input(&mut self, count: u64) {
-        self.command = Parser::resolve(&self.line, count);
+    state parsed_input(main: &mut Main, count: u64) {
+        main.command = Parser::resolve(&main.line, count);
 
-        transition self.command {
-            Command::Look -> look()
-            Command::Quit -> quit()
-            Command::Invalid -> invalid()
+        transition main.command {
+            Command::Look -> look(main)
+            Command::Quit -> quit(main)
+            Command::Invalid -> invalid(main)
         }
 
     }
 
-    state look(&mut self) {
-        self.console.write_line("look");
-        self.console.exit_process(0);
+    state look(main: &mut Main) {
+        main.console.write_line("look");
+        main.console.exit_process(0);
     }
 
-    state quit(&mut self) {
-        self.console.write_line("quit");
-        self.console.exit_process(0);
+    state quit(main: &mut Main) {
+        main.console.write_line("quit");
+        main.console.exit_process(0);
     }
 
-    state invalid(&mut self) {
-        self.console.write_line("invalid");
-        self.console.exit_process(1);
+    state invalid(main: &mut Main) {
+        main.console.write_line("invalid");
+        main.console.exit_process(1);
     }
 }

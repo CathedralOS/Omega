@@ -30,11 +30,11 @@ machine Main::main(&mut self) reaches Console {
     self.inner.b = 1;
     self.relay(Proof { tag: 1 }, &self.inner, Proof { tag: 2 });
     transition self.result == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
 
 machine Main::relay(&mut self, witness [erased]: Proof, values: &Inner, trailing [erased]: Proof) {

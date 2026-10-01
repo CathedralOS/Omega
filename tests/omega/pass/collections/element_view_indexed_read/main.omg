@@ -18,23 +18,23 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     fill(&mut self.bag);
     transition self.bag.cells[2].value == 7 {
-        true -> tagged()
-        false -> bad()
+        true -> tagged(&mut self)
+        false -> bad(&mut self)
     }
 
-    state tagged(&mut self) {
-        transition self.bag.cells[2].tag == 7 {
-            true -> good()
-            false -> bad()
+    state tagged(main: &mut Main) {
+        transition main.bag.cells[2].tag == 7 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(181);
+    state good(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(90);
+    state bad(main: &mut Main) {
+        main.console.exit_process(90);
     }
 }
 

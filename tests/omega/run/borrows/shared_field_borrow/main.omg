@@ -16,9 +16,9 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     let len: &u32 = &self.size;
     let first: &u8 = &self.buf[0];
-    transition { _ -> done() }
+    transition { _ -> done(&mut self) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 }

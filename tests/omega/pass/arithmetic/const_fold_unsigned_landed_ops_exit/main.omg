@@ -19,16 +19,16 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(&mut self) reaches Console {
     let a: u32 in Wrapping = 0;
     let b: u32 in Wrapping = a - 2;                        // 4294967294
     let z: u32 in Wrapping = (b >> 1) + (b / 3) + (b % 3); // 2147483647 + 1431655764 + 2
 
     transition z == 3579139413 {
-        true -> good(context)
-        false -> bad(context)
+        true -> good(&mut self)
+        false -> bad(&mut self)
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main)  { context.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main)  { main.console.exit_process(71); }
 }

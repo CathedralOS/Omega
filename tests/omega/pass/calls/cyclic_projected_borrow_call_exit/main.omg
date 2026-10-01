@@ -57,15 +57,15 @@ machine Main::main(&mut self) reaches Console {
     self.target.copy_all(&self.source);
 
     transition self.target.cells[2].value == 30 {
-        true -> done()
-        _ -> missed()
+        true -> done(&mut self)
+        _ -> missed(&mut self)
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

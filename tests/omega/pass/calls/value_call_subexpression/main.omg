@@ -46,82 +46,82 @@ machine Main::main(&mut self) reaches Console {
     self.ticks = 0;
     let sum: i32 = twelve() + 0;
     transition sum == 12 {
-        true -> parenthesized()
-        false -> bad(71)
+        true -> parenthesized(&mut self)
+        false -> bad(&mut self, 71)
     }
 
-    state parenthesized(&mut self) {
+    state parenthesized(main: &mut Main) {
         let bare: i32 = (twelve());
         transition bare == 12 {
-            true -> cast()
-            false -> bad(72)
+            true -> cast(main)
+            false -> bad(main, 72)
         }
     }
 
-    state cast(&mut self) {
+    state cast(main: &mut Main) {
         let wide: i64 = twelve() as i64;
         transition wide == 12 {
-            true -> compare()
-            false -> bad(73)
+            true -> compare(main)
+            false -> bad(main, 73)
         }
     }
 
-    state compare(&mut self) {
+    state compare(main: &mut Main) {
         let equal: bool = twelve() == 12;
         transition equal {
-            true -> either_side()
-            false -> bad(74)
+            true -> either_side(main)
+            false -> bad(main, 74)
         }
     }
 
-    state either_side(&mut self) {
+    state either_side(main: &mut Main) {
         let negated: i32 = 0 - twelve();
         let raised: i32 = 1 + twelve();
         transition negated == -12 && raised == 13 {
-            true -> arguments()
-            false -> bad(75)
+            true -> arguments(main)
+            false -> bad(main, 75)
         }
     }
 
-    state arguments(&mut self) {
-        let doubled: i32 = self.add(twelve(), twelve());
+    state arguments(main: &mut Main) {
+        let doubled: i32 = main.add(twelve(), twelve());
         transition doubled == 24 {
-            true -> store()
-            false -> bad(76)
+            true -> store(main)
+            false -> bad(main, 76)
         }
     }
 
-    state store(&mut self) {
-        self.total = twelve() * 2;
-        transition self.total == 24 {
-            true -> guard()
-            false -> bad(77)
+    state store(main: &mut Main) {
+        main.total = twelve() * 2;
+        transition main.total == 24 {
+            true -> guard(main)
+            false -> bad(main, 77)
         }
     }
 
-    state guard(&mut self) {
+    state guard(main: &mut Main) {
         transition twelve() + 1 == 13 {
-            true -> ordered()
-            false -> bad(78)
+            true -> ordered(main)
+            false -> bad(main, 78)
         }
     }
 
-    state ordered(&mut self) {
-        let digits: u32 in Wrapping = self.tick() * 10 + self.tick();
-        transition digits == 12 && self.ticks == 2 {
-            true -> short_circuit()
-            false -> bad(79)
+    state ordered(main: &mut Main) {
+        let digits: u32 in Wrapping = main.tick() * 10 + main.tick();
+        transition digits == 12 && main.ticks == 2 {
+            true -> short_circuit(main)
+            false -> bad(main, 79)
         }
     }
 
-    state short_circuit(&mut self) {
-        let skipped: bool = false && self.tick() == 3;
-        transition !skipped && self.ticks == 2 {
-            true -> good()
-            false -> bad(80)
+    state short_circuit(main: &mut Main) {
+        let skipped: bool = false && main.tick() == 3;
+        transition !skipped && main.ticks == 2 {
+            true -> good(main)
+            false -> bad(main, 80)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

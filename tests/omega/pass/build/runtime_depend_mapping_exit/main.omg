@@ -10,7 +10,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
-    transition ANSWER == 42 { true -> yes() _ -> no() }
-    state yes(&mut self) { self.console.exit_process(70); }
-    state no(&mut self)  { self.console.exit_process(71); }
+    transition ANSWER == 42 { true -> yes(&mut self) _ -> no(&mut self) }
+    state yes(main: &mut Main) { main.console.exit_process(70); }
+    state no(main: &mut Main)  { main.console.exit_process(71); }
 }

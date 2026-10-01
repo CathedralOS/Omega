@@ -18,15 +18,15 @@ machine Main::main(&mut self) reaches Console {
     let second: u64 = Main::measure(&self, "");
     let reported: u64 = report(first);
     transition reported == 3 {
-        true -> check_empty(second)
-        false -> failed()
+        true -> check_empty(&mut self, second)
+        false -> failed(&mut self)
     }
-    state check_empty(&mut self, length: u64) {
+    state check_empty(main: &mut Main, length: u64) {
         transition length == 0 {
-            true -> passed()
-            false -> failed()
+            true -> passed(main)
+            false -> failed(main)
         }
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -38,15 +38,15 @@ machine Main::main(&mut self) reaches Console {
     let class: u64 = Probe::classify(probe, 5);
 
     transition class == 1 {
-        true -> done()
-        _ -> missed()
+        true -> done(&mut self)
+        _ -> missed(&mut self)
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

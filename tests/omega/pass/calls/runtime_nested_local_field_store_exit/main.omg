@@ -22,9 +22,9 @@ machine Main::main(&mut self) reaches Console {
     // rewrites the nested call into a different compilation route.
     row.value = source.read(row.address());
     transition row.value == 42 && row.address == 45 && row.calls == 1 && source.calls == 1 {
-        true -> success()
-        false -> failure()
+        true -> success(&mut self)
+        false -> failure(&mut self)
     }
-    state success(&mut self) { self.console.exit_process(42); }
-    state failure(&mut self) { self.console.exit_process(1); }
+    state success(main: &mut Main) { main.console.exit_process(42); }
+    state failure(main: &mut Main) { main.console.exit_process(1); }
 }

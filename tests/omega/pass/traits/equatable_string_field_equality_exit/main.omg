@@ -35,48 +35,48 @@ machine Main::main(&mut self) reaches Console {
     self.right = Tag { label: "amulet", weight: 3 };
     let equal: bool = self.left == self.right;
     transition equal {
-        false -> bad()
-        true -> different_contents()
+        false -> bad(&mut self)
+        true -> different_contents(&mut self)
     }
 
-    state different_contents(&mut self) {
+    state different_contents(main: &mut Main) {
         // Same length ("amulet" vs "ambush", six bytes each), different
         // content: only the byte loop can tell them apart.
-        self.right = Tag { label: "ambush", weight: 3 };
-        let still_equal: bool = self.left == self.right;
+        main.right = Tag { label: "ambush", weight: 3 };
+        let still_equal: bool = main.left == main.right;
         transition still_equal {
-            true -> bad()
-            false -> different_lengths()
+            true -> bad(main)
+            false -> different_lengths(main)
         }
     }
 
-    state different_lengths(&mut self) {
+    state different_lengths(main: &mut Main) {
         // Shared prefix, one byte longer: the length compare must miss
         // before any content is read.
-        self.right = Tag { label: "amulets", weight: 3 };
-        let length_equal: bool = self.left == self.right;
+        main.right = Tag { label: "amulets", weight: 3 };
+        let length_equal: bool = main.left == main.right;
         transition length_equal {
-            true -> bad()
-            false -> scalar_sibling()
+            true -> bad(main)
+            false -> scalar_sibling(main)
         }
     }
 
-    state scalar_sibling(&mut self) {
+    state scalar_sibling(main: &mut Main) {
         // Equal text, different scalar field: the synthesized conjunction
         // (label AND weight) must miss through the non-&[u8] in Utf8 side.
-        self.right = Tag { label: "amulet", weight: 4 };
-        let weight_equal: bool = self.left == self.right;
+        main.right = Tag { label: "amulet", weight: 4 };
+        let weight_equal: bool = main.left == main.right;
         transition weight_equal {
-            true -> bad()
-            false -> done()
+            true -> bad(main)
+            false -> done(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

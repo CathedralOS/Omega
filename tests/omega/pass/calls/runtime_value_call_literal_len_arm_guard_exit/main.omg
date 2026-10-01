@@ -21,12 +21,12 @@ machine Main::main(&mut self) reaches Console {
     let a: i32 = Main::classify(&mut self, "a/b/c");
     let b: i32 = Main::classify(&mut self, "ab");
     transition a == 2 {
-        true -> check_b(b)
-        _ -> bad(71)
+        true -> check_b(&mut self, b)
+        _ -> bad(&mut self, 71)
     }
-    state check_b(&mut self, b: i32) {
-        transition b == 1 { true -> good() _ -> bad(72) }
+    state check_b(main: &mut Main, b: i32) {
+        transition b == 1 { true -> good(main) _ -> bad(main, 72) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

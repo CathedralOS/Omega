@@ -15,23 +15,23 @@ machine Main::main(&mut self) reaches Console {
     self.n = -self.v;
 
     transition self.n == -10 {
-        true -> check_literal()
-        false -> bad()
+        true -> check_literal(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_literal(&mut self) {
-        self.v = -5;
-        transition self.v < 0 {
-            true -> good()
-            false -> bad()
+    state check_literal(main: &mut Main) {
+        main.v = -5;
+        transition main.v < 0 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

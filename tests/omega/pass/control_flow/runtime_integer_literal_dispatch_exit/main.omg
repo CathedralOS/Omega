@@ -9,20 +9,20 @@ machine Main::main(&mut self) reaches Console {
     let mut choice: i32 = 2;
 
     transition choice {
-        1 -> one()
-        2 -> two()
-        _ -> other()
+        1 -> one(&mut self)
+        2 -> two(&mut self)
+        _ -> other(&mut self)
     }
 
-    state one(&mut self) {
-        self.console.exit_process(21);
+    state one(main: &mut Main) {
+        main.console.exit_process(21);
     }
 
-    state two(&mut self) {
-        self.console.exit_process(22);
+    state two(main: &mut Main) {
+        main.console.exit_process(22);
     }
 
-    state other(&mut self) {
-        self.console.exit_process(29);
+    state other(main: &mut Main) {
+        main.console.exit_process(29);
     }
 }

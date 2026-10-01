@@ -22,12 +22,12 @@ machine Main::main(&mut self) reaches Console {
     let hot: i32 = pick(60);
     let cold: i32 = pick(10);
     transition hot == 120 {
-        true -> check_cold(cold)
-        _ -> bad()
+        true -> check_cold(&mut self, cold)
+        _ -> bad(&mut self)
     }
-    state check_cold(&mut self, cold: i32) {
-        transition cold == 10 { true -> good() _ -> bad() }
+    state check_cold(main: &mut Main, cold: i32) {
+        transition cold == 10 { true -> good(main) _ -> bad(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

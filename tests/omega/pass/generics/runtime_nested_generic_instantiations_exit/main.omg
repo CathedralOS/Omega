@@ -17,10 +17,10 @@ machine Main::main(&mut self) reaches Console {
     self.pb.a.value = true;
     self.r = self.pi.a.value;
     transition self.pb.a.value == true {
-        true -> ok()
-        false -> bad()
+        true -> ok(&mut self)
+        false -> bad(&mut self)
     }
-    state ok(&mut self) { self.console.exit_process(self.r); }
-    state bad(&mut self) { self.console.exit_process(99); }
+    state ok(main: &mut Main) { main.console.exit_process(main.r); }
+    state bad(main: &mut Main) { main.console.exit_process(99); }
 }
 // Expected exit: 30

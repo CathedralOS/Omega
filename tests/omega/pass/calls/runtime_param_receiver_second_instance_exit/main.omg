@@ -29,7 +29,7 @@ machine Holder::run(holder: &mut Holder) -> i32 in Wrapping {
 data Main { console: Binding<Console>; holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.flag = Holder::run(&mut self.holder);
-    transition self.flag == 9 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    transition self.flag == 9 { true -> good(&mut self) _ -> bad(&mut self) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

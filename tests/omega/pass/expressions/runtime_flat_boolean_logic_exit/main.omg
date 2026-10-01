@@ -23,29 +23,29 @@ machine Main::main(&mut self) reaches Console {
     self.c = true;
 
     // a && b == false -> takes the `_` arm
-    transition self.a && self.b { true -> bad() _ -> check_or() }
+    transition self.a && self.b { true -> bad(&mut self) _ -> check_or(&mut self) }
 
-    state check_or(&mut self) {
+    state check_or(main: &mut Main) {
         // a || b == true
-        transition self.a || self.b { true -> check_neg() _ -> bad() }
+        transition main.a || main.b { true -> check_neg(main) _ -> bad(main) }
     }
-    state check_neg(&mut self) {
+    state check_neg(main: &mut Main) {
         // !b == true
-        transition !self.b { true -> check_three() _ -> bad() }
+        transition !main.b { true -> check_three(main) _ -> bad(main) }
     }
-    state check_three(&mut self) {
+    state check_three(main: &mut Main) {
         // a && c && !b == true
-        transition self.a && self.c && !self.b { true -> check_value() _ -> bad() }
+        transition main.a && main.c && !main.b { true -> check_value(main) _ -> bad(main) }
     }
-    state check_value(&mut self) {
-        let r: bool = self.a && !self.b; // true
-        transition r { true -> good() _ -> bad() }
+    state check_value(main: &mut Main) {
+        let r: bool = main.a && !main.b; // true
+        transition r { true -> good(main) _ -> bad(main) }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

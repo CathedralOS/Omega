@@ -23,9 +23,9 @@ machine Main::main(&mut self) reaches Console {
     let repeated64: f64 = repeated_fma(fused64);
     transition fused32 > 0.0f32 && separate32 == 0.0f32 &&
         fused64 > 0.0 && separate64 == 0.0 && repeated64 == fused64 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

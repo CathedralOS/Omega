@@ -12,7 +12,7 @@ data Reading [copy] {
 data Record [copy] { reading: Reading; }
 data Main { console: Binding<Console>; }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(&mut self) reaches Console {
     let record: Record = Record { reading: Reading {
         wrapping: 255, saturating: 255, trapping: 5, plain: 70
     } };
@@ -20,9 +20,9 @@ machine Main::main(context: &mut Main) reaches Console {
     let saturated: u8 = (record.reading.saturating + 1) as u8;
     let trapped: u8 = (record.reading.trapping + 1) as u8;
     transition wrapped == 0 && saturated == 255 && trapped == 6 && record.reading.plain == 70 {
-        true -> passed(context)
-        false -> failed(context)
+        true -> passed(&mut self)
+        false -> failed(&mut self)
     }
-    state passed(context: &mut Main) { context.console.exit_process(70); }
-    state failed(context: &mut Main) { context.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

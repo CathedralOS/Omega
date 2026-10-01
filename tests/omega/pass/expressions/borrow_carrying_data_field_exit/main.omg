@@ -23,11 +23,11 @@ machine Main::main(&mut self) reaches Console {
     let message: Msg = Msg { body: &self.cell };
     let code: i32 = read_cell(message.body);
     transition code == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
 
 machine read_cell(item: &Cell) -> i32 {

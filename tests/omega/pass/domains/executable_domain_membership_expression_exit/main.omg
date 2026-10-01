@@ -20,15 +20,15 @@ machine Main::main(&mut self) reaches Console {
     self.fallen.health = 0;
 
     transition (self.alive in Player::Alive, self.fallen in Player::Alive) {
-        (true, false) -> good()
-        _ -> bad()
+        (true, false) -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(81);
+    state good(main: &mut Main) {
+        main.console.exit_process(81);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(82);
+    state bad(main: &mut Main) {
+        main.console.exit_process(82);
     }
 }

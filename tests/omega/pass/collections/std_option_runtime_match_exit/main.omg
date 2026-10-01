@@ -14,15 +14,15 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.a = Optional::Some { value: 70 };
     transition self.a {
-        Optional::Some { value } -> check_b(value)
-        Optional::None -> bad()
+        Optional::Some { value } -> check_b(&mut self, value)
+        Optional::None -> bad(&mut self)
     }
-    state check_b(&mut self, value: i32) {
-        transition self.b {
-            Optional::Some { value } -> bad()
-            Optional::None -> ok(value)
+    state check_b(main: &mut Main, value: i32) {
+        transition main.b {
+            Optional::Some { value } -> bad(main)
+            Optional::None -> ok(main, value)
         }
     }
-    state ok(&mut self, value: i32) { self.console.exit_process(value); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state ok(main: &mut Main, value: i32) { main.console.exit_process(value); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

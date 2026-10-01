@@ -29,13 +29,13 @@ machine Main::main(&mut self) reaches Console {
             && self.b[0] == 99
             && self.b[1] == 6
             && self.b[2] == 7 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(self.a[0] as i32); // surface the aliased source value on regression
+    state bad(main: &mut Main) {
+        main.console.exit_process(main.a[0] as i32); // surface the aliased source value on regression
     }
 }

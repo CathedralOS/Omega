@@ -36,39 +36,39 @@ machine Main::main(&mut self) reaches Console {
     self.tally.pad = 0;
 
     transition {
-        _ -> statement_call()
+        _ -> statement_call(&mut self)
     }
 
 
-    state statement_call(&mut self) {
-        _ = Main::roll(&mut self.tally);
+    state statement_call(main: &mut Main) {
+        _ = Main::roll(&mut main.tally);
 
         transition {
-            _ -> assignment_call()
+            _ -> assignment_call(main)
         }
     }
 
-    state assignment_call(&mut self) {
-        let ok: bool = Main::roll(&mut self.tally);
+    state assignment_call(main: &mut Main) {
+        let ok: bool = Main::roll(&mut main.tally);
 
         transition {
-            _ -> report()
+            _ -> report(main)
         }
     }
 
-    state report(&mut self) {
+    state report(main: &mut Main) {
         transition {
-            self.tally.calls == 42 -> exit_correct()
-            self.tally.calls == 43 -> exit_one_doubled()
-            self.tally.calls == 44 -> exit_both_doubled()
-            self.tally.calls == 40 -> exit_lost()
-            _ -> exit_other()
+            main.tally.calls == 42 -> exit_correct(main)
+            main.tally.calls == 43 -> exit_one_doubled(main)
+            main.tally.calls == 44 -> exit_both_doubled(main)
+            main.tally.calls == 40 -> exit_lost(main)
+            _ -> exit_other(main)
         }
     }
 
-    state exit_correct(&mut self) { self.console.exit_process(70); }
-    state exit_one_doubled(&mut self) { self.console.exit_process(2); }
-    state exit_both_doubled(&mut self) { self.console.exit_process(3); }
-    state exit_lost(&mut self) { self.console.exit_process(10); }
-    state exit_other(&mut self) { self.console.exit_process(77); }
+    state exit_correct(main: &mut Main) { main.console.exit_process(70); }
+    state exit_one_doubled(main: &mut Main) { main.console.exit_process(2); }
+    state exit_both_doubled(main: &mut Main) { main.console.exit_process(3); }
+    state exit_lost(main: &mut Main) { main.console.exit_process(10); }
+    state exit_other(main: &mut Main) { main.console.exit_process(77); }
 }

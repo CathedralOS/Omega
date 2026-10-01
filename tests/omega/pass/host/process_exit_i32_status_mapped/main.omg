@@ -22,15 +22,15 @@ reaches
     ProcessExit
 {
     transition 120 == 120 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.exit.exit_process(-44);
+    state good(main: &mut Main) {
+        main.exit.exit_process(-44);
     }
 
-    state bad(&mut self) {
-        self.exit.exit_process(300);
+    state bad(main: &mut Main) {
+        main.exit.exit_process(300);
     }
 }

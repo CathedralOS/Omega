@@ -34,22 +34,22 @@ machine Main::main(&mut self) reaches Console {
     self.slots[15] = 63;
 
     transition self.slots[0] == 7 {
-        true -> check_last()
-        false -> bad()
+        true -> check_last(&mut self)
+        false -> bad(&mut self)
     }
 
-    state check_last(&mut self) {
-        transition self.slots[15] == 63 {
-            true -> good()
-            false -> bad()
+    state check_last(main: &mut Main) {
+        transition main.slots[15] == 63 {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
