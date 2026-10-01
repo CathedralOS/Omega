@@ -64,17 +64,19 @@ mod tests {
     fn predeclared_copies_still_order_later_provider_places() {
         let checked = crate::front_end::checked_program(
             "boundary trait Output { machine finish(); }
-             data Desc { tag: u32; }
-             data Main<'s> { output: &'s mut Output; bytes: [u8; 8]; }
-             machine Main::run(&mut self) reaches Output {
-                 let viewed: &Desc = &self.bytes[0] as &Desc;
-                 transition viewed.tag == 0 { true -> done() _ -> done() }
+             data Desc { tag: u32 [0..=9]; }
+             data Main<'s> { output: &'s mut Output; items: [Desc; 4]; }
+             machine Main::run(&mut self, index: u64) reaches Output {
+                 transition index < 4 { true -> check(index) _ -> done() }
+                 state check(&mut self, index: u64) {
+                     transition self.items[index].tag == 0 { true -> done() _ -> done() }
+                 }
                  state done(&mut self) { self.output.finish(); }
              }",
         );
         let lowered =
             crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Main::run"))
-                .expect("byte overlay and provider call lower");
+                .expect("bounded element field read and provider call lower");
         let mut module = lowered.semantic_module;
         let machine = module
             .machines
@@ -88,7 +90,7 @@ mod tests {
                         matches!(operation.kind, OperationKind::StructuralLeafCopy { .. })
                     })
             })
-            .expect("the static overlay retains a real copy producer");
+            .expect("the bounded element read hoists a real copy producer");
         let position = machine
             .structural_places
             .iter()
