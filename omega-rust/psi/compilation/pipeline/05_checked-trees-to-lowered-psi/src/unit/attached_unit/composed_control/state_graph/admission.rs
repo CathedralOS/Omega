@@ -5,7 +5,9 @@ use super::super::super::{
     CheckedScalarExpressionRole, Multiplicity, ScalarType, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
-use super::{CheckedComposedUnitControlMachinePlan, claims, edges, scalars, topology};
+use super::{
+    CheckedComposedUnitControlMachinePlan, claims, edges, receiver_aliases, scalars, topology,
+};
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
 
@@ -1021,7 +1023,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // Claim-bearing successor parameters permanently bind the entry
     // parameter's place; resolve replays each edge's checked Transfer event
     // before emission trusts that alias.
-    let claim_transport = claims::resolve(checked, plan, &live)?;
+    let mut claim_transport = claims::resolve(checked, plan, &live)?;
+    // A state parameter that only ever receives the entry's whole receiver
+    // keeps the invocation place, as a state's implicit `self` does.
+    receiver_aliases::alias_entry_receiver_loans(plan, &live, &mut claim_transport.aliased)?;
     let states = plan
         .states
         .iter()

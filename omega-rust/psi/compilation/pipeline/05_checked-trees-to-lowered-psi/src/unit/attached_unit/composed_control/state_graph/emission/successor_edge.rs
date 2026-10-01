@@ -339,30 +339,40 @@ impl StateGraphEmission<'_, '_> {
                     .get(target)
                     .and_then(|aliased| aliased.get(&(target_index as u32)))
                 {
-                    // A claim carried across the edge keeps the entry
-                    // parameter's place; the block does not rebind it, so
-                    // the transfer row must still name that exact
-                    // parameter and no edge argument is emitted. The entry
-                    // place is read from the machine parameters directly:
-                    // state_views drains as each target block seals, so a
-                    // backward edge sees an emptied roster there.
-                    let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                        index,
-                    } = transfer.source
-                    else {
-                        return unsupported(
-                            "Unit graph claim successor is not a whole parameter transfer",
-                        );
+                    // A claim or a forwarded whole receiver carried across
+                    // the edge keeps the entry parameter's place; the block
+                    // does not rebind it, so the transfer row must still
+                    // name that exact parameter and no edge argument is
+                    // emitted. The entry place is read from the machine
+                    // parameters directly: state_views drains as each target
+                    // block seals, so a backward edge sees an emptied roster
+                    // there. The ambient receiver is that entry place itself.
+                    let entry_place = self
+                        .parameters
+                        .get(*root as usize)
+                        .map(|parameter| parameter.place);
+                    let source_place = match transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            index,
+                        } => state_parameters
+                            .get(index as usize)
+                            .map(|parameter| parameter.place),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver
+                            if self
+                                .parameters
+                                .get(*root as usize)
+                                .is_some_and(|parameter| parameter.is_self) =>
+                        {
+                            entry_place
+                        }
+                        _ => {
+                            return unsupported(
+                                "Unit graph aliased successor is not a whole parameter transfer",
+                            );
+                        }
                     };
-                    if state_parameters
-                        .get(index as usize)
-                        .map(|parameter| parameter.place)
-                        != self
-                            .parameters
-                            .get(*root as usize)
-                            .map(|parameter| parameter.place)
-                    {
-                        return unsupported("Unit graph claim successor lost its entry place");
+                    if source_place != entry_place {
+                        return unsupported("Unit graph aliased successor lost its entry place");
                     }
                     continue;
                 }
