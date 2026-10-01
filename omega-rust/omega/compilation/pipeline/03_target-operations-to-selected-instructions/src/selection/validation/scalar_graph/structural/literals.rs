@@ -1,4 +1,4 @@
-//! Reconstruct literal stores and descriptor homes from the retained raw payload.
+//! Reconstruct a literal's image address and descriptor home from the retained payload.
 use super::local_storage::{address, store};
 use super::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId, SelectedInstructionKind,
@@ -34,38 +34,32 @@ pub(super) fn establish(
     {
         return Err(replay.invalid());
     }
-    let length = u32::try_from(bytes.len()).map_err(|_| replay.invalid())?;
-    let padded = length.checked_add(7).ok_or_else(|| replay.invalid())? & !7;
-    let byte_size = padded.checked_add(16).ok_or_else(|| replay.invalid())?;
+    let length = u64::try_from(bytes.len()).map_err(|_| replay.invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: destination.id,
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size,
+        byte_size: 16,
         alignment: 8,
     });
-    for (chunk_index, chunk) in bytes.chunks(8).enumerate() {
-        let offset = u32::try_from(chunk_index)
-            .ok()
-            .and_then(|value| value.checked_mul(8))
-            .and_then(|value| value.checked_add(16))
-            .ok_or_else(|| replay.invalid())?;
-        let mut word = [0_u8; 8];
-        word[..chunk.len()].copy_from_slice(chunk);
-        let value = constant(
-            replay,
-            row,
-            destination.id,
-            offset,
-            u64::from_le_bytes(word),
-        )?;
-        store(replay, row, slot, offset, value)?;
-    }
-    let backing = address(replay, row, slot, 16, length, false)?;
+    let backing = result(replay, destination.id, 16)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ByteLiteralImageAddress {
+            operation: row.operation,
+            place: destination.id,
+        },
+        replay
+            .constraints
+            .keys
+            .byte_literal_image_address
+            .ok_or_else(|| replay.invalid())?,
+        &[backing],
+        &provenance(row),
+    )?;
     store(replay, row, slot, 0, backing)?;
-    let length = constant(replay, row, destination.id, 8, u64::from(length))?;
+    let length = constant(replay, row, destination.id, 8, length)?;
     store(replay, row, slot, 8, length)?;
     let descriptor = address(replay, row, slot, 0, 16, true)?;
     replay.transport.pointers.push((destination.id, descriptor));

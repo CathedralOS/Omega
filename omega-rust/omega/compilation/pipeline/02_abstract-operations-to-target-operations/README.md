@@ -115,17 +115,17 @@ destinations. Allocation owns the actual snapshots and frame locations.
 
 A shared view field holds a two-word descriptor (backing pointer, then extent)
 in its record. `StructuralByteViewFieldStore` replaces that descriptor with an
-established literal's pointer and length. Terminal admits the store because a
-literal denotes image storage, but selection currently materializes literal
-bytes in a slot of the establishing activation's frame. Lowering therefore
-admits the store only in the program entry function writing one of its own
-structural parameters directly, so the frame outlives every reader of the
-field; any other placement, including one through a `Referent` crossing,
-fails closed with `UnsupportedViewFieldStoreLifetime`, and translation
-validation replays the same gate. Placing literal backing in image read-only
-data removes this limit. A stored view field reads its extent from the second
-word, and lends its own descriptor, addressed from the root, to a shared view
-formal; a zero-filled shared view field is the empty view.
+established literal's pointer and length. A literal denotes immutable image
+storage: selection materializes its backing pointer with
+`ByteLiteralImageAddress`, a PC-relative address (`adrp`/`add` on AArch64,
+`lea [rip]` on x86-64) whose field object construction binds to the literal's
+octets in the image's read-only byte-literal pool, and keeps only the two-word
+descriptor in the establishing frame. The stored view therefore outlives every
+root, so lowering admits the store in any activation and through a `Referent`
+crossing, exactly where Terminal admits it. A stored view field reads its
+extent from the second word, and lends its own descriptor, addressed from the
+root, to a shared view formal; a zero-filled shared view field is the empty
+view.
 
 Plain record construction uses the existing aggregate result home. Each field
 retains its declaration identity and evaluated scalar operand or completed owned

@@ -21,11 +21,6 @@ pub use terminal_psi_to_abstract_operations::{
 pub enum LoweringError {
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
-    /// A literal's native backing is frame storage of its establishing
-    /// activation, not image storage. A view stored into a field outlives
-    /// that frame unless the store runs in the program entry's activation
-    /// and writes the entry's own provisioned parameter.
-    UnsupportedViewFieldStoreLifetime(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     /// Parameter-rooted path qualifications are preserved through the
     /// prephysical optimizer boundary but have no target-operation carrier yet.

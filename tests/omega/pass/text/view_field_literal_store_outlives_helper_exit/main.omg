@@ -1,0 +1,62 @@
+// RUN CANARY (exit 70). A literal stored into a shared view field by a
+// non-entry machine outlives that machine's activation: the descriptor names
+// immutable image storage, not the helper's frame. `name_door` replaces
+// `self.name` through its own receiver and `relabel` replaces `room.label`
+// through a `&mut Room` reference. `scribble` then runs in the same stack
+// region with a literal of its own before the entry reads both fields'
+// lengths and bytes. 71 = a wrong extent, 72 = wrong bytes.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Room {
+    label: &[u8];
+}
+
+data Main {
+    console: Binding<Console>;
+    name: &[u8];
+    room: Room;
+}
+
+machine Main::name_door(&mut self) {
+    self.name = "Door";
+}
+
+machine Main::relabel(&mut self, room: &mut Room) {
+    room.label = "Gate keeper";
+}
+
+machine Main::scribble(&mut self) -> u64 {
+    let noise: &[u8] = "XXXXXXXXXXXXXXXXXXXXXXXX";
+    (noise.len)
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.name_door();
+    self.relabel(&mut self.room);
+    let noise: u64 = self.scribble();
+
+    transition self.name.len == 4 && self.room.label.len == 11 && noise == 24 {
+        true -> contents()
+        false -> wrong_extent()
+    }
+
+    state contents(&mut self) {
+        transition self.name == "Door" && self.room.label == "Gate keeper" {
+            true -> good()
+            false -> wrong_bytes()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state wrong_extent(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state wrong_bytes(&mut self) {
+        self.console.exit_process(72);
+    }
+}

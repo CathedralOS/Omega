@@ -75,17 +75,13 @@ pub(super) fn location(
         {
             16
         }
+        // A literal's octets live in read-only image storage; its activation
+        // holds only the two-word descriptor.
         Some(abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
             place,
             structural_type,
-            bytes,
             ..
-        }) if place.id == argument.place && structural_type.id == argument.structural_type => {
-            let length = u32::try_from(bytes.len()).map_err(|_| Error::Overflow)?;
-            (length.checked_add(7).ok_or(Error::Overflow)? & !7)
-                .checked_add(16)
-                .ok_or(Error::Overflow)?
-        }
+        }) if place.id == argument.place && structural_type.id == argument.structural_type => 16,
         _ => return Err(invalid()),
     };
     if producers.next().is_some() {

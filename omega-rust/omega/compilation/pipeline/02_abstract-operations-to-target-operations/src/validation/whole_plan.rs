@@ -39,46 +39,6 @@ pub fn validate_abstract_to_target_translation(
         );
     }
 
-    // Independent replay of the frame-lifetime rule: a stored literal view's
-    // native backing is its establishing frame, which only the entry
-    // activation's own provisioned parameters cannot outlive.
-    if let Some(operation) = source
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function
-                .operations
-                .iter()
-                .filter_map(move |operation| match operation {
-                    AbstractOperation::StructuralByteViewFieldStore {
-                        psi_operation,
-                        destination,
-                        path,
-                        ..
-                    } if function.machine != source.entry
-                        || matches!(
-                            path.first(),
-                            Some(terminal_psi::StructuralPathSegment::Referent)
-                        )
-                        || !function
-                            .structural_parameters
-                            .iter()
-                            .any(|parameter| parameter.place == *destination) =>
-                    {
-                        Some(*psi_operation)
-                    }
-                    _ => None,
-                })
-        })
-        .min()
-    {
-        return Err(
-            AbstractToTargetTranslationValidationError::UnsupportedViewFieldStoreLifetime(
-                operation,
-            ),
-        );
-    }
-
     let canonical_structural_types = if source
         .structural_types
         .windows(2)
