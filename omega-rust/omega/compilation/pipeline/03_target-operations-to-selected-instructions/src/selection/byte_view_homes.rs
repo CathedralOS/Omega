@@ -108,23 +108,43 @@ pub(super) fn view_backing_roots(
 /// bound un-sliced parameter or literal contributes itself with `extent`, the
 /// checked length the access's operand already carries. A bound argument that
 /// is itself a block parameter contributes the roots its own incoming edges
-/// bind, enumerated transitively — a cycle back to a parameter already under
-/// enumeration adds no roots, since its static backing arrives through other
-/// edges. Anything else — a projected binding path or an incoming edge that
-/// binds nothing — leaves the reach unjustified.
+/// bind, enumerated transitively. Anything else — a projected binding path or
+/// an incoming edge that binds nothing — leaves the reach unjustified.
+///
+/// The backing of `parameter` is the union of the static roots bound to every
+/// block parameter it is transitively bound from, so each such parameter is
+/// enumerated once: one reached again, along a cycle or a second path,
+/// already contributed its roots to this union. A parameter inside a loop may
+/// be bound solely by its cycle predecessors; only the union as a whole must
+/// name a root. Enumerating once costs one pass per bound parameter, where
+/// re-walking every simple path is exponential in a state graph's branches.
 fn bound_view_roots(
     source: &LegalizedScalarFunction,
     views: &[ByteViewHomes],
     parameter: PlaceId,
     extent: ValueId,
-    visiting: &mut BTreeSet<PlaceId>,
+    explored: &mut BTreeSet<PlaceId>,
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
-    if !visiting.insert(parameter) {
+    let roots = transitive_view_roots(source, views, parameter, extent, explored)?;
+    if roots.is_empty() {
+        return Err(SelectedInstructionError::custody());
+    }
+    Ok(roots)
+}
+
+/// The roots `parameter` adds to an enumeration already in progress: none
+/// when an earlier step of this enumeration already explored it.
+fn transitive_view_roots(
+    source: &LegalizedScalarFunction,
+    views: &[ByteViewHomes],
+    parameter: PlaceId,
+    extent: ValueId,
+    explored: &mut BTreeSet<PlaceId>,
+) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
+    if !explored.insert(parameter) {
         return Ok(Vec::new());
     }
-    let roots = bound_view_roots_recurse(source, views, parameter, extent, visiting);
-    visiting.remove(&parameter);
-    roots
+    bound_view_roots_recurse(source, views, parameter, extent, explored)
 }
 
 fn bound_view_roots_recurse(
@@ -132,7 +152,7 @@ fn bound_view_roots_recurse(
     views: &[ByteViewHomes],
     parameter: PlaceId,
     extent: ValueId,
-    visiting: &mut BTreeSet<PlaceId>,
+    explored: &mut BTreeSet<PlaceId>,
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
     let Some(contract) = source.structural.as_ref() else {
         return Err(SelectedInstructionError::custody());
@@ -148,7 +168,7 @@ fn bound_view_roots_recurse(
         return Err(SelectedInstructionError::custody());
     };
     let bound_root = |place: PlaceId,
-                      visiting: &mut BTreeSet<PlaceId>|
+                      explored: &mut BTreeSet<PlaceId>|
      -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
         if let Some(bound_view) = views.iter().find(|view| view.place == place) {
             // A bound subslice contributes its own root bound: its bytes sit at
@@ -177,7 +197,7 @@ fn bound_view_roots_recurse(
             // A bound place whose backing is itself edge-decided contributes
             // the roots bound to it transitively.
             Some(StructuralPlaceKind::BlockParameter { .. }) => {
-                bound_view_roots(source, views, place, extent, visiting)
+                transitive_view_roots(source, views, place, extent, explored)
             }
             // An undeclared or otherwise dynamic place keeps the reach
             // unjustified.
@@ -205,7 +225,7 @@ fn bound_view_roots_recurse(
                 }
                 if binding.argument.path.is_empty() {
                     bound = true;
-                    for candidate in bound_root(binding.argument.place, visiting)? {
+                    for candidate in bound_root(binding.argument.place, explored)? {
                         if !roots.contains(&candidate) {
                             roots.push(candidate);
                         }
@@ -221,7 +241,7 @@ fn bound_view_roots_recurse(
             }
         }
     }
-    if bound_edges == 0 || unbound_edges != 0 || roots.is_empty() {
+    if bound_edges == 0 || unbound_edges != 0 {
         return Err(SelectedInstructionError::custody());
     }
     Ok(roots)

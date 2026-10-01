@@ -764,6 +764,7 @@ pass/slices/requires_field_count_alias_index_compile checked 186ms
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1029ms @c9c108ecb4ac+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
 pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
+pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
