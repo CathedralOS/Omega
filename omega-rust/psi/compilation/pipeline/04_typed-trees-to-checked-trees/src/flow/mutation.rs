@@ -32,6 +32,7 @@ pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
 pub(crate) use summary::StateMutationSummaryCache;
+pub(in crate::flow) use summary::instantiate_call_relative_places;
 use summary::instantiate_known_call_mutation_summary_places;
 
 #[derive(Clone, Copy)]

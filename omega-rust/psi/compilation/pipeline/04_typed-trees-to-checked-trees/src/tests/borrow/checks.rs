@@ -5,6 +5,7 @@ mod mutable_overlaps;
 mod persistent_storage;
 mod premised_disjoint_writes;
 mod receiver_argument_loans;
+mod receiver_argument_reads;
 mod self_operand_loans;
 mod view_returns;
 

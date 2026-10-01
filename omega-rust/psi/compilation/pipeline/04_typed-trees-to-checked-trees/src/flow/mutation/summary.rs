@@ -490,7 +490,7 @@ fn collect_state_mutation_summary_places(
     Some(writes)
 }
 
-fn instantiate_call_relative_places(
+pub(in crate::flow) fn instantiate_call_relative_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,

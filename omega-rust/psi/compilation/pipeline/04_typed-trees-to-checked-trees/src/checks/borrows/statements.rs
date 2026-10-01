@@ -5,7 +5,9 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 
-use crate::flow::{StateMutationSummaryCache, call_write_accesses, statement_mutated_place};
+use crate::flow::{
+    StateMutationSummaryCache, StateReceiverReadCache, call_write_accesses, statement_mutated_place,
+};
 use crate::labels::symbol_name;
 use crate::semantic::calls::find_state_in_machine;
 
@@ -55,6 +57,7 @@ pub(super) fn check_statement_borrows<'p>(
     retained_mutation_certificates: &[CheckedBorrowMutationCertificate],
     retained_mutation_certificates_consumed: &mut [bool],
     state_mutation_summaries: &StateMutationSummaryCache,
+    receiver_reads: &StateReceiverReadCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
@@ -384,6 +387,7 @@ pub(super) fn check_statement_borrows<'p>(
         stated_premises,
         diagnostics,
         state_mutation_summaries,
+        receiver_reads,
         call_frames,
         bound_lookup,
     );
@@ -416,6 +420,7 @@ fn check_call_mutation_borrows<'p>(
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     summary_cache: &StateMutationSummaryCache,
+    receiver_reads: &StateReceiverReadCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
@@ -444,14 +449,18 @@ fn check_call_mutation_borrows<'p>(
         let stated_premises = available_premises.as_slice();
 
         // The call's own retained argument loans are not live at its entry,
-        // yet the callee writes through a whole receiver while holding them.
-        super::calls::check_receiver_writes_against_argument_loans(
+        // yet the callee writes and reads through a whole receiver while
+        // holding them.
+        super::calls::check_receiver_footprint_against_argument_loans(
             program,
             facts,
             state_flow,
             borrow_call,
             stated_premises,
-            summary_cache,
+            super::calls::ReceiverSummaries {
+                writes: summary_cache,
+                reads: receiver_reads,
+            },
             diagnostics,
             bound_lookup,
         );

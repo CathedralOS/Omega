@@ -3681,15 +3681,19 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   whose operands alias a mutable path the same call holds, under
   [ownership](wiki/spec/language/ownership.md) ("shared children freeze the
   parent's mutation; exclusive children suspend the corresponding parent
-  branch") and left-to-right argument evaluation. dd8524945d rejects a whole
-  `&mut` receiver's summarized writes under the call's own retained argument
-  loans, and whole `self` operands are now judged against `self.field`
-  places (`fail/borrows/bare_self_mut_operand_beside_self_view`). One shape
-  is still accepted on main and is unsound: `main.read_after(&mut
-  main.count)` whose callee writes through the argument and then reads
-  `self.count` (mutation summaries carry no receiver read footprint). Keep
-  copies evaluated before the call accepted (`self.set(self.count + 1)`),
-  and disjoint fields and subslices.
+  branch") and left-to-right argument evaluation. Whole `&mut` receivers are
+  judged by their write and read footprints (`flow::receiver_reads`,
+  `checks/borrows/calls/receiver/footprint.rs`) against the call's retained
+  argument loans, and whole `self` operands against `self.field` places
+  (`fail/borrows/{whole_mut_receiver_read_under_argument_loan,bare_self_mut_operand_beside_self_view}`).
+  One shape is still accepted on main and is unsound: a named jump that
+  lends an exclusive child of `self` to a successor taking `&mut self` or
+  `&self`, such as `transition { _ -> next(&mut self.count) }` into `state
+  next(&mut self, counter: &mut u64)` that reads or writes `self.count`.
+  Local jumps record `has_receiver` false, so neither
+  `check_receiver_conflicts` nor the footprint check sees the implicit
+  receiver. Keep copies evaluated before the call accepted
+  (`self.set(self.count + 1)`), and disjoint fields and subslices.
   Acceptance: that shape rejects with a fail fixture; the corpus check leg
   and every sample's `--check` stay otherwise unchanged.
 
