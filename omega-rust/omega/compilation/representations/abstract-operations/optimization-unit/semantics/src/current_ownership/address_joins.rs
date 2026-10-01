@@ -4,17 +4,18 @@
 //! only its referent's address, so the lending root must stay live, unmoved and
 //! unwritten while the joined view can still be observed. The origins of one
 //! join are the roots of every edge argument that binds it, transitively
-//! through earlier joins. Its scope is every block its own block dominates:
-//! the joined place is nameable nowhere else, so this covers the loan's whole
-//! live range.
+//! through earlier joins. Within the dominated scope, scalar observations and
+//! exact edge forwarding delimit the live loan: a later state which retains
+//! neither the join nor a forwarded descendant no longer pins that root.
 //!
 //! Inside that scope no operation may move, release, write or exclusively
 //! borrow a pinned root, and no edge may move or discard one. Shared reads
 //! and further shared loans stay legal, and a return ends every loan with the
-//! activation, so return cleanup may dispose the roots. Pinning the whole
-//! dominated region rather than the view's last use is deliberately
-//! conservative: a program that moves an origin after the view's final use
-//! inside that region is rejected here even though it is sound.
+//! activation, so return cleanup may dispose the roots. Pins cover whole
+//! blocks, and backward reachability includes backedges, not just dominance.
+//! Uses which may retain an untracked alias (including calls and descriptor
+//! construction) keep the original conservative whole-scope pin. Releasing
+//! those loans requires their producer's alias relation, not a last-use guess.
 //!
 //! A mutable join over a local home additionally suspends observations and
 //! copies of that original owner (including stale descriptor aliases). The
@@ -136,8 +137,19 @@ impl AddressJoinPins {
         }
         let dominators =
             crate::candidates::global_value_numbering::independent_reachable_dominators(function);
+        let mut predecessors = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
+        for block in &function.blocks {
+            for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+                predecessors
+                    .entry(edge.target)
+                    .or_default()
+                    .insert(block.id);
+            }
+        }
         let mut pins = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
         for (join, owner) in &joins {
+            let live_blocks =
+                shared_join_live_blocks(function, *join, *owner, &origins, &predecessors);
             let roots = origins
                 .get(join)
                 .into_iter()
@@ -146,7 +158,9 @@ impl AddressJoinPins {
                 .copied()
                 .collect::<Vec<_>>();
             for (block, dominating) in &dominators {
-                if block == owner || dominating.contains(owner) {
+                if (block == owner || dominating.contains(owner))
+                    && live_blocks.as_ref().is_none_or(|live| live.contains(block))
+                {
                     pins.entry(*block)
                         .or_default()
                         .extend(roots.iter().copied());
@@ -533,6 +547,90 @@ impl AddressJoinPins {
             None => Ok(()),
         }
     }
+}
+
+/// Prove a shared join's block liveness only when every use either observes a
+/// scalar or forwards the exact loan into another address join. Unknown escape
+/// effects retain the old whole-scope pin. Root reads are deliberately absent:
+/// after a loan ends, reading or writing its owner does not revive that loan.
+fn shared_join_live_blocks(
+    function: &PsiOptimizationFunction,
+    join: PlaceId,
+    owner: BlockId,
+    origins: &BTreeMap<PlaceId, BTreeSet<PlaceId>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Option<BTreeSet<BlockId>> {
+    let mut names = BTreeSet::from([join]);
+    names.extend(
+        origins
+            .iter()
+            .filter_map(|(name, roots)| roots.contains(&join).then_some(*name)),
+    );
+    let mut live = BTreeSet::from([owner]);
+    for block in &function.blocks {
+        // Formation itself keeps the loan live in its receiving block, even
+        // when an optimizer has removed every observation in that block.
+        if block
+            .structural_parameters
+            .iter()
+            .any(|parameter| names.contains(&parameter.place))
+        {
+            live.insert(block.id);
+        }
+        for node in &block.nodes {
+            let inputs =
+                crate::unit_validation::function_structure::operation_place_inputs(&node.operation);
+            if !inputs.iter().any(|place| names.contains(place)) {
+                continue;
+            }
+            let cannot_retain_alias = match &node.operation {
+                O::PrimitiveScalarRead { .. }
+                | O::StructuralScalarFieldRead { .. }
+                | O::StructuralCaseMembership { .. }
+                | O::ByteSequenceLength { .. }
+                | O::ByteSequenceRead { .. }
+                | O::StructuralByteSequenceFieldLength { .. }
+                | O::StructuralByteSequenceFieldRead { .. } => true,
+                O::Jump { .. } | O::Conditional { .. } => {
+                    inputs
+                        .iter()
+                        .filter(|place| names.contains(place))
+                        .all(|place| {
+                            node.successors.iter().any(|edge| {
+                                edge.structural_bindings.iter().any(|binding| {
+                                    binding.argument.place == *place
+                                        && binding.argument.access == StructuralAccess::SharedBorrow
+                                        && names.contains(&binding.parameter)
+                                })
+                            })
+                        })
+                        && node
+                            .successors
+                            .iter()
+                            .flat_map(|edge| &edge.structural_bindings)
+                            .filter(|binding| names.contains(&binding.argument.place))
+                            .all(|binding| {
+                                binding.argument.access == StructuralAccess::SharedBorrow
+                                    && names.contains(&binding.parameter)
+                            })
+                }
+                _ => false,
+            };
+            if !cannot_retain_alias {
+                return None;
+            }
+            live.insert(block.id);
+        }
+    }
+    let mut pending = live.iter().copied().collect::<Vec<_>>();
+    while let Some(block) = pending.pop() {
+        for predecessor in predecessors.get(&block).into_iter().flatten() {
+            if live.insert(*predecessor) {
+                pending.push(*predecessor);
+            }
+        }
+    }
+    Some(live)
 }
 
 /// Every place an operation writes or lends exclusively. Moves are supplied

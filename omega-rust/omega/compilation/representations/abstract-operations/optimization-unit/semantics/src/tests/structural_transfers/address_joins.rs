@@ -218,3 +218,91 @@ fn an_exclusive_home_is_discarded_only_where_its_loan_chain_ends() {
     refresh_node_derivatives(&mut premature, 0, lend_block, lend_node);
     assert!(validate_psi_optimization_unit(&premature).is_err());
 }
+
+const RELEASED_LOAN_SOURCE: &str = "data Counter { count: u64; }
+    machine Counter::update(&mut self, bytes: &[u8]) {
+        transition { _ -> snapshot(&self.count, bytes) }
+        state snapshot(&mut self, count: &u64, bytes: &[u8]) {
+            let saved: u64 = count;
+            transition { _ -> writeback(saved, bytes) }
+        }
+        state writeback(&mut self, saved: u64, bytes: &[u8]) {
+            self.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
+        }
+    }";
+
+#[test]
+fn a_dropped_address_join_releases_its_root_while_an_unrelated_view_is_forwarded() {
+    let candidate = source_machine_unit(RELEASED_LOAN_SOURCE, "Counter::update", true);
+    validate_psi_optimization_unit(&candidate).unwrap();
+}
+
+#[test]
+fn a_join_used_after_its_apparent_release_keeps_the_root_pinned() {
+    let mut candidate = source_machine_unit(RELEASED_LOAN_SOURCE, "Counter::update", true);
+    let read = candidate.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::PrimitiveScalarRead { .. } => Some(node.operation.clone()),
+            _ => None,
+        })
+        .expect("the snapshot reads the joined count");
+    let (block, node) = candidate.functions[0]
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .nodes
+                .iter()
+                .enumerate()
+                .find_map(|(node_index, node)| {
+                    matches!(node.operation, AbstractOperation::ByteSequenceLength { .. })
+                        .then_some((block_index, node_index))
+                })
+        })
+        .expect("writeback measures the independent bytes");
+    let AbstractOperation::ByteSequenceLength { result, .. } =
+        &candidate.functions[0].blocks[block].nodes[node].operation
+    else {
+        unreachable!()
+    };
+    let result = result.clone();
+    let mut stale_read = read;
+    let AbstractOperation::PrimitiveScalarRead {
+        result: read_result,
+        ..
+    } = &mut stale_read
+    else {
+        unreachable!()
+    };
+    *read_result = result;
+    candidate.functions[0].blocks[block].nodes[node].operation = stale_read;
+    refresh_node_derivatives(&mut candidate, 0, block, node);
+    assert!(matches!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+    ));
+}
+
+#[test]
+fn address_join_forwarding_through_a_backedge_preserves_then_releases_the_loan() {
+    let source = "data Counter { count: u64; }
+        machine Counter::update(&mut self, bytes: &[u8], repeat: bool) {
+            transition { _ -> snapshot(&self.count, bytes, repeat) }
+            state snapshot(&mut self, count: &u64, bytes: &[u8], repeat: bool) {
+                let saved: u64 = count;
+                transition repeat {
+                    true -> snapshot(count, bytes, false)
+                    false -> writeback(saved, bytes)
+                }
+            }
+            state writeback(&mut self, saved: u64, bytes: &[u8]) {
+                self.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
+            }
+        }";
+    let candidate = source_machine_unit(source, "Counter::update", true);
+    validate_psi_optimization_unit(&candidate).unwrap();
+}

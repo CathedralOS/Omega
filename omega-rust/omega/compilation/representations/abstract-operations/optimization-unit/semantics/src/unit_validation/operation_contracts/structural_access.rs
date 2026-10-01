@@ -293,13 +293,13 @@ pub(crate) fn structural_arguments_match(
         // retains its owned backing while the call sees a temporary view.
         // The borrowed declaration below is only the geometry presentation;
         // actual access, availability and overlap are checked independently.
-        let array_result_loan = argument.path.is_empty()
-            && matches!(
-                argument.access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
-            )
-            && source.access == terminal_psi::StructuralAccess::Owned
+        // Source admission is independent of projection: the shared window
+        // relation below checks the complete path and bounds against this home.
+        let array_result_loan = matches!(
+            argument.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        ) && source.access == terminal_psi::StructuralAccess::Owned
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.is_unqualified()
             && source
