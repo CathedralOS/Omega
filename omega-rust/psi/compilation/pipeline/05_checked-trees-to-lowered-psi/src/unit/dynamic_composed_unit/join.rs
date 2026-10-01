@@ -43,7 +43,7 @@ use crate::unit::dynamic_composed_unit::source_lowering::{
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
 use crate::unit::dynamic_composed_unit::structural_types::{
-    lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
+    LOAN_MULTIPLICITY, lower_dynamic_structural_types_for_source,
 };
 use crate::unit::emit_direct_expression;
 use checked_trees::{
@@ -99,7 +99,7 @@ pub(super) fn lower<Call: DynamicCall>(
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
-        multiplicity: terminal_structural_multiplicity(first_view.caller_multiplicity),
+        multiplicity: LOAN_MULTIPLICITY,
         access: caller_access,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),

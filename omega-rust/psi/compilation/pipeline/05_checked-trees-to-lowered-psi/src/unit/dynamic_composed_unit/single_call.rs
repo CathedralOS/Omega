@@ -38,7 +38,7 @@ use crate::unit::dynamic_composed_unit::store_operations::{
     empty_terminal_contract, lower_caller_store_operations,
 };
 use crate::unit::dynamic_composed_unit::structural_types::{
-    lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
+    LOAN_MULTIPLICITY, lower_dynamic_structural_types_for_source,
 };
 
 /// Lower one checked call: validate it under its lane, lower the caller's
@@ -66,7 +66,7 @@ pub(super) fn lower<Call: DynamicCall>(
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
-        multiplicity: terminal_structural_multiplicity(plan.caller_multiplicity),
+        multiplicity: LOAN_MULTIPLICITY,
         access: match plan.caller_parameter_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,

@@ -10,7 +10,7 @@ use crate::unit::dynamic_composed_unit::dynamic_lanes::{
 use crate::unit::dynamic_composed_unit::store_operations::{
     empty_terminal_contract, lower_realization_operations,
 };
-use crate::unit::dynamic_composed_unit::structural_types::terminal_projected_source_multiplicity_for;
+use crate::unit::dynamic_composed_unit::structural_types::LOAN_MULTIPLICITY;
 use crate::unit::{
     CheckedTrees, LoweringError, allocate_dense, block_id, edge_id, evidence_lowering,
     lower_installation_machine_service_ceiling, machine_id, place_id, terminal_scalar_type,
@@ -197,7 +197,7 @@ pub(crate) fn materialize_dynamic_realizations(
                 position: 0,
                 is_self: true,
                 structural_type: source_type,
-                multiplicity: terminal_projected_source_multiplicity_for(plan.caller_multiplicity),
+                multiplicity: LOAN_MULTIPLICITY,
                 access: match plan.source_access {
                     CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
                     CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,

@@ -4,7 +4,7 @@ use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
     DynamicCallView, DynamicLoweringLane, ForwardedHelperIds,
 };
-use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
+use crate::unit::dynamic_composed_unit::structural_types::LOAN_MULTIPLICITY;
 use crate::unit::{LoweringError, lookup_type_id, lower_structural_path, unsupported};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use terminal_psi::{
@@ -36,7 +36,7 @@ pub(crate) fn validate_and_lower_dynamic_source(
                 _ => return unsupported("direct dynamic caller self access is unsupported"),
             }
         || !caller_self.is_self
-        || caller_self.multiplicity != terminal_structural_multiplicity(plan.caller_multiplicity)
+        || caller_self.multiplicity != LOAN_MULTIPLICITY
         || !matches!(
             source_access,
             CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
