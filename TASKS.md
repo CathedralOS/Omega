@@ -1235,25 +1235,26 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `a6e363c318`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `e0052d8c2f`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
   `Game::run_game_loop` → `GameView::render_room` →
   `RoomFormatter::write_room_info` → `RoomLookup::find_room` stops at
-  `state graph: prefix initializers: bound expression` (state 1, statement 0).
-  The missing initializer is `rooms[index].cell == cell`, with `rooms: &[Room]`.
-  Stage 04 `values/scalar/boolean_lowering.rs`
-  has no executable nominal-sum equality route; its contract-only
-  `PayloadlessSumEqual` is not an executable scalar computation. Compose exact
-  payload-free sum equality from the existing case observations, retaining
-  both operand identities and the complete nominal case roster. Extend stage 05
-  case-source preparation to element views and parameter selectors, preserving
-  a dominating live-length observation and `index < rooms.len()` evidence;
-  `index < 16` alone is not an interchangeable bound.
-  Initialization's composed case-field stores now reuse ordinary emission and
-  move/restore custody with independent authored-source replay. Six focused
-  case-store tests pass; the dependency fixture
-  `structural/composed_case_field_store_exit` executes with authored exit 70,
-  as does the existing `structs/case_field_type_store_shapes` fixture.
+  `state graph: terminator: guarded jump successors: roster` (state 1).
+  The indexed enum equality initializer now lowers with exact operand/case
+  replay and a dominating slice-length observation. The next missing edge is
+  the ordinary Unit completion in `find_room_at`'s three-arm tail: found room,
+  recursive search, or `_ -> {}`. Stage 04
+  `execution/terminal_scalar/mod.rs::checked_branch_destination` drops an
+  ordinary Terminal destination from the shared guarded roster; composed
+  `terminal_unit/state_graph/terminator.rs` and stage 05
+  `unit/attached_unit/composed_control/state_graph/admission.rs` also need
+  the existing Unit return arm joined to its exact source ordinal and cleanup.
+  Preserve scalar-result rejection, branch order, return discards and ordinary
+  ownership/proof checks; no new IR or weakened bounds are needed. Six enum
+  producer/replay tests, five case-observation controls and 13 primitive-local
+  integration tests pass. The enum equality, computed case-subject and composed
+  case-store native fixtures each execute with authored exit 70 after rebasing.
+  This dependency evidence does not close the dungeon acceptance above.
   Preserve the established local byte-copy, write-frame, stale-view,
   consumed/partial-owner and suspended-root controls. These dependency results
   do not close the dungeon application acceptance.
