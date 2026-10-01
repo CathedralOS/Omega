@@ -765,6 +765,10 @@ mod tests {
             })
             .expect("owned byte concatenation trust node");
         assert_eq!(concatenation.kind(), TrustDependencyKind::DenotationSchema);
+        assert!(graph.nodes().iter().any(|node| {
+            node.identity() == "schema:operation:float-result-policy"
+                && node.kind() == TrustDependencyKind::DenotationSchema
+        }));
         assert_eq!(
             concatenation.status(),
             TrustDependencyStatus::TrustedJudgment
