@@ -1,0 +1,52 @@
+// A guarantee over a `Wrapping` field keeps the field's own arithmetic:
+// `self.remaining - 1` subtracts modulo 2^32 in the contract exactly as it
+// does in the body. The exit proof of `remaining - 1 < 8` therefore needs
+// the no-wrap fact `1 <= remaining` before it may map `remaining < 9` down
+// by one; `remaining = start + 1` with `start < 8` supplies both.
+//
+//   arm(4)  remaining 5   ensures remaining > 0; remaining - 1 < 8
+//   tick    remaining 4   requires both facts, returns the new count
+//
+// Exits 70 only when `tick` returns 4.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Countdown {
+    remaining: u32 in Wrapping;
+}
+
+machine Countdown::arm(&mut self, start: u32 in Wrapping)
+requires
+    start < 8
+ensures
+    self.remaining > 0;
+    self.remaining - 1 < 8
+{
+    self.remaining = start + 1;
+}
+
+machine Countdown::tick(&mut self) -> u32 in Wrapping
+requires
+    self.remaining > 0;
+    self.remaining - 1 < 8
+{
+    self.remaining = self.remaining - 1;
+    self.remaining
+}
+
+data Main {
+    console: Binding<Console>;
+    timer: Countdown;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.timer.arm(4);
+    let left: u32 in Wrapping = self.timer.tick();
+    transition left == 4 {
+        true -> done()
+        _ -> failed()
+    }
+    state done(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

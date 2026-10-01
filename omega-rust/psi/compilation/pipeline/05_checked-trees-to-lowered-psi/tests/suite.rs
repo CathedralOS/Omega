@@ -79,6 +79,7 @@ mod partial_affine_result_source;
 mod partial_affine_source;
 mod payloadless_case_return_source;
 mod policy_cast_conversions_source;
+mod post_state_guarantee_clauses;
 mod primitive_local_borrow_custody;
 mod primitive_local_unit_calls;
 mod primitive_store_parameter_roots;

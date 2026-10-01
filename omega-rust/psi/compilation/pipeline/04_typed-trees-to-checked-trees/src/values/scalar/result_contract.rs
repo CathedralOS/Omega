@@ -6,7 +6,7 @@ use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::contract_entry;
 use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::scalar_lowering::lower_return_expression;
+use crate::values::scalar::scalar_lowering::{construct_integer_binary, lower_return_expression};
 use crate::values::scalar_expression_type;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
@@ -141,11 +141,12 @@ impl ContractPredicates<'_, '_> {
     }
 
     /// One comparison operand as a typed scalar term: an exact entry/result
-    /// subject, or exact integer arithmetic (`+`, `-`, `*` with builtin
-    /// meaning) over such subjects and contextual integer literals. The
-    /// carrier must be an exact-domain integer; a wrapping/saturating/
-    /// trapping operand or any other spelling stays outside the closed
-    /// language and lowers to `None`.
+    /// subject, or integer arithmetic (`+`, `-`, `*` with builtin meaning)
+    /// over such subjects and contextual integer literals. The operands'
+    /// arithmetic policies select the operation as they do in a body, so an
+    /// Exact, Wrapping or Saturating carrier keeps its own meaning; Trapping
+    /// arithmetic, which can crash, or any other spelling stays outside the
+    /// closed language and lowers to `None`.
     fn integer_term(
         &self,
         expression: ExpressionHandle,
@@ -174,37 +175,29 @@ impl ContractPredicates<'_, '_> {
             ExpressionNode::Binary(binary)
                 if depth < 64 && operator_is_builtin(self.operators, expression) =>
             {
-                use checked_trees::CheckedIntegerBinaryKind;
-                let kind = match binary.operator {
-                    BinaryOperator::Add => CheckedIntegerBinaryKind::ExactAdd,
-                    BinaryOperator::Subtract => CheckedIntegerBinaryKind::ExactSubtract,
-                    BinaryOperator::Multiply => CheckedIntegerBinaryKind::ExactMultiply,
+                let spelling = match binary.operator {
+                    BinaryOperator::Add => language_core::OperatorSpelling::Add,
+                    BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
+                    BinaryOperator::Multiply => language_core::OperatorSpelling::Multiply,
                     _ => return None,
                 };
                 let terms = [binary.left, binary.right]
                     .map(|operand| self.integer_term(operand, depth + 1));
                 // The typed peer supplies the carrier; a literal peer lands on
                 // it. Two literals have no carrier and stay unsupported here.
-                let (carrier_type, reference) =
+                let (carrier_type, carrier_reference) =
                     terms.iter().flatten().find_map(|(term, reference)| {
                         Some((scalar_expression_type(term)?, *reference))
                     })?;
-                if !is_integer(carrier_type)
-                    || program.arithmetic_domain_for_type_reference(reference)
-                        != ArithmeticDomain::Exact
-                {
+                if !is_integer(carrier_type) {
                     return None;
                 }
-                let operand_types = [Some(reference), Some(reference)];
+                let operand_types = [Some(carrier_reference), Some(carrier_reference)];
                 if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     self.machine.symbol,
                     expression,
-                    match binary.operator {
-                        BinaryOperator::Add => language_core::OperatorSpelling::Add,
-                        BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
-                        _ => language_core::OperatorSpelling::Multiply,
-                    },
+                    spelling,
                     &operand_types,
                 ) {
                     return None;
@@ -214,8 +207,14 @@ impl ContractPredicates<'_, '_> {
                     (binary.right, terms[1].clone()),
                 ]
                 .map(|(operand, term)| match term {
-                    Some((term, _)) => {
-                        (scalar_expression_type(&term) == Some(carrier_type)).then_some(term)
+                    Some((term, reference)) => {
+                        (scalar_expression_type(&term) == Some(carrier_type)).then(|| {
+                            (
+                                term,
+                                program.arithmetic_domain_for_type_reference(reference),
+                                reference,
+                            )
+                        })
                     }
                     None => {
                         if !matches!(
@@ -235,17 +234,40 @@ impl ContractPredicates<'_, '_> {
                             carrier_type,
                             &[],
                         )
+                        .map(|literal| (literal, ArithmeticDomain::Exact, carrier_reference))
                     }
                 });
-                Some((
-                    CheckedScalarExpression::IntegerBinary {
-                        kind,
-                        primitive_type: carrier_type,
-                        left: Box::new(left?),
-                        right: Box::new(right?),
-                    },
-                    reference,
-                ))
+                let (left, left_domain, left_reference) = left?;
+                let (right, right_domain, right_reference) = right?;
+                // A contract term selects the same builtin operation a body
+                // expression over these carriers would: the operands' policies
+                // combine through the shared scalar semantics, so a Wrapping
+                // field subtracts modulo its width here exactly as it does
+                // when the body stores it.
+                let (term, domain) = construct_integer_binary(
+                    binary.operator,
+                    left,
+                    left_domain,
+                    right,
+                    right_domain,
+                )?;
+                // A contract term is a total observation. Trapping arithmetic
+                // owns a crash site at its operation and has no proposition.
+                if matches!(
+                    &term,
+                    CheckedScalarExpression::IntegerBinary { kind, .. } if kind.is_trapping()
+                ) {
+                    return None;
+                }
+                // Keep the operand reference that carries the selected policy
+                // so enclosing arithmetic composes with the same meaning.
+                let reference =
+                    if program.arithmetic_domain_for_type_reference(left_reference) == domain {
+                        left_reference
+                    } else {
+                        right_reference
+                    };
+                Some((term, reference))
             }
             ExpressionNode::Member(_) => {
                 // `subject.len` reads the live extent of a borrowed view or
@@ -280,12 +302,10 @@ impl ContractPredicates<'_, '_> {
                     )?;
                     return Some((term, reference));
                 }
-                // A scalar member read on the receiver (`self.rows`) names
-                // statically selected field storage the machine itself owns,
-                // so the contract operand resolves against its declaration.
-                // Members below an ordinary parameter stay outside the closed
-                // namespace: their storage lives in the caller's object, and
-                // term positions only mint against the receiver roster.
+                // A scalar member read (`self.rows`, `picker.picks`) names
+                // statically selected field storage below one structural
+                // parameter, so the contract operand resolves against its
+                // declaration at that parameter's authored position.
                 let (position, _, reference) =
                     super::structural_fields::structural_parameter_place(
                         program,
@@ -295,7 +315,7 @@ impl ContractPredicates<'_, '_> {
                 if !self
                     .parameters
                     .get(position as usize)
-                    .is_some_and(|parameter| parameter.is_self)
+                    .is_some_and(|parameter| caller_storage_root(program, parameter))
                 {
                     return None;
                 }
@@ -429,6 +449,32 @@ impl ContractPredicates<'_, '_> {
                 })
             }
             _ => None,
+        }
+    }
+}
+
+/// Whether a structural parameter's member storage is a place the caller
+/// names before and after the call: the receiver, or a parameter borrowed
+/// through a shared or exclusive reference. A contract fact about that
+/// storage substitutes to the caller's actual place, entry and post-state
+/// alike. An owned by-value parameter is the callee's own copy, so its
+/// post-state is no caller fact and its members stay outside the namespace.
+fn caller_storage_root(program: &TypedTrees, parameter: &StateParameter) -> bool {
+    if parameter.is_self {
+        return true;
+    }
+    let mut type_reference = parameter.type_reference;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { access, .. } => {
+                return matches!(
+                    access,
+                    language_core::ReferenceAccess::Shared
+                        | language_core::ReferenceAccess::Mutable
+                );
+            }
+            _ => return false,
         }
     }
 }

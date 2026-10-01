@@ -6,6 +6,7 @@ use checked_trees::{
 };
 
 mod parameter_predicates;
+mod post_state_arithmetic;
 
 #[test]
 fn retained_nonbuiltin_operator_status_cannot_be_replaced_by_literal_shape() {
