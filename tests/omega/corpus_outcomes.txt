@@ -1765,8 +1765,8 @@ pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 791ms @2d8e
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 1, statement 2)
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 907ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 1)
-pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 905ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 1)
+pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 923ms @9435ec134b74+wt
+	terminal-artifact production failed: Lowering(Unsupported("structural scalar store names an unknown structural local"))
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 975ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms @2d8ed253669f
@@ -1776,6 +1776,7 @@ pass/locals/mutable_local_call_multistate_reassignment_exit checked 510ms @ca8c1
 pass/locals/mutable_local_call_reassignment_exit checked 1238ms @2d8ed253669f
 pass/locals/runtime_deferred_scalar_initialization_exit checked 1194ms @2d8ed253669f
 pass/locals/runtime_local_array_member_stores_without_mut_exit checked 1639ms @b077958d6785+wt
+pass/locals/runtime_local_record_array_element_field_reads_exit checked 1924ms @9435ec134b74+wt
 pass/memory/address_translation_canary checked 359ms @2d8ed253669f
 pass/memory/bump_allocator_canary checked 1011ms @2d8ed253669f
 pass/memory/interrupt_table_canary checked 1010ms @2d8ed253669f

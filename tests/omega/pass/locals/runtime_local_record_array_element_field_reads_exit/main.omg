@@ -1,0 +1,45 @@
+// A static entry keeps a record whose field is a fixed array of records in an
+// ordinary local and reads scalar fields of literal elements back:
+// `board.tallies[2].flag`, `board.tallies[1].count` under its wrapping policy,
+// and the Boolean `board.tallies[0].open`. Each store lands in a different
+// element and the zeroed neighbours stay zero, so a read that selected the
+// wrong element, or the record instead of its element, cannot pass. Exits 70
+// only when every element holds what was written to it.
+
+use omega_language_std::console;
+
+data Tally { count: u64 in Wrapping; flag: u64; open: bool; }
+
+data Board { tallies: [Tally; 3]; total: u64; }
+
+machine main() reaches Console {
+    let mut board: Board;
+    board.tallies[1].count = 2;
+    board.tallies[2].flag = 9;
+    board.tallies[0].open = true;
+    board.total = 4;
+    let flag: u64 = board.tallies[2].flag;
+    let seen: u64 = board.tallies[1].count as u64;
+    let open: bool = board.tallies[0].open;
+    let untouched: u64 = board.tallies[1].flag;
+    let closed: bool = board.tallies[2].open;
+    transition seen == 2 && flag == 9 && untouched == 0 && board.total == 4 {
+        true -> check_open(open, closed)
+        _ -> refused(71)
+    }
+
+    state check_open(open: bool, closed: bool) {
+        transition open && !closed {
+            true -> done()
+            _ -> refused(72)
+        }
+    }
+
+    state done() {
+        Console::exit_process(70);
+    }
+
+    state refused(code: i32) {
+        Console::exit_process(code);
+    }
+}

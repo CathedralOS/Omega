@@ -73,12 +73,34 @@ pub struct RecastScalarProjection {
 pub fn recast_scalar_projection(
     program: &TypedTrees,
     root: TypeReferenceHandle,
-    carrier_path: &[String],
+    carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
     field: symbols::SymbolHandle,
 ) -> Option<RecastScalarProjection> {
     let mut carrier = root;
     let mut path = Vec::new();
-    for identity in carrier_path {
+    for segment in carrier_path {
+        let identity = match segment {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => identity,
+            // A literal element of a fixed array selects that element's
+            // normalized leaves, which carry the same element coordinate.
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return None;
+                };
+                let index = usize::try_from(*index).ok()?;
+                if index >= *length {
+                    return None;
+                }
+                path.push(RepresentationSegment::Element(index));
+                carrier = *element_type;
+                continue;
+            }
+            _ => return None,
+        };
         let owner = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
             program.type_reference_symbol(carrier),

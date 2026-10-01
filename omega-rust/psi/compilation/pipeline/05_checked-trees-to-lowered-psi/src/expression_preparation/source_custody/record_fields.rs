@@ -32,13 +32,7 @@ pub(crate) fn validate_source(
             symbol: source.local,
         })
         || subject.access != CheckedStructuralAccess::SharedBorrow
-        || subject.path
-            != source
-                .path
-                .iter()
-                .cloned()
-                .map(checked_trees::CheckedUnitStructuralPathSegment::Field)
-                .collect::<Vec<_>>()
+        || subject.path != source.path
         || subject.type_identity
             != checked
                 .normalized_type_identity(source.carrier_type_reference)

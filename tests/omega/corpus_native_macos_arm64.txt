@@ -659,8 +659,8 @@ pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 780ms @4800
 	terminal-artifact production failed: Lowering(Unsupported("record read carrier path left its record namespace"))
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 882ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("primitive store lost its structural local destination"))
-pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 938ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 2309ms @9435ec134b74+wt
+	terminal-artifact production failed: Lowering(Unsupported("structural scalar store names an unknown structural local"))
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1022ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit built 1062ms exit:70
@@ -670,6 +670,7 @@ pass/locals/mutable_local_call_multistate_reassignment_exit built 1005ms exit:70
 pass/locals/mutable_local_call_reassignment_exit built 959ms exit:70 @48008365d839
 pass/locals/runtime_deferred_scalar_initialization_exit built 1071ms exit:1 @48008365d839
 pass/locals/runtime_local_array_member_stores_without_mut_exit built 2573ms exit:70 @b077958d6785+wt
+pass/locals/runtime_local_record_array_element_field_reads_exit built 5683ms exit:70 @9435ec134b74+wt
 pass/memory/address_translation_canary checked 259ms
 pass/memory/bump_allocator_canary built 732ms
 pass/memory/interrupt_table_canary checked 341ms

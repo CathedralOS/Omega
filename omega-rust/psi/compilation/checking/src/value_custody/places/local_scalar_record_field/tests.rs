@@ -2,6 +2,7 @@ use super::{
     DataMember, ExpressionHandle, ExpressionNode, SymbolHandle, TypedTrees,
     local_scalar_record_field,
 };
+use checked_trees::CheckedUnitStructuralPathSegment;
 use typed_trees::statement::StatementNode;
 
 fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
@@ -27,8 +28,54 @@ fn local_field_observes_nested_boolean_beside_array_and_sum_storage() {
     );
     let field = local_scalar_record_field(&program, machine, state, 1, expression)
         .expect("scalar observation retains the established aggregate owner");
-    assert_eq!(field.path, ["output"]);
+    assert_eq!(
+        field.path,
+        [CheckedUnitStructuralPathSegment::Field("output".into())]
+    );
     assert_eq!(field.primitive_type, super::PrimitiveType::Bool);
+}
+
+#[test]
+fn local_field_selects_a_literal_element_of_a_record_array() {
+    let (program, machine, state, expression) = typed_source(
+        "data Tally { count: u64; open: bool; }
+         data Board { tallies: [Tally; 3]; total: u64; }
+         machine observe() -> u64 {
+             let mut board: Board;
+             board.tallies[3 - 1].count
+         }",
+    );
+    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+        .expect("a literal element of a local record array is a field path");
+    assert_eq!(
+        field.path,
+        [
+            CheckedUnitStructuralPathSegment::Field("tallies".into()),
+            CheckedUnitStructuralPathSegment::FixedIndex(2),
+        ]
+    );
+    assert_eq!(field.primitive_type, super::PrimitiveType::U64);
+}
+
+#[test]
+fn local_field_declines_an_element_outside_its_array_or_selected_at_runtime() {
+    for source in [
+        "data Tally { count: u64; }
+         data Board { tallies: [Tally; 3]; }
+         machine observe() -> u64 {
+             let mut board: Board;
+             board.tallies[3].count
+         }",
+        "data Tally { count: u64; }
+         data Board { tallies: [Tally; 3]; }
+         machine observe(index: u64) -> u64 {
+             let mut board: Board;
+             board.tallies[index].count
+         }",
+    ] {
+        let (program, machine, state, expression) = typed_source(source);
+        assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    }
 }
 
 #[test]
@@ -56,7 +103,10 @@ fn local_field_rejects_a_foreign_intermediate_declaration() {
     );
     let read =
         local_scalar_record_field(&program, machine, state, 1, expression).expect("nested read");
-    assert_eq!(read.path, ["child"]);
+    assert_eq!(
+        read.path,
+        [CheckedUnitStructuralPathSegment::Field("child".into())]
+    );
     let other = program
         .data_definitions()
         .iter()
@@ -224,7 +274,10 @@ fn local_field_retains_policy_without_excluding_plain_siblings() {
                     panic!("{policy} {member}: policy-only fields keep scalar storage")
                 });
             assert_eq!(field.domain, expected);
-            assert_eq!(field.path, ["child"]);
+            assert_eq!(
+                field.path,
+                [CheckedUnitStructuralPathSegment::Field("child".into())]
+            );
         }
     }
 }
