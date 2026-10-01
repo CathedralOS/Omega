@@ -990,6 +990,9 @@ the complete product bar; focused successes below do not establish that baseline
   `measure_value` now releases its payload loan when it stops forwarding it;
   forwarding an independent byte view no longer prolongs that loan. Returning
   calls retain their whole-run loans and unresolved origins remain conservative.
+  `borrows/runtime_released_loan_with_forwarded_view_exit` now executes on macOS
+  ARM64 with native and interpreted exit 70, retaining a local byte window
+  across the released count loan and observing the subsequent receiver write.
 
   The first remaining refusal is `ValuedStructField::copy_from_bytes`:
   `value_arm` replaces `self.field_data` while holding its shared payload loan

@@ -182,18 +182,16 @@ pub(super) fn validate_borrowed_argument(
             )
         })
         .map(|shape| ValueShape::borrowed_reference(shape.byte_size, shape.alignment));
-    // A fixed array presents its backing from an incoming parameter or, whole,
+    // A fixed array presents its backing from an incoming parameter or
     // from a local home lent through this argument's own borrow — Terminal's
     // array-result loan. The home keeps its owned access; `aggregate_home`
     // rejoins its producer below.
     let local_loan = aggregate_home
         .filter(|(_, result)| {
-            semantic.path.is_empty()
-                && matches!(
-                    semantic.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            matches!(
+                semantic.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         })
         .map(|(_, result)| terminal_psi::StructuralParameterDeclaration {
             place: result.place,

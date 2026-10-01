@@ -400,8 +400,8 @@ fn address_join_parameter(
 /// or on an exclusive block parameter, which control flow establishes with the
 /// same custody; an established producer stays shared. The root's own access
 /// authorizes the argument, so a shared root never supplies an exclusive one.
-/// Fixed arrays instead present their backing: a parameter's field window or a
-/// whole dominating local array, shared or exclusive.
+/// Fixed arrays instead present their backing: a parameter's field window or
+/// a dominating local array window, shared or exclusive.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn byte_argument(
     argument: &terminal_psi::StructuralArgument,
@@ -417,38 +417,12 @@ pub(super) fn byte_argument(
     // A fixed array lends its original backing through the same call-scoped
     // presentation the structural-result lane emits: an incoming parameter's
     // field window keeps its real path, and a dominating local array lends its
-    // own home whole. A scalar or unit result changes no custody.
+    // own home. A scalar or unit result changes no custody. Resolve local
+    // backing before a projected parameter lookup: geometry does not determine
+    // whether the source storage is an incoming parameter or a local result.
     let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    if !argument.path.is_empty() {
-        let (Some(source), Some(root)) = (
-            prepared
-                .parameters
-                .iter()
-                .find(|source| source.place == argument.place),
-            function
-                .structural_parameters
-                .iter()
-                .find(|root| root.place == argument.place),
-        ) else {
-            return Err(unsupported());
-        };
-        return crate::lowering::unit::roster_arguments::fixed_array_view_argument(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            callee,
-            root,
-            source.shape.byte_size,
-            source.placement.clone().into(),
-            types,
-            &mut shape_cache,
-            &mut active,
-        )?
-        .ok_or_else(unsupported);
-    }
     if let Some(home) = live.structural_homes.get(&argument.place)
         && let Some(view) = crate::lowering::unit::roster_arguments::owned_byte_view_argument(
             argument,
@@ -478,6 +452,34 @@ pub(super) fn byte_argument(
         )?
     {
         return Ok(loan);
+    }
+    if !argument.path.is_empty() {
+        let (Some(source), Some(root)) = (
+            prepared
+                .parameters
+                .iter()
+                .find(|source| source.place == argument.place),
+            function
+                .structural_parameters
+                .iter()
+                .find(|root| root.place == argument.place),
+        ) else {
+            return Err(unsupported());
+        };
+        return crate::lowering::unit::roster_arguments::fixed_array_view_argument(
+            argument,
+            declaration,
+            destination.shape,
+            &destination.placement,
+            callee,
+            root,
+            source.shape.byte_size,
+            source.placement.clone().into(),
+            types,
+            &mut shape_cache,
+            &mut active,
+        )?
+        .ok_or_else(unsupported);
     }
     if argument.access != declaration.access
         || (!crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)

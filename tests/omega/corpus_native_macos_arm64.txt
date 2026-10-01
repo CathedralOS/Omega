@@ -79,6 +79,7 @@ pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
+pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1743ms exit:70 @ba014724095f+wt
 pass/borrows/runtime_shared_temporary_call_exit built 945ms exit:42 @48008365d839
 pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt

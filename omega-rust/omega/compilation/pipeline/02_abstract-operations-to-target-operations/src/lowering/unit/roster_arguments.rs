@@ -698,10 +698,11 @@ pub(in crate::lowering) fn owned_byte_view_argument(
     })
 }
 
-/// A whole owned local array lent by borrow presents the same fixed backing an
+/// An owned local array lent by borrow presents the same fixed backing an
 /// incoming borrowed parameter would. Terminal verification admits exactly this
-/// loan for an unrestricted, unqualified, claim-free operation result named with
-/// an empty path; the presented declaration carries the argument's own access
+/// loan for an unrestricted, unqualified, claim-free operation result; the
+/// shared window relation checks the path against that original backing.
+/// The presented declaration carries the argument's own access
 /// for window geometry while the home itself stays owned by this activation.
 /// `Ok(None)` means the home is not lendable through this parameter's view.
 #[allow(clippy::too_many_arguments)]
@@ -720,7 +721,6 @@ pub(in crate::lowering) fn local_array_loan(
         return Ok(None);
     };
     if result.place != argument.place
-        || !argument.path.is_empty()
         || !matches!(
             argument.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
