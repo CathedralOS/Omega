@@ -145,14 +145,15 @@ fn a_primitive_store_after_a_scalar_formal_writes_its_authored_parameter() {
 }
 
 /// The state graph replays a primitive store's authored root before it emits
-/// anything. Terminal has no block-parameter form for a `&mut` primitive, so
-/// emission then refuses the state's parameters; this pins the replay: the
-/// untampered root resolves to its own parameter and stops at that emission
-/// wall, while the sibling's authored position fails replay against the
-/// authored target.
+/// anything. A `&mut` primitive state parameter rides the Unit edge transport
+/// to the state that stores through it, so the untampered root executes and
+/// writes exactly its authored parameter, while the sibling's authored
+/// position fails replay against the authored target.
 #[test]
 fn a_state_graph_primitive_store_replays_its_authored_parameter_after_a_scalar_formal() {
-    for (target, position, sibling) in [("first", 1, 2), ("second", 2, 1)] {
+    for (target, position, sibling, expected) in
+        [("first", 1, 2, [7u128, 22]), ("second", 2, 1, [11, 7])]
+    {
         let mut checked = crate::front_end::checked_program(&format!(
             r#"
             machine enter(marker: u64, first: &mut u64, second: &mut u64) {{
@@ -173,20 +174,10 @@ fn a_state_graph_primitive_store_replays_its_authored_parameter_after_a_scalar_f
             "{target}: the checked root is the authored position; omissions: {:?}",
             checked.facts.flow.terminal_unit_effects.omissions
         );
-        let error = checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("enter"),
-        )
-        .map(|_| ())
-        .expect_err("a state's `&mut` primitive parameter stops emission");
-        assert!(
-            matches!(
-                error,
-                checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                    "a state's mutable primitive reference parameter has no Terminal block form"
-                )
-            ),
-            "{target}: replay admits the authored root: {error:?}"
+        assert_eq!(
+            run(&checked, &[unsigned(7)]),
+            expected.map(unsigned),
+            "{target}: replay admits the authored root and the store writes it"
         );
         for state in &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states {
             for operation in &mut state.operations {
