@@ -194,13 +194,18 @@ pub(super) fn declaration_origins_for_query(
     // seed a by-value state parameter receives — so a later field store to its
     // own storage still enumerates exact places instead of going opaque.
     if !local.initial_value.is_valid() {
-        return type_origins::declared_origins_for_query(
+        let mut origins = type_origins::declared_origins_for_query(
             program,
             local.symbol,
             local.name.as_str(),
             local.type_reference,
             include_shared,
-        );
+        )?;
+        // This declaration establishes fresh storage, not a transported input
+        // subtree. Keep its symbolic case/reference inventory, but do not let
+        // the parameter-style move row prohibit initializing an interior field.
+        origins.moves.clear();
+        return Some(origins);
     }
     let leaves = reference_leaves_with_origins(
         program,
