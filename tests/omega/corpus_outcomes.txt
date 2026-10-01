@@ -1300,6 +1300,7 @@ pass/calls/owned_state_parameter_call_exit checked 1250ms @2d8ed253669f
 pass/calls/qualified_record_call_result_field_exit checked 902ms @e687de1f01bf
 pass/calls/requires_carrier_ceiling_vacuous checked 3103ms @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge checked 3157ms @527c7c316c6f+wt
+pass/calls/retained_receiver_argument_order_exit checked 719ms @be20683757eb+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
 pass/calls/runtime_call_statement_before_state_return_exit checked 1642ms @ca8c127c90c5

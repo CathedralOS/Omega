@@ -752,8 +752,9 @@ fn validate_owned_parameter_arguments(
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let target = authored::target_signature(checked, machine.symbol, call.source_target)?;
-    let positions =
-        literal_arguments::structural_positions(checked, &target, structural_arguments.len())?;
+    let positions = crate::unit::attached_unit::call_parameters::structural_positions(
+        checked, planned, &target,
+    )?;
     for (argument, position) in structural_arguments.iter().zip(positions) {
         let Some(parameter_index) = argument.source_parameter_index() else {
             continue;

@@ -497,6 +497,36 @@ pub(crate) struct TargetSignature<'source> {
     pub boundary: bool,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
+    parameter_coordinates: ParameterCoordinates,
+}
+
+enum ParameterCoordinates {
+    Authored,
+    ServiceOperands,
+}
+
+impl TargetSignature<'_> {
+    /// Service selection consumes its receiver before the boundary operand
+    /// parameter list is numbered. Other retained rosters keep authored positions,
+    /// including gaps left by erased or ambient parameters.
+    pub(crate) fn authored_parameter_position(&self, retained_position: u32) -> Option<u32> {
+        let retained_position = usize::try_from(retained_position).ok()?;
+        let position = match self.parameter_coordinates {
+            ParameterCoordinates::Authored => {
+                self.parameters.get(retained_position)?;
+                retained_position
+            }
+            ParameterCoordinates::ServiceOperands => {
+                self.parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| !parameter.is_self)
+                    .nth(retained_position)?
+                    .0
+            }
+        };
+        u32::try_from(position).ok()
+    }
 }
 
 pub(crate) fn target_signature(
@@ -533,6 +563,7 @@ pub(crate) fn target_signature(
             boundary: machine.supply_mode.is_boundary_declaration() && !machine.body_is_present,
             machine: machine.symbol,
             state: state.symbol,
+            parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
     if let Some(operator) = program
@@ -546,6 +577,7 @@ pub(crate) fn target_signature(
             boundary: true,
             machine: operator.symbol,
             state: operator.symbol,
+            parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
     let requirement = if let Some((requirement, _)) = external_leaf {
@@ -576,6 +608,7 @@ pub(crate) fn target_signature(
         boundary: true,
         machine: signature.symbol,
         state: signature.symbol,
+        parameter_coordinates: ParameterCoordinates::ServiceOperands,
     })
 }
 

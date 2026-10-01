@@ -49,6 +49,7 @@ mod boundaries;
 pub(crate) use boundaries::validate_requirement_kind;
 mod call_catalog;
 mod call_closure;
+pub(crate) mod call_parameters;
 pub(crate) mod catalog;
 mod claims;
 mod domain_replay;

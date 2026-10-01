@@ -1,0 +1,29 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Tag [copy] { case First; case Second; }
+data Receiver { sentinel: u64; }
+data Main { console: Binding<Console>; receiver: Receiver; tag: Tag; }
+
+machine Receiver::accept(&mut self, tag: Tag) {}
+machine Receiver::observe(&mut self, tag: Tag) {
+    transition tag {
+        Tag::First -> first()
+        _ -> second()
+    }
+    state first(&mut self) { self.sentinel = 11; }
+    state second(&mut self) { self.sentinel = 41; }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.receiver.sentinel = 29;
+    self.tag = Tag::Second;
+    self.receiver.accept(self.tag);
+    let before: u64 = self.receiver.sentinel;
+    self.receiver.observe(self.tag);
+    transition {
+        before == 29 && self.receiver.sentinel == 41 && self.tag == Tag::Second -> finish(70)
+        _ -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

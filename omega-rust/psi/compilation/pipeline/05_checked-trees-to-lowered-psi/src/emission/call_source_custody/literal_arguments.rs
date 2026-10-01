@@ -26,7 +26,9 @@ pub(super) fn validate(
         return Ok(());
     }
     let signature = authored::target_signature(checked, caller_machine, authored.source_target)?;
-    let positions = structural_positions(checked, &signature, arguments.len())?;
+    let positions = crate::unit::attached_unit::call_parameters::structural_positions(
+        checked, planned, &signature,
+    )?;
     for (position, argument) in positions.into_iter().zip(arguments) {
         let formal = signature
             .parameters
@@ -72,45 +74,4 @@ pub(super) fn validate(
         }
     }
     Ok(())
-}
-
-pub(crate) fn structural_positions(
-    checked: &CheckedTrees,
-    signature: &authored::TargetSignature<'_>,
-    argument_count: usize,
-) -> Result<Vec<u32>, LoweringError> {
-    let mut positions = signature
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .map(|(position, _)| {
-            u32::try_from(position).map_err(|_| {
-                LoweringError::Unsupported("literal source parameter position exceeds u32")
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if positions.len() != argument_count {
-        // Existing Unit families can erase an unused borrowed receiver. Its
-        // separate custody validation decides that erasure; either form must
-        // preserve every explicit byte operand's original formal position.
-        positions.retain(|position| {
-            let parameter = &signature.parameters[*position as usize];
-            !parameter.is_self
-                || !matches!(
-                    checked
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    checked_trees::types::TypeReferenceNode::Reference { .. }
-                )
-        });
-    }
-    if positions.len() != argument_count {
-        return unsupported("literal call source lost its structural argument partition");
-    }
-    Ok(positions)
 }
