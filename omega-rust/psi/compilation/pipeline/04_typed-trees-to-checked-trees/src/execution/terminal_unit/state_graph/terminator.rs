@@ -193,7 +193,7 @@ pub(super) fn build(
                                     result,
                                     ..
                                 }
-                                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                | CheckedUnitEffectOperationPlan::EstablishByteSequence {
                                     result,
                                     ..
                                 }

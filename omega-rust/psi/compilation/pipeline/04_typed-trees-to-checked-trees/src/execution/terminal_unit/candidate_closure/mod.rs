@@ -241,7 +241,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -381,7 +381,7 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                     // A view-subslice local narrows a view the frame already
                     // holds; it names no callee.
-                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     // Fixed-array, mutable-primitive, and trivial-affine

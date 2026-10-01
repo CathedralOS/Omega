@@ -254,7 +254,7 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                         | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                         | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

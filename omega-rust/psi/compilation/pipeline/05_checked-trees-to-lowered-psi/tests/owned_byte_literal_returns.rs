@@ -482,16 +482,18 @@ fn owned_byte_literal_returns_keep_exact_source_and_result_custody() {
                     .last_mut()
                     .expect("direct literal producer")
             };
-            let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            let CheckedUnitEffectOperationPlan::EstablishByteSequence {
                 result,
-                bytes,
+                value,
                 qualifications,
             } = operation
             else {
                 panic!("ordinary literal establishment");
             };
             match corruption {
-                "bytes" => *bytes = b"Fake".to_vec(),
+                "bytes" => {
+                    *value = checked_trees::CheckedByteSequenceValuePlan::literal(b"Fake".to_vec())
+                }
                 "type" => result.type_identity.push_str("-substituted"),
                 "qualification" => qualifications.clear(),
                 "source" => result.statement_index += 1,

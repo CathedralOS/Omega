@@ -496,7 +496,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
@@ -577,8 +577,8 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                 affine_discards, ..
             } => self.call_continuation_cleanup(affine_discards),
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. } => {
-                self.establish_byte_sequence_literal(operation)
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
+                self.establish_byte_sequence(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 self.establish_view_subslice(operation)
@@ -878,7 +878,7 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(store, types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(&store.value, types)?;
         }
         let kind = crate::emission::structural_byte_sequence_store::emit(
             store,
@@ -1931,13 +1931,13 @@ impl OperationFrame<'_, '_> {
     /// actual backing in the local observation namespaces. A shared view
     /// borrows immutable literal storage; a bounded owner constructs fresh
     /// storage with its own live length and declared qualifications.
-    fn establish_byte_sequence_literal(
+    fn establish_byte_sequence(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+        let CheckedUnitEffectOperationPlan::EstablishByteSequence {
             result,
-            bytes,
+            value,
             qualifications,
         } = operation
         else {
@@ -1945,7 +1945,7 @@ impl OperationFrame<'_, '_> {
         };
         self.results
             .require_next(result, "literal local binding is not dense")?;
-        super::literal_locals::validate(self.checked, self.state, operation)?;
+        super::byte_locals::validate(self.checked, self.state, operation)?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let mut qualifications = qualifications
             .iter()
@@ -1973,9 +1973,9 @@ impl OperationFrame<'_, '_> {
                     )
             })
         {
-            return self.establish_owned_byte_sequence_literal(
+            return self.establish_owned_byte_sequence(
                 result,
-                bytes,
+                value,
                 structural_type,
                 qualifications,
             );
@@ -1996,6 +1996,9 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("literal local carrier is not a borrowed byte view");
         }
+        let bytes = value.literal_bytes().ok_or(LoweringError::Unsupported(
+            "borrowed byte local has no literal storage",
+        ))?;
         let destination = place_id(allocate_dense(self.next_place)?);
         let declaration_ordinal =
             crate::emission::next_byte_sequence_literal_ordinal(self.private_places.literals())?;
@@ -2015,7 +2018,7 @@ impl OperationFrame<'_, '_> {
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination,
-                bytes: bytes.clone(),
+                bytes: bytes.to_vec(),
                 qualifications,
             },
         });
@@ -2040,25 +2043,27 @@ impl OperationFrame<'_, '_> {
     }
 
     /// Bind an owned bounded byte local to fresh backing copied from its
-    /// literal. The concatenation result is the local's own place: later
+    /// initializer. The concatenation result is the local's own place: later
     /// loans, lengths and reads name it exactly as they name any owned result.
-    fn establish_owned_byte_sequence_literal(
+    fn establish_owned_byte_sequence(
         &mut self,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        bytes: &[u8],
+        value: &checked_trees::CheckedByteSequenceValuePlan,
         structural_type: semantic_vocabulary::StructuralTypeId,
         qualifications: Vec<StructuralDomainId>,
     ) -> Result<(), LoweringError> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; a published roster must already hold it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::literal_view_type(types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(value, types)?;
         }
         let (declaration, produced) =
-            crate::emission::structural_byte_sequence_store::emit_owned_literal(
-                bytes,
+            crate::emission::structural_byte_sequence_store::emit_owned_value(
+                value,
                 structural_type,
                 qualifications,
+                &self.evaluation.structural_parameters,
+                &self.evaluation.structural_locals,
                 self.structural_types.declarations(),
                 self.private_places.literals(),
                 self.next_place,

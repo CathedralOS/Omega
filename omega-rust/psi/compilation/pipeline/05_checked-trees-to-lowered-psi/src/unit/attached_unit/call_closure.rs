@@ -279,7 +279,7 @@ pub(super) fn validate_unit_operation_sequence(
                 }
             }
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {

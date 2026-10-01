@@ -44,7 +44,7 @@ use crate::execution::terminal_unit::types::{
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 mod assignments;
-pub(in crate::execution::terminal_unit) mod bounded_byte_literal;
+pub(in crate::execution::terminal_unit) mod bounded_byte_values;
 mod completion;
 mod local_data;
 mod statement_call;
@@ -829,7 +829,7 @@ pub(super) fn first_unsupported_statement(
                                 program.expression_table.expression(*expression),
                                 ExpressionNode::Indexed(_) | ExpressionNode::String(_)
                             ))
-                            || bounded_byte_literal::expression_octets(
+                            || bounded_byte_values::expression_octets(
                                 program,
                                 state.return_type,
                                 *expression,
@@ -1792,7 +1792,7 @@ fn consume_result(
         }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             result.multiplicity == Multiplicity::Unrestricted
         }

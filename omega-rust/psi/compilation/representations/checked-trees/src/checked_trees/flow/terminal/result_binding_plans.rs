@@ -63,6 +63,24 @@ pub struct CheckedByteSequenceValuePlan {
     pub root: arena::Handle<CheckedByteSequenceValue>,
 }
 
+impl CheckedByteSequenceValuePlan {
+    pub fn literal(bytes: Vec<u8>) -> Self {
+        let mut plan = Self::default();
+        plan.root = plan.nodes.insert(CheckedByteSequenceValue::Literal(bytes));
+        plan
+    }
+
+    /// Only a literal root can lend image storage without an owned construction.
+    pub fn literal_bytes(&self) -> Option<&[u8]> {
+        self.nodes.iter().find_map(|(identity, value)| match value {
+            CheckedByteSequenceValue::Literal(bytes) if identity == self.root => {
+                Some(bytes.as_slice())
+            }
+            _ => None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),

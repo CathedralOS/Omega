@@ -205,7 +205,7 @@ pub(super) fn whole_store(
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
     let (root, _) = byte_value_plan(
         program,
-        facts,
+        &facts.operators,
         state,
         statement_index,
         assignment.value,
@@ -316,7 +316,7 @@ pub(super) fn field_store(
         AssignmentSource::Authored => {
             byte_value_plan(
                 program,
-                facts,
+                &facts.operators,
                 state,
                 statement_index,
                 assignment.value,
@@ -363,6 +363,7 @@ pub(super) fn field_store(
         }
         AssignmentSource::CallResult { .. } => return None,
     };
+
     value.root = root;
     // Source checking owns the receiving bound. Each concat owns its separate
     // checked sum bound; never reject a short value merely for carrier capacity.
@@ -388,9 +389,9 @@ pub(super) fn field_store(
 /// or readable bounded places; there is no delayed call evaluation in this
 /// plan. A whole place observes its current live extent,
 /// rather than padding the value to its carrier capacity.
-fn byte_value_plan(
+pub(in crate::execution::terminal_unit) fn byte_value_plan(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
     state: &typed_trees::state::State,
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
@@ -420,7 +421,7 @@ fn byte_value_plan(
         }
         ExpressionNode::Binary(binary)
             if binary.operator == typed_trees::expression::BinaryOperator::Add
-                && crate::values::operator_is_builtin(&facts.operators, expression) =>
+                && crate::values::operator_is_builtin(operators, expression) =>
         {
             if !domains.iter().all(|domain| {
                 crate::facts::field_domain::domain_is_concat_preserving(program, *domain)
@@ -429,7 +430,7 @@ fn byte_value_plan(
             }
             let (left, left_capacity) = byte_value_plan(
                 program,
-                facts,
+                operators,
                 state,
                 statement_index,
                 binary.left,
@@ -439,7 +440,7 @@ fn byte_value_plan(
             )?;
             let (right, right_capacity) = byte_value_plan(
                 program,
-                facts,
+                operators,
                 state,
                 statement_index,
                 binary.right,

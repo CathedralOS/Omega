@@ -604,7 +604,7 @@ fn producer(
                     construction_source: Some(*source),
                 })
             }
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
                 if result.binding_ordinal == binding_ordinal =>
@@ -2197,8 +2197,8 @@ fn validate_operand_producers(
             continue;
         }
         match candidate {
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. } => {
-                super::super::literal_locals::validate(checked, caller.state, candidate)?;
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
+                super::super::byte_locals::validate(checked, caller.state, candidate)?;
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 super::super::view_ranges::binding_local(checked, caller.state, candidate)?;
@@ -2214,7 +2214,7 @@ fn validate_operand_producers(
                 (call.coordinate, call.source_site().flatten(), result)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
                 checked_trees::CheckedUnitCallCoordinate {

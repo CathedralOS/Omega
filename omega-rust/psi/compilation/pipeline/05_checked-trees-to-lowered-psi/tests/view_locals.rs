@@ -1343,7 +1343,7 @@ fn byte_literal_local_replay_rejects_changed_payload_source_type_and_ordinal() {
                 plan.operations.iter().any(|operation| {
                     matches!(
                         operation,
-                        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                     )
                 })
             })
@@ -1354,7 +1354,7 @@ fn byte_literal_local_replay_rejects_changed_payload_source_type_and_ordinal() {
             .position(|operation| {
                 matches!(
                     operation,
-                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 )
             })
             .unwrap();
@@ -1362,14 +1362,20 @@ fn byte_literal_local_replay_rejects_changed_payload_source_type_and_ordinal() {
             plan.operations
                 .insert(index + 1, plan.operations[index].clone());
         } else {
-            let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
-                result, bytes, ..
-            } = &mut plan.operations[index]
+            let CheckedUnitEffectOperationPlan::EstablishByteSequence { result, value, .. } =
+                &mut plan.operations[index]
             else {
                 unreachable!()
             };
             match fault {
-                0 => bytes[0] = b'X',
+                0 => {
+                    let checked_trees::CheckedByteSequenceValue::Literal(bytes) =
+                        value.nodes.get_mut(value.root)
+                    else {
+                        unreachable!()
+                    };
+                    bytes[0] = b'X';
+                }
                 1 => result.statement_index = 0,
                 2 => result.type_identity = "u64".to_owned(),
                 3 => result.binding_ordinal += 1,

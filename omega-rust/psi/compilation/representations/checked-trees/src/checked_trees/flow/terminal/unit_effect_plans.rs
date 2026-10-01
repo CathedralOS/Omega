@@ -130,13 +130,13 @@ pub enum CheckedUnitEffectOperationPlan {
         binding_ordinal: u32,
         loan: arena::Handle<crate::BorrowLoanFact>,
     },
-    /// Establish the literal bytes declared by one local initializer.
+    /// Establish the byte value declared by one local initializer.
     /// The binding retains its declared borrowed or owned carrier. Only the
     /// authored byte-domain qualifications constrain later writes; incidental
     /// predicates of the initial octets do not become declared invariants.
-    EstablishByteSequenceLiteral {
+    EstablishByteSequence {
         result: CheckedUnitStructuralResultBindingPlan,
-        bytes: Vec<u8>,
+        value: crate::CheckedByteSequenceValuePlan,
         qualifications: Vec<SemanticDomainId>,
     },
     /// Bind the statement's immutable view local to an exclusive range of an
@@ -321,7 +321,7 @@ impl CheckedUnitEffectOperationPlan {
     pub fn structural_result_binding(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
         match self {
             Self::EstablishReference { result, .. }
-            | Self::EstablishByteSequenceLiteral { result, .. }
+            | Self::EstablishByteSequence { result, .. }
             | Self::EstablishViewSubslice { result, .. }
             | Self::EstablishStructuralValue { result, .. }
             | Self::EstablishScalarArray { result, .. }

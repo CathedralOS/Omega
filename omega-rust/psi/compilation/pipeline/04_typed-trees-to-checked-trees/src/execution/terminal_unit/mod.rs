@@ -541,7 +541,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 // type alone: a range over a fixed-array
                                 // field narrows no view an earlier binding
                                 // declared.
-                                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                CheckedUnitEffectOperationPlan::EstablishByteSequence {
                                     result,
                                     ..
                                 }
@@ -661,7 +661,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 _ => {}
             },
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());

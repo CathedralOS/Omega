@@ -95,8 +95,8 @@ fn mutable_bounded_byte_local_retains_its_exact_store_root() {
         .for_machine(machine.symbol)
         .expect("literal establishment and write compose in one Unit plan");
     assert!(plan.operations.iter().any(|operation| matches!(operation,
-        checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes, qualifications }
-            if result.statement_index == 0 && bytes == b"abc" && qualifications.len() == 1)));
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence { result, value, qualifications }
+            if result.statement_index == 0 && value.literal_bytes() == Some(b"abc".as_slice()) && qualifications.len() == 1)));
 }
 
 #[test]

@@ -473,7 +473,7 @@ impl CheckedConditionalReturnArm {
             Self::Structural(
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
             ) => Some(result.statement_index),
             Self::Structural(_) => None,

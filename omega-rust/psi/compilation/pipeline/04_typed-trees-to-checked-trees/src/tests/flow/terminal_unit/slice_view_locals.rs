@@ -213,14 +213,14 @@ fn literal_view_locals_compose_with_primitive_storage_and_scalar_completion() {
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence {
                 result,
-                bytes,
+                value,
                 ..
             } => Some((
                 result.statement_index,
                 result.binding_ordinal,
-                bytes.as_slice(),
+                value.literal_bytes()?,
             )),
             _ => None,
         })
@@ -258,7 +258,7 @@ fn literal_binding_precedes_guarded_structural_result_ordinals() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence {
                 result,
                 ..
             } => Some(result),

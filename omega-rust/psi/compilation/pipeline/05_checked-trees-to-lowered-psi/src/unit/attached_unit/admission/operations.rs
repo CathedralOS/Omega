@@ -43,8 +43,8 @@ pub(super) fn validate<'a>(
                 reference_results::validate_establishment(checked, machine, operation)?;
             }
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. } => {
-                super::super::literal_locals::validate(checked, machine.state, operation)?;
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
+                super::super::byte_locals::validate(checked, machine.state, operation)?;
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 super::super::view_ranges::binding_local(checked, machine.state, operation)?;

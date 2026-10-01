@@ -66,6 +66,105 @@ struct Context<'a> {
     statement: u32,
 }
 
+#[cfg(test)]
+mod byte_comparison_tests {
+    use super::*;
+
+    #[test]
+    fn expanded_comparison_rejects_missing_bytes_and_substituted_storage() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+            machine compare() -> bool {
+                let text: [u8; 8] in Utf8 = "Ada";
+                transition text == "Ada" { true -> (true) _ -> (false) }
+            }
+        "#,
+        );
+        let plans = &checked.facts.values.scalar_expressions;
+        let (_, binding) = plans
+            .source_bindings
+            .iter()
+            .find(|(_, binding)| binding.role == checked_trees::CheckedScalarExpressionRole::Guard)
+            .expect("comparison source");
+        let retained = plans
+            .expression_at(binding.state, binding.statement_ordinal, binding.role)
+            .expect("comparison expansion");
+        let validate = |value: &Scalar| {
+            super::super::storage_reads::validate_expression(
+                &checked,
+                binding.state,
+                binding.statement_ordinal,
+                    super::super::storage_reads::guard_subject(&checked, binding.expression),
+                value,
+            )
+        };
+        validate(retained).expect("exact byte comparison");
+        let Scalar::Boolean(value) = retained else {
+            panic!("Boolean expansion")
+        };
+        let Boolean::And { left, .. } = value.as_ref() else {
+            panic!("byte conjunction")
+        };
+        assert!(
+            validate(&Scalar::Boolean(left.clone())).is_err(),
+            "last byte cannot disappear"
+        );
+
+        let mut changed = retained.clone();
+        let Scalar::Boolean(value) = &mut changed else {
+            unreachable!()
+        };
+        let mut value = value.as_mut();
+        while let Boolean::And { left, .. } = value {
+            value = left.as_mut();
+        }
+        let Boolean::IntegerComparison { left, .. } = value else {
+            panic!("length equality")
+        };
+        let Scalar::StructuralParameterByteLength { root, .. } = left.as_mut() else {
+            panic!("live length")
+        };
+        *root = checked_trees::CheckedStorageRoot::OwnedLocal {
+            symbol: SymbolHandle::invalid(),
+        };
+        assert!(
+            validate(&changed).is_err(),
+            "length must come from the compared local"
+        );
+    }
+}
+
+/// Content equality expands one source comparison into length and indexed
+/// observations. Rejoin that complete expansion instead of treating its
+/// synthetic reads as additional authored indexing operations.
+pub(super) fn matches_expanded_byte_comparison(
+    checked: &CheckedTrees,
+    state: SymbolHandle,
+    statement: u32,
+    source: ExpressionHandle,
+    retained: &Scalar,
+) -> bool {
+    let ExpressionNode::Binary(binary) = checked.expression_table.expression(source) else {
+        return false;
+    };
+    let Scalar::Boolean(value) = retained else {
+        return false;
+    };
+    let value = match (binary.operator, value.as_ref()) {
+        (BinaryOperator::Equal, value) => value,
+        (BinaryOperator::NotEqual, Boolean::Not(value)) => value.as_ref(),
+        _ => return false,
+    };
+    let context = Context {
+        checked,
+        state,
+        statement,
+    };
+    context.carrier_literal_equality(source, binary.left, binary.right, value)
+        || context.carrier_pair_equality(source, binary.left, binary.right, value)
+}
+
 impl Context<'_> {
     fn selected_builtin(&self, source: ExpressionHandle) -> bool {
         let expected = match self.checked.expression_table.expression(source) {
@@ -1133,20 +1232,21 @@ impl Context<'_> {
             return false;
         };
         let (Some(left_place), Some(right_place)) = (
-            self.carrier_parameter_place(left_source),
-            self.carrier_parameter_place(right_source),
+            self.carrier_literal_place(left_source),
+            self.carrier_literal_place(right_source),
         ) else {
             return false;
         };
-        let length = |scalar: &Scalar, (position, path): &(u32, Vec<_>)| {
-            matches!(
-                scalar,
-                Scalar::StructuralParameterByteLength {
-                    root: checked_trees::CheckedStorageRoot::Parameter { index },
-                    path: retained,
-                } if index == position && paths_match(retained, path)
-            )
-        };
+        let length =
+            |scalar: &Scalar, (root, path): &(checked_trees::CheckedStorageRoot, Vec<_>)| {
+                matches!(
+                    scalar,
+                    Scalar::StructuralParameterByteLength {
+                        root: retained_root,
+                        path: retained,
+                    } if retained_root == root && paths_match(retained, path)
+                )
+            };
         let u64_literal = |scalar: &Scalar, value: u64| {
             matches!(
                 scalar,
@@ -1157,17 +1257,19 @@ impl Context<'_> {
                         })
             )
         };
-        let read = |scalar: &Scalar, (position, path): &(u32, Vec<_>), index: u64| {
+        let read = |scalar: &Scalar,
+                    (root, path): &(checked_trees::CheckedStorageRoot, Vec<_>),
+                    index: u64| {
             matches!(
                 scalar,
                 Scalar::StructuralParameterIndexedRead {
-                    root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                    root: retained_root,
                     path: retained,
                     index: retained_index,
                     inner_indexes,
                     element_path,
                     primitive_type,
-                } if parameter_position == position
+                } if retained_root == root
                     && inner_indexes.is_empty()
                     && element_path.is_empty()
                     && paths_match(retained, path)
@@ -1244,10 +1346,10 @@ impl Context<'_> {
         false
     }
 
-    /// Local equality names the earlier authored binding, not any other view
+    /// Local equality names the earlier authored binding, not any other place
     /// with equal bytes or the same type. Its establishment independently
     /// rejoins the initializer and loan; this replay checks every observation
-    /// in the literal fold reads that exact shared byte carrier.
+    /// in the comparison reads that exact byte carrier.
     fn carrier_literal_place(
         &self,
         source: ExpressionHandle,
@@ -1299,7 +1401,20 @@ impl Context<'_> {
                 _ => None,
             });
         let local = locals.next()?;
-        if locals.next().is_some() || local.is_mutable || !local.initial_value.is_valid() {
+        if locals.next().is_some() || !local.initial_value.is_valid() {
+            return None;
+        }
+        if validation::bounded_byte_buffer_capacity(&self.checked.typed, local.type_reference)
+            .is_some()
+        {
+            return Some((
+                checked_trees::CheckedStorageRoot::OwnedLocal {
+                    symbol: name.symbol,
+                },
+                Vec::new(),
+            ));
+        }
+        if local.is_mutable {
             return None;
         }
         let view = validation::slice_view_shell(&self.checked.typed, local.type_reference, &[])?;
