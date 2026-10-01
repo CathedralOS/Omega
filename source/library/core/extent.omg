@@ -39,9 +39,9 @@ pub boundary machine no_wrap(base: addr, length: u64) -> bool;
 // the geometry above does not establish it; checked transformations must
 // conserve an existing claim and admitted roots must inherit the exact
 // owner-authored boundary requirement.
-pub domain Extent::Granted
+pub domain Extent::Granted(extent)
 requires
-    no_wrap(self.base, self.length)
+    no_wrap(extent.base, extent.length)
 established by
     ExtentRootProvider::grant,
     ProgramStorageEntry::enter,

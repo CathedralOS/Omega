@@ -29,9 +29,9 @@ use omega::language::core::float_operations;
 use omega::language::core::binding;
 use targets::macos_arm64::macos_gui_impl;
 
-pub domain [u8]::CString
+pub domain [u8]::CString(bytes)
 requires
-    no_nul(self);
+    no_nul(bytes);
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
 pub boundary trait ObjectiveC {
