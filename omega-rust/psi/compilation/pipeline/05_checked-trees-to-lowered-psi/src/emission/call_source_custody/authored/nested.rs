@@ -315,11 +315,22 @@ pub(super) fn authored_occurrences(
                         );
                     }
                     if !checked.call_has_no_runtime_receiver(call, owner, target) {
-                        // Scalar computations already own the shared receiver's
-                        // exact place and loan replay. This occurrence walk must
-                        // retain that ordinary call beneath casts and other
-                        // scalar operators without treating it as a static call.
-                        let shared_receiver =
+                        // This walk owns occurrence order, not receiver
+                        // authority. Call replay independently rejoins the
+                        // captured receiver's exact place and loan. A completed
+                        // byte owner can therefore be an ordinary operand of
+                        // a mutable receiver call without becoming static.
+                        let byte_result = direct_argument
+                            && validation::bounded_byte_buffer_capacity(
+                                &checked.typed,
+                                target.return_type,
+                            )
+                            .is_some()
+                            && validation::has_plain_owned_contents_with_represented_constraints(
+                                &checked.typed,
+                                target.return_type,
+                            );
+                        let borrowed_receiver =
                             checked
                                 .state_parameters(target)
                                 .first()
@@ -329,13 +340,15 @@ pub(super) fn authored_occurrences(
                                             checked
                                                 .type_reference_table
                                                 .type_reference(parameter.type_reference),
-                                            checked_trees::types::TypeReferenceNode::Reference {
-                                                access: language_core::ReferenceAccess::Shared,
-                                                ..
-                                            }
+                                            checked_trees::types::TypeReferenceNode::Reference { access, .. }
+                                                if *access == language_core::ReferenceAccess::Shared
+                                                    || (byte_result && *access == language_core::ReferenceAccess::Mutable)
                                         )
                                 });
-                        if !scalar_result || !shared_receiver || !call.receiver.is_valid() {
+                        if !(scalar_result || byte_result)
+                            || !borrowed_receiver
+                            || !call.receiver.is_valid()
+                        {
                             return unsupported(
                                 "nested call has no ordinary producer or scalar helper",
                             );

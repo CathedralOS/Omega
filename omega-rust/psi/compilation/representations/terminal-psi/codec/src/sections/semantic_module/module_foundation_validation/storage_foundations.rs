@@ -227,13 +227,21 @@ pub(super) fn validate_structural_byte_sequence_field_store(
                 parameter.place == *source
                     && parameter.position == position
                     && parameter.is_self == is_self
-                    && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
+                    && ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                        && parameter.qualifications.is_empty())
+                        || (parameter.access == terminal_psi::StructuralAccess::Owned
+                            && terminal_semantics::byte_parameter_predicates(module, parameter)
+                                .is_some()))
             }) else {
                 return malformed("byte field store source is not an immutable whole view");
             };
+            // Ordinary owned byte arguments retain their declared predicates
+            // and live length. The carrier check below distinguishes bounded
+            // ownership from a borrowed descriptor; receiving verification
+            // still proves availability, destination predicates and capacity.
+            owned_source = parameter.access == terminal_psi::StructuralAccess::Owned;
             parameter.structural_type
         }
         StructuralPlaceKind::BlockParameter { block, position } => {

@@ -8,6 +8,129 @@ use super::{
 };
 
 #[test]
+fn completed_qualified_byte_call_arguments_keep_owned_storage() {
+    let source = super::structural_borrows::source_plan(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
+        data Main { generated: u64 in Wrapping; observed: Labels; }
+        machine Main::next_label(&mut self) -> [u8; 8] in Utf8 {
+            self.generated = self.generated + 1;
+            transition self.generated == 1 { true -> "North" false -> "N" }
+        }
+        machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8,
+                        destination: &mut Labels) {
+            destination.first = first;
+            destination.second = second;
+        }
+        machine Main::run(&mut self) {
+            let mut labels: Labels;
+            ordered(self.next_label(), self.next_label(), &mut labels);
+            self.observed.first = labels.first;
+            self.observed.second = labels.second;
+        }
+        "#,
+    );
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+            .expect("completed qualified byte owners use by-value aggregate transport");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let (function_index, block_index, call_index) = target.functions.iter().enumerate()
+            .find_map(|(function_index, function)| {
+                function.graph.blocks.iter().enumerate().find_map(|(block_index, block)| {
+                    block.operations.iter().position(|operation| matches!(operation,
+                        TargetUnitOperation::Call { arguments, .. }
+                            if arguments.iter().filter(|argument| argument.access == StructuralAccess::Owned).count() == 2
+                    )).map(|call_index| (function_index, block_index, call_index))
+                })
+            }).expect("the outer call has two distinct owned byte operands");
+        let block = &target.functions[function_index].graph.blocks[block_index];
+        let TargetUnitOperation::Call { arguments, .. } = &block.operations[call_index] else {
+            unreachable!()
+        };
+        assert_ne!(arguments[0].place, arguments[1].place);
+        let target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        } = arguments[0].source
+        else {
+            panic!("completed byte owner keeps its producer home")
+        };
+        let producer_index = block.operations[..call_index].iter().position(|operation| {
+            matches!(operation, TargetUnitOperation::Call { psi_operation, .. } if *psi_operation == producer)
+        }).expect("the completed byte producer precedes its consuming call");
+        let TargetUnitOperation::Call {
+            result:
+                target_operations::TargetCallResult::Structural {
+                    result,
+                    callee_result,
+                    result_home,
+                    ..
+                },
+            ..
+        } = &block.operations[producer_index]
+        else {
+            panic!("ordinary structural result")
+        };
+        assert!(!result.qualifications.is_empty());
+        assert_eq!(result.qualifications, callee_result.qualifications);
+        assert_eq!(result.place, arguments[0].place);
+        assert_eq!(result.structural_type, arguments[0].structural_type);
+        assert_eq!(result.multiplicity, StructuralMultiplicity::Unrestricted);
+        assert_eq!(
+            result_home.as_ref().unwrap().layout.shape(),
+            arguments[0].shape
+        );
+        assert_eq!(arguments[0].source_byte_offset, 0);
+        assert!(
+            arguments[0].fixed_array_length.is_none(),
+            "capacity is not live length"
+        );
+
+        // This receipt checks identity/ABI/source rosters, not body order.
+        // Stage03's completed_owned_byte_call_rejects_consumer_before_producer
+        // tests ordered receiving replay against the optimized source graph.
+        for corruption in 0..7 {
+            let mut changed = target.clone();
+            let operations =
+                &mut changed.functions[function_index].graph.blocks[block_index].operations;
+            if corruption == 6 {
+                let TargetUnitOperation::Call {
+                    result: target_operations::TargetCallResult::Structural { result, .. },
+                    ..
+                } = &mut operations[producer_index]
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            } else {
+                let TargetUnitOperation::Call { arguments, .. } = &mut operations[call_index]
+                else {
+                    unreachable!()
+                };
+                match corruption {
+                    0 => arguments.swap(0, 1),
+                    1 => arguments[0].source = arguments[1].source.clone(),
+                    2 => arguments[0].access = StructuralAccess::SharedBorrow,
+                    3 => arguments[0].structural_type = StructuralTypeId::new(u64::MAX).unwrap(),
+                    4 => arguments[0].source_byte_offset = 8,
+                    5 => arguments[0].shape.byte_size += 1,
+                    _ => unreachable!(),
+                }
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}: forged owned byte argument {corruption}"
+            );
+        }
+    }
+}
+
+#[test]
 fn boolean_call_result_field_store_keeps_its_dominating_home() {
     let source = super::structural_borrows::source_plan(
         r#"

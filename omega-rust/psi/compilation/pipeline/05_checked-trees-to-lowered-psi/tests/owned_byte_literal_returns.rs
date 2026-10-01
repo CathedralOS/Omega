@@ -4,6 +4,182 @@ use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectO
 use checked_trees_to_lowered_psi::{TerminalMachineSelection, lower_machine};
 
 #[test]
+fn nested_mutable_receiver_byte_results_replay_order_and_qualifications() {
+    let checked = crate::front_end::checked_program(
+        "domain [u8; 8]::Utf8 requires valid_utf8(self);
+         data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
+         data Context { generated: u64 in Wrapping; observed: Labels; }
+         machine Context::next_label(&mut self) -> [u8; 8] in Utf8 {
+             self.generated = self.generated + 1;
+             transition self.generated == 1 { true -> \"North\" false -> \"N\" }
+         }
+         machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8, destination: &mut Labels) {
+             destination.first = first;
+             destination.second = second;
+         }
+         machine Context::exercise(&mut self) {
+             let mut labels: Labels;
+             ordered(self.next_label(), self.next_label(), &mut labels);
+             self.observed.first = labels.first;
+             self.observed.second = labels.second;
+             transition self.observed.first == \"North\" && self.observed.first.len == 5
+                 && self.observed.second == \"N\" && self.observed.second.len == 1
+                 && self.generated == 2 {
+                 true -> finish(70)
+                 false -> finish(1)
+             }
+             state finish(code: u64) {}
+         }",
+    );
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Context::exercise"),
+    )
+    .expect("nested mutable receiver calls retain qualified byte owners");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the completed calls retain predicates and independent live lengths");
+
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Context::exercise"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("qualified byte arguments survive canonical publication and optimization")
+    .into_artifact();
+
+    for access in [
+        terminal_psi::StructuralAccess::MutableBorrow,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let mut changed = lowered.semantic_module.clone();
+        let source = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.structural_parameters)
+            .find(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::Owned
+                    && !parameter.qualifications.is_empty()
+            })
+            .expect("the consumer's qualified owned byte parameter");
+        source.access = access;
+        assert!(
+            matches!(
+                terminal_codec::encode_module(&changed),
+                Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "byte field store source is not an immutable whole view"
+                ))
+            ),
+            "canonical field stores cannot read an exclusive source loan: {access:?}"
+        );
+    }
+
+    for corruption in [
+        "source",
+        "order",
+        "argument",
+        "qualification",
+        "access",
+        "ordinal",
+    ] {
+        let mut changed = checked.clone();
+        let operations = &mut changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .find(|state| {
+                state
+                    .operations
+                    .iter()
+                    .filter(|operation| {
+                        operation.call().is_some_and(|call| {
+                            call.coordinate.call_ordinal != 0 && call.structural_result().is_some()
+                        })
+                    })
+                    .count()
+                    == 2
+            })
+            .expect("two expression-owned byte producers in the caller state")
+            .operations;
+        let producers = operations
+            .iter()
+            .enumerate()
+            .filter_map(|(position, operation)| {
+                operation
+                    .call()
+                    .filter(|call| {
+                        call.coordinate.call_ordinal != 0 && call.structural_result().is_some()
+                    })
+                    .map(|_| position)
+            })
+            .collect::<Vec<_>>();
+        match corruption {
+            "source" => {
+                let source = operations[producers[0]]
+                    .call()
+                    .unwrap()
+                    .source_site()
+                    .unwrap();
+                *operations[producers[1]]
+                    .call_mut()
+                    .unwrap()
+                    .source_site_mut()
+                    .unwrap() = source;
+            }
+            "order" => operations.swap(producers[0], producers[1]),
+            "argument" | "access" => {
+                let consumer = operations
+                    .iter_mut()
+                    .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                    .find(|call| {
+                        call.coordinate.call_ordinal == 0 && call.structural_arguments.len() == 3
+                    })
+                    .expect("outer consumer of both byte results");
+                if corruption == "argument" {
+                    consumer.structural_arguments.swap(0, 1);
+                } else {
+                    consumer.structural_arguments[0].access =
+                        checked_trees::CheckedStructuralAccess::SharedBorrow;
+                }
+            }
+            "qualification" => operations[producers[0]]
+                .call_mut()
+                .unwrap()
+                .structural_custody_mut()
+                .unwrap()
+                .result_qualifications
+                .clear(),
+            "ordinal" => {
+                operations[producers[1]]
+                    .call_mut()
+                    .unwrap()
+                    .coordinate
+                    .call_ordinal = 1
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Context::exercise")
+            )
+            .is_err(),
+            "nested byte result corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn returned_record_reference_field_stores_preserve_the_borrowed_destination() {
     let checked = crate::front_end::checked_program(
         "domain [u8; 16]::Utf8 requires valid_utf8(self);

@@ -445,10 +445,10 @@ fn byte_replacement_keeps_rhs_receiver_and_authored_output_parameter_mapping() {
         OperationKind::StructuralByteSequenceFieldLength { source, .. } if source == receiver.place)));
 }
 
-/// Neither a byte field nor a whole bounded byte owner has a local-rooted
-/// lowering: replay refuses either store once its shared root names a local.
+/// Local-rooted stores must name their actual source local. Neither a byte
+/// field nor a whole owner can be retargeted to an invented local symbol.
 #[test]
-fn byte_field_and_whole_owner_stores_refuse_a_local_root() {
+fn byte_field_and_whole_owner_stores_refuse_an_invented_local_root() {
     for (source, machine) in [
         (
             r#"
@@ -488,11 +488,11 @@ fn byte_field_and_whole_owner_stores_refuse_a_local_root() {
             symbol: symbols::SymbolHandle::invalid(),
         };
         let error = lower_machine(&checked, TerminalMachineSelection::Name(machine))
-            .expect_err("a byte store has no local root");
+            .expect_err("a byte store cannot acquire an invented source local");
         assert!(
             matches!(
                 error,
-                super::LoweringError::Unsupported("byte-field store has no parameter root")
+                super::LoweringError::Unsupported("record store has no source local")
             ),
             "{machine}: {error:?}"
         );

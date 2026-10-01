@@ -20,7 +20,157 @@ fn id<T: PsiSemanticId>(value: u64) -> T {
 }
 
 #[test]
+fn completed_owned_byte_call_rejects_consumer_before_producer() {
+    use abstract_operations::{AbstractFunctionResult, AbstractStructuralCallResult};
+    use terminal_psi::{
+        StructuralArgument, StructuralOperationResult, StructuralResultDeclaration,
+    };
+
+    // This control isolates operation order. Qualified owned-parameter return
+    // is a separate unsupported lane; the preceding Stage02 and entry-home
+    // tests retain the predicate-corruption controls for qualified bytes.
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    source.structural_types = vec![StructuralTypeDeclaration {
+        id: id(1),
+        identity: "Bytes8".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+    }]
+    .into();
+    let parameter = |place| StructuralParameterDeclaration {
+        place: id(place),
+        position: 0,
+        is_self: false,
+        structural_type: id(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let mut producer = source.functions[0].clone();
+    producer.machine = id(2);
+    producer.entry = id(2);
+    producer.block_entries[0].block = id(2);
+    producer.structural_parameters = vec![parameter(2)];
+    producer.result = AbstractFunctionResult::Structural(StructuralResultDeclaration {
+        place: id(3),
+        structural_type: id(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    producer.operations = vec![AbstractOperation::ReturnStructural {
+        psi_edge: id(2),
+        source: id(2),
+        returned_claims: Vec::new(),
+        trivial_affine_locals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    }];
+    let mut consumer = source.functions[0].clone();
+    consumer.machine = id(3);
+    consumer.entry = id(3);
+    consumer.block_entries[0].block = id(3);
+    consumer.structural_parameters = vec![parameter(5)];
+    consumer.operations = vec![AbstractOperation::ReturnUnit {
+        psi_edge: id(3),
+        cleanup_actions: Vec::new(),
+    }];
+    let call = |operation, callee, place, result| AbstractOperation::CallStructural {
+        psi_operation: id(operation),
+        callee: id(callee),
+        result,
+        arguments: Vec::new(),
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: id(place),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        }],
+    };
+    source.functions[0].structural_parameters = vec![parameter(1)];
+    source.functions[0].operations.splice(
+        0..0,
+        [
+            call(
+                1,
+                2,
+                1,
+                AbstractStructuralCallResult::Structural {
+                    result: StructuralOperationResult {
+                        place: id(4),
+                        structural_type: id(1),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                    returned_claim_transfers: Vec::new(),
+                    selected_evidence: Vec::new(),
+                },
+            ),
+            call(2, 3, 4, AbstractStructuralCallResult::Unit),
+        ],
+    );
+    source.functions.extend([producer, consumer]);
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("owned bytes forward through their exact normal result before the consumer");
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legalized = crate::legalize_target_operations(&target, &source, &unit)
+            .expect("the in-order completed owner is a valid call argument");
+        crate::validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+            .unwrap();
+        let mut reordered = target.clone();
+        reordered.functions[0].graph.blocks[0].operations.swap(0, 1);
+        // Stage02's roster receipt is deliberately not a body-order judgment.
+        // The mandatory receiving checker must reject the same retained rows
+        // when their executable order no longer matches the source graph.
+        assert!(
+            crate::legalize_target_operations(&reordered, &source, &unit).is_err(),
+            "{native:?}: consumer before completion"
+        );
+        assert!(
+            crate::validate_legalized_operations(
+                &reordered,
+                &source,
+                &unit,
+                legalized.plan().clone()
+            )
+            .is_err(),
+            "{native:?}: an unchanged legalized plan cannot launder reordered target calls"
+        );
+    }
+}
+
+#[test]
 fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
+    check_owned_byte_parameter_store(16);
+}
+
+#[test]
+fn register_carried_owned_byte_parameter_retains_entry_home() {
+    check_owned_byte_parameter_store(8);
+}
+
+fn check_owned_byte_parameter_store(capacity: u64) {
     for native in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -31,7 +181,7 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
         let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
         let mut predicates = ByteSequencePredicateSet::EMPTY;
         predicates.insert(ByteSequencePredicate::ValidUtf8);
-        let carrier = ByteSequenceCarrier::BoundedOwned { capacity: 16 };
+        let carrier = ByteSequenceCarrier::BoundedOwned { capacity };
         source.structural_types = vec![
             StructuralTypeDeclaration {
                 id: id(1),
@@ -50,7 +200,7 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
             },
             StructuralTypeDeclaration {
                 id: id(2),
-                identity: "[u8;16]".into(),
+                identity: format!("[u8;{capacity}]"),
                 shape: StructuralTypeShape::ByteSequence(carrier),
             },
         ]
@@ -107,7 +257,7 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
         unit.structural_domains = vec![StructuralDomainDeclaration {
             id: id(1),
             semantic_domain: id(1),
-            identity: "Utf8<[u8;16]>".into(),
+            identity: format!("Utf8<[u8;{capacity}]>"),
             carrier: id(2),
             byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
             content_projection: None,
@@ -116,7 +266,7 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
         .into();
         let capacity_goal = semantic_vocabulary::Proposition::LessOrEqual(
             ScalarTerm::value(id(1), ScalarType::Integer(integer)),
-            ScalarTerm::integer(integer, IntegerValue::Unsigned(16)).unwrap(),
+            ScalarTerm::integer(integer, IntegerValue::Unsigned(capacity.into())).unwrap(),
         );
         let accepted = optimization_unit::AcceptedObligationFact::new(
             unit.psi,
@@ -164,7 +314,7 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
         assert_eq!(parameter.access, StructuralAccess::Owned);
         assert_eq!(
             parameter.shape,
-            calling_conventions::ValueShape::integer(24, 8)
+            calling_conventions::ValueShape::integer(u32::try_from(capacity + 8).unwrap(), 8)
         );
         let legalized =
             crate::legalize_target_operations(&target, &source, &unit).unwrap_or_else(|error| {
@@ -190,6 +340,69 @@ fn owned_qualified_byte_parameter_replaces_field_through_four_native_abis() {
             selected.plan().clone(),
         )
         .expect("replay live-length copying and owned backing geometry");
+
+        let direct_fragments = parameter.placement.locations.iter().all(|location| {
+            matches!(
+                location,
+                calling_conventions::ValueLocation::Register { .. }
+            )
+        });
+        if direct_fragments {
+            let slot =
+                selected_instructions::LocalStorageSlotId::StructuralParameter { place: id(2) };
+            let function = &selected.plan().functions[0];
+            let home_index = function
+                .local_storage_slots
+                .iter()
+                .position(|home| home.id == slot)
+                .expect("register-carried owned bytes need their own addressable entry home");
+            assert_eq!(
+                function.local_storage_slots[home_index].byte_size,
+                parameter.shape.byte_size
+            );
+            assert_eq!(
+                function.local_storage_slots[home_index].alignment,
+                parameter.shape.alignment
+            );
+            for corruption in 0..3 {
+                let mut changed = selected.plan().clone();
+                let function = &mut changed.functions[0];
+                match corruption {
+                    0 => {
+                        function.local_storage_slots.remove(home_index);
+                    }
+                    1 => function.local_storage_slots[home_index].byte_size -= 1,
+                    2 => {
+                        let address = function.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+                            .find(|instruction| matches!(instruction.kind,
+                                selected_instructions::SelectedInstructionKind::FrameAddress {
+                                    slot: selected_instructions::FrameStorageSlotId::Local(actual), ..
+                                } if actual == slot
+                            )).expect("owned entry home address");
+                        let selected_instructions::SelectedInstructionKind::FrameAddress {
+                            byte_offset,
+                            ..
+                        } = &mut address.kind
+                        else {
+                            unreachable!()
+                        };
+                        *byte_offset = 8;
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legalized,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed,
+                    )
+                    .is_err(),
+                    "{native:?} capacity {capacity}: forged owned entry home {corruption}"
+                );
+            }
+        }
 
         let mut borrowed_signature = target.clone();
         borrowed_signature.functions[0].graph.parameters[1].access = StructuralAccess::SharedBorrow;

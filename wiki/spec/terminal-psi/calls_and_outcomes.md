@@ -155,6 +155,14 @@ ordinals. Source lowering must rejoin the authored occurrence and exact
 producer/consumer relationship, even when substituting another same-typed value
 would satisfy Terminal type or ownership checks.
 
+A completed ordinary bounded-byte result can supply a whole owned argument.
+Its carrier, live contents and length, and declared byte predicates survive the
+handoff; equal capacity alone cannot replace the qualification contract. An
+anonymous unrestricted result needs no fictional statement-local disposal.
+Mutable-receiver producers remain effectful calls, evaluated once in authored
+order under their ordinary loan checks. Scheduling a producer proves neither
+its result predicates nor its receiver permissions.
+
 A moved structural result leaves no caller disposal; its receiver owns later
 transfer or cleanup. An unconsumed affine result requires caller cleanup.
 Multiple unconsumed results are disposed in reverse production order before

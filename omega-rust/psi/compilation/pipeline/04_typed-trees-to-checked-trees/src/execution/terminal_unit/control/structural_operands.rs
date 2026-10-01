@@ -9,7 +9,9 @@ use super::{
     MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
-use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, machine_binders, parameter_qualifications, state_flow,
+};
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 
@@ -545,14 +547,24 @@ pub(in crate::execution::terminal_unit) fn result(
         if !owner.supply_mode.is_boundary_declaration() {
             if owner.supply_mode == MachineSupplyMode::CheckedBody
                 && program.type_multiplicity(return_type) == Multiplicity::Unrestricted
-                && validation::has_plain_owned_contents(program, return_type)
+                && (validation::has_plain_owned_contents(program, return_type)
+                    || (validation::bounded_byte_buffer_capacity(program, return_type).is_some()
+                        && validation::has_plain_owned_contents_with_represented_constraints(
+                            program,
+                            return_type,
+                        )))
                 && machine_binders(program, owner).is_empty()
             {
                 return Some(CheckedStructuralResultPlan {
                     type_identity: shapes.add_type(return_type, &[], &[])?,
                     multiplicity: Multiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    // An anonymous result carries the same declared domains
+                    // as a named result; scheduling it establishes none of
+                    // them. Callee completion and receiving replay own that proof.
+                    qualifications: parameter_qualifications(program, shapes, return_type, &[])?,
+                    projected_qualifications:
+                        validation::structural_result_projected_qualifications(program, return_type)
+                            .ok()?,
                 });
             }
             // An owned record carrying borrowed referents is affine through

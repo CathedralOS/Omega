@@ -43,8 +43,8 @@ pub(super) fn owned_parameter_uses_local_home(
 }
 
 /// Owned aggregate inputs only need addressable storage when an operation observes a
-/// field, observes a projected case, lends the original value, or a case dispatch
-/// reads its tag and payloads. Pure whole-value transport keeps its ABI
+/// field or byte contents, observes a projected case, lends the original value,
+/// or a case dispatch reads its tag and payloads. Pure whole-value transport keeps its ABI
 /// fragments; a materialized home becomes the value's storage for later uses.
 pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     let Some(signature) = &source.structural else {
@@ -61,6 +61,9 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::Mixed { .. }
                             | StructuralTypeShape::FixedArray { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
                     )
             })
     }) {
@@ -84,7 +87,15 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             // Projected primitive reads need the same addressable owned home
             // as field observations, including arrays passed in ABI registers.
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
-            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
+            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
+            // Byte operations read the owner's length and backing, not a
+            // pointer encoded in its first incoming register fragment.
+            LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
+            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)

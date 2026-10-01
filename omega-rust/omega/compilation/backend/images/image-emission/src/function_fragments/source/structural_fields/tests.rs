@@ -964,7 +964,7 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
 }
 
 #[test]
-fn returned_bounded_owner_publication_uses_inline_payload_offset() {
+fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
     use selected_instructions::{
         SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
         SelectedMemoryAccessRole,
@@ -976,7 +976,9 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     };
 
     let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    let (mut function, _) = field_fixture(count_type);
+    let (mut function, mut target) = field_fixture(count_type);
+    function.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    target.graph.parameters[0].access = StructuralAccess::MutableBorrow;
     let destination = function.structural_parameters[0].place;
     let source = PlaceId::new(2).unwrap();
     let structural_type = StructuralTypeId::new(2).unwrap();
@@ -1064,7 +1066,7 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(replacement_footprints_retained(
         &function,
         &function.operations[1],
-        None,
+        Some(&target),
         &accesses,
         &structural_types,
     ));
@@ -1074,7 +1076,7 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(!replacement_footprints_retained(
         &function,
         &function.operations[1],
-        None,
+        Some(&target),
         &descriptor_offset,
         &structural_types,
     ));
@@ -1088,10 +1090,53 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(!replacement_footprints_retained(
         &function,
         &function.operations[1],
-        None,
+        Some(&target),
         &accesses,
         &borrowed,
     ));
+
+    // The same bytes can arrive as an ordinary owned formal. Removing the
+    // producer ensures the footprint comes from the parameter's own contract.
+    function.operations.remove(0);
+    function
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: source,
+            position: 1,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: vec![StructuralDomainId::new(1).unwrap()],
+            projected_qualifications: Vec::new(),
+        });
+    assert!(replacement_footprints_retained(
+        &function,
+        &function.operations[0],
+        Some(&target),
+        &accesses,
+        &structural_types,
+    ));
+    assert!(!replacement_footprints_retained(
+        &function,
+        &function.operations[0],
+        Some(&target),
+        &descriptor_offset,
+        &structural_types,
+    ));
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        function.structural_parameters[1].access = access;
+        assert!(!replacement_footprints_retained(
+            &function,
+            &function.operations[0],
+            Some(&target),
+            &accesses,
+            &structural_types,
+        ));
+    }
 }
 
 #[test]

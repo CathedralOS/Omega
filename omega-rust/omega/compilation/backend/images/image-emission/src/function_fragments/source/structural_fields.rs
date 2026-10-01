@@ -483,7 +483,7 @@ pub(super) fn replacement_footprints_retained(
     else {
         return false;
     };
-    // Owned concatenations and ordinary bounded-owner call results use the
+    // Owned parameters, concatenations and ordinary bounded-owner call results use the
     // same `{live length, inline backing}` layout as bounded fields. Borrowed
     // descriptor sources account for their external backing from offset zero.
     let source_byte_offset = if function.operations.iter().any(|operation| match operation {
@@ -510,6 +510,12 @@ pub(super) fn replacement_footprints_retained(
                 })
         }
         _ => false,
+    }) || function.structural_parameters.iter().any(|parameter| {
+        parameter.place == *source
+            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                parameter,
+                structural_types,
+            )
     }) {
         8
     } else {

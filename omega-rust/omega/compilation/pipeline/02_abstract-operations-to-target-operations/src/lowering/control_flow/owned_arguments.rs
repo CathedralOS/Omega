@@ -1,5 +1,7 @@
 //! Owned aggregate actuals retain exact type, custody, and current value backing.
-//! Arrays, records, and completed sums share transport, not semantic identity.
+//! Arrays, records, completed sums, and bounded byte owners share transport,
+//! not semantic identity. A byte owner transports its live-length word and
+//! backing together; presenting it as a borrowed view would change that ABI.
 //! An owned receiver uses that same transport: `is_self` identifies its source
 //! role, not a different ABI or an exemption from the home custody checks.
 use super::LiveDefinitions;
@@ -171,15 +173,19 @@ fn value_layout(
         .get(&structural_type)
         .map(|declaration| &declaration.shape)
     {
-        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
-            crate::lowering::structural_layout::structural_shape(
-                structural_type,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )
-            .map(TargetStructuralHomeLayout::Aggregate)
-        }
+        Some(
+            StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::FixedArray { .. }
+            | StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                ..
+            }),
+        ) => crate::lowering::structural_layout::structural_shape(
+            structural_type,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .map(TargetStructuralHomeLayout::Aggregate),
         Some(StructuralTypeShape::Sum { .. }) => {
             // Equal byte sizes do not establish equal tag and payload placement.
             // Retain the same declared sum layout used by construction and reads.
