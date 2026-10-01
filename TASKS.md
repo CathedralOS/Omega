@@ -11,7 +11,7 @@ required; the order below guides implementation, not release exemptions.
 
 | Priority | Work and acceptance |
 | --- | --- |
-| 1. Run existing customers | [Immediate product closure](#immediate-product-closure): use SAMPLE-CORPUS, CANARY-CORPUS and SQUALR-HEADLESS to choose a concrete failure. Start with programs that check but cannot realize; follow the failing operation to its capability owner. |
+| 1. Run existing customers and remove their structural blockers | [High-priority composition repairs](#high-priority-composition-repairs) and [Immediate product closure](#immediate-product-closure): use SAMPLE-CORPUS, CANARY-CORPUS and SQUALR-HEADLESS to choose a concrete failure. Repair the general operation, not another combination-specific route. |
 | 2. Remove source and pipeline blockers | [Pipeline route](#pipeline-route): ordinary storage/call/transition repairs, then shared source/Build/Terminal convergence where needed. Independent customer repairs need not wait for the whole structural campaign. |
 | 3. Connect the remaining accepted capabilities | [Entry and authority](#p1---authority-roots-and-entry), [materialization](#p2---materialization-and-placed-access), [service reach](#automatic-service-reach), [reflection](#semantic-reflection), [embedding](#embedding-and-interpreted-components), [tests](#requirement-based-tests), and [parallel language work](#parallel-language-and-compiler-lanes). Advance an item earlier when the chosen program needs it. |
 | 4. Close the full product matrix | [Rust release closure](#rust-compiler-release-closure): all accepted features and required matching-host runs. Focused successes do not satisfy full gates. |
@@ -37,6 +37,125 @@ and transfers on the common graph, not another source-shape recognizer.
 Compiler verification does not require an accepted package lock, and unfinished
 native realization does not block source-package installation. Package acceptance,
 build authority, and artifact verification remain separate obligations.
+
+## High-priority composition repairs
+
+These are ready-to-pick implementation tasks, not design proposals or work
+reserved to the static-migration agent. Check live claims for actual assignments;
+this board grants no directory fences. Evidence below is source inspection at
+`89160904b7a6`, not a new execution result. First reproduce the named customer's
+current boundary. All four follow the mandatory
+[clean-as-you-go rule](omega-rust/pipeline.md#compositional-lowering): delete the
+replaced special paths with the repair. A new helper around the same exception
+matrix, a source rewrite avoiding the operation, or a passing isolated helper
+does not close an item. Keep independent receiving verification.
+
+- **CHECKED-PLACE-CALL-CUSTODY.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
+  High priority: resolve a call's borrowed storage by its checked root,
+  projection, access and live loan, not by its construction idiom or result
+  family. Stage 05 `unit/attached_unit/parameters.rs` admits structural-result
+  arguments through separate `record_borrow`, `reference_borrow`,
+  `scalar_leaf_borrow`, `element_view_borrow`, `array_borrow` and bounded-owner
+  exceptions before falling back to a caller-parameter-only route. Adding the
+  next Boolean is prohibited. Normalize the argument's source place and checked
+  custody once, then apply real carrier adaptation and transfer rules. Ordinary
+  and boundary calls, Unit/scalar/record-result consumers use that operation.
+  Preserve exact root identity, captured selectors, qualification evidence,
+  claim transfer, evaluation order and loan lifetime; shape equality is not
+  authority.
+  Owners: stage 04 `execution/terminal_unit/calls/computation_arguments/`,
+  checked structural argument plans, stage 05 `unit/attached_unit/parameters.rs`
+  and `structural_calls/result_uses.rs`, with the corresponding Terminal call
+  validation. Start with the local record-array element loan
+  `&mut board.tallies[1]` recorded under STATIC-MACHINE-MIGRATION; add that
+  projection to the explicit-local customer
+  `pass/calls/local_records_mixed_record_result_arguments_exit`, keeping its
+  original whole-local case as a control. Acceptance: projected caller writes
+  survive a record-returning call and a state-forwarded use in interpreter and
+  native execution, with one common source-place path; conflicting subloans and
+  substituted root/path/access evidence reject. Report the removed exceptions.
+  This owns call argument resolution, not all store/partial-initialization work
+  in REFERENCE-BEARING-RECORD-LOCAL-FILL. VIEW-LOAN-COMPOSITION consumes this
+  resolver where needed; do not duplicate its source-place policy there.
+
+- **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
+  High priority: one checked view-narrowing operation across local binding,
+  call argument and state edge, carrying access and lifetime rather than
+  silently assuming a shared view. Stage 04 `calls/view_subslice.rs::ViewRange`
+  has no access field and `argument` hardcodes SharedBorrow; field ranges are
+  refused at transition sites. Stage 05's `ViewRangeSource` likewise lacks
+  access; `byte_subslices.rs` documents ordinary-versus-composed restrictions
+  from temporary/namespace ownership. Local binding and call staging separately
+  establish field views. Consolidate source resolution, temporary ownership,
+  endpoint binding and cleanup around the existing range operation, removing
+  those site-specific admission rules. Byte/element carrier differences and
+  qualification-preservation obligations remain explicit semantic checks.
+  Owners: stage 04 `calls/view_subslice.rs` and
+  `control/statement_sequence/local_data.rs`; stage 05
+  `unit/attached_unit/view_ranges.rs`, `byte_subslices.rs`, `operation_frame.rs`
+  and `composed_control/state_graph/subslices.rs`; Terminal element/byte-view
+  validation. Acceptance: all three
+  `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call` programs
+  execute with exit 0 natively and interpreted, preserving mutable loans and
+  writes outside the window. Exercise the same admitted range as a call
+  argument and state transfer, including a write through the mutable view.
+  Reject overlapping live windows, shared-to-mutable forgery, stale source
+  access and invalid cleanup in independent Terminal checks, not only source
+  checking. Preserve `fail/slices/overlapping_mut_subslice_windows_rejected`.
+  An unfinished isolated mutable-subslice patch is not acceptance or a permanent
+  reservation; reconcile it rather than landing a second local-only mechanism.
+
+- **NATIVE-LIVE-HOME-RESOLUTION.** (split-of:STRUCTURAL-BORROW-IDENTITY)
+  High priority: give native view construction the existing live storage-home
+  context instead of reconstructing a second producer catalog. Omega stage 02
+  `lowering/control_flow/operations.rs` has `LiveDefinitions` but calls
+  `lowering/scalar/element_views.rs::element_view_for_place` without its homes;
+  `local_aggregate_home` scans every operation and enumerates array/zeroed/record/
+  copy/call producers. Each new producer therefore needs another list entry,
+  and the lookup describes existence rather than availability at this point.
+  Thread or prepare the applicable home context at the graph owner, use one
+  exact place-to-home resolution contract, and remove that producer scan.
+  Preserve legitimate descriptor, ingress and owned-home distinctions; do not
+  substitute a copied aggregate for lent backing or turn an optimization cache
+  into authority. Independent target and image checks still reconstruct
+  dominance, geometry and custody from their own inputs.
+  Acceptance: retain native/interpreter outcomes for
+  `pass/calls/local_fixed_byte_array_loan_exit`,
+  `pass/slices/local_array_element_view_exit` and
+  `pass/calls/local_array_direct_read_exit`; exercise a view over a local record's
+  array after an intervening state transfer and show writes reach that backing.
+  Reject a non-dominating producer, an ended home and substituted home/extent.
+  Inspect the whole caller chain, not just replace the scan with a fresh map
+  per lookup. This task is independently available on existing Terminal inputs;
+  it need not wait for new Psi mutable-window support. No performance claim is
+  required without measurement.
+
+- **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
+  High priority: use the common Unit callee catalog to assemble scalar-machine
+  closures; remove the competing pure assembler, not just its dispatch wrapper.
+  Stage 05 `machine_lowering/machine_dispatch.rs::lower_selected_machine` chooses
+  `lower_scalar_effect_closure` or `checked_scalar_call_closure` /
+  `lower_scalar_call_closure` through `requires_shared_catalog`. The separate
+  assembler's content-effect restriction makes supported calls depend on the
+  caller's chosen family. Owners: `scalar_graph/scalar_call_closure.rs`,
+  `unit/attached_unit/` catalog/closure assembly and machine dispatch. Retain
+  scalar control/results as data, exact signatures, proof obligations, debug
+  maps and source custody. Do not merge unrelated ABI/result semantics or
+  resurrect a fallback after a rejected checked plan.
+  Acceptance: `pass/calls/runtime_dispatch_float_terminal_exit` and
+  `pass/calls/mutual_cycle_tail_admitted_exit` retain their authored exits;
+  a scalar-returning caller composes a mutable-local call with subsequent
+  observation and state forwarding through the same catalog. Check once-only
+  effects, branch-specific result guarantees and invalid transfer rejection.
+  Delete the separate assembler and its eligibility dispatch. General return
+  roster and dynamic-call consolidation remain with the parent item; they are
+  not prerequisites for this bounded cut. Coordinate only the shared call
+  catalog seam with CHECKED-PLACE-CALL-CUSTODY, not a blanket stage-05 lock.
+
+For each item run its customer with `omega run --both <main.omg>` on a supported
+matching host and the affected registered corpus checks. Record separately:
+source checking, Terminal production/independent verification, interpreted
+execution and native exit/output. A moved refusal is still unfinished work.
 
 ## Immediate product closure
 
@@ -82,12 +201,8 @@ build authority, and artifact verification remain separate obligations.
   fixtures now use local `WindowBuffer` storage and static calls. Their authored
   assertions execute with checked-interpreter exit 0 on Windows (83d1d7229173
   plus migration), but Terminal production stops at the mutable subslice local.
-  Stage 04 `calls/view_subslice.rs` admits shared views only; stage 05
-  `unit/attached_unit/view_ranges.rs::binding_local` likewise requires shared,
-  unrestricted custody. Carry exclusive subslice loans through the existing
-  range operation and its independent checks, preserving rejection of
-  `fail/slices/overlapping_mut_subslice_windows_rejected`. Close with host entry
-  roots and exit-0 oracles for all three fixtures, not a shared-borrow rewrite.
+  **VIEW-LOAN-COMPOSITION** owns the common range-operation repair and all three
+  native exit-0 oracles; do not create another local-only subslice route here.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,
@@ -128,7 +243,8 @@ build authority, and artifact verification remain separate obligations.
   or a local whole or by field) across its own states to scalar and record
   results (`pass/calls/state_graph_callee_forwards_mut_parameter_exit`,
   `pass/calls/local_record_forwarded_across_callee_states_exit`).
-  Remaining structural-argument refusal: for Unit, scalar and record results
+  **CHECKED-PLACE-CALL-CUSTODY** owns the remaining structural-argument refusal:
+  for Unit, scalar and record results
   alike, a fixed-index loan of a local's record-array element
   (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
   argument has invalid checked custody`. A static
@@ -137,9 +253,8 @@ build authority, and artifact verification remain separate obligations.
   On macOS ARM64 at `bbd0a9fdb8` plus namespace-call interpretation,
   `omega run --both samples/cli/basics/generic_counters/main.omg` exits **16**
   in both engines. Matching-host execution on the other declared targets
-  remains open. Stage 02 element-view establishment
-  resolves a local backing from its producer operation because threading the
-  live home map needs `control_flow/operations.rs`.
+  remains open. **NATIVE-LIVE-HOME-RESOLUTION** owns removing stage 02's
+  producer-scan fallback for local view backing.
   A domain-qualified byte local built from a shorter literal (`let text: [u8;
   8] in Utf8 = "150";`) is a bounded owner with its own backing and live
   length ([encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)):
@@ -241,7 +356,8 @@ the complete product bar; focused successes below do not establish that baseline
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
-  native execution. Preserve the
+  native execution. **CHECKED-PLACE-CALL-CUSTODY** owns the bounded call-source
+  normalization cut; retain other expression/store work here. Preserve the
   [evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering):
   exact producer, authored parameter position, result owner, loan activation
@@ -448,10 +564,9 @@ the complete product bar; focused successes below do not establish that baseline
     literals already have composed emission; keep
     `calls/runtime_value_call_literal_len_arm_guard_exit`'s two distinct results
     and recorded native exit 70 instead of reopening those repairs.
-  - **One scalar closure assembler.** Fold `scalar_call_closure` into the shared
-    Unit catalog; its pure assembler still refuses content effects across
-    member calls. Preserve source mappings, structural types, services and
-    proofs. Transfer multi-state scalar bodies from scalar-owner precedence
+  - **One scalar closure assembler.** **SCALAR-CLOSURE-CATALOG** owns merging
+    the two assemblers and deleting their eligibility dispatch. The parent
+    retains the broader transfer of multi-state bodies from scalar-owner precedence
     only with continuation-arm custody, later-state mutable scalar stores and
     crash predicates, float prefix initializers and debug maps accounted for.
     `CheckedStructuralControlSuccessorPlan` still lacks continuation identity.
@@ -1575,6 +1690,9 @@ crash and native exit behavior. Use affected check/native corpus slices under
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
   locals from every admitted producer, then preserve their loan identity,
   backing and access through reads, calls and explicit state transfers.
+  **VIEW-LOAN-COMPOSITION** owns subslice-site/access consolidation and
+  **CHECKED-PLACE-CALL-CUSTODY** owns call-source resolution; use those shared
+  mechanisms rather than adding local-specific call or range routes here.
   Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
   and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
   `execution/terminal_unit/control/statement_sequence/local_data.rs`,
@@ -3436,6 +3554,10 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **STRUCTURAL-BORROW-IDENTITY.** Preserve original caller storage through
   projections, call preparation, native placement and independent receiving
   replay under [structural access](wiki/spec/terminal-psi/structural_access.md).
+  **NATIVE-LIVE-HOME-RESOLUTION** owns stage 02 view-backing lookup consolidation;
+  **CHECKED-PLACE-CALL-CUSTODY** owns the checked/source argument normalization.
+  Keep this item's wider placement and receiving-replay acceptance, not duplicate
+  implementations of those two repairs.
   Owners: checked `terminal_scalar` signatures, `receiver_calls` and
   `calls/computation_arguments`; lowered scalar-callee selection; target
   `structural_call_arguments` and image `argument_custody`.
