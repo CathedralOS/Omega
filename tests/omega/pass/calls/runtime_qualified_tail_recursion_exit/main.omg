@@ -11,8 +11,8 @@ machine Walker::walk(position: u64) -> u64 {
     }
 }
 data Main { console: Binding<Console>; status: u64; }
-machine Main::main(&mut self) reaches Console {
-    transition { _ -> gate(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> gate(main) }
     state gate(main: &mut Main) {
         main.status = 1;
         transition { _ -> verify(main) }

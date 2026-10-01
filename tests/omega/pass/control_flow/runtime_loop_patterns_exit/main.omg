@@ -16,10 +16,10 @@ data Main {
     sum: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.i = 1;
-    self.sum = 0;
-    transition { _ -> sum_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.i = 1;
+    main.sum = 0;
+    transition { _ -> sum_loop(main) }
 
     // --- 1: large counting accumulation ---
     state sum_loop(main: &mut Main) {

@@ -18,8 +18,8 @@ machine dbl(x: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> r }
 }
 
-machine Main::main(&mut self) reaches Console {
-    transition dbl(5) == dbl(6) { true -> bad(&mut self, 71) _ -> equal_pair(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    transition dbl(5) == dbl(6) { true -> bad(main, 71) _ -> equal_pair(main) }
 
     state equal_pair(main: &mut Main) {
         transition dbl(3) == dbl(3) { true -> good(main) _ -> bad(main, 72) }

@@ -17,20 +17,20 @@ data Main {
     b: [i32; 3] in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a[0] = 5;
-    self.a[1] = 6;
-    self.a[2] = 7;
-    self.b = self.a; // whole-array value copy
-    self.b[0] = 99;  // mutate the copy's first element
-    transition self.a[0] == 5
-            && self.a[1] == 6
-            && self.a[2] == 7
-            && self.b[0] == 99
-            && self.b[1] == 6
-            && self.b[2] == 7 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.a[0] = 5;
+    main.a[1] = 6;
+    main.a[2] = 7;
+    main.b = main.a; // whole-array value copy
+    main.b[0] = 99;  // mutate the copy's first element
+    transition main.a[0] == 5
+            && main.a[1] == 6
+            && main.a[2] == 7
+            && main.b[0] == 99
+            && main.b[1] == 6
+            && main.b[2] == 7 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) {
         main.console.exit_process(70);

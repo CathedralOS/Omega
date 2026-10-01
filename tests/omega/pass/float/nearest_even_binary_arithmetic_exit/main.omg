@@ -22,16 +22,16 @@ data Main {
     tenth32: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.one64 = 1.0;
-    self.tenth64 = 0.1;
-    self.ten64 = 10.0;
-    self.one32 = 1.0;
-    self.tenth32 = 0.1;
-    let sum64: f64 = self.one64 + 0.000000000000000166533453693773481063544750213623046875;
+machine Main::main(main: &mut Main) reaches Console {
+    main.one64 = 1.0;
+    main.tenth64 = 0.1;
+    main.ten64 = 10.0;
+    main.one32 = 1.0;
+    main.tenth32 = 0.1;
+    let sum64: f64 = main.one64 + 0.000000000000000166533453693773481063544750213623046875;
     transition sum64 == 1.0000000000000002220446049250313080847263336181640625 {
-        true -> subtract64(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> subtract64(main)
+        _ -> fail(main, 71)
     }
 
     state subtract64(main: &mut Main) {

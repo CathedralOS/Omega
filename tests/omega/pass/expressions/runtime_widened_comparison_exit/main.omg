@@ -19,13 +19,13 @@ data Main {
     same: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.small = 44;
-    self.big = 300;
-    self.same = 44;
+machine Main::main(main: &mut Main) reaches Console {
+    main.small = 44;
+    main.big = 300;
+    main.same = 44;
 
     // Widened 44 must NOT equal 300 (truncation would make it equal).
-    transition widen_i8_to_i32(self.small) == self.big { true -> truncated(&mut self) _ -> confirm_equal(&mut self) }
+    transition widen_i8_to_i32(main.small) == main.big { true -> truncated(main) _ -> confirm_equal(main) }
 
     // Widened 44 MUST equal 44 (the widen preserves the value).
     state confirm_equal(main: &mut Main) {

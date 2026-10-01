@@ -49,14 +49,14 @@ machine Main::push(main: &mut Main, value: i32 in Wrapping) {
     state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value; }
 }
 
-machine Main::main(&mut self) reaches Console {
-    Main::init(&mut self);
-    Main::push(&mut self, 3);
-    Main::push(&mut self, 4);
+machine Main::main(main: &mut Main) reaches Console {
+    Main::init(main);
+    Main::push(main, 3);
+    Main::push(main, 4);
 
-    transition self.vm.stack[1] == 4 {
-        true -> check0(&mut self)
-        _ -> bad(&mut self)
+    transition main.vm.stack[1] == 4 {
+        true -> check0(main)
+        _ -> bad(main)
     }
     state check0(main: &mut Main) {
         transition main.vm.stack[0] == 3 {

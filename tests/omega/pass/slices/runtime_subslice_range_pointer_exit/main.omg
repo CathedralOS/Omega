@@ -10,17 +10,17 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.entries[0].value = 11;
-    self.entries[1].value = 29;
+machine Main::main(main: &mut Main) reaches Console {
+    main.entries[0].value = 11;
+    main.entries[1].value = 29;
 
-    let view: &[Entry] = self.entries.as_slice();
+    let view: &[Entry] = main.entries.as_slice();
     let tail: &[Entry] = view[1..];
     let chosen: Entry = tail[0];
 
     transition chosen.value == 29 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

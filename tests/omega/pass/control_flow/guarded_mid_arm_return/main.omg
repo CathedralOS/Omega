@@ -33,13 +33,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let probe: Probe = Probe { enabled: true, limit: 10 };
     let class: u64 = Probe::classify(probe, 5);
 
     transition class == 1 {
-        true -> done(&mut self)
-        _ -> missed(&mut self)
+        true -> done(main)
+        _ -> missed(main)
     }
 
     state done(main: &mut Main) {

@@ -23,7 +23,7 @@ machine Worker::write(cell: &mut Cell) -> i32 {
     state finish(cell: &mut Cell) -> i32 { cell.value }
 }
 
-machine Main::main(&mut self) reaches Console {
-    let result: i32 = Worker::write(&mut self.cell);
-    self.console.exit_process(self.cell.value);
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = Worker::write(&mut main.cell);
+    main.console.exit_process(main.cell.value);
 }

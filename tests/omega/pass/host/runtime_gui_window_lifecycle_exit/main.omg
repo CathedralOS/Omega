@@ -28,25 +28,25 @@ data Main {
     killed: u32;
     alive_after: u32;
 }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console, Gui
 {
-    self.cls[0] = 83;
-    self.cls[1] = 84;
-    self.cls[2] = 65;
-    self.cls[3] = 84;
-    self.cls[4] = 73;
-    self.cls[5] = 67;
-    self.cls[6] = 0;
-    self.title[0] = 111;
-    self.title[1] = 109;
-    self.title[2] = 101;
-    self.title[3] = 103;
-    self.title[4] = 97;
-    self.title[5] = 0;
-    self.hwnd = self.gui.window_create(self.cls, self.title, 0, 10, 10, 64, 64);
-    self.drains = 0;
-    transition self.hwnd > 0 { true -> drain_loop(&mut self) _ -> bad(&mut self) }
+    main.cls[0] = 83;
+    main.cls[1] = 84;
+    main.cls[2] = 65;
+    main.cls[3] = 84;
+    main.cls[4] = 73;
+    main.cls[5] = 67;
+    main.cls[6] = 0;
+    main.title[0] = 111;
+    main.title[1] = 109;
+    main.title[2] = 101;
+    main.title[3] = 103;
+    main.title[4] = 97;
+    main.title[5] = 0;
+    main.hwnd = main.gui.window_create(main.cls, main.title, 0, 10, 10, 64, 64);
+    main.drains = 0;
+    transition main.hwnd > 0 { true -> drain_loop(main) _ -> bad(main) }
     state drain_loop(main: &mut Main) {
         transition main.drains < 8 { true -> drain_peek(main) _ -> liveness(main) }
     }

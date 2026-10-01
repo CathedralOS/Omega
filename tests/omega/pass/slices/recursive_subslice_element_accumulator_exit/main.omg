@@ -31,16 +31,16 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.arr[0] = 5;
-    self.arr[1] = 10;
-    self.arr[2] = 15;
-    self.arr[3] = 20;
-    let s: &[i32 in Wrapping] = self.arr.as_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    main.arr[0] = 5;
+    main.arr[1] = 10;
+    main.arr[2] = 15;
+    main.arr[3] = 20;
+    let s: &[i32 in Wrapping] = main.arr.as_slice();
     let total: i32 in Wrapping = sum(s, 0);
     transition total == 50 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

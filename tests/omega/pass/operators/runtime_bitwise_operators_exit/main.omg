@@ -16,16 +16,16 @@ data Main {
     xor_result: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = 12;
-    self.b = 10;
-    self.and_result = self.a & self.b; // 8
-    self.or_result = self.a | self.b;  // 14
-    self.xor_result = self.a ^ self.b; // 6
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = 12;
+    main.b = 10;
+    main.and_result = main.a & main.b; // 8
+    main.or_result = main.a | main.b;  // 14
+    main.xor_result = main.a ^ main.b; // 6
 
-    transition self.and_result == 8 {
-        true -> check_or(&mut self)
-        false -> bad(&mut self)
+    transition main.and_result == 8 {
+        true -> check_or(main)
+        false -> bad(main)
     }
 
     state check_or(main: &mut Main) {

@@ -11,17 +11,17 @@ data Main {
     off: u32 [0..=47];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.off = 3;
-    let borrowed: &mut u8 = &mut self.buf[self.off];
+machine Main::main(main: &mut Main) reaches Console {
+    main.off = 3;
+    let borrowed: &mut u8 = &mut main.buf[main.off];
     borrowed = 9;
-    transition self.buf[3] == 9 { true -> done() _ -> bad() }
+    transition main.buf[3] == 9 { true -> done(main) _ -> bad(main) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

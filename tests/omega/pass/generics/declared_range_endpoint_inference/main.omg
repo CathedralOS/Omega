@@ -132,7 +132,7 @@ machine forwarded_bound(value: u64[0..=256]) -> u64 { forward_bound(value) }
 machine relayed_bound(value: u64[0..=256]) -> u64 { relay_bound(value) }
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let bound: u64 = inferred(0);
     let forwarded: u64 = generic_forwarded_bound();
     let signed: i64 = generic_signed_call_bound();
@@ -141,8 +141,8 @@ machine Main::main(&mut self) reaches Console {
     let symbolic: u64 = forwarded_bound(0);
     let relayed: u64 = relayed_bound(0);
     transition bound == 256 && forwarded == 256 && signed == -2 && narrow == -3 && wide == 18446744073709551615u64 && symbolic == 256 && relayed == 256 {
-        true -> passed(&mut self)
-        false -> failed(&mut self)
+        true -> passed(main)
+        false -> failed(main)
     }
     state passed(main: &mut Main) { main.console.exit_process(70); }
     state failed(main: &mut Main) { main.console.exit_process(71); }

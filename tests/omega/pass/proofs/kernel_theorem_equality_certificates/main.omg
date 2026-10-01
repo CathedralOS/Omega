@@ -33,8 +33,8 @@ ensures
 {
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     equal_symmetric(3, 3);
     equal_transitive(3, 3, 3);
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }

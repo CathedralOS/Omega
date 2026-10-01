@@ -6,9 +6,9 @@ data Main {
     line: [u8; 64];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write("> ");
-    _ = block self.console.read_line(&mut self.line);
-    self.console.write_line("read");
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write("> ");
+    _ = block main.console.read_line(&mut main.line);
+    main.console.write_line("read");
+    main.console.exit_process(0);
 }

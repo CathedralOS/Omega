@@ -44,11 +44,11 @@ machine line_read() -> LineRead {
     transition { _ -> (LineRead::LineComplete { count: 30 }) }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let root: NextToken = next_token();
     transition root {
-        NextToken::Token { start, end } -> root_token(&mut self, start, end)
-        _ -> refused(&mut self)
+        NextToken::Token { start, end } -> root_token(main, start, end)
+        _ -> refused(main)
     }
 
     state root_token(main: &mut Main, start: u64, end: u64) {

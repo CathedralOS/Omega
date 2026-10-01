@@ -9,7 +9,7 @@ where
     console: Binding<Console>;
     value: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    let return_code: i32 = 70 + self.value;
-    self.console.exit_process(return_code);
+machine Main::main(main: &mut Main) reaches Console {
+    let return_code: i32 = 70 + main.value;
+    main.console.exit_process(return_code);
 }

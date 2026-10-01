@@ -35,9 +35,9 @@ uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
 
 data Main { console: Binding<Console>; helper: Helper; }
 
-machine Main::main(&mut self) reaches Console {
-    let a: i32 = self.helper.seed;
-    transition a == 0 { true -> good(&mut self) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Console {
+    let a: i32 = main.helper.seed;
+    transition a == 0 { true -> good(main) _ -> bad(main, 71) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
 }

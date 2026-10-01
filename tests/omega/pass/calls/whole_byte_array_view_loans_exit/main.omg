@@ -40,31 +40,31 @@ machine peek(bytes: &[u8], position: u64) -> u64 {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    stamp(&mut self.bytes);
+machine Main::main(main: &mut Main) reaches Console {
+    stamp(&mut main.bytes);
     let mut local: [u8; 4];
     stamp(&mut local);
-    let field_first: u64 = peek(&self.bytes, 0);
-    let field_last: u64 = peek(&self.bytes, 3);
+    let field_first: u64 = peek(&main.bytes, 0);
+    let field_last: u64 = peek(&main.bytes, 3);
     let local_first: u64 = peek(&local, 0);
     let local_untouched: u64 = peek(&local, 2);
     transition field_first == 70 && field_last == 5 {
-        true -> check_local(local_first, local_untouched)
-        _ -> failed(71)
+        true -> check_local(main, local_first, local_untouched)
+        _ -> failed(main, 71)
     }
 
-    state check_local(&mut self, first: u64, untouched: u64) {
+    state check_local(main: &mut Main, first: u64, untouched: u64) {
         transition first == 70 && untouched == 0 {
-            true -> done()
-            _ -> failed(72)
+            true -> done(main)
+            _ -> failed(main, 72)
         }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state failed(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state failed(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }

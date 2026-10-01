@@ -26,13 +26,13 @@ data Main {
     command: Command;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let observed: LineReadResult = block self.console.read_line(&mut self.line);
+machine Main::main(main: &mut Main) reaches Console {
+    let observed: LineReadResult = block main.console.read_line(&mut main.line);
     transition observed {
-        LineReadResult::LineComplete { count } -> bounded_input(&mut self, count, true)
-        LineReadResult::EndOfInput { count } -> bounded_input(&mut self, count, false)
-        LineReadResult::Full { count } -> invalid(&mut self)
-        LineReadResult::Invalid -> invalid(&mut self)
+        LineReadResult::LineComplete { count } -> bounded_input(main, count, true)
+        LineReadResult::EndOfInput { count } -> bounded_input(main, count, false)
+        LineReadResult::Full { count } -> invalid(main)
+        LineReadResult::Invalid -> invalid(main)
     }
 
     // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.

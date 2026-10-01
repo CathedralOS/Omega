@@ -28,13 +28,13 @@ data Main {
     errs: i32 in Wrapping; // count of Err
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.aa = [10, 7, 20];
-    self.bb = [2, 0, 4];
-    self.i = 0;
-    self.acc = 0;
-    self.errs = 0;
-    transition { _ -> loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.aa = [10, 7, 20];
+    main.bb = [2, 0, 4];
+    main.i = 0;
+    main.acc = 0;
+    main.errs = 0;
+    transition { _ -> loop(main) }
 
     state loop(main: &mut Main) {
         transition main.i >= 0 && main.i < 3 { true -> load(main) _ -> verify(main) }

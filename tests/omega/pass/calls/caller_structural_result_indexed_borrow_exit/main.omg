@@ -9,15 +9,15 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let rooms: [Room; 1] = [Room { exit_count: 0 }];
     let from_index: u64 = 0;
 
     bump(&mut rooms[from_index]);
 
     transition from_index == 0 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

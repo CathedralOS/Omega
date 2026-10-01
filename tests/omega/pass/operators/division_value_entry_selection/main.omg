@@ -14,11 +14,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let unsigned: u64 = 12u64 / 4u64;
     transition unsigned == 3u64 {
-        true -> finish(&mut self, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
-        false -> wrong(&mut self)
+        true -> finish(main, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
+        false -> wrong(main)
     }
     state finish(main: &mut Main, value: i32) {
         transition value == (0i32 - 5) {

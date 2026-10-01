@@ -139,7 +139,7 @@ satisfies ForeignMath::exit_with via foreign_exit_binding();
 
 data Main {}
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 {
     let magnitude: i32 = ForeignMath::absolute(21);
     ForeignMath::exit_with(magnitude);

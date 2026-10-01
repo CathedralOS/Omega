@@ -22,12 +22,12 @@ data Main {
     tally: Tally;
 }
 
-machine Main::main(&mut self) reaches Console {
-    Main::apply(&mut self, Event::Add { amount: 3 });
-    Main::apply(&mut self, Event::Bonus);
-    transition self.tally.total == 13 {
-        true -> report(&mut self, 70)
-        _ -> report(&mut self, 71)
+machine Main::main(main: &mut Main) reaches Console {
+    Main::apply(main, Event::Add { amount: 3 });
+    Main::apply(main, Event::Bonus);
+    transition main.tally.total == 13 {
+        true -> report(main, 70)
+        _ -> report(main, 71)
     }
     state report(main: &mut Main, code: i32 in Wrapping) {
         main.console.exit_process(code as i32);

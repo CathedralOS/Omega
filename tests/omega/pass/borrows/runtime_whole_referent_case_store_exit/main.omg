@@ -32,11 +32,11 @@ machine settle(verdict: &mut Verdict, bad: u64) {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    settle(&mut self.verdict, 0);
-    transition self.verdict {
-        Verdict::Sound -> good(&mut self)
-        Verdict::Invalid -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    settle(&mut main.verdict, 0);
+    transition main.verdict {
+        Verdict::Sound -> good(main)
+        Verdict::Invalid -> bad(main)
     }
 
     state good(main: &mut Main) {

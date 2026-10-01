@@ -45,13 +45,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let selected: u64 = select_true();
     let skipped: u64 = select_false();
     let named: u64 = by_name();
     transition selected == 260 && skipped == 1 && named == 260 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

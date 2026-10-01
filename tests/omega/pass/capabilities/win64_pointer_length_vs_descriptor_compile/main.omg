@@ -85,7 +85,7 @@ data Main {
     status: i32;
 }
 
-machine Main::main(&mut self) reaches NativeByteShapes {
-    self.status = self.foreign.take_separate(self.pointer, self.length);
-    self.status = self.foreign.take_descriptor(self.descriptor);
+machine Main::main(main: &mut Main) reaches NativeByteShapes {
+    main.status = main.foreign.take_separate(main.pointer, main.length);
+    main.status = main.foreign.take_descriptor(main.descriptor);
 }

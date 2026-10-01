@@ -16,7 +16,7 @@ data Main { console: Binding<Console>; }
 
 // Preserve the reusable call-bearing comparison and observe first-match,
 // second-match, fallback and signed-zero behavior through the native product.
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
     let first: u64 = choose(2.0f32, 2.0f32, 2.0f32);
@@ -27,5 +27,5 @@ reaches Console
         true -> 70,
         false -> 71
     };
-    self.console.exit_process(outcome);
+    main.console.exit_process(outcome);
 }

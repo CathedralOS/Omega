@@ -24,12 +24,12 @@ use omega::language::core::binding;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 2]; }
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let room: Room = Room {
         exits: [ Counter { n: 10 }, Counter { n: 20 } ]
     };
     let exits: &mut [Counter] = room.exits.as_mut_slice();
-    transition { _ -> bump_first(&mut self, exits) }
+    transition { _ -> bump_first(main, exits) }
 
     state bump_first(main: &mut Main, exits: &mut [Counter]) {
         let index: u64 = 0;

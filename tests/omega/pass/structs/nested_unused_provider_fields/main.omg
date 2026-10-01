@@ -2,6 +2,6 @@ use omega_language_std::console;
 use omega::language::core::binding;
 data UnusedProvider { console: Binding<Console>; }
 data Main { console: Binding<Console>; unused: UnusedProvider; }
-machine Main::main(&mut self) reaches Console {
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(70);
 }

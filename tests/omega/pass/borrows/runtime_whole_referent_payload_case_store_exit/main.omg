@@ -24,11 +24,11 @@ machine adopt(reading: &mut Reading, other: Reading) {
     reading = other;
 }
 
-machine Main::main(&mut self) reaches Console {
-    record_level(&mut self.reading, 41);
-    transition self.reading {
-        Reading::Level { amount } -> copied(&mut self, amount)
-        Reading::Missing -> bad_literal(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    record_level(&mut main.reading, 41);
+    transition main.reading {
+        Reading::Level { amount } -> copied(main, amount)
+        Reading::Missing -> bad_literal(main)
     }
 
     state copied(main: &mut Main, amount: u32) {

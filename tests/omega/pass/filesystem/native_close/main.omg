@@ -19,7 +19,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.fd_in = 5;
-    self.rc = self.fs.close(self.fd_in);
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.fd_in = 5;
+    main.rc = main.fs.close(main.fd_in);
 }

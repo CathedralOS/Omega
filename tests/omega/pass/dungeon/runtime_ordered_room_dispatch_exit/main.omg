@@ -5,7 +5,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut current_room: u64 = 2;
     let mut fountain_used: bool = false;
     let mut bat_defeated: bool = true;
@@ -17,13 +17,13 @@ machine Main::main(&mut self) reaches Console {
         bat_defeated,
         treasure_taken
     ) {
-        (0, _, _, _) -> gate(&mut self)
-        (1, true, _, _) -> spent(&mut self)
-        (1, false, _, _) -> fountain(&mut self)
-        (2, _, true, _) -> ambush_clear(&mut self)
-        (2, _, false, _) -> ambush(&mut self)
-        (3, _, _, true) -> looted(&mut self)
-        _ -> vault(&mut self)
+        (0, _, _, _) -> gate(main)
+        (1, true, _, _) -> spent(main)
+        (1, false, _, _) -> fountain(main)
+        (2, _, true, _) -> ambush_clear(main)
+        (2, _, false, _) -> ambush(main)
+        (3, _, _, true) -> looted(main)
+        _ -> vault(main)
     }
 
     state gate(main: &mut Main) {

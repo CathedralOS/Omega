@@ -17,14 +17,14 @@ data Main {
     seed: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let lo: i32 = max(self.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
+machine Main::main(main: &mut Main) reaches Console {
+    let lo: i32 = max(main.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
     let bounded: i32 = min(lo, 60);    // [0, 60]         (min upper-bounds)
     let s: i32 = bounded + 70;         // [70, 130] in i32 -> EXACT only because bounded
 
     transition s == 70 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) { main.console.exit_process(70); }

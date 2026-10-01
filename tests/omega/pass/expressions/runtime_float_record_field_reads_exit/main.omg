@@ -14,7 +14,7 @@ machine choose32(pair: Narrow, first: f32, second: f32) -> i64 {
 machine choose64(pair: Wide, first: f64, second: f64) -> i64 {
     match pair.right { first -> 7, second -> 9, _ -> 11 }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let narrow: Narrow = Narrow { left: 2.0f32, right: 1.0f32 };
     let wide: Wide = Wide { left: 1.0f64, right: 2.0f64 };
     let outside: Narrow = Narrow { left: 3.0f32, right: 1.0f32 };
@@ -22,8 +22,8 @@ machine Main::main(&mut self) reaches Console {
     let first: i64 = choose64(wide, 2.0f64, 2.0f64);
     let fallback: i64 = choose32(outside, 1.0f32, 2.0f32);
     transition second == 9 && first == 7 && fallback == 11 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

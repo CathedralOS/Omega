@@ -32,70 +32,70 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.unit_result = Filesystem::write_all(&mut self.fs, "omega_wrapper_probe.txt", "hello");
-    transition self.unit_result { UnitResult::Ok -> exists_check() _ -> bad(71) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.unit_result = Filesystem::write_all(&mut main.fs, "omega_wrapper_probe.txt", "hello");
+    transition main.unit_result { UnitResult::Ok -> exists_check(main) _ -> bad(main, 71) }
 
-    state exists_check(&mut self) {
+    state exists_check(main: &mut Main) {
         // AlreadyExists via mkdir (flag-FREE, so fully portable): create_new's
         // O_CREAT|O_EXCL carries DARWIN flag values, which mean different bits
         // to msvcrt (0x200 = darwin O_CREAT = windows O_TRUNC!) -- the flag
         // portability question rides the portable-fs design (TASKS_FS #6).
-        self.unit_result = self.fs.create_dir("omega_wrapper_probe_dir");
-        transition self.unit_result { UnitResult::Ok -> exists_again() _ -> bad(72) }
+        main.unit_result = main.fs.create_dir("omega_wrapper_probe_dir");
+        transition main.unit_result { UnitResult::Ok -> exists_again(main) _ -> bad(main, 72) }
     }
-    state exists_again(&mut self) {
-        let result: UnitResult = self.fs.create_dir("omega_wrapper_probe_dir");
+    state exists_again(main: &mut Main) {
+        let result: UnitResult = main.fs.create_dir("omega_wrapper_probe_dir");
         transition result {
-            UnitResult::Error { kind } -> exists_kind(kind)
-            _ -> bad(81)
+            UnitResult::Error { kind } -> exists_kind(main, kind)
+            _ -> bad(main, 81)
         }
     }
-    state exists_kind(&mut self, kind: ErrorKind) {
-        self.unit_result = self.fs.remove_dir("omega_wrapper_probe_dir");
-        transition kind { ErrorKind::AlreadyExists -> open_it() _ -> bad(73) }
+    state exists_kind(main: &mut Main, kind: ErrorKind) {
+        main.unit_result = main.fs.remove_dir("omega_wrapper_probe_dir");
+        transition kind { ErrorKind::AlreadyExists -> open_it(main) _ -> bad(main, 73) }
     }
 
-    state open_it(&mut self) {
-        self.open_result = self.fs.open("omega_wrapper_probe.txt");
-        transition self.open_result {
-            OpenResult::Ok { file } -> read_it(file)
-            _ -> bad(74)
+    state open_it(main: &mut Main) {
+        main.open_result = main.fs.open("omega_wrapper_probe.txt");
+        transition main.open_result {
+            OpenResult::Ok { file } -> read_it(main, file)
+            _ -> bad(main, 74)
         }
     }
-    state read_it(&mut self, file: File) {
-        self.io_result = self.fs.read(file, &mut self.buffer, 32);
-        self.rc = self.fs.close(file);
-        transition self.rc == 0 { true -> read_checked() _ -> bad(82) }
+    state read_it(main: &mut Main, file: File) {
+        main.io_result = main.fs.read(file, &mut main.buffer, 32);
+        main.rc = main.fs.close(file);
+        transition main.rc == 0 { true -> read_checked(main) _ -> bad(main, 82) }
     }
-    state read_checked(&mut self) {
-        transition self.io_result {
-            IoResult::Ok { count } -> check_count(count)
-            _ -> bad(75)
+    state read_checked(main: &mut Main) {
+        transition main.io_result {
+            IoResult::Ok { count } -> check_count(main, count)
+            _ -> bad(main, 75)
         }
     }
-    state check_count(&mut self, count: u64) {
-        transition count == 5 { true -> check_byte() _ -> bad(76) }
+    state check_count(main: &mut Main, count: u64) {
+        transition count == 5 { true -> check_byte(main) _ -> bad(main, 76) }
     }
-    state check_byte(&mut self) {
-        transition self.buffer[0] == 104 { true -> remove_it() _ -> bad(77) }
+    state check_byte(main: &mut Main) {
+        transition main.buffer[0] == 104 { true -> remove_it(main) _ -> bad(main, 77) }
     }
 
-    state remove_it(&mut self) {
-        self.unit_result = self.fs.remove("omega_wrapper_probe.txt");
-        transition self.unit_result { UnitResult::Ok -> remove_missing() _ -> bad(78) }
+    state remove_it(main: &mut Main) {
+        main.unit_result = main.fs.remove("omega_wrapper_probe.txt");
+        transition main.unit_result { UnitResult::Ok -> remove_missing(main) _ -> bad(main, 78) }
     }
-    state remove_missing(&mut self) {
-        let result: UnitResult = self.fs.remove("omega_wrapper_probe.txt");
+    state remove_missing(main: &mut Main) {
+        let result: UnitResult = main.fs.remove("omega_wrapper_probe.txt");
         transition result {
-            UnitResult::Error { kind } -> missing_kind(kind)
-            _ -> bad(79)
+            UnitResult::Error { kind } -> missing_kind(main, kind)
+            _ -> bad(main, 79)
         }
     }
-    state missing_kind(&mut self, kind: ErrorKind) {
-        transition kind { ErrorKind::NotFound -> good() _ -> bad(80) }
+    state missing_kind(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> good(main) _ -> bad(main, 80) }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

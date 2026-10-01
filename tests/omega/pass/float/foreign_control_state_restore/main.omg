@@ -32,17 +32,17 @@ data Main {
     environment: Binding<FloatingEnvironment>;
 }
 
-machine Main::main(&mut self) reaches Console + FloatingEnvironment {
+machine Main::main(main: &mut Main) reaches Console + FloatingEnvironment {
     let upward: i32 = 4194304;
-    let status: i32 = self.environment.set_rounding(upward);
+    let status: i32 = main.environment.set_rounding(upward);
     let one: f64 = F64::from_i32(status) + 1.0;
     let half_ulp: f64 =
         0.00000000000000011102230246251565404236316680908203125;
     let rounded: f64 = one + half_ulp;
 
     transition status == 0 && rounded == one {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) { main.console.exit_process(70); }

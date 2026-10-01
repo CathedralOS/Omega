@@ -7,14 +7,14 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; msg: [u16; 19]; a: u16; b: u16; c: u16; }
-machine Main::main(&mut self) reaches Console {
-    self.msg = utf16"Hello from Omega\r\n\0";
-    self.a = self.msg[0];
-    self.b = self.msg[17];
-    self.c = self.msg[18];
-    transition self.a == 72 {
-        true -> check_nl(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.msg = utf16"Hello from Omega\r\n\0";
+    main.a = main.msg[0];
+    main.b = main.msg[17];
+    main.c = main.msg[18];
+    transition main.a == 72 {
+        true -> check_nl(main)
+        false -> bad(main)
     }
     state check_nl(main: &mut Main) {
         transition main.b == 10 { true -> check_nul(main) false -> bad(main) }

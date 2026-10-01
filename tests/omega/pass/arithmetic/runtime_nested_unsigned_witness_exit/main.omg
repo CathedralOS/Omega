@@ -22,11 +22,11 @@ data Main {
     // unsigned selections over runtime fields.
     r: u32 in Wrapping;
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Fused guard: unsigned 3000000000 / 1 % 100 = 0 (signed: rem -96).
-    self.a = 3000000000;
-    self.b = 1;
-    transition ((self.a / self.b) % 100 == 0) { true -> stored(&mut self) _ -> bad1(&mut self) }
+    main.a = 3000000000;
+    main.b = 1;
+    transition ((main.a / main.b) % 100 == 0) { true -> stored(main) _ -> bad1(main) }
     state stored(main: &mut Main) {
         // The arg-materialization flavor of the same shape.
         main.r = ((main.a / main.b) % 100) as u32 in Wrapping;

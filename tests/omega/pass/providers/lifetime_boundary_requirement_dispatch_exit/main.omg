@@ -34,10 +34,10 @@ data Main {
     bytes: [u8; 41];
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    let picked: i32 = CellSource::read(&self.bytes[0..41]);
-    _ = CellSource::read(&self.bytes[1..41]);
-    self.console.exit_process(picked);
+    let picked: i32 = CellSource::read(&main.bytes[0..41]);
+    _ = CellSource::read(&main.bytes[1..41]);
+    main.console.exit_process(picked);
 }

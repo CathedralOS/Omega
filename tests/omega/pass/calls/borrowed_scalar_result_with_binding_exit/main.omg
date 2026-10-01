@@ -5,8 +5,8 @@ data Main { console: Binding<Console>; }
 
 machine inspect(value: &mut i32) -> i32 { 70 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut value: i32 = 3;
     let code: i32 = inspect(&mut value);
-    self.console.exit_process(code);
+    main.console.exit_process(code);
 }

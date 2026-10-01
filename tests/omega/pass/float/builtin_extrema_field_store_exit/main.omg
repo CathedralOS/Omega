@@ -18,21 +18,21 @@ data Main {
     root64: f64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.left32 = 9.0f32;
-    self.right32 = 4.0f32;
-    self.left64 = 9.0;
-    self.right64 = 4.0;
-    self.low32 = min(self.left32, self.right32);
-    self.high32 = max(self.left32, self.right32);
-    self.root32 = sqrt(self.low32);
-    self.low64 = min(self.left64, self.right64);
-    self.high64 = max(self.left64, self.right64);
-    self.root64 = sqrt(self.low64);
-    transition self.low32 == 4.0f32 && self.high32 == 9.0f32 && self.root32 == 2.0f32
-        && self.low64 == 4.0 && self.high64 == 9.0 && self.root64 == 2.0 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.left32 = 9.0f32;
+    main.right32 = 4.0f32;
+    main.left64 = 9.0;
+    main.right64 = 4.0;
+    main.low32 = min(main.left32, main.right32);
+    main.high32 = max(main.left32, main.right32);
+    main.root32 = sqrt(main.low32);
+    main.low64 = min(main.left64, main.right64);
+    main.high64 = max(main.left64, main.right64);
+    main.root64 = sqrt(main.low64);
+    transition main.low32 == 4.0f32 && main.high32 == 9.0f32 && main.root32 == 2.0f32
+        && main.low64 == 4.0 && main.high64 == 9.0 && main.root64 == 2.0 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

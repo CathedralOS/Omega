@@ -26,10 +26,10 @@ windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
     }
 }
 machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via beeper_binding();
-machine Main::main(&mut self) reaches Beeper + Console {
-    self.v = 0 - 42;
-    self.m = self.beeper.beep(self.v);
-    transition self.m == 42 { true -> good(&mut self) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Beeper + Console {
+    main.v = 0 - 42;
+    main.m = main.beeper.beep(main.v);
+    transition main.m == 42 { true -> good(main) _ -> bad(main, 71) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

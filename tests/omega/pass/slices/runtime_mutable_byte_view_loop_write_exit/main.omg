@@ -54,16 +54,16 @@ machine put(out: &mut [u8], written: &mut u64, value: u64) {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    put(&mut self.buffer, &mut self.written, 300);
-    transition self.written == 2 && self.buffer[0] == 172 && self.buffer[1] == 2 {
-        true -> good()
-        false -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    put(&mut main.buffer, &mut main.written, 300);
+    transition main.written == 2 && main.buffer[0] == 172 && main.buffer[1] == 2 {
+        true -> good(main)
+        false -> bad(main)
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -10,7 +10,7 @@ pub data MixedPair where integer <= 100 {
 pub data Main { observed_integer: u64; observed_float: f64; }
 
 boundary machine Main::main(
-    &mut self,
+    main: &mut Main,
     tag: u64,
     pair: MixedPair,
     tail: f64
@@ -18,7 +18,7 @@ boundary machine Main::main(
 requires
     tag <= 100;
 {
-    self.observed_integer = tag + pair.integer;
-    self.observed_float = pair.floating + tail;
+    main.observed_integer = tag + pair.integer;
+    main.observed_float = pair.floating + tail;
     transition { _ -> (0) }
 }

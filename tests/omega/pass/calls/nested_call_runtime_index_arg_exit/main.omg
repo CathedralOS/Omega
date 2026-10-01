@@ -32,7 +32,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let l: List = List {
         items: [Item { value: 70 }, Item { value: 1 }, Item { value: 2 }, Item { value: 3 }],
         enabled: true,
@@ -40,8 +40,8 @@ machine Main::main(&mut self) reaches Console {
     let cloned: Item = List::probe(&l, 0);
 
     transition cloned.value == 70 {
-        true -> done(&mut self)
-        _ -> missed(&mut self)
+        true -> done(main)
+        _ -> missed(main)
     }
 
     state done(main: &mut Main) {

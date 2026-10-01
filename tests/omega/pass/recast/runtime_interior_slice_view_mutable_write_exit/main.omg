@@ -19,12 +19,12 @@ data Main {
     k: u32 [0..=4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.k = 3;
-    let tail: &mut [u8] = &mut self.tail_bytes[self.k] as &mut [u8];
+machine Main::main(main: &mut Main) reaches Console {
+    main.k = 3;
+    let tail: &mut [u8] = &mut main.tail_bytes[main.k] as &mut [u8];
     transition tail.len > 4 {
-        true -> write_tail(&mut self, tail)
-        _ -> bad_tail_length(&mut self)
+        true -> write_tail(main, tail)
+        _ -> bad_tail_length(main)
     }
 
     state write_tail(main: &mut Main, tail: &mut [u8]) {

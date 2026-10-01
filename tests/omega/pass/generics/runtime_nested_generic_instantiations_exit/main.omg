@@ -11,14 +11,14 @@ use omega::language::core::binding;
 data Box<T> { value: T; }
 data Pair<T> { a: Box<T>; b: T; }
 data Main { console: Binding<Console>; pi: Pair<i32>; pb: Pair<bool>; r: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.pi.a.value = 30;
-    self.pi.b = 7;
-    self.pb.a.value = true;
-    self.r = self.pi.a.value;
-    transition self.pb.a.value == true {
-        true -> ok(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.pi.a.value = 30;
+    main.pi.b = 7;
+    main.pb.a.value = true;
+    main.r = main.pi.a.value;
+    transition main.pb.a.value == true {
+        true -> ok(main)
+        false -> bad(main)
     }
     state ok(main: &mut Main) { main.console.exit_process(main.r); }
     state bad(main: &mut Main) { main.console.exit_process(99); }

@@ -31,9 +31,9 @@ requires 0 <= x && x <= 1000
 machine cos_via_terminal(x: f64) -> f64 {
     transition { _ -> (sin(x + 1.57079632679489656)) }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let d: i32 = dbl(35);
-    transition d == 70 { true -> a(&mut self) _ -> bad_d(&mut self) }
+    transition d == 70 { true -> a(main) _ -> bad_d(main) }
     state a(main: &mut Main) {
         let p: i32 = pass_through(41);
         transition p == 41 { true -> b(main) _ -> bad_p(main) }

@@ -2,8 +2,8 @@
 // remaining-distance normalization, and the optional range constrains rank.
 data Main {}
 
-machine Main::main(&mut self) {
-    let value: u64 = Main::walk(&mut self, 4, 0);
+machine Main::main(main: &mut Main) {
+    let value: u64 = Main::walk(main, 4, 0);
 }
 
 machine Main::walk(main: &mut Main, limit: u64, index: u64)

@@ -68,7 +68,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let source: ScanResult = ScanResult::Valued { valued_result: ScanResultValued {
         scan_result_base: ScanResultBase { address: 7 },
         has_current_value: true,
@@ -76,7 +76,7 @@ machine Main::main(&mut self) reaches Console {
     } };
     let cloned: ScanResult = ScanResult::clone(&source);
     transition {
-        _ -> done(&mut self)
+        _ -> done(main)
     }
 
     state done(main: &mut Main) {

@@ -14,19 +14,19 @@ data Main where 0 <= i, i <= 6, 0 <= best_idx, best_idx <= 6 {
     best_val: i32;
     cur: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.arr[0] = 4;
-    self.arr[1] = 15;
-    self.arr[2] = 8;
-    self.arr[3] = 42;
-    self.arr[4] = 16;
-    self.arr[5] = 23;
-    self.i = 0;
-    self.best_idx = 0;
-    self.best_val = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.arr[0] = 4;
+    main.arr[1] = 15;
+    main.arr[2] = 8;
+    main.arr[3] = 42;
+    main.arr[4] = 16;
+    main.arr[5] = 23;
+    main.i = 0;
+    main.best_idx = 0;
+    main.best_val = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     state step(main: &mut Main) {

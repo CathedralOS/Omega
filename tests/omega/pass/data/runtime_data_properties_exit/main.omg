@@ -22,14 +22,14 @@ data Main {
     h: Holder;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.h.p.x = 60;
-    self.h.p.y = 9;
-    self.h.tag = 1;
+machine Main::main(main: &mut Main) reaches Console {
+    main.h.p.x = 60;
+    main.h.p.y = 9;
+    main.h.tag = 1;
 
-    transition self.h.p.x + self.h.p.y + self.h.tag == 70 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+    transition main.h.p.x + main.h.p.y + main.h.tag == 70 {
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

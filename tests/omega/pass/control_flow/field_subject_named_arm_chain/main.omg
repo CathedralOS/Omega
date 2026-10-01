@@ -33,13 +33,13 @@ data Main {
     command: Command;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.command = Command::A;
+machine Main::main(main: &mut Main) reaches Console {
+    main.command = Command::A;
 
-    transition self.command {
-        Command::A -> done(&mut self)
-        Command::B -> done(&mut self)
-        Command::C -> done(&mut self)
+    transition main.command {
+        Command::A -> done(main)
+        Command::B -> done(main)
+        Command::C -> done(main)
     }
 
     state done(main: &mut Main) {

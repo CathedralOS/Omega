@@ -38,7 +38,7 @@ requires first_divisor > 0 && first_divisor <= 97
     first_signed == 34 && second_signed == 36
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let correct: bool = check_remainders(
         (0 as u32 in Wrapping) - 1,
         97,
@@ -46,10 +46,10 @@ machine Main::main(&mut self) reaches Console {
         89
     );
     transition correct {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

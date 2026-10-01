@@ -7,9 +7,9 @@ data Main {
     i: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.i = 0;
-    transition { _ -> step(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.i = 0;
+    transition { _ -> step(main) }
 
     state step(main: &mut Main) {
         transition main.i < main.text.len {

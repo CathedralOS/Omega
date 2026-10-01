@@ -40,11 +40,11 @@ data Main {
     engine: Engine;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.engine.cursor.remaining = 5;
-    transition Engine::run(&mut self.engine) == 0 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.engine.cursor.remaining = 5;
+    transition Engine::run(&mut main.engine) == 0 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

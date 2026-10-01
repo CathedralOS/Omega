@@ -13,13 +13,13 @@ machine report(length: u64) -> u64 reaches Console {
     length
 }
 
-machine Main::main(&mut self) reaches Console {
-    let first: u64 = Main::measure(&self, "abc");
-    let second: u64 = Main::measure(&self, "");
+machine Main::main(main: &mut Main) reaches Console {
+    let first: u64 = Main::measure(main, "abc");
+    let second: u64 = Main::measure(main, "");
     let reported: u64 = report(first);
     transition reported == 3 {
-        true -> check_empty(&mut self, second)
-        false -> failed(&mut self)
+        true -> check_empty(main, second)
+        false -> failed(main)
     }
     state check_empty(main: &mut Main, length: u64) {
         transition length == 0 {

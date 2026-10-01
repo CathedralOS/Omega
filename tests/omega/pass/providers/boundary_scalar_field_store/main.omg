@@ -40,8 +40,8 @@ data Main {
     result: Triple;
 }
 
-machine Main::main(&mut self) reaches Echo, Console, RecordSource {
-    transition { _ -> store(&mut self) }
+machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
+    transition { _ -> store(main) }
     state store(main: &mut Main) {
         main.stored = main.echoer.echo(41);
         main.seed = 19;

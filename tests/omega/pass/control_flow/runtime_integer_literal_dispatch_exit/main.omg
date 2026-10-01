@@ -5,13 +5,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut choice: i32 = 2;
 
     transition choice {
-        1 -> one(&mut self)
-        2 -> two(&mut self)
-        _ -> other(&mut self)
+        1 -> one(main)
+        2 -> two(main)
+        _ -> other(main)
     }
 
     state one(main: &mut Main) {

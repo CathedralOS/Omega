@@ -10,17 +10,17 @@ data Main {
     buf: [u8; 48];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.size = 5;
-    let len: &u32 = &self.size;
-    let first: &u8 = &self.buf[0];
-    transition first == self.buf[0] && len == self.size { true -> done() _ -> bad() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.size = 5;
+    let len: &u32 = &main.size;
+    let first: &u8 = &main.buf[0];
+    transition first == main.buf[0] && len == main.size { true -> done(main) _ -> bad(main) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

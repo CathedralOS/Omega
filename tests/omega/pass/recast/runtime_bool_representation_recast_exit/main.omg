@@ -11,27 +11,27 @@ data Main {
     byte: u8 [0..=1];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.flag = true;
-    self.byte = 1;
-    let flag_bits: &u8 = &self.flag as &u8;
-    let byte_flag: &bool = &self.byte as &bool;
+machine Main::main(main: &mut Main) reaches Console {
+    main.flag = true;
+    main.byte = 1;
+    let flag_bits: &u8 = &main.flag as &u8;
+    let byte_flag: &bool = &main.byte as &bool;
     transition flag_bits == 1 && byte_flag {
-        true -> mutate()
-        _ -> bad()
+        true -> mutate(main)
+        _ -> bad(main)
     }
 
-    state mutate(&mut self) {
-        let flag_bits: &mut u8 [0..=1] = &mut self.flag as &mut u8;
+    state mutate(main: &mut Main) {
+        let flag_bits: &mut u8 [0..=1] = &mut main.flag as &mut u8;
         flag_bits = 0;
-        let byte_flag: &mut bool = &mut self.byte as &mut bool;
+        let byte_flag: &mut bool = &mut main.byte as &mut bool;
         byte_flag = false;
-        transition !self.flag && self.byte == 0 {
-            true -> good()
-            _ -> bad()
+        transition !main.flag && main.byte == 0 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

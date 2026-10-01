@@ -16,11 +16,11 @@ data Main {
     event: Event;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.event = Event::Treasure { gold: 50, consumed: true };
-    transition self.event.consumed {
-        true -> check_bonus(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.event = Event::Treasure { gold: 50, consumed: true };
+    transition main.event.consumed {
+        true -> check_bonus(main)
+        _ -> bad(main)
     }
 
     state check_bonus(main: &mut Main) {

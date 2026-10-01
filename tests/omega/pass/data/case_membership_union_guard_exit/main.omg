@@ -19,12 +19,12 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cmd = Command::Move { dx: 2 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.cmd = Command::Move { dx: 2 };
 
-    transition (self.cmd in Command::Quit | Command::Move) {
-        (true) -> matched(&mut self)
-        _ -> missed(&mut self)
+    transition (main.cmd in Command::Quit | Command::Move) {
+        (true) -> matched(main)
+        _ -> missed(main)
     }
 
     state matched(main: &mut Main) {

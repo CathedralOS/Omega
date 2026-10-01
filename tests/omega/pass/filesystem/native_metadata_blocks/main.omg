@@ -20,12 +20,12 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.mode = 420;
-    self.fd = self.fs.create("/tmp/omega_blocks.txt", self.mode);
-    self.n = self.fs.write(self.fd, "some content here");
-    self.discard = self.fs.close(self.fd);
-    self.rc = self.fs.read_metadata("/tmp/omega_blocks.txt", &mut self.buffer);
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.mode = 420;
+    main.fd = main.fs.create("/tmp/omega_blocks.txt", main.mode);
+    main.n = main.fs.write(main.fd, "some content here");
+    main.discard = main.fs.close(main.fd);
+    main.rc = main.fs.read_metadata("/tmp/omega_blocks.txt", &mut main.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
     // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
@@ -34,22 +34,22 @@ machine Main::main(&mut self) reaches FilesystemHost {
     // carriers reaches the same values against ceilings of 2147483647 and
     // 9223372036854775807, a decision-17 obligation no return range can
     // discharge.
-    self.blksize = narrow_u32_to_i32_wrapping(
-        widen_u8_to_u32(self.buffer[112])
-            | (widen_u8_to_u32(self.buffer[113]) << 8)
-            | (widen_u8_to_u32(self.buffer[114]) << 16)
-            | (widen_u8_to_u32(self.buffer[115]) << 24));
-    self.blocks = narrow_u64_to_i64_wrapping(
-        widen_u8_to_u64(self.buffer[104])
-            | (widen_u8_to_u64(self.buffer[105]) << 8)
-            | (widen_u8_to_u64(self.buffer[106]) << 16)
-            | (widen_u8_to_u64(self.buffer[107]) << 24)
-            | (widen_u8_to_u64(self.buffer[108]) << 32)
-            | (widen_u8_to_u64(self.buffer[109]) << 40)
-            | (widen_u8_to_u64(self.buffer[110]) << 48)
-            | (widen_u8_to_u64(self.buffer[111]) << 56));
-    self.discard = self.fs.remove("/tmp/omega_blocks.txt");
-    transition self.blksize > 0 { true -> good() _ -> fail() }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: blocks/blksize\n"); }
+    main.blksize = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(main.buffer[112])
+            | (widen_u8_to_u32(main.buffer[113]) << 8)
+            | (widen_u8_to_u32(main.buffer[114]) << 16)
+            | (widen_u8_to_u32(main.buffer[115]) << 24));
+    main.blocks = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(main.buffer[104])
+            | (widen_u8_to_u64(main.buffer[105]) << 8)
+            | (widen_u8_to_u64(main.buffer[106]) << 16)
+            | (widen_u8_to_u64(main.buffer[107]) << 24)
+            | (widen_u8_to_u64(main.buffer[108]) << 32)
+            | (widen_u8_to_u64(main.buffer[109]) << 40)
+            | (widen_u8_to_u64(main.buffer[110]) << 48)
+            | (widen_u8_to_u64(main.buffer[111]) << 56));
+    main.discard = main.fs.remove("/tmp/omega_blocks.txt");
+    transition main.blksize > 0 { true -> good(main) _ -> fail(main) }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: blocks/blksize\n"); }
 }

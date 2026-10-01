@@ -26,9 +26,9 @@ macos_arm64 machine leaf_binding() -> ForeignBinding<17, 5, 0> {
 macos_arm64 machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via leaf_binding();
 
 data Main { p: Binding<Leaf>; }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Leaf
 {
-    let rc: i32 = self.p.exit(70);
+    let rc: i32 = main.p.exit(70);
     let keep: i32 = rc;
 }

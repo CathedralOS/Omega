@@ -61,21 +61,21 @@ linux_arm64 machine ProcessProvider::exit_with(code: i32)
 satisfies ProcessProbe::exit_with via exit_binding();
 
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let process: i32 = ProcessProbe::process_id();
     transition process > 0 {
-        true -> inspect(process)
-        _ -> bad()
+        true -> inspect(main, process)
+        _ -> bad(main)
     }
-    state inspect(&mut self, process: i32) requires process > 0 {
+    state inspect(main: &mut Main, process: i32) requires process > 0 {
         let copied: i32 = ProcessProbe::absolute(process);
         let selected_group: i32 = ProcessProbe::group_id(copied);
         let current_group: i32 = ProcessProbe::group_id(0);
         transition copied == process && selected_group > 0 && selected_group == current_group {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
-    state good(&mut self) { ProcessProbe::exit_with(70); }
-    state bad(&mut self) { ProcessProbe::exit_with(71); }
+    state good(main: &mut Main) { ProcessProbe::exit_with(70); }
+    state bad(main: &mut Main) { ProcessProbe::exit_with(71); }
 }

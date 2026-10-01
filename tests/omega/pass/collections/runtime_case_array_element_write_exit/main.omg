@@ -17,13 +17,13 @@ where
     0 <= i,
     i <= 3,
 { console: Binding<Console>; plans: [FieldPlan; 4]; i: i64; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.plans[0] = FieldPlan::At { offset: 8, width: 4 };
-    self.i = 2;
-    self.plans[self.i] = FieldPlan::At { offset: 16, width: 8 };
-    transition self.plans[0] {
-        FieldPlan::At { offset, width } -> first(&mut self, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
-        FieldPlan::Skip -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.plans[0] = FieldPlan::At { offset: 8, width: 4 };
+    main.i = 2;
+    main.plans[main.i] = FieldPlan::At { offset: 16, width: 8 };
+    transition main.plans[0] {
+        FieldPlan::At { offset, width } -> first(main, (offset as i64 in Wrapping) + (width as i64 in Wrapping))
+        FieldPlan::Skip -> bad(main)
     }
     state first(main: &mut Main, v: i64 in Wrapping) {
         main.a = v;

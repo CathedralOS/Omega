@@ -14,13 +14,13 @@ machine check(r: &Pt) -> i32 {
         false -> (2)
     }
 }
-machine Main::main(&mut self) reaches Console {
-    self.p.a = 4;
-    self.p.c = 9;
-    let got: i32 = check(&self.p);
+machine Main::main(main: &mut Main) reaches Console {
+    main.p.a = 4;
+    main.p.c = 9;
+    let got: i32 = check(&main.p);
     transition got == 1 {
-        true -> yes(&mut self)
-        false -> no(&mut self)
+        true -> yes(main)
+        false -> no(main)
     }
     state yes(main: &mut Main) { main.console.exit_process(1); }
     state no(main: &mut Main) { main.console.exit_process(2); }

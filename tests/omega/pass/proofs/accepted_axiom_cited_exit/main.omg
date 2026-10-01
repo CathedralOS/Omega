@@ -23,6 +23,6 @@ ensures
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(70);
 }

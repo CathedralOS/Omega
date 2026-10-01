@@ -1,7 +1,7 @@
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> Main::first(&mut self, 8, 2) }
+machine Main::main(main: &mut Main) -> u64 {
+    transition { _ -> Main::first(main, 8, 2) }
 }
 
 machine Main::first(main: &mut Main, remaining: u64, step: u64) -> u64

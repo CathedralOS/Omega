@@ -30,40 +30,40 @@ data Main {
     mtime: i64;
 }
 
-machine Main::main(&mut self) reaches Console + FilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     // Seed and CLOSE first: a pending write flushed by a later close would
     // update mtime past the stamp (both engines model this). The stamp
     // rides a clean read-write reopen.
-    self.fd = self.fs.create("omega_wsft_probe.txt", 438);
-    self.n = self.fs.write(self.fd, "stamp");
-    let closed_create: i32 = self.fs.close(self.fd);
-    self.fd = self.fs.open("omega_wsft_probe.txt", 2);
-    transition self.fd >= 0 { true -> bridge() _ -> bad(71) }
-    state bridge(&mut self) {
-        let handle: i64 = self.fs.get_osfhandle(self.fd);
-        transition handle > 0 { true -> stamp(handle) _ -> bad(72) }
+    main.fd = main.fs.create("omega_wsft_probe.txt", 438);
+    main.n = main.fs.write(main.fd, "stamp");
+    let closed_create: i32 = main.fs.close(main.fd);
+    main.fd = main.fs.open("omega_wsft_probe.txt", 2);
+    transition main.fd >= 0 { true -> bridge(main) _ -> bad(main, 71) }
+    state bridge(main: &mut Main) {
+        let handle: i64 = main.fs.get_osfhandle(main.fd);
+        transition handle > 0 { true -> stamp(main, handle) _ -> bad(main, 72) }
     }
-    state stamp(&mut self, handle: i64) {
+    state stamp(main: &mut Main, handle: i64) {
         // FILETIME for unix 1_500_000_000: 131_444_736_000_000_000
         // = 0x01D2FC4A7CE00000, little-endian bytes 00 00 E0 7C 4A FC D2 01.
-        self.ft[0] = 0;
-        self.ft[1] = 0;
-        self.ft[2] = 224;
-        self.ft[3] = 124;
-        self.ft[4] = 74;
-        self.ft[5] = 252;
-        self.ft[6] = 210;
-        self.ft[7] = 1;
-        let rc: i32 = self.fs.set_file_time(handle, 0, &self.ft, &self.ft);
-        let closed_probe: i32 = self.fs.close(self.fd);
-        transition rc != 0 { true -> restat() _ -> bad(73) }
+        main.ft[0] = 0;
+        main.ft[1] = 0;
+        main.ft[2] = 224;
+        main.ft[3] = 124;
+        main.ft[4] = 74;
+        main.ft[5] = 252;
+        main.ft[6] = 210;
+        main.ft[7] = 1;
+        let rc: i32 = main.fs.set_file_time(handle, 0, &main.ft, &main.ft);
+        let closed_probe: i32 = main.fs.close(main.fd);
+        transition rc != 0 { true -> restat(main) _ -> bad(main, 73) }
     }
-    state restat(&mut self) {
-        self.rc64 = self.fs.read_metadata("omega_wsft_probe.txt", &mut self.stat_buf);
-        let removed: i32 = self.fs.remove("omega_wsft_probe.txt");
-        transition self.rc64 == 0 { true -> decode() _ -> bad(74) }
+    state restat(main: &mut Main) {
+        main.rc64 = main.fs.read_metadata("omega_wsft_probe.txt", &mut main.stat_buf);
+        let removed: i32 = main.fs.remove("omega_wsft_probe.txt");
+        transition main.rc64 == 0 { true -> decode(main) _ -> bad(main, 74) }
     }
-    state decode(&mut self) {
+    state decode(main: &mut Main) {
         // Windows `_stat64` st_mtime @40, pinned by the target StatLayout.
         // carrier note: the little-endian field is assembled in `u64` and
         // reinterpreted once at the landing, so every shifted byte is
@@ -71,17 +71,17 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         // ceiling of 18446744073709551615. Shifting in `i64` reaches the same
         // 18374686479671623680 against a ceiling of 9223372036854775807, which
         // is a decision-17 obligation no return range can discharge.
-        self.mtime = narrow_u64_to_i64_wrapping(
-            widen_u8_to_u64(self.stat_buf[40])
-                | (widen_u8_to_u64(self.stat_buf[41]) << 8)
-                | (widen_u8_to_u64(self.stat_buf[42]) << 16)
-                | (widen_u8_to_u64(self.stat_buf[43]) << 24)
-                | (widen_u8_to_u64(self.stat_buf[44]) << 32)
-                | (widen_u8_to_u64(self.stat_buf[45]) << 40)
-                | (widen_u8_to_u64(self.stat_buf[46]) << 48)
-                | (widen_u8_to_u64(self.stat_buf[47]) << 56));
-        transition self.mtime == 1500000000 { true -> good() _ -> bad(75) }
+        main.mtime = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(main.stat_buf[40])
+                | (widen_u8_to_u64(main.stat_buf[41]) << 8)
+                | (widen_u8_to_u64(main.stat_buf[42]) << 16)
+                | (widen_u8_to_u64(main.stat_buf[43]) << 24)
+                | (widen_u8_to_u64(main.stat_buf[44]) << 32)
+                | (widen_u8_to_u64(main.stat_buf[45]) << 40)
+                | (widen_u8_to_u64(main.stat_buf[46]) << 48)
+                | (widen_u8_to_u64(main.stat_buf[47]) << 56));
+        transition main.mtime == 1500000000 { true -> good(main) _ -> bad(main, 75) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

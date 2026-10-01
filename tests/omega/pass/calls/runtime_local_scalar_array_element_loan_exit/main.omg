@@ -9,14 +9,14 @@ machine write_marker(value: &mut u32) {
     value = 70;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let values: [u32; 2] = [10, 20];
     let position: u64 = 1;
     write_marker(&mut values[position]);
     transition values[0] == 10 && values[1] == 70 {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

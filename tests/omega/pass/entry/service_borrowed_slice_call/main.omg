@@ -40,6 +40,6 @@ data Main {
     filter: Filter;
 }
 
-machine Main::main(&mut self) {
-    Worker::drain(&mut self.items, &self.filter, 0);
+machine Main::main(main: &mut Main) {
+    Worker::drain(&mut main.items, &main.filter, 0);
 }

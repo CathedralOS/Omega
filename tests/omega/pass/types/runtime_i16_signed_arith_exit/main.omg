@@ -11,12 +11,12 @@ data Main {
     v: i16;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.v = -1000;
-    self.v = self.v + 400;
-    transition self.v == -600 {
-        true -> check_negative(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.v = -1000;
+    main.v = main.v + 400;
+    transition main.v == -600 {
+        true -> check_negative(main)
+        _ -> bad(main)
     }
 
     state check_negative(main: &mut Main) {

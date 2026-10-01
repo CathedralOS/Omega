@@ -9,9 +9,9 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; expected: f32; }
-machine Main::main(&mut self) reaches Console {
-    self.expected = 1.00000011920928955078125;
-    transition { _ -> check(&mut self, 1.0 + 0.0000000596046483281043038005) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.expected = 1.00000011920928955078125;
+    transition { _ -> check(main, 1.0 + 0.0000000596046483281043038005) }
     state check(main: &mut Main, got: f32) {
         transition got == main.expected { true -> good(main) _ -> bad(main) }
     }

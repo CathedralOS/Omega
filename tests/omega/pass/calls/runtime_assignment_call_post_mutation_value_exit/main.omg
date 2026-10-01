@@ -29,15 +29,15 @@ machine Main::next(
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.tally.calls = 40;
-    self.tally.pad = 0;
-    let v: u32 = Main::next(&mut self.tally);
+machine Main::main(main: &mut Main) reaches Console {
+    main.tally.calls = 40;
+    main.tally.pad = 0;
+    let v: u32 = Main::next(&mut main.tally);
 
     transition {
-        v == 41 -> exit_post(&mut self)
-        v == 40 -> exit_stale(&mut self)
-        _ -> exit_other(&mut self)
+        v == 41 -> exit_post(main)
+        v == 40 -> exit_stale(main)
+        _ -> exit_other(main)
     }
 
 

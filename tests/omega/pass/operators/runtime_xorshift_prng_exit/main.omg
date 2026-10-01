@@ -10,7 +10,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut state: u32 in Wrapping = 2463534242;
 
     let mut scratch: u32 in Wrapping = state << 13;
@@ -25,8 +25,8 @@ machine Main::main(&mut self) reaches Console {
     let mut output: i32 = (state & 255) as i32;
 
     transition output == 99 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

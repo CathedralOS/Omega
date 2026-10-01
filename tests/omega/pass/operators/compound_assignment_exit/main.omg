@@ -10,7 +10,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut v: i32 = 10;
     v += 5; // 15
     v -= 3; // 12
@@ -19,8 +19,8 @@ machine Main::main(&mut self) reaches Console {
     v %= 4; // 2
 
     transition v == 2 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

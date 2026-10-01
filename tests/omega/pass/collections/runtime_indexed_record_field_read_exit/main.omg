@@ -27,22 +27,22 @@ data Main {
     other: bool;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cells[0].hp = 5;
-    self.cells[1].hp = 11;
-    self.cells[2].hp = 70;
-    self.cells[2].tag = 9;
-    self.cells[2].ready = true;
-    self.cells[3].hp = 13;
-    self.cells[3].ready = true;
-    self.i = 2;
-    self.scratch = self.cells[self.i].hp;
-    self.selected = self.cells[self.i].ready;
-    self.i = 1;
-    self.other = self.cells[self.i].ready;
-    transition self.selected && !self.other && self.scratch == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0].hp = 5;
+    main.cells[1].hp = 11;
+    main.cells[2].hp = 70;
+    main.cells[2].tag = 9;
+    main.cells[2].ready = true;
+    main.cells[3].hp = 13;
+    main.cells[3].ready = true;
+    main.i = 2;
+    main.scratch = main.cells[main.i].hp;
+    main.selected = main.cells[main.i].ready;
+    main.i = 1;
+    main.other = main.cells[main.i].ready;
+    transition main.selected && !main.other && main.scratch == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

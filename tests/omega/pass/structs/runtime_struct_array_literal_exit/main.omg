@@ -24,14 +24,14 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag = Bag {
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag = Bag {
         count: 2,
         nums: [10, 20, 30],
         pts: [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }],
     };
 
-    transition self.bag.nums[2] == 30 { true -> check_pt(&mut self) _ -> bad(&mut self) }
+    transition main.bag.nums[2] == 30 { true -> check_pt(main) _ -> bad(main) }
     state check_pt(main: &mut Main) {
         transition main.bag.pts[1].x == 3 { true -> check_count(main) _ -> bad(main) }
     }

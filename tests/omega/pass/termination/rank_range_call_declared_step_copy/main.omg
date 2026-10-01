@@ -5,9 +5,9 @@
 // the call component.
 data Main {}
 
-machine Main::main(&mut self) -> u32
+machine Main::main(main: &mut Main) -> u32
 {
-    transition { _ -> Main::count(&mut self, 9, 1) }
+    transition { _ -> Main::count(main, 9, 1) }
 }
 
 machine Main::count(main: &mut Main, remaining: u32, stride: u32)

@@ -21,11 +21,11 @@ machine publish(count: &mut u64, at: u64) {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    publish(&mut self.count, 11);
-    transition self.count == 13 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    publish(&mut main.count, 11);
+    transition main.count == 13 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

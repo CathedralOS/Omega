@@ -19,22 +19,22 @@ data Main {
     u8wrap: u8 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.i32sat = 2147483647;
-    self.i32sat = self.i32sat + 1;          // saturates to i32::MAX
+machine Main::main(main: &mut Main) reaches Console {
+    main.i32sat = 2147483647;
+    main.i32sat = main.i32sat + 1;          // saturates to i32::MAX
 
-    self.i32wrap = 2147483647;
-    self.i32wrap = self.i32wrap + 1;        // wraps to i32::MIN
+    main.i32wrap = 2147483647;
+    main.i32wrap = main.i32wrap + 1;        // wraps to i32::MIN
 
-    self.u8sat = 255;
-    self.u8sat = self.u8sat + 1;            // saturates to 255
+    main.u8sat = 255;
+    main.u8sat = main.u8sat + 1;            // saturates to 255
 
-    self.u8wrap = 0;
-    self.u8wrap = self.u8wrap - 1;          // wraps to 255
+    main.u8wrap = 0;
+    main.u8wrap = main.u8wrap - 1;          // wraps to 255
 
-    transition self.i32sat == 2147483647 {
-        true -> check_wrap(&mut self)
-        _ -> bad(&mut self)
+    transition main.i32sat == 2147483647 {
+        true -> check_wrap(main)
+        _ -> bad(main)
     }
 
     state check_wrap(main: &mut Main) {

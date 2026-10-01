@@ -25,11 +25,11 @@ data Main {
     metadata: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches Console + FilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
-    self.fd = self.fs.open_create("/dev/null", 65, 438);
-    transition self.fd >= 0 { true -> write_null(&mut self) _ -> fail_open_create(&mut self) }
+    main.fd = main.fs.open_create("/dev/null", 65, 438);
+    transition main.fd >= 0 { true -> write_null(main) _ -> fail_open_create(main) }
     state write_null(main: &mut Main) {
         main.count = main.fs.write(main.fd, "omega-linux\n");
         main.rc = main.fs.close(main.fd);

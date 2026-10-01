@@ -50,67 +50,67 @@ data Main {
     v: Vec;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Mint caller-supplied backing: each store starts empty and unheld.
-    Backing4::seed(&mut self.eb);
-    Backing4::seed(&mut self.b4);
-    Backing8::seed(&mut self.b8);
-    Backing16::seed(&mut self.b16);
-    Backing16::seed(&mut self.spare16);
-    Backing4::seed(&mut self.out4);
-    Backing16::seed(&mut self.out16);
+    Backing4::seed(&mut main.eb);
+    Backing4::seed(&mut main.b4);
+    Backing8::seed(&mut main.b8);
+    Backing16::seed(&mut main.b16);
+    Backing16::seed(&mut main.spare16);
+    Backing4::seed(&mut main.out4);
+    Backing16::seed(&mut main.out16);
 
     // Declare the supply to the strategy: two 4-stores (eb + b4), one
     // 8-store, one 16-store. The denied request must not touch it.
-    Pool::open(&mut self.pool, 2, 1, 1);
+    Pool::open(&mut main.pool, 2, 1, 1);
 
     // ---- empty-vector lifecycle: grant, open, drain, release ----
-    // `self.v` is the receiver-held linear handle; it names no storage yet.
-    self.v.live = 0;
-    self.v.rung = 0;
-    self.v.len = 0;
-    let r4a: Request = Pool::request4(&mut self.pool);
-    let opened_e: u64 = Vec::open4(&mut self.v, r4a, &mut self.eb);
-    self.v.drain4(&mut self.eb, &mut self.out4);
-    Pool::release4(&mut self.pool);
+    // `main.v` is the receiver-held linear handle; it names no storage yet.
+    main.v.live = 0;
+    main.v.rung = 0;
+    main.v.len = 0;
+    let r4a: Request = Pool::request4(&mut main.pool);
+    let opened_e: u64 = Vec::open4(&mut main.v, r4a, &mut main.eb);
+    main.v.drain4(&mut main.eb, &mut main.out4);
+    Pool::release4(&mut main.pool);
 
     // ---- main lifecycle: open at rung 4 over caller-supplied b4 ----
-    let r4b: Request = Pool::request4(&mut self.pool);
-    let opened_v: u64 = Vec::open4(&mut self.v, r4b, &mut self.b4);
-    Vec::push4(&mut self.v, &mut self.b4, 0, 1);
-    Vec::push4(&mut self.v, &mut self.b4, 1, 2);
-    Vec::push4(&mut self.v, &mut self.b4, 2, 3);
-    Vec::push4(&mut self.v, &mut self.b4, 3, 4);
+    let r4b: Request = Pool::request4(&mut main.pool);
+    let opened_v: u64 = Vec::open4(&mut main.v, r4b, &mut main.b4);
+    Vec::push4(&mut main.v, &mut main.b4, 0, 1);
+    Vec::push4(&mut main.v, &mut main.b4, 1, 2);
+    Vec::push4(&mut main.v, &mut main.b4, 2, 3);
+    Vec::push4(&mut main.v, &mut main.b4, 3, 4);
 
     // first growth: 4 -> 8 through the pool's grant
-    let r8: Request = Pool::request8(&mut self.pool);
-    let moved1: u64 = Vec::grow4to8(&mut self.v, &mut self.b4, &mut self.b8, r8);
-    Pool::release4(&mut self.pool);
-    Vec::push8(&mut self.v, &mut self.b8, 4, 5);
-    Vec::push8(&mut self.v, &mut self.b8, 5, 6);
-    Vec::push8(&mut self.v, &mut self.b8, 6, 7);
-    Vec::push8(&mut self.v, &mut self.b8, 7, 8);
+    let r8: Request = Pool::request8(&mut main.pool);
+    let moved1: u64 = Vec::grow4to8(&mut main.v, &mut main.b4, &mut main.b8, r8);
+    Pool::release4(&mut main.pool);
+    Vec::push8(&mut main.v, &mut main.b8, 4, 5);
+    Vec::push8(&mut main.v, &mut main.b8, 5, 6);
+    Vec::push8(&mut main.v, &mut main.b8, 6, 7);
+    Vec::push8(&mut main.v, &mut main.b8, 7, 8);
 
     // second growth: 8 -> 16 through the pool's grant
-    let r16: Request = Pool::request16(&mut self.pool);
-    let moved2: u64 = Vec::grow8to16(&mut self.v, &mut self.b8, &mut self.b16, r16);
-    Pool::release8(&mut self.pool);
-    Vec::push16(&mut self.v, &mut self.b16, 8, 9);
-    Vec::push16(&mut self.v, &mut self.b16, 9, 10);
+    let r16: Request = Pool::request16(&mut main.pool);
+    let moved2: u64 = Vec::grow8to16(&mut main.v, &mut main.b8, &mut main.b16, r16);
+    Pool::release8(&mut main.pool);
+    Vec::push16(&mut main.v, &mut main.b16, 8, 9);
+    Vec::push16(&mut main.v, &mut main.b16, 9, 10);
 
     // allocation failure: the 16-rung supply is exhausted, so this
     // request is denied and grow8to16 must preserve contents, custody,
     // and the caller's spare store untouched.
-    let r16b: Request = Pool::request16(&mut self.pool);
-    let unmoved: u64 = Vec::grow8to16(&mut self.v, &mut self.b8, &mut self.spare16, r16b);
+    let r16b: Request = Pool::request16(&mut main.pool);
+    let unmoved: u64 = Vec::grow8to16(&mut main.v, &mut main.b8, &mut main.spare16, r16b);
 
     // explicit backing return: drain the resident 16-rung store back to
     // caller-owned out16, then release the slot and close the handle.
-    self.v.drain16(&mut self.b16, &mut self.out16);
-    Pool::release16(&mut self.pool);
-    let v_len: u64 = self.v.len;
-    let v_live: u64 = self.v.live;
-    let v_rung: u64 = self.v.rung;
+    main.v.drain16(&mut main.b16, &mut main.out16);
+    Pool::release16(&mut main.pool);
+    let v_len: u64 = main.v.len;
+    let v_live: u64 = main.v.live;
+    let v_rung: u64 = main.v.rung;
 
     // every observation lands in one first-failure exit code.
     let f11: i32 in Wrapping = Checker::flag(opened_e == 1, 11);
@@ -123,31 +123,31 @@ machine Main::main(&mut self) reaches Console {
     let f18: i32 in Wrapping = Checker::flag(v_rung == 16, 18);
 
     // drained contents: the full live prefix crossed into out16.
-    let f19: i32 in Wrapping = Checker::flag(self.out16.e[0] == 1, 19);
-    let f20: i32 in Wrapping = Checker::flag(self.out16.e[7] == 8, 20);
-    let f21: i32 in Wrapping = Checker::flag(self.out16.e[9] == 10, 21);
-    let f22: i32 in Wrapping = Checker::flag(self.out16.e[15] == 0, 22);
+    let f19: i32 in Wrapping = Checker::flag(main.out16.e[0] == 1, 19);
+    let f20: i32 in Wrapping = Checker::flag(main.out16.e[7] == 8, 20);
+    let f21: i32 in Wrapping = Checker::flag(main.out16.e[9] == 10, 21);
+    let f22: i32 in Wrapping = Checker::flag(main.out16.e[15] == 0, 22);
 
     // custody: every live store retired, unheld, and zeroed.
-    let f23: i32 in Wrapping = Checker::flag(self.b4.held == 0, 23);
-    let f24: i32 in Wrapping = Checker::flag(self.b4.e[0] == 0, 24);
-    let f25: i32 in Wrapping = Checker::flag(self.b8.held == 0, 25);
-    let f26: i32 in Wrapping = Checker::flag(self.b8.e[0] == 0, 26);
-    let f27: i32 in Wrapping = Checker::flag(self.b16.held == 0, 27);
-    let f28: i32 in Wrapping = Checker::flag(self.b16.e[0] == 0, 28);
-    let f29: i32 in Wrapping = Checker::flag(self.eb.held == 0, 29);
+    let f23: i32 in Wrapping = Checker::flag(main.b4.held == 0, 23);
+    let f24: i32 in Wrapping = Checker::flag(main.b4.e[0] == 0, 24);
+    let f25: i32 in Wrapping = Checker::flag(main.b8.held == 0, 25);
+    let f26: i32 in Wrapping = Checker::flag(main.b8.e[0] == 0, 26);
+    let f27: i32 in Wrapping = Checker::flag(main.b16.held == 0, 27);
+    let f28: i32 in Wrapping = Checker::flag(main.b16.e[0] == 0, 28);
+    let f29: i32 in Wrapping = Checker::flag(main.eb.held == 0, 29);
 
     // the denied request left the spare store untouched and unheld.
-    let f30: i32 in Wrapping = Checker::flag(self.spare16.held == 0, 30);
-    let f31: i32 in Wrapping = Checker::flag(self.spare16.e[0] == 0, 31);
+    let f30: i32 in Wrapping = Checker::flag(main.spare16.held == 0, 30);
+    let f31: i32 in Wrapping = Checker::flag(main.spare16.e[0] == 0, 31);
 
     // the strategy's ledger reconciles: every released slot returned.
-    let f32: i32 in Wrapping = Checker::flag(self.pool.free4 == 2, 32);
-    let f33: i32 in Wrapping = Checker::flag(self.pool.free8 == 1, 33);
-    let f34: i32 in Wrapping = Checker::flag(self.pool.free16 == 1, 34);
-    let f35: i32 in Wrapping = Checker::flag(self.pool.over4 == 0, 35);
-    let f36: i32 in Wrapping = Checker::flag(self.pool.over8 == 0, 36);
-    let f37: i32 in Wrapping = Checker::flag(self.pool.over16 == 0, 37);
+    let f32: i32 in Wrapping = Checker::flag(main.pool.free4 == 2, 32);
+    let f33: i32 in Wrapping = Checker::flag(main.pool.free8 == 1, 33);
+    let f34: i32 in Wrapping = Checker::flag(main.pool.free16 == 1, 34);
+    let f35: i32 in Wrapping = Checker::flag(main.pool.over4 == 0, 35);
+    let f36: i32 in Wrapping = Checker::flag(main.pool.over8 == 0, 36);
+    let f37: i32 in Wrapping = Checker::flag(main.pool.over16 == 0, 37);
 
     let p1: i32 in Wrapping = Checker::pick(f11, f12);
     let p2: i32 in Wrapping = Checker::pick(p1, f13);
@@ -177,5 +177,5 @@ machine Main::main(&mut self) reaches Console {
     let p26: i32 in Wrapping = Checker::pick(p25, f37);
 
     let code: i32 in Wrapping = 70 + p26;
-    self.console.exit_process(code as i32);
+    main.console.exit_process(code as i32);
 }

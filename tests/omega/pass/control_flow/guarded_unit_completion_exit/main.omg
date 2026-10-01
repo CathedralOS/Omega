@@ -24,24 +24,24 @@ machine middle(output: &mut Output, first: bool, second: bool) {
     state two(output: &mut Output) { output.value = 22; }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.output.value = 7;
-    fallback(&mut self.output, false, false);
-    let unchanged_fallback: bool = self.output.value == 7;
-    fallback(&mut self.output, true, true);
-    let first_wins: bool = self.output.value == 11;
-    fallback(&mut self.output, false, true);
-    let second_runs: bool = self.output.value == 22;
-    middle(&mut self.output, false, true);
-    let unchanged_middle: bool = self.output.value == 22;
-    middle(&mut self.output, true, true);
-    let first_before_unit: bool = self.output.value == 11;
-    middle(&mut self.output, false, false);
-    let fallback_runs: bool = self.output.value == 22;
+machine Main::main(main: &mut Main) reaches Console {
+    main.output.value = 7;
+    fallback(&mut main.output, false, false);
+    let unchanged_fallback: bool = main.output.value == 7;
+    fallback(&mut main.output, true, true);
+    let first_wins: bool = main.output.value == 11;
+    fallback(&mut main.output, false, true);
+    let second_runs: bool = main.output.value == 22;
+    middle(&mut main.output, false, true);
+    let unchanged_middle: bool = main.output.value == 22;
+    middle(&mut main.output, true, true);
+    let first_before_unit: bool = main.output.value == 11;
+    middle(&mut main.output, false, false);
+    let fallback_runs: bool = main.output.value == 22;
     transition unchanged_fallback && first_wins && second_runs
         && unchanged_middle && first_before_unit && fallback_runs {
-        true -> finish(70)
-        false -> finish(1)
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

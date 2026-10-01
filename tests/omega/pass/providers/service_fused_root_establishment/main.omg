@@ -14,10 +14,10 @@ data Main {
     service: Binding<Ping>;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Ping
 {
-    self.service.ping();
+    main.service.ping();
 }
 
 data NonRoot {

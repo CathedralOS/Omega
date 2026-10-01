@@ -22,9 +22,9 @@ data Main {
     out: [u8; 4] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.count = 3;
-    transition { _ -> step(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 3;
+    transition { _ -> step(main) }
 
     state step(main: &mut Main) {
         main.count = main.count + 1;

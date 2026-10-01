@@ -16,14 +16,14 @@ data Main {
     sum: f64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut a: f64 = 1.0;
     let mut b: f64 = 4.0;
-    self.sum = a + b;
+    main.sum = a + b;
     let doubled: f64 = b * 2.0;
     transition doubled == 8.0 {
-        true -> check_sum(&mut self)
-        false -> fail(&mut self, 71)
+        true -> check_sum(main)
+        false -> fail(main, 71)
     }
 
     state check_sum(main: &mut Main) {

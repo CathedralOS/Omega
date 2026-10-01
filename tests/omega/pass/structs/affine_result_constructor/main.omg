@@ -15,11 +15,11 @@ machine Worker::wrap() -> Outcome {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let outcome: Outcome = Worker::wrap();
     transition outcome {
-        Outcome::Error { kind } -> inspect(&mut self, kind)
-        _ -> failure(&mut self)
+        Outcome::Error { kind } -> inspect(main, kind)
+        _ -> failure(main)
     }
     state inspect(main: &mut Main, kind: Kind) {
         transition kind {

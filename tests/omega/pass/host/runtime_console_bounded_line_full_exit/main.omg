@@ -10,61 +10,61 @@ data Main {
     line: [u8; 4];
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.line[0] = 35;
-    self.line[1] = 35;
-    self.line[2] = 35;
-    self.line[3] = 35;
-    let empty: LineReadResult = block self.console.read_line(&mut self.line[0..0]);
+    main.line[0] = 35;
+    main.line[1] = 35;
+    main.line[2] = 35;
+    main.line[3] = 35;
+    let empty: LineReadResult = block main.console.read_line(&mut main.line[0..0]);
     transition empty {
-        LineReadResult::Full { count } -> empty_result(count)
-        _ -> invalid()
+        LineReadResult::Full { count } -> empty_result(main, count)
+        _ -> invalid(main)
     }
-    state empty_result(&mut self, count: u64) {
-        transition count == 0 { true -> read() false -> invalid() }
+    state empty_result(main: &mut Main, count: u64) {
+        transition count == 0 { true -> read(main) false -> invalid(main) }
     }
-    state read(&mut self) {
-        let result: LineReadResult = block self.console.read_line(&mut self.line);
+    state read(main: &mut Main) {
+        let result: LineReadResult = block main.console.read_line(&mut main.line);
         transition result {
-            LineReadResult::LineComplete { count } -> report(10, count)
-            LineReadResult::EndOfInput { count } -> report(20, count)
-            LineReadResult::Full { count } -> report(30, count)
-            LineReadResult::Invalid -> invalid()
+            LineReadResult::LineComplete { count } -> report(main, 10, count)
+            LineReadResult::EndOfInput { count } -> report(main, 20, count)
+            LineReadResult::Full { count } -> report(main, 30, count)
+            LineReadResult::Invalid -> invalid(main)
         }
     }
-    state report(&mut self, reason: i32, count: u64)
+    state report(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100
     {
-        self.console.write(&self.line);
-        let next: ByteRead = block self.console.read_byte();
+        main.console.write(&main.line);
+        let next: ByteRead = block main.console.read_byte();
         transition next {
-            ByteRead::Byte { value } -> suffix(reason, count, value)
-            ByteRead::Eof -> done(reason, count)
+            ByteRead::Byte { value } -> suffix(main, reason, count, value)
+            ByteRead::Eof -> done(main, reason, count)
         }
     }
-    state suffix(&mut self, reason: i32, count: u64, value: i32)
+    state suffix(main: &mut Main, reason: i32, count: u64, value: i32)
     requires 0 <= reason && reason <= 100 && 0 <= value && value <= 255
     {
-        self.console.write_byte(value);
-        transition { _ -> done(reason, count) }
+        main.console.write_byte(value);
+        transition { _ -> done(main, reason, count) }
     }
-    state done(&mut self, reason: i32, count: u64)
+    state done(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100
     {
         // `LineReadResult.count` is an unbounded u64: the contract carries no
         // upper bound, so the exact `i32` cast needs a dominating premise.
         // The four-byte line caps count at 4; `finish` declares that bound.
         transition count <= 4 {
-            true -> finish(reason, count)
-            _ -> invalid()
+            true -> finish(main, reason, count)
+            _ -> invalid(main)
         }
     }
-    state finish(&mut self, reason: i32, count: u64)
+    state finish(main: &mut Main, reason: i32, count: u64)
     requires 0 <= reason && reason <= 100 && count <= 4
     {
-        self.console.exit_process(reason + count as i32);
+        main.console.exit_process(reason + count as i32);
     }
-    state invalid(&mut self) { self.console.exit_process(99); }
+    state invalid(main: &mut Main) { main.console.exit_process(99); }
 }

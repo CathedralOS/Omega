@@ -36,15 +36,15 @@ requires
     }
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches
     Console + ProcessExit
 {
     let hot: i32 = pick(60);
-    self.console.write_line("process-exit canary");
+    main.console.write_line("process-exit canary");
     transition hot == 120 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

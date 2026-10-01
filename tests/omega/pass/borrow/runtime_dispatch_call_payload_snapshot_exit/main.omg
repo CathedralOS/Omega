@@ -24,8 +24,8 @@ machine run(counter: &mut Counter) -> i32 {
 }
 
 data Main { console: Binding<Console>; counter: Counter; result: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.counter.value = 70;
-    self.result = run(&mut self.counter);
-    self.console.exit_process(self.result);
+machine Main::main(main: &mut Main) reaches Console {
+    main.counter.value = 70;
+    main.result = run(&mut main.counter);
+    main.console.exit_process(main.result);
 }

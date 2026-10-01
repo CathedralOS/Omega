@@ -43,7 +43,7 @@ machine positive(x: i32 in Trapping) -> bool {
     x > 0
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let s: i32 in Wrapping = add(30, 40);
     let p: Point = mk_point();
     let t: Tag = mk_tag();
@@ -51,7 +51,7 @@ machine Main::main(&mut self) reaches Console {
     let inner: i32 in Wrapping = add(1, 2);
     let nested: i32 in Wrapping = add(inner, 3);
 
-    transition s == 70 { true -> check_point(&mut self, p, t, b, nested) _ -> bad(&mut self, 71) }
+    transition s == 70 { true -> check_point(main, p, t, b, nested) _ -> bad(main, 71) }
 
     state check_point(main: &mut Main, p: Point, t: Tag, b: bool, nested: i32 in Wrapping) {
         transition p.x == 30 { true -> check_bool(main, t, b, nested) _ -> bad(main, 72) }

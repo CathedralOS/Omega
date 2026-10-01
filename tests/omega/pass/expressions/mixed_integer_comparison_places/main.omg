@@ -9,14 +9,14 @@ data Main {
     unsigned_maximum: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.signed = 0 - 1;
-    self.unsigned = 10;
-    self.signed_maximum = 9223372036854775807;
-    self.unsigned_maximum = 18446744073709551615;
-    transition self.signed < self.unsigned {
-        true -> boundaries(&mut self)
-        _ -> promoted(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.signed = 0 - 1;
+    main.unsigned = 10;
+    main.signed_maximum = 9223372036854775807;
+    main.unsigned_maximum = 18446744073709551615;
+    transition main.signed < main.unsigned {
+        true -> boundaries(main)
+        _ -> promoted(main)
     }
 
     state boundaries(main: &mut Main) {

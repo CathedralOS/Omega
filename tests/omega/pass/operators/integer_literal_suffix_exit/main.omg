@@ -12,14 +12,14 @@ data Main {
     size: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.wide = 100i64;
-    self.small = 7u32;
-    self.size = 9usize;
+machine Main::main(main: &mut Main) reaches Console {
+    main.wide = 100i64;
+    main.small = 7u32;
+    main.size = 9usize;
 
-    transition self.wide == 100i64 {
-        true -> check_small(&mut self)
-        false -> bad(&mut self)
+    transition main.wide == 100i64 {
+        true -> check_small(main)
+        false -> bad(main)
     }
 
     state check_small(main: &mut Main) {

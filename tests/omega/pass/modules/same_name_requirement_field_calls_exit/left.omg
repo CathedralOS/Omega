@@ -18,15 +18,15 @@ reaches
 }
 
 pub data Runner { sink: Binding<Sink>; console: Binding<Console>; }
-pub machine Runner::run(&mut self) reaches Sink, Console
+pub machine Runner::run(runner: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
 blocks;
 {
-    block self.sink.emit(76);
-    transition { _ -> deliver(65) }
-    state deliver(&mut self, code: i32) {
-        block self.sink.emit(10);
-        self.console.exit_process(code);
+    block runner.sink.emit(76);
+    transition { _ -> deliver(runner, 65) }
+    state deliver(runner: &mut Runner, code: i32) {
+        block runner.sink.emit(10);
+        runner.console.exit_process(code);
     }
 }

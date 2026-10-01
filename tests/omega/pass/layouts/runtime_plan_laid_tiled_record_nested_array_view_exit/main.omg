@@ -56,41 +56,41 @@ data Main {
     observed: u16;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let view: &mut TiledRecordNestedArrayView =
-        &mut self.bytes[0] as &mut TiledRecordNestedArrayView;
-    self.outer = 0;
-    view.value.cells[self.outer].tag = 0x04030201;
-    self.inner = 0;
-    view.value.cells[self.outer].values[self.inner] = 0x0605;
-    self.inner = 1;
-    view.value.cells[self.outer].values[self.inner] = 0x0807;
-    self.outer = 1;
-    view.value.cells[self.outer].tag = 0x0c0b0a09;
-    self.inner = 0;
-    view.value.cells[self.outer].values[self.inner] = 0x0e0d;
-    self.inner = 1;
-    view.value.cells[self.outer].values[self.inner] = 0x100f;
-    self.observed = view.value.cells[self.outer].values[self.inner];
-    transition self.bytes[0] == 0 && self.bytes[1] == 0
-        && self.bytes[2] == 0 && self.bytes[3] == 0
-        && self.bytes[4] == 1 && self.bytes[5] == 2
-        && self.bytes[6] == 3 && self.bytes[7] == 4
-        && self.bytes[8] == 5 && self.bytes[9] == 6
-        && self.bytes[10] == 7 && self.bytes[11] == 8
-        && self.bytes[12] == 0 && self.bytes[13] == 0
-        && self.bytes[14] == 0 && self.bytes[15] == 0
-        && self.bytes[16] == 9 && self.bytes[17] == 10
-        && self.bytes[18] == 11 && self.bytes[19] == 12
-        && self.bytes[20] == 13 && self.bytes[21] == 14
-        && self.bytes[22] == 15 && self.bytes[23] == 16
-        && self.bytes[24] == 0 && self.bytes[25] == 0
-        && self.bytes[26] == 0 && self.bytes[27] == 0
-        && self.observed == 0x100f {
-        true -> good()
-        _ -> bad()
+        &mut main.bytes[0] as &mut TiledRecordNestedArrayView;
+    main.outer = 0;
+    view.value.cells[main.outer].tag = 0x04030201;
+    main.inner = 0;
+    view.value.cells[main.outer].values[main.inner] = 0x0605;
+    main.inner = 1;
+    view.value.cells[main.outer].values[main.inner] = 0x0807;
+    main.outer = 1;
+    view.value.cells[main.outer].tag = 0x0c0b0a09;
+    main.inner = 0;
+    view.value.cells[main.outer].values[main.inner] = 0x0e0d;
+    main.inner = 1;
+    view.value.cells[main.outer].values[main.inner] = 0x100f;
+    main.observed = view.value.cells[main.outer].values[main.inner];
+    transition main.bytes[0] == 0 && main.bytes[1] == 0
+        && main.bytes[2] == 0 && main.bytes[3] == 0
+        && main.bytes[4] == 1 && main.bytes[5] == 2
+        && main.bytes[6] == 3 && main.bytes[7] == 4
+        && main.bytes[8] == 5 && main.bytes[9] == 6
+        && main.bytes[10] == 7 && main.bytes[11] == 8
+        && main.bytes[12] == 0 && main.bytes[13] == 0
+        && main.bytes[14] == 0 && main.bytes[15] == 0
+        && main.bytes[16] == 9 && main.bytes[17] == 10
+        && main.bytes[18] == 11 && main.bytes[19] == 12
+        && main.bytes[20] == 13 && main.bytes[21] == 14
+        && main.bytes[22] == 15 && main.bytes[23] == 16
+        && main.bytes[24] == 0 && main.bytes[25] == 0
+        && main.bytes[26] == 0 && main.bytes[27] == 0
+        && main.observed == 0x100f {
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

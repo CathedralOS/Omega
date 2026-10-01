@@ -31,15 +31,15 @@ data Main {
     h: i32 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.r = Rect {
+machine Main::main(main: &mut Main) reaches Console {
+    main.r = Rect {
         top_left: Point { x: 2, y: 3 },
         bottom_right: Point { x: 12, y: 9 },
     };
-    self.w = self.r.bottom_right.x - self.r.top_left.x;
-    self.h = self.r.bottom_right.y - self.r.top_left.y;
+    main.w = main.r.bottom_right.x - main.r.top_left.x;
+    main.h = main.r.bottom_right.y - main.r.top_left.y;
 
-    transition self.r.top_left.y == 3 { true -> check_w(&mut self) _ -> bad(&mut self) }
+    transition main.r.top_left.y == 3 { true -> check_w(main) _ -> bad(main) }
     state check_w(main: &mut Main) {
         transition main.w == 10 { true -> check_h(main) _ -> bad(main) }
     }

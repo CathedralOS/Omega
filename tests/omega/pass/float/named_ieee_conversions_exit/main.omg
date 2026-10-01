@@ -42,28 +42,28 @@ data Main {
     large_u16: u16;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut negative_seven: i32 = -7;
-    self.exact_i32 = 16777217;
-    self.tie_i32 = 16777219;
-    self.tie_i64 = 9007199254740995;
-    self.negative_tie_i64 = -9007199254740995;
-    self.large_u32 = 3000000000;
-    self.maximum_u32 = 4294967295;
-    self.tenth32 = 0.1f32;
-    self.zero32 = 0.0f32;
-    self.one32 = 1.0f32;
-    self.near_one64 = 1.0000000894069671630859375;
-    self.huge64 = 1e300;
-    self.zero64 = 0.0;
-    self.negative_i8 = -100;
-    self.negative_i16 = -30000;
-    self.large_u8 = 250;
-    self.large_u16 = 65000;
+    main.exact_i32 = 16777217;
+    main.tie_i32 = 16777219;
+    main.tie_i64 = 9007199254740995;
+    main.negative_tie_i64 = -9007199254740995;
+    main.large_u32 = 3000000000;
+    main.maximum_u32 = 4294967295;
+    main.tenth32 = 0.1f32;
+    main.zero32 = 0.0f32;
+    main.one32 = 1.0f32;
+    main.near_one64 = 1.0000000894069671630859375;
+    main.huge64 = 1e300;
+    main.zero64 = 0.0;
+    main.negative_i8 = -100;
+    main.negative_i16 = -30000;
+    main.large_u8 = 250;
+    main.large_u16 = 65000;
     let converted: f64 = F64::from_i32(negative_seven);
     transition converted == -7.0 {
-        true -> exact_i32_64(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> exact_i32_64(main)
+        _ -> fail(main, 71)
     }
 
     state exact_i32_64(main: &mut Main) {

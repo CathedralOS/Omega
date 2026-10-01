@@ -7,11 +7,11 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; z: f64; nan: f64; g: f64; }
-machine Main::main(&mut self) reaches Console {
-    self.z = 0.0;
-    self.nan = self.z / self.z;
-    self.g = 5.0;
-    transition self.nan != self.g { true -> check_eq(&mut self) _ -> bad(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.z = 0.0;
+    main.nan = main.z / main.z;
+    main.g = 5.0;
+    transition main.nan != main.g { true -> check_eq(main) _ -> bad(main) }
     state check_eq(main: &mut Main) { transition main.nan == main.g { true -> bad(main) _ -> check_lt(main) } }
     state check_lt(main: &mut Main) { transition main.nan <  main.g { true -> bad(main) _ -> check_le(main) } }
     state check_le(main: &mut Main) { transition main.nan <= main.g { true -> bad(main) _ -> check_gt(main) } }

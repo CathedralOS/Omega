@@ -21,8 +21,8 @@ macos_arm64 machine Helper::run(helper: &Helper) -> u64 { Helper::value(helper, 
 linux_arm64 machine Helper::run(helper: &Helper) -> u64 { Helper::value(helper, 4) }
 
 data Main { helper: Helper; }
-machine Main::main(&mut self) crashes Trap {
-    let value: u64 = Helper::run(&self.helper);
+machine Main::main(main: &mut Main) crashes Trap {
+    let value: u64 = Helper::run(&main.helper);
     transition value == 42 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

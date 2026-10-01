@@ -29,22 +29,22 @@ requires bag.at < 4
     bag.cells[0].value = observed;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.at = 2;
-    self.bag.cells[2].value = 7;
-    self.bag.cells[2].tag = 9;
-    pick(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.at = 2;
+    main.bag.cells[2].value = 7;
+    main.bag.cells[2].tag = 9;
+    pick(&mut main.bag);
 
-    transition self.bag.cells[0].value == 0 {
-        true -> bad()
-        false -> good()
+    transition main.bag.cells[0].value == 0 {
+        true -> bad(main)
+        false -> good(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(181);
+    state good(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(182);
+    state bad(main: &mut Main) {
+        main.console.exit_process(182);
     }
 }

@@ -24,58 +24,58 @@ data Main {
     file_fd: i32;
     close_rc: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.open_result = self.fs.create("omega_lock_probe.txt");
-    transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
-    state seed(&mut self, file: File) {
-        self.file_fd = file.fd;
-        self.io_result = self.fs.write(File { fd: self.file_fd }, "hello");
-        transition self.io_result { IoResult::Ok { count } -> seeded(count) _ -> bad(72) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.open_result = main.fs.create("omega_lock_probe.txt");
+    transition main.open_result { OpenResult::Ok { file } -> seed(main, file) _ -> bad(main, 71) }
+    state seed(main: &mut Main, file: File) {
+        main.file_fd = file.fd;
+        main.io_result = main.fs.write(File { fd: main.file_fd }, "hello");
+        transition main.io_result { IoResult::Ok { count } -> seeded(main, count) _ -> bad(main, 72) }
     }
-    state seeded(&mut self, count: u64) {
-        transition count == 5 { true -> meta() _ -> bad(72) }
+    state seeded(main: &mut Main, count: u64) {
+        transition count == 5 { true -> meta(main) _ -> bad(main, 72) }
     }
-    state meta(&mut self) {
-        self.meta_result = Filesystem::metadata(&mut self.fs, File { fd: self.file_fd });
-        transition self.meta_result { MetadataResult::Ok { meta } -> ckmeta(meta) _ -> bad(73) }
+    state meta(main: &mut Main) {
+        main.meta_result = Filesystem::metadata(&mut main.fs, File { fd: main.file_fd });
+        transition main.meta_result { MetadataResult::Ok { meta } -> ckmeta(main, meta) _ -> bad(main, 73) }
     }
-    state ckmeta(&mut self, meta: Metadata) {
-        transition meta.len == 5 { true -> lockx() _ -> bad(73) }
+    state ckmeta(main: &mut Main, meta: Metadata) {
+        transition meta.len == 5 { true -> lockx(main) _ -> bad(main, 73) }
     }
-    state lockx(&mut self) {
-        self.unit_result = self.fs.lock(File { fd: self.file_fd });
-        transition self.unit_result { UnitResult::Ok -> un1() _ -> bad(74) }
+    state lockx(main: &mut Main) {
+        main.unit_result = main.fs.lock(File { fd: main.file_fd });
+        transition main.unit_result { UnitResult::Ok -> un1(main) _ -> bad(main, 74) }
     }
-    state un1(&mut self) {
-        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
-        transition self.unit_result { UnitResult::Ok -> locksh() _ -> bad(75) }
+    state un1(main: &mut Main) {
+        main.unit_result = Filesystem::unlock(&mut main.fs, File { fd: main.file_fd });
+        transition main.unit_result { UnitResult::Ok -> locksh(main) _ -> bad(main, 75) }
     }
-    state locksh(&mut self) {
-        self.unit_result = Filesystem::lock_shared(&mut self.fs, File { fd: self.file_fd });
-        transition self.unit_result { UnitResult::Ok -> un2() _ -> bad(76) }
+    state locksh(main: &mut Main) {
+        main.unit_result = Filesystem::lock_shared(&mut main.fs, File { fd: main.file_fd });
+        transition main.unit_result { UnitResult::Ok -> un2(main) _ -> bad(main, 76) }
     }
-    state un2(&mut self) {
-        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
-        transition self.unit_result { UnitResult::Ok -> tryx() _ -> bad(77) }
+    state un2(main: &mut Main) {
+        main.unit_result = Filesystem::unlock(&mut main.fs, File { fd: main.file_fd });
+        transition main.unit_result { UnitResult::Ok -> tryx(main) _ -> bad(main, 77) }
     }
-    state tryx(&mut self) {
-        self.try_result = Filesystem::try_lock(&mut self.fs, File { fd: self.file_fd });
-        transition self.try_result { TryLockResult::Acquired -> un3() _ -> bad(78) }
+    state tryx(main: &mut Main) {
+        main.try_result = Filesystem::try_lock(&mut main.fs, File { fd: main.file_fd });
+        transition main.try_result { TryLockResult::Acquired -> un3(main) _ -> bad(main, 78) }
     }
-    state un3(&mut self) {
-        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
-        transition self.unit_result { UnitResult::Ok -> trysh() _ -> bad(79) }
+    state un3(main: &mut Main) {
+        main.unit_result = Filesystem::unlock(&mut main.fs, File { fd: main.file_fd });
+        transition main.unit_result { UnitResult::Ok -> trysh(main) _ -> bad(main, 79) }
     }
-    state trysh(&mut self) {
-        self.try_result = Filesystem::try_lock_shared(&mut self.fs, File { fd: self.file_fd });
-        transition self.try_result { TryLockResult::Acquired -> un4() _ -> bad(80) }
+    state trysh(main: &mut Main) {
+        main.try_result = Filesystem::try_lock_shared(&mut main.fs, File { fd: main.file_fd });
+        transition main.try_result { TryLockResult::Acquired -> un4(main) _ -> bad(main, 80) }
     }
-    state un4(&mut self) {
-        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
-        self.close_rc = self.fs.close(File { fd: self.file_fd });
-        self.unit_result = self.fs.remove("omega_lock_probe.txt");
-        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(81) }
+    state un4(main: &mut Main) {
+        main.unit_result = Filesystem::unlock(&mut main.fs, File { fd: main.file_fd });
+        main.close_rc = main.fs.close(File { fd: main.file_fd });
+        main.unit_result = main.fs.remove("omega_lock_probe.txt");
+        transition main.unit_result { UnitResult::Ok -> good(main) _ -> bad(main, 81) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

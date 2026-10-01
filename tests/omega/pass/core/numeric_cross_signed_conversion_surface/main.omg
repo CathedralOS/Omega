@@ -22,33 +22,33 @@ data Main {
     expected_u64: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let negative_i8: i8 = 0 - 1;
     let negative_i16: i16 = 0 - 1;
     let high_i16: i16 = 300;
     let max_u64: u64 = 18446744073709551615;
 
-    self.unsigned_exact = narrow_u8_to_i8_exact(100);
-    self.unsigned_exact_wide = narrow_u64_to_i64_exact(5000000000);
-    self.unsigned_wrapping = narrow_u8_to_i8_wrapping(255);
-    self.unsigned_saturating = narrow_u16_to_i8_saturating(300);
-    self.unsigned_saturating_wide = narrow_u64_to_i64_saturating(max_u64);
-    self.unsigned_trapping = narrow_u32_to_i32_trapping(70);
-    self.unsigned_widening = widen_u16_to_i32(65535);
+    main.unsigned_exact = narrow_u8_to_i8_exact(100);
+    main.unsigned_exact_wide = narrow_u64_to_i64_exact(5000000000);
+    main.unsigned_wrapping = narrow_u8_to_i8_wrapping(255);
+    main.unsigned_saturating = narrow_u16_to_i8_saturating(300);
+    main.unsigned_saturating_wide = narrow_u64_to_i64_saturating(max_u64);
+    main.unsigned_trapping = narrow_u32_to_i32_trapping(70);
+    main.unsigned_widening = widen_u16_to_i32(65535);
 
-    self.signed_exact = narrow_i16_to_u8_exact(200);
-    self.signed_exact_wide = narrow_i64_to_u64_exact(5000000000);
-    self.signed_wrapping = narrow_i16_to_u8_wrapping(negative_i16);
-    self.signed_wrapping_wide = narrow_i8_to_u64_wrapping(negative_i8);
-    self.signed_saturating_low = narrow_i16_to_u8_saturating(negative_i16);
-    self.signed_saturating_high = narrow_i16_to_u8_saturating(high_i16);
-    self.signed_trapping = narrow_i32_to_u32_trapping(70);
-    self.expected_i64 = 9223372036854775807;
-    self.expected_u64 = max_u64;
+    main.signed_exact = narrow_i16_to_u8_exact(200);
+    main.signed_exact_wide = narrow_i64_to_u64_exact(5000000000);
+    main.signed_wrapping = narrow_i16_to_u8_wrapping(negative_i16);
+    main.signed_wrapping_wide = narrow_i8_to_u64_wrapping(negative_i8);
+    main.signed_saturating_low = narrow_i16_to_u8_saturating(negative_i16);
+    main.signed_saturating_high = narrow_i16_to_u8_saturating(high_i16);
+    main.signed_trapping = narrow_i32_to_u32_trapping(70);
+    main.expected_i64 = 9223372036854775807;
+    main.expected_u64 = max_u64;
 
-    transition self.unsigned_exact == 100 {
-        true -> check_unsigned_exact_wide(&mut self)
-        _ -> bad1(&mut self)
+    transition main.unsigned_exact == 100 {
+        true -> check_unsigned_exact_wide(main)
+        _ -> bad1(main)
     }
 
     state check_unsigned_exact_wide(main: &mut Main) {

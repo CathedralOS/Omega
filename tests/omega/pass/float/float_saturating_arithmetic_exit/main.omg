@@ -15,52 +15,52 @@ data Main {
     result: f32 in Saturating;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.maximum = 340282346638528859811704183484516925440.0;
-    self.negative_maximum = (0.0 - self.maximum) as f32 in Saturating;
-    self.two = 2.0;
-    self.zero = 0.0;
-    let c: f32 in Finite & Saturating = (self.maximum * self.two) as f32 in Saturating;
-    self.clamped = c;
-    transition self.clamped == self.maximum {
-        true -> negative()
-        _ -> bad(78)
+machine Main::main(main: &mut Main) reaches Console {
+    main.maximum = 340282346638528859811704183484516925440.0;
+    main.negative_maximum = (0.0 - main.maximum) as f32 in Saturating;
+    main.two = 2.0;
+    main.zero = 0.0;
+    let c: f32 in Finite & Saturating = (main.maximum * main.two) as f32 in Saturating;
+    main.clamped = c;
+    transition main.clamped == main.maximum {
+        true -> negative(main)
+        _ -> bad(main, 78)
     }
 
-    state negative(&mut self) {
-        let c2: f32 in Finite & Saturating = (self.negative_maximum * self.two) as f32 in Saturating;
-        self.clamped = c2;
-        transition self.clamped == self.negative_maximum {
-            true -> nested()
-            _ -> bad(79)
+    state negative(main: &mut Main) {
+        let c2: f32 in Finite & Saturating = (main.negative_maximum * main.two) as f32 in Saturating;
+        main.clamped = c2;
+        transition main.clamped == main.negative_maximum {
+            true -> nested(main)
+            _ -> bad(main, 79)
         }
     }
 
-    state nested(&mut self) {
-        transition self.maximum * self.two == self.maximum {
-            true -> divide_zero()
-            _ -> bad(80)
+    state nested(main: &mut Main) {
+        transition main.maximum * main.two == main.maximum {
+            true -> divide_zero(main)
+            _ -> bad(main, 80)
         }
     }
 
-    state divide_zero(&mut self) {
-        let r: f32 in Saturating = (self.maximum / self.zero) as f32 in Saturating;
-        self.result = r;
-        transition self.result > self.maximum {
-            true -> invalid()
-            _ -> bad(81)
+    state divide_zero(main: &mut Main) {
+        let r: f32 in Saturating = (main.maximum / main.zero) as f32 in Saturating;
+        main.result = r;
+        transition main.result > main.maximum {
+            true -> invalid(main)
+            _ -> bad(main, 81)
         }
     }
 
-    state invalid(&mut self) {
-        let r2: f32 in Saturating = (self.zero / self.zero) as f32 in Saturating;
-        self.result = r2;
-        transition self.result != self.result {
-            true -> good()
-            _ -> bad(82)
+    state invalid(main: &mut Main) {
+        let r2: f32 in Saturating = (main.zero / main.zero) as f32 in Saturating;
+        main.result = r2;
+        transition main.result != main.result {
+            true -> good(main)
+            _ -> bad(main, 82)
         }
     }
 
-    state good(&self) { self.console.exit_process(77); }
-    state bad(&self, code2: i32) { self.console.exit_process(code2); }
+    state good(main: &mut Main) { main.console.exit_process(77); }
+    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
 }

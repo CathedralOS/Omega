@@ -29,7 +29,7 @@ data Main {
     seed: u64;
     result: Triple;
 }
-machine Main::main(&mut self) reaches LargeAggregateResultImport {
-    self.seed = 7;
-    self.result = self.foreign.receive(self.seed);
+machine Main::main(main: &mut Main) reaches LargeAggregateResultImport {
+    main.seed = 7;
+    main.result = main.foreign.receive(main.seed);
 }
