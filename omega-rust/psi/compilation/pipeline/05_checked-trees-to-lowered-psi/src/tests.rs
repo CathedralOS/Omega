@@ -12,6 +12,7 @@ mod borrowed_whole_view_results;
 mod boundary_byte_buffers;
 mod boundary_operator_frontier;
 mod byte_extent;
+mod byte_pair_correspondence;
 mod byte_sequence_write;
 mod byte_write_loop;
 mod composed_operand_catalogs;

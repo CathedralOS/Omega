@@ -846,7 +846,8 @@ impl Context<'_> {
                 if let ExpressionNode::Binary(binary) = node
                     && binary.operator == BinaryOperator::Equal
                     && matches!(value, Boolean::And { .. })
-                    && self.carrier_literal_equality(source, binary.left, binary.right, value)
+                    && (self.carrier_literal_equality(source, binary.left, binary.right, value)
+                        || self.carrier_pair_equality(source, binary.left, binary.right, value))
                 {
                     return true;
                 }
@@ -930,7 +931,8 @@ impl Context<'_> {
                 if matches!(
                     binary.operator,
                     BinaryOperator::Equal | BinaryOperator::NotEqual
-                ) && self.carrier_literal_equality(source, left_source, right_source, value)
+                ) && (self.carrier_literal_equality(source, left_source, right_source, value)
+                    || self.carrier_pair_equality(source, left_source, right_source, value))
                 {
                     return true;
                 }
@@ -968,6 +970,7 @@ impl Context<'_> {
             }
             Boolean::And { .. } if binary.operator == BinaryOperator::NotEqual => {
                 self.carrier_literal_equality(source, left_source, right_source, value)
+                    || self.carrier_pair_equality(source, left_source, right_source, value)
             }
             _ => false,
         }
@@ -1078,6 +1081,151 @@ impl Context<'_> {
                                     })
                         )
                 });
+        }
+        false
+    }
+
+    /// `left == right` over two bounded owned byte fields has no scalar
+    /// operand pair either: checking decomposes it into the live-length
+    /// equality, then a chain with one guarded position per byte below the
+    /// smaller declared capacity, each later position nested in the previous
+    /// one's agreeing branch (typed-trees-to-checked-trees
+    /// `byte_carrier_pair_equality`). Correspondence replays that chain
+    /// against each operand's declared capacity, so a decomposition that
+    /// stops short of a position equal lengths can reach cannot pass.
+    fn carrier_pair_equality(
+        &self,
+        source: ExpressionHandle,
+        left_source: ExpressionHandle,
+        right_source: ExpressionHandle,
+        value: &Boolean,
+    ) -> bool {
+        if !self.builtin(source) {
+            return false;
+        }
+        let Ok((machine, state)) = super::authored_state(self.checked, self.state) else {
+            return false;
+        };
+        let capacity = |operand| {
+            validation::declared_place_type_raw(&self.checked.typed, machine, Some(state), operand)
+                .and_then(|type_reference| {
+                    validation::bounded_byte_buffer_capacity(&self.checked.typed, type_reference)
+                })
+                .and_then(|capacity| u64::try_from(capacity).ok())
+        };
+        let (Some(left_capacity), Some(right_capacity)) =
+            (capacity(left_source), capacity(right_source))
+        else {
+            return false;
+        };
+        let (Some(left_place), Some(right_place)) = (
+            self.carrier_parameter_place(left_source),
+            self.carrier_parameter_place(right_source),
+        ) else {
+            return false;
+        };
+        let length = |scalar: &Scalar, (position, path): &(u32, Vec<_>)| {
+            matches!(
+                scalar,
+                Scalar::StructuralParameterByteLength {
+                    root: checked_trees::CheckedStorageRoot::Parameter { index },
+                    path: retained,
+                } if index == position && paths_match(retained, path)
+            )
+        };
+        let u64_literal = |scalar: &Scalar, value: u64| {
+            matches!(
+                scalar,
+                Scalar::IntegerLiteral { literal }
+                    if literal.value_u64() == Some(value)
+                        && literal.landing().is_some_and(|landing| {
+                            landing.landed_type == numerics::literals::LandedIntegerType::U64
+                        })
+            )
+        };
+        let read = |scalar: &Scalar, (position, path): &(u32, Vec<_>), index: u64| {
+            matches!(
+                scalar,
+                Scalar::StructuralParameterIndexedRead {
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                    path: retained,
+                    index: retained_index,
+                    inner_indexes,
+                    element_path,
+                    primitive_type,
+                } if parameter_position == position
+                    && inner_indexes.is_empty()
+                    && element_path.is_empty()
+                    && paths_match(retained, path)
+                    && *primitive_type == PrimitiveType::U8
+                    && u64_literal(retained_index, index)
+            )
+        };
+        let lengths_equal = |boolean: &Boolean| {
+            matches!(
+                boolean,
+                Boolean::IntegerComparison {
+                    kind: CheckedIntegerComparisonKind::Equal,
+                    left,
+                    right,
+                } if length(left, &left_place) && length(right, &right_place)
+            )
+        };
+        let positions = left_capacity.min(right_capacity);
+        let mut remaining = match value {
+            Boolean::And { left, right } if positions > 0 && lengths_equal(left) => right.as_ref(),
+            lengths if positions == 0 => return lengths_equal(lengths),
+            _ => return false,
+        };
+        for index in 0..positions {
+            let Boolean::Or {
+                left: ended,
+                right: continued,
+            } = remaining
+            else {
+                return false;
+            };
+            let ended_here = matches!(
+                ended.as_ref(),
+                Boolean::IntegerComparison {
+                    kind: CheckedIntegerComparisonKind::LessOrEqual,
+                    left,
+                    right,
+                } if length(left, &left_place) && u64_literal(right, index)
+            );
+            let (agreeing, next) = match continued.as_ref() {
+                Boolean::And { left, right } if index + 1 < positions => {
+                    (left.as_ref(), Some(right.as_ref()))
+                }
+                agreeing if index + 1 == positions => (agreeing, None),
+                _ => return false,
+            };
+            let agrees = matches!(
+                agreeing,
+                Boolean::And { left: bound, right: bytes }
+                    if matches!(
+                        bound.as_ref(),
+                        Boolean::IntegerComparison {
+                            kind: CheckedIntegerComparisonKind::LessThan,
+                            left,
+                            right,
+                        } if u64_literal(left, index) && length(right, &right_place)
+                    ) && matches!(
+                        bytes.as_ref(),
+                        Boolean::IntegerComparison {
+                            kind: CheckedIntegerComparisonKind::Equal,
+                            left,
+                            right,
+                        } if read(left, &left_place, index) && read(right, &right_place, index)
+                    )
+            );
+            if !ended_here || !agrees {
+                return false;
+            }
+            match next {
+                Some(next) => remaining = next,
+                None => return true,
+            }
         }
         false
     }

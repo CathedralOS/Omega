@@ -2097,12 +2097,11 @@ pass/text/runtime_string_concat_two_fields_exit checked 1760ms @2d8ed253669f
 pass/text/runtime_string_stored_suffix_exit rejected 761ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_text_builder checked 1509ms @2d8ed253669f
-pass/text/runtime_text_not_equals_exit rejected 770ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 0)
+pass/text/runtime_text_not_equals_exit rejected 1062ms @5715dd4d97f7+wt
+	terminal-artifact production failed: Lowering(Unsupported("field store requires a matching branch-free pure value"))
 pass/text/runtime_utf16_literal_exit checked 1329ms @2d8ed253669f
 pass/text/utf8_boundary_established checked 302ms @2d8ed253669f
-pass/text/zii_default_string_equality_exit rejected 768ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 2, statement 0)
+pass/text/zii_default_string_equality_exit checked 4129ms @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms @8778c440081
 pass/time/runtime_duration_core_exit rejected 2132ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("Unit case has unrelated owned parameter cleanup"))
