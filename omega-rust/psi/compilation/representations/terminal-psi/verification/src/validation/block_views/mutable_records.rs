@@ -29,7 +29,7 @@ pub(crate) fn parameter_type(
 /// Keep this receiving classifier separate from plain payloads and owned homes:
 /// accepting a state loan must not make a service locally constructible or
 /// copyable. Foundation has already validated the unique, acyclic type graph.
-pub(super) fn borrowed_carrier_type(
+pub(crate) fn borrowed_carrier_type(
     module: &TerminalModule,
     root: super::StructuralTypeId,
 ) -> bool {
