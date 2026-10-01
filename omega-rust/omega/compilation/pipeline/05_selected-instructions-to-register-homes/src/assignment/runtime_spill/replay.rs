@@ -1,5 +1,6 @@
 use super::recovery::{
-    admissible_split, analyze, assign, candidates, overlaps_pressure, transformations,
+    admissible_split, analyze, assign, candidates, overlaps_pressure, retire_minted,
+    transformations,
 };
 use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillStepRewrite};
 use selected_instructions::VirtualRegisterId;
@@ -61,9 +62,9 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
             .as_ref()
             .map_or_else(|| source.base(), |previous| previous.selected());
         // The candidate pool rebuilds against the current plan exactly the
-        // way the producer's does: registers minted by committed steps (a
-        // split's fresh register) join it, consumed victims leave it, and
-        // the recorded victim must name a still-live member.
+        // way the producer's does: a split's fresh register joins it,
+        // consumed victims and spill or rematerialization reloads leave it,
+        // and the recorded victim must name a still-live member.
         let roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
             .into_iter()
             .filter(|entry| !used.contains(entry))
@@ -207,6 +208,9 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 RuntimeSpillStepRewrite::Rematerialization(replayed)
             }
         };
+        if !matches!(replayed, RuntimeSpillStepRewrite::Split(_)) {
+            retire_minted(&mut used, selected.plan(), replayed.selected().plan());
+        }
         prior = Some(replayed);
         used.insert((step.function, step.register));
     }
