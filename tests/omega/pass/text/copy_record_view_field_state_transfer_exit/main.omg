@@ -1,0 +1,55 @@
+// RUN CANARY (exit 70). A `[copy]` record carrying a shared view field
+// crosses a state edge by value: `render(self.source)` copies the record out
+// of the receiver into the successor's owned parameter. The copied view keeps
+// its source loan's lineage (here the literal's image storage), and copy
+// permission establishes no predicate: `label` stays valid UTF-8 because
+// every write into the source preserved it. The successor reads the copied
+// field's length and bytes. 71 = wrong extent, 72 = wrong bytes.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Room [copy] {
+    label: &[u8] in Utf8;
+}
+
+data Main {
+    console: Binding<Console>;
+    source: Room;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.source.label = "Gate";
+
+    transition {
+        _ -> render(self.source)
+    }
+
+    state render(&mut self, source: Room) {
+        transition source.label.len == 4 {
+            true -> contents(source)
+            false -> wrong_extent()
+        }
+    }
+
+    state contents(&mut self, source: Room) {
+        transition source.label == "Gate" {
+            true -> good()
+            false -> wrong_bytes()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state wrong_extent(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state wrong_bytes(&mut self) {
+        self.console.exit_process(72);
+    }
+}

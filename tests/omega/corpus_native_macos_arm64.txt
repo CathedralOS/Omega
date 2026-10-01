@@ -1031,6 +1031,8 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1360ms @4800836
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms
+pass/text/copy_record_view_field_state_transfer_exit rejected 937ms @5676dbe78a95+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/unit.rs", line: 662, column: 20 } }))
 pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c144+wt
 pass/text/local_bounded_text_case_result_loan_exit built 1698ms exit:70 @48008365d839
 pass/text/local_bounded_text_scalar_loan_exit built 6611ms exit:70 @48008365d839
@@ -1046,8 +1048,8 @@ pass/text/runtime_bounded_carrier_normal_status_exit built 1644ms exit:70 stdout
 pass/text/runtime_bounded_carrier_write_read_exit built 638ms exit:70
 pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
-pass/text/runtime_local_struct_string_field_concat_exit rejected 518ms @1c0bb7bc95d0
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
+pass/text/runtime_local_struct_string_field_concat_exit rejected 762ms @5676dbe78a95+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 2)
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
 pass/text/runtime_number_to_decimal_exit built 1061ms exit:70
@@ -1061,8 +1063,8 @@ pass/text/runtime_stdin_command_branch_exit rejected 1219ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
-pass/text/runtime_string_stored_suffix_exit rejected 512ms @1c0bb7bc95d0
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
+pass/text/runtime_string_stored_suffix_exit rejected 752ms @5676dbe78a95+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 2)
 pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70

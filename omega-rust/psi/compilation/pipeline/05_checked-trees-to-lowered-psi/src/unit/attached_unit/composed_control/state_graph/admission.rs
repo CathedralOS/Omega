@@ -286,7 +286,18 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 checked,
                                 source.type_reference,
                             )?,
-                        ))
+                        )
+                        // A `[copy]` record of plain fields and shared views
+                        // arrives as a whole copy; its views keep their
+                        // source loans' lineage and gain no predicate.
+                        && !(parameter.multiplicity == Multiplicity::Unrestricted
+                            && validation::has_owned_or_qualified_shared_view_fields(
+                                &checked.typed,
+                                crate::unit::attached_unit::parameters::structural_carrier_type(
+                                    checked,
+                                    source.type_reference,
+                                )?,
+                            )))
                 {
                     return unsupported(
                         "Unit graph owned parameter differs from exact source custody",
