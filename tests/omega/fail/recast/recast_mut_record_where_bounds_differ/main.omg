@@ -1,0 +1,26 @@
+// FAIL CANARY: a mutable record view owes leaf fact implication in both
+// directions. The source bounds its field to `0..=100` and the target to
+// `0..=200`, so a write of 150 through the view would leave the source
+// outside its own declaration when the loan ends.
+data Narrow
+where
+    value >= 0 && value <= 100,
+{
+    value: u16;
+}
+
+data Wide
+where
+    value >= 0 && value <= 200,
+{
+    value: u16;
+}
+
+data Main {
+    narrow: Narrow;
+}
+
+machine Main::main(main: &mut Main) {
+    let view: &mut Wide = &mut main.narrow as &mut Wide;
+    view.value = 150;
+}

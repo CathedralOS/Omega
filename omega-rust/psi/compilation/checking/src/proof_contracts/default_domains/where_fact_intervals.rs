@@ -207,6 +207,84 @@ fn field_intervals(
     facts: &[ProofFact],
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
     let mut intervals: Vec<(symbols::SymbolHandle, Interval)> = Vec::new();
+    for bound in field_literal_bounds(program, fields, facts)? {
+        // These intervals are integer facts. A float literal bound is an IEEE
+        // comparison whose meaning depends on the field's format, so it does
+        // not reduce to one here.
+        let ExpressionNode::Integer(value) = program.expression_table.expression(bound.literal)
+        else {
+            return None;
+        };
+        let bound_value = value.text().parse::<i64>().ok()?;
+        let (low, high) = match bound.operator {
+            BinaryOperator::LessOrEqual => (None, Some(bound_value)),
+            BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
+            BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
+            BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
+            BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
+            _ => return None,
+        };
+        let stated = Interval { low, high };
+        match intervals
+            .iter_mut()
+            .find(|(symbol, _)| *symbol == bound.field)
+        {
+            Some((_, interval)) => *interval = interval.intersect(stated),
+            None => intervals.push((bound.field, stated)),
+        }
+    }
+    Some(
+        intervals
+            .into_iter()
+            .map(|(symbol, interval)| (symbol, interval.low, interval.high))
+            .collect(),
+    )
+}
+
+/// One conjunct of interval-only declaration facts, normalized so the field
+/// reads on the left: `field <operator> literal`. `literal` is the authored
+/// integer or float literal; each consumer reads it at the field's own carrier.
+/// `conjunct` is the authored comparison, kept so a float consumer can confirm
+/// the comparison selects the builtin or sealed IEEE meaning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FieldLiteralBound {
+    pub(crate) field: symbols::SymbolHandle,
+    pub(crate) operator: BinaryOperator,
+    pub(crate) literal: ExpressionHandle,
+    pub(crate) conjunct: ExpressionHandle,
+}
+
+/// The conjuncts of a data declaration's `where` facts when every one compares
+/// one of its own fields with an integer or float literal. Such a conjunction
+/// constrains each field independently, so the declaration's valid values are
+/// exactly the product of its fields' bounded sets. `None` when any conjunct
+/// relates two fields or has another shape; an empty list when the data states
+/// no facts.
+pub(crate) fn data_where_field_literal_bounds(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+) -> Option<Vec<FieldLiteralBound>> {
+    let fields = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    field_literal_bounds(
+        program,
+        &fields,
+        program.proof_facts.span_or_empty(definition.where_facts),
+    )
+}
+
+fn field_literal_bounds(
+    program: &TypedTrees,
+    fields: &[&DataField],
+    facts: &[ProofFact],
+) -> Option<Vec<FieldLiteralBound>> {
+    let mut bounds = Vec::new();
     let mut conjuncts = Vec::new();
     for fact in facts {
         let typed_trees::domain::ProofFact::Expression(expression) = fact else {
@@ -222,23 +300,25 @@ fn field_intervals(
             conjuncts.extend([binary.left, binary.right]);
             continue;
         }
-        let literal = |expression| match program.expression_table.expression(expression) {
-            ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
-            _ => None,
+        let is_literal = |expression| {
+            matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Integer(_) | ExpressionNode::Float(_)
+            )
         };
         let field_named = |expression| {
             fields
                 .iter()
                 .find(|field| side_names_field(program, expression, field.name.as_str()))
         };
-        let (field, bound, field_on_left) = match (
+        let (field, literal, field_on_left) = match (
             field_named(binary.left),
-            literal(binary.right),
+            is_literal(binary.right),
             field_named(binary.right),
-            literal(binary.left),
+            is_literal(binary.left),
         ) {
-            (Some(field), Some(bound), _, _) => (field, bound, true),
-            (_, _, Some(field), Some(bound)) => (field, bound, false),
+            (Some(field), true, _, _) => (field, binary.right, true),
+            (_, _, Some(field), true) => (field, binary.left, false),
             _ => return None,
         };
         let operator = if field_on_left {
@@ -252,29 +332,24 @@ fn field_intervals(
                 other => other,
             }
         };
-        let (low, high) = match operator {
-            BinaryOperator::LessOrEqual => (None, Some(bound)),
-            BinaryOperator::Less => (None, Some(bound.checked_sub(1)?)),
-            BinaryOperator::GreaterOrEqual => (Some(bound), None),
-            BinaryOperator::Greater => (Some(bound.checked_add(1)?), None),
-            BinaryOperator::Equal => (Some(bound), Some(bound)),
-            _ => return None,
-        };
-        let stated = Interval { low, high };
-        match intervals
-            .iter_mut()
-            .find(|(symbol, _)| *symbol == field.symbol)
-        {
-            Some((_, interval)) => *interval = interval.intersect(stated),
-            None => intervals.push((field.symbol, stated)),
+        if !matches!(
+            operator,
+            BinaryOperator::LessOrEqual
+                | BinaryOperator::Less
+                | BinaryOperator::GreaterOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::Equal
+        ) {
+            return None;
         }
+        bounds.push(FieldLiteralBound {
+            field: field.symbol,
+            operator,
+            literal,
+            conjunct,
+        });
     }
-    Some(
-        intervals
-            .into_iter()
-            .map(|(symbol, interval)| (symbol, interval.low, interval.high))
-            .collect(),
-    )
+    Some(bounds)
 }
 
 /// The interval a store to `target` must land in when the target is a field

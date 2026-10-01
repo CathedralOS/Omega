@@ -293,9 +293,29 @@ pub(crate) fn handle_assignment<'program>(
             }
             _ => None,
         });
-    let type_facts = std::iter::once(definition.where_facts)
-        .filter(|_| !store_checked)
-        .flat_map(|span| program.proof_facts.span_or_empty(span))
+    // When every fact bounds one field by a literal, a store can change only
+    // the written field's own conjuncts. A place that was established with no
+    // open window still satisfies every other field's bounds, so folding them
+    // against a valuation that may not know those fields would only invent
+    // unknowns; the written field's conjuncts are re-proved below.
+    let written_field_conjuncts = written_field
+        .filter(|_| !store_checked && place.established && !place.any_window_open())
+        .and_then(|written| {
+            Some(
+                super::data_where_field_literal_bounds(program, definition)?
+                    .into_iter()
+                    .filter(|bound| bound.field == written)
+                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct))
+                    .collect::<Vec<_>>(),
+            )
+        });
+    let declared_facts = match &written_field_conjuncts {
+        Some(conjuncts) => conjuncts.as_slice(),
+        None if store_checked => &[],
+        None => program.proof_facts.span_or_empty(definition.where_facts),
+    };
+    let type_facts = declared_facts
+        .iter()
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
         .filter(|fact| {
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {

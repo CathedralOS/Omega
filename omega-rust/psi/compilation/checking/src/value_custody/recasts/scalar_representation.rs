@@ -14,14 +14,69 @@ pub(super) enum ScalarRepresentationSet {
     /// ranges may split at signed zero; an unconstrained scalar is the one
     /// full-width interval.
     ExactBitPatterns(Vec<(u64, u64)>),
-    /// A numeric interval over one exact float carrier. This deliberately does
-    /// not pretend that numeric endpoints enumerate IEEE bit patterns: it may
-    /// imply another interval only on the same primitive.
+    /// A closed numeric interval over one exact float carrier, excluding NaN.
+    /// This deliberately does not pretend that numeric endpoints enumerate
+    /// IEEE bit patterns: it may imply another interval only on the same
+    /// primitive. An unbounded side is the matching infinity, which every
+    /// ordered comparison still admits.
     FloatInterval {
         primitive: PrimitiveType,
-        minimum: i64,
-        maximum: i64,
+        minimum: FloatEndpoint,
+        maximum: FloatEndpoint,
     },
+}
+
+/// One exact float interval endpoint, held as the bits of its `f64` value so
+/// interval identity is structural. Every `f32` value widens to `f64` exactly,
+/// so one representation serves both carriers. NaN is never an endpoint and
+/// zero is unsigned: `-0.0` and `0.0` bound the same numeric set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct FloatEndpoint(u64);
+
+impl FloatEndpoint {
+    const NEGATIVE_INFINITY: Self = Self(f64::NEG_INFINITY.to_bits());
+    const POSITIVE_INFINITY: Self = Self(f64::INFINITY.to_bits());
+
+    fn new(value: f64) -> Option<Self> {
+        if value.is_nan() {
+            return None;
+        }
+        Some(Self(if value == 0.0 { 0.0f64 } else { value }.to_bits()))
+    }
+
+    /// An integer endpoint the carrier represents exactly. A bound the format
+    /// would round names a different numeric set, so it stays unsupported.
+    fn from_integer(primitive: PrimitiveType, value: i64) -> Option<Self> {
+        const EXACT_IN_F64: i64 = 1 << 53;
+        if !(-EXACT_IN_F64..=EXACT_IN_F64).contains(&value) {
+            return None;
+        }
+        let widened = value as f64;
+        if primitive == PrimitiveType::F32 && f64::from(widened as f32) != widened {
+            return None;
+        }
+        Self::new(widened)
+    }
+
+    fn value(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+
+    fn maximum(self, other: Self) -> Self {
+        if other.value() > self.value() {
+            other
+        } else {
+            self
+        }
+    }
+
+    fn minimum(self, other: Self) -> Self {
+        if other.value() < self.value() {
+            other
+        } else {
+            self
+        }
+    }
 }
 
 /// The normalized representation facts carried by one scalar type reference.
@@ -100,8 +155,8 @@ pub(super) fn mutable_scalar_representation_facts(
                         Some((minimum, maximum)),
                     ) if minimum <= maximum => ScalarRepresentationSet::FloatInterval {
                         primitive,
-                        minimum,
-                        maximum,
+                        minimum: FloatEndpoint::from_integer(primitive, minimum)?,
+                        maximum: FloatEndpoint::from_integer(primitive, maximum)?,
                     },
                     (PrimitiveType::F32 | PrimitiveType::F64, Some(_)) => return None,
                     (_, Some(range)) => ScalarRepresentationSet::ExactBitPatterns(
@@ -189,33 +244,141 @@ pub(super) fn narrow_to_integer_interval(
     let (Some(minimum), Some(maximum)) = (minimum, maximum) else {
         return;
     };
-    // A float type with no attached range carries its full bit set; a
-    // `where` interval on it is the same fact a float range states.
-    if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-        && matches!(facts.values, ScalarRepresentationSet::ExactBitPatterns(_))
-    {
-        facts.values = ScalarRepresentationSet::FloatInterval {
-            primitive,
-            minimum,
-            maximum,
-        };
+    if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+        // Narrowing only removes values, so an endpoint the carrier cannot
+        // represent exactly skips the narrowing rather than inventing a fact.
+        if let (Some(minimum), Some(maximum)) = (
+            FloatEndpoint::from_integer(primitive, minimum),
+            FloatEndpoint::from_integer(primitive, maximum),
+        ) {
+            narrow_to_float_interval(facts, primitive, minimum, maximum);
+        }
         return;
     }
+    if let ScalarRepresentationSet::ExactBitPatterns(values) = &mut facts.values
+        && let Some(interval) = integer_range_bit_patterns(primitive, (minimum, maximum))
+    {
+        *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
+    }
+}
+
+/// Narrow a float leaf to a closed numeric interval. A float type with no
+/// attached range carries its full bit set; an interval on it is the same
+/// fact a float range states.
+fn narrow_to_float_interval(
+    facts: &mut MutableScalarRepresentationFacts,
+    primitive: PrimitiveType,
+    minimum: FloatEndpoint,
+    maximum: FloatEndpoint,
+) {
     match &mut facts.values {
-        ScalarRepresentationSet::ExactBitPatterns(values) => {
-            if let Some(interval) = integer_range_bit_patterns(primitive, (minimum, maximum)) {
-                *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
-            }
+        ScalarRepresentationSet::ExactBitPatterns(_) => {
+            facts.values = ScalarRepresentationSet::FloatInterval {
+                primitive,
+                minimum,
+                maximum,
+            };
         }
         ScalarRepresentationSet::FloatInterval {
             minimum: facts_minimum,
             maximum: facts_maximum,
             ..
         } => {
-            *facts_minimum = (*facts_minimum).max(minimum);
-            *facts_maximum = (*facts_maximum).min(maximum);
+            *facts_minimum = facts_minimum.maximum(minimum);
+            *facts_maximum = facts_maximum.minimum(maximum);
         }
     }
+}
+
+/// Narrow one record field's leaf by its declaration's interval-only `where`
+/// conjuncts (`data_where_field_literal_bounds`), so a bound spelled as a data
+/// fact compares exactly as the revoked bracketed range did. Integer bounds
+/// read their literal as an integer; float bounds read the literal's exact
+/// meaning at the field's format and admit only closed comparisons, because a
+/// strict float bound has no closed endpoint in this vocabulary. `None` when a
+/// bound cannot be stated exactly, which keeps the record fenced.
+pub(super) fn narrow_by_field_literal_bounds(
+    program: &TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+    facts: &mut MutableScalarRepresentationFacts,
+    primitive: PrimitiveType,
+    bounds: &[crate::proof_contracts::default_domains::FieldLiteralBound],
+) -> Option<()> {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+        let mut minimum = FloatEndpoint::NEGATIVE_INFINITY;
+        let mut maximum = FloatEndpoint::POSITIVE_INFINITY;
+        for bound in bounds {
+            let meaning =
+                crate::proof_contracts::default_domains::float_field_literal_bound_meaning(
+                    program,
+                    definition,
+                    bound.conjunct,
+                )?;
+            let value = FloatEndpoint::new(meaning.to_f64())?;
+            match bound.operator {
+                BinaryOperator::LessOrEqual => maximum = maximum.minimum(value),
+                BinaryOperator::GreaterOrEqual => minimum = minimum.maximum(value),
+                BinaryOperator::Equal => {
+                    minimum = minimum.maximum(value);
+                    maximum = maximum.minimum(value);
+                }
+                _ => return None,
+            }
+        }
+        if minimum.value() > maximum.value() {
+            return None;
+        }
+        narrow_to_float_interval(facts, primitive, minimum, maximum);
+        return Some(());
+    }
+    if !primitive.accepts_integer_literal() {
+        return None;
+    }
+    let ScalarRepresentationSet::ExactBitPatterns(values) = &mut facts.values else {
+        return None;
+    };
+    for bound in bounds {
+        let ExpressionNode::Integer(literal) = program.expression_table.expression(bound.literal)
+        else {
+            return None;
+        };
+        let literal = literal.text().parse::<i64>().ok()?;
+        let (minimum, maximum) = primitive_integer_extent(primitive)?;
+        let (minimum, maximum) = match bound.operator {
+            BinaryOperator::LessOrEqual => (minimum, literal),
+            BinaryOperator::Less => (minimum, literal.checked_sub(1)?),
+            BinaryOperator::GreaterOrEqual => (literal, maximum),
+            BinaryOperator::Greater => (literal.checked_add(1)?, maximum),
+            BinaryOperator::Equal => (literal, literal),
+            _ => return None,
+        };
+        let interval = integer_range_bit_patterns(primitive, (minimum, maximum))?;
+        *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
+    }
+    if values.is_empty() {
+        return None;
+    }
+    *values = normalize_bit_pattern_intervals(std::mem::take(values));
+    Some(())
+}
+
+/// The inclusive value extent of an integer carrier, for one-sided bounds.
+/// `u64` values above `i64::MAX` have no `i64` spelling, so a one-sided `u64`
+/// bound stays unsupported rather than truncating the extent.
+fn primitive_integer_extent(primitive: PrimitiveType) -> Option<(i64, i64)> {
+    let bit_count = primitive.scalar_byte_size()? * 8;
+    if primitive.is_signed_integer() {
+        if bit_count == 64 {
+            return Some((i64::MIN, i64::MAX));
+        }
+        let half = 1i64 << (bit_count - 1);
+        return Some((-half, half - 1));
+    }
+    if bit_count >= 64 {
+        return None;
+    }
+    Some((0, (1i64 << bit_count) - 1))
 }
 
 fn intersect_bit_pattern_intervals(
@@ -317,8 +480,8 @@ fn scalar_representation_set_implies(
             },
         ) => {
             source_primitive == target_primitive
-                && target_minimum <= source_minimum
-                && source_maximum <= target_maximum
+                && target_minimum.value() <= source_minimum.value()
+                && source_maximum.value() <= target_maximum.value()
         }
         (
             ScalarRepresentationSet::FloatInterval { primitive, .. },

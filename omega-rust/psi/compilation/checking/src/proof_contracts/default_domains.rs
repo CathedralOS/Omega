@@ -29,10 +29,14 @@ mod symbolic_values;
 mod tests;
 mod where_fact_intervals;
 
+pub(crate) use float_predicates::float_field_literal_bound_meaning;
 pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
 pub use standing_requirements::standing_facts_prove_requirement;
+pub(crate) use where_fact_intervals::{
+    FieldLiteralBound, data_where_field_literal_bounds, stored_field_where_interval,
+    where_fact_interval,
+};
 pub use where_fact_intervals::{case_where_field_intervals, data_where_field_intervals};
-pub(crate) use where_fact_intervals::{stored_field_where_interval, where_fact_interval};
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;

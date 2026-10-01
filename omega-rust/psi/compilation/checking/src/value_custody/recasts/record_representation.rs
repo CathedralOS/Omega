@@ -1,6 +1,7 @@
 use super::scalar_representation::{
     MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, scalar_representation_facts_imply,
+    mutable_scalar_representation_facts_equivalent, narrow_by_field_literal_bounds,
+    scalar_representation_facts_imply,
 };
 use std::collections::HashSet;
 use typed_trees::TypedTrees;
@@ -215,10 +216,18 @@ fn type_representation(
 }
 
 /// Normalize one established record into the byte geometry and scalar
-/// representation facts a mutable alias may expose. Record-wide invariants and
-/// zero-gated establishment remain fenced: arbitrary field writes cannot prove
-/// those relational facts. Leaves may carry scalar domains/ranges (and bool's
-/// exact `{0,1}` set), because both alias directions are checked below.
+/// representation facts a mutable alias may expose. Leaves may carry scalar
+/// domains/ranges (and bool's exact `{0,1}` set), because both alias
+/// directions are checked below.
+///
+/// A `where` conjunction whose every conjunct bounds one direct scalar field
+/// by a literal constrains each field independently, so the record's valid
+/// values are exactly the product of its narrowed leaves and the leaf-wise
+/// comparison decides the whole judgment. Writes through either view still
+/// re-prove that view's own `where` facts, which the comparison has shown
+/// equivalent (mutable) or implied (shared). Relational facts, bounds on a
+/// nested aggregate and zero gating from any other fact remain fenced: a
+/// leaf-wise comparison cannot preserve them.
 fn mutable_record_representation_inner(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
@@ -256,7 +265,17 @@ fn mutable_record_representation_inner_body(
         return None;
     }
     let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)?;
-    if !data.where_facts.is_empty() || data.zero_gated {
+    let Some(where_bounds) =
+        crate::proof_contracts::default_domains::data_where_field_literal_bounds(program, data)
+    else {
+        visiting.remove(&symbol_identity);
+        return None;
+    };
+    // Zero gating records that zero may violate the facts; it says nothing a
+    // view of already established storage needs once interval-only bounds
+    // narrow every leaf they mention. Without such bounds the gate's source is
+    // not represented here, so it stays fenced.
+    if data.zero_gated && where_bounds.is_empty() {
         visiting.remove(&symbol_identity);
         return None;
     }
@@ -276,7 +295,7 @@ fn mutable_record_representation_inner_body(
         if field.relevance.is_erased() {
             continue;
         }
-        let Some(representation) = mutable_record_type_representation(
+        let Some(mut representation) = mutable_record_type_representation(
             program,
             field.type_reference,
             visiting,
@@ -287,6 +306,27 @@ fn mutable_record_representation_inner_body(
             visiting.remove(&symbol_identity);
             return None;
         };
+        let field_bounds = where_bounds
+            .iter()
+            .filter(|bound| bound.field == field.symbol)
+            .copied()
+            .collect::<Vec<_>>();
+        if !field_bounds.is_empty() {
+            let narrowed = match representation.leaves.as_mut_slice() {
+                [leaf] if leaf.path.is_empty() => narrow_by_field_literal_bounds(
+                    program,
+                    data,
+                    &mut leaf.facts,
+                    leaf.primitive,
+                    &field_bounds,
+                ),
+                _ => None,
+            };
+            if narrowed.is_none() {
+                visiting.remove(&symbol_identity);
+                return None;
+            }
+        }
         fields.push(representation);
         field_types.push(field.type_reference);
         field_symbols.push(field.symbol);

@@ -8,8 +8,20 @@ Shared scalar, bounded byte-region, and recursively nested record/array views
 are supported. Mutable typed aliases require equal geometry and equivalent
 leaf representation sets. Integer range leaves normalize to exact
 two's-complement bit sets; same-carrier float ranges use interval inclusion
-for shared views and equality for mutable views. Equal-looking cross-carrier
-predicates do not establish equivalence.
+for shared views and equality for mutable views. Float interval endpoints are
+exact IEEE values at the leaf's carrier, never a rounded integer. Equal-looking
+cross-carrier predicates do not establish equivalence.
+
+A record's data `where` facts take part when every conjunct bounds one of its
+direct scalar fields by a literal (`value >= 0.0 && value <= 1.0`). Such a
+conjunction constrains each field independently, so it narrows that field's
+leaf exactly as the revoked bracketed range did, and the leaf-wise comparison
+decides the whole judgment. Float bounds read the literal at the field's
+format, require the builtin or sealed IEEE comparison, and admit only closed
+comparisons. Writes through a view re-prove the view's own declaration, which
+the comparison showed equivalent (mutable) or implied (shared). A relational
+fact, a bound on a nested aggregate or a membership fact keeps the record
+fenced, and byte-region views still require recursively fact-free targets.
 
 One direct erased-lifetime shell around an eligible synthesized record may
 use its exact instance layout when lifetime arity is exact, no runtime
@@ -46,5 +58,7 @@ like shared loan locals do.
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in
-`tests/omega/{pass,fail}/recast/`; compiler integration coverage is in
-`omega-rust/omega/compilation/driver/tests/recast_views.rs`.
+`tests/omega/{pass,fail}/recast/`. Representation judgments are tested beside
+`src/value_custody/recasts/`; checked-tree and lowering coverage is in
+`04_typed-trees-to-checked-trees/src/tests/{borrow/recasts.rs,flow/terminal_unit/representation_views.rs}`
+and `05_checked-trees-to-lowered-psi/src/tests/representation_view_guards.rs`.

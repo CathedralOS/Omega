@@ -853,14 +853,14 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 736ms @48008
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1530ms exit:70 @fb2178def922
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @48008365d839
-pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2974ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2043ms @b5d2bc92c85f
+	terminal-artifact production failed: Lowering(Unsupported("receiver alias escapes through a local initializer"))
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 728ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
-pass/recast/runtime_shared_record_float_range_weakening_exit rejected 3288ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2047ms @b5d2bc92c85f
+	terminal-artifact production failed: Lowering(Unsupported("record read carrier path changed its declared type"))
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
 pass/relevance/erased_case_payload_field_exit built 1408ms exit:70 @fb2178def922
 pass/relevance/erased_formal_before_borrowed_argument_exit built 1482ms exit:70 @7552efd7b9fc+wt
