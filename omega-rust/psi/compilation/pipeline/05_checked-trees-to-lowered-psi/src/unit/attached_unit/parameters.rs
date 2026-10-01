@@ -926,7 +926,19 @@ pub(crate) fn validate_transfer_shape(
                     declaration.id == structural_type
                         && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
                 });
-            let reference_borrow = argument.path.split_last().is_some_and(|(last, prefix)| {
+            let reference_root = structural_types.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            });
+            let reference_borrow = if reference_root {
+                argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                    && mutable_reference_projection_type(
+                        structural_types,
+                        structural_type,
+                        &argument.path,
+                    ) == Some(lookup_type_id(type_ids, &argument.type_identity)?)
+            } else {
+                argument.path.split_last().is_some_and(|(last, prefix)| {
                 *last == CheckedUnitStructuralPathSegment::Referent
                     && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
                     && record_field_type(structural_types, structural_type, prefix)
@@ -936,7 +948,8 @@ pub(crate) fn validate_transfer_shape(
                                     referent, access: StructuralAccess::MutableBorrow
                                 } if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
                         }))
-            });
+            })
+            };
             // This check owns transfer shape, not predicate establishment.
             // Exact copied-byte qualifications are replayed against source
             // custody and independently against the Terminal field declaration.
@@ -1029,17 +1042,15 @@ pub(crate) fn validate_transfer_shape(
             // any access the borrow evidence carries: the projected path
             // resolves record fields and indexed view hops to exactly the
             // element shape the argument presents.
-            let element_view_borrow =
-                matches!(
+            let element_view_borrow = !reference_root
+                && matches!(
                     argument.access,
                     checked_trees::CheckedStructuralAccess::SharedBorrow
                         | checked_trees::CheckedStructuralAccess::MutableBorrow
                         | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                ) && view_element_projection_type(
-                    structural_types,
-                    structural_type,
-                    &argument.path,
-                ) == Some(lookup_type_id(type_ids, &argument.type_identity)?);
+                )
+                && view_element_projection_type(structural_types, structural_type, &argument.path)
+                    == Some(lookup_type_id(type_ids, &argument.type_identity)?);
             if (!argument.path.is_empty()
                 && argument.access != checked_trees::CheckedStructuralAccess::Owned
                 && !record_borrow
@@ -1682,6 +1693,59 @@ fn record_projection_type(
         StructuralTypeShape::Record { .. }
     )
     .then_some(current)
+}
+
+/// A returned reference keeps its carrier as the source place. Crossing it
+/// requires the explicit mutable referent hop; subsequent static projections
+/// must preserve the exact record field and array bounds. Source custody owns
+/// the loan's live interval and the correspondence to the authored expression.
+fn mutable_reference_projection_type(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let StructuralTypeShape::Reference {
+        referent,
+        access: StructuralAccess::MutableBorrow,
+    } = types
+        .iter()
+        .find(|declaration| declaration.id == root)?
+        .shape
+    else {
+        return None;
+    };
+    let (CheckedUnitStructuralPathSegment::Referent, suffix) = path.split_first()? else {
+        return None;
+    };
+    let mut current = referent;
+    for segment in suffix {
+        current = match (
+            &types
+                .iter()
+                .find(|declaration| declaration.id == current)?
+                .shape,
+            segment,
+        ) {
+            (
+                StructuralTypeShape::Record { fields },
+                CheckedUnitStructuralPathSegment::Field(identity),
+            ) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                child
+            }
+            (
+                StructuralTypeShape::FixedArray { element, length },
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    Some(current)
 }
 
 /// Follow owned record fields to a plain scalar leaf. An exclusive borrow

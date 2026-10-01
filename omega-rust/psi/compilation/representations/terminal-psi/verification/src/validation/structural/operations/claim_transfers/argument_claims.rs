@@ -34,11 +34,18 @@ pub(in crate::validation) fn validate_argument_claims(
             .filter(|claim| claim.input == parameter.place)
             .collect::<Vec<_>>();
         // A reference carrier's affine permission is not a projected
-        // ownership claim on the primitive referent passed to this call.
+        // ownership claim on the referent subtree passed to this call.
+        let nonescaping_result = callee.result.structural().is_none_or(|result| {
+            !crate::validation::references::contains_reference(module, result.structural_type)
+        });
         let claim_free_reference =
             crate::validation::references::is_reference_projection(module, caller, argument)
-                && crate::validation::references::source_type(module, caller, argument)
-                    == Some(parameter.structural_type)
+                && crate::validation::references::call_source_type(
+                    module,
+                    caller,
+                    argument,
+                    nonescaping_result,
+                ) == Some(parameter.structural_type)
                 && parameter.access == argument.access
                 && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                 && callee_claims.is_empty()

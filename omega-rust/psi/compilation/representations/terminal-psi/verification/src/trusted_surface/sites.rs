@@ -1254,7 +1254,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/references.rs",
-        sha256: Some("76945acb38b8896b71e53f03111cbbd3016994e5b99d1425742dd5f1f840e8f7"),
+        sha256: Some("46f2c03c56a3a01110b75f200fa1f1316264e4a43f5a2a3e839eed58ae56da63"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1329,7 +1329,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/claim_transfers/argument_claims.rs",
-        sha256: Some("520a594e1c2014aa7d3412441c03c2bb05c0153735abd7ac2796df69f07a74ba"),
+        sha256: Some("11c5f71bad33fbefc314f50aeb8b90e998b07091f687e8208edfd247f0178d4d"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1364,7 +1364,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs",
-        sha256: Some("0535bef55583325dda353d88491b28325534951a25570a834222f13962bdc3db"),
+        sha256: Some("801b431b2bc9225729c4ec565990e2b0a81d9e00bf287b4ac6008bf6dcc5e2c7"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1399,7 +1399,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/unit_operation/unit_calls.rs",
-        sha256: Some("ec6977a35fa4e78ee7ca6a8e29635cd85f5fa74e6ba1f4aa6a1a19a0270ed034"),
+        sha256: Some("3a78f5d5578338a2b1f9716de0e4712b333735d6ef6f4bd130cb436f3802cc34"),
         inventory_machinery: false,
     },
     ImplementationSite {

@@ -10,7 +10,8 @@ use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, argument_owns_references,
     contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
-    leaf_referent, leaf_type, reference_access, reference_source_type,
+    leaf_referent, leaf_type, mutable_record_call_argument_type, reference_access,
+    reference_source_type,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -44,6 +45,90 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
         }
         _ => true,
     }
+}
+
+/// Resolve a call-only borrow through a returned mutable record carrier. The
+/// carrier remains the permission identity; the normalized origin appends the
+/// selected child to its one exact static ingress path for alias checks.
+fn mutable_record_call_origin(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    argument: &StructuralArgument,
+) -> Result<Option<ReferenceOrigin>, OptimizationUnitValidationError> {
+    if mutable_record_call_argument_type(function, structural_types, argument).is_none() {
+        return Ok(None);
+    }
+    let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) = argument.path.split_first()
+    else {
+        return Ok(None);
+    };
+    let mut carriers = live.iter().filter(|reference| {
+        reference.carrier == argument.place && reference.carrier_path.is_empty()
+    });
+    let carrier = carriers.next().ok_or_else(|| {
+        invalid(
+            function,
+            block,
+            Some(node),
+            "returned record call argument has no live reference carrier",
+        )
+    })?;
+    if carriers.next().is_some()
+        || live.iter().any(|child| {
+            matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity)
+        })
+    {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "returned record call argument has ambiguous or suspended custody",
+        ));
+    }
+    let ReferenceOrigin::IngressLeaf(root) = &carrier.root else {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "returned record call argument has no exact static ingress",
+        ));
+    };
+    let Some(parameter) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root.place)
+    else {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "returned record call argument root is not an ingress parameter",
+        ));
+    };
+    let access_is_compatible = parameter.access == StructuralAccess::MutableBorrow
+        && matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        );
+    if !access_is_compatible {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "returned record call argument widens ingress access",
+        ));
+    }
+    let mut path = root.path.clone();
+    path.extend_from_slice(suffix);
+    Ok(Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+        place: root.place,
+        path,
+    })))
 }
 
 fn invalid(
@@ -802,6 +887,12 @@ pub(super) fn apply_operation(
     let mut normalized_arguments = Vec::new();
     let mut moved = BTreeSet::new();
     for argument in operation_structural_arguments(operation) {
+        if let Some(root) =
+            mutable_record_call_origin(function, structural_types, block, node, live, argument)?
+        {
+            normalized_arguments.push((root, argument.access, true));
+            continue;
+        }
         if argument_owns_references(function, structural_types, argument) {
             if !argument.path.is_empty() || matches!(operation, O::BoundaryCall { .. }) {
                 return Err(invalid(

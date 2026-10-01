@@ -421,6 +421,297 @@ fn returned_record_field_store_retains_mutable_reference_custody() {
     }
 }
 
+fn projected_record_call(indexed: bool, access: StructuralAccess) -> TerminalModule {
+    let mut module = returned_record_store(true, false);
+    let mut writer = relay_module(false).machines.pop().expect("writer machine");
+    let marker = semantic_vocabulary::StructuralFieldId::new(4).unwrap();
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: structural_type_id(6),
+            identity: "Child".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: marker,
+                    identity: "marker".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(signed_i8()),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(7),
+            identity: "Children".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: structural_type_id(6),
+                length: 2,
+            },
+        },
+    ]);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("holder record");
+    };
+    fields.extend([
+        StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(5).unwrap(),
+            identity: "child".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(6)),
+        },
+        StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(6).unwrap(),
+            identity: "children".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(structural_type_id(7)),
+        },
+    ]);
+    writer.structural_parameters[0].structural_type = structural_type_id(6);
+    writer.structural_parameters[0].access = access;
+    writer.blocks[0].operations[0].kind = OperationKind::StructuralScalarFieldStore {
+        destination: place_id(30),
+        path: Vec::new(),
+        field: marker,
+        value: value_id(30),
+        range_obligation: None,
+    };
+    if access == StructuralAccess::SharedBorrow {
+        writer.blocks[0].operations[0].kind = OperationKind::IntegerStructuralField {
+            source: place_id(30),
+            path: Vec::new(),
+            field: marker,
+        };
+        writer.blocks[0].operations[0].result = OperationResult::Scalar(ValueDeclaration {
+            id: value_id(31),
+            scalar_type: signed_i8(),
+            qualifications: Default::default(),
+        });
+    }
+    let mut path = vec![
+        StructuralPathSegment::Referent,
+        StructuralPathSegment::Field(if indexed { "children" } else { "child" }.into()),
+    ];
+    if indexed {
+        path.push(StructuralPathSegment::FixedIndex(1));
+    }
+    module.machines[0].blocks[0].operations[1].kind = OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        callee: machine_id(3),
+        arguments: vec![value_id(1)],
+        structural_arguments: vec![StructuralArgument {
+            place: place_id(2),
+            path,
+            access,
+        }],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    module.machines.push(writer);
+    module
+}
+
+#[test]
+fn returned_record_projected_call_retains_path_and_access() {
+    for indexed in [false, true] {
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            verify_module(
+                &projected_record_call(indexed, access),
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "exact child call failed for indexed={indexed}, access={access:?}: {error:?}"
+                )
+            });
+        }
+    }
+}
+
+#[test]
+fn returned_record_projected_call_rejects_path_access_and_lifetime_corruption() {
+    validate_module(&projected_record_call(
+        true,
+        StructuralAccess::MutableBorrow,
+    ))
+    .expect("uncorrupted projected call is valid");
+    for corruption in 0..9 {
+        let mut module = projected_record_call(true, StructuralAccess::MutableBorrow);
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[1].kind
+        else {
+            panic!("writer call");
+        };
+        match corruption {
+            0 => {
+                structural_arguments[0].path.remove(0);
+            }
+            1 => structural_arguments[0]
+                .path
+                .insert(1, StructuralPathSegment::Referent),
+            2 => structural_arguments[0].path[1] = "missing".into(),
+            3 => structural_arguments[0].path[2] = StructuralPathSegment::FixedIndex(2),
+            4 => structural_arguments[0].access = StructuralAccess::Owned,
+            5 => structural_arguments[0].place = place_id(99),
+            6 => module.machines[0].blocks[0].operations.swap(1, 2),
+            7 => module.machines[0].blocks[0].operations.swap(0, 1),
+            8 => {
+                let StructuralTypeShape::Reference { access, .. } =
+                    &mut module.structural_types[1].shape
+                else {
+                    panic!("reference");
+                };
+                *access = StructuralAccess::SharedBorrow;
+            }
+            _ => unreachable!(),
+        }
+        assert!(validate_module(&module).is_err(), "corruption {corruption}");
+    }
+}
+
+#[test]
+fn returned_record_projected_call_rejects_suspended_parent_and_overlapping_actuals() {
+    let mut module = projected_record_call(false, StructuralAccess::MutableBorrow);
+    validate_module(&module).expect("unsuspended projected call is valid");
+    module.machines[0]
+        .structural_places
+        .push(reference_place(3, 9));
+    module.machines[0].blocks[0]
+        .operations
+        .insert(1, establish(9, 3, argument(2, true)));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(1),
+            reason: "projected call reference remains suspended by a live child",
+        })
+    );
+
+    let mut module = projected_record_call(false, StructuralAccess::MutableBorrow);
+    let mut parameter = module.machines[2].structural_parameters[0].clone();
+    parameter.place = place_id(31);
+    parameter.position = 1;
+    module.machines[2].structural_parameters.push(parameter);
+    module.machines[2]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(31),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments.push(structural_arguments[0].clone());
+    assert!(
+        matches!(validate_module(&module), Err(ModuleError::OverlappingExclusiveStructuralArguments { operation, first_argument: 0, second_argument: 1 }) if operation == operation_id(2)),
+        "{:?}",
+        validate_module(&module)
+    );
+}
+
+#[test]
+fn returned_record_projected_call_does_not_admit_escaping_origins() {
+    let mut module = projected_record_call(false, StructuralAccess::MutableBorrow);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(8),
+        identity: "MutableChildReference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: structural_type_id(6),
+            access: StructuralAccess::MutableBorrow,
+        },
+    });
+    let writer = &mut module.machines[2];
+    writer.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place_id(32),
+        structural_type: structural_type_id(8),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: vec![StructuralReferenceResultSource {
+            path: Vec::new(),
+            source: argument(30, false),
+        }],
+    });
+    writer.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: place_id(32),
+            kind: StructuralPlaceKind::Result,
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(33),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(31),
+                structural_type: structural_type_id(8),
+            },
+        },
+    ]);
+    let mut child = establish(31, 33, argument(30, false));
+    let OperationResult::Structural(child_result) = &mut child.result else {
+        panic!("reference result");
+    };
+    child_result.structural_type = structural_type_id(8);
+    writer.blocks[0].operations.push(child);
+    writer.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(3),
+        source: place_id(33),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(2),
+            structural_type: structural_type_id(8),
+        },
+    });
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &caller.blocks[0].operations[1].kind
+    else {
+        panic!("writer call");
+    };
+    caller.blocks[0].operations[1].kind = OperationKind::CallStructuralWithScalarArguments {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        callee: machine_id(3),
+        arguments: vec![value_id(1)],
+        structural_arguments: structural_arguments.clone(),
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let mut result = reference_result(3);
+    let OperationResult::Structural(call_result) = &mut result else {
+        panic!("reference result");
+    };
+    call_result.structural_type = structural_type_id(8);
+    caller.blocks[0].operations[1].result = result;
+    caller.blocks[0].operations.insert(2, release(12, 3));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(1),
+            reason: "reference argument does not match its exact parameter",
+        })
+    );
+}
+
 #[test]
 fn returned_record_field_store_rejects_changed_origin_access_and_lifetime() {
     for byte_store in [false, true] {

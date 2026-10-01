@@ -1248,12 +1248,18 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `856f6dbfe2`
-  plus the returned-reference store change on macOS ARM64, the closed-stdin
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `c04eb9571f`
+  on macOS ARM64, the closed-stdin
   command exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::carve_room` stops at
-  `call operation: structural arguments: caller structural result`.
+  `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect`
+  stops at `outer calls: structural operands`. The first missing operand is
+  nested `self.direction_command(direction)`: Stage 04
+  `values/scalar/call_arguments.rs::nested_structural_call_return_type` declines
+  mutable-self producers, and `control/structural_operands.rs::result` requires
+  plain-owned contents rather than retaining its `[u8; 8] in Utf8` result.
+  Compose that checked call and its qualified byte result before joining the
+  `from_room.append_exit` receiver. The scripted session cannot run yet.
   Owned bounded-byte completions now retain predicates and live length through
   calls, ordinary parameter-rooted field replacement and native aggregate
   returns: `text/owned_byte_call_result_field_exit` executes 70, including a
@@ -1264,9 +1270,20 @@ the complete product bar; focused successes below do not establish that baseline
   the parent after release without changing its neighbor. Canonical publication,
   optimizer validation and native replay retain the exact static origin; no
   copied record home or descriptor stands in for a reference. The current
-  caller-result argument frontier belongs to Stage 04
-  `calls/structural_arguments.rs`; compose projected calls through the returned
-  `room` reference with their real loan and referent path. `Level::room_mut`
+  static child-call route now also executes:
+  `borrows/returned_record_projected_call_exit` exits 70 after a helper mutates
+  a nested child through the returned permission, with stores before/after,
+  parent restoration and unchanged neighboring storage. Its observation uses
+  an ordinary read helper; direct nested field reads below an array index still
+  lack a scalar observation form. Source replay rejects same-typed sibling
+  substitution; Terminal checks path/access/lifetime and suspended parents;
+  x64/ARM64 target replay rejects forged root, index and sibling-field rows.
+  Ninety-two focused source, verifier and native-lowering tests pass at this
+  revision. After nested operand production, Stage 04
+  `calls/receiver_calls.rs::result_receiver_argument` must retain the loan of
+  immutable `let from_room: &mut Room`, not require a mutable owned-record
+  binding; Stage 05 receiver replay must retain the same distinction.
+  `Level::room_mut`
   additionally returns different array elements across its 16 branches, beyond
   the now-executable single-static-origin result contract. Retain the selected
   result address and independently verified origin alternatives rather than

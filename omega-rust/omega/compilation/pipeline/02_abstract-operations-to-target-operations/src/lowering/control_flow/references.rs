@@ -56,6 +56,18 @@ impl ReferenceRoot {
     }
 }
 
+fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
+    if left.place() != right.place() {
+        return false;
+    }
+    match (left, right) {
+        (ReferenceRoot::Ingress(_, left), ReferenceRoot::Ingress(_, right)) => {
+            left.starts_with(right) || right.starts_with(left)
+        }
+        _ => true,
+    }
+}
+
 /// The original writable root behind one live, whole returned reference.
 ///
 /// A bare reference result owns loan permission but no result storage. Stores
@@ -69,7 +81,7 @@ pub(in crate::lowering) struct WritableReferentDestination {
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
 }
 
-pub(super) fn writable_referent_destination(
+fn returned_mutable_record_projection(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
@@ -138,6 +150,100 @@ pub(super) fn writable_referent_destination(
         parameter: parameter.clone(),
         path: root_path,
     })
+}
+
+pub(super) fn writable_referent_destination(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    carrier: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<WritableReferentDestination> {
+    returned_mutable_record_projection(function, live, types, carrier, path)
+}
+
+/// Lower one ordinary call argument borrowed through a returned mutable
+/// record. Semantic custody stays on `argument`; the target row names the
+/// original parameter and complete root-relative path whose address the ABI
+/// transports.
+pub(super) fn returned_record_call_argument(
+    argument: &StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<Option<TargetStructuralArgument>, LoweringError> {
+    let Some(resolved) =
+        returned_mutable_record_projection(function, live, types, argument.place, &argument.path)
+    else {
+        return Ok(None);
+    };
+    let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first() else {
+        return Ok(None);
+    };
+    if suffix.is_empty()
+        || argument.access == StructuralAccess::Owned
+        || argument.access != declaration.access
+        || declaration.is_self
+        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let source = prepared
+        .parameters
+        .iter()
+        .find(|source| {
+            source.place == resolved.parameter.place
+                && source.structural_type == resolved.parameter.structural_type
+                && source.access == resolved.parameter.access
+        })
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let access_is_compatible = resolved.parameter.access == StructuralAccess::MutableBorrow
+        && matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        );
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let (selected, shape, source_byte_offset) =
+        crate::lowering::structural_layout::resolve_structural_projection_path(
+            source.structural_type,
+            &resolved.path,
+            types,
+            &mut shape_cache,
+            &mut active,
+        )?;
+    if !access_is_compatible
+        || selected != declaration.structural_type
+        || crate::lowering::structural_layout::structural_parameter_shape(shape, declaration.access)
+            != destination.shape
+        || shape
+            .byte_size
+            .checked_add(source_byte_offset)
+            .is_none_or(|end| end > source.shape.byte_size)
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    Ok(Some(TargetStructuralArgument {
+        place: source.place,
+        access: argument.access,
+        path: resolved.path,
+        root_structural_type: source.structural_type,
+        structural_type: selected,
+        shape: destination.shape,
+        source_byte_offset,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: source.placement.clone().into(),
+        destination: destination.placement.clone(),
+    }))
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.
@@ -661,6 +767,30 @@ pub(super) fn call_arguments(
     let mut normalized = Vec::new();
     let mut moved = BTreeMap::new();
     for argument in arguments {
+        if argument.path.len() > 1
+            && matches!(argument.path.first(), Some(StructuralPathSegment::Referent))
+            && let Some(resolved) = returned_mutable_record_projection(
+                function,
+                live,
+                types,
+                argument.place,
+                &argument.path,
+            )
+        {
+            let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first()
+            else {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            };
+            if suffix.is_empty() || argument.access == StructuralAccess::Owned {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            normalized.push((
+                ReferenceRoot::Ingress(resolved.parameter.place, resolved.path),
+                argument.access,
+                true,
+            ));
+            continue;
+        }
         if argument_owns_references(function, live, types, argument) {
             if !argument.path.is_empty() {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -721,7 +851,7 @@ pub(super) fn call_arguments(
             .iter()
             .any(|(other, other_access, other_reference_access)| {
                 (*reference_access || *other_reference_access)
-                    && root == other
+                    && roots_overlap(root, other)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
             })

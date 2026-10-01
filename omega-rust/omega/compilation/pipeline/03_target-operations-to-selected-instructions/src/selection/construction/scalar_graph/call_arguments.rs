@@ -128,13 +128,18 @@ fn argument_pointer(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    // A `.., Referent` argument transports the referent root's pointer:
-    // `target.place` names that root while `semantic.place` is only the
-    // carrier, which owns loan permission and no storage address.
+    // A trailing `Referent` transports a primitive referent root; a leading
+    // `Referent, ..` transports one child of a returned record. In both cases
+    // `target.place` names the original root while the semantic place is only
+    // the permission carrier and has no storage address.
     let referent = matches!(
         semantic.path.last(),
         Some(terminal_psi::StructuralPathSegment::Referent)
-    );
+    ) || semantic.path.len() > 1
+        && matches!(
+            semantic.path.first(),
+            Some(terminal_psi::StructuralPathSegment::Referent)
+        );
     let pointer_place = if referent {
         target.place
     } else {

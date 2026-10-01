@@ -62,6 +62,18 @@ metadata without a physical result home. Lowering, receiving validation and
 publication independently retain that identity. The authored
 `borrows/returned_record_byte_field_store_exit` fixture observes both writes
 and untouched neighboring storage after release on macOS ARM64.
+An ordinary, nonescaping call may also borrow a static child through that
+returned mutable-record carrier. Its semantic argument keeps the carrier place
+and explicit `Referent` crossing followed by the exact field/fixed-index suffix;
+its physical argument names the captured ingress root and complete composed
+path. Source replay binds the suffix to the authored borrow. Terminal checks
+the live, unsuspended parent and compatible access; native lowering and
+re-legalization reconstruct the original address rather than allocate a copy.
+Selection checks pointer geometry and placement against that admitted input;
+its custody receipt includes re-legalization's exact-origin check. This does
+not admit a new escaping reference result or reference establishment from the
+projected child. Stores before and after the call continue to use the same
+parent permission until its existing release boundary.
 Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, shared/write-only record carriers and runtime-selected
 result origins remain explicit implementation limits. Ordinary calls may

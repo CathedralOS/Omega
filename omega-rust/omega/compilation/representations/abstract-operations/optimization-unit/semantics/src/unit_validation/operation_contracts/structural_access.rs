@@ -100,12 +100,17 @@ pub(crate) fn structural_arguments_match(
             .path
             .contains(&terminal_psi::StructuralPathSegment::Referent)
         {
+            let selected =
+                crate::unit_validation::references::reference_source_type(caller, types, argument)
+                    .or_else(|| {
+                        crate::unit_validation::references::mutable_record_call_argument_type(
+                            caller, types, argument,
+                        )
+                    });
             let admitted = !matches!(
                 projection,
                 StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
-            ) && crate::unit_validation::references::reference_source_type(
-                caller, types, argument,
-            ) == Some(parameter.structural_type)
+            ) && selected == Some(parameter.structural_type)
                 && argument.access == parameter.access
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
