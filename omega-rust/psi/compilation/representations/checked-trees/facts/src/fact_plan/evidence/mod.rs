@@ -6,6 +6,9 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
+mod float_predicate;
+pub use float_predicate::FloatPredicate;
+
 /// Exact checked ownership retained for one fact authored by a domain
 /// definition. The ordinary semantic fact remains the flow-facing row; this
 /// record binds that row back to its typed fact and retains every structural
@@ -185,6 +188,11 @@ pub enum FactPayload {
     /// deferred expression or a claim that any particular value was produced.
     AssignedIntegerBounds {
         bounds: Handle<IntegerRange>,
+    },
+    /// A verified positive IEEE observation on the value at `Fact.place`.
+    /// It contains no expression or former parameter identity to reevaluate.
+    FloatPredicate {
+        predicate: FloatPredicate,
     },
     /// A completed scalar value captured at this fact's program point. The
     /// value contains no source expression or storage to evaluate again.
@@ -386,6 +394,7 @@ impl QualificationPayloadIdentity {
             FactPayload::AssignedCase { .. }
             | FactPayload::AssignedValue { .. }
             | FactPayload::AssignedIntegerBounds { .. }
+            | FactPayload::FloatPredicate { .. }
             | FactPayload::AssignedScalarValue { .. }
             | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }

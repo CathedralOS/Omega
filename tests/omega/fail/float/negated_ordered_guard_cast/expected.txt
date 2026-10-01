@@ -1,1 +1,1 @@
-cannot prove Exact float-to-`i32` cast
+cannot prove unqualified `I32::from_f64` operand `self.value` is finite and truncates into `i32`

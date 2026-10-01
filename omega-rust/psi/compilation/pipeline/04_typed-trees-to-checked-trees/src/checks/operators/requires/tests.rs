@@ -118,6 +118,117 @@ fn named_float_requires_reject_unestablished_bounds() {
 }
 
 #[test]
+fn named_float_requires_transport_guarded_scalar_state_arguments() {
+    check(
+        "boundary operator Ns::probe(value: f64) -> bool
+         requires value == value && value > -1.0 && value < 101.0;
+         machine compare(input: f64) -> bool {
+             transition input >= 0.0 && input <= 100.0 {
+                 true -> bounded(input) false -> denied()
+             }
+             state bounded(renamed: f64) -> bool { Ns::probe(renamed) }
+             state denied() -> bool { false }
+         }",
+    )
+    .expect("the guarded value retains its predicates under a new state parameter identity");
+}
+
+#[test]
+fn named_float_requires_transport_live_implicit_receiver_predicates() {
+    check(
+        "data Cell { value: f64; }
+         boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine Cell::compare(&mut self) -> bool {
+             transition self.value >= 0.0 { true -> bounded() false -> denied() }
+             state bounded(&mut self) -> bool { Ns::probe(self.value) }
+             state denied(&mut self) -> bool { false }
+         }",
+    )
+    .expect("an implicit receiver carries live predicates, not a historical read");
+}
+
+#[test]
+fn named_float_requires_state_arguments_keep_operand_time_predicates() {
+    check(
+        "boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine reset(value: &mut f64) -> i32 { value = -10.0; 0 }
+         machine compare(mut value: f64) -> bool requires value >= 0.0 {
+             transition true { true -> bounded(value, reset(&mut value)) }
+             state bounded(captured: f64, ignored: i32) -> bool { Ns::probe(captured) }
+         }",
+    )
+    .expect("a later operand write cannot revoke the earlier scalar copy's predicates");
+    check(
+        "data Cell { value: f64; }
+         boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine reset(value: &mut f64) -> i32 { value = -10.0; 0 }
+         machine Cell::compare(&mut self) -> bool requires self.value >= 0.0 {
+             transition true { true -> bounded(self.value, reset(&mut self.value)) }
+             state bounded(&mut self, captured: f64, ignored: i32) -> bool {
+                 Ns::probe(captured)
+             }
+         }",
+    )
+    .expect("an explicitly copied receiver field uses the ordinary argument snapshot");
+}
+
+#[test]
+fn named_float_requires_join_weaker_bounds_from_every_predecessor() {
+    check(
+        "boundary operator Ns::probe(value: f64) -> bool requires value > 0.0;
+         machine compare(value: f64, choose: bool) -> bool {
+             transition choose { true -> one(value) false -> two(value) }
+             state one(first: f64) -> bool {
+                 transition first >= 1.0 { true -> joined(first) false -> denied() }
+             }
+             state two(second: f64) -> bool {
+                 transition second >= 2.0 { true -> joined(second) false -> denied() }
+             }
+             state joined(value: f64) -> bool { Ns::probe(value) }
+             state denied() -> bool { false }
+         }",
+    )
+    .expect("the common lower bound is independent of predecessor order");
+}
+
+#[test]
+fn named_float_requires_state_edges_cannot_mint_missing_predicates() {
+    for source in [
+        "boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine compare(value: f64) -> bool {
+             transition value >= 0.0 { true -> joined(value) false -> joined(value) }
+             state joined(value: f64) -> bool { Ns::probe(value) }
+         }",
+        "boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine prepare(value: &mut f64) -> i32 ensures value >= 0.0 { value = 1.0; 0 }
+         machine compare(mut value: f64) -> bool {
+             transition true { true -> joined(value, prepare(&mut value)) }
+             state joined(value: f64, ignored: i32) -> bool { Ns::probe(value) }
+         }",
+        "data Cell { value: f64; }
+         boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine Cell::compare(&mut self) -> bool {
+             transition self.value >= 0.0 { true -> overwrite() false -> denied() }
+             state overwrite(&mut self) -> bool {
+                 self.value = -10.0;
+                 transition true { true -> joined() }
+             }
+             state joined(&mut self) -> bool { Ns::probe(self.value) }
+             state denied(&mut self) -> bool { false }
+         }",
+    ] {
+        let diagnostics =
+            check(source).expect_err("state transport cannot strengthen missing or stale evidence");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn named_call_requires_keep_a_copied_generic_record_after_a_right_operand_write() {
     // A generic instantiation is the same detached copy: `h`'s bound snapshot
     // for `left` predates `reset`'s write to the source storage. `Holder` is

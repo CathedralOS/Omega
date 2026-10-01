@@ -1,0 +1,226 @@
+//! Normalize positive IEEE comparisons into observations of one stable place.
+//! Selection and sealed-source checks happen before assigning any order law.
+//! The resulting predicate contains landed bits, not a source expression that
+//! could read another value after a mutation or a state-parameter transfer.
+
+use facts::FloatPredicate;
+use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
+use numerics::literals::FloatFormat;
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+pub(crate) fn collect_true(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    observations: &mut Vec<(ExpressionHandle, FloatPredicate)>,
+) {
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        collect_true(
+            program,
+            machine,
+            state,
+            statement_index,
+            borrow.target,
+            observations,
+        );
+        return;
+    }
+    let Some(binary) = comparison(program, expression) else {
+        return;
+    };
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Equal)
+        && validation::has_builtin_decomposed_guard_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+    {
+        if binary.operator == BinaryOperator::And {
+            collect_true(
+                program,
+                machine,
+                state,
+                statement_index,
+                binary.left,
+                observations,
+            );
+            collect_true(
+                program,
+                machine,
+                state,
+                statement_index,
+                binary.right,
+                observations,
+            );
+            return;
+        }
+        for (operand, wrapper) in [(binary.left, binary.right), (binary.right, binary.left)] {
+            if matches!(
+                program.expression_table.expression(wrapper),
+                ExpressionNode::Boolean(true)
+            ) {
+                collect_true(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    operand,
+                    observations,
+                );
+                return;
+            }
+        }
+    }
+    for (subject, bound, operator) in [
+        (binary.left, binary.right, binary.operator),
+        (binary.right, binary.left, reverse(binary.operator)),
+    ] {
+        let Some(reference) = crate::flow::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            subject,
+        ) else {
+            continue;
+        };
+        let format = match program.type_reference_table.primitive_type(reference) {
+            Some(PrimitiveType::F32) => FloatFormat::F32,
+            Some(PrimitiveType::F64) => FloatFormat::F64,
+            _ => continue,
+        };
+        if !has_ieee_meaning(
+            program,
+            machine.symbol,
+            expression,
+            binary.operator,
+            reference,
+        ) {
+            continue;
+        }
+        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            subject,
+        ) else {
+            continue;
+        };
+        let predicate = if operator == BinaryOperator::Equal
+            && crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                bound,
+            )
+            .is_some_and(|other| other == place)
+        {
+            Some(FloatPredicate::non_nan(format))
+        } else {
+            literal(program, bound, format)
+                .and_then(|bound| FloatPredicate::comparison(format, operator, &bound))
+        };
+        if let Some(predicate) = predicate {
+            observations.push((subject, predicate));
+            return;
+        }
+    }
+}
+
+pub(crate) fn literal(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    format: FloatFormat,
+) -> Option<ExactFloat> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Float(value) => Some(match format {
+            FloatFormat::F32 => ExactFloat::from_f32(value.value_f32()),
+            FloatFormat::F64 => ExactFloat::from_f64(value.value_f64()),
+        }),
+        ExpressionNode::Integer(value) => {
+            let rational = BigRational::from_integer(value.value_bignum()?);
+            Some(match format {
+                FloatFormat::F32 => ExactFloat::from_f32(
+                    rational.to_f32_with_rounding(IeeeRounding::NearestTiesToEven),
+                ),
+                FloatFormat::F64 => ExactFloat::from_f64(
+                    rational.to_f64_with_rounding(IeeeRounding::NearestTiesToEven),
+                ),
+            })
+        }
+        ExpressionNode::Borrow(borrow) => literal(program, borrow.target, format),
+        _ => None,
+    }
+}
+
+pub(crate) fn has_ieee_meaning(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    reference: TypeReferenceHandle,
+) -> bool {
+    owner.is_valid()
+        && validation::has_builtin_or_sealed_float_comparison_meaning(
+            program,
+            owner,
+            expression,
+            operator,
+            &[Some(reference), Some(reference)],
+        )
+}
+
+/// Reading a token-lowered call's operation does not authorize its laws.
+/// Consumers must check the exact selection with `has_ieee_meaning`.
+pub(crate) fn comparison(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<TableBinaryExpression> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => Some(*binary),
+        ExpressionNode::Call(call)
+            if !call.receiver.is_valid()
+                && !call.static_machine_parameter.is_valid()
+                && call.static_requirement_dispatch.is_none()
+                && call.machine_arguments.is_empty()
+                && call.evidence_arguments.is_empty() =>
+        {
+            let (machine, _) =
+                crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+            let binding = program
+                .machine_token_bindings()
+                .iter()
+                .find(|binding| binding.symbol == machine.symbol)?;
+            let (operator, _) =
+                typed_trees::operator::primitive_float_binary_semantics(program, binding)?;
+            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+                return None;
+            };
+            Some(TableBinaryExpression {
+                operator,
+                left: *left,
+                right: *right,
+            })
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn reverse(operator: BinaryOperator) -> BinaryOperator {
+    match operator {
+        BinaryOperator::Less => BinaryOperator::Greater,
+        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::Greater => BinaryOperator::Less,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+        other => other,
+    }
+}

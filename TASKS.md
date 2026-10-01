@@ -1410,10 +1410,15 @@ the complete product bar; focused successes below do not establish that baseline
     exact-site and altered-cause/carrier/ceiling controls.
   - Keep distinct failures with their actual owners. Float policy/conversion
     customers remain **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** work:
-    `float/float_trapping_*` and `expressions/runtime_numeric_cast_exit` currently
-    stop at field-store scalar-expression construction. The float Trapping
-    fixtures no longer reproduce their recorded policy-weakening diagnostics;
-    preserve overflow/propagated-NaN traps without erasing Trapping.
+    `python3 tools/corpus_gate.py --native --filter float/,expressions/runtime_numeric_cast_exit`
+    on macOS ARM64 executes 31 programs with their authored results, including
+    `float/exact_fractional_integer_boundary_exit` (70) and the Trapping controls.
+    Exact conversions use the ordinary destination-owned call; shared operand
+    capture and state joins retain IEEE bounds without a cast-only proof path.
+    The outer `omega run tests/omega/pass/float/exact_fractional_integer_boundary_exit/main.omg`
+    still requires fresh project/package review acceptance. The original
+    `float/float_to_int_exact_proofs_exit` remains blocked on attached range-field
+    realization (**FLOAT-RANGE-ATTACHED-FIELD**), not permission to weaken Exact.
 
   Acceptance: comparisons and conversions agree across source evaluation,
   verified artifacts and matching-host execution. Preserve all six relations
