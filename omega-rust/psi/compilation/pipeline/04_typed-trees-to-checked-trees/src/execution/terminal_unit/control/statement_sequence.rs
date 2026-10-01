@@ -681,6 +681,11 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
+    /// The dense scalar binding ordinal the next retained result takes after
+    /// this sequence: the prefix's immutable bindings, then every scalar
+    /// result the sequence retained. A guarded arm's terminal call result
+    /// numbers here, in the namespace its arm inherits.
+    pub(in crate::execution::terminal_unit) next_scalar_binding: usize,
 }
 
 pub(super) fn has_structural_result(

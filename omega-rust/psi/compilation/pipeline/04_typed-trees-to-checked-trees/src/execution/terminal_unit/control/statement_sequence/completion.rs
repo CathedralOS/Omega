@@ -64,7 +64,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         binders,
         scalar_control,
         mut operations,
-        scalar_count,
+        mut scalar_count,
         mut structural_count,
         structural_local_symbols,
         windows,
@@ -457,6 +457,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             // Completion evaluates its actual expression after the preceding
             // operations. A final name reuses its value without replaying its call.
             operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
+            scalar_count = scalar_count.checked_add(1)?;
             returned_scalar_call = Some(result);
         }
     }
@@ -482,5 +483,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_result,
         operations,
         structural_local_symbols,
+        next_scalar_binding: scalar_count,
     })
 }

@@ -279,6 +279,9 @@ fail/calls/statement_call_undeclared_callee_rejected rejected 676ms expected @2d
 	call `no_such_leg` selects no declaration: `no_such_leg` is not a declared machine, data, or proof definition
 fail/calls/struct_constant_requires_argument_rejected rejected 284ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `p == Point.zero()`: the instantiated fact is structurally false
+fail/calls/terminal_call_result_type_mismatch_rejected rejected 109ms expected @d0cd22d4e92a+wt
+	machine `forward` state `entry` terminal call to `widen` completes with its `u64` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match -- return a converted value instead (`-> (widen(..) as i32)`)
+	machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match
 fail/calls/terminal_return_type_mismatch_rejected rejected 273ms expected @2d8ed253669f
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 	store in machine `Main::main` state `main` terminal expression implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -1216,6 +1219,7 @@ pass/calls/cyclic_scalar_query_reborrow_exit checked 3489ms @48d34a64a938+wt
 pass/calls/field_path_byte_subslice_exit checked 3105ms @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
+pass/calls/guarded_arm_value_tail_call_exit checked 4173ms @d0cd22d4e92a+wt
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
@@ -1318,6 +1322,7 @@ pass/calls/value_call_embedded_in_binary_exit checked 1631ms @2d8ed253669f
 pass/calls/value_call_param_effect_arm checked 1361ms @2d8ed253669f
 pass/calls/value_call_subexpression checked 1244ms @2d8ed253669f
 pass/calls/value_call_transition_argument checked 1269ms @2d8ed253669f
+pass/calls/value_tail_call_to_machine_exit checked 3937ms @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit checked 2901ms @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 1316ms @2d8ed253669f
 pass/capabilities/acquires_through_helper_return checked 807ms @2d8ed253669f

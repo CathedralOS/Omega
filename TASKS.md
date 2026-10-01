@@ -1554,15 +1554,23 @@ crash and native exit behavior. Use affected check/native corpus slices under
   define an ordinary invocation whose normal result completes the caller;
   an internal state target remains a jump.
 
-  Unit completion runs from any state: an unconditional arm is the state's
-  last sequenced call, and a guarded arm's call is its own
-  `CheckedConditionalReturnArm::Call` in the arm's completion block
-  (`state_graph/terminal_calls.rs`). `pass/calls/transition_tail_call_to_machine`,
-  `calls/conditional_arm_tail_call_to_machine_exit` and
-  `calls/guarded_arm_tail_call_to_state_machine_exit` exit 70 natively and on
-  the interpreter on macOS ARM64; `collections/runtime_frame_indexed_param_read_exit`
-  still exits 1. Value-result tail calls, arm calls whose guard or operands
-  make calls, and claim-transferring arm calls remain declined there.
+  Unit and primitive scalar completion run from any state: an unconditional
+  arm is the state's last sequenced call (a scalar result is the state's
+  returned binding), and a guarded arm's call is its own
+  `CheckedConditionalReturnArm::Call` in the arm's completion block, which
+  returns the result the call binds (`state_graph/terminal_calls.rs`).
+  Checking rejects a terminal call whose result differs from its caller's
+  (`fail/calls/terminal_call_result_type_mismatch_rejected`).
+  `pass/calls/transition_tail_call_to_machine`,
+  `calls/conditional_arm_tail_call_to_machine_exit`,
+  `calls/guarded_arm_tail_call_to_state_machine_exit`,
+  `calls/value_tail_call_to_machine_exit` and
+  `calls/guarded_arm_value_tail_call_exit` exit 70 natively and on the
+  interpreter on macOS ARM64; `collections/runtime_frame_indexed_param_read_exit`
+  still exits 1. Structural-result tail calls, terminal calls in guarded
+  chains of three or more arms or in closed-sum case arms, range-constrained
+  result compatibility, arm calls whose guard or operands make calls, and
+  claim-transferring arm calls remain declined there.
 
   Acceptance: `slices/domained_runtime_end_subslice_exit` exits 70 with its
   Path-qualified runtime-end slice. It stops at `call operation: structural
@@ -3620,6 +3628,23 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   create, widen, duplicate or extend authority. Preserve `certificates/`,
   `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
+
+- **CALL-OPERAND-ALIAS-SOUNDNESS.** (new-scope) Reject the remaining calls
+  whose operands alias a mutable path the same call holds, under
+  [ownership](wiki/spec/language/ownership.md) ("shared children freeze the
+  parent's mutation; exclusive children suspend the corresponding parent
+  branch") and left-to-right argument evaluation. dd8524945d rejects a whole
+  `&mut` receiver's summarized writes under the call's own retained argument
+  loans. Two shapes are still accepted on main and are unsound:
+  `main.read_after(&mut main.count)` whose callee writes through the argument
+  and then reads `self.count` (mutation summaries carry no receiver read
+  footprint), and `Main::take(self, self.arr[0..2])` with
+  `take(main: &mut Main, sub: &[i32])` writing `main.arr[0]` (the bare `self`
+  operand is collected as a copied read, not a retained Mutable access, in
+  `borrow/accesses.rs`). Keep copies evaluated before the call accepted
+  (`self.set(self.count + 1)`), and disjoint fields and subslices.
+  Acceptance: both shapes reject with a fail fixture each; the corpus check
+  leg and every sample's `--check` stay otherwise unchanged.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi

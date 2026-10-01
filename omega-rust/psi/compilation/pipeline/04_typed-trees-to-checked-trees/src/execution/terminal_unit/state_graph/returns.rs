@@ -178,10 +178,19 @@ pub(super) fn scalar_completion(
     trace.phase("state graph: terminator: scalar completion");
     let statements = program.statement_table.statements(state.statement_nodes);
     if let Some(binding) = returned_binding {
-        return (matches!(
-            statements.get(terminator_index..),
-            Some([StatementNode::Expression(_)])
-        ) && binding.primitive_type == primitive_type)
+        // The state's final expression, or an unconditional terminal machine
+        // call at its closing transition: the sequence ran that call as the
+        // state's last operation and bound its result here.
+        let completes = match statements.get(terminator_index..) {
+            Some([StatementNode::Expression(_)]) => true,
+            Some([StatementNode::Transition(_)]) => {
+                binding.statement_index as usize == terminator_index
+                    && control::terminal_named_call(program, machine, state, terminator_index)
+                        .is_some()
+            }
+            _ => false,
+        };
+        return (completes && binding.primitive_type == primitive_type)
             .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
     }
     let (exits, prefix) =

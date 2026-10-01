@@ -115,6 +115,7 @@ pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+
 pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c108ecb4ac+wt
+pass/calls/guarded_arm_value_tail_call_exit built 1292ms exit:70 @d0cd22d4e92a+wt
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/local_after_call_result_store_exit built 1567ms exit:70 @48008365d839
 pass/calls/local_array_direct_read_exit built 824ms exit:70 @ef96dd31bdca
@@ -217,6 +218,7 @@ pass/calls/value_call_embedded_in_binary_exit built 794ms exit:70 @3da828ba5434+
 pass/calls/value_call_param_effect_arm built 652ms exit:1
 pass/calls/value_call_subexpression built 2815ms exit:70 @b09f66e07ebd+wt
 pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
+pass/calls/value_tail_call_to_machine_exit built 1212ms exit:70 @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit built 4714ms exit:70 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms

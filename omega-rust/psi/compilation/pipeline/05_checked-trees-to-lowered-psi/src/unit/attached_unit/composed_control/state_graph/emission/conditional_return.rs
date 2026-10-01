@@ -66,7 +66,8 @@ impl StateGraphEmission<'_, '_> {
                 )?
             }
             // The arm alone invokes its terminal machine call, then completes
-            // with the disposal a Unit return performs.
+            // with the disposal a Unit return performs. A scalar call's result
+            // is the machine's: it returns the value the call just bound.
             checked_trees::CheckedConditionalReturnArm::Call(operation) => {
                 super::super::super::emission::emit_call_operations(
                     checked,
@@ -84,16 +85,36 @@ impl StateGraphEmission<'_, '_> {
                     next_edge,
                     operations,
                 )?;
-                Terminator::ReturnUnit {
-                    edge: edge_id(allocate_dense(next_edge)?),
-                    trivial_affine_discards: super::state::return_root_discards(
-                        checked,
-                        plan,
-                        state,
-                        operations,
-                        &arm_evaluation,
-                        state_parameters,
-                    )?,
+                let edge = edge_id(allocate_dense(next_edge)?);
+                let discards = super::state::return_root_discards(
+                    checked,
+                    plan,
+                    state,
+                    operations,
+                    &arm_evaluation,
+                    state_parameters,
+                )?;
+                match operation.call().and_then(|call| call.scalar_result()) {
+                    None => Terminator::ReturnUnit {
+                        edge,
+                        trivial_affine_discards: discards,
+                    },
+                    Some(binding) => {
+                        let value = arm_call_result(
+                            binding,
+                            state.scalar_parameters.len(),
+                            &arm_evaluation,
+                            &arm_values,
+                        )?;
+                        Terminator::Return {
+                            edge,
+                            value: value.id,
+                            cleanup_actions: discards
+                                .into_iter()
+                                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                                .collect(),
+                        }
+                    }
                 }
             }
             // The arm alone evaluates the value checking retained under its
@@ -184,4 +205,39 @@ impl StateGraphEmission<'_, '_> {
             trivial_affine_discards: Vec::new(),
         })
     }
+}
+
+/// The value a guarded arm's terminal scalar call bound. Its checked binding
+/// ordinal names the next slot of the namespace the arm inherited (the
+/// state's scalar formals, then its retained bindings), and the call
+/// published its result there as the arm's last value. Any other ordinal or
+/// carrier is a plan that disagrees with the arm it completes.
+fn arm_call_result(
+    binding: &checked_trees::CheckedUnitScalarResultBindingPlan,
+    scalar_parameter_count: usize,
+    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
+    values: &[ValueDeclaration],
+) -> Result<ValueDeclaration, LoweringError> {
+    let slot = usize::try_from(binding.binding_ordinal)
+        .ok()
+        .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph call arm result ordinal overflows",
+        ))?;
+    let position = match &evaluation.scalar_bindings {
+        Some(bindings) => bindings.immutable_position(slot)?,
+        None => slot,
+    };
+    let value = values
+        .get(position)
+        .copied()
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph call arm result binding is absent",
+        ))?;
+    if position + 1 != values.len()
+        || value.scalar_type != terminal_scalar_type(binding.primitive_type)?
+    {
+        return unsupported("Unit graph call arm result is not its call's binding");
+    }
+    Ok(value)
 }

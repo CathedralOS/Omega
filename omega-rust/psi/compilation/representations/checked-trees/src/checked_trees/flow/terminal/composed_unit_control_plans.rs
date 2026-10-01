@@ -444,9 +444,11 @@ pub enum CheckedConditionalReturnArm {
     },
     /// A terminal machine invocation at this authored transition
     /// (state_contracts.md, "Terminal calls in transition arms"): the call
-    /// operation runs only on this arm, and its normal Unit result completes
-    /// the machine with the disposal a Unit arm performs. The call's
-    /// coordinate names the arm's transition.
+    /// operation runs only on this arm, and its normal result completes the
+    /// machine with the disposal a Unit or scalar arm performs. A scalar
+    /// result is the call's own binding at the arm's transition, numbered
+    /// after the state's retained scalar bindings. The call's coordinate
+    /// names the arm's transition.
     Call(CheckedUnitEffectOperationPlan),
 }
 
