@@ -591,9 +591,12 @@ pub(super) fn build_traced(
                         );
                         return None;
                     }
+                    // A parameter carries an established value, not a fresh
+                    // initializer. Exact edge custody retains represented byte
+                    // predicates, including those below record/array children.
                     if parameter.multiplicity != Multiplicity::Linear
                         && !primitive_array
-                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                        && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,
                             reference(),
                         )

@@ -32,6 +32,77 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn owned_record_byte_predicates_survive_state_signatures() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Room [copy] { title: [u8; 8] in Utf8; }
+        data Level [copy] { rooms: [Room; 2]; count: u64; }
+        machine edit(level: Level, output: &mut [u8; 8] in Utf8, choose: bool)
+        ensures output in Utf8 {
+            transition choose {
+                true -> first(level, output)
+                false -> second(level, output)
+            }
+            state first(level: Level, text: &mut [u8; 8] in Utf8) {
+                text = "first";
+                transition { _ -> finish(level, text) }
+            }
+            state second(level: Level, text: &mut [u8; 8] in Utf8) {
+                text = "second";
+                transition { _ -> finish(level, text) }
+            }
+            state finish(level: Level, text: &mut [u8; 8] in Utf8) {
+                text = "done";
+            }
+        }
+        "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("edit"),
+    )
+    .expect("established records retain their represented byte predicates through states");
+    verify(&lowered).expect("record transfers retain exact incoming value custody");
+    let module = &lowered.semantic_module;
+    assert!(
+        module.structural_types.iter().any(|array| {
+            let StructuralTypeShape::FixedArray { element, length: 2 } = array.shape else {
+                return false;
+            };
+            module.structural_types.iter().any(|room| {
+                room.id == element
+                    && matches!(&room.shape, StructuralTypeShape::Record { fields }
+                if fields.iter().any(|field| matches!(&field.field_type,
+                    terminal_psi::StructuralFieldType::PredicateByteSequence {
+                        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 }, predicates
+                    } if predicates.predicates().any(|predicate|
+                        predicate == terminal_psi::ByteSequencePredicate::ValidUtf8))))
+            })
+        }),
+        "the array extent, bounded storage and nested UTF-8 predicate survive together"
+    );
+
+    let mut changed_access = module.clone();
+    let machine = changed_access
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    machine
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.structural_parameters)
+        .find(|parameter| parameter.access == StructuralAccess::Owned)
+        .expect("owned Level state parameter")
+        .access = StructuralAccess::SharedBorrow;
+    assert!(
+        terminal_verifier::validate_module(&changed_access).is_err(),
+        "a state cannot reinterpret its incoming owned value as a borrowed parameter"
+    );
+}
+
+#[test]
 fn mutable_qualified_byte_owner_survives_branch_and_joined_state_transfers() {
     let checked = crate::front_end::checked_program(
         r#"

@@ -254,6 +254,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 continue;
             }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
+                // State parameters receive established values. The complete
+                // type below retains nested byte predicates; this storage
+                // classifier grants neither construction nor copy permission.
                 if source.is_self
                     || source.is_const
                     || source.is_mutable
@@ -277,7 +280,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         .as_str()
                         != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                        && !validation::has_plain_owned_contents_with_represented_constraints(
                             &checked.typed,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
