@@ -932,10 +932,10 @@ pub(super) fn state_exit_result_locals(
                 .expression_table
                 .expression_is_valid(local.initial_value)
                 || validation::zeroed_structural_parts(program, local.type_reference))
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
+            || !(validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,
-            )
+            ) || validation::has_owned_or_shared_view_fields(program, local.type_reference))
             || super::terminal_unit::types::type_graph_requires_nominal_drop(
                 program,
                 local.type_reference,

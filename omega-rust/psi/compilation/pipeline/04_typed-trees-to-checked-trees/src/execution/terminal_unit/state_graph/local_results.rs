@@ -85,10 +85,13 @@ fn validate(
         // nominal-drop gates only bound results that hold storage. A borrowed
         // view's death is the end of the loan, not a disposal.
         || (result.multiplicity != Multiplicity::Unrestricted
-            && (!validation::has_plain_owned_contents_with_numeric_constraints(
+            && (!(validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,
-            ) || type_graph_requires_nominal_drop(program, local.type_reference)))
+            ) || validation::has_owned_or_shared_view_fields(
+                program,
+                local.type_reference,
+            )) || type_graph_requires_nominal_drop(program, local.type_reference)))
     {
         return None;
     }
