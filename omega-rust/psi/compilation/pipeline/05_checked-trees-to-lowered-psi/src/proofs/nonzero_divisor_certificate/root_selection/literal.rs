@@ -64,26 +64,53 @@ pub(super) fn closed_landed_literal_through_alias(
             landings
         },
     );
-    value_aliases(request).find_map(|(outer_citation, outer_equality, root, alias)| {
-        if root.scalar_type() != alias.scalar_type() {
+    // Only value-alias readings whose alias lands on a literal of the root's
+    // carrier can build a candidate; every goal under the scope walks the
+    // same readings, so they are kept once per scope.
+    thread_local! {
+        static READINGS: RefCell<ScopeDerived<Vec<(Citation, bool)>>> =
+            const { RefCell::new(ScopeDerived::new()) };
+    }
+    let readings = scope_identity::derived(
+        &READINGS,
+        request.assumptions,
+        request.semantic_axioms,
+        || {
+            value_aliases(request)
+                .filter(|(_, _, root, alias)| {
+                    root.scalar_type() == alias.scalar_type()
+                        && !landings.candidates(alias).is_empty()
+                })
+                .map(|(citation, equality, _, alias)| {
+                    let Proposition::Equal(left, _) = equality else {
+                        unreachable!("value aliases read cited equalities")
+                    };
+                    (citation, std::ptr::eq(left, alias))
+                })
+                .collect()
+        },
+    );
+    readings.iter().find_map(|&(citation, reversed)| {
+        let (outer_citation, outer_equality, root, alias) =
+            oriented_equality(request, citation, reversed);
+        if !complete.admits(root) {
             return None;
         }
-        let landed = landings.candidates(alias);
-        if landed.is_empty() || !complete.admits(root) {
-            return None;
-        }
-        landed.iter().find_map(|&(citation, reversed)| {
-            let (inner_citation, inner_equality, _, literal) =
-                oriented_equality(request, citation, reversed);
-            if std::ptr::eq(outer_equality, inner_equality) {
-                return None;
-            }
-            let outer = outer_citation.proof(outer_equality);
-            let inner = inner_citation.proof(inner_equality);
-            closed_literal_bounds(literal, [(alias, &inner), (root, &outer)])
-                .into_iter()
-                .find_map(|root_bound| complete.complete(root, root_bound))
-        })
+        landings
+            .candidates(alias)
+            .iter()
+            .find_map(|&(citation, reversed)| {
+                let (inner_citation, inner_equality, _, literal) =
+                    oriented_equality(request, citation, reversed);
+                if std::ptr::eq(outer_equality, inner_equality) {
+                    return None;
+                }
+                let outer = outer_citation.proof(outer_equality);
+                let inner = inner_citation.proof(inner_equality);
+                closed_literal_bounds(literal, [(alias, &inner), (root, &outer)])
+                    .into_iter()
+                    .find_map(|root_bound| complete.complete(root, root_bound))
+            })
     })
 }
 

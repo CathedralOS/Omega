@@ -15,7 +15,8 @@ use semantic_vocabulary::{Proposition, ScalarTerm};
 use super::super::integer_evidence::Citation;
 use super::super::scope_identity::{self, ScopeDerived};
 use super::roster::{
-    ValueIndex, cited_bounds, is_value, substitute_subject, value_aliases, value_endpoints,
+    ValueIndex, cited_bounds, is_value, oriented_equality, substitute_subject, value_aliases,
+    value_endpoints,
 };
 use super::{Complete, Request};
 
@@ -55,10 +56,34 @@ pub(super) fn two_citation_chain_through_alias(
     complete: &mut dyn Complete,
 ) -> Option<ProofNode> {
     let chains = TwoCitationChains::new(request);
-    value_aliases(request).find_map(|(equality_citation, equality, root, alias)| {
-        // The substitution renames the alias at one chain endpoint, so only
-        // the chains that name it at either end can complete.
-        if !chains.touches(alias) || !complete.admits(root) {
+    // The substitution renames the alias at one chain endpoint, so only the
+    // value-alias readings whose alias some chain names at either end can
+    // complete; every goal under the scope walks the same readings, so they
+    // are kept once per scope.
+    thread_local! {
+        static READINGS: RefCell<ScopeDerived<Vec<(Citation, bool)>>> =
+            const { RefCell::new(ScopeDerived::new()) };
+    }
+    let readings = scope_identity::derived(
+        &READINGS,
+        request.assumptions,
+        request.semantic_axioms,
+        || {
+            value_aliases(request)
+                .filter(|(_, _, _, alias)| chains.touches(alias))
+                .map(|(citation, equality, _, alias)| {
+                    let Proposition::Equal(left, _) = equality else {
+                        unreachable!("value aliases read cited equalities")
+                    };
+                    (citation, std::ptr::eq(left, alias))
+                })
+                .collect()
+        },
+    );
+    readings.iter().find_map(|&(citation, reversed)| {
+        let (equality_citation, equality, root, alias) =
+            oriented_equality(request, citation, reversed);
+        if !complete.admits(root) {
             return None;
         }
         chains.find_touching(alias, |left, right, left_proof, right_proof| {
