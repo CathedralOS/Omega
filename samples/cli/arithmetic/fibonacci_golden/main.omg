@@ -4,57 +4,68 @@
 // converges to the golden ratio phi ~= 1.618. After 13 steps a = fib(14) = 377 and b = fib(15) =
 // 610; 610 / 377 = 1.6180..., and (ratio * 100) truncated to an integer is 161.
 //
-// The loop carries its consecutive terms and counter as state arguments. Float
-// conversion and input scratch are local to the final state; Main owns only I/O.
+// Showcases an integer accumulation loop (a self-transition over a counter field) feeding an
+// int -> float -> int computation: the consecutive terms are widened to f64, divided, scaled, and
+// truncated back. The swap goes through a `tmp` FIELD (read from its slot) rather than a `let`
+// local, the same idiom euclid_gcd documents. Expected exit: 161.
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
-    console: Binding<Console>;
+data Fib [copy] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    tmp: i32 in Wrapping;
+    i: i32 in Wrapping;
 }
 
-machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
+data Main {
+    console: Binding<Console>;
+    fib: Fib;
+    fa: f64;
+    fb: f64;
+    ratio: f64;
+    result: i32 in Saturating;
+    pause: [u8; 256];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
+    self.fib.a = 1;
+    self.fib.b = 1;
+    self.fib.i = 0;
+
     transition {
-        _ -> step(context, 1, 1, 0)
+        _ -> step(&mut self)
     }
 
-    state step(
-        context: &mut Main,
-        first: i32 in Wrapping,
-        second: i32 in Wrapping,
-        iteration: i32 in Wrapping
-    ) {
-        transition iteration == 13 {
-            true -> ratio_calc(context, first, second)
-            _ -> advance(context, first, second, iteration)
+    state step(main: &mut Main) {
+        transition main.fib.i == 13 {
+            true -> ratio_calc(main)
+            _ -> advance(main)
         }
     }
 
-    state advance(
-        context: &mut Main,
-        first: i32 in Wrapping,
-        second: i32 in Wrapping,
-        iteration: i32 in Wrapping
-    ) {
-        let next: i32 in Wrapping = first + second;
+    state advance(main: &mut Main) {
+        main.fib.tmp = main.fib.a + main.fib.b;
+        main.fib.a = main.fib.b;
+        main.fib.b = main.fib.tmp;
+        main.fib.i = main.fib.i + 1;
         transition {
-            _ -> step(context, second, next, iteration + 1)
+            _ -> step(main)
         }
     }
 
-    state ratio_calc(context: &mut Main, first: i32 in Wrapping, second: i32 in Wrapping) {
-        let first_float: f64 = F64::from_i32(first as i32);
-        let second_float: f64 = F64::from_i32(second as i32);
-        let ratio: f64 = second_float / first_float;
-        let scaled: f64 = ratio * 100.0;
-        let result: i32 in Saturating = I32::from_f64(scaled);
-        context.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
-        context.console.write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(result as i32);
+    state ratio_calc(main: &mut Main) {
+        main.fa = F64::from_i32(main.fib.a as i32);
+        main.fb = F64::from_i32(main.fib.b as i32);
+        main.ratio = main.fb / main.fa;
+        main.ratio = main.ratio * 100.0;
+        main.result = I32::from_f64(main.ratio);
+        main.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result as i32);
     }
 }

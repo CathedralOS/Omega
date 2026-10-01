@@ -859,6 +859,7 @@ pass/recast/runtime_record_array_view_mutable_write_exit rejected 728ms @4800836
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
+pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
 pass/relevance/erased_case_payload_field_exit built 1408ms exit:70 @fb2178def922
 pass/relevance/erased_formal_before_borrowed_argument_exit built 1482ms exit:70 @7552efd7b9fc+wt

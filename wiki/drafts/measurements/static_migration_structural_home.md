@@ -774,38 +774,3 @@ arguments into typed locals emitted a replacement including its closing
 parenthesis while the pattern had consumed only up to the opening one,
 producing `Compose::dskip(compose, compose.t64)compose.t64);`. It had never
 been exercised before this package.
-
-## Correction: index proofs do carry to a state parameter
-
-Two commits in the entry-states series — `9bb4fecccb` and `f49236652a` — say
-that moving an index root from `self.i` to a state parameter loses the
-dominating guard that proved it, and name `cannot prove index `main.i` is
-non-negative (>= 0)` as evidence. That generalization is wrong, and it is
-recorded here because a commit message cannot be amended once published.
-
-Both shapes check. A parameter-rooted index whose guard sits in the same
-state:
-
-    state walk(main: &mut Main) {
-        transition main.i >= 0 && main.i < 8 { true -> accumulate(main) _ -> done() }
-    }
-    state accumulate(main: &mut Main) {
-        main.total = main.total + (main.table[main.i] as i32 in Wrapping);
-    }
-
-and the cross-edge form, with the guard in the entry body and the index in a
-state it reaches, both compile. The lower-bound route transports the guard
-across the entry-to-state edge.
-
-So the ~20 sample packages reverted under that diagnostic were not blocked by
-a compiler limitation. Something in the rewrite's output for those specific
-sources produced an index whose guard no longer dominated it, and that was
-never isolated — the packages were reverted on the gate result and the cause
-was inferred from the diagnostic's wording rather than reduced. Anyone
-resuming those samples should reduce one of them first; do not plan around a
-lower-bound gap that these probes do not show.
-
-The `rda_step`/`rda_drain` finding is separate and still stands: there the
-compiler accepts `self.rda_stack[self.rda_depth - 1]` and refuses the same
-*computed* index rooted in a parameter, which is a different claim from a
-plain field index.
