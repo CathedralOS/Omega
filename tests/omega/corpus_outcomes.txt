@@ -1711,7 +1711,11 @@ pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed25
 pass/generics/runtime_value_generic_subject_exit checked 1300ms @2d8ed253669f
 pass/host/process_exit_i32_status_mapped checked 1100ms @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms @2d8ed253669f
-pass/host/runtime_console_bounded_line_exit checked 2880ms @2d8ed253669f
+pass/host/runtime_console_bounded_line_exit checked 3359ms @0136a22812ee+wt
+pass/host/runtime_console_bounded_line_full_exit checked 3361ms @0136a22812ee+wt
+pass/host/runtime_console_bounded_line_lf_exit checked 3280ms @0136a22812ee+wt
+pass/host/runtime_console_bounded_line_middle_window_exit checked 3314ms @0136a22812ee+wt
+pass/host/runtime_console_bounded_line_partial_eof_exit checked 3415ms @0136a22812ee+wt
 pass/host/runtime_console_byte_echo_exit checked 1294ms @2d8ed253669f
 pass/host/runtime_gui_foreground_window_exit rejected 1206ms @2d8ed253669f
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
