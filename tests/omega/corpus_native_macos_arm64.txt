@@ -1069,9 +1069,7 @@ pass/traits/generic_trait_parent_binds_requirement checked 173ms
 pass/traits/ring_requirement_satisfies_exit built 683ms exit:70
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 814ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
-pass/traits/runtime_inherited_trait_default_exit rejected 84ms @48008365d839
-	exact arithmetic in machine `Main::main` state `main` call argument may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `Main::main` state `main` call argument may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+pass/traits/runtime_inherited_trait_default_exit built 916ms exit:70 @5f978f80e84b+wt
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 978ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1034ms @48008365d839
