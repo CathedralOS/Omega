@@ -61,11 +61,11 @@ pass/borrows/borrow_guarded_window_write_and_call checked 210ms
 pass/borrows/borrow_returned_window_write_and_call checked 181ms
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
-pass/borrows/projected_indexed_member_loan built 609ms @48008365d839
-pass/borrows/projected_local_member_loan built 569ms @48008365d839
+pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt
+pass/borrows/projected_local_member_loan built 2413ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_mut_member_loan built 786ms exit:0 @48008365d839
 pass/borrows/projected_param_member_loan built 839ms exit:0 @48008365d839
-pass/borrows/projected_scalar_member_loan built 663ms @48008365d839
+pass/borrows/projected_scalar_member_loan built 2224ms exit:0 @bed5f45e9185+wt
 pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
@@ -102,10 +102,10 @@ pass/calls/case_scrutinee_param_clone_exit rejected 645ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
-pass/calls/constant_result_requires_argument_accepted built 672ms @48008365d839
+pass/calls/constant_result_requires_argument_accepted built 2322ms exit:70 @bed5f45e9185+wt
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt
 pass/calls/cyclic_affine_call_result_exit built 4106ms exit:70 @48d34a64a938+wt
-pass/calls/cyclic_mutable_borrow_block_parameter_call built 1348ms @48008365d839
+pass/calls/cyclic_mutable_borrow_block_parameter_call built 2512ms exit:0 @bed5f45e9185+wt
 pass/calls/cyclic_projected_borrow_call_exit built 3929ms exit:70 @48d34a64a938+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+wt
 pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
@@ -127,19 +127,19 @@ pass/calls/local_record_record_result_argument_exit built 2725ms exit:70 @480083
 pass/calls/local_record_shared_argument_exit built 526ms exit:70 @f22b140301c7+wt
 pass/calls/local_records_mixed_record_result_arguments_exit built 2386ms exit:70 @48008365d839
 pass/calls/machine_self_call_recursion_compile built 353ms
-pass/calls/mutable_output_host_call built 1130ms
+pass/calls/mutable_output_host_call built 3369ms exit:0 @bed5f45e9185+wt
 pass/calls/mutable_receiver_computation_exit built 794ms exit:70 @7886524fee80+wt
 pass/calls/mutable_receiver_scalar_destinations_exit built 1203ms exit:70 @1501ceb0073+wt
 pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
-pass/calls/named_target_payload_dispatch built 1520ms @48008365d839
+pass/calls/named_target_payload_dispatch built 1486ms exit:0 @bed5f45e9185+wt
 pass/calls/negated_edge_guard_requires_exit built 1467ms exit:70 @48008365d839
 pass/calls/nested_call_init_transition built 1075ms @48008365d839
 pass/calls/nested_call_runtime_index_arg_exit built 4387ms exit:70 @48d34a64a938+wt
 pass/calls/nested_call_tail_roots_exit built 11200ms exit:0 @fb2178def922
 pass/calls/nested_indexed_scalar_arguments_exit built 747ms exit:70 @ec06d9821c1c+wt
-pass/calls/nested_machine_continuation built 704ms
+pass/calls/nested_machine_continuation built 2012ms exit:0 @bed5f45e9185+wt
 pass/calls/nested_self_call_argument_exit built 4661ms exit:70 @45c8d6b8b1ce+wt
-pass/calls/nested_value_call_arg_compile built 1938ms @fb2178def922
+pass/calls/nested_value_call_arg_compile built 1695ms exit:1 @bed5f45e9185+wt
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
 pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
 pass/calls/requires_carrier_ceiling_vacuous built 1151ms @48008365d839
@@ -235,7 +235,7 @@ pass/collections/case_array_literal_callee_store_exit built 617ms exit:7 @480083
 pass/collections/case_array_literal_field_store_exit built 796ms exit:42 @48008365d839
 pass/collections/case_array_literal_nested_store_exit built 670ms exit:9 @48008365d839
 pass/collections/case_array_literal_row_store_exit built 728ms exit:3 @48008365d839
-pass/collections/element_policy_array_literal_store built 469ms @48008365d839
+pass/collections/element_policy_array_literal_store built 1426ms exit:0 @bed5f45e9185+wt
 pass/collections/element_view_borrow_local built 710ms exit:181 @48008365d839
 pass/collections/element_view_edge_loan built 779ms exit:70 @48008365d839
 pass/collections/element_view_field_write built 657ms exit:181 @48008365d839
@@ -245,7 +245,7 @@ pass/collections/element_view_runtime_field_write built 626ms exit:181 @48008365
 pass/collections/element_view_runtime_loan_read built 631ms exit:181 @48008365d839
 pass/collections/element_view_whole_write built 850ms exit:181 @48008365d839
 pass/collections/element_view_write_transition built 615ms exit:181 @48008365d839
-pass/collections/indexed_row_array_literal_store built 467ms @48008365d839
+pass/collections/indexed_row_array_literal_store built 1410ms exit:7 @bed5f45e9185+wt
 pass/collections/mutable_slice_view_edge_release built 594ms exit:181 @48008365d839
 pass/collections/mutable_slice_view_establishment built 821ms exit:181 @48008365d839
 pass/collections/named_transition_completion built 1491ms exit:181 @48008365d839
@@ -310,12 +310,12 @@ pass/control_flow/composite_state_parameter built 2594ms exit:70 @48008365d839
 pass/control_flow/conditional_unit_completion_exit built 554ms exit:70 @76bba5577e21+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 183ms
 pass/control_flow/explicit_state_value_frontier checked 196ms
-pass/control_flow/field_subject_named_arm_chain built 1046ms @48008365d839
+pass/control_flow/field_subject_named_arm_chain built 1498ms exit:70 @bed5f45e9185+wt
 pass/control_flow/field_view_transfer_exit built 582ms exit:0
 pass/control_flow/guarded_jump_field_view_forward rejected 144ms @48008365d839
 	state `take` receives `main` as both mutable and read-only
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms
-pass/control_flow/guarded_mid_arm_return built 1028ms @48008365d839
+pass/control_flow/guarded_mid_arm_return built 1546ms exit:70 @bed5f45e9185+wt
 pass/control_flow/guarded_transition_dispatch_exit built 1188ms exit:0 stdout:match @765e6c51624f+wt
 pass/control_flow/guarded_unit_completion_exit built 927ms exit:70 @1a4aae106a02+wt
 pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
@@ -362,7 +362,7 @@ pass/core/task_lifecycle_operations rejected 405ms @48008365d839
 pass/core/zii_default_composite_exit built 1810ms exit:70 @fb2178def922
 pass/data/case_first_payload_zero_established checked 220ms
 pass/data/case_membership_union_guard_exit built 599ms exit:70
-pass/data/match_exhaustive_by_case_union_domain built 1186ms @48008365d839
+pass/data/match_exhaustive_by_case_union_domain built 1620ms exit:70 @bed5f45e9185+wt
 pass/data/opaque_copy_selected checked 689ms @48008365d839
 pass/data/payload_less_case_equality checked 186ms
 pass/data/property_carry_declared checked 171ms
@@ -407,8 +407,8 @@ pass/dependent/runtime_sibling_len_index_exit rejected 1034ms @48008365d839
 pass/dependent/state_arrival_contract_guarded_compile checked 191ms
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 184ms
 pass/dependent/valuation_order_cycle checked 205ms
-pass/dependent/zero_case_absorbs_nested_gate_compile built 1657ms @fb2178def922
-pass/dependent/zeroed_record_member_sum_elision built 1446ms @48008365d839
+pass/dependent/zero_case_absorbs_nested_gate_compile built 1431ms exit:70 @bed5f45e9185+wt
+pass/dependent/zeroed_record_member_sum_elision built 1546ms exit:70 @bed5f45e9185+wt
 pass/domains/bodyless_owner_establishment checked 181ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 146ms
 pass/domains/call_requires_domain_intersection_preserved checked 198ms
@@ -548,10 +548,10 @@ pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
 pass/float/float_to_int_exact_proofs_exit rejected 2385ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/float/float_to_int_trapping_nan_traps built 5987ms @fb2178def922
+pass/float/float_to_int_trapping_nan_traps built 4789ms exit:signal signal:5 @bed5f45e9185+wt
 pass/float/float_trapping_overflow_traps built 1988ms exit:signal signal:5 @12e6b9755e61+wt
 pass/float/float_trapping_propagated_nan_traps built 1994ms exit:signal signal:5 @12e6b9755e61+wt
-pass/float/foreign_control_state_restore built 7370ms @fb2178def922
+pass/float/foreign_control_state_restore built 6361ms exit:70 @bed5f45e9185+wt
 pass/float/guarded_exact_float_conversion checked 1319ms @48008365d839
 pass/float/literal_indexed_float_field_read_exit built 4200ms exit:70 @48008365d839
 pass/float/local_after_float_call_store_exit built 4562ms exit:70 @48008365d839
@@ -591,7 +591,7 @@ pass/generics/closed_indexed_quantity rejected 3330ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("embedded scalar qualifications require the enclosing catalog namespace"))
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
-pass/generics/declared_range_endpoint_inference built 1737ms
+pass/generics/declared_range_endpoint_inference built 4327ms exit:70 @bed5f45e9185+wt
 pass/generics/generic_data_instantiation checked 153ms
 pass/generics/generic_seq_consuming_map_filter checked 178ms
 pass/generics/machine_bound_satisfied_at_call checked 224ms
@@ -600,7 +600,7 @@ pass/generics/nominal_machine_parameter_satisfaction_compile checked 156ms
 pass/generics/omitted_data_binder_range_equation checked 224ms
 pass/generics/open_computed_quantity_result rejected 762ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
-pass/generics/ranged_const_parameter_attached_shape built 848ms @48008365d839
+pass/generics/ranged_const_parameter_attached_shape built 1488ms exit:0 @bed5f45e9185+wt
 pass/generics/runtime_const_container_methods_exit built 1455ms exit:70 @48008365d839
 pass/generics/runtime_const_data_array_length_exit built 583ms exit:70
 pass/generics/runtime_const_data_machine_call_exit built 809ms exit:70
@@ -698,9 +698,9 @@ pass/objc/objc_msgsend_scalar checked 229ms
 pass/operators/compound_assignment_exit built 699ms exit:70
 pass/operators/core_operator_spelling_surface built 281ms
 pass/operators/crash_routes checked 181ms
-pass/operators/division_value_entry_selection built 596ms
+pass/operators/division_value_entry_selection built 1563ms exit:70 @bed5f45e9185+wt
 pass/operators/domain_operator_overload_signature_compile checked 186ms
-pass/operators/float_operator_identities built 20000ms @fb2178def922
+pass/operators/float_operator_identities built 24097ms exit:70 @bed5f45e9185+wt
 pass/operators/integer_literal_suffix_exit built 598ms exit:70
 pass/operators/operand_requires_after_effects checked 216ms
 pass/operators/parenthesized_precedence_value checked 198ms
@@ -746,13 +746,13 @@ pass/proofs/higher_order_machine_schema_compile checked 209ms
 pass/proofs/kernel_integer_discreteness built 254ms
 pass/proofs/kernel_integer_subtract_bound checked 197ms
 pass/proofs/kernel_integer_subtract_order checked 222ms
-pass/proofs/kernel_theorem_equality_certificates built 604ms
+pass/proofs/kernel_theorem_equality_certificates built 1355ms exit:70 @bed5f45e9185+wt
 pass/proofs/machine_parameterized_data_compile checked 210ms
 pass/proofs/named_witness_static_trait_plural_compile checked 235ms
 pass/proofs/nat_exact_subtraction_compile checked 214ms
 pass/proofs/nat_metric_triangle_compile checked 227ms
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 5969ms exit:70 @48008365d839
-pass/proofs/polynomial_expand_core_nat built 561ms
+pass/proofs/polynomial_expand_core_nat built 1069ms exit:70 @bed5f45e9185+wt
 pass/proofs/proof_addition_commutativity checked 165ms
 pass/proofs/proof_bag_view_reflexivity checked 195ms
 pass/proofs/proof_bignum_constant_fold checked 188ms
@@ -775,8 +775,8 @@ pass/proofs/quotient_define_managed_compile rejected 396ms @48008365d839
 pass/proofs/quotient_equivalence_compile checked 196ms
 pass/proofs/quotient_lift_managed_compile rejected 270ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
-pass/proofs/ring_full_polynomial_compile built 586ms
-pass/proofs/ring_law_conformance built 518ms
+pass/proofs/ring_full_polynomial_compile built 1179ms exit:70 @bed5f45e9185+wt
+pass/proofs/ring_law_conformance built 1166ms exit:70 @bed5f45e9185+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit rejected 937ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("scalar guarantee lost its checked predicate"))
@@ -785,13 +785,13 @@ pass/proofs/runtime_inductive_gauss_sum_exit rejected 1009ms @48008365d839
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
-pass/providers/bare_byte_array_boundary_argument built 1073ms @48008365d839
+pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
 pass/providers/boundary_scalar_field_store built 591ms exit:70
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 1921ms exit:70 @fb2178def922
 pass/providers/checked_boundary_operator_physical_custody built 1711ms exit:70 @fb2178def922
 pass/providers/checked_boundary_requirement_dispatch_exit built 573ms exit:70
 pass/providers/checked_fixed_operator_dispatch_exit built 620ms exit:70
-pass/providers/checked_fixed_operator_physical_custody built 570ms
+pass/providers/checked_fixed_operator_physical_custody built 1393ms exit:70 @bed5f45e9185+wt
 pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
@@ -839,7 +839,7 @@ pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
 pass/relevance/erased_case_payload_field_exit built 1408ms exit:70 @fb2178def922
 pass/relevance/erased_formal_before_borrowed_argument_exit built 1482ms exit:70 @7552efd7b9fc+wt
 pass/relevance/erased_parameter_named_transition_forward checked 195ms
-pass/relevance/erased_parameter_proof_only built 625ms
+pass/relevance/erased_parameter_proof_only built 1470ms exit:70 @bed5f45e9185+wt
 pass/relevance/erased_receiver_proof_machine_call checked 177ms
 pass/relevance/erased_record_parameter_exit built 631ms exit:70
 pass/slices/byte_sequence_literal_tail_return_compile rejected 281ms @48008365d839
@@ -911,8 +911,8 @@ pass/structs/uninit_record_member_store built 612ms exit:77
 pass/structs/zeroed_record_member_wide_array_exit built 539ms exit:70
 pass/structs/zeroed_record_members_exit built 545ms exit:70
 pass/structural/borrowed_array_state_carry checked 398ms @48008365d839
-pass/structural/case_field_local_store built 1257ms @fb2178def922
-pass/structural/case_field_member_store built 1217ms @fb2178def922
+pass/structural/case_field_local_store built 1545ms exit:0 @bed5f45e9185+wt
+pass/structural/case_field_member_store built 1433ms exit:0 @bed5f45e9185+wt
 pass/structural/case_payload_record_member_read built 1215ms @fb2178def922
 pass/structural/composed_case_field_store_exit built 834ms exit:70 @1a09bf67b6a7+wt
 pass/structural/element_store built 523ms exit:0
@@ -926,7 +926,7 @@ pass/structural/runtime_structural_operand_snapshot_exit built 1204ms exit:42 @1
 pass/structural/sum_attachment_receiver_compile checked 184ms
 pass/targets/aarch64_hfa_entry_argument checked 898ms
 pass/targets/efi_vtable_call checked 224ms
-pass/targets/single_target_internal_machine_skipped built 545ms
+pass/targets/single_target_internal_machine_skipped built 1432ms exit:70 @bed5f45e9185+wt
 pass/targets/single_target_internal_package_same_target_caller built 923ms exit:70
 pass/targets/single_target_internal_same_target_caller built 903ms exit:70
 pass/targets/sysv_mixed_aggregate_entry checked 885ms
@@ -1032,7 +1032,7 @@ pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
 pass/text/runtime_string_stored_suffix_exit rejected 1087ms @569fd648944c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
-pass/text/runtime_text_builder built 1544ms @fb2178def922
+pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
 pass/text/utf8_boundary_established checked 211ms
@@ -1045,7 +1045,7 @@ pass/time/runtime_time_elapsed_since_exit built 12008ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_virtual_exit checked 413ms
 pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
-pass/traits/boundary_trait_effects_host_call built 849ms @fb2178def922
+pass/traits/boundary_trait_effects_host_call built 976ms exit:0 @bed5f45e9185+wt
 pass/traits/dyn_finite_family_dispatch checked 171ms
 pass/traits/equatable_mixed_shape_equality_exit built 2037ms exit:70 @fb2178def922
 pass/traits/equatable_record_equality_exit built 1490ms exit:70
@@ -1063,7 +1063,7 @@ pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 978ms @48008365d
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1034ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
-pass/traits/trait_generic_bound_static_dispatch built 543ms
+pass/traits/trait_generic_bound_static_dispatch built 1207ms exit:1 @bed5f45e9185+wt
 pass/traits/transparent_refinement_declaration built 238ms
 pass/types/runtime_addr_algebra_exit built 1684ms exit:70 @48008365d839
 pass/types/runtime_addr_conversion_trap_exit built 747ms exit:signal signal:5 @5266569d1601
