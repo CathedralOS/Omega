@@ -1228,9 +1228,15 @@ the complete product bar; focused successes below do not establish that baseline
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::carve_room` stops at
   `statement sequence: assignment: structural call result field store`.
-  Trace the helper-result stores to `room.label` and `room.description`
-  through Stage 04 `execution/terminal_unit/control/statement_sequence/assignments.rs`
-  and ordinary byte-field replacement. `clear_level` now admits its mutable
+  The helper-result stores to `room.label` and `room.description` need owned
+  bounded-byte completion from guarded literals, exact call-result custody
+  into ordinary byte-field replacement, and native byte-owner return transport.
+  Reuse bounded literal establishment and byte stores in Stage 04
+  `execution/terminal_unit/control/statement_sequence/`; preserve capacity,
+  predicates and live length. Omega stage 03 `selection/aggregate_result_input.rs`
+  still excludes `ByteSequence` roots from aggregate call results. Existing
+  local literal and field-copy controls do not prove owned return support.
+  `clear_level` now admits its mutable
   view element calls; projected loans and independent slice replay preserve
   represented field constraints without applying owned-move restrictions.
   Readable owned projections now copy unrestricted nested records through
