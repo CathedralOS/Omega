@@ -82,7 +82,11 @@ pub(crate) fn validate_function(
         &control_flow.predecessors,
     )?;
     structural_roots::validate_structural_root_operations(function, structural_types)?;
-    crate::unit_validation::references::validate_function_references(function, structural_types)?;
+    crate::unit_validation::references::validate_function_references(
+        function,
+        functions,
+        structural_types,
+    )?;
     byte_concatenation::validate(function, structural_types, &control_flow.predecessors)?;
     byte_field_freshness::validate(function, structural_types, &control_flow.predecessors)?;
     byte_predicates::validate_indexed_byte_stores(

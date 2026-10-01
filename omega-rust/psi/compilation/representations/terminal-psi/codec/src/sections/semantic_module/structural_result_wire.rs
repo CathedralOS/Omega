@@ -22,15 +22,7 @@ pub(crate) fn validate_reference_sources(
     let Some(result) = machine.result.structural() else {
         return Ok(());
     };
-    if result
-        .reference_sources
-        .windows(2)
-        .any(|pair| pair[0].path >= pair[1].path)
-    {
-        return crate::codec_error::malformed(
-            "reference result sources must have unique ordered paths",
-        );
-    }
+    validate_reference_source_order(result)?;
     for reference in &result.reference_sources {
         let reference_type =
             crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
@@ -48,25 +40,49 @@ pub(crate) fn validate_reference_sources(
                 "reference result source must identify a reference leaf",
             );
         };
-        let Some(parameter) = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == reference.source.place)
-        else {
-            return crate::codec_error::malformed(
-                "reference result source must identify a formal ingress",
-            );
-        };
-        if *access != reference.source.access
-            || *referent
-                != crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
-                    module,
-                    parameter.structural_type,
-                    &reference.source.path,
-                )?
+        for source in &reference.sources {
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == source.place)
+            else {
+                return crate::codec_error::malformed(
+                    "reference result source must identify a formal ingress",
+                );
+            };
+            if *access != source.access
+                || *referent
+                    != crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
+                        module,
+                        parameter.structural_type,
+                        &source.path,
+                    )?
+            {
+                return crate::codec_error::malformed(
+                    "reference result source has mismatched referent or access",
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_reference_source_order(result: &StructuralResultDeclaration) -> Result<(), CodecError> {
+    if result
+        .reference_sources
+        .windows(2)
+        .any(|pair| pair[0].path >= pair[1].path)
+    {
+        return crate::codec_error::malformed(
+            "reference result sources must have unique ordered paths",
+        );
+    }
+    for reference in &result.reference_sources {
+        if reference.sources.is_empty()
+            || reference.sources.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return crate::codec_error::malformed(
-                "reference result source has mismatched referent or access",
+                "reference result alternatives must be nonempty, unique and ordered",
             );
         }
     }
@@ -94,9 +110,12 @@ pub(crate) fn encode_function_result(
     )?;
     for reference in &result.reference_sources {
         encode_structural_path(writer, "reference result path", &reference.path)?;
-        writer.id(reference.source.place);
-        super::structural_signature_wire::encode_structural_access(writer, reference.source.access);
-        encode_structural_path(writer, "reference source path", &reference.source.path)?;
+        writer.len("reference source alternatives", reference.sources.len())?;
+        for source in &reference.sources {
+            writer.id(source.place);
+            super::structural_signature_wire::encode_structural_access(writer, source.access);
+            encode_structural_path(writer, "reference source path", &source.path)?;
+        }
     }
     Ok(())
 }
@@ -104,7 +123,7 @@ pub(crate) fn encode_function_result(
 pub(crate) fn decode_function_result(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralResultDeclaration, CodecError> {
-    Ok(StructuralResultDeclaration {
+    let result = StructuralResultDeclaration {
         place: reader.id("PlaceId")?,
         structural_type: reader.id("StructuralTypeId")?,
         multiplicity: decode_multiplicity(reader)?,
@@ -113,14 +132,18 @@ pub(crate) fn decode_function_result(
         reference_sources: decode_counted(reader, |reader| {
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: decode_structural_path(reader)?,
-                source: terminal_psi::StructuralArgument {
-                    place: reader.id("PlaceId")?,
-                    access: super::structural_signature_wire::decode_structural_access(reader)?,
-                    path: decode_structural_path(reader)?,
-                },
+                sources: decode_counted(reader, |reader| {
+                    Ok(terminal_psi::StructuralArgument {
+                        place: reader.id("PlaceId")?,
+                        access: super::structural_signature_wire::decode_structural_access(reader)?,
+                        path: decode_structural_path(reader)?,
+                    })
+                })?,
             })
         })?,
-    })
+    };
+    validate_reference_source_order(&result)?;
+    Ok(result)
 }
 
 pub(crate) fn encode_operation_result(
@@ -213,9 +236,8 @@ mod tests {
         StructuralReferenceResultSource,
     };
 
-    #[test]
-    fn reference_result_wire_retains_leaf_source_path_and_access() {
-        let result = StructuralResultDeclaration {
+    fn reference_result() -> StructuralResultDeclaration {
+        StructuralResultDeclaration {
             place: PlaceId::new(9).unwrap(),
             structural_type: StructuralTypeId::new(3).unwrap(),
             multiplicity: StructuralMultiplicity::Affine,
@@ -223,16 +245,21 @@ mod tests {
             projected_qualifications: Vec::new(),
             reference_sources: vec![StructuralReferenceResultSource {
                 path: vec![StructuralPathSegment::Field("body".into())],
-                source: StructuralArgument {
+                sources: vec![StructuralArgument {
                     place: PlaceId::new(1).unwrap(),
                     path: vec![
                         StructuralPathSegment::Referent,
                         StructuralPathSegment::FixedIndex(2),
                     ],
                     access: StructuralAccess::MutableBorrow,
-                },
+                }],
             }],
-        };
+        }
+    }
+
+    #[test]
+    fn reference_result_wire_retains_leaf_source_path_and_access() {
+        let result = reference_result();
         let mut writer = Writer::default();
         encode_function_result(&mut writer, &result).unwrap();
         let bytes = writer.finish();
@@ -245,9 +272,9 @@ mod tests {
             let source = &mut changed.reference_sources[0];
             match change {
                 0 => source.path.clear(),
-                1 => source.source.place = PlaceId::new(2).unwrap(),
-                2 => source.source.path.clear(),
-                _ => source.source.access = StructuralAccess::SharedBorrow,
+                1 => source.sources[0].place = PlaceId::new(2).unwrap(),
+                2 => source.sources[0].path.clear(),
+                _ => source.sources[0].access = StructuralAccess::SharedBorrow,
             }
             let mut writer = Writer::default();
             encode_function_result(&mut writer, &changed).unwrap();
@@ -255,6 +282,68 @@ mod tests {
                 writer.finish(),
                 bytes,
                 "reference custody cannot erase from wire identity"
+            );
+        }
+    }
+
+    #[test]
+    fn reference_result_wire_retains_every_alternative() {
+        let mut result = reference_result();
+        let reference = &mut result.reference_sources[0];
+        assert_eq!(reference.sole_source(), Some(&reference.sources[0]));
+        let mut alternative = reference.sources[0].clone();
+        alternative.path[1] = StructuralPathSegment::FixedIndex(3);
+        reference.sources.push(alternative);
+        assert!(reference.sole_source().is_none());
+        let mut writer = Writer::default();
+        encode_function_result(&mut writer, &result).unwrap();
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_function_result(&mut reader).unwrap(), result);
+        assert_eq!(reader.remaining(), 0);
+
+        for change in 0..4 {
+            let mut changed = result.clone();
+            let sources = &mut changed.reference_sources[0].sources;
+            match change {
+                0 => {
+                    sources.pop();
+                }
+                1 => sources[1].place = PlaceId::new(2).unwrap(),
+                2 => sources[1].path[1] = StructuralPathSegment::FixedIndex(4),
+                _ => sources[1].access = StructuralAccess::SharedBorrow,
+            }
+            let mut writer = Writer::default();
+            encode_function_result(&mut writer, &changed).unwrap();
+            assert_ne!(
+                writer.finish(),
+                bytes,
+                "every alternative contributes to identity"
+            );
+        }
+    }
+
+    #[test]
+    fn reference_result_wire_rejects_noncanonical_alternatives() {
+        for change in 0..3 {
+            let mut result = reference_result();
+            let reference = &mut result.reference_sources[0];
+            match change {
+                0 => reference.sources.clear(),
+                1 => reference.sources.push(reference.sources[0].clone()),
+                _ => {
+                    let mut alternative = reference.sources[0].clone();
+                    alternative.path[1] = StructuralPathSegment::FixedIndex(1);
+                    reference.sources.push(alternative);
+                }
+            }
+            assert!(reference.sole_source().is_none());
+            let mut writer = Writer::default();
+            encode_function_result(&mut writer, &result).unwrap();
+            let bytes = writer.finish();
+            assert!(
+                decode_function_result(&mut Reader::new(&bytes)).is_err(),
+                "noncanonical mutation {change} accepted"
             );
         }
     }

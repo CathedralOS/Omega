@@ -323,6 +323,9 @@ pub(super) fn lower(
                     super::references::ReferenceRoot::Ingress(place, path) => {
                         (*place, path.clone())
                     }
+                    super::references::ReferenceRoot::Alternatives(..) => {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
                 };
                 let root_access = function
                     .structural_parameters

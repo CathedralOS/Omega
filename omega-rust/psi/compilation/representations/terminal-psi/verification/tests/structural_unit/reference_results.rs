@@ -107,7 +107,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: Vec::new(),
-            source: argument(10, false),
+            sources: vec![argument(10, false)],
         }],
     });
     relay.blocks[0].id = block_id(2);
@@ -325,7 +325,7 @@ fn returned_record_store(projected: bool, byte_store: bool) -> TerminalModule {
         let TerminalMachineResult::Structural(result) = &mut relay.result else {
             unreachable!()
         };
-        result.reference_sources[0].source.path = path.clone();
+        result.reference_sources[0].sources[0].path = path.clone();
         let OperationKind::EstablishReference { source } = &mut relay.blocks[0].operations[0].kind
         else {
             unreachable!()
@@ -419,6 +419,232 @@ fn returned_record_field_store_retains_mutable_reference_custody() {
             "the byte capacity obligation remains mandatory"
         );
     }
+}
+
+fn branch_selected_record_return() -> TerminalModule {
+    let mut module = returned_record_store(true, false);
+    let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape
+    else {
+        panic!("holder array");
+    };
+    *length = 3;
+    let caller = &mut module.machines[0];
+    caller.parameters.push(ValueDeclaration {
+        id: value_id(50),
+        scalar_type: ScalarType::Boolean,
+        qualifications: Default::default(),
+    });
+    caller.blocks[0].operations[0].kind = OperationKind::CallStructuralWithScalarArguments {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        callee: machine_id(2),
+        arguments: vec![value_id(50)],
+        structural_arguments: vec![argument(1, false)],
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let relay = &mut module.machines[1];
+    relay.parameters.push(ValueDeclaration {
+        id: value_id(60),
+        scalar_type: ScalarType::Boolean,
+        qualifications: Default::default(),
+    });
+    let TerminalMachineResult::Structural(result) = &mut relay.result else {
+        panic!("reference result");
+    };
+    let mut first = result.reference_sources[0].sources[0].clone();
+    first.path[1] = StructuralPathSegment::FixedIndex(0);
+    result.reference_sources[0].sources.insert(0, first.clone());
+    let mut second_arm = relay.blocks[0].clone();
+    second_arm.id = block_id(3);
+    let mut first_arm = second_arm.clone();
+    first_arm.id = block_id(4);
+    first_arm.operations = vec![establish(21, 13, first)];
+    first_arm.terminator = Terminator::ReturnStructural {
+        edge: edge_id(4),
+        source: place_id(13),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    relay.structural_places.push(reference_place(13, 21));
+    let successor = |edge, target| SuccessorEdge {
+        edge: edge_id(edge),
+        target: block_id(target),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    relay.blocks[0].operations.clear();
+    relay.blocks[0].terminator = Terminator::Conditional {
+        condition: value_id(60),
+        when_true: successor(5, 3),
+        when_false: successor(6, 4),
+    };
+    relay.blocks.extend([second_arm, first_arm]);
+    module
+}
+
+#[test]
+fn branch_selected_record_return_keeps_one_permission_until_release() {
+    verify_module(
+        &branch_selected_record_return(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("both return origins feed one live mutable record permission");
+    let mut released = branch_selected_record_return();
+    released.machines[0].blocks[0].operations.swap(1, 2);
+    rejects_custody(&released);
+}
+
+#[test]
+fn branch_selected_record_return_requires_exact_candidate_coverage() {
+    validate_module(&branch_selected_record_return()).expect("honest candidate roster");
+    for corruption in 0..7 {
+        let mut module = branch_selected_record_return();
+        let TerminalMachineResult::Structural(result) = &mut module.machines[1].result else {
+            panic!("reference result");
+        };
+        let sources = &mut result.reference_sources[0].sources;
+        match corruption {
+            0 => {
+                sources.remove(0);
+            }
+            1 => {
+                let mut unused = sources[1].clone();
+                unused.path[1] = StructuralPathSegment::FixedIndex(2);
+                sources.push(unused);
+            }
+            2 => sources.insert(0, sources[0].clone()),
+            3 => sources.reverse(),
+            4 => sources[0].place = place_id(99),
+            5 => sources[0].access = StructuralAccess::Owned,
+            6 => sources[0].path[1] = StructuralPathSegment::FixedIndex(9),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "candidate corruption {corruption}"
+        );
+    }
+}
+
+fn forwarded_selected_record_return() -> TerminalModule {
+    let mut module = branch_selected_record_return();
+    let mut forward = module.machines[1].clone();
+    forward.id = machine_id(3);
+    forward.entry = block_id(5);
+    forward.contract = empty_contract(contract_id(3));
+    forward.parameters[0].id = value_id(70);
+    forward.structural_parameters[0].place = place_id(30);
+    forward.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: place_id(30),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(31),
+            kind: StructuralPlaceKind::Result,
+        },
+        reference_place(32, 30),
+    ];
+    let TerminalMachineResult::Structural(result) = &mut forward.result else {
+        panic!("result");
+    };
+    result.place = place_id(31);
+    for source in &mut result.reference_sources[0].sources {
+        source.place = place_id(30);
+    }
+    forward.blocks.truncate(1);
+    forward.blocks[0].id = block_id(5);
+    forward.blocks[0].operations = vec![Operation {
+        id: operation_id(30),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: reference_result(32),
+        kind: OperationKind::CallStructuralWithScalarArguments {
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            callee: machine_id(2),
+            arguments: vec![value_id(70)],
+            structural_arguments: vec![argument(30, false)],
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    forward.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(10),
+        source: place_id(32),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let OperationKind::CallStructuralWithScalarArguments { callee, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("call");
+    };
+    *callee = machine_id(3);
+    module.machines.push(forward);
+    module
+}
+
+#[test]
+fn branch_selected_reference_forwarding_preserves_the_candidate_set() {
+    verify_module(
+        &forwarded_selected_record_return(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("ordinary forwarding preserves one selected carrier");
+}
+
+#[test]
+fn branch_selected_reference_candidates_cannot_justify_themselves_recursively() {
+    let mut module = forwarded_selected_record_return();
+    let OperationKind::CallStructuralWithScalarArguments { callee, .. } =
+        &mut module.machines[2].blocks[0].operations[0].kind
+    else {
+        panic!("call");
+    };
+    *callee = machine_id(3);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(3),
+            reason: "recursive selected-reference results require founded origin summaries",
+        })
+    );
+}
+
+#[test]
+fn branch_selected_reference_candidates_reject_recursive_singleton_dependencies() {
+    let mut module = forwarded_selected_record_return();
+    let mut recursive_dependency = module.machines[2].clone();
+    recursive_dependency.id = machine_id(2);
+    recursive_dependency.contract = empty_contract(contract_id(2));
+    let TerminalMachineResult::Structural(result) = &mut recursive_dependency.result else {
+        panic!("reference result");
+    };
+    result.reference_sources[0].sources.truncate(1);
+    // The dependency declares one origin but only calls itself; its signature
+    // cannot found an origin in the outer machine's alternative roster.
+    module.machines[1] = recursive_dependency;
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(3),
+            reason: "recursive selected-reference results require founded origin summaries",
+        })
+    );
 }
 
 fn projected_record_call(indexed: bool, access: StructuralAccess) -> TerminalModule {
@@ -642,7 +868,7 @@ fn returned_record_projected_call_does_not_admit_escaping_origins() {
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: Vec::new(),
-            source: argument(30, false),
+            sources: vec![argument(30, false)],
         }],
     });
     writer.structural_places.extend([
@@ -747,7 +973,7 @@ fn returned_record_field_store_rejects_changed_origin_access_and_lifetime() {
                     else {
                         unreachable!()
                     };
-                    result.reference_sources[0].source.path[1] =
+                    result.reference_sources[0].sources[0].path[1] =
                         StructuralPathSegment::FixedIndex(0);
                 }
                 4 => {
@@ -903,7 +1129,7 @@ fn reference_result_rejects_wrong_formal_and_local_escape() {
     let TerminalMachineResult::Structural(result) = &mut relay.result else {
         panic!("reference result");
     };
-    result.reference_sources[0].source = argument(13, false);
+    result.reference_sources[0].sources[0] = argument(13, false);
     // Validate the relay directly so unrelated caller arity is not the control.
     wrong.entry = machine_id(2);
     wrong.machines.remove(0);
@@ -981,7 +1207,7 @@ fn reference_result_interface_and_access_counterfeits_reject() {
             1 => result
                 .reference_sources
                 .push(result.reference_sources[0].clone()),
-            2 => result.reference_sources[0].source.access = StructuralAccess::Owned,
+            2 => result.reference_sources[0].sources[0].access = StructuralAccess::Owned,
             3 => result.reference_sources[0]
                 .path
                 .push(StructuralPathSegment::Referent),
@@ -1009,7 +1235,7 @@ fn reference_formation_never_exceeds_a_shared_formal() {
         let TerminalMachineResult::Structural(result) = &mut relay.result else {
             panic!("reference result");
         };
-        result.reference_sources[0].source.access = source_access;
+        result.reference_sources[0].sources[0].access = source_access;
         let OperationKind::EstablishReference { source } = &mut relay.blocks[0].operations[0].kind
         else {
             panic!("establishment");
@@ -1631,7 +1857,7 @@ pub(super) fn owned_reference_record_module(two_leaves: bool, consumes: bool) ->
     };
     result.place = place_id(41);
     for mapping in &mut result.reference_sources {
-        mapping.source = StructuralArgument {
+        mapping.sources[0] = StructuralArgument {
             place: place_id(40),
             path: mapping
                 .path
@@ -1743,17 +1969,17 @@ fn owned_reference_record_rejects_changed_maps_stale_owners_and_missing_disposal
                         result.reference_sources.pop();
                     }
                     1 => {
-                        result.reference_sources[1].source =
-                            result.reference_sources[0].source.clone();
+                        result.reference_sources[1].sources[0] =
+                            result.reference_sources[0].sources[0].clone();
                     }
                     2 => {
-                        let source = result.reference_sources[0].source.clone();
-                        result.reference_sources[0].source =
-                            result.reference_sources[1].source.clone();
-                        result.reference_sources[1].source = source;
+                        let source = result.reference_sources[0].sources[0].clone();
+                        result.reference_sources[0].sources[0] =
+                            result.reference_sources[1].sources[0].clone();
+                        result.reference_sources[1].sources[0] = source;
                     }
                     3 => {
-                        result.reference_sources[0].source.path.pop();
+                        result.reference_sources[0].sources[0].path.pop();
                     }
                     _ => unreachable!(),
                 }
@@ -1935,7 +2161,7 @@ fn two_reference_result_module() -> TerminalModule {
         .reference_sources
         .push(StructuralReferenceResultSource {
             path: vec!["other".into()],
-            source: argument(14, false),
+            sources: vec![argument(14, false)],
         });
 
     let caller = &mut module.machines[0];
@@ -2037,11 +2263,11 @@ fn reference_record_result_requires_exact_ordered_source_roster() {
                 .push(result.reference_sources[0].clone()),
             2 => result.reference_sources.swap(0, 1),
             3 => {
-                result.reference_sources[0].source.place = place_id(14);
-                result.reference_sources[1].source.place = place_id(10);
+                result.reference_sources[0].sources[0].place = place_id(14);
+                result.reference_sources[1].sources[0].place = place_id(10);
             }
-            4 => result.reference_sources[0].source = argument(14, false),
-            5 => result.reference_sources[0].source.access = StructuralAccess::SharedBorrow,
+            4 => result.reference_sources[0].sources[0] = argument(14, false),
+            5 => result.reference_sources[0].sources[0].access = StructuralAccess::SharedBorrow,
             6 => result.reference_sources[0].path = vec!["counterfeit".into()],
             7 => {
                 module.structural_types[1].shape = StructuralTypeShape::Reference {
@@ -2054,7 +2280,7 @@ fn reference_record_result_requires_exact_ordered_source_roster() {
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                 });
             }
-            8 => result.reference_sources[0].source.path = vec!["body".into()],
+            8 => result.reference_sources[0].sources[0].path = vec!["body".into()],
             _ => unreachable!(),
         }
         rejects_custody(&module);

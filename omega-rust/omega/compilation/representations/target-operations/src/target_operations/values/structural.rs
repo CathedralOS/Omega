@@ -48,15 +48,27 @@ pub struct TargetStructuralArgument {
 
 /// One reference leaf inside a structural call result, resolved through
 /// compile-time custody. `path` names the leaf within the result carrier,
-/// `root` names the referent's root place, and `root_path` names the referent
-/// leaf's path under that root — empty for a primitive place root. This is
-/// source-identity metadata: the referent is never located by reading a
-/// stored pointer or descriptor.
+/// `root` names the common referent root, and `root_paths` names the possible
+/// referent paths under it. A whole-root singleton contains one empty path.
+/// This roster proves custody, not which address an activation returns. Native
+/// consumers load that address from the reference carrier's exact result home;
+/// they cannot choose an arbitrary candidate to reconstruct its address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetReferenceResult {
     pub path: Vec<StructuralPathSegment>,
     pub root: PlaceId,
-    pub root_path: Vec<StructuralPathSegment>,
+    /// Nonempty, strictly ordered alternatives for one permission carrier.
+    pub root_paths: Vec<Vec<StructuralPathSegment>>,
+}
+
+impl TargetReferenceResult {
+    /// Static address reconstruction requires exactly one possible root path.
+    pub fn sole_root_path(&self) -> Option<&[StructuralPathSegment]> {
+        let [path] = self.root_paths.as_slice() else {
+            return None;
+        };
+        Some(path)
+    }
 }
 
 /// An incoming value placement and an established local descriptor have

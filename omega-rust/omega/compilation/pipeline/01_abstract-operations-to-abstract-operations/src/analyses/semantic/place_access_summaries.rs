@@ -1372,9 +1372,12 @@ pub(in crate::analyses) fn place_access_summaries(
                     .iter()
                     .map(|source| ResolvedResultSource {
                         result_path: source.path.clone(),
-                        origins: context
-                            .resolve(source.source.place, runtime_prefix(&source.source.path))
-                            .into_iter()
+                        origins: source
+                            .sources
+                            .iter()
+                            .flat_map(|candidate| {
+                                context.resolve(candidate.place, runtime_prefix(&candidate.path))
+                            })
                             .map(|resolved| match resolved {
                                 ResolvedAccess::Parameter { position, path } => {
                                     ResultSourceResolution::Parameter { position, path }
@@ -1384,7 +1387,12 @@ pub(in crate::analyses) fn place_access_summaries(
                                 }
                                 ResolvedAccess::Internal => ResultSourceResolution::Internal,
                             })
-                            .collect(),
+                            .fold(Vec::new(), |mut origins, origin| {
+                                if !origins.contains(&origin) {
+                                    origins.push(origin);
+                                }
+                                origins
+                            }),
                     })
                     .collect()
             })

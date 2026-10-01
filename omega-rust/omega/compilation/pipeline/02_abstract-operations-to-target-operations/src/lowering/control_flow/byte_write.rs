@@ -223,6 +223,13 @@ fn writable_byte_field(
     owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
     carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
+    let reference_destination = super::references::writable_referent_destination(
+        function,
+        live,
+        structural_types,
+        destination,
+        path,
+    );
     let (root, root_type, access, path) = if let Some(home) = owned_home.filter(|home| {
         structural_types
             .get(&home.structural_type())
@@ -255,24 +262,19 @@ fn writable_byte_field(
             StructuralAccess::Owned,
             path.to_vec(),
         )
+    } else if let Some(reference) = &reference_destination {
+        (
+            destination,
+            reference.result.structural_type,
+            StructuralAccess::MutableBorrow,
+            path.to_vec(),
+        )
     } else {
-        let (parameter, path) = if let Some(parameter) = function
+        let parameter = function
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == destination)
-        {
-            (parameter.clone(), path.to_vec())
-        } else {
-            let resolved = super::references::writable_referent_destination(
-                function,
-                live,
-                structural_types,
-                destination,
-                path,
-            )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            (resolved.parameter, resolved.path)
-        };
         if !matches!(
             parameter.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -286,10 +288,14 @@ fn writable_byte_field(
             parameter.place,
             parameter.structural_type,
             parameter.access,
-            path,
+            path.to_vec(),
         )
     };
-    if !terminal_psi::is_bounded_structural_scalar_store_path(&path)
+    let (projection_root, projection_path) = reference_destination
+        .as_ref()
+        .map(|reference| (reference.referent, reference.path.as_slice()))
+        .unwrap_or((root_type, path.as_slice()));
+    if !terminal_psi::is_bounded_structural_scalar_store_path(projection_path)
         || function
             .entry_claims
             .iter()
@@ -297,12 +303,12 @@ fn writable_byte_field(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let carrier = if path.is_empty() {
-        root_type
+    let carrier = if projection_path.is_empty() {
+        projection_root
     } else {
         crate::lowering::structural_layout::resolve_structural_projection_path(
-            root_type,
-            &path,
+            projection_root,
+            projection_path,
             structural_types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),

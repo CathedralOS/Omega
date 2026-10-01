@@ -182,11 +182,11 @@ fn returned_record_reference_module() -> TerminalModule {
             projected_qualifications: vec![],
             reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
                 path: vec!["body".into()],
-                source: StructuralArgument {
+                sources: vec![StructuralArgument {
                     place: place_id(201),
                     path: vec![],
                     access: StructuralAccess::MutableBorrow,
-                },
+                }],
             }],
         });
     make_view.blocks.truncate(1);
@@ -280,11 +280,11 @@ fn forward_owned_record(mut module: TerminalModule) -> TerminalModule {
     for mapping in &mut result.reference_sources {
         let mut path = mapping.path.clone();
         path.push(StructuralPathSegment::Referent);
-        mapping.source = StructuralArgument {
+        mapping.sources = vec![StructuralArgument {
             place: place_id(401),
             path,
             access: StructuralAccess::MutableBorrow,
-        };
+        }];
     }
     forward.blocks[0].id = block_id(401);
     forward.blocks[0].operations.clear();
@@ -359,7 +359,7 @@ fn owned_record_forwarding_rejects_wrong_ingress_reference_path() {
     else {
         panic!("View result");
     };
-    result.reference_sources[0].source.path.pop();
+    result.reference_sources[0].sources[0].path.pop();
     assert!(encode_module(&module).is_err());
 }
 
@@ -505,7 +505,7 @@ fn owned_record_forwarding_keeps_outer_return_binding_during_nested_call() {
         panic!("inner View result");
     };
     result.place = place_id(507);
-    result.reference_sources[0].source.place = place_id(501);
+    result.reference_sources[0].sources[0].place = place_id(501);
     inner.blocks[0].id = block_id(501);
     inner.blocks[0].terminator = Terminator::ReturnStructural {
         edge: edge_id(501),
@@ -639,11 +639,11 @@ fn returned_reference_leaves_follow_reversed_actual_arguments() {
         .reference_sources
         .push(terminal_psi::StructuralReferenceResultSource {
             path: vec!["other".into()],
-            source: StructuralArgument {
+            sources: vec![StructuralArgument {
                 place: place_id(302),
                 path: vec![],
                 access: StructuralAccess::MutableBorrow,
-            },
+            }],
         });
     let mut crossed = module.clone();
     let TerminalMachineResult::Structural(result) =
@@ -651,8 +651,8 @@ fn returned_reference_leaves_follow_reversed_actual_arguments() {
     else {
         panic!("record result");
     };
-    result.reference_sources[0].source.place = place_id(302);
-    result.reference_sources[1].source.place = place_id(201);
+    result.reference_sources[0].sources[0].place = place_id(302);
+    result.reference_sources[1].sources[0].place = place_id(201);
     assert!(
         encode_module(&crossed).is_err(),
         "equal reference types cannot substitute source correspondence"

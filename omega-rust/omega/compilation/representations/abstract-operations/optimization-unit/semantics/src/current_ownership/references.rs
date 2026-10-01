@@ -26,12 +26,15 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclarati
 const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
 
 #[cfg(test)]
+mod alternative_result_tests;
+#[cfg(test)]
 mod record_store_tests;
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
         ReferenceOrigin::Primitive(place) => *place,
         ReferenceOrigin::IngressLeaf(identity) => identity.place,
+        ReferenceOrigin::Alternatives { place, .. } => *place,
     }
 }
 
@@ -39,11 +42,29 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
     if origin_place(left) != origin_place(right) {
         return false;
     }
-    match (left, right) {
-        (ReferenceOrigin::IngressLeaf(left), ReferenceOrigin::IngressLeaf(right)) => {
-            left.path.starts_with(&right.path) || right.path.starts_with(&left.path)
+    let overlaps_path = |path: &[terminal_psi::StructuralPathSegment]| match right {
+        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::IngressLeaf(identity) => {
+            path.starts_with(&identity.path) || identity.path.starts_with(path)
         }
-        _ => true,
+        ReferenceOrigin::Alternatives { paths, .. } => paths
+            .iter()
+            .any(|other| path.starts_with(other) || other.starts_with(path)),
+    };
+    match left {
+        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
+        ReferenceOrigin::Alternatives { paths, .. } => paths.iter().any(|path| overlaps_path(path)),
+    }
+}
+
+fn contains_origin(origins: &ReferenceOrigin, candidate: &ReferenceOrigin) -> bool {
+    match (origins, candidate) {
+        (
+            ReferenceOrigin::Alternatives { place, paths },
+            ReferenceOrigin::IngressLeaf(identity),
+        ) => *place == identity.place && paths.binary_search(&identity.path).is_ok(),
+        _ => origins == candidate,
     }
 }
 
@@ -88,18 +109,22 @@ fn mutable_record_call_origin(
             "returned record call argument has ambiguous or suspended custody",
         ));
     }
-    let ReferenceOrigin::IngressLeaf(root) = &carrier.root else {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "returned record call argument has no exact static ingress",
-        ));
+    let root_place = match &carrier.root {
+        ReferenceOrigin::IngressLeaf(root) => root.place,
+        ReferenceOrigin::Alternatives { place, .. } => *place,
+        ReferenceOrigin::Primitive(_) => {
+            return Err(invalid(
+                function,
+                block,
+                Some(node),
+                "returned record call argument has no exact ingress",
+            ));
+        }
     };
     let Some(parameter) = function
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == root.place)
+        .find(|parameter| parameter.place == root_place)
     else {
         return Err(invalid(
             function,
@@ -123,6 +148,11 @@ fn mutable_record_call_origin(
             "returned record call argument widens ingress access",
         ));
     }
+    // The selected pointer is exact at runtime, but alias checks retain every
+    // complete parent candidate. A synchronous borrow creates no child loan.
+    let ReferenceOrigin::IngressLeaf(root) = &carrier.root else {
+        return Ok(Some(carrier.root.clone()));
+    };
     let mut path = root.path.clone();
     path.extend_from_slice(suffix);
     Ok(Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
@@ -668,15 +698,15 @@ fn establish_record(
 fn call_source(
     callee: &PsiOptimizationFunction,
     arguments: &[StructuralArgument],
-    mapping: &terminal_psi::StructuralReferenceResultSource,
+    formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
     let position = callee
         .structural_parameters
         .iter()
-        .position(|parameter| parameter.place == mapping.source.place)?;
+        .position(|parameter| parameter.place == formal.place)?;
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(mapping.source.path.iter().cloned());
-    source.access = mapping.source.access;
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
     Some(source)
 }
 
@@ -1007,7 +1037,7 @@ pub(super) fn apply_operation(
         }
     }
     let sources = match operation {
-        O::EstablishReference { source, .. } => vec![(Vec::new(), source.clone(), false)],
+        O::EstablishReference { source, .. } => vec![(Vec::new(), vec![(source.clone(), false)])],
         O::CallStructural {
             callee,
             structural_arguments,
@@ -1034,13 +1064,16 @@ pub(super) fn apply_operation(
                 .reference_sources
                 .iter()
                 .map(|mapping| {
-                    call_source(callee, structural_arguments, mapping)
+                    let candidates = mapping
+                        .sources
+                        .iter()
+                        .map(|formal| {
+                            call_source(callee, structural_arguments, formal)
                         .map(|source| {
                             (
-                                mapping.path.clone(),
                                 source,
                                 matches!(
-                                    formal_origin(callee, &mapping.source),
+                                    formal_origin(callee, formal),
                                     Some(ReferenceOrigin::IngressLeaf(identity))
                                         if structural_source_contract(
                                             callee,
@@ -1068,6 +1101,9 @@ pub(super) fn apply_operation(
                                 "reference call source mapping is absent",
                             )
                         })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok((mapping.path.clone(), candidates))
                 })
                 .collect::<Result<Vec<_>, _>>()?
         }
@@ -1104,7 +1140,7 @@ pub(super) fn apply_operation(
         // argument spellings. Borrowing a result does not move its parent loan.
         let mut established = Vec::with_capacity(sources.len());
         let mut roots = BTreeSet::new();
-        for (path, source, transfers_existing) in sources {
+        for (path, candidates) in sources {
             let expected = leaf_referent(structural_types, result.structural_type, &path)
                 .ok_or_else(|| {
                     invalid(
@@ -1114,64 +1150,70 @@ pub(super) fn apply_operation(
                         "reference call result leaf is unsupported",
                     )
                 })?;
-            if reference_source_type(function, structural_types, &source) != Some(expected)
-                || !leaf_access_within(
-                    structural_types,
-                    result.structural_type,
-                    &path,
-                    source.access,
-                )
-            {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "reference result changes its mapped source type",
-                ));
-            }
-            let reference = if transfers_existing {
-                let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
-                    source.path.split_last()
-                else {
+            let mut alternatives = Vec::with_capacity(candidates.len());
+            for (source, transfers_existing) in candidates {
+                if reference_source_type(function, structural_types, &source) != Some(expected)
+                    || !leaf_access_within(
+                        structural_types,
+                        result.structural_type,
+                        &path,
+                        source.access,
+                    )
+                {
                     return Err(invalid(
                         function,
                         block,
                         Some(node),
-                        "owned result mapping has no incoming leaf",
+                        "reference result changes its mapped source type",
                     ));
-                };
-                let mut reference = live
-                    .iter()
-                    .find(|reference| {
-                        reference.carrier == source.place && reference.carrier_path == carrier_path
-                    })
-                    .filter(|reference| moved.contains(&reference.identity))
-                    .cloned()
-                    .ok_or_else(|| {
-                        invalid(
+                }
+                let reference = if transfers_existing {
+                    let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
+                        source.path.split_last()
+                    else {
+                        return Err(invalid(
                             function,
                             block,
                             Some(node),
-                            "returned reference is not among the transferred leaves",
-                        )
-                    })?;
-                reference.carrier = result.place;
-                reference.carrier_path = path;
-                reference
-            } else {
-                let (root, parent) =
-                    normalized_source(function, structural_types, block, node, live, &source)?;
-                LiveReference {
-                    identity: ReferenceIdentity {
-                        place: result.place,
-                        path: path.clone(),
-                    },
-                    carrier: result.place,
-                    carrier_path: path,
-                    root,
-                    parent,
-                }
-            };
+                            "owned result mapping has no incoming leaf",
+                        ));
+                    };
+                    let mut reference = live
+                        .iter()
+                        .find(|reference| {
+                            reference.carrier == source.place
+                                && reference.carrier_path == carrier_path
+                        })
+                        .filter(|reference| moved.contains(&reference.identity))
+                        .cloned()
+                        .ok_or_else(|| {
+                            invalid(
+                                function,
+                                block,
+                                Some(node),
+                                "returned reference is not among the transferred leaves",
+                            )
+                        })?;
+                    reference.carrier = result.place;
+                    reference.carrier_path = path.clone();
+                    reference
+                } else {
+                    let (root, parent) =
+                        normalized_source(function, structural_types, block, node, live, &source)?;
+                    LiveReference {
+                        identity: ReferenceIdentity {
+                            place: result.place,
+                            path: path.clone(),
+                        },
+                        carrier: result.place,
+                        carrier_path: path.clone(),
+                        root,
+                        parent,
+                    }
+                };
+                alternatives.push(reference);
+            }
+            let reference = combine_alternative_references(function, block, node, alternatives)?;
             if roots
                 .iter()
                 .any(|root| origins_overlap(root, &reference.root))
@@ -1198,6 +1240,58 @@ pub(super) fn apply_operation(
     Ok(())
 }
 
+/// Publish one carrier only after every possible origin has independently
+/// rejoined the same leaf identity and direct ingress custody.
+fn combine_alternative_references(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    alternatives: Vec<LiveReference>,
+) -> Result<LiveReference, OptimizationUnitValidationError> {
+    let invalid = || {
+        invalid(
+            function,
+            block,
+            Some(node),
+            "reference result alternatives change carrier or ingress custody",
+        )
+    };
+    let mut alternatives = alternatives.into_iter();
+    let mut reference = alternatives.next().ok_or_else(invalid)?;
+    let mut paths = Vec::new();
+    for alternative in alternatives {
+        if reference.identity != alternative.identity
+            || reference.carrier != alternative.carrier
+            || reference.carrier_path != alternative.carrier_path
+            || reference.parent != ReferenceParent::Root(reference.root.clone())
+            || alternative.parent != ReferenceParent::Root(alternative.root.clone())
+            || origin_place(&reference.root) != origin_place(&alternative.root)
+        {
+            return Err(invalid());
+        }
+        let ReferenceOrigin::IngressLeaf(identity) = alternative.root else {
+            return Err(invalid());
+        };
+        paths.push(identity.path);
+    }
+    if !paths.is_empty() {
+        let ReferenceOrigin::IngressLeaf(identity) = &reference.root else {
+            return Err(invalid());
+        };
+        paths.push(identity.path.clone());
+        paths.sort();
+        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(invalid());
+        }
+        reference.root = ReferenceOrigin::Alternatives {
+            place: identity.place,
+            paths,
+        };
+        reference.parent = ReferenceParent::Root(reference.root.clone());
+    }
+    Ok(reference)
+}
+
 /// A structural return whose source carries reference leaves must match the
 /// declared result roster exactly: every returned leaf still sits at its
 /// declared carrier path and descends directly from a checked formal origin.
@@ -1207,6 +1301,7 @@ pub(super) fn transfer_return(
     block: BlockId,
     source: PlaceId,
     live: &mut Vec<LiveReference>,
+    observed: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
 ) -> Result<bool, OptimizationUnitValidationError> {
     let Some(signature) = structural_source_contract(function, source, false) else {
         return Ok(false);
@@ -1247,7 +1342,20 @@ pub(super) fn transfer_return(
                     "returned reference carrier is not live",
                 )
             })?;
-        if Some(reference.root.clone()) != formal_origin(function, &mapping.source)
+        let sources = mapping
+            .sources
+            .iter()
+            .filter(|source| {
+                formal_origin(function, source)
+                    .is_some_and(|origin| contains_origin(&reference.root, &origin))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let origin_count = match &reference.root {
+            ReferenceOrigin::Alternatives { paths, .. } => paths.len(),
+            _ => 1,
+        };
+        if sources.len() != origin_count
             || reference.parent != ReferenceParent::Root(reference.root.clone())
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
         {
@@ -1258,11 +1366,45 @@ pub(super) fn transfer_return(
                 "reference return escapes local custody or differs from its formal source",
             ));
         }
+        observed.push(terminal_psi::StructuralReferenceResultSource {
+            path: mapping.path.clone(),
+            sources,
+        });
     }
     // This removes frame-local ownership rows, not the referents or the loans.
     // The caller independently instantiates the checked result source roster.
     live.retain(|reference| reference.carrier != source);
     Ok(true)
+}
+
+/// Individual exits prove membership; their union proves that no declared
+/// alternative was invented. The CFG owner supplies only reachable returns.
+pub(super) fn validate_return_coverage(
+    function: &PsiOptimizationFunction,
+    observed: &[terminal_psi::StructuralReferenceResultSource],
+) -> Result<(), OptimizationUnitValidationError> {
+    let Some(result) = function.result.structural() else {
+        return Ok(());
+    };
+    for mapping in &result.reference_sources {
+        if mapping.sources.len() <= 1 {
+            continue;
+        }
+        let sources = observed
+            .iter()
+            .filter(|returned| returned.path == mapping.path)
+            .flat_map(|returned| returned.sources.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        if sources.into_iter().collect::<Vec<_>>() != mapping.sources {
+            return Err(invalid(
+                function,
+                function.entry,
+                None,
+                "reference result alternatives differ from reachable return origins",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Normal completion must leave no outstanding loans: every carrier was either

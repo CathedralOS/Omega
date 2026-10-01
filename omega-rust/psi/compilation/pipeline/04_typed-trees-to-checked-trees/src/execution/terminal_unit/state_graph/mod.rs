@@ -392,6 +392,12 @@ pub(super) fn build_traced(
         )?;
         trace.phase("state graph: operation custody");
         let mut operations = sequence.operations;
+        retire_guarded_reference_completion(
+            facts,
+            state,
+            sequence.structural_result.as_ref(),
+            &mut operations,
+        )?;
         operation_custody::admit(program, state, &mut operations, trace)?;
         // A single-state body whose completion establishes a shared `&`
         // result — a whole view, a subslice, or a forwarded named view —
@@ -492,7 +498,7 @@ pub(super) fn build_traced(
             machine,
             state,
             structural,
-            &operations,
+            &mut operations,
             &terminator,
             &disposable_locals,
             trace,
@@ -732,8 +738,9 @@ pub(super) fn build_traced(
     // name those parameters, so a reference record returned from any other
     // state has no sources to publish. A whole-reference result is itself
     // the only leaf: each returning state's own completion already spells
-    // the parameter its borrow loans — in machine parameter positions — so
-    // the machine publishes them when every return spells the same source.
+    // the exact parameter path its borrow loans — in machine parameter
+    // positions — so the machine publishes the deduplicated candidate rows
+    // from every independently checked return.
     let whole_reference = match &result {
         checked_trees::CheckedControlResultPlan::Structural(result) => shapes
             .types
@@ -780,6 +787,80 @@ pub(super) fn build_traced(
     }
     plan.result = result;
     Some(plan)
+}
+
+/// A sequence is shared by ordinary and composed planning, so it retains the
+/// syntactic tail's reference completion. Guarded composed control owns every
+/// return arm instead. Remove only the exact sequence result binding when its
+/// source coordinate and ingress also occur in the guarded return roster;
+/// ordinary and unconditional completions keep their producer unchanged.
+fn retire_guarded_reference_completion(
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    returned: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+) -> Option<()> {
+    let Some(checked_trees::CheckedUnitStructuralReturnPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+        reference_sources,
+        ..
+    }) = returned
+    else {
+        return Some(());
+    };
+    let mut tails = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state.symbol);
+    let Some(tail) = tails.next() else {
+        return Some(());
+    };
+    if tails.next().is_some() {
+        return None;
+    }
+    let arms = facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(tail.arms)?;
+    let mut returned_statements = arms
+        .iter()
+        .map(|arm| &arm.destination)
+        .chain(tail.fallback.iter())
+        .map(|destination| match destination {
+            checked_trees::CheckedScalarBranchDestination::Return {
+                statement_ordinal, ..
+            } => Some(*statement_ordinal),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    returned_statements.sort_unstable();
+    returned_statements.dedup();
+    let mut matches = operations
+        .iter()
+        .enumerate()
+        .filter_map(|(index, operation)| {
+            let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
+            else {
+                return None;
+            };
+            (result.binding_ordinal == *binding_ordinal
+                && returned_statements.contains(&result.statement_index)
+                && reference_sources
+                    .iter()
+                    .any(|candidate| candidate.path.is_empty() && candidate.source == *source))
+            .then_some(index)
+        });
+    let Some(index) = matches.next() else {
+        return Some(());
+    };
+    if matches.next().is_some() {
+        return None;
+    }
+    operations.remove(index);
+    Some(())
 }
 
 /// A returning exit disposes whole roots only: a partial affine drop or a

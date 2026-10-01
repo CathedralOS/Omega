@@ -144,10 +144,10 @@ fn argument_pointer(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    // A trailing `Referent` transports a primitive referent root; a leading
-    // `Referent, ..` transports one child of a returned record. In both cases
-    // `target.place` names the original root while the semantic place is only
-    // the permission carrier and has no storage address.
+    // New reference homes retain the carrier identity and load its selected
+    // pointer. Legacy static-root arguments retain their existing address join.
+    let reference_carrier =
+        crate::selection::reference_input::is_reference_type(source, target.root_structural_type);
     let referent = matches!(
         semantic.path.last(),
         Some(terminal_psi::StructuralPathSegment::Referent)
@@ -185,7 +185,12 @@ fn argument_pointer(
         crate::selection::byte_concatenation_input::shared_view_argument(source, semantic, target)
             .map(|capacity| (0, capacity))
     });
-    let pointer = if matches!(
+    let pointer = if reference_carrier {
+        let offset = crate::selection::reference_input::borrowed_argument(source, semantic, target)
+            .filter(|_| indices.is_empty())
+            .ok_or_else(|| replay.invalid())?;
+        structural::reference::borrowed_argument(replay, operation, semantic.place, offset)?
+    } else if matches!(
         target.source,
         target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
     ) && !semantic.path.is_empty()

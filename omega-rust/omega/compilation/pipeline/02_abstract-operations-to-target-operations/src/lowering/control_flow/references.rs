@@ -46,12 +46,22 @@ pub(super) enum ReferenceRoot {
     /// One leaf of an owned reference-bearing ingress parameter; the referent
     /// storage belongs to the caller, so no local pointer exists for it.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
+    /// One selected permission conservatively pins every possible ingress path.
+    Alternatives(PlaceId, Vec<Vec<StructuralPathSegment>>),
 }
 
 impl ReferenceRoot {
     fn place(&self) -> PlaceId {
         match self {
-            Self::Place(place) | Self::Ingress(place, _) => *place,
+            Self::Place(place) | Self::Ingress(place, _) | Self::Alternatives(place, _) => *place,
+        }
+    }
+
+    fn paths(&self) -> Vec<Vec<StructuralPathSegment>> {
+        match self {
+            Self::Place(_) => vec![Vec::new()],
+            Self::Ingress(_, path) => vec![path.clone()],
+            Self::Alternatives(_, paths) => paths.clone(),
         }
     }
 }
@@ -60,25 +70,30 @@ fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
     if left.place() != right.place() {
         return false;
     }
-    match (left, right) {
-        (ReferenceRoot::Ingress(_, left), ReferenceRoot::Ingress(_, right)) => {
-            left.starts_with(right) || right.starts_with(left)
-        }
-        _ => true,
+    let overlaps_path = |path: &[StructuralPathSegment]| match right {
+        ReferenceRoot::Place(_) => true,
+        ReferenceRoot::Ingress(_, other) => path.starts_with(other) || other.starts_with(path),
+        ReferenceRoot::Alternatives(_, paths) => paths
+            .iter()
+            .any(|other| path.starts_with(other) || other.starts_with(path)),
+    };
+    match left {
+        ReferenceRoot::Place(_) => true,
+        ReferenceRoot::Ingress(_, path) => overlaps_path(path),
+        ReferenceRoot::Alternatives(_, paths) => paths.iter().any(|path| overlaps_path(path)),
     }
 }
 
-/// The original writable root behind one live, whole returned reference.
-///
-/// A bare reference result owns loan permission but no result storage. Stores
-/// through that carrier therefore rejoin the exact caller root and path that
-/// the call-result custody roster captured; they never manufacture a home for
-/// the carrier or treat its zero-byte payload as the referent.
+/// A live reference's payload producer and geometry after dereferencing it.
+/// Custody retains every possible origin; physical addressing loads the one
+/// address the callee returned, never a selected entry from that origin set.
 pub(in crate::lowering) struct WritableReferentDestination {
     pub(in crate::lowering) producer: OperationId,
     pub(in crate::lowering) result: StructuralOperationResult,
-    pub(in crate::lowering) parameter: terminal_psi::StructuralParameterDeclaration,
+    pub(in crate::lowering) referent: StructuralTypeId,
+    /// Relative to the referent, excluding the explicit crossing.
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
+    root: ReferenceRoot,
 }
 
 fn returned_mutable_record_projection(
@@ -129,10 +144,7 @@ fn returned_mutable_record_projection(
     {
         return None;
     }
-    let (root, mut root_path) = match &leaf.root {
-        ReferenceRoot::Place(place) => (*place, Vec::new()),
-        ReferenceRoot::Ingress(place, path) => (*place, path.clone()),
-    };
+    let root = leaf.root.place();
     let parameter = function
         .structural_parameters
         .iter()
@@ -147,16 +159,29 @@ fn returned_mutable_record_projection(
             .entry_claims
             .iter()
             .any(|claim| claim.input == root)
-        || leaf_type(types, parameter.structural_type, &root_path) != Some(*referent)
     {
         return None;
     }
-    root_path.extend_from_slice(tail);
+    let exact_origin = |path: &[StructuralPathSegment]| {
+        leaf_type(types, parameter.structural_type, path) == Some(*referent)
+    };
+    if !match &leaf.root {
+        ReferenceRoot::Place(_) => exact_origin(&[]),
+        ReferenceRoot::Ingress(_, path) => exact_origin(path),
+        ReferenceRoot::Alternatives(_, paths) => {
+            !paths.is_empty() && paths.iter().all(|path| exact_origin(path))
+        }
+    } || live.structural_homes.get(&carrier)?.operation_result()
+        != Some((producer, &leaf.result))
+    {
+        return None;
+    }
     Some(WritableReferentDestination {
         producer,
         result: leaf.result.clone(),
-        parameter: parameter.clone(),
-        path: root_path,
+        referent: *referent,
+        path: tail.to_vec(),
+        root: leaf.root.clone(),
     })
 }
 
@@ -171,15 +196,13 @@ pub(super) fn writable_referent_destination(
 }
 
 /// Lower one ordinary call argument borrowed through a returned mutable
-/// record. Semantic custody stays on `argument`; the target row names the
-/// original parameter and complete root-relative path whose address the ABI
-/// transports.
+/// record. The target row retains the actual carrier and explicit crossing;
+/// selection loads its address word before applying the referent-relative offset.
 pub(super) fn returned_record_call_argument(
     argument: &StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
     function: &AbstractFunction,
-    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<TargetStructuralArgument>, LoweringError> {
@@ -199,32 +222,31 @@ pub(super) fn returned_record_call_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let source = prepared
-        .parameters
-        .iter()
-        .find(|source| {
-            source.place == resolved.parameter.place
-                && source.structural_type == resolved.parameter.structural_type
-                && source.access == resolved.parameter.access
-        })
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    let access_is_compatible = resolved.parameter.access == StructuralAccess::MutableBorrow
-        && matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        );
+    let access_is_compatible = matches!(
+        argument.access,
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
+    );
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (selected, shape, source_byte_offset) =
+    let referent_shape = crate::lowering::structural_layout::structural_shape(
+        resolved.referent,
+        types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    let (selected, shape, source_byte_offset) = if resolved.path.is_empty() {
+        (resolved.referent, referent_shape, 0)
+    } else {
         crate::lowering::structural_layout::resolve_structural_projection_path(
-            source.structural_type,
+            resolved.referent,
             &resolved.path,
             types,
             &mut shape_cache,
             &mut active,
-        )?;
+        )?
+    };
     if !access_is_compatible
         || selected != declaration.structural_type
         || crate::lowering::structural_layout::structural_parameter_shape(shape, declaration.access)
@@ -232,22 +254,24 @@ pub(super) fn returned_record_call_argument(
         || shape
             .byte_size
             .checked_add(source_byte_offset)
-            .is_none_or(|end| end > source.shape.byte_size)
+            .is_none_or(|end| end > referent_shape.byte_size)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(Some(TargetStructuralArgument {
-        place: source.place,
+        place: argument.place,
         access: argument.access,
-        path: resolved.path,
-        root_structural_type: source.structural_type,
+        path: argument.path.clone(),
+        root_structural_type: resolved.result.structural_type,
         structural_type: selected,
         shape: destination.shape,
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         indices: Vec::new(),
-        source: source.placement.clone().into(),
+        source: target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: resolved.producer,
+        },
         destination: destination.placement.clone(),
     }))
 }
@@ -367,8 +391,8 @@ pub(super) fn referent(
 /// The aggregate bare-reference carrier native lowering realizes: a borrow of
 /// a plain record whose referent contains storage, not another loan roster.
 /// Shared and mutable carriers read the referent through the loan; mutable
-/// and write-only carriers store through it. The carrier owns permission
-/// metadata only, never a copied record home.
+/// and write-only carriers store through it. The carrier retains permission
+/// metadata and an address payload, never a copied referent record.
 fn plain_record_referent(
     types: &StructuralTypeLookup<'_>,
     structural_type: StructuralTypeId,
@@ -674,15 +698,15 @@ fn normalized_source(
 fn call_source(
     callee: &AbstractFunction,
     arguments: &[StructuralArgument],
-    mapping: &terminal_psi::StructuralReferenceResultSource,
+    formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
     let position = callee
         .structural_parameters
         .iter()
-        .position(|parameter| parameter.place == mapping.source.place)?;
+        .position(|parameter| parameter.place == formal.place)?;
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(mapping.source.path.iter().cloned());
-    source.access = mapping.source.access;
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
     Some(source)
 }
 
@@ -752,15 +776,16 @@ fn is_reference_projection(
 pub(super) fn is_suspended_root(live: &LiveDefinitions, place: PlaceId) -> bool {
     live.references
         .values()
-        .any(|reference| reference.root == ReferenceRoot::Place(place))
+        .any(|reference| reference.root.place() == place)
 }
 
 /// Reads, writes and establishments cannot touch a suspended referent, and a
 /// live carrier is never owned data for primitive or aggregate access.
 pub(super) fn check_root_access(live: &LiveDefinitions, place: PlaceId) -> bool {
-    live.references.values().any(|reference| {
-        reference.root == ReferenceRoot::Place(place) || reference.identity.0 == place
-    }) || live.references.keys().any(|(carrier, _)| *carrier == place)
+    live.references
+        .values()
+        .any(|reference| reference.root.place() == place || reference.identity.0 == place)
+        || live.references.keys().any(|(carrier, _)| *carrier == place)
 }
 
 /// Validate every structural call argument under reference custody. Owned
@@ -790,11 +815,7 @@ pub(super) fn call_arguments(
             if argument.access == StructuralAccess::Owned {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            normalized.push((
-                ReferenceRoot::Ingress(resolved.parameter.place, resolved.path),
-                argument.access,
-                true,
-            ));
+            normalized.push((resolved.root, argument.access, true));
             continue;
         }
         if argument_owns_references(function, live, types, argument) {
@@ -841,7 +862,7 @@ pub(super) fn call_arguments(
             || live
                 .references
                 .values()
-                .any(|reference| reference.root == ReferenceRoot::Place(argument.place))
+                .any(|reference| reference.root.place() == argument.place)
         {
             if !is_reference_projection(function, live, types, argument) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -897,7 +918,7 @@ pub(super) fn touches(
         || live
             .references
             .values()
-            .any(|reference| reference.root == ReferenceRoot::Place(argument.place))
+            .any(|reference| reference.root.place() == argument.place)
         || live
             .references
             .keys()
@@ -1152,63 +1173,91 @@ pub(super) fn call_results(
     let mut roots = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
-        let source = call_source(callee_function, structural_arguments, mapping)
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if mapping.sources.is_empty() || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
         let expected = leaf_referent(types, result.structural_type, &mapping.path)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        if reference_source_type(function, live, types, &source) != Some(expected) {
+        if mapping.sources.len() > 1
+            && (!mapping.path.is_empty()
+                || !matches!(
+                    types.get(&expected).map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::Record { .. })
+                )
+                || mapping.sources.iter().any(|formal| {
+                    formal.place != mapping.sources[0].place
+                        || formal.access != StructuralAccess::MutableBorrow
+                        || formal.path.is_empty()
+                        || formal.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                }))
+        {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let leaf = if matches!(
-            formal_origin(callee_function, types, &mapping.source),
-            Some(ReferenceRoot::Ingress(place, path))
-                if callee_function
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == place)
-                    .and_then(|parameter| {
-                        leaf_type(types, parameter.structural_type, &path)
-                    })
-                    .and_then(|leaf| types.get(&leaf))
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::Reference { .. }
-                        )
-                    })
-        ) {
-            // An owned-carrier ingress mapping relocates one of the leaves the
-            // moved arguments just transferred; the leaf keeps its identity,
-            // root and parent, and lands at the declared result path.
-            let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last()
-            else {
+        let mut candidates = Vec::with_capacity(mapping.sources.len());
+        for formal in &mapping.sources {
+            let source = call_source(callee_function, structural_arguments, formal)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            if reference_source_type(function, live, types, &source) != Some(expected) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            moved
-                .get(&(source.place, carrier_path.to_vec()))
-                .cloned()
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-        } else {
-            let (root, parent) = normalized_source(function, live, types, &source)?;
-            ReferenceCustody {
-                identity: (result.place, mapping.path.clone()),
-                root,
-                parent,
-                operation: Some(psi_operation),
-                result: result.clone(),
-                referent: expected,
             }
-        };
-        if !roots.insert(leaf.root.clone()) {
+            let leaf = if matches!(
+                formal_origin(callee_function, types, formal),
+                Some(ReferenceRoot::Ingress(place, path))
+                    if callee_function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == place)
+                        .and_then(|parameter| {
+                            leaf_type(types, parameter.structural_type, &path)
+                        })
+                        .and_then(|leaf| types.get(&leaf))
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference { .. }
+                            )
+                        })
+            ) {
+                // An owned-carrier ingress mapping relocates one of the leaves the
+                // moved arguments just transferred; the leaf keeps its identity,
+                // root and parent, and lands at the declared result path.
+                let Some((StructuralPathSegment::Referent, carrier_path)) =
+                    source.path.split_last()
+                else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                moved
+                    .get(&(source.place, carrier_path.to_vec()))
+                    .cloned()
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+            } else {
+                let (root, parent) = normalized_source(function, live, types, &source)?;
+                ReferenceCustody {
+                    identity: (result.place, mapping.path.clone()),
+                    root,
+                    parent,
+                    operation: Some(psi_operation),
+                    result: result.clone(),
+                    referent: expected,
+                }
+            };
+            candidates.push(leaf);
+        }
+        let leaf = combine_alternatives(function, candidates)?;
+        if roots.iter().any(|root| roots_overlap(root, &leaf.root)) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
+        roots.insert(leaf.root.clone());
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
-            root_path: match &leaf.root {
-                ReferenceRoot::Place(_) => Vec::new(),
-                ReferenceRoot::Ingress(_, path) => path.clone(),
-            },
+            root_paths: leaf.root.paths(),
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
@@ -1216,6 +1265,46 @@ pub(super) fn call_results(
         live.references.insert(key, leaf);
     }
     Ok(reference_results)
+}
+
+/// Alternatives describe one newly returned permission, never a union of
+/// independently owned leaves or a way to detach a child from its parent.
+fn combine_alternatives(
+    function: &AbstractFunction,
+    candidates: Vec<ReferenceCustody>,
+) -> Result<ReferenceCustody, LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let mut candidates = candidates.into_iter();
+    let mut leaf = candidates.next().ok_or_else(invalid)?;
+    let mut paths = Vec::new();
+    for candidate in candidates {
+        if leaf.identity != candidate.identity
+            || leaf.result != candidate.result
+            || leaf.operation != candidate.operation
+            || leaf.referent != candidate.referent
+            || leaf.parent.is_some()
+            || candidate.parent.is_some()
+            || leaf.root.place() != candidate.root.place()
+        {
+            return Err(invalid());
+        }
+        let ReferenceRoot::Ingress(_, path) = candidate.root else {
+            return Err(invalid());
+        };
+        paths.push(path);
+    }
+    if !paths.is_empty() {
+        let ReferenceRoot::Ingress(place, path) = &leaf.root else {
+            return Err(invalid());
+        };
+        paths.push(path.clone());
+        paths.sort();
+        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(invalid());
+        }
+        leaf.root = ReferenceRoot::Alternatives(*place, paths);
+    }
+    Ok(leaf)
 }
 
 /// Resolve a `.., Referent` call argument through the live custody map to its
@@ -1339,7 +1428,19 @@ pub(super) fn return_custody(
             .references
             .get(&(source, mapping.path.clone()))
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        if Some(leaf.root.clone()) != formal_origin(function, types, &mapping.source)
+        let declared = |root: &ReferenceRoot| {
+            mapping
+                .sources
+                .iter()
+                .any(|formal| formal_origin(function, types, formal).as_ref() == Some(root))
+        };
+        let admitted = match &leaf.root {
+            ReferenceRoot::Alternatives(place, paths) => paths
+                .iter()
+                .all(|path| declared(&ReferenceRoot::Ingress(*place, path.clone()))),
+            root => declared(root),
+        };
+        if !admitted
             || leaf.parent.is_some()
             || live
                 .references

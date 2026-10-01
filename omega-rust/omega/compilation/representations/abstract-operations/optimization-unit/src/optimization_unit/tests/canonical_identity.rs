@@ -451,7 +451,7 @@ fn canonical_operation_identity_bytes_are_stable() {
     .unwrap();
     for unit in [&scalar, &structural] {
         let bytes = crate::optimization_unit::identity::collect_unit_canonical_bytes(unit);
-        let prefix = b"omega.psi-optimization-unit-content.v31\0";
+        let prefix = b"omega.psi-optimization-unit-content.v32\0";
         assert_eq!(&bytes[..prefix.len()], prefix);
         assert_eq!(
             &bytes[prefix.len()..prefix.len() + 2],
@@ -462,15 +462,15 @@ fn canonical_operation_identity_bytes_are_stable() {
         (scalar.identity.bytes(), structural.identity.bytes()),
         (
             [
-                26, 94, 109, 173, 53, 185, 38, 135, 198, 80, 170, 164, 57, 24, 205, 70, 152, 216,
-                174, 16, 188, 49, 72, 194, 114, 251, 118, 70, 44, 228, 205, 147,
+                52, 22, 117, 196, 70, 53, 252, 68, 73, 137, 110, 175, 198, 159, 66, 102, 83, 182,
+                211, 190, 149, 185, 164, 51, 240, 35, 46, 188, 10, 211, 224, 128,
             ],
             [
-                88, 80, 102, 99, 76, 207, 237, 105, 62, 39, 30, 173, 214, 21, 106, 252, 217, 103,
-                137, 239, 38, 187, 218, 56, 200, 75, 204, 203, 226, 19, 137, 230,
+                155, 194, 92, 210, 22, 238, 89, 72, 86, 114, 64, 92, 226, 76, 208, 168, 221, 220,
+                186, 134, 87, 103, 180, 112, 135, 194, 74, 93, 84, 2, 119, 17,
             ]
         ),
-        "identities bind vocabulary 114 and unit schema 31 alongside unchanged operation tags",
+        "identities bind vocabulary 114 and unit schema 32 alongside unchanged operation tags",
     );
 }
 

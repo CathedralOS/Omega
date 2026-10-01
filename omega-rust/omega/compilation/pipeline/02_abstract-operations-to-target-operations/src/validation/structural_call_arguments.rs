@@ -2965,9 +2965,8 @@ impl Replay<'_> {
     }
 
     /// Reconstruct a projected argument through one earlier returned mutable
-    /// record. The source argument keeps the permission carrier spelling;
-    /// the target row must instead name the exact original ingress and its
-    /// complete physical projection.
+    /// record. Both rows retain the actual address carrier; the target offset
+    /// is measured after loading its pointer, not within a guessed ingress.
     fn returned_record_projection(
         &self,
         call: OperationId,
@@ -3057,46 +3056,29 @@ impl Replay<'_> {
         else {
             return false;
         };
-        if !reference.path.is_empty() || actual.place != reference.root {
+        if !reference.path.is_empty()
+            || reference.root_paths.is_empty()
+            || actual.place != semantic.place
+        {
             return false;
         }
-        let Some(root) = self.source.structural_parameters.iter().find(|parameter| {
-            parameter.place == reference.root
-                && parameter.access == StructuralAccess::MutableBorrow
-                && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-        }) else {
-            return false;
-        };
-        let target_parameters = self
-            .target
-            .mixed_structural_scalar_abi
-            .as_ref()
-            .map(|abi| abi.structural_parameters.as_slice())
-            .unwrap_or(self.target.graph.parameters.as_slice());
-        let Some(target_root) = target_parameters.iter().find(|parameter| {
-            parameter.place == root.place
-                && parameter.structural_type == root.structural_type
-                && parameter.access == root.access
-                && parameter.multiplicity == root.multiplicity
-        }) else {
-            return false;
-        };
-        let mut path = reference.root_path.clone();
-        path.extend_from_slice(suffix);
         let Ok((selected, offset)) =
-            structural_shapes::project_static_path(root.structural_type, &path, self.declarations)
+            structural_shapes::project_static_path(referent, suffix, self.declarations)
         else {
             return false;
         };
-        actual.path == path
-            && actual.root_structural_type == root.structural_type
+        // Custody retains every possible origin, but the callee consumes the
+        // address actually returned. The offset is relative to that referent,
+        // never to the carrier's pointer-storage home or an arbitrary origin.
+        actual.path == semantic.path
+            && actual.root_structural_type == result.structural_type
             && actual.structural_type == selected
             && actual.structural_type == declared.structural_type
             && actual.source_byte_offset == offset
             && actual.source
-                == TargetStructuralArgumentSource::Placement(target_root.placement.clone())
+                == TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: producer,
+                }
             && matches_projected_carrier(actual, selected, self.declarations)
     }
 
@@ -3158,32 +3140,17 @@ impl Replay<'_> {
                 {
                     return Err(psi_operation);
                 }
-                // A bare reference result is custody only: the producer
-                // establishes no physical result home for a `Reference`-shaped
-                // carrier, so the honest row retains `None` and the call's
-                // `reference_results` rows carry the leaf custody. Aggregate
-                // and sum results still replay the exact durable home.
-                let reference_only = self.declarations.iter().any(|declaration| {
-                    declaration.id == expected.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::Reference { .. }
-                        )
-                });
-                if reference_only {
-                    if result_home.is_some() {
-                        return Err(psi_operation);
-                    }
-                } else {
-                    let expected_home = structural_shapes::structural_result_home(
-                        psi_operation,
-                        expected,
-                        self.declarations,
-                    )
-                    .map_err(|_| psi_operation)?;
-                    if *result_home != Some(&expected_home) {
-                        return Err(psi_operation);
-                    }
+                // Reference results retain an address payload home just like
+                // other values. Its geometry grants no loan authority: the
+                // independent candidate roster comparison above still applies.
+                let expected_home = structural_shapes::structural_result_home(
+                    psi_operation,
+                    expected,
+                    self.declarations,
+                )
+                .map_err(|_| psi_operation)?;
+                if *result_home != Some(&expected_home) {
+                    return Err(psi_operation);
                 }
                 Ok(())
             }

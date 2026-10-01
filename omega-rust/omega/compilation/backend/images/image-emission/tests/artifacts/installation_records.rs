@@ -2125,11 +2125,11 @@ fn substitute_structural_return(
                 .reference_sources
                 .push(terminal_psi::StructuralReferenceResultSource {
                     path: vec![terminal_psi::StructuralPathSegment::Field("field".into())],
-                    source: StructuralArgument {
+                    sources: vec![StructuralArgument {
                         place: PlaceId::new(41).expect("reference source place"),
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
-                    },
+                    }],
                 });
         }
         Field::Shape => {

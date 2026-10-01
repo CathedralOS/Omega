@@ -549,13 +549,11 @@ pub(super) fn literal_result_operation(
     };
     let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
     *count = count.checked_add(1)?;
-    Some(
-        CheckedUnitEffectOperationPlan::EstablishByteSequence {
-            result,
-            value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
-            qualifications,
-        },
-    )
+    Some(CheckedUnitEffectOperationPlan::EstablishByteSequence {
+        result,
+        value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
+        qualifications,
+    })
 }
 
 /// The `EstablishReference` producer for one authored `(place[a..b])` return

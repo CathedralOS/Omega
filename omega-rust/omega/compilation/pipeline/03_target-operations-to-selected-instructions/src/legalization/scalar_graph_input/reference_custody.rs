@@ -51,12 +51,22 @@ pub(in crate::legalization) enum Root {
     /// One leaf of an owned reference-bearing ingress parameter; the referent
     /// storage belongs to the caller, so no local pointer exists for it.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
+    /// One permission whose selected static path is carried by its pointer.
+    Alternatives(PlaceId, Vec<Vec<StructuralPathSegment>>),
 }
 
 impl Root {
     pub(in crate::legalization) fn place(&self) -> PlaceId {
         match self {
-            Self::Place(place) | Self::Ingress(place, _) => *place,
+            Self::Place(place) | Self::Ingress(place, _) | Self::Alternatives(place, _) => *place,
+        }
+    }
+
+    fn paths(&self) -> Vec<Vec<StructuralPathSegment>> {
+        match self {
+            Self::Place(_) => vec![Vec::new()],
+            Self::Ingress(_, path) => vec![path.clone()],
+            Self::Alternatives(_, paths) => paths.clone(),
         }
     }
 }
@@ -65,12 +75,12 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
     if left.place() != right.place() {
         return false;
     }
-    match (left, right) {
-        (Root::Ingress(_, left), Root::Ingress(_, right)) => {
-            left.starts_with(right) || right.starts_with(left)
-        }
-        _ => true,
-    }
+    left.paths().iter().any(|left| {
+        right
+            .paths()
+            .iter()
+            .any(|right| left.starts_with(right) || right.starts_with(left))
+    })
 }
 
 /// Live reference loans keyed by current carrier location, exactly mirroring
@@ -90,14 +100,14 @@ impl Custody {
     }
 }
 
-/// The exact writable root behind one live whole-carrier reference result.
-/// The result itself has no physical home; this record is semantic replay of
-/// the caller storage the loan names, not a request to materialize the carrier.
+/// Live permission and referent-relative geometry behind a returned carrier.
+/// Candidate roots constrain authority; its pointer payload selects the address.
 pub(in crate::legalization) struct WritableReferentDestination {
     pub(in crate::legalization) producer: OperationId,
     pub(in crate::legalization) result: StructuralOperationResult,
-    pub(in crate::legalization) parameter: terminal_psi::StructuralParameterDeclaration,
+    pub(in crate::legalization) referent: StructuralTypeId,
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
+    root: Root,
 }
 
 fn returned_mutable_record_projection(
@@ -159,10 +169,7 @@ fn returned_mutable_record_projection(
     {
         return None;
     }
-    let (root, mut root_path) = match &leaf.root {
-        Root::Place(place) => (*place, Vec::new()),
-        Root::Ingress(place, path) => (*place, path.clone()),
-    };
+    let root = leaf.root.place();
     let parameter = function
         .structural_parameters
         .iter()
@@ -181,16 +188,21 @@ fn returned_mutable_record_projection(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == root)
-        || leaf_type(types, parameter.structural_type, &root_path) != Some(*referent)
+        || leaf
+            .root
+            .paths()
+            .iter()
+            .any(|path| leaf_type(types, parameter.structural_type, path) != Some(*referent))
+        || leaf.root.paths().is_empty()
     {
         return None;
     }
-    root_path.extend_from_slice(tail);
     Some(WritableReferentDestination {
         producer,
         result: leaf.result.clone(),
-        parameter: parameter.clone(),
-        path: root_path,
+        referent: *referent,
+        path: tail.to_vec(),
+        root: leaf.root.clone(),
     })
 }
 
@@ -205,8 +217,7 @@ pub(in crate::legalization) fn writable_referent_destination(
 }
 
 /// Rejoin one call-only projection through a returned mutable record. The
-/// carrier remains semantic custody; the target row transports the exact
-/// original ingress address with the captured root path and selected suffix.
+/// target row retains its actual pointer home and explicit referent crossing.
 pub(in crate::legalization) fn returned_record_call_argument(
     argument: &StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -232,26 +243,22 @@ pub(in crate::legalization) fn returned_record_call_argument(
     {
         return Err(invalid());
     }
-    let source = super::structural_parameters(target_caller)
-        .and_then(|parameters| {
-            parameters.iter().find(|source| {
-                source.place == resolved.parameter.place
-                    && source.structural_type == resolved.parameter.structural_type
-                    && source.access == resolved.parameter.access
-                    && source.multiplicity == resolved.parameter.multiplicity
-            })
-        })
-        .ok_or_else(invalid)?;
-    let access_is_compatible = resolved.parameter.access == StructuralAccess::MutableBorrow
-        && matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        );
+    let has_exact_home = target_caller.graph.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
+        matches!(operation, target_operations::TargetUnitOperation::Call {
+            psi_operation,
+            result: target_operations::TargetCallResult::Structural { result, result_home: Some(_), .. },
+            ..
+        } if *psi_operation == resolved.producer && result == &resolved.result)
+    });
+    let access_is_compatible = matches!(
+        argument.access,
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
+    );
     let (selected, source_byte_offset) =
         crate::structural_inputs::structural_reference_input::project(
-            source.structural_type,
+            resolved.referent,
             &resolved.path,
             types,
         )
@@ -264,16 +271,12 @@ pub(in crate::legalization) fn returned_record_call_argument(
         selected_shape.alignment,
     );
     let source_shape =
-        crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
+        crate::structural_inputs::structural_reference_input::shape(resolved.referent, types)
             .ok_or_else(invalid)?;
-    if !access_is_compatible
+    if !has_exact_home
+        || !access_is_compatible
         || selected != declaration.structural_type
         || destination.shape != expected_shape
-        || source.shape
-            != calling_conventions::ValueShape::borrowed_reference(
-                source_shape.byte_size,
-                source_shape.alignment,
-            )
         || selected_shape
             .byte_size
             .checked_add(source_byte_offset)
@@ -282,17 +285,19 @@ pub(in crate::legalization) fn returned_record_call_argument(
         return Err(invalid());
     }
     Ok(Some(target_operations::TargetStructuralArgument {
-        place: source.place,
+        place: argument.place,
         access: argument.access,
-        path: resolved.path,
-        root_structural_type: source.structural_type,
+        path: argument.path.clone(),
+        root_structural_type: resolved.result.structural_type,
         structural_type: selected,
         shape: destination.shape,
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         indices: Vec::new(),
-        source: source.placement.clone().into(),
+        source: target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: resolved.producer,
+        },
         destination: destination.clone(),
     }))
 }
@@ -782,15 +787,15 @@ fn normalized_source(
 fn call_source(
     callee: &PsiOptimizationFunction,
     arguments: &[StructuralArgument],
-    mapping: &terminal_psi::StructuralReferenceResultSource,
+    formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
     let position = callee
         .structural_parameters
         .iter()
-        .position(|parameter| parameter.place == mapping.source.place)?;
+        .position(|parameter| parameter.place == formal.place)?;
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(mapping.source.path.iter().cloned());
-    source.access = mapping.source.access;
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
     Some(source)
 }
 
@@ -861,7 +866,7 @@ pub(in crate::legalization) fn is_suspended_root(custody: &Custody, place: Place
     custody
         .leaves
         .values()
-        .any(|reference| reference.root == Root::Place(place))
+        .any(|reference| reference.root.place() == place)
 }
 
 /// Validate every structural call argument under reference custody. Owned
@@ -891,11 +896,7 @@ fn call_arguments(
             if argument.access == StructuralAccess::Owned {
                 return Err(invalid());
             }
-            normalized.push((
-                Root::Ingress(resolved.parameter.place, resolved.path),
-                argument.access,
-                true,
-            ));
+            normalized.push((resolved.root, argument.access, true));
             continue;
         }
         if argument_owns_references(function, custody, types, argument) {
@@ -941,7 +942,7 @@ fn call_arguments(
             || custody
                 .leaves
                 .values()
-                .any(|reference| reference.root == Root::Place(argument.place))
+                .any(|reference| reference.root.place() == argument.place)
         {
             if !is_reference_projection(function, custody, types, argument) {
                 return Err(invalid());
@@ -1019,67 +1020,72 @@ fn call_results(
     let mut roots = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
-        let source =
-            call_source(callee_function, structural_arguments, mapping).ok_or_else(|| invalid())?;
         let expected =
             leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
-        if reference_source_type(function, custody, types, &source) != Some(expected) {
-            return Err(invalid());
-        }
-        let leaf = if matches!(
-            formal_origin(callee_function, types, &mapping.source),
-            Some(Root::Ingress(place, path))
-                if callee_function
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == place)
-                    .and_then(|parameter| {
-                        leaf_type(types, parameter.structural_type, &path)
-                    })
-                    .and_then(|leaf| {
-                        types
-                            .iter()
-                            .find(|declaration| declaration.id == leaf)
-                    })
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::Reference { .. }
-                        )
-                    })
-        ) {
-            // An owned-carrier ingress mapping relocates one of the leaves the
-            // moved arguments just transferred; the leaf keeps its identity,
-            // root and parent, and lands at the declared result path.
-            let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last()
-            else {
+        validate_alternatives(mapping, expected, types)?;
+        let mut candidates = Vec::with_capacity(mapping.sources.len());
+        for formal in &mapping.sources {
+            let source = call_source(callee_function, structural_arguments, formal)
+                .ok_or_else(|| invalid())?;
+            if reference_source_type(function, custody, types, &source) != Some(expected) {
                 return Err(invalid());
-            };
-            moved
-                .get(&(source.place, carrier_path.to_vec()))
-                .cloned()
-                .ok_or_else(|| invalid())?
-        } else {
-            let (root, parent) = normalized_source(function, custody, types, &source)?;
-            Leaf {
-                identity: (result.place, mapping.path.clone()),
-                root,
-                parent,
-                operation: Some(psi_operation),
-                result: result.clone(),
-                referent: expected,
             }
-        };
-        if !roots.insert(leaf.root.clone()) {
+            let leaf = if matches!(
+                formal_origin(callee_function, types, formal),
+                Some(Root::Ingress(place, path))
+                    if callee_function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == place)
+                        .and_then(|parameter| {
+                            leaf_type(types, parameter.structural_type, &path)
+                        })
+                        .and_then(|leaf| {
+                            types
+                                .iter()
+                                .find(|declaration| declaration.id == leaf)
+                        })
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference { .. }
+                            )
+                        })
+            ) {
+                // An owned-carrier ingress mapping relocates one of the leaves the
+                // moved arguments just transferred; the leaf keeps its identity,
+                // root and parent, and lands at the declared result path.
+                let Some((StructuralPathSegment::Referent, carrier_path)) =
+                    source.path.split_last()
+                else {
+                    return Err(invalid());
+                };
+                moved
+                    .get(&(source.place, carrier_path.to_vec()))
+                    .cloned()
+                    .ok_or_else(|| invalid())?
+            } else {
+                let (root, parent) = normalized_source(function, custody, types, &source)?;
+                Leaf {
+                    identity: (result.place, mapping.path.clone()),
+                    root,
+                    parent,
+                    operation: Some(psi_operation),
+                    result: result.clone(),
+                    referent: expected,
+                }
+            };
+            candidates.push(leaf);
+        }
+        let leaf = combine_alternatives(candidates)?;
+        if roots.iter().any(|root| roots_overlap(root, &leaf.root)) {
             return Err(invalid());
         }
+        roots.insert(leaf.root.clone());
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
-            root_path: match &leaf.root {
-                Root::Place(_) => Vec::new(),
-                Root::Ingress(_, path) => path.clone(),
-            },
+            root_paths: leaf.root.paths(),
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
@@ -1087,6 +1093,74 @@ fn call_results(
         custody.leaves.insert(key, leaf);
     }
     Ok(reference_results)
+}
+
+fn validate_alternatives(
+    mapping: &terminal_psi::StructuralReferenceResultSource,
+    referent: StructuralTypeId,
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), LegalizationError> {
+    let Some(first) = mapping.sources.first() else {
+        return Err(invalid());
+    };
+    if mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
+        || (mapping.sources.len() > 1
+            && (!mapping.path.is_empty()
+                || !types.iter().any(|declaration| {
+                    declaration.id == referent
+                        && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                })
+                || mapping.sources.iter().any(|formal| {
+                    formal.place != first.place
+                        || formal.access != StructuralAccess::MutableBorrow
+                        || formal.path.is_empty()
+                        || formal.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                })))
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Alternatives retain one returned permission, not independently live loans.
+fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError> {
+    let mut candidates = candidates.into_iter();
+    let mut leaf = candidates.next().ok_or_else(invalid)?;
+    let mut paths = Vec::new();
+    for candidate in candidates {
+        if leaf.identity != candidate.identity
+            || leaf.result != candidate.result
+            || leaf.operation != candidate.operation
+            || leaf.referent != candidate.referent
+            || leaf.parent.is_some()
+            || candidate.parent.is_some()
+            || leaf.root.place() != candidate.root.place()
+        {
+            return Err(invalid());
+        }
+        let Root::Ingress(_, path) = candidate.root else {
+            return Err(invalid());
+        };
+        paths.push(path);
+    }
+    if !paths.is_empty() {
+        let Root::Ingress(place, path) = &leaf.root else {
+            return Err(invalid());
+        };
+        paths.push(path.clone());
+        paths.sort();
+        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(invalid());
+        }
+        leaf.root = Root::Alternatives(*place, paths);
+    }
+    Ok(leaf)
 }
 
 /// Remove every leaf an owned carrier at `place` still holds, in reverse
@@ -1324,7 +1398,19 @@ pub(in crate::legalization) fn return_custody(
         let leaf = custody
             .leaf(source, &mapping.path)
             .ok_or_else(|| invalid())?;
-        if Some(leaf.root.clone()) != formal_origin(function, types, &mapping.source)
+        let declared = |root: &Root| {
+            mapping
+                .sources
+                .iter()
+                .any(|formal| formal_origin(function, types, formal).as_ref() == Some(root))
+        };
+        let admitted = match &leaf.root {
+            Root::Alternatives(place, paths) => paths
+                .iter()
+                .all(|path| declared(&Root::Ingress(*place, path.clone()))),
+            root => declared(root),
+        };
+        if !admitted
             || leaf.parent.is_some()
             || custody
                 .leaves
@@ -1739,23 +1825,52 @@ pub(in crate::legalization) fn reference_results(
     let mut roots = BTreeSet::new();
     let mut expected = Vec::new();
     for mapping in &callee_result.reference_sources {
-        let source = call_source(callee, arguments, mapping).ok_or_else(|| invalid())?;
         let expected_referent =
             leaf_referent(types, result_type, &mapping.path).ok_or_else(|| invalid())?;
-        if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
+        validate_alternatives(mapping, expected_referent, types)?;
+        let mut candidates = Vec::with_capacity(mapping.sources.len());
+        for formal in &mapping.sources {
+            let source = call_source(callee, arguments, formal).ok_or_else(invalid)?;
+            if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
+                return Err(invalid());
+            }
+            let (root, parent) = normalized_source(caller, custody, types, &source)?;
+            if mapping.sources.len() > 1 && parent.is_some() {
+                return Err(invalid());
+            }
+            candidates.push(root);
+        }
+        let mut candidates = candidates.into_iter();
+        let mut root = candidates.next().ok_or_else(invalid)?;
+        let mut paths = Vec::new();
+        for candidate in candidates {
+            let Root::Ingress(place, path) = candidate else {
+                return Err(invalid());
+            };
+            if place != root.place() {
+                return Err(invalid());
+            }
+            paths.push(path);
+        }
+        if !paths.is_empty() {
+            let Root::Ingress(place, path) = root else {
+                return Err(invalid());
+            };
+            paths.push(path);
+            paths.sort();
+            if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(invalid());
+            }
+            root = Root::Alternatives(place, paths);
+        }
+        if roots.iter().any(|other| roots_overlap(other, &root)) {
             return Err(invalid());
         }
-        let (root, _) = normalized_source(caller, custody, types, &source)?;
-        if !roots.insert(root.clone()) {
-            return Err(invalid());
-        }
+        roots.insert(root.clone());
         expected.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: root.place(),
-            root_path: match &root {
-                Root::Place(_) => Vec::new(),
-                Root::Ingress(_, path) => path.clone(),
-            },
+            root_paths: root.paths(),
         });
     }
     Ok(expected)

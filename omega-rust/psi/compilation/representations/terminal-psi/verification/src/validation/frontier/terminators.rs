@@ -33,6 +33,7 @@ pub(super) fn close_block(
     frontier: StructuralOwnershipFrontier,
     snapshots: &mut VerifiedMachineStructuralFrontiers,
     incoming: &mut BTreeMap<BlockId, Vec<StructuralOwnershipFrontier>>,
+    returned_reference_sources: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
 ) -> Result<(), ModuleError> {
     let FrontierWalk {
         module, machine, ..
@@ -68,7 +69,9 @@ pub(super) fn close_block(
             close_return_unit_nominal_affine(walk, block, frontier)
         }
         Terminator::Return { .. } => close_return(walk, block, frontier),
-        Terminator::ReturnStructural { .. } => close_return_structural(walk, block, frontier),
+        Terminator::ReturnStructural { .. } => {
+            close_return_structural(walk, block, frontier, returned_reference_sources)
+        }
         Terminator::Crash { .. } => close_crash(block, frontier),
     }
 }
@@ -578,6 +581,7 @@ fn close_return_structural(
     walk: &FrontierWalk<'_>,
     block: &terminal_psi::Block,
     mut frontier: StructuralOwnershipFrontier,
+    returned_reference_sources: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
 ) -> Result<(), ModuleError> {
     let FrontierWalk {
         module,
@@ -600,6 +604,7 @@ fn close_return_structural(
         machine,
         *source,
         &mut frontier.references,
+        returned_reference_sources,
     )?;
     if let Some(place) = frontier.restoration_debt.keys().next() {
         return Err(ModuleError::BorrowedStorageRestorationPending {

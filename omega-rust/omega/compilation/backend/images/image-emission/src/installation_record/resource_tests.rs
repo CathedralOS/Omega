@@ -366,7 +366,7 @@ fn installed_stack_fact_shape_rejects_nonlocal_or_forged_call_inputs() {
 }
 
 #[test]
-fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
+fn native_reference_payload_requires_explicit_dereference() {
     let primitive = StructuralTypeId::new(1).unwrap();
     let reference = StructuralTypeId::new(2).unwrap();
     let declarations = vec![
@@ -394,18 +394,18 @@ fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
         declarations
     );
     assert_eq!(reader.remaining(), 0);
-    // A carrier's value shape is the canonical empty aggregate slot; the loan
-    // is metadata and never pointer-sized storage.
+    // A carrier stores an address word, not the referent's value. The loan
+    // remains independently checked custody rather than authority in the bits.
     assert_eq!(
         crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
             reference,
             &declarations,
         ),
-        Some(calling_conventions::ValueShape::integer(0, 1))
+        Some(calling_conventions::ValueShape::integer(8, 8))
     );
     let path = vec![terminal_psi::StructuralPathSegment::Referent];
-    // A referent crossing is custody metadata, never a physical byte
-    // projection or a partial-cleanup subtree.
+    // Crossing Referent requires loading the address word, never a static
+    // byte projection within the carrier or a partial-cleanup subtree.
     assert_eq!(
         crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
             reference,

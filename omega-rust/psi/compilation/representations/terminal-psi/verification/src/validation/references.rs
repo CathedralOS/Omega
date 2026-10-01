@@ -28,6 +28,12 @@ enum ReferenceOrigin {
     /// An internal owned ingress assumes one existing permission per leaf.
     /// Its callers must supply the actual lineage; this is not local backing.
     IngressLeaf(ReferenceIdentity),
+    /// One runtime-selected referent, conservatively pinning every candidate
+    /// beneath one ingress. These are alternatives, not simultaneous loans.
+    Alternatives {
+        place: PlaceId,
+        paths: Vec<Vec<StructuralPathSegment>>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -696,28 +702,130 @@ pub(super) fn validate_machine(
             "reference result source roster has extra mappings",
         ));
     }
+    if result
+        .reference_sources
+        .iter()
+        .any(|mapping| mapping.sources.len() > 1)
+    {
+        validate_alternative_result_dependencies(module, machine)?;
+    }
     let mut sources = BTreeSet::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent = leaf_referent(module, result.structural_type, path)
             .ok_or_else(|| invalid(machine, "reference result leaf is unsupported"))?;
         if mapping.path != *path
-            || !matches!(
-                mapping.source.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            )
-            || !sources.insert((mapping.source.place, mapping.source.path.clone()))
-            || !machine
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == mapping.source.place)
-            || source_type(module, machine, &mapping.source) != Some(expected_referent)
-            || !leaf_access_within(module, result.structural_type, path, mapping.source.access)
-            || formal_origin(machine, &mapping.source).is_none()
+            || mapping.sources.is_empty()
+            || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err(invalid(
                 machine,
-                "reference result does not name an exact mutable formal referent",
+                "reference result candidates are absent, duplicated, or unordered",
             ));
+        }
+        if mapping.sources.len() > 1 {
+            let first = &mapping.sources[0];
+            let record = module.structural_types.iter().any(|declaration| {
+                declaration.id == expected_referent
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            });
+            // Dynamic result addresses currently represent one whole mutable
+            // record under one borrowed formal. General reference-bearing
+            // records and inter-formal selections keep their explicit fence.
+            if !path.is_empty()
+                || !record
+                || reference_access(module, result.structural_type)
+                    != Some(StructuralAccess::MutableBorrow)
+                || mapping.sources.iter().any(|source| {
+                    source.place != first.place
+                        || source.access != StructuralAccess::MutableBorrow
+                        || source.path.is_empty()
+                        || source.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                })
+            {
+                return Err(invalid(
+                    machine,
+                    "reference result alternatives require one mutable record ingress",
+                ));
+            }
+        }
+        for source in &mapping.sources {
+            if !matches!(
+                source.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            ) || !sources.insert((source.place, source.path.clone()))
+                || !machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == source.place)
+                || source_type(module, machine, source) != Some(expected_referent)
+                || !leaf_access_within(module, result.structural_type, path, source.access)
+                || formal_origin(machine, source).is_none()
+            {
+                return Err(invalid(
+                    machine,
+                    "reference result does not name an exact mutable formal referent",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Exact candidate coverage must be founded in return bodies, not a recursive
+/// interface naming itself. Until recursive origin summaries have their own
+/// least-fixed-point replay, grouped-result dependency cycles remain explicit.
+fn validate_alternative_result_dependencies(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), ModuleError> {
+    // A descendant with a singleton declaration can otherwise provide circular
+    // evidence for one of this machine's candidates. Detect every reachable
+    // reference-result cycle, while permitting shared acyclic dependencies.
+    let mut pending = vec![(machine.id, false)];
+    let mut active = BTreeSet::new();
+    let mut completed = BTreeSet::new();
+    while let Some((current, exiting)) = pending.pop() {
+        if exiting {
+            active.remove(&current);
+            completed.insert(current);
+            continue;
+        }
+        if completed.contains(&current) {
+            continue;
+        }
+        if !active.insert(current) {
+            return Err(invalid(
+                machine,
+                "recursive selected-reference results require founded origin summaries",
+            ));
+        }
+        pending.push((current, true));
+        let Some(current) = module
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == current)
+        else {
+            return Err(invalid(machine, "reference result dependency is absent"));
+        };
+        for operation in current.blocks.iter().flat_map(|block| &block.operations) {
+            let callee = match &operation.kind {
+                OperationKind::CallStructural { callee, .. }
+                | OperationKind::CallStructuralWithScalarArguments { callee, .. }
+                    if operation.result.structural().is_some_and(|result| {
+                        contains_reference(module, result.structural_type)
+                    }) =>
+                {
+                    *callee
+                }
+                _ => continue,
+            };
+            pending.push((callee, false));
         }
     }
     Ok(())
@@ -969,15 +1077,15 @@ pub(super) fn validate_uses(
 fn call_source(
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
-    mapping: &terminal_psi::StructuralReferenceResultSource,
+    formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
     let position = callee
         .structural_parameters
         .iter()
-        .position(|parameter| parameter.place == mapping.source.place)?;
+        .position(|parameter| parameter.place == formal.place)?;
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(mapping.source.path.iter().cloned());
-    source.access = mapping.source.access;
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
     Some(source)
 }
 
@@ -1179,6 +1287,37 @@ fn origin_root(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
         ReferenceOrigin::Primitive(place) => *place,
         ReferenceOrigin::IngressLeaf(identity) => identity.place,
+        ReferenceOrigin::Alternatives { place, .. } => *place,
+    }
+}
+
+fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
+    if origin_root(left) != origin_root(right) {
+        return false;
+    }
+    let overlaps_path = |path: &[StructuralPathSegment]| match right {
+        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::IngressLeaf(identity) => {
+            path.starts_with(&identity.path) || identity.path.starts_with(path)
+        }
+        ReferenceOrigin::Alternatives { paths, .. } => paths
+            .iter()
+            .any(|other| path.starts_with(other) || other.starts_with(path)),
+    };
+    match left {
+        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
+        ReferenceOrigin::Alternatives { paths, .. } => paths.iter().any(|path| overlaps_path(path)),
+    }
+}
+
+fn contains_origin(origins: &ReferenceOrigin, candidate: &ReferenceOrigin) -> bool {
+    match (origins, candidate) {
+        (
+            ReferenceOrigin::Alternatives { place, paths },
+            ReferenceOrigin::IngressLeaf(identity),
+        ) => *place == identity.place && paths.binary_search(&identity.path).is_ok(),
+        _ => origins == candidate,
     }
 }
 
@@ -1726,7 +1865,7 @@ pub(super) fn apply_operation(
         if normalized_arguments[position + 1..].iter().any(
             |(other, other_access, other_reference_access)| {
                 (*reference_access || *other_reference_access)
-                    && root == other
+                    && origins_overlap(root, other)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
             },
@@ -1743,7 +1882,10 @@ pub(super) fn apply_operation(
             if let Some((_, position)) = transfers_existing {
                 moved.insert(live[position].identity.clone());
             }
-            vec![(Vec::new(), source.clone(), transfers_existing.is_some())]
+            vec![(
+                Vec::new(),
+                vec![(source.clone(), transfers_existing.is_some())],
+            )]
         }
         OperationKind::CallStructural {
             callee,
@@ -1769,13 +1911,16 @@ pub(super) fn apply_operation(
                 .reference_sources
                 .iter()
                 .map(|mapping| {
-                    call_source(callee, structural_arguments, mapping)
+                    let sources = mapping
+                        .sources
+                        .iter()
+                        .map(|formal| {
+                            call_source(callee, structural_arguments, formal)
                         .map(|source| {
                             (
-                                mapping.path.clone(),
                                 source,
                                 matches!(
-                                    formal_origin(callee, &mapping.source),
+                                    formal_origin(callee, formal),
                                     Some(ReferenceOrigin::IngressLeaf(identity))
                                         if super::structural::result_contracts::source_signature(
                                             callee,
@@ -1795,6 +1940,9 @@ pub(super) fn apply_operation(
                             )
                         })
                         .ok_or_else(|| invalid(machine, "reference call source mapping is absent"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok((mapping.path.clone(), sources))
                 })
                 .collect::<Result<Vec<_>, _>>()?
         }
@@ -1815,65 +1963,75 @@ pub(super) fn apply_operation(
         // argument spellings. Borrowing a result does not move its parent loan.
         let mut established = Vec::with_capacity(sources.len());
         let mut roots = BTreeSet::new();
-        for (path, source, transfers_existing) in sources {
+        for (path, candidates) in sources {
             let expected = leaf_referent(module, result.structural_type, &path)
                 .ok_or_else(|| invalid(machine, "reference call result leaf is unsupported"))?;
-            if source_type(module, machine, &source) != Some(expected) {
-                return Err(invalid(
-                    machine,
-                    "reference result changes its mapped source type",
-                ));
-            }
-            if !leaf_access_within(module, result.structural_type, &path, source.access) {
-                return Err(invalid(
-                    machine,
-                    "reference result exceeds its mapped source authority",
-                ));
-            }
-            let reference = if transfers_existing {
-                let Some((StructuralPathSegment::Referent, carrier_path)) =
-                    source.path.split_last()
-                else {
+            let mut alternatives = Vec::with_capacity(candidates.len());
+            for (source, transfers_existing) in candidates {
+                if source_type(module, machine, &source) != Some(expected) {
                     return Err(invalid(
                         machine,
-                        "owned result mapping has no incoming leaf",
+                        "reference result changes its mapped source type",
                     ));
-                };
-                let mut reference = live
-                    .iter()
-                    .find(|reference| {
-                        reference.carrier == source.place && reference.carrier_path == carrier_path
-                    })
-                    .filter(|reference| moved.contains(&reference.identity))
-                    .cloned()
-                    .ok_or_else(|| {
-                        invalid(
-                            machine,
-                            "returned reference is not among the transferred leaves",
-                        )
-                    })?;
-                reference.carrier = result.place;
-                reference.carrier_path = path;
-                reference
-            } else {
-                let (root, parent) = normalized_source(module, machine, live, &source)?;
-                LiveReference {
-                    identity: ReferenceIdentity {
-                        place: result.place,
-                        path: path.clone(),
-                    },
-                    carrier: result.place,
-                    carrier_path: path,
-                    root,
-                    parent,
                 }
-            };
-            if !roots.insert(reference.root.clone()) {
+                if !leaf_access_within(module, result.structural_type, &path, source.access) {
+                    return Err(invalid(
+                        machine,
+                        "reference result exceeds its mapped source authority",
+                    ));
+                }
+                let reference = if transfers_existing {
+                    let Some((StructuralPathSegment::Referent, carrier_path)) =
+                        source.path.split_last()
+                    else {
+                        return Err(invalid(
+                            machine,
+                            "owned result mapping has no incoming leaf",
+                        ));
+                    };
+                    let mut reference = live
+                        .iter()
+                        .find(|reference| {
+                            reference.carrier == source.place
+                                && reference.carrier_path == carrier_path
+                        })
+                        .filter(|reference| moved.contains(&reference.identity))
+                        .cloned()
+                        .ok_or_else(|| {
+                            invalid(
+                                machine,
+                                "returned reference is not among the transferred leaves",
+                            )
+                        })?;
+                    reference.carrier = result.place;
+                    reference.carrier_path = path.clone();
+                    reference
+                } else {
+                    let (root, parent) = normalized_source(module, machine, live, &source)?;
+                    LiveReference {
+                        identity: ReferenceIdentity {
+                            place: result.place,
+                            path: path.clone(),
+                        },
+                        carrier: result.place,
+                        carrier_path: path.clone(),
+                        root,
+                        parent,
+                    }
+                };
+                alternatives.push(reference);
+            }
+            let reference = combine_alternative_references(machine, alternatives)?;
+            if roots
+                .iter()
+                .any(|root| origins_overlap(root, &reference.root))
+            {
                 return Err(invalid(
                     machine,
                     "reference result aliases its mapped sources",
                 ));
             }
+            roots.insert(reference.root.clone());
             established.push(reference);
         }
         // Normal completion consumes the incoming owners. Returned carriers
@@ -1888,11 +2046,66 @@ pub(super) fn apply_operation(
     Ok(())
 }
 
+fn combine_alternative_references(
+    machine: &TerminalMachine,
+    alternatives: Vec<LiveReference>,
+) -> Result<LiveReference, ModuleError> {
+    let mut alternatives = alternatives.into_iter();
+    let mut reference = alternatives
+        .next()
+        .ok_or_else(|| invalid(machine, "reference result has no possible origin"))?;
+    let mut paths = Vec::new();
+    for alternative in alternatives {
+        if reference.identity != alternative.identity
+            || reference.carrier != alternative.carrier
+            || reference.carrier_path != alternative.carrier_path
+            || reference.parent != ReferenceParent::Root(reference.root.clone())
+            || alternative.parent != ReferenceParent::Root(alternative.root.clone())
+            || origin_root(&reference.root) != origin_root(&alternative.root)
+        {
+            return Err(invalid(
+                machine,
+                "reference result alternatives change carrier or ingress custody",
+            ));
+        }
+        let ReferenceOrigin::IngressLeaf(identity) = alternative.root else {
+            return Err(invalid(
+                machine,
+                "reference result alternatives require exact ingress paths",
+            ));
+        };
+        paths.push(identity.path);
+    }
+    if !paths.is_empty() {
+        let ReferenceOrigin::IngressLeaf(identity) = &reference.root else {
+            return Err(invalid(
+                machine,
+                "reference result alternatives require exact ingress paths",
+            ));
+        };
+        paths.push(identity.path.clone());
+        paths.sort();
+        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(invalid(
+                machine,
+                "reference result alternatives duplicate one origin",
+            ));
+        }
+        reference.root = ReferenceOrigin::Alternatives {
+            place: identity.place,
+            paths,
+        };
+        reference.parent = ReferenceParent::Root(reference.root.clone());
+    }
+    Ok(reference)
+}
+
 pub(super) fn transfer_return(
     module: &TerminalModule,
     machine: &TerminalMachine,
     source: PlaceId,
     live: &mut Vec<LiveReference>,
+    observed: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
 ) -> Result<bool, ModuleError> {
     let Some(signature) = super::structural::result_contracts::source_signature(machine, source)
     else {
@@ -1925,15 +2138,60 @@ pub(super) fn transfer_return(
             .iter()
             .find(|reference| reference.carrier == source && reference.carrier_path == mapping.path)
             .ok_or_else(|| invalid(machine, "returned reference carrier is not live"))?;
-        if Some(reference.root.clone()) != formal_origin(machine, &mapping.source)
+        let sources = mapping
+            .sources
+            .iter()
+            .filter(|source| {
+                formal_origin(machine, source)
+                    .is_some_and(|origin| contains_origin(&reference.root, &origin))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let origin_count = match &reference.root {
+            ReferenceOrigin::Alternatives { paths, .. } => paths.len(),
+            _ => 1,
+        };
+        if sources.len() != origin_count
             || reference.parent != ReferenceParent::Root(reference.root.clone())
             || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
         {
             return Err(invalid(machine, "reference return escapes local custody or differs from its formal source"));
         }
+        observed.push(terminal_psi::StructuralReferenceResultSource {
+            path: mapping.path.clone(),
+            sources,
+        });
     }
     // This removes frame-local ownership rows, not the referents or the loans.
     // The caller independently instantiates the checked result source roster.
     live.retain(|reference| reference.carrier != source);
     Ok(true)
+}
+
+/// Membership rejects missing candidates at each exit; this union rejects
+/// fabricated alternatives that no reachable normal return can produce.
+pub(super) fn validate_return_coverage(
+    machine: &TerminalMachine,
+    observed: &[terminal_psi::StructuralReferenceResultSource],
+) -> Result<(), ModuleError> {
+    let Some(result) = machine.result.structural() else {
+        return Ok(());
+    };
+    for mapping in &result.reference_sources {
+        if mapping.sources.len() <= 1 {
+            continue;
+        }
+        let sources = observed
+            .iter()
+            .filter(|returned| returned.path == mapping.path)
+            .flat_map(|returned| returned.sources.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        if sources.into_iter().collect::<Vec<_>>() != mapping.sources {
+            return Err(invalid(
+                machine,
+                "reference result alternatives differ from reachable return origins",
+            ));
+        }
+    }
+    Ok(())
 }

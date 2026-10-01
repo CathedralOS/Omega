@@ -59,7 +59,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                 declaration.id == parameter.semantic.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Record { .. }
+                        StructuralTypeShape::Reference { .. }
+                            | StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::Mixed { .. }
                             | StructuralTypeShape::FixedArray { .. }
@@ -108,6 +109,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
+            LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
             // Byte operations read the owner's length and backing, not a
             // pointer encoded in its first incoming register fragment.
             LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
@@ -304,7 +306,8 @@ pub(super) fn call_result<'a>(
                 )
             })?
         }
-        terminal_psi::StructuralTypeShape::Sum { .. }
+        terminal_psi::StructuralTypeShape::Reference { .. }
+        | terminal_psi::StructuralTypeShape::Sum { .. }
         | terminal_psi::StructuralTypeShape::Mixed { .. } => {
             crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
@@ -560,9 +563,10 @@ pub(super) fn returned<'a>(
                 LegalizedScalarInstructionKind::EstablishCase { result, layout, .. } => {
                     (result, layout.shape)
                 }
-                // A returned reference carrier names its custody slot only;
-                // the zero-byte shape keeps the empty-aggregate return ABI.
+                // The completed carrier home stores its selected address,
+                // which uses the ordinary one-word aggregate result ABI.
                 LegalizedScalarInstructionKind::EstablishReference { result, shape, .. } => {
+                    super::reference_input::establishment(source, row)?;
                     (result, *shape)
                 }
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
@@ -879,7 +883,8 @@ pub(super) fn home(
         .flat_map(|block| &block.instructions)
         .filter_map(|row| {
             let result = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
+                LegalizedScalarInstructionKind::EstablishReference { result, .. }
+                | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                     result,
                     ..
@@ -913,7 +918,8 @@ pub(super) fn home(
                 declaration.id == result.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Record { .. }
+                        StructuralTypeShape::Reference { .. }
+                            | StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::FixedArray { .. }
                             | StructuralTypeShape::ByteSequence(
@@ -925,6 +931,19 @@ pub(super) fn home(
         return None;
     }
     let signature = source.structural.as_ref()?;
+    if signature.structural_types.iter().any(|declaration| {
+        declaration.id == result.structural_type
+            && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+    }) && (result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !result.qualification_establishments.is_empty()
+        || !matches!(
+            row.kind,
+            LegalizedScalarInstructionKind::EstablishReference { .. }
+                | LegalizedScalarInstructionKind::Call(_)
+        ))
+    {
+        return None;
+    }
     if !signature.structural_places.iter().any(|declaration| {
         declaration.id == place
             && declaration.kind

@@ -107,31 +107,18 @@ pub(in crate::lowering) fn lower_field_store(
             }
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
-            if let Some(resolved) = reference_destination
-                && resolved.producer == *producer
-                && resolved.result == *result
-            {
-                let parameter = parameters_by_place
-                    .get(&resolved.parameter.place)
-                    .copied()
-                    .filter(|parameter| {
-                        parameter.structural_type == resolved.parameter.structural_type
-                            && parameter.multiplicity == resolved.parameter.multiplicity
-                            && parameter.access == resolved.parameter.access
-                            && parameter.projected_qualifications
-                                == resolved.parameter.projected_qualifications
-                    })
-                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+            if let Some(resolved) = reference_destination.as_ref() {
+                if resolved.producer != *producer || resolved.result != *result {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
-                    ))?;
+                    ));
+                }
                 (
-                    abstract_operations::StructuralScalarStoreDestination::Parameter(
-                        resolved.parameter,
-                    ),
-                    resolved.path,
-                    target_operations::TargetStructuralArgumentSource::Placement(
-                        parameter.placement.clone(),
-                    ),
+                    destination.clone(),
+                    path.clone(),
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: *producer,
+                    },
                 )
             } else {
                 let home = structural_homes
@@ -207,13 +194,20 @@ pub(in crate::lowering) fn lower_field_store(
             )
         }
     };
-    if !terminal_psi::is_structural_scalar_store_path(&path) {
+    // Geometry after a reference crossing is relative to the loaded pointer,
+    // not the carrier's eight-byte home. Retain the original destination and
+    // crossing on the target row so receiving replay must check that load.
+    let (projection_root, projection_path) = reference_destination
+        .as_ref()
+        .map(|reference| (reference.referent, reference.path.as_slice()))
+        .unwrap_or((destination.structural_type(), path.as_slice()));
+    if !terminal_psi::is_structural_scalar_store_path(projection_path) {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
     }
     let destination_shape = super::super::structural_layout::structural_shape(
-        destination.structural_type(),
+        projection_root,
         structural_types,
         shape_cache,
         active,
@@ -268,8 +262,8 @@ pub(in crate::lowering) fn lower_field_store(
     // an `(index, stride)` run over its selector's dominating source. The
     // element's bound stays the store's verified obligation.
     let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
-        destination.structural_type(),
-        &path,
+        projection_root,
+        projection_path,
         structural_types,
         shape_cache,
         active,

@@ -28,6 +28,12 @@ pub(crate) enum ReferenceOrigin {
     Primitive(PlaceId),
     /// An internal owned ingress assumes one existing permission per leaf.
     IngressLeaf(ReferenceIdentity),
+    /// One selected referent, conservatively suspending every possible path.
+    /// These paths belong to one permission carrier, not separate loans.
+    Alternatives {
+        place: PlaceId,
+        paths: Vec<Vec<terminal_psi::StructuralPathSegment>>,
+    },
 }
 
 /// One outstanding loan: which carrier leaf holds it, which original referent
@@ -702,6 +708,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
 /// result's declared source roster maps to formal ingress leaves.
 pub(crate) fn validate_function_references(
     function: &PsiOptimizationFunction,
+    functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
@@ -836,26 +843,109 @@ pub(crate) fn validate_function_references(
     if paths.len() != result.reference_sources.len() {
         return Err(invalid());
     }
+    if result
+        .reference_sources
+        .iter()
+        .any(|mapping| mapping.sources.len() > 1)
+    {
+        validate_alternative_result_dependencies(function, functions, types)?;
+    }
     let mut sources = BTreeSet::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent =
             leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;
         if mapping.path != *path
-            || !matches!(
-                mapping.source.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::SharedBorrow
-            )
-            || !sources.insert((mapping.source.place, mapping.source.path.clone()))
-            || !function
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == mapping.source.place)
-            || reference_source_type(function, types, &mapping.source) != Some(expected_referent)
-            || !leaf_access_within(types, result.structural_type, path, mapping.source.access)
-            || formal_origin(function, &mapping.source).is_none()
+            || mapping.sources.is_empty()
+            || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err(invalid());
+        }
+        if mapping.sources.len() > 1 {
+            let first = &mapping.sources[0];
+            if !path.is_empty()
+                || !types.get(&expected_referent).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. }
+                    )
+                })
+                || reference_access(types, result.structural_type)
+                    != Some(terminal_psi::StructuralAccess::MutableBorrow)
+                || mapping.sources.iter().any(|source| {
+                    source.place != first.place
+                        || source.access != terminal_psi::StructuralAccess::MutableBorrow
+                        || source.path.is_empty()
+                        || source.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                terminal_psi::StructuralPathSegment::Field(_)
+                                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                })
+            {
+                return Err(invalid());
+            }
+        }
+        for formal in &mapping.sources {
+            if !matches!(
+                formal.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::SharedBorrow
+            ) || !sources.insert((formal.place, formal.path.clone()))
+                || !function
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == formal.place)
+                || reference_source_type(function, types, formal) != Some(expected_referent)
+                || !leaf_access_within(types, result.structural_type, path, formal.access)
+                || formal_origin(function, formal).is_none()
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Candidate coverage must ultimately come from bodies, not circular result
+/// declarations. Reject every reachable reference-result cycle, including a
+/// singleton descendant's recursion; shared acyclic dependencies remain valid.
+fn validate_alternative_result_dependencies(
+    function: &PsiOptimizationFunction,
+    functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
+        machine: Some(function.machine),
+    };
+    let mut pending = vec![(function.machine, false)];
+    let mut active = BTreeSet::new();
+    let mut completed = BTreeSet::new();
+    while let Some((current, exiting)) = pending.pop() {
+        if exiting {
+            active.remove(&current);
+            completed.insert(current);
+            continue;
+        }
+        if completed.contains(&current) {
+            continue;
+        }
+        if !active.insert(current) {
+            return Err(invalid());
+        }
+        pending.push((current, true));
+        let current = functions.get(&current).ok_or_else(invalid)?;
+        for node in current.blocks.iter().flat_map(|block| &block.nodes) {
+            if let O::CallStructural {
+                callee,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } = &node.operation
+                && contains_reference(types, result.structural_type)
+            {
+                pending.push((*callee, false));
+            }
         }
     }
     Ok(())

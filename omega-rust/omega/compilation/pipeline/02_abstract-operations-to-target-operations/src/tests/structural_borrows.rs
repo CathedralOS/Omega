@@ -1225,7 +1225,7 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
         projected_qualifications: Vec::new(),
         reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
             path: leaf_path(),
-            source,
+            sources: vec![source],
         }],
     };
     let result = |place| terminal_psi::StructuralOperationResult {
@@ -1983,6 +1983,88 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
 }
 
 #[test]
+fn selected_reference_result_retains_every_root_path() {
+    let source = source_plan(
+        r#"
+            data Holder { value: u64; }
+            data Bag { holders: [Holder; 3]; }
+            data Main { bag: Bag; }
+            machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
+                let holders: &mut [Holder] = bag.holders.as_mut_slice();
+                transition second {
+                    true -> &mut holders[1]
+                    false -> &mut holders[0]
+                }
+            }
+            machine Main::run(&mut self) {
+                let selected: &mut Holder = pick(&mut self.bag, true);
+            }
+        "#,
+    );
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("selected reference custody lowers without choosing an address");
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("receiver reconstructs both possible roots");
+        let is_selected = |operation: &TargetUnitOperation| {
+            matches!(operation,
+            TargetUnitOperation::Call {
+                result: target_operations::TargetCallResult::Structural { reference_results, .. },
+                ..
+            } if reference_results.iter().any(|reference| reference.root_paths.len() == 2))
+        };
+        assert!(
+            target
+                .functions
+                .iter()
+                .flat_map(|function| &function.graph.blocks)
+                .flat_map(|block| &block.operations)
+                .any(is_selected)
+        );
+        for mutation in 0..6 {
+            let mut changed = target.clone();
+            let operation = changed
+                .functions
+                .iter_mut()
+                .flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| is_selected(operation))
+                .expect("selected result call");
+            let TargetUnitOperation::Call {
+                result:
+                    target_operations::TargetCallResult::Structural {
+                        reference_results, ..
+                    },
+                ..
+            } = operation
+            else {
+                panic!("selected call");
+            };
+            let reference = &mut reference_results[0];
+            assert!(reference.sole_root_path().is_none());
+            match mutation {
+                0 => {
+                    reference.root_paths.pop();
+                }
+                1 => reference.root_paths.clear(),
+                2 => reference.root_paths.swap(0, 1),
+                3 => reference.root_paths[1] = reference.root_paths[0].clone(),
+                4 => {
+                    *reference.root_paths[1].last_mut().unwrap() =
+                        terminal_psi::StructuralPathSegment::FixedIndex(2);
+                }
+                _ => reference.root = PlaceId::new(777).unwrap(),
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "candidate mutation {mutation} accepted"
+            );
+        }
+    }
+}
+
+#[test]
 fn structural_result_call_rejects_forged_reference_result_rows() {
     let source = reference_result_call_plan();
     let expected =
@@ -2206,7 +2288,7 @@ fn returned_record_call_rejects_forged_physical_origins(program: &str, projected
                 .map(|field| field.identity.clone())
         });
         assert_eq!(sibling_field.is_some(), projected);
-        for corruption in 0..if projected { 4 } else { 3 } {
+        for corruption in 0..if projected { 6 } else { 5 } {
             let changed = mutate_call_row(
                 &target,
                 |operation| {
@@ -2222,20 +2304,21 @@ fn returned_record_call_rejects_forged_physical_origins(program: &str, projected
                     match corruption {
                         0 => argument.place = PlaceId::new(999).unwrap(),
                         1 => {
-                            let index = argument
-                                .path
-                                .iter_mut()
-                                .find(|segment| {
-                                    matches!(
-                                        segment,
-                                        terminal_psi::StructuralPathSegment::FixedIndex(_)
-                                    )
-                                })
-                                .expect("captured fixed index");
-                            *index = terminal_psi::StructuralPathSegment::FixedIndex(0);
+                            assert_eq!(
+                                argument.path[0],
+                                terminal_psi::StructuralPathSegment::Referent
+                            );
+                            argument.path[0] = terminal_psi::StructuralPathSegment::FixedIndex(0);
                         }
                         2 => argument.source_byte_offset += 8,
                         3 => {
+                            argument.source =
+                                target_operations::TargetStructuralArgumentSource::StructuralHome {
+                                    psi_operation: OperationId::new(999).unwrap(),
+                                };
+                        }
+                        4 => argument.root_structural_type = argument.structural_type,
+                        5 => {
                             let field = argument.path.last_mut().expect("selected child field");
                             *field = terminal_psi::StructuralPathSegment::Field(
                                 sibling_field.clone().expect("same-typed sibling identity"),

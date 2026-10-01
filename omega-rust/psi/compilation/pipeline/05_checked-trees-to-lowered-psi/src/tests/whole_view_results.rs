@@ -43,9 +43,10 @@ fn parameter_whole_view_result_reaches_module_validation() {
     let [source] = result.reference_sources.as_slice() else {
         panic!("one reference source: {:?}", result.reference_sources);
     };
-    assert_eq!(source.source.place, parameter.place);
+    let source = source.sole_source().expect("one possible reference origin");
+    assert_eq!(source.place, parameter.place);
     assert!(
-        source.source.path.is_empty(),
+        source.path.is_empty(),
         "the whole view names the carrier parameter itself"
     );
     // The roster is custody, not decoration: a result that names no source

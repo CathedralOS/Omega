@@ -624,6 +624,12 @@ pub(super) fn replacement_footprints_retained(
     else {
         return false;
     };
+    if matches!(operation, AbstractOperation::StructuralByteSequenceFieldStore { path, .. }
+        if matches!(path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
+        && !pointer_read_before(accesses, *psi_operation, write_place, read.instruction)
+    {
+        return false;
+    }
     let Role::ReadByteSpan {
         length: read_length,
         obligation: read_obligation,
@@ -970,15 +976,24 @@ fn reference_root(
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match operation {
             TargetUnitOperation::Call {
+                psi_operation,
                 result:
                     target_operations::TargetCallResult::Structural {
                         result,
-                        result_home: None,
+                        result_home: Some(home),
                         reference_results,
                         ..
                     },
                 ..
-            } if result.place == place => Some(reference_results),
+            } if result.place == place
+                && home.operation_result() == Some((*psi_operation, result))
+                && home.layout
+                    == target_operations::TargetStructuralHomeLayout::Aggregate(
+                        calling_conventions::ValueShape::integer(8, 8),
+                    ) =>
+            {
+                Some(reference_results)
+            }
             _ => None,
         });
     let leaves = calls.next()?;
@@ -987,13 +1002,12 @@ fn reference_root(
     }
     let mut roots = leaves.iter().filter(|leaf| leaf.path.is_empty());
     let root = roots.next()?;
-    (roots.next().is_none()).then(|| (root.root, root.root_path.clone()))
+    let root_path = root.sole_root_path()?;
+    (roots.next().is_none()).then(|| (root.root, root_path.to_vec()))
 }
 
-/// Resolve a write spelled on a bare returned reference onto the exact root
-/// already retained by its call-result custody roster. The carrier remains
-/// zero-storage permission metadata; publication never treats it as a home or
-/// descriptor.
+/// Retain the actual pointer carrier for a write through a returned reference.
+/// Every candidate constrains custody; none chooses the runtime address.
 fn write_destination(
     function: &AbstractFunction,
     target: &TargetFunction,
@@ -1001,7 +1015,11 @@ fn write_destination(
     path: &[terminal_psi::StructuralPathSegment],
     purpose: AccessPurpose,
 ) -> Option<StructuralArgument> {
-    if let Some((access, structural_type)) = read_access(function, target, place, purpose) {
+    if !matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) && let Some((access, structural_type)) = read_access(function, target, place, purpose)
+    {
         // Whole byte-field replacement may mutate an existing copy-record
         // home. read_access has already rejoined its exact target producer;
         // this adds no owned-parameter or indexed-store write authority.
@@ -1041,19 +1059,25 @@ fn write_destination(
             path: path.to_vec(),
         });
     }
-    let (terminal_psi::StructuralPathSegment::Referent, tail) = path.split_first()? else {
+    let (terminal_psi::StructuralPathSegment::Referent, _) = path.split_first()? else {
         return None;
     };
-    let result = function
+    let mut producers = function
         .operations
         .iter()
-        .find_map(|operation| match operation {
+        .filter_map(|operation| match operation {
             AbstractOperation::CallStructural {
+                psi_operation,
+                callee,
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
-            } if result.place == place => Some(result),
+            } if result.place == place => Some((*psi_operation, *callee, result)),
             _ => None,
-        })?;
+        });
+    let (producer, callee, result) = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.qualification_establishments.is_empty()
         || !result.qualifications.is_empty()
@@ -1072,20 +1096,86 @@ fn write_destination(
     {
         return None;
     }
-    let (root, mut root_path) = reference_root(target, place)?;
-    let (access, _) = read_access(function, target, root, purpose)?;
+    let terminal_psi::StructuralTypeShape::Reference { referent, .. } = target
+        .graph
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)?
+        .shape
+    else {
+        return None;
+    };
+    if !target.graph.structural_types.iter().any(|declaration| {
+        declaration.id == referent
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Record { .. }
+            )
+    }) {
+        return None;
+    }
+    let mut retained = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation {
+            TargetUnitOperation::Call {
+                psi_operation,
+                callee: actual_callee,
+                result:
+                    target_operations::TargetCallResult::Structural {
+                        result: actual,
+                        result_home: Some(home),
+                        reference_results,
+                        ..
+                    },
+                ..
+            } if *psi_operation == producer
+                && *actual_callee == callee
+                && actual == result
+                && home.operation_result() == Some((producer, result))
+                && home.layout
+                    == target_operations::TargetStructuralHomeLayout::Aggregate(
+                        calling_conventions::ValueShape::integer(8, 8),
+                    ) =>
+            {
+                Some(reference_results)
+            }
+            _ => None,
+        });
+    let [leaf] = retained.next()?.as_slice() else {
+        return None;
+    };
+    if retained.next().is_some()
+        || !leaf.path.is_empty()
+        || leaf.root_paths.is_empty()
+        || leaf.root_paths.windows(2).any(|pair| pair[0] >= pair[1])
+    {
+        return None;
+    }
+    let (access, root_type) = read_access(function, target, leaf.root, purpose)?;
     if !matches!(
         access,
         terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) {
+    ) || leaf.root_paths.iter().any(|path| {
+        if path.is_empty() {
+            return root_type != referent;
+        }
+        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+            root_type,
+            path,
+            &target.graph.structural_types,
+        )
+        .is_none_or(|(selected, _, _)| selected != referent)
+    }) {
         return None;
     }
-    root_path.extend_from_slice(tail);
     Some(StructuralArgument {
-        place: root,
-        access,
-        path: root_path,
+        place,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+        path: path.to_vec(),
     })
 }
 
@@ -1106,6 +1196,14 @@ pub(super) fn scalar_store_place(
     ) {
         return Some(destination.place());
     }
+    let abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } =
+        destination
+    else {
+        return None;
+    };
+    if !function.operations.iter().any(|operation| matches!(operation,
+        AbstractOperation::CallStructural { psi_operation, result: AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
+        if psi_operation == producer && actual == result)) { return None; }
     write_destination(
         function,
         target,
@@ -1114,6 +1212,64 @@ pub(super) fn scalar_store_place(
         AccessPurpose::Field,
     )
     .map(|destination| destination.place)
+}
+
+fn pointer_read_before(
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+    operation: semantic_vocabulary::OperationId,
+    carrier: semantic_vocabulary::PlaceId,
+    before: selected_instructions::SelectedInstructionId,
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let mut reads = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(operation)
+            && access.role == Role::ReadPlace
+            && access.place == carrier
+    });
+    matches!(reads.next(), Some(read) if read.byte_offset == 0 && read.byte_count == 8
+        && read.instruction < before)
+        && reads.next().is_none()
+}
+
+pub(super) fn scalar_store_footprints_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::StructuralScalarFieldStore {
+        psi_operation,
+        path,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(place) = scalar_store_place(function, operation, target) else {
+        return false;
+    };
+    let mut writes = accesses.iter().filter(|access| {
+        access.origin == Origin::Operation(*psi_operation)
+            && access.place == place
+            && access.role == Role::WritePlace
+    });
+    let Some(write) = writes.next() else {
+        return false;
+    };
+    if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        writes.next().is_none()
+            && pointer_read_before(accesses, *psi_operation, place, write.instruction)
+    } else {
+        true
+    }
 }
 
 fn read_access(
