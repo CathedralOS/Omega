@@ -70,9 +70,9 @@ pub(crate) fn construction_expression(
                 call.source_target,
             )
             .ok()?;
-            if target.boundary {
-                return None;
-            }
+            // Replay caller-owned construction against the authored formal for
+            // ordinary and boundary calls alike. Boundary selection and custody
+            // are separate obligations of the consuming call, not its operand.
             let parameter = target.parameters.get(parameter_position as usize)?;
             if parameter.is_self
                 || parameter.is_mutable

@@ -3,6 +3,46 @@
 use super::super::{CheckedScalarExpressionRole, PrimitiveType, StatementNode};
 use super::{TerminalExecutionResult, TerminalScalarValue, assert_array, byte, execute, reject};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+
+#[test]
+fn composed_body_snapshots_array_between_scalar_argument_mutations() {
+    let source = "machine replace(values: &mut [u8; 2], value: u8) -> u8 {
+             values[0] = value;
+             0u8
+         }
+         machine keep(before: u8, values: [u8; 2], after: u8) -> [u8; 2] { values }
+         machine selected() -> u8 {
+             let mut values: [u8; 2] = [7u8, 9u8];
+             let copied: [u8; 2] = keep(replace(&mut values, 42u8), values, replace(&mut values, 99u8));
+             transition copied[0] == 42u8 && values[0] == 99u8 {
+                 true -> done(70u8)
+                 _ -> done(71u8)
+             }
+             state done(value: u8) { value }
+         }";
+    let checked = crate::front_end::checked_program(source);
+    let selected = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "selected")
+        .unwrap()
+        .symbol;
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .any(|plan| plan.machine == selected),
+        "fixture must exercise composed state emission"
+    );
+    assert_eq!(
+        execute(source, &[]),
+        TerminalExecutionResult::Scalar(byte(70))
+    );
+}
+
 #[test]
 fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
     let source = include_str!(
@@ -38,7 +78,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
         "return role",
         "result type",
         "omitted constructor",
-        "mutable local",
+        "missing initializer",
         "local symbol",
         "duplicate root",
     ] {
@@ -78,7 +118,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
             "omitted constructor" => {
                 plan.operations.remove(0);
             }
-            "mutable local" => {
+            "missing initializer" => {
                 let span = changed
                     .machines()
                     .iter()
@@ -91,7 +131,7 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
                 else {
                     panic!("array local");
                 };
-                local.is_mutable = true;
+                local.initial_value = checked_trees::expression::ExpressionHandle::invalid();
             }
             "local symbol" => {
                 // Arrays share the structural-local representation with other

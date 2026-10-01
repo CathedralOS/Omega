@@ -591,7 +591,9 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
 /// that cannot be reconstructed by case fan-out. A bare
 /// whole-root name is the degenerate path: an owned root's `Unrestricted`
 /// contents copy out whole, no loan involved.
-fn is_copied_place_operand(
+/// Retain that snapshot at the operand's evaluation point; passing an earlier
+/// constructor's result would confuse mutable storage with its initial value.
+pub(super) fn needs_copied_place_root(
     program: &TypedTrees,
     state: SymbolHandle,
     statement_index: usize,
@@ -659,32 +661,6 @@ fn is_copied_place_operand(
         .is_some_and(|leaf| {
             program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
         })
-}
-
-/// Root discovery must not register a second producer for a whole array
-/// argument: the existing value-argument route already owns its payload copy.
-/// This scheduling rule is not a restriction on copying an operand. Nested
-/// constructor operands have no separate argument producer and must snapshot
-/// the array through the ordinary copied-place operation at evaluation time.
-pub(super) fn needs_copied_place_root(
-    program: &TypedTrees,
-    state: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    expected: TypeReferenceHandle,
-) -> bool {
-    if !is_copied_place_operand(program, state, statement_index, expression, expected) {
-        return false;
-    }
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        expression,
-    ) else {
-        return false;
-    };
-    !(place.segments.is_empty() && validation::is_closed_primitive_array_type(program, expected))
 }
 
 /// An omitted runtime field's zero value is admitted only for a
@@ -1152,7 +1128,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        if !is_copied_place_operand(
+        if !needs_copied_place_root(
             self.program,
             self.state,
             self.statement_index,

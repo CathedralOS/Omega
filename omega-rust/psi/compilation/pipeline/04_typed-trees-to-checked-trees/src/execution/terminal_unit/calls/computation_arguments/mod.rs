@@ -375,9 +375,13 @@ pub(crate) fn borrowed_nominal_argument(
     // A closed generic application is the same nominal carrier as its retained
     // synthesized instance. Contents, exact identity and collected shape below
     // still decide eligibility; syntax kind alone must not exclude the borrow.
+    // Fixed arrays use the same established storage loan. Shape collection and
+    // the exact source/formal identity below retain their element and length.
     if !matches!(
         program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray { .. }
     ) {
         return None;
     }
@@ -418,7 +422,9 @@ pub(crate) fn borrowed_nominal_argument(
             {
                 *referee
             }
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray { .. }
                 if target_access == CheckedStructuralAccess::SharedBorrow
                     || parameter.is_mutable
                     || parameter.is_self =>
@@ -763,10 +769,19 @@ pub(crate) fn borrowed_nominal_argument(
     {
         return None;
     }
+    // Storage identity was checked against the exact referee above. The call
+    // presents that storage through the formal's carrier, as ordinary calls
+    // do: a fixed byte array loan uses a bounded byte view, while its owned
+    // backing remains a fixed array. Receivers keep their attachment identity.
+    let presentation_identity = if target.is_self {
+        identity
+    } else {
+        shapes.add_type(target.type_reference, &[], &[])?
+    };
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,
-        type_identity: identity,
+        type_identity: presentation_identity,
         access: target_access,
     })
 }

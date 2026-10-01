@@ -240,21 +240,6 @@ impl TerminalExecution {
         }
         Ok(())
     }
-    /// Copy by-value records into independent activation storage. Borrowed inputs
-    /// preserve their referents; absent host payload remains absent rather than
-    /// manufacturing initialized zero fields.
-    pub(crate) fn copy_owned_record_arguments(
-        &mut self,
-        parameters: &[StructuralParameterDeclaration],
-        values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
-    ) -> Result<(), TerminalInterpretError> {
-        let mut cursor = self.local_structural_identities.cursor();
-        let payload = self.stage_owned_record_arguments(parameters, values, &mut cursor)?;
-        self.local_structural_identities.commit_cursor(cursor);
-        self.structural_scalar_fields.extend(payload);
-        Ok(())
-    }
-
     /// Stage independent payloads for each owned unrestricted occurrence. The
     /// supplied descriptors and allocation cursor belong to the caller's
     /// uncommitted transaction; source fields remain untouched even in swaps.

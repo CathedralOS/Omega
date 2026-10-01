@@ -14,6 +14,212 @@ fn byte(value: u8) -> TerminalScalarValue {
     }
 }
 
+#[test]
+fn boundary_array_constructors_replay_their_call_and_formal_identity() {
+    let original = crate::front_end::checked_program(
+        "boundary trait Sink {
+             machine record(prefix: u8, first: [u8; 2], middle: u8, second: [u8; 2]);
+         }
+         machine selected() reaches Sink {
+             Sink::record(3u8, [7, 9], 4u8, [11, 13]);
+         }",
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("boundary array operands use ordinary construction");
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let decoded = terminal_codec::decode_module(&semantic).unwrap();
+    assert_eq!(decoded, lowered.semantic_module);
+    terminal_verifier::verify_module(
+        &decoded,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("boundary array operands verify after reload");
+
+    for mutation in [
+        "formal",
+        "call",
+        "elements",
+        "missing constructor",
+        "argument",
+    ] {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| {
+                plan.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                    )
+                })
+            })
+            .expect("caller owns its constructors");
+        let constructors = plan
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(position, operation)| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
+                )
+                .then_some(position)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(constructors.len(), 2);
+        if mutation == "missing constructor" {
+            plan.operations.remove(constructors[0]);
+        } else if mutation == "argument" {
+            plan.operations
+                .iter_mut()
+                .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| call.is_boundary())
+                .unwrap()
+                .structural_arguments
+                .swap(0, 1);
+        } else {
+            let other = plan.operations[constructors[1]].clone();
+            let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                source, elements, ..
+            } = &mut plan.operations[constructors[0]]
+            else {
+                unreachable!()
+            };
+            let CheckedArrayConstructionSource::CallArgument {
+                call_ordinal,
+                parameter_position,
+            } = source
+            else {
+                panic!("call-owned construction")
+            };
+            match mutation {
+                "formal" => *parameter_position = 3,
+                "call" => *call_ordinal = u32::MAX,
+                "elements" => {
+                    let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        elements: other,
+                        ..
+                    } = other
+                    else {
+                        unreachable!()
+                    };
+                    *elements = other;
+                }
+                _ => unreachable!(),
+            }
+        }
+        reject(&changed, mutation);
+    }
+}
+
+#[test]
+fn whole_mutable_array_arguments_snapshot_before_later_argument_effects() {
+    assert_array(
+        "machine replace(values: &mut [u8; 2]) -> u8 { values[0] = 99; 0u8 }
+         machine keep(values: [u8; 2], ignored: u8) -> [u8; 2] { values }
+         machine selected() -> [u8; 2] {
+             let mut values: [u8; 2] = [7, 9];
+             values[0] = 42;
+             keep(values, replace(&mut values))
+         }",
+        &[],
+        &[byte(42), byte(9)],
+    );
+}
+
+#[test]
+fn whole_mutable_array_arguments_snapshot_after_earlier_argument_effects() {
+    assert_array(
+        "machine replace(values: &mut [u8; 2]) -> u8 { values[0] = 99; 0u8 }
+         machine keep(ignored: u8, values: [u8; 2]) -> [u8; 2] { values }
+         machine selected() -> [u8; 2] {
+             let mut values: [u8; 2] = [7, 9];
+             values[0] = 42;
+             keep(replace(&mut values), values)
+         }",
+        &[],
+        &[byte(99), byte(9)],
+    );
+}
+
+#[test]
+fn forwarded_array_loans_write_through_suspended_frames() {
+    assert_array(
+        "machine replace(values: &mut [u8; 2]) -> u8 { values[0] = 99; 0u8 }
+         machine forward(values: &mut [u8; 2]) -> u8 { replace(values) }
+         machine keep(ignored: u8, values: [u8; 2]) -> [u8; 2] { values }
+         machine selected() -> [u8; 2] {
+             let mut values: [u8; 2] = [7, 9];
+             keep(forward(&mut values), values)
+         }",
+        &[],
+        &[byte(99), byte(9)],
+    );
+}
+
+#[test]
+fn nested_local_array_reads_preserve_projection_order() {
+    assert_array(
+        "machine selected() -> [u8; 2] {
+                 let mut values: [[u8; 2]; 2] = [[11, 22], [33, 44]];
+                 values[1][0] = 42;
+                 [values[1][0], values[0][1]]
+             }",
+        &[],
+        &[byte(42), byte(22)],
+    );
+}
+
+#[test]
+fn borrowed_array_computations_reject_changed_access_and_carrier() {
+    let original = crate::front_end::checked_program(
+        "machine replace(values: &mut [u8; 2]) -> u8 { values[0] = 99; 0u8 }
+         machine keep(values: [u8; 2], ignored: u8) -> [u8; 2] { values }
+         machine selected() -> [u8; 2] {
+             let mut values: [u8; 2] = [7, 9];
+             keep(values, replace(&mut values))
+         }",
+    );
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("exact borrowed array computation lowers");
+    for mutation in ["access", "carrier"] {
+        let mut changed = original.clone();
+        let handle = changed.facts.values.scalar_computations.structural_arguments
+            .iter().find_map(|(handle, argument)| match argument {
+                checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                    if argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                        && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }) => Some(handle),
+                _ => None,
+            }).expect("local backing is borrowed at the nested call");
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(handle)
+        else {
+            panic!("selected place argument");
+        };
+        if mutation == "access" {
+            argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+        } else {
+            argument.type_identity.push_str("-substituted");
+        }
+        reject(&changed, mutation);
+    }
+}
+
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
     let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(

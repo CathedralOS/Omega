@@ -564,8 +564,8 @@ pub(super) fn owned_local_root(
     (plain_array || owned_bytes || owned_record).then_some((path.symbol, local.type_reference))
 }
 
-/// A collection can be stored below a local record, not just at a parameter
-/// or at the local's root. Retain each exact declared field on the way to it;
+/// A collection can be stored below local fields and fixed array elements,
+/// not just at a parameter or at the local's root. Retain each exact projection;
 /// later source replay checks availability at the actual observation site.
 pub(super) fn owned_local_place(
     program: &TypedTrees,
@@ -576,20 +576,48 @@ pub(super) fn owned_local_place(
     Vec<CheckedStructuralPredicatePathSegment>,
     TypeReferenceHandle,
 )> {
-    let mut members = Vec::new();
+    let mut projections = Vec::new();
     let mut receiver = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(receiver) {
-        if members.len() >= program.expression_table.expression_count()
-            || member.case_variant.is_some()
-        {
+    loop {
+        if projections.len() >= program.expression_table.expression_count() {
             return None;
         }
-        members.push(member);
-        receiver = member.receiver;
+        let parent = match program.expression_table.expression(receiver) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            _ => break,
+        };
+        projections.push(receiver);
+        receiver = parent;
     }
     let (root, mut carrier) = owned_local_root(program, parameters, receiver)?;
-    let mut path = Vec::with_capacity(members.len());
-    for member in members.into_iter().rev() {
+    let mut path = Vec::with_capacity(projections.len());
+    for projection in projections.into_iter().rev() {
+        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(projection) {
+            if !indexed_read_has_builtin_meaning(
+                program,
+                parameters,
+                projection,
+                carrier,
+                indexed.index,
+            ) {
+                return None;
+            }
+            let element_index = u64::try_from(
+                program
+                    .expression_table
+                    .constant_integer_value(indexed.index)?,
+            )
+            .ok()?;
+            carrier = fixed_index_element_type(program, carrier, element_index)?;
+            path.push(CheckedStructuralPredicatePathSegment::FixedIndex(
+                element_index,
+            ));
+            continue;
+        }
+        let ExpressionNode::Member(member) = program.expression_table.expression(projection) else {
+            return None;
+        };
         let positions =
             program.data_definition_positions_for_symbol(program.type_reference_symbol(carrier));
         let [position] = positions.as_slice() else {

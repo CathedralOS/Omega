@@ -6,12 +6,14 @@
 //! what is composed-specific: the frame over the state's environment (its
 //! registry-backed result namespace, the machine-wide claim table, the
 //! shared temporary roster and the primitive locals the sequence establishes)
-//! and the state's own operand schedule, which evaluates each call's scalar
-//! operands and literals just before the call (`literal_arguments`).
+//! and consumption of the same authored-position operand schedule as ordinary
+//! machines. Structural snapshots must stay between earlier and later scalar
+//! side effects even when the surrounding body has state transitions.
 use super::super::super::{
     BlockId, ClaimId, LoweredSourceCallOccurrence, PermissionClaimIdentity,
     StructuralParameterDeclaration,
 };
+use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
 use super::super::operation_frame::{
     CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
@@ -221,14 +223,103 @@ pub(super) fn emit_call_operations(
         } => Some(binding),
         _ => None,
     };
-    for operation in planned_operations {
+    let schedule =
+        argument_schedule::build_operations(checked, machine, state.state, planned_operations)?;
+    let mut schedule = schedule.iter().peekable();
+    let mut retained_source_count = None;
+    let mut staged_scalar_slots = vec![Vec::new(); planned_operations.len()];
+    let mut staged_ranges = vec![Vec::new(); planned_operations.len()];
+    while let Some(step) = schedule.next() {
+        let (operation_index, staged) = match *step {
+            Step::Begin => {
+                if retained_source_count.replace(values.len()).is_some() {
+                    return unsupported("composed argument group was already active");
+                }
+                continue;
+            }
+            Step::End => {
+                if retained_source_count.take().is_none() {
+                    return unsupported("composed argument group was not active");
+                }
+                continue;
+            }
+            Step::Argument { operation, ordinal } => {
+                let source_value_count = retained_source_count.ok_or(
+                    LoweringError::Unsupported("composed scalar operand has no source prefix"),
+                )?;
+                if staged_scalar_slots[operation].len() != ordinal {
+                    return unsupported("composed scalar operand ordinals are not dense");
+                }
+                let mut calls = catalogs.scalar_calls.emission_context();
+                let value = evaluation.argument_at(
+                    checked,
+                    machine,
+                    state.state,
+                    &planned_operations[operation],
+                    ordinal,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    &mut calls,
+                )?;
+                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                staged_scalar_slots[operation].push(values.len());
+                values.push(value);
+                continue;
+            }
+            Step::Subslice { operation, ordinal } => {
+                let source_value_count = retained_source_count.ok_or(
+                    LoweringError::Unsupported("composed range operand has no source prefix"),
+                )?;
+                if staged_ranges[operation]
+                    .iter()
+                    .any(|(prior, _)| *prior == ordinal)
+                {
+                    return unsupported("composed range operand is evaluated more than once");
+                }
+                let place = literal_arguments::stage_range(
+                    checked,
+                    state,
+                    parameters,
+                    &planned_operations[operation],
+                    ordinal,
+                    source_value_count,
+                    catalogs,
+                    evaluation,
+                    values,
+                    next_value,
+                    operations,
+                )?;
+                staged_ranges[operation].push((ordinal, place));
+                continue;
+            }
+            Step::Call(index) | Step::Constructor(index) if retained_source_count.is_some() => {
+                (index, true)
+            }
+            Step::Ordinary(index) if retained_source_count.is_none() => (index, false),
+            _ => return unsupported("composed call schedule disagrees with its argument group"),
+        };
+        let operation = &planned_operations[operation_index];
         if let CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. } = operation
             && reference_release_is_deferred(checked, machine, state.state, *loan)?
         {
             continue;
         }
-        // A call's operands complete just before it, on this state's own
-        // schedule; every other operation reads its operands itself.
+        let source_value_count = retained_source_count.unwrap_or(values.len());
+        // Keep private argument values across constructor evaluation and any
+        // split blocks. Read their rebound identities only at the consuming
+        // call, never from the values they held before a later operand ran.
+        let staged_scalars = staged_scalar_slots[operation_index]
+            .iter()
+            .map(|slot| {
+                values.get(*slot).copied().ok_or(LoweringError::Unsupported(
+                    "composed scalar operand lost its retained value",
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let establishes_local = matches!(
             operation,
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
@@ -237,10 +328,30 @@ pub(super) fn emit_call_operations(
             None
         } else {
             Some(literal_arguments::evaluate(
-                checked, machine, state, parameters, operation, catalogs, evaluation, values,
-                next_value, next_block, next_edge, operations,
+                checked,
+                machine,
+                state,
+                parameters,
+                operation,
+                staged.then_some(literal_arguments::StagedArguments {
+                    scalars: &staged_scalars,
+                    ranges: &staged_ranges[operation_index],
+                }),
+                catalogs,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
             )?)
         };
+        // The final call publishes into the state's ordinary scalar binding
+        // namespace. Retire argument temporaries first, after copying its
+        // completed operands, so the result receives its actual source slot.
+        if matches!(step, Step::Call(_)) && matches!(schedule.peek(), Some(Step::End)) {
+            values.truncate(source_value_count);
+        }
         let mut calls = catalogs.scalar_calls.emission_context();
         let frame = OperationFrame {
             checked,
@@ -248,7 +359,7 @@ pub(super) fn emit_call_operations(
             state: state.state,
             scalar_result,
             scalar_parameter_count: state.scalar_parameters.len(),
-            source_value_count: values.len(),
+            source_value_count,
             parameters,
             structural_types: match &mut catalogs.structural_types {
                 Cow::Owned(types) => StructuralTypeRoster::Owned(types),

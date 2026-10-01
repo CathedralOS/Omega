@@ -56,9 +56,11 @@ pub(crate) fn bind_local(
         local.type_reference,
     )
     .is_some();
+    let owned_array =
+        validation::is_closed_primitive_array_type(&checked.typed, local.type_reference);
     if expression.is_some_and(|expression| expression != local.initial_value)
         || !(mutable_view
-            || validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
+            || owned_array
             || (expression.is_some()
                 && matches!(
                     checked
@@ -73,7 +75,11 @@ pub(crate) fn bind_local(
     {
         return Ok(());
     }
-    if (local.is_mutable && !super::plain_record(checked, local.type_reference))
+    // Initialized arrays and records both own the published storage. Binding
+    // that home does not freeze its contents or lend it; later writes, copies
+    // and loans independently rejoin their authored access. Reference carriers
+    // still retain their separate immutable-binding requirement.
+    if (local.is_mutable && !(owned_array || super::plain_record(checked, local.type_reference)))
         || !local.symbol.is_valid()
         || locals.iter().any(|(symbol, _)| *symbol == local.symbol)
         || checked

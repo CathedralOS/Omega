@@ -334,11 +334,7 @@ pub fn unit_result_initializer_call_is_supported(
     let Some(state) = states.next() else {
         return false;
     };
-    if states.next().is_some()
-        || !(unit_type(program, state.return_type)
-            || ordinary_structural_result_type(program, state.return_type))
-        || !program.expression_table.expression_is_valid(value)
-    {
+    if states.next().is_some() || !program.expression_table.expression_is_valid(value) {
         return false;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -384,6 +380,12 @@ pub fn unit_result_initializer_call_is_supported(
             false,
         );
     if initializers.next().is_some()
+        // A structural local belongs to the statement sequence regardless of
+        // what the surrounding machine eventually returns. Scalar locals in
+        // scalar-return bodies retain their whole-call computation owner.
+        || (!has_ordinary_structural_initializer
+            && !(unit_type(program, state.return_type)
+                || ordinary_structural_result_type(program, state.return_type)))
         // Ordinary scalar helpers in state graphs keep their whole-call
         // computation owner. Bodyless boundaries instead retain their result
         // operation, independently of the surrounding state's successors.

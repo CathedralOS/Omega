@@ -1,4 +1,6 @@
 //! Explicit initialized fixed-array inputs and their fieldless original backing.
+pub(crate) mod storage;
+
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::resolve_structural_arguments;
@@ -9,6 +11,7 @@ use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
+use storage::{ArrayStorage, ArrayStorageHome};
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralFieldType;
@@ -164,10 +167,27 @@ impl TerminalExecution {
             .map(ByteSequenceView::bytes)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare_array_view_argument(
         &self,
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
+        self.prepare_array_view_argument_staged(
+            parameter,
+            argument,
+            &mut self.local_structural_identities.cursor(),
+            &mut BTreeMap::new(),
+        )
+    }
+
+    pub(crate) fn prepare_array_view_argument_staged(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
@@ -231,21 +251,57 @@ impl TerminalExecution {
                 else {
                     return Err(invalid());
                 };
-                let bytes = self.structural_byte_arrays.get(array).ok_or_else(invalid)?;
                 let start = usize::try_from(*offset).map_err(|_| invalid())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(invalid)?)
                     .map_err(|_| invalid())?;
                 return Ok(Some((
                     value.clone(),
-                    ByteSequenceBinding::Immutable(bytes.subslice(start, end).ok_or_else(invalid)?),
+                    ByteSequenceBinding::Immutable(
+                        self.stored_byte_array_snapshot(array, start, end)?,
+                    ),
                 )));
             }
             return Ok(Some((value.clone(), binding.clone())));
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
-        let Some(root) = self.structural_values.get(&argument.place) else {
-            return Err(invalid());
+        let (root, home) = if let Some(array) = self.scalar_array_values.get(&argument.place) {
+            if self.structural_values.contains_key(&argument.place)
+                || self.scalar_case_values.contains_key(&argument.place)
+            {
+                return Err(invalid());
+            }
+            // Repeated projections in one argument list share their root
+            // identity, so ordinary alias checks still see the same backing.
+            let root = match local_array_roots.entry(argument.place) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(TerminalStructuralValue {
+                        opaque_identity: self
+                            .local_structural_identities
+                            .allocate_staged(identity_cursor)?,
+                        structural_type: array.structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    })
+                }
+            };
+            (
+                root.clone(),
+                ArrayStorageHome::Frame {
+                    depth: self.call_stack.len(),
+                    place: argument.place,
+                    structural_type: array.structural_type,
+                },
+            )
+        } else {
+            (
+                self.structural_values
+                    .get(&argument.place)
+                    .ok_or_else(invalid)?
+                    .clone(),
+                ArrayStorageHome::Runtime,
+            )
         };
         // A window changes the borrowed extent, never the backing's identity.
         // Keep the range out of the storage key so repeated and forwarded calls
@@ -341,9 +397,16 @@ impl TerminalExecution {
             path: window.backing_path.to_vec(),
             access: argument.access,
         };
+        let local_values;
+        let values = if matches!(home, ArrayStorageHome::Frame { .. }) {
+            local_values = BTreeMap::from([(argument.place, root.clone())]);
+            &local_values
+        } else {
+            &self.structural_values
+        };
         let mut referent = resolve_structural_arguments(
             &self.program.structural_types,
-            &self.structural_values,
+            values,
             std::slice::from_ref(&backing_argument),
         )?
         .pop()
@@ -351,12 +414,11 @@ impl TerminalExecution {
         if !root.qualifications.is_empty() || !referent.qualifications.is_empty() {
             return Err(invalid());
         }
-        let array = StructuralRuntimePlace::from(&referent);
-        let bytes = self
-            .structural_byte_arrays
-            .get(&array)
-            .ok_or_else(invalid)?;
-        if bytes.len() as u128 != u128::from(length) {
+        let array = ArrayStorage {
+            referent: StructuralRuntimePlace::from(&referent),
+            home,
+        };
+        if self.stored_byte_array_length(&array)? as u128 != u128::from(length) {
             return Err(invalid());
         }
         referent.structural_type = parameter.structural_type;
@@ -374,7 +436,9 @@ impl TerminalExecution {
             .map_err(|_| invalid())?;
             return Ok(Some((
                 referent,
-                ByteSequenceBinding::Immutable(bytes.subslice(start, end).ok_or_else(invalid)?),
+                ByteSequenceBinding::Immutable(
+                    self.stored_byte_array_snapshot(&array, start, end)?,
+                ),
             )));
         }
         Ok(Some((

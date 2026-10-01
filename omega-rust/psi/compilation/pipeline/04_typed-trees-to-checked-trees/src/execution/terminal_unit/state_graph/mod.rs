@@ -1262,21 +1262,21 @@ fn call_copies_result_argument(
     let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
         return false;
     };
-    argument.path.is_empty()
+    // Unrestricted values need no affine-disposal flag. Rejoin their actual
+    // producer identity, including array construction, rather than filtering
+    // the producer roster through unrelated cleanup metadata.
+    let mut results = earlier
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+        .filter(|result| result.binding_ordinal == ordinal);
+    let Some(result) = results.next() else {
+        return false;
+    };
+    results.next().is_none()
+        && argument.path.is_empty()
         && argument.access == CheckedStructuralAccess::Owned
-        && earlier
-            .iter()
-            .rev()
-            .find_map(|operation| {
-                operation
-                    .discardable_structural_result()
-                    .filter(|(result, _)| result.binding_ordinal == ordinal)
-                    .map(|(result, _)| result)
-            })
-            .is_some_and(|result| {
-                result.multiplicity == Multiplicity::Unrestricted
-                    && result.type_identity == argument.type_identity
-            })
+        && result.multiplicity == Multiplicity::Unrestricted
+        && result.type_identity == argument.type_identity
 }
 
 /// Name the first unmet call requirement using the same argument admission

@@ -4,11 +4,12 @@
 //! view-narrowing site through `view_ranges`; this module locates one call's
 //! range arguments, resolves the places they narrow and stages them.
 //!
-//! Two Unit routes stage through it. An ordinary body schedules each range at
-//! its argument position (`argument_schedule`, then `emit`); a composed state
-//! stages it beside the call's literal operands
-//! (`composed_control::literal_arguments`, then `emit_staged`), which also
-//! serves a terminal call in a guarded transition arm. (The module predates
+//! Both Unit routes use `argument_schedule` to stage each range at its
+//! authored argument position. The ordinary body calls `emit`; a composed
+//! state uses `composed_control::literal_arguments::stage_range`, then
+//! `emit_staged`, with that state's current scalar and storage bindings.
+//! A terminal call in a guarded transition arm consumes the same schedule
+//! inside its selected arm. (The module predates
 //! element ranges and keeps its byte-era name; it stages both families.)
 //! Both resolve sources through `view_source` and `root_parameter`, so a
 //! range means the same view on either route:
