@@ -55,8 +55,19 @@ fn adjacent_bounds_preserve_every_ordered_branch_and_conjunction() {
     assert!(establishes(&context, &goal, &[complete], &[]));
     let missing = Proposition::Disjunction(vec![both, upper]);
     assert!(!establishes(&context, &strict_lower, &[missing], &[]));
-    // A reconstructed body bound alone is not a new invocation-entry premise.
-    assert!(!establishes(&context, &strict_lower, &[], &[lower]));
+    // A reconstructed body bound alone is not a new invocation-entry premise,
+    // so the entry-only discreteness conversion never cites it. The strict
+    // bound still follows from it by plain transitivity through the
+    // kernel-checked closed literal relation `0 < 1`.
+    let body = std::slice::from_ref(&lower);
+    assert!(establishes(&context, &strict_lower, &[], body));
+    let mut remaining = 1 << 16;
+    let proof = prove(&strict_lower, &[], body, &mut remaining, 0)
+        .expect("transitivity through the closed literal relation");
+    let spelled = format!("{proof:?}");
+    assert!(!spelled.contains("IntegerOrderDiscreteness"));
+    assert!(spelled.contains("ClosedIntegerRelation"));
+    assert!(spelled.contains("SemanticAxiom"));
 }
 
 #[test]
