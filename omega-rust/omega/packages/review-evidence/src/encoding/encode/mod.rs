@@ -82,11 +82,11 @@ impl PackageReviewEncodingLimits {
 impl Default for PackageReviewEncodingLimits {
     fn default() -> Self {
         Self::new(
-            16 * 1024 * 1024,
+            64 * 1024 * 1024,
             65_536,
             1024 * 1024,
             4 * 1024 * 1024,
-            16 * 1024 * 1024,
+            64 * 1024 * 1024,
         )
     }
 }
