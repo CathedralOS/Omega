@@ -453,15 +453,19 @@ machine build(builder: &mut Build) {
 "#,
     )
     .expect("write contract dependency build");
-    // The ordinary exit preserves its exact entry assumption. The separate
-    // polynomial entailment tier still cannot represent min and must stand down.
+    // The ordinary exit proves the guarantee through its transparent
+    // proposition. Contract entailment stands down on a proposition guarantee,
+    // and package exit evidence covers only domain memberships and scalar
+    // predicates, so the obligation stays open for a later discharge.
     std::fs::write(
         dependency.join("main.omg"),
-        r#"pub machine unchecked_claim(a: u64, b: u64)
+        r#"pub proposition paired(a: u64, b: u64) = min(a, b) >= 1;
+
+pub machine unchecked_claim(a: u64, b: u64)
 requires
-    min(a, b) >= 1
+    paired(a, b)
 ensures
-    min(a, b) >= 1
+    paired(a, b)
 {
 }
 "#,
