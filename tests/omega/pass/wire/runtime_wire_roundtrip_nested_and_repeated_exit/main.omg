@@ -59,6 +59,7 @@ data Main {
     written: u64;
     read: u64;
     verdict: WireVerdict;
+    packet: RoomPacketValue;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -72,25 +73,16 @@ machine Main::main(&mut self) reaches Console {
 
     RoomPacket::encode(&msg, &mut self.buffer, &mut self.written);
 
-    let decoded: RoomPacketValue = RoomPacketValue {
-        header: RoomHeaderValue {
-            room_id: 0
-        },
-        samples: FixedVec { items: [0, 0, 0, 0], length: 0 },
-        depth: 0
-    };
+    RoomPacket::decode(&mut self.packet, &self.buffer, &mut self.read, &mut self.verdict);
 
-    RoomPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
-
-    let matches: bool = self.verdict == WireVerdict::Sound
+    transition self.verdict == WireVerdict::Sound
         && self.written == 13
         && self.read == 13
-        && decoded.header.room_id == 300
-        && decoded.samples.length == 2
-        && decoded.samples.items[0] == 150
-        && decoded.samples.items[1] == 0 - 2
-        && decoded.depth == 0 - 64;
-    transition matches {
+        && self.packet.header.room_id == 300
+        && self.packet.samples.length == 2
+        && self.packet.samples.items[0] == 150
+        && self.packet.samples.items[1] == 0 - 2
+        && self.packet.depth == 0 - 64 {
         true -> good()
         false -> bad()
     }
