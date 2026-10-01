@@ -477,8 +477,9 @@ capacity:
 | 32 | `proof_search_divisor_search_depth` | 32 | 3 internal row | identity of the obligation left unproved |
 | 33 | `proof_search_divisor_computed_joins` | 8 | 3 internal row | identity of the obligation left unproved |
 | 34 | `proof_obligation_identities` | 65,536 | 3 internal row | identity of the obligation left unproved |
+| 35 | `proof_search_integer_certificate_work` | 65,536 | 3 internal row | identity of the obligation left unproved |
 
-Codes 27–34 are the optional proof-search provisions of the lowering stage.
+Codes 27–35 are the optional proof-search provisions of the lowering stage.
 `proof_search_roster_rounds` bounds the scalar block-invariant pass's
 aggregate whole-module discovery and proof rounds;
 `proof_search_candidate_work` bounds the shared candidate-transport pool the
@@ -493,7 +494,14 @@ depth, and add-of-adds certificate joins, each of which nests one bound
 certificate. `proof_obligation_identities` bounds the fresh obligation
 identities one optional pass mints above the module's registered identities
 for its proposals' arrivals and guarantee clauses; reaching the end of the
-nonzero identity space declines the same resource. A refusal names the obligation
+nonzero identity space declines the same resource.
+`proof_search_integer_certificate_work` bounds modeled scope-row work across
+one complete canonical or relaxed integer certificate search, including nested
+implication and endpoint queries. Each uncached search charges the number of
+assumptions and axioms in its scope, with a minimum charge of one. Recursive
+searches share that allowance; proof memos are partitioned by invocation so
+worker history cannot grant extra fuel or preserve an exhausted refusal.
+A refusal names the obligation
 left unproved — an internal row identity — as its coordinate and reports
 the declined draw as `requested`: one past the provisioned limit for a unit
 draw, or the refused amount for a bulk check. A decline is a search bound,

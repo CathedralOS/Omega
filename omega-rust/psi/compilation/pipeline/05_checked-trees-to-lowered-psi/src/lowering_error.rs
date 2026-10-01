@@ -79,6 +79,9 @@ impl ProofSearchCapacity {
             // 16,384 exhausts with its clamp-result bound still unmet. This provisions
             // discovery only; every retained predicate still needs evidence.
             Self::ScalarInvariantCandidateWork => 65_536,
+            // The cyclic shared-array control's 738 successful searches need
+            // at most 10,191 modeled scope-row units. This leaves six times
+            // that measured demand while bounding its expensive failed goals.
             Self::IntegerCertificateSearchWork => 65_536,
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
