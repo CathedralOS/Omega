@@ -44,4 +44,5 @@ terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-ps
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 
 [dev-dependencies]
+task-plans = { path = "../../runtime/task-plans" }
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }

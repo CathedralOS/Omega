@@ -159,7 +159,7 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
 
 pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeignCall]) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.foreign-call-custody.v3\0");
+    digest.update(b"omega.native-artifact.foreign-call-custody.v4\0");
     digest.update(canonical_usize(calls.len()));
     for call in calls {
         digest.update(call.machine.get().to_le_bytes());
@@ -232,7 +232,20 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 }
             }
         }
-        let contribution = &call.same_stack_contribution;
+        if let Some(kernel) = call.binding.system_call() {
+            digest.update([2]);
+            hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
+            digest.update(kernel.number.to_le_bytes());
+            digest.update(kernel.provider_plan_report_identity.to_le_bytes());
+            digest.update(kernel.provider_plan_commitment);
+            hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
+            continue;
+        }
+        let Some((locator, contribution)) = call.binding.import() else {
+            continue;
+        };
+        digest.update([1]);
+        digest.update(locator.identity_digest().as_bytes());
         digest.update(
             contribution
                 .report_identity()

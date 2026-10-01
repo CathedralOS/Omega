@@ -3,9 +3,13 @@
 //!
 //! The fragment route publishes `ObjectArtifact::foreign_calls` before stack
 //! sizing and image emission. [`derive_normalized_foreign_call_custody`]
-//! projects every section-level unresolved normalized foreign call back
-//! through the retained selected-plan roster and frame layout into one exact
+//! projects every normalized foreign call from the retained selected-plan
+//! roster and frame layout into one exact
 //! [`ObjectForeignCall`] row per call site.
+//! Import fields alone are not a call inventory: kernel entries are fully
+//! encoded and have no relocation. Both mechanisms retain the same binding
+//! and scalar custody; only imports carry floating controls and opaque
+//! user-stack contributions.
 //!
 //! Scalar custody preserves fixed integer, Boolean and IEEE types: an
 //! integer immediate names the register copy or the contiguous
@@ -35,8 +39,7 @@ use target_operations::CallSiteOwner;
 use super::carriers::{ObjectArtifact, ObjectForeignCall};
 use super::errors::ObjectError;
 
-/// One derived custody row per unresolved normalized foreign call the placed
-/// text section retains.
+/// One derived custody row per normalized foreign call in the selected roster.
 ///
 /// Every row rejoins the `{boundary, ordinal}` site the resolver recorded
 /// against the selected roster's instruction custody before its evaluated
@@ -56,165 +59,199 @@ pub fn derive_normalized_foreign_call_custody(
     let layout = emissions.frame_layout();
     let architecture = source.source().source().fragments().target.architecture;
     let mut custody = Vec::new();
-    for call in &section.unresolved_normalized_foreign_calls {
-        let owner = CallSiteOwner::Operation(call.operation);
-        let text_offset = usize::try_from(call.field_section_offset)
-            .map_err(|_| ObjectError::TextSizeOverflow)?;
-        let invalid = || ObjectError::InvalidForeignCallSite {
-            caller: call.caller,
-            owner,
-            offset: text_offset,
-        };
-        if call.state != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
-        {
-            return Err(invalid());
-        }
-        let mut functions = selected
-            .functions
-            .iter()
-            .filter(|function| function.machine == call.caller);
-        let (Some(function), None) = (functions.next(), functions.next()) else {
-            return Err(invalid());
-        };
-        let index = usize::try_from(call.ordinal).map_err(|_| invalid())?;
-        let Some(record) = function.normalized_foreign_calls.get(index) else {
-            return Err(invalid());
-        };
-        if record.instruction != call.instruction
-            || record.operation != call.operation
-            || record.call.boundary != call.boundary
-        {
-            return Err(ObjectError::ForeignCallTargetMismatch {
-                caller: call.caller,
+    // The selected roster, not the import relocation list, inventories calls.
+    // A kernel entry is already encoded and deliberately has no import field.
+    for function in &selected.functions {
+        let fragment =
+            caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
+        for (ordinal, record) in function.normalized_foreign_calls.iter().enumerate() {
+            let owner = CallSiteOwner::Operation(record.operation);
+            let invalid = || ObjectError::InvalidForeignCallSite {
+                caller: function.machine,
                 owner,
+                offset: 0,
+            };
+            if record.call.binding.native_target() != Some(section.target)
+                || !record.call.binding.has_valid_entry_mechanism()
+            {
+                return Err(invalid());
+            }
+            let mut instructions = function.blocks.iter().flat_map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .filter(move |instruction| instruction.id == record.instruction)
+                    .map(move |instruction| (block, instruction))
+            });
+            let (Some((block, instruction)), None) = (instructions.next(), instructions.next())
+            else {
+                return Err(invalid());
+            };
+            if !matches!(
+                instruction.kind,
+                selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
+                    boundary, ordinal: actual,
+                } if boundary == record.call.boundary && usize::try_from(actual) == Ok(ordinal)
+            ) {
+                return Err(invalid());
+            }
+            let mut fields = section
+                .unresolved_normalized_foreign_calls
+                .iter()
+                .filter(|field| {
+                    field.caller == function.machine && field.operation == record.operation
+                });
+            let field = match (record.call.binding.import(), fields.next(), fields.next()) {
+                (Some(_), Some(field), None) => {
+                    if field.instruction != record.instruction
+                        || field.boundary != record.call.boundary
+                        || usize::try_from(field.ordinal) != Ok(ordinal)
+                        || field.block != block.id
+                        || field.state != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+                    {
+                        return Err(invalid());
+                    }
+                    Some(field)
+                }
+                (None, None, None) => None,
+                _ => return Err(invalid()),
+            };
+            let text_offset = if let Some(field) = field {
+                usize::try_from(field.field_section_offset).map_err(|_| invalid())?
+            } else {
+                usize::try_from(
+                    instruction_span(fragment, record.instruction)
+                        .ok_or_else(invalid)?
+                        .0,
+                )
+                .map_err(|_| invalid())?
+            };
+            let home_offsets = durable_home_offsets(function);
+            let scalar_arguments = foreign_scalar_argument_custody(
+                function,
+                block,
+                fragment,
+                record,
+                instruction,
+                &home_offsets,
+                function.machine,
+                owner,
+                |operand, register| {
+                    operand.fixed_view
+                        == emissions
+                            .register_environment()
+                            .fixed_register_view(register)
+                },
+            )?;
+            let scalar_result = foreign_scalar_result_custody(
+                function,
+                block,
+                fragment,
+                record,
+                instruction,
+                &home_offsets,
+                function.machine,
+                owner,
+            )?;
+            let callback_addresses = callback_address_custody(
+                record,
+                field.map_or(&[], |field| field.callback_materializations.as_slice()),
+                function.machine,
+                owner,
+            )?;
+            let mut abstracted = optimized
+                .optimized()
+                .plan()
+                .functions
+                .iter()
+                .filter(|candidate| candidate.machine == function.machine);
+            let (Some(abstracted), None) = (abstracted.next(), abstracted.next()) else {
+                return Err(invalid());
+            };
+            let mut ordinals =
+                abstracted
+                    .operations
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, operation)| match operation {
+                        abstract_operations::AbstractOperation::BoundaryCall {
+                            psi_operation,
+                            ..
+                        } if *psi_operation == record.operation => Some(index),
+                        _ => None,
+                    });
+            let operation_ordinal = match (ordinals.next(), ordinals.next()) {
+                (Some(ordinal), None) => ordinal,
+                (None, _) => {
+                    return Err(ObjectError::ForeignCallOwnerNotInProvenance {
+                        caller: function.machine,
+                        owner,
+                    });
+                }
+                _ => {
+                    return Err(ObjectError::DuplicateForeignCallOwner {
+                        caller: function.machine,
+                        owner,
+                    });
+                }
+            };
+            let mut frames = layout
+                .functions
+                .iter()
+                .filter(|frame| frame.machine == function.machine);
+            let (Some(frame), None) = (frames.next(), frames.next()) else {
+                return Err(invalid());
+            };
+            let committed = frame
+                .frame_size_bytes
+                .checked_sub(frame.red_zone_resident_bytes)
+                .and_then(|extent| {
+                    extent.checked_add(
+                        if record.call.binding.import().is_some()
+                            && architecture == target::Architecture::X86_64
+                        {
+                            8
+                        } else {
+                            0
+                        },
+                    )
+                })
+                .ok_or(ObjectError::TextSizeOverflow)?;
+            let caller_live_bytes =
+                u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
+            let controls = if record.call.binding.import().is_some() {
+                Some(
+                    floating_control::derive(
+                        section.target,
+                        function,
+                        block,
+                        fragment,
+                        frame,
+                        record,
+                    )
+                    .ok_or_else(invalid)?,
+                )
+            } else {
+                if !record.call.callbacks.is_empty() {
+                    return Err(invalid());
+                }
+                None
+            };
+            custody.push(ObjectForeignCall {
+                machine: function.machine,
+                owner,
+                operation_ordinal,
+                binding: record.call.binding.clone(),
+                provider_execution: record.call.provider_execution.into(),
+                caller_live_bytes,
+                scalar_arguments,
+                callback_addresses,
+                scalar_result,
+                x86_floating_control: controls.as_ref().and_then(|controls| controls.x86),
+                aarch64_floating_control: controls.as_ref().and_then(|controls| controls.aarch64),
+                text_offset,
             });
         }
-        let Some(block) = function.blocks.iter().find(|block| block.id == call.block) else {
-            return Err(invalid());
-        };
-        // Instruction identities are function-global, not block-local indexes:
-        // find the roster instruction by id inside its recorded block.
-        let Some(instruction) = block
-            .instructions
-            .iter()
-            .find(|instruction| instruction.id == call.instruction)
-        else {
-            return Err(invalid());
-        };
-        if !matches!(
-            instruction.kind,
-            selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
-                boundary,
-                ordinal,
-            } if boundary == call.boundary && ordinal == call.ordinal
-        ) {
-            return Err(invalid());
-        }
-        let Some(fragment) = caller_fragment(section, call.caller) else {
-            return Err(invalid());
-        };
-        let home_offsets = durable_home_offsets(function);
-        let scalar_arguments = foreign_scalar_argument_custody(
-            function,
-            block,
-            fragment,
-            record,
-            instruction,
-            &home_offsets,
-            call.caller,
-            owner,
-            |operand, register| {
-                operand.fixed_view
-                    == emissions
-                        .register_environment()
-                        .fixed_register_view(register)
-            },
-        )?;
-        let scalar_result = foreign_scalar_result_custody(
-            function,
-            block,
-            fragment,
-            record,
-            instruction,
-            &home_offsets,
-            call.caller,
-            owner,
-        )?;
-        let callback_addresses =
-            callback_address_custody(record, &call.callback_materializations, call.caller, owner)?;
-        let mut abstracted = optimized
-            .optimized()
-            .plan()
-            .functions
-            .iter()
-            .filter(|function| function.machine == call.caller);
-        let (Some(abstracted), None) = (abstracted.next(), abstracted.next()) else {
-            return Err(invalid());
-        };
-        let mut ordinals =
-            abstracted.operations.iter().enumerate().filter_map(
-                |(index, operation)| match operation {
-                    abstract_operations::AbstractOperation::BoundaryCall {
-                        psi_operation, ..
-                    } if *psi_operation == call.operation => Some(index),
-                    _ => None,
-                },
-            );
-        let operation_ordinal = match (ordinals.next(), ordinals.next()) {
-            (Some(ordinal), None) => ordinal,
-            (None, _) => {
-                return Err(ObjectError::ForeignCallOwnerNotInProvenance {
-                    caller: call.caller,
-                    owner,
-                });
-            }
-            _ => {
-                return Err(ObjectError::DuplicateForeignCallOwner {
-                    caller: call.caller,
-                    owner,
-                });
-            }
-        };
-        let mut frames = layout
-            .functions
-            .iter()
-            .filter(|frame| frame.machine == call.caller);
-        let (Some(frame), None) = (frames.next(), frames.next()) else {
-            return Err(invalid());
-        };
-        let committed = frame
-            .frame_size_bytes
-            .checked_sub(frame.red_zone_resident_bytes)
-            .and_then(|extent| {
-                extent.checked_add(match architecture {
-                    target::Architecture::X86_64 => 8,
-                    target::Architecture::Aarch64 => 0,
-                })
-            })
-            .ok_or(ObjectError::TextSizeOverflow)?;
-        let caller_live_bytes =
-            u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-        let controls =
-            floating_control::derive(section.target, function, block, fragment, frame, record)
-                .ok_or_else(invalid)?;
-        let (locator, same_stack_contribution) =
-            record.call.binding.import().ok_or_else(invalid)?;
-        custody.push(ObjectForeignCall {
-            machine: call.caller,
-            owner,
-            operation_ordinal,
-            locator: locator.clone(),
-            provider_execution: record.call.provider_execution.into(),
-            boundary_entry_plan: record.call.binding.boundary_entry_plan.clone(),
-            caller_live_bytes,
-            same_stack_contribution: same_stack_contribution.clone(),
-            scalar_arguments,
-            callback_addresses,
-            scalar_result,
-            x86_floating_control: controls.x86,
-            aarch64_floating_control: controls.aarch64,
-            text_offset,
-        });
     }
     for (index, row) in custody.iter().enumerate() {
         if custody[..index]
@@ -697,8 +734,8 @@ where
 /// the result occupies, its plan placement, and the exact normalization
 /// instruction that produces the durable definition.
 ///
-/// The normalization follows the call's floating-control restore in the same
-/// block, reads the call's raw result operand, and its output vreg is the
+/// The normalization follows the call (and, for imports, its floating-control
+/// restore) in the same block, reads the raw result operand, and its output vreg is the
 /// durable definition every downstream use resolves. A result home exists
 /// exactly when the selected instruction defines a result and the evaluated
 /// plan assigns one register of that shape; `scalar_result` is `None`
@@ -745,19 +782,26 @@ fn foreign_scalar_result_custody(
     else {
         return Err(invalid());
     };
-    let Some(restore) = block.instructions.get(position + 1) else {
-        return Err(invalid());
+    // Only imports restore user-space floating controls before normalizing
+    // their result. Kernel entries normalize immediately after supervisor return.
+    let normalization_position = if record.call.binding.import().is_some() {
+        let Some(restore) = block.instructions.get(position + 1) else {
+            return Err(invalid());
+        };
+        if restore.kind
+            != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+                slot: selected_instructions::LocalStorageSlotId::Boundary {
+                    operation: record.operation,
+                },
+            })
+        {
+            return Err(invalid());
+        }
+        position + 2
+    } else {
+        position + 1
     };
-    if restore.kind
-        != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
-            slot: selected_instructions::LocalStorageSlotId::Boundary {
-                operation: record.operation,
-            },
-        })
-    {
-        return Err(invalid());
-    }
-    let Some(normalization) = block.instructions.get(position + 2) else {
+    let Some(normalization) = block.instructions.get(normalization_position) else {
         return Err(invalid());
     };
     let Some(kind) = scalar_result_normalization_kind(home.scalar_type) else {

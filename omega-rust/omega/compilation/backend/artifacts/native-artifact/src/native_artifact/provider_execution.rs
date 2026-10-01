@@ -65,16 +65,8 @@ pub(super) fn replay_provider_executions(
             .find(|candidate| candidate.id == *boundary)
             .ok_or(ProviderExecutionReplayError::AbsentForeignBoundary)?;
         let execution = foreign.provider_execution;
-        let contribution = &foreign.same_stack_contribution;
-        validate_foreign_stack_contribution(
-            &boundary.identity,
-            execution,
-            contribution.requirement_identity(),
-            contribution.provider_plan_report_identity(),
-            contribution.provider_plan_commitment().as_bytes(),
-            selected_provider_plans,
-        )
-        .map_err(ProviderExecutionReplayError::Shared)?;
+        validate_foreign_provider_binding(&boundary.identity, foreign, selected_provider_plans)
+            .map_err(ProviderExecutionReplayError::Shared)?;
         required_executions.insert((
             boundary.identity.clone(),
             execution.provider_plan_report_identity,
@@ -90,6 +82,49 @@ pub(super) fn replay_provider_executions(
         &required_executions,
     )
     .map_err(ProviderExecutionReplayError::Shared)
+}
+
+/// Rejoin an external call's mechanism to its exact selected provider plan.
+/// Kernel entries carry no opaque user-stack receipt or user-space control envelope.
+pub(super) fn validate_foreign_provider_binding(
+    requirement: &str,
+    foreign: &ObjectForeignCall,
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+) -> Result<(), &'static str> {
+    if foreign.binding.requirement_identity() != requirement
+        || !foreign.binding.has_valid_entry_mechanism()
+    {
+        return Err("native external call binding differs from its requirement");
+    }
+    if let Some((_, contribution)) = foreign.binding.import() {
+        validate_foreign_stack_contribution(
+            requirement,
+            foreign.provider_execution,
+            contribution.requirement_identity(),
+            contribution.provider_plan_report_identity(),
+            contribution.provider_plan_commitment().as_bytes(),
+            selected_provider_plans,
+        )?;
+    } else if let Some(kernel) = foreign.binding.system_call() {
+        if !selected_provider_plans.iter().any(|plan| {
+            plan.report_identity == kernel.provider_plan_report_identity
+                && plan.report_identity == foreign.provider_execution.provider_plan_report_identity
+                && *plan.plan_digest.as_bytes() == kernel.provider_plan_commitment
+                && plan
+                    .requirement_identities
+                    .binary_search_by(|candidate| candidate.as_str().cmp(requirement))
+                    .is_ok()
+        }) {
+            return Err("native kernel entry differs from its selected provider commitment");
+        }
+        if foreign.x86_floating_control.is_some()
+            || foreign.aarch64_floating_control.is_some()
+            || !foreign.callback_addresses.is_empty()
+        {
+            return Err("native kernel entry carries user-space callback or control custody");
+        }
+    }
+    Ok(())
 }
 
 /// Structural failures shared by the two artifact products. Preserve each
