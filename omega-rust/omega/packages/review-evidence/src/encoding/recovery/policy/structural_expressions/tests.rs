@@ -72,8 +72,10 @@ pub(in crate::encoding::recovery) fn fixed_index_paths_retain_numeric_identity_a
         path: vec![Segment::Field("1".into())],
     });
     assert_ne!(second, named, "an index is not a field spelling");
+    // Segment tags 0..=3 name a field, case, fixed index and runtime index;
+    // 4 is the first tag no path segment declares.
     let mut unknown = second.clone();
-    unknown[13] = 3;
+    unknown[13] = 4;
     assert_eq!(
         recover_boolean(&unknown, PackagePolicyRecoveryLimits::default()),
         Err(Error::InvalidTag)
