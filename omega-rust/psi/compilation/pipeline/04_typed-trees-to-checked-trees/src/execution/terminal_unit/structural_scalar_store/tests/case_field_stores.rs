@@ -32,10 +32,13 @@ fn stores(source: &str, state_index: usize) -> Option<Vec<CheckedUnitEffectOpera
 }
 
 /// A member read is not a whole owned place: `self.format = source.format`
-/// would need a path below the source root, which this store's value lane
-/// does not carry, so it keeps declining.
+/// reads a child below the source root, and this scalar store lane writes no
+/// row for it. A readable owned root supplies that copyable child as a copied
+/// structural value, which the statement sequence establishes and stores
+/// through its window pair; the value keeps its exact member path below the
+/// parameter root rather than standing for the whole root.
 #[test]
-fn member_read_value_still_declines() {
+fn member_read_value_copies_its_exact_member_path() {
     let source = r#"
         data Format [copy] { case Plain; case Hex; }
         data T { format: Format; }
@@ -43,5 +46,40 @@ fn member_read_value_still_declines() {
             self.format = source.format;
         }
     "#;
-    assert!(stores(source, 0).is_none());
+    assert!(stores(source, 0).is_some_and(|stores| stores.is_empty()));
+    let checked = checked_program(source);
+    let program = &checked.typed;
+    let machine = program.machines().iter().next().unwrap();
+    let state = &program.machine_states(machine)[0];
+    let (statement_index, value) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .find_map(|(index, statement)| match statement {
+            typed_trees::statement::StatementNode::Assignment(assignment) => {
+                Some((index, assignment.value))
+            }
+            _ => None,
+        })
+        .expect("the member assignment");
+    let values = &checked.facts.values.structural_values;
+    let root = values
+        .root_for_expression(state.symbol, statement_index as u32, value)
+        .expect("the member read is a structural value");
+    let checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } =
+        &values.nodes.get(root.root).kind
+    else {
+        panic!("the member read copies its leaf out of the readable root");
+    };
+    assert!(matches!(
+        source.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+    ));
+    assert_eq!(
+        source.path,
+        [checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "format".into()
+        )]
+    );
 }
