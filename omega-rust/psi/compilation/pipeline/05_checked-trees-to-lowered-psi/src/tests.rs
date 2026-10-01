@@ -13,6 +13,7 @@ mod boundary_byte_buffers;
 mod boundary_operator_frontier;
 mod byte_extent;
 mod byte_pair_correspondence;
+mod entry_receiver_state_loans;
 mod byte_sequence_write;
 mod byte_write_loop;
 mod citation_erasure;
