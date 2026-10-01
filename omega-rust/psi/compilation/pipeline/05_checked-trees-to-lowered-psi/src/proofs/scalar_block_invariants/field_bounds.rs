@@ -116,20 +116,24 @@ pub(super) fn candidates(
             let Some(predicates) = transported(&site.obligation.proposition, &equations) else {
                 continue;
             };
-            let predicates = predicates
-                .into_iter()
-                .map(inclusive_bound)
-                .collect::<Vec<_>>();
+            let predicates = restated_on_equal_observations(
+                predicates.into_iter().map(inclusive_bound).collect(),
+                &equations,
+            );
             // Transport the site's retained field comparisons once, then
             // select the subset scoped to each header and distinct from the
             // proposed conclusion. These can include derived path bounds;
             // none become trusted simply because they are candidate premises.
-            let guards = site
-                .semantic_axioms
-                .iter()
-                .filter(|fact| literal_comparison(fact))
-                .filter_map(|fact| transport_relation(fact, &equations))
-                .collect::<BTreeSet<_>>();
+            let guards = restated_on_equal_observations(
+                site.semantic_axioms
+                    .iter()
+                    .filter(|fact| literal_comparison(fact))
+                    .filter_map(|fact| transport_relation(fact, &equations))
+                    .collect(),
+                &equations,
+            )
+            .into_iter()
+            .collect::<BTreeSet<_>>();
             // Distinct arrivals may observe the same field through different
             // SSA values. Their bounds disappear at ordinary fact intersection
             // even when every arrival proves the same storage predicate. Loop
@@ -578,6 +582,111 @@ fn literal_comparison(proposition: &Proposition) -> bool {
     }
 }
 
+/// `transported`, plus the same claims restated on every field observation
+/// the site's own equations prove equal to one they name.
+///
+/// A header invariant may name only places live at its arrivals. A machine
+/// that forwards its attached data along its state edges — the ordinary shape
+/// once a state names its data instead of taking a receiver — reads the same
+/// field through a fresh block parameter in each block, so a demand's own
+/// observation roots at the demand block's parameter and the loop header
+/// rejects it as an unknown place. Restating the claim on the header's own
+/// observation of that storage is the difference between a proposal the
+/// header can hold and no proposal at all.
+///
+/// This is substitution under an equation the site already carries, and it
+/// confers nothing: the arrival transaction still proves each restated
+/// predicate at every arrival, and the demand still proves its original
+/// obligation from whatever is retained. One substitution is applied per
+/// claim, so the roster grows with the number of equal observations rather
+/// than their powerset.
+fn restated_on_equal_observations(
+    claims: Vec<Proposition>,
+    equations: &FieldEquations<'_>,
+) -> Vec<Proposition> {
+    let mut restated = claims;
+    if equations.equal_observations.is_empty() {
+        return restated;
+    }
+    for position in 0..restated.len() {
+        for (from, to) in &equations.equal_observations {
+            if let Some(claim) = substituted_observation(&restated[position], from, to)
+                && !restated.contains(&claim)
+            {
+                restated.push(claim);
+            }
+        }
+    }
+    restated
+}
+
+/// `claim` with every occurrence of the `from` observation replaced by `to`,
+/// or `None` when it names none. Only the relation and connective shapes
+/// `transported` builds are walked; anything else is returned unchanged by
+/// its enclosing arm and reported as no substitution.
+fn substituted_observation(
+    claim: &Proposition,
+    from: &ScalarTerm,
+    to: &ScalarTerm,
+) -> Option<Proposition> {
+    let endpoint = |term: &ScalarTerm| {
+        if term == from {
+            (to.clone(), true)
+        } else {
+            (term.clone(), false)
+        }
+    };
+    let members = |members: &[Proposition]| {
+        let substituted = members
+            .iter()
+            .map(|member| substituted_observation(member, from, to))
+            .collect::<Vec<_>>();
+        substituted.iter().any(Option::is_some).then(|| {
+            members
+                .iter()
+                .zip(substituted)
+                .map(|(member, claim)| claim.unwrap_or_else(|| member.clone()))
+                .collect::<Vec<_>>()
+        })
+    };
+    match claim {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            let (left, left_substituted) = endpoint(left);
+            let (right, right_substituted) = endpoint(right);
+            if !left_substituted && !right_substituted {
+                return None;
+            }
+            Some(match claim {
+                Proposition::Equal(..) => Proposition::Equal(left, right),
+                Proposition::LessThan(..) => Proposition::LessThan(left, right),
+                _ => Proposition::LessOrEqual(left, right),
+            })
+        }
+        Proposition::Conjunction(parts) => members(parts).map(Proposition::Conjunction),
+        Proposition::Disjunction(parts) => members(parts).map(Proposition::Disjunction),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            let substituted_premise = substituted_observation(premise, from, to);
+            let substituted_conclusion = substituted_observation(conclusion, from, to);
+            (substituted_premise.is_some() || substituted_conclusion.is_some()).then(|| {
+                Proposition::Implication {
+                    premise: Box::new(
+                        substituted_premise.unwrap_or_else(|| premise.as_ref().clone()),
+                    ),
+                    conclusion: Box::new(
+                        substituted_conclusion.unwrap_or_else(|| conclusion.as_ref().clone()),
+                    ),
+                }
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Transport one goal's value endpoints through the arrival's exact field-read
 /// equations. Each member of a conjunction is an independent claim; any other
 /// connective transports whole, because a weaker remainder would change the
@@ -714,12 +823,19 @@ fn same_carrier(left: ScalarTerm, right: ScalarTerm) -> Option<(ScalarTerm, Scal
 struct FieldEquations<'input> {
     fields: BTreeMap<ValueId, &'input ScalarTerm>,
     casts: BTreeMap<ValueId, ValueId>,
+    /// Field observations one value equals through more than one root, in both
+    /// directions. A machine that forwards its data along its state edges
+    /// reads the same field through a fresh block parameter in each block, so
+    /// one read's value carries an equation per root and those observations
+    /// are the same storage.
+    equal_observations: Vec<(&'input ScalarTerm, &'input ScalarTerm)>,
 }
 
 impl<'input> FieldEquations<'input> {
     fn new(axioms: &'input [Proposition], invocation_roots: &BTreeSet<PlaceId>) -> Self {
         let mut fields = BTreeMap::new();
         let mut casts = BTreeMap::new();
+        let mut observations: BTreeMap<ValueId, Vec<&'input ScalarTerm>> = BTreeMap::new();
         let mut pending = axioms.iter().collect::<Vec<_>>();
         while let Some(fact) = pending.pop() {
             match fact {
@@ -734,6 +850,10 @@ impl<'input> FieldEquations<'input> {
                             && invocation_roots.contains(root)
                         {
                             fields.entry(*id).or_insert(field);
+                            let seen = observations.entry(*id).or_default();
+                            if !seen.contains(&field) {
+                                seen.push(field);
+                            }
                         }
                         if let (
                             ScalarTerm::Value { id, .. },
@@ -749,7 +869,20 @@ impl<'input> FieldEquations<'input> {
                 _ => {}
             }
         }
-        Self { fields, casts }
+        let mut equal_observations = Vec::new();
+        for observed in observations.values() {
+            for (position, left) in observed.iter().enumerate() {
+                for right in &observed[position + 1..] {
+                    equal_observations.push((*left, *right));
+                    equal_observations.push((*right, *left));
+                }
+            }
+        }
+        Self {
+            fields,
+            casts,
+            equal_observations,
+        }
     }
 
     fn field(&self, id: ValueId) -> Option<&'input ScalarTerm> {

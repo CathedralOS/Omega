@@ -1968,6 +1968,7 @@ pass/providers/service_fused_root_establishment checked 743ms @2d8ed253669f
 pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 509ms @2d8ed253669f
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 455ms @2d8ed253669f
 pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
+pass/range/data_parameter_counter_non_negative_exit checked 848ms @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
