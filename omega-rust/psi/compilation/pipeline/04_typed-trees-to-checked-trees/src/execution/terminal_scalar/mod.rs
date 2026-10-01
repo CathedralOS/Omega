@@ -1290,6 +1290,19 @@ fn checked_branch_destination(
         transition.target
     };
     match program.statement_table.transition_target(target) {
+        // This shared roster retains completion coordinates, not a promise
+        // of a scalar value. Unit consumers replay ordinary Terminal exits;
+        // scalar consumers still require a return expression at this position.
+        TransitionTargetNode::Terminal
+            if !is_continuation
+                && transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            Some(CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation: false,
+            })
+        }
         TransitionTargetNode::Value(expression)
             if program.expression_table.expression_is_valid(*expression) =>
         {

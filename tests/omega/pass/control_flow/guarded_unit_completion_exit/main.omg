@@ -1,0 +1,47 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Output { value: u64; }
+data Main { console: Binding<Console>; output: Output; }
+
+machine fallback(output: &mut Output, first: bool, second: bool) {
+    transition {
+        first -> one(output)
+        second -> two(output)
+        _ -> {}
+    }
+    state one(output: &mut Output) { output.value = 11; }
+    state two(output: &mut Output) { output.value = 22; }
+}
+
+machine middle(output: &mut Output, first: bool, second: bool) {
+    transition {
+        first -> one(output)
+        second -> {}
+        _ -> two(output)
+    }
+    state one(output: &mut Output) { output.value = 11; }
+    state two(output: &mut Output) { output.value = 22; }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.output.value = 7;
+    fallback(&mut self.output, false, false);
+    let unchanged_fallback: bool = self.output.value == 7;
+    fallback(&mut self.output, true, true);
+    let first_wins: bool = self.output.value == 11;
+    fallback(&mut self.output, false, true);
+    let second_runs: bool = self.output.value == 22;
+    middle(&mut self.output, false, true);
+    let unchanged_middle: bool = self.output.value == 22;
+    middle(&mut self.output, true, true);
+    let first_before_unit: bool = self.output.value == 11;
+    middle(&mut self.output, false, false);
+    let fallback_runs: bool = self.output.value == 22;
+    transition unchanged_fallback && first_wins && second_runs
+        && unchanged_middle && first_before_unit && fallback_runs {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

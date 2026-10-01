@@ -1245,12 +1245,27 @@ pub(super) fn return_discards(
         PermissionProvenance,
     };
     let parameters = checked.state_parameters(source);
+    // Admission rejoins each Unit arm to an ordinary Terminal target. These
+    // selected completions transfer no result, just like a direct Unit return;
+    // jumps in the same chain retain their separate edge cleanup.
+    let guarded_unit_completion = match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+            arms.iter().any(|arm| {
+                matches!(arm, checked_trees::CheckedGuardedJumpArmPlan::Return(plan)
+                    if matches!(plan.return_arm, checked_trees::CheckedConditionalReturnArm::Unit { .. }))
+            }) || matches!(fallback, checked_trees::CheckedGuardedJumpFallbackPlan::Return(
+                checked_trees::CheckedConditionalReturnArm::Unit { .. }
+            ))
+        }
+        _ => false,
+    };
     // Unit and scalar completion transfer no structural result. Both retain
     // the same local custody until return disposal; structural completion
     // instead rejoins the returned owner's transfer before residual cleanup.
-    let local_discards = if matches!(
-        state.terminator,
-        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    let local_discards = if guarded_unit_completion
+        || matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
             | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. }
@@ -1260,7 +1275,7 @@ pub(super) fn return_discards(
             }
             // Each arm completes with Unit, after its terminal call if any.
             | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
-    ) {
+        ) {
         result_custody::local_discards(checked, machine, source, state, None)?
     } else {
         Vec::new()
@@ -1335,10 +1350,12 @@ pub(super) fn return_discards(
             }
         }
     }
-    if matches!(
-        state.terminator,
-        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-    ) {
+    if guarded_unit_completion
+        || matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        )
+    {
         // Every other owned affine parameter keeps its exit drop in the
         // source plan. Preserve this admission check; deleting a source drop
         // is not authority to silently omit cleanup. A consumed parameter may
