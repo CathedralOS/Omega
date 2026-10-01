@@ -12,4 +12,4 @@ pub(super) const MAXIMUM_LEDGER_ALIAS_BYTES: usize = 1024 * 1024;
 pub(super) const MAXIMUM_LEDGER_ROWS: usize = 65_536;
 pub(super) const MAXIMUM_LEDGER_ROW_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const MAXIMUM_LEDGER_KEY_BYTES: usize = 1024 * 1024;
-pub(super) const MAXIMUM_LEDGER_TOTAL_ROW_BYTES: usize = 16 * 1024 * 1024;
+pub(super) const MAXIMUM_LEDGER_TOTAL_ROW_BYTES: usize = 64 * 1024 * 1024;
