@@ -594,6 +594,8 @@ fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expec
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
 fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8ed253669f
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
+fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
+	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected @2d8ed253669f
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
@@ -606,10 +608,17 @@ fail/float/negated_ordered_guard_cast rejected 882ms expected @2d8ed253669f
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `self.value` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
 	float-to-int cast in machine `Guarded::convert` state `bounded` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
 	float-to-int cast in machine `Guarded::convert` state `bounded` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
+fail/float/record_window_transition_unrepaired rejected 348ms expected @ca8c127c90c5
+	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669f
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/const_container_mismatched_witness rejected 112ms expected @ca8c127c90c5
+	argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`, got `named value`
+fail/generics/const_container_zero_extent rejected 5ms expected @ca8c127c90c5
+	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_data_argument_out_of_range rejected 250ms expected @2d8ed253669f
 	const argument `300` for `TinyBuffer::N` does not fit `u8`
 fail/generics/const_data_argument_requires_value rejected 270ms expected @2d8ed253669f
@@ -961,6 +970,8 @@ fail/structs/affine_result_constructor_reuse rejected 649ms expected @2d8ed25366
 fail/structs/local_record_policy_erasure rejected 258ms expected @2d8ed253669f
 	implicit domain weakening in machine `observe` state `entry` local `value` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
+fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
+	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
 fail/targets/sibling_body_type_error_rejected rejected 1059ms expected @2d8ed253669f
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/single_target_internal_caller_rejected rejected 831ms expected @2d8ed253669f
@@ -1115,15 +1126,18 @@ pass/arithmetic/runtime_integer_casts_exit checked 1369ms @2d8ed253669f
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 6268ms @2d8ed253669f
 pass/arithmetic/runtime_monte_carlo_pi_exit checked 1623ms @2d8ed253669f
 pass/arithmetic/runtime_nested_unsigned_witness_exit checked 1419ms @2d8ed253669f
+pass/arithmetic/runtime_observed_call_bound_exit checked 1432ms @ca8c127c90c5
 pass/arithmetic/runtime_payload_range_narrowing_exit checked 1217ms @2d8ed253669f
 pass/arithmetic/runtime_requires_one_sided_bound_exit checked 1194ms @2d8ed253669f
 pass/arithmetic/runtime_shift_count_domain_exit checked 1358ms @2d8ed253669f
 pass/arithmetic/runtime_shl_saturating_exit checked 3352ms @2d8ed253669f
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 1366ms @2d8ed253669f
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 1429ms @2d8ed253669f
+pass/arithmetic/runtime_trapping_mutable_local_traps checked 915ms @ca8c127c90c5
 pass/arithmetic/runtime_trapping_overflow_traps checked 1251ms @2d8ed253669f
 pass/arithmetic/runtime_trapping_shift_count_traps checked 1744ms @2d8ed253669f
 pass/arithmetic/runtime_u64_guarded_cap_store_exit checked 1306ms @2d8ed253669f
+pass/arithmetic/runtime_wrapping_mutable_local_exit checked 1171ms @ca8c127c90c5
 pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 1407ms @2d8ed253669f
 pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 1593ms @8778c440081
 pass/arithmetic/suffix_landed_operand_position_exit checked 2050ms @2d8ed253669f
@@ -1152,7 +1166,14 @@ pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
+pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
+pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
+pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
+pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
+pass/borrows/transition_shared_borrow_result checked 1470ms @ca8c127c90c5
+pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
+pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
@@ -1184,8 +1205,7 @@ pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4a
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
 pass/calls/cyclic_affine_call_result_exit checked 1523ms @2d8ed253669f
-pass/calls/cyclic_mutable_borrow_block_parameter_call rejected 769ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Driver::drive`), which was itself omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 0)
+pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms @ca8c127c90c5
 pass/calls/cyclic_projected_borrow_call_exit checked 1488ms @2d8ed253669f
 pass/calls/cyclic_scalar_query_reborrow_exit checked 1429ms @2d8ed253669f
 pass/calls/field_path_byte_subslice_exit checked 1321ms @2d8ed253669f
@@ -1225,6 +1245,7 @@ pass/calls/requires_carrier_ceiling_vacuous checked 1231ms @2d8ed253669f
 pass/calls/requires_operand_flip_discharge checked 1412ms @2d8ed253669f
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
+pass/calls/runtime_call_statement_before_state_return_exit checked 1642ms @ca8c127c90c5
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f
@@ -1234,7 +1255,7 @@ pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 1797ms @2d8ed25
 pass/calls/runtime_dispatch_result_enum_case_exit checked 1492ms @2d8ed253669f
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253669f
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
-pass/calls/runtime_enum_self_method_exit built 2475ms @a86a5beaa8f
+pass/calls/runtime_enum_self_method_exit checked 1484ms @ca8c127c90c5
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
@@ -1256,13 +1277,11 @@ pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms @2d8ed2536
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms @2d8ed253669f
 pass/calls/runtime_reference_returned_slice_element_write_exit rejected 769ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at an unavailable callee (`Main::pick`), which was itself omitted at local construction at `result ownership`
-pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 1460ms @e3fc7ed76894+wt
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/control_flow.rs", line: 430, column: 24 } }))
+pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 1841ms @ca8c127c90c5
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms @2d8ed253669f
 pass/calls/runtime_shared_ref_param_member_exit checked 1314ms @2d8ed253669f
 pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
-pass/calls/runtime_std_math_sin_cos_exit rejected 5067ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph primitive store has no retained parameter destination"))
+pass/calls/runtime_std_math_sin_cos_exit checked 39961ms @ca8c127c90c5
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms @2d8ed253669f
 pass/calls/runtime_trailing_state_mut_param_phase_exit checked 970ms @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms @2d8ed253669f
@@ -1272,13 +1291,14 @@ pass/calls/runtime_value_call_nested_entry_call_exit checked 1534ms @2d8ed253669
 pass/calls/runtime_value_call_return_types_exit checked 3338ms @2d8ed253669f
 pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
-pass/calls/runtime_value_call_terminal_exit rejected 4060ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph primitive store has no retained parameter destination"))
+pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
+pass/calls/scalar_return_after_unit_call_exit checked 1178ms @ca8c127c90c5
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
 pass/calls/static_context_forwarded_through_state_arms_exit checked 1634ms @a9f373809a48+wt
+pass/calls/static_context_forwarded_twice_exit checked 1319ms @ca8c127c90c5
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
@@ -1315,14 +1335,18 @@ pass/collections/case_array_literal_nested_store_exit checked 1327ms @2d8ed25366
 pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
 pass/collections/element_view_borrow_local checked 1364ms @2d8ed253669f
+pass/collections/element_view_edge_loan checked 1307ms @ca8c127c90c5
 pass/collections/element_view_field_write checked 1283ms @2d8ed253669f
 pass/collections/element_view_indexed_read checked 1297ms @2d8ed253669f
 pass/collections/element_view_indexed_write checked 1179ms @2d8ed253669f
 pass/collections/element_view_runtime_field_write checked 1284ms @2d8ed253669f
+pass/collections/element_view_runtime_loan_read checked 938ms @ca8c127c90c5
+pass/collections/element_view_whole_write checked 1833ms @ca8c127c90c5
 pass/collections/element_view_write_transition checked 1201ms @2d8ed253669f
 pass/collections/indexed_row_array_literal_store checked 1151ms @2d8ed253669f
 pass/collections/mutable_slice_view_edge_release checked 1248ms @2d8ed253669f
 pass/collections/mutable_slice_view_establishment checked 1329ms @2d8ed253669f
+pass/collections/named_transition_completion checked 1468ms @ca8c127c90c5
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
 pass/collections/policy_array_literal_store_exit checked 1541ms @2d8ed253669f
@@ -1347,6 +1371,7 @@ pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms @2d8e
 pass/collections/runtime_signed_element_offset_read_exit checked 1469ms @2d8ed253669f
 pass/collections/runtime_vec_u32_growth_exit checked 22933ms @2d8ed253669f
 pass/collections/runtime_whole_array_value_copy_exit checked 834ms @a59d5a661528+wt
+pass/collections/shared_slice_view_dropped_receiver checked 1238ms @ca8c127c90c5
 pass/collections/std_option_runtime_match_exit checked 1470ms @2d8ed253669f
 pass/collections/std_option_surface checked 309ms @2d8ed253669f
 pass/collections/view_record_element_member_read_exit checked 1452ms @2d8ed253669f
@@ -1371,16 +1396,13 @@ pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1484ms @a5f40f5895
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 1251ms @2d8ed253669f
 pass/contracts/requires_u8_ceiling_below_carrier checked 885ms @2d8ed253669f
-pass/control_flow/arm_pattern_rest_optout_exit rejected 744ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::apply`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: owned non-linear record contents` (state 0)
-pass/control_flow/borrowed_state_argument rejected 723ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: receiver transfer` (state 3, statement 0)
+pass/control_flow/arm_pattern_rest_optout_exit checked 1748ms @ca8c127c90c5
+pass/control_flow/borrowed_state_argument checked 1813ms @ca8c127c90c5
 pass/control_flow/case_arm_payload_receiver_call rejected 1242ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1704ms @2d8ed253669f
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 1124ms @bd9a4018c019+wt
-pass/control_flow/case_pattern_rename_waive_exit rejected 804ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::apply`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: owned non-linear record contents` (state 0)
+pass/control_flow/case_pattern_rename_waive_exit checked 1765ms @ca8c127c90c5
 pass/control_flow/composite_state_parameter checked 1293ms @2d8ed253669f
 pass/control_flow/conditional_unit_completion_exit checked 1498ms @2d8ed253669f
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 303ms @2d8ed253669f
@@ -1405,8 +1427,7 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms @2d8ed253669f
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms @2d8ed253669f
-pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 764ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 2, statement 0)
+pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms @ca8c127c90c5
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 745ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 1457ms @84c87cb730d8
@@ -1416,8 +1437,7 @@ pass/control_flow/scalar_loop_interior_header_exit checked 1748ms @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms @2d8ed253669f
 pass/control_flow/structural_result_transition_tail checked 1440ms @15f38e49aac2+wt
 pass/control_flow/sum_field_storage_roundtrip checked 1418ms @2d8ed253669f
-pass/control_flow/termination_index_distance_compile rejected 137ms @587d9c3cbf43+wt
-	terminal-artifact production failed: Lowering(Unsupported("scalar loop header's ranking witness has no graph judgment"))
+pass/control_flow/termination_index_distance_compile checked 978ms @ca8c127c90c5
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
 pass/control_flow/transition_tail_self_call checked 295ms @2d8ed253669f
 pass/core/carry_permission_provider_adapter checked 663ms @2d8ed253669f
@@ -1437,8 +1457,7 @@ pass/core/task_lifecycle_operations rejected 408ms @2d8ed253669f
 pass/core/zii_default_composite_exit checked 1479ms @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms @2d8ed253669f
-pass/data/match_exhaustive_by_case_union_domain rejected 849ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/data/match_exhaustive_by_case_union_domain checked 1449ms @ca8c127c90c5
 pass/data/opaque_copy_selected checked 720ms @2d8ed253669f
 pass/data/payload_less_case_equality checked 304ms @2d8ed253669f
 pass/data/property_carry_declared checked 283ms @2d8ed253669f
@@ -1446,9 +1465,8 @@ pass/data/record_pattern_let_exit checked 1268ms @2d8ed253669f
 pass/data/runtime_case_reassignment_exit checked 1285ms @2d8ed253669f
 pass/data/runtime_data_properties_exit checked 1213ms @2d8ed253669f
 pass/data/runtime_mixed_case_common_fields_exit checked 1291ms @2d8ed253669f
-pass/data/runtime_mixed_case_payload_dispatch_exit rejected 751ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 0)
-pass/data/runtime_mixed_shape_exit built 2420ms @a86a5beaa8f
+pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms @ca8c127c90c5
+pass/data/runtime_mixed_shape_exit checked 2078ms @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit rejected 773ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 3)
@@ -1618,18 +1636,16 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed2536
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "x86_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`x86_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/builtin_extrema_field_store_exit checked 5149ms @2d8ed253669f
 pass/float/data_where_float_field_restored_exit checked 2202ms @8cb8c462809d+wt
+pass/float/exact_fractional_integer_boundary_exit checked 5353ms @ca8c127c90c5
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
-pass/float/float_saturating_arithmetic_exit rejected 396ms @2d8ed253669f
-	cannot prove assignment value `subtract(0.0, self.maximum) as f32 ` satisfies `finite` for bounded target `self.negative_maximum` in `Main::main.main`
+pass/float/float_saturating_arithmetic_exit checked 8348ms @ca8c127c90c5
 pass/float/float_to_int_exact_proofs_exit rejected 2540ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/float/float_to_int_trapping_nan_traps checked 4229ms @2d8ed253669f
-pass/float/float_trapping_overflow_traps rejected 2455ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
-pass/float/float_trapping_propagated_nan_traps rejected 2430ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
+pass/float/float_trapping_overflow_traps checked 4784ms @ca8c127c90c5
+pass/float/float_trapping_propagated_nan_traps checked 3518ms @ca8c127c90c5
 pass/float/foreign_control_state_restore checked 4723ms @2d8ed253669f
 pass/float/guarded_exact_float_conversion checked 1317ms @2d8ed253669f
 pass/float/literal_indexed_float_field_read_exit checked 4361ms @2d8ed253669f
@@ -1649,9 +1665,7 @@ pass/float/named_provider_directed_divide_exit rejected 4689ms @2d8ed253669f
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
-pass/float/named_provider_fused_multiply_add_exit rejected 2440ms @2d8ed253669f
-	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
-	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
+pass/float/named_provider_fused_multiply_add_exit checked 6076ms @ca8c127c90c5
 pass/float/named_provider_min_max_sqrt_exit checked 7600ms @2d8ed253669f
 pass/float/named_provider_multiply_then_add_exit checked 4722ms @2d8ed253669f
 pass/float/named_provider_negate_is_nan_exit checked 5868ms @2d8ed253669f
@@ -1682,8 +1696,7 @@ pass/generics/omitted_data_binder_range_equation checked 349ms @2d8ed253669f
 pass/generics/open_computed_quantity_result rejected 1309ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
 pass/generics/ranged_const_parameter_attached_shape checked 1334ms @2d8ed253669f
-pass/generics/runtime_const_container_methods_exit rejected 779ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 2, statement 0)
+pass/generics/runtime_const_container_methods_exit checked 678ms @ca8c127c90c5
 pass/generics/runtime_const_data_array_length_exit checked 1237ms @2d8ed253669f
 pass/generics/runtime_const_data_machine_call_exit checked 1992ms @2d8ed253669f
 pass/generics/runtime_const_data_multiple_instances_exit checked 1230ms @2d8ed253669f
@@ -1691,7 +1704,7 @@ pass/generics/runtime_const_data_symbolic_expression_exit checked 1300ms @2d8ed2
 pass/generics/runtime_const_data_where_fact_exit checked 1270ms @2d8ed253669f
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms @2d8ed253669f
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms @2d8ed253669f
-pass/generics/runtime_mixed_generic_erased_sum_exit built 2313ms @a86a5beaa8f
+pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed253669f
 pass/generics/runtime_value_generic_subject_exit checked 1300ms @2d8ed253669f
 pass/host/process_exit_i32_status_mapped checked 1100ms @2d8ed253669f
@@ -1731,6 +1744,7 @@ pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 975m
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms @2d8ed253669f
 pass/layouts/runtime_size_of_align_of_exit checked 1659ms @2d8ed253669f
 pass/locals/mutable_local_call_initializer_exit checked 1412ms @2d8ed253669f
+pass/locals/mutable_local_call_multistate_reassignment_exit checked 510ms @ca8c127c90c5
 pass/locals/mutable_local_call_reassignment_exit checked 1238ms @2d8ed253669f
 pass/locals/runtime_deferred_scalar_initialization_exit checked 1194ms @2d8ed253669f
 pass/locals/runtime_local_array_member_stores_without_mut_exit checked 1639ms @b077958d6785+wt
@@ -1892,7 +1906,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 45
 pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
-pass/ranges/sum_payload_range_arith_narrowed_exit built 2372ms @a86a5beaa8f
+pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 287ms @2d8ed253669f
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 768ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
@@ -1907,19 +1921,17 @@ pass/recast/runtime_interior_slice_congruent_offset_exit rejected 753ms @2d8ed25
 pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 763ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1259ms @2d8ed253669f
-pass/recast/runtime_mutable_equivalent_range_recast_exit rejected 736ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
+pass/recast/runtime_mutable_equivalent_range_recast_exit checked 769ms @ca8c127c90c5
 pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2454ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/recast/runtime_offset_byte_recast_mutable_write_exit rejected 744ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 6)
+pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1265ms @ca8c127c90c5
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 767ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1205ms @2d8ed253669f
 pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2391ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
-pass/relevance/erased_case_payload_field_exit built 2317ms @a86a5beaa8f
+pass/relevance/erased_case_payload_field_exit checked 747ms @ca8c127c90c5
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 1314ms @2d8ed253669f
 pass/relevance/erased_parameter_named_transition_forward checked 298ms @2d8ed253669f
 pass/relevance/erased_parameter_proof_only checked 1239ms @2d8ed253669f
@@ -1956,8 +1968,7 @@ pass/slices/runtime_slice_indexed_read_exit checked 1347ms @2d8ed253669f
 pass/slices/runtime_slice_iteration_exit checked 1471ms @2d8ed253669f
 pass/slices/runtime_slice_record_field_offset_exit checked 1304ms @2d8ed253669f
 pass/slices/runtime_subslice_dynamic_index_exit checked 1312ms @2d8ed253669f
-pass/slices/runtime_subslice_len_exit rejected 774ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
+pass/slices/runtime_subslice_len_exit checked 841ms @ca8c127c90c5
 pass/slices/runtime_subslice_range_pointer_exit checked 1379ms @2d8ed253669f
 pass/slices/signed_index_and_range_lower_bounds checked 351ms @2d8ed253669f
 pass/slices/subslice_folded_bound_facts_compile checked 288ms @2d8ed253669f
@@ -1998,8 +2009,10 @@ pass/structural/borrowed_array_state_carry checked 320ms @2d8ed253669f
 pass/structural/case_field_local_store checked 1214ms @2d8ed253669f
 pass/structural/case_field_member_store checked 1231ms @2d8ed253669f
 pass/structural/case_payload_record_member_read checked 1288ms @2d8ed253669f
+pass/structural/composed_case_field_store_exit checked 1122ms @ca8c127c90c5
 pass/structural/element_store checked 1287ms @2d8ed253669f
 pass/structural/local_record_receivers checked 309ms @2d8ed253669f
+pass/structural/runtime_mutable_record_copy_exit checked 1326ms @ca8c127c90c5
 pass/structural/runtime_provider_payload_array_exit checked 767ms @bbd0a9fdb8d4+wt
 pass/structural/runtime_selected_case_record_member_exit checked 1994ms @9f5f12201f80+wt
 pass/structural/runtime_state_local_whole_store_exit checked 1022ms @a917987f9778+wt
@@ -2077,14 +2090,16 @@ pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms @c9c108ecb4ac+wt
-pass/termination/runtime_shrinking_slice_recursion_exit rejected 510ms @c9c108ecb4ac+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidByteSequenceLengthSource { operation: OperationId(12), source: PlaceId(6) }))
+pass/termination/runtime_shrinking_slice_recursion_exit checked 761ms @ca8c127c90c5
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
 pass/termination/symbolic_quotient_endpoints checked 334ms @2d8ed253669f
 pass/termination/unsigned_identity_measure_rank_range checked 300ms @2d8ed253669f
 pass/text/local_bounded_byte_indexed_write_exit checked 1159ms @251097c4c144+wt
+pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5
+pass/text/local_bounded_text_scalar_loan_exit checked 4200ms @ca8c127c90c5
+pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
 pass/text/runtime_alias_string_write checked 381ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_concat_exit checked 1496ms @2d8ed253669f
@@ -2117,19 +2132,16 @@ pass/text/runtime_utf16_literal_exit checked 1329ms @2d8ed253669f
 pass/text/utf8_boundary_established checked 302ms @2d8ed253669f
 pass/text/zii_default_string_equality_exit checked 4129ms @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms @8778c440081
-pass/time/runtime_duration_core_exit rejected 2132ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("Unit case has unrelated owned parameter cleanup"))
+pass/time/runtime_duration_core_exit checked 24317ms @ca8c127c90c5
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 1206ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/time/runtime_time_elapsed_since_exit rejected 1259ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Time::now`), which was itself omitted at local construction at `call operation: boundary receiver`
-pass/time/runtime_time_host_native_darwin_exit rejected 763ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 0)
+pass/time/runtime_time_elapsed_since_exit checked 39939ms @ca8c127c90c5
+pass/time/runtime_time_host_native_darwin_exit checked 4141ms @ca8c127c90c5
 pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms @2d8ed253669f
 pass/traits/boundary_trait_effects_host_call checked 846ms @2d8ed253669f
 pass/traits/dyn_finite_family_dispatch checked 368ms @2d8ed253669f
-pass/traits/equatable_mixed_shape_equality_exit built 2514ms @a86a5beaa8f
+pass/traits/equatable_mixed_shape_equality_exit checked 3655ms @ca8c127c90c5
 pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
@@ -2147,8 +2159,7 @@ pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1801ms @2d8ed2536
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms @2d8ed253669f
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms @2d8ed253669f
-pass/types/runtime_addr_algebra_exit rejected 3169ms @2e2913321f6b+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 4)
+pass/types/runtime_addr_algebra_exit checked 1286ms @ca8c127c90c5
 pass/types/runtime_addr_conversion_trap_exit checked 891ms @16c68d48b859
 pass/types/runtime_addr_field_exit checked 900ms @16c68d48b859
 pass/types/runtime_exact_address_subtraction_exit checked 4796ms @2e2913321f6b+wt
@@ -2181,6 +2192,7 @@ pass/wire/wire_data_reserved_field checked 842ms @2d8ed253669f
 pass/wire/wire_preserving_decode_relay_exit rejected 1719ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 3)
 run/borrows/direct_runtime_index_write checked 2883ms @2d8ed253669f
+run/borrows/indexed_loan_element_write checked 748ms @ca8c127c90c5
 run/borrows/local_mut_borrow checked 2688ms @2d8ed253669f
 run/borrows/mut_record_loan_member_access checked 2773ms @2d8ed253669f
 run/borrows/probe_shared_len checked 2879ms @2d8ed253669f
