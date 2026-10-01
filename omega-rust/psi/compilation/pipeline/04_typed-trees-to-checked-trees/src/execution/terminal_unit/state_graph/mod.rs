@@ -279,10 +279,16 @@ pub(super) fn build_traced(
         )
         .unwrap_or_default()
         .into_iter()
-        // Only the initial pure bindings belong to prefix initialization.
-        // The first computation/call and its suffix use ordinary sequencing,
-        // just as when an earlier structural local already requires that path.
-        .take_while(|binding| binding.value == CheckedScalarBindingValue::Expression)
+        // The prefix carries immutable scalar values, not storage homes.
+        // Mutable declarations and their suffix use ordinary sequencing, whose
+        // EstablishPrimitiveLocal owns every later read, assignment and loan.
+        // Splitting a local's initializer into this value-only prefix would
+        // leave a later effectful assignment without its established referent.
+        .take_while(|binding| {
+            binding.value == CheckedScalarBindingValue::Expression
+                && binding.destination
+                    == checked_trees::CheckedScalarBindingDestination::Immutable
+        })
         // An atomic load or result placeholder is an event, not a pure prefix.
         .take_while(|binding| {
             !super::atomic_operations::owns_local(
