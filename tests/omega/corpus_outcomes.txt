@@ -1387,7 +1387,8 @@ pass/collections/runtime_case_array_element_write_exit checked 2347ms @2d8ed2536
 pass/collections/runtime_computed_index_direct_exit checked 1505ms @2d8ed253669f
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
-pass/collections/runtime_double_indexed_rmw_exit built 2524ms @2a68bc887d9+wt
+pass/collections/runtime_double_indexed_rmw_exit rejected 880ms @59d57ace39f0+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(2), place: PlaceId(3) }))
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1573ms @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms @2d8ed253669f
@@ -1459,6 +1460,11 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms @2d8ed253669f
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms @2d8ed253669f
+pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1271ms @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 1176ms @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejected 916ms @59d57ace39f0+wt
+	native artifact native artifact lowering failed: Lowering(InvalidStructuralScalarFieldStore(OperationId(17)))
+pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 1073ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms @ca8c127c90c5
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 745ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)

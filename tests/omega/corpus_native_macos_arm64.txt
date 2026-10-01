@@ -272,8 +272,8 @@ pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
 pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit:70 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
-pass/collections/runtime_double_indexed_rmw_exit rejected 922ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))
+pass/collections/runtime_double_indexed_rmw_exit rejected 4419ms @59d57ace39f0+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(2), place: PlaceId(3) }))
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
 pass/collections/runtime_fixed_vec_round_trip_exit built 1644ms exit:70 @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
@@ -347,6 +347,11 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 159
 pass/control_flow/runtime_indexed_case_dispatch_exit built 1009ms exit:2 @48008365d839
 pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
+pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit built 1610ms exit:70 @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit built 1343ms exit:70 @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejected 1168ms @59d57ace39f0+wt
+	native artifact native artifact lowering failed: Lowering(InvalidStructuralScalarFieldStore(OperationId(17)))
+pass/control_flow/runtime_nonentry_state_local_record_loan_exit built 1401ms exit:70 @59d57ace39f0+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1032ms exit:70 @48008365d839
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 1153ms @569fd648944c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
