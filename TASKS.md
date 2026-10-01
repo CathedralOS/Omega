@@ -78,6 +78,16 @@ build authority, and artifact verification remain separate obligations.
   `slice_maximum` and `value_call_in_expr` already use static entries and local
   buffers, but their Windows native runs still need the Console provider closure
   tracked under process exit. Their checked success is not full migration acceptance.
+  The three `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call`
+  fixtures now use local `WindowBuffer` storage and static calls. Their authored
+  assertions execute with checked-interpreter exit 0 on Windows (83d1d7229173
+  plus migration), but Terminal production stops at the mutable subslice local.
+  Stage 04 `calls/view_subslice.rs` admits shared views only; stage 05
+  `unit/attached_unit/view_ranges.rs::binding_local` likewise requires shared,
+  unrestricted custody. Carry exclusive subslice loans through the existing
+  range operation and its independent checks, preserving rejection of
+  `fail/slices/overlapping_mut_subslice_windows_rejected`. Close with host entry
+  roots and exit-0 oracles for all three fixtures, not a shared-borrow rewrite.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,

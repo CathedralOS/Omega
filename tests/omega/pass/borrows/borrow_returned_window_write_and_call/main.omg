@@ -1,4 +1,4 @@
-data Main { items: [i32; 4]; }
+data WindowBuffer { items: [i32; 4]; }
 
 machine choose(value: u64) -> u64
     requires 2 <= value, value <= 4;
@@ -14,14 +14,25 @@ machine take(slot: &mut i32) {
     slot = 7;
 }
 
-machine Main::main(&mut self, seed: u64) -> u64
+machine write_outside_window(context: &mut WindowBuffer, seed: u64) -> u64
     requires 2 <= seed, seed <= 4;
 {
     let split_point: u64 = choose(seed);
-    let held: &mut [i32] = self.items[split_point..4];
-    self.items[0] = 3;
-    take(&mut self.items[1]);
-    let outside: &mut i32 = &mut self.items[0];
+    let held: &mut [i32] = context.items[split_point..4];
+    context.items[0] = 3;
+    take(&mut context.items[1]);
+    let outside: &mut i32 = &mut context.items[0];
     outside = 5;
     held.len
+}
+
+machine main() crashes Trap {
+    let mut context: WindowBuffer;
+    let length: u64 = write_outside_window(&mut context, 2);
+    transition length == 2 && context.items[0] == 5 && context.items[1] == 7 && context.items[2] == 0 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
 }
