@@ -248,6 +248,40 @@ pub(crate) mod proof_timing {
         }
     }
 
+    /// One search's canonical and relaxed durations and its answer, printed
+    /// per search so a slow refusal can be attributed to its question.
+    pub(crate) fn search(
+        label: &str,
+        identity: u64,
+        goal: &semantic_vocabulary::Proposition,
+        requirements: usize,
+        axioms: usize,
+        canonical: std::time::Duration,
+        relaxed: Option<std::time::Duration>,
+        proved: bool,
+    ) {
+        if enabled() {
+            let mut text = format!("{goal:?}");
+            text.truncate(240);
+            eprintln!(
+                "[proof-search] {label} id={identity} canonical_ms={:.1} relaxed_ms={} proved={proved} requirements={requirements} axioms={axioms} goal={text}",
+                canonical.as_secs_f64() * 1000.0,
+                relaxed.map_or_else(
+                    || "-".to_owned(),
+                    |relaxed| format!("{:.1}", relaxed.as_secs_f64() * 1000.0)
+                ),
+            );
+        }
+    }
+
+    /// A stable digest of a search key for joining per-site and per-search lines.
+    pub(crate) fn key_digest(key: &impl std::hash::Hash) -> u64 {
+        use std::hash::Hasher;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish()
+    }
+
     pub(crate) static VERDICT_HITS: AtomicU64 = AtomicU64::new(0);
     pub(crate) static VERDICT_MISSES: AtomicU64 = AtomicU64::new(0);
     pub(crate) static BUDGET_EXHAUSTIONS: AtomicU64 = AtomicU64::new(0);

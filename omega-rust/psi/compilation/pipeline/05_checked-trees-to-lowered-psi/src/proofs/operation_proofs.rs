@@ -131,7 +131,10 @@ fn finalize_operation_proofs_inner(
             let (context, machine_parameter_values) = preparation
                 .as_ref()
                 .map_err(|error| LoweringError::InvalidTerminalModule(error.clone()))?;
-            produce_checked_canonical_integer_proof(
+            let started = std::time::Instant::now();
+            let mut canonical_elapsed = None;
+            let mut relaxed_ran = false;
+            let proof = produce_checked_canonical_integer_proof(
                 context,
                 &site.obligation.proposition,
                 assumptions,
@@ -139,11 +142,14 @@ fn finalize_operation_proofs_inner(
                 machine_parameter_values,
                 &mut search_declines,
             )
+            .inspect(|_| canonical_elapsed = Some(started.elapsed()))
             // Obligations whose operands meet cited facts only through
             // equality/definition chains outgrow the canonical custody
             // envelope; the relaxed search keeps the kernel as final
             // authority without loosening canonical producer contracts.
             .or_else(|| {
+                canonical_elapsed = Some(started.elapsed());
+                relaxed_ran = true;
                 produce_relaxed_integer_proof(
                     context,
                     &site.obligation.proposition,
@@ -173,7 +179,21 @@ fn finalize_operation_proofs_inner(
                     &site.obligation.proposition,
                     &site.semantic_axioms,
                 )
-            })
+            });
+            if crate::proofs::proof_timing::enabled() {
+                let canonical = canonical_elapsed.unwrap_or_default();
+                crate::proofs::proof_timing::search(
+                    "obligation",
+                    site.obligation.id.get(),
+                    &site.obligation.proposition,
+                    assumptions.len(),
+                    site.semantic_axioms.len(),
+                    canonical,
+                    relaxed_ran.then(|| started.elapsed().saturating_sub(canonical)),
+                    proof.is_some(),
+                );
+            }
+            proof
         } else {
             proof_from_available_facts(
                 &site.obligation.proposition,
