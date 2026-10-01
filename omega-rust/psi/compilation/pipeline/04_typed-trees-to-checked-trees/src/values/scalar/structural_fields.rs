@@ -553,7 +553,65 @@ pub(super) fn owned_local_root(
         ),
         Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
     );
-    (plain_array || owned_bytes).then_some((path.symbol, local.type_reference))
+    let owned_record = matches!(
+        program.type_reference_table.type_reference(local.type_reference),
+        TypeReferenceNode::Named { symbol, .. }
+            if symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data
+    ) && validation::has_plain_owned_contents_with_numeric_constraints(
+        program,
+        local.type_reference,
+    );
+    (plain_array || owned_bytes || owned_record).then_some((path.symbol, local.type_reference))
+}
+
+/// A collection can be stored below a local record, not just at a parameter
+/// or at the local's root. Retain each exact declared field on the way to it;
+/// later source replay checks availability at the actual observation site.
+pub(super) fn owned_local_place(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut members = Vec::new();
+    let mut receiver = expression;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(receiver) {
+        if members.len() >= program.expression_table.expression_count()
+            || member.case_variant.is_some()
+        {
+            return None;
+        }
+        members.push(member);
+        receiver = member.receiver;
+    }
+    let (root, mut carrier) = owned_local_root(program, parameters, receiver)?;
+    let mut path = Vec::with_capacity(members.len());
+    for member in members.into_iter().rev() {
+        let positions =
+            program.data_definition_positions_for_symbol(program.type_reference_symbol(carrier));
+        let [position] = positions.as_slice() else {
+            return None;
+        };
+        let owner = &program.data_definitions()[*position as usize];
+        let field = validation::exact_data_member_field(
+            program,
+            owner,
+            member.member_symbol,
+            member.member.as_str(),
+            None,
+        )?;
+        if field.relevance.is_erased() {
+            return None;
+        }
+        path.push(CheckedStructuralPredicatePathSegment::Field(
+            field.path_identity(),
+        ));
+        carrier = field.type_reference;
+    }
+    Some((root, path, carrier))
 }
 
 /// Empty spelling resolution is builtin only when the exact operand types

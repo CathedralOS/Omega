@@ -593,9 +593,20 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 // A raw array uses its declared extent. A bounded byte owner
                 // instead observes its live length, which may be less than
                 // capacity; the established carrier below selects the rule.
-                if !path.is_empty() {
-                    return unsupported("an owned local element read takes no projection path");
-                }
+                let path = path
+                    .iter()
+                    .map(|segment| match segment {
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                            Ok(terminal_psi::StructuralPathSegment::Field(identity.clone()))
+                        }
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                            Ok(terminal_psi::StructuralPathSegment::FixedIndex(*index))
+                        }
+                        _ => {
+                            unsupported("an owned local collection path takes static members only")
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 // A scalar member of a record element (`rooms[i].exits`)
                 // follows the selector with its static member steps, exactly
                 // as a parameter array's flat element read does. Terminal
@@ -637,6 +648,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     if local.place != source
                         || local.carrier != ViewCarrier::Bytes
                         || *primitive_type != PrimitiveType::U8
+                        || !path.is_empty()
                         || !element_path.is_empty()
                     {
                         return unsupported("owned byte read lost its established carrier");
@@ -652,7 +664,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 }
                 return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                     source,
-                    path: Vec::new(),
+                    path,
                     index: Box::new(exact_u64_index(index)?),
                     inner_indexes: Vec::new(),
                     element_path,
