@@ -3,9 +3,9 @@
 // different capacity shares that normalized name with the bundled one. The two
 // are unrelated owners, so they hold separate identities and this declaration
 // is admitted beside the toolchain leaf.
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
 data BoundedBytes {
     items: [u8; 8] in Utf8;

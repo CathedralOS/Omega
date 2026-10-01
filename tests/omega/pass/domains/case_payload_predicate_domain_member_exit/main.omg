@@ -14,7 +14,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain i32::NonZero requires self != 0;
+domain i32::NonZero(value) requires value != 0;
 
 data Divisor {
     case Unset;

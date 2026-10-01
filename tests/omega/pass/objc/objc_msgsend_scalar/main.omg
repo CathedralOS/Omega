@@ -9,9 +9,9 @@
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-pub domain [u8]::CString
+pub domain [u8]::CString(bytes)
 requires
-    no_nul(self);
+    no_nul(bytes);
 use omega::language::std::console;
 use omega::language::core::binding;
 

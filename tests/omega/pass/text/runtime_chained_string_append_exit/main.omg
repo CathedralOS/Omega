@@ -4,9 +4,9 @@
 // append extends the carrier's inline bytes at its current length, and the
 // guard reads that updated carrier rather than a stale legacy scratch buffer.
 
-domain [u8; 16]::Utf8
+domain [u8; 16]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

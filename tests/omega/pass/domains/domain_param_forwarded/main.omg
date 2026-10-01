@@ -9,9 +9,9 @@ data Blob [copy] {
     payload: i32;
 }
 
-domain Blob::Scanned
+domain Blob::Scanned(blob)
 requires
-    self.payload > 0;
+    blob.payload > 0;
 
 data Main {
     blob: Blob;

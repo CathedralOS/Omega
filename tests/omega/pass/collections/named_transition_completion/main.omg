@@ -1,7 +1,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8]::Name requires no_nul(self);
+domain [u8]::Name(bytes) requires no_nul(bytes);
 
 data Main {
     console: Binding<Console>;

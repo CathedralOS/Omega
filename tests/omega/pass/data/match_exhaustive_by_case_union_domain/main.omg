@@ -17,9 +17,9 @@ data Command {
     case Say(volume: i32);
 }
 
-domain Command::Interactive
+domain Command::Interactive(command)
 requires
-    self in Command::Move | Command::Say;
+    command in Command::Move | Command::Say;
 data Main {
     console: Binding<Console>;
     cmd: Command;

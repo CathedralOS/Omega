@@ -6,9 +6,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u32::Small
+domain u32::Small(value)
 requires
-    self <= 100;
+    value <= 100;
 
 data Main {
     console: Binding<Console>;

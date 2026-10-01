@@ -2,14 +2,14 @@ data Player {
     health: i32;
 }
 
-domain Player::Valid
+domain Player::Valid(player)
 requires
-    self.health >= 0;
+    player.health >= 0;
 
-domain Player::Alive
+domain Player::Alive(player)
 requires
-    self in Player::Valid;
-    self.health > 0;
+    player in Player::Valid;
+    player.health > 0;
 
 data Main {
     player: Player;

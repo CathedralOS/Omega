@@ -1,13 +1,13 @@
 // Capacity specializations under one owner normalize to the single name
 // `[u8; N]::Utf8`, so they must carry equal normalized semantics. These two
 // declare different predicates.
-domain [u8; 8]::Utf8
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 
-domain [u8; 16]::Utf8
+domain [u8; 16]::Utf8(bytes)
 requires
-    self.len == 16;
+    bytes.len == 16;
 
 data Main {
     items: [u8; 8] in Utf8;

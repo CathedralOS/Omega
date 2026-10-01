@@ -7,12 +7,12 @@
 // document this guard); (3) zii == zii (place==place TextEquals) must be
 // TRUE. A regression on leg 2 is a SIGSEGV, not a wrong exit -- the canary
 // still catches it as a non-70 outcome. exits: 71/72/73 per leg.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
+    valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf8; okf: bool; }

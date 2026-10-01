@@ -5,9 +5,9 @@
 // permission establishes no predicate: `label` stays valid UTF-8 because
 // every write into the source preserved it. The successor reads the copied
 // field's length and bytes. 71 = wrong extent, 72 = wrong bytes.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

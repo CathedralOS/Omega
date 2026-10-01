@@ -3,12 +3,12 @@ use omega::language::core::binding;
 // `[u8; N] in LineUtf8` carrier (no `String`). Each iteration checks health, then
 // reads a line into the carrier, borrows it as a `&[u8] in LineUtf8` view, resolves a
 // Command enum directly, and loops until `quit`.
-pub domain [u8]::LineUtf8
+pub domain [u8]::LineUtf8(bytes)
 requires
-    valid_utf8(self);
-pub domain [u8; 16]::LineUtf8
+    valid_utf8(bytes);
+pub domain [u8; 16]::LineUtf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 pub boundary trait Console {
     machine write_line(text: &[u8] in LineUtf8);
     machine read_line(out_line: &mut [u8; 16] in LineUtf8);

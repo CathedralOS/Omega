@@ -1,7 +1,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8; 8]::Utf8 requires valid_utf8(self);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Leaf [copy] { name: [u8; 8] in Utf8; value: u64; }
 data Event [copy] { leaf: Leaf; }
 data Room [copy] { event: Event; }

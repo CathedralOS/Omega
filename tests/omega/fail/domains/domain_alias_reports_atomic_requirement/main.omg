@@ -3,13 +3,13 @@ pub data Socket {
     authenticated: bool;
 }
 
-pub domain Socket::Connected
+pub domain Socket::Connected(socket)
 requires
-    self.connected;
+    socket.connected;
 
-pub domain Socket::Authenticated
+pub domain Socket::Authenticated(socket)
 requires
-    self.authenticated;
+    socket.authenticated;
 
 pub domain Socket::Usable =
     Socket::Connected & Socket::Authenticated;

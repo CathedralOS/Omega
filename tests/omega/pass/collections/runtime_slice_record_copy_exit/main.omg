@@ -3,7 +3,7 @@ use omega::language::core::binding;
 
 // Copy the entire qualified record through a slice, including a bounded byte
 // field and an enum. The source and the unselected destination stay intact.
-domain [u8; 8]::Utf8 requires valid_utf8(self);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Tag [copy] { case First; case Second; }
 data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
 data Bag { cells: [Cell; 2]; }

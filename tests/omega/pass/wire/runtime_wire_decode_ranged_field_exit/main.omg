@@ -6,8 +6,8 @@ data Msg {
     #0 v: u32;
     #1 delta: i32;
 }
-domain u32::WireValue requires self <= 100;
-domain i32::WireDelta requires 0 - 10 <= self && self <= 10;
+domain u32::WireValue(value) requires value <= 100;
+domain i32::WireDelta(value) requires 0 - 10 <= value && value <= 10;
 data Val {
     v: u32 in WireValue;
     delta: i32 in WireDelta;

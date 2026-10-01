@@ -4,13 +4,13 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::Positive
+domain u64::Positive(value)
 requires
-    self > 0;
-domain u64::BufferSize
+    value > 0;
+domain u64::BufferSize(value)
 requires
-    self in Positive;
-    self <= 8;
+    value in Positive;
+    value <= 8;
 
 data FixedBuffer<const N: u64>
 where

@@ -7,12 +7,12 @@
 // is what discharges `accept`'s requirement at the call.
 //
 // Exit 71 = wrong name, 72 = wrong label, 73 = wrong count.
-domain [u8; 5]::Utf8
+domain [u8; 5]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 16]::Utf8
+    valid_utf8(bytes);
+domain [u8; 16]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

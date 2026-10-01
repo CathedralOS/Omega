@@ -1,9 +1,9 @@
 // A result-bearing machine fills a record whose members include text views
 // and a fixed array of records, stores each array element whole from a record
 // literal, writes three of those text members back out, and returns 0.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

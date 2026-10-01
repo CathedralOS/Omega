@@ -3,9 +3,9 @@
 // must read the view's bytes: "look" against "quit" takes the `_` arm. A
 // comparison of descriptor words or lengths alone would select `finished`
 // and exit 70.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

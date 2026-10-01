@@ -1,5 +1,5 @@
 // Sharing construction storage rules does not discharge member validity.
-domain i32::Ten requires 0 <= self && self <= 10;
+domain i32::Ten(value) requires 0 <= value && value <= 10;
 
 data Gauge { level: i32 in Ten; }
 data Main { gauge: Gauge; }
