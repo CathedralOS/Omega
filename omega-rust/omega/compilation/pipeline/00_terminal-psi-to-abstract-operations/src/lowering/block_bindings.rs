@@ -1,7 +1,8 @@
 //! Admit whole shared or exclusive byte views, address joins over plain
 //! referents or shared bounded byte owners, and plain owned structural
-//! arrivals. Only an owner loan's join carries qualifications: its frozen
-//! referent keeps the owner's plain byte predicates.
+//! arrivals. Only an owner loan's join or a shared byte view carries
+//! qualifications: its frozen referent keeps its declared plain byte
+//! predicates, which Terminal verification already replayed at every arrival.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
@@ -37,6 +38,10 @@ pub(super) fn validate_structural_block_bindings(
                         || parameter.is_self
                         || (!parameter.qualifications.is_empty()
                             && !abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                                parameter,
+                                &module.structural_types,
+                            )
+                            && !abstract_operations::control_flow::owner_loans::is_shared_byte_view_in(
                                 parameter,
                                 &module.structural_types,
                             ))

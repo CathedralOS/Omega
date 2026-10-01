@@ -1,5 +1,5 @@
-//! Exact whole shared-view, shared bounded-owner, address-join and plain
-//! owned telescopes; ownership replays separately.
+//! Exact whole shared-view (qualified or not), shared bounded-owner,
+//! address-join and plain owned telescopes; ownership replays separately.
 //!
 //! A descriptor view or owned arrival binds a whole root of exactly its own
 //! contract. An address join (`abstract_operations::control_flow::address_joins`)
@@ -35,7 +35,9 @@ pub(super) fn validate(
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             if parameter.position as usize != position
                 || !places.insert(parameter.place)
-                || (!plain(parameter) && !owner_loan(parameter, types))
+                || (!plain(parameter)
+                    && !owner_loan(parameter, types)
+                    && !qualified_shared_view(parameter, types))
                 || !types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
@@ -89,7 +91,9 @@ pub(super) fn validate(
                 .zip(&destination.structural_parameters)
             {
                 let source = source_contract(function, binding.argument.place);
-                let exact_source = if owner_loan(parameter, types) {
+                let exact_source = if qualified_shared_view(parameter, types) {
+                    qualified_shared_view_source(function, &binding.argument, parameter)
+                } else if owner_loan(parameter, types) {
                     // A bounded owner's shared loan is forwarded whole from a
                     // signature or block parameter with the identical
                     // declaration, qualifications included: the frozen
@@ -189,6 +193,74 @@ fn owner_loan(
         parameter,
         |identity| types.get(&identity).copied(),
     )
+}
+
+/// A shared borrowed byte view keeping its declared domains (`&[u8] in Utf8`).
+/// Terminal verification replayed those predicates at every arrival; the
+/// frozen descriptor needs no other transport.
+fn qualified_shared_view(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    !parameter.qualifications.is_empty()
+        && abstract_operations::control_flow::owner_loans::is_shared_byte_view(
+            parameter,
+            |identity| types.get(&identity).copied(),
+        )
+}
+
+/// A qualified shared byte view arrives whole: forwarded from an identically
+/// declared signature or block parameter, or established from a literal whose
+/// verified roster is exactly the parameter's qualifications.
+fn qualified_shared_view_source(
+    function: &PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    if !argument.path.is_empty() {
+        return false;
+    }
+    let forwarded = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|source| {
+            source.place == argument.place
+                && source.structural_type == parameter.structural_type
+                && source.access == parameter.access
+                && source.multiplicity == parameter.multiplicity
+                && source.qualifications == parameter.qualifications
+                && source.projected_qualifications.is_empty()
+                && !source.is_self
+        });
+    let literal = || {
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| match &node.operation {
+                O::EstablishByteSequenceLiteral {
+                    place: declaration,
+                    qualifications,
+                    ..
+                } => {
+                    declaration.id == argument.place
+                        && *qualifications == parameter.qualifications
+                        && matches!(
+                            declaration.kind,
+                            StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
+                                if structural_type == parameter.structural_type
+                        )
+                }
+                _ => false,
+            })
+    };
+    forwarded || literal()
 }
 
 /// Block parameters carry no qualification roster, so a structural join merges

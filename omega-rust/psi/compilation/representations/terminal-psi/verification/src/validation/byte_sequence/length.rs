@@ -135,6 +135,9 @@ pub(in crate::validation) fn validate_source(
                 || (!parameter.qualifications.is_empty()
                     && !crate::validation::block_views::shared_bounded_owner_loan(
                         module, parameter,
+                    )
+                    && !crate::validation::block_views::qualified_shared_byte_view(
+                        module, parameter,
                     ))
                 || !parameter.projected_qualifications.is_empty()
             {

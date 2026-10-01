@@ -1,0 +1,44 @@
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+// A string literal supplied on a state edge to a `&[u8] in Utf8` state
+// parameter establishes that domain at the edge, and forwarding the
+// parameter to another `&[u8] in Utf8` state keeps it. The final state reads
+// the forwarded view's length and first byte, so the descriptor must survive
+// both edges natively: "no" has length 2 and starts with 110, "yes" would
+// have length 3. Exit 70 = the selected literal arrived intact; 71 = wrong
+// length or byte.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition false {
+        true -> relay("yes")
+        false -> relay("no")
+    }
+
+    state relay(text: &[u8] in Utf8) {
+        transition {
+            _ -> consume(text)
+        }
+    }
+
+    state consume(&mut self, text: &[u8] in Utf8) {
+        transition text.len == 2 && text[0] == 110 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

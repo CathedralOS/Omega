@@ -140,13 +140,17 @@ impl StateGraphEmission<'_, '_> {
                 "Unit graph target disappeared during emission",
             ))?;
         // Established payloads are parameters of a guard dispatch block,
-        // so the edge's arguments must be evaluated after selection.
+        // so the edge's arguments must be evaluated after selection. Every
+        // transfer that emits its own operation on the edge -- a case-payload
+        // or projected copy, an established value, a literal's octets --
+        // needs that staged block to hold it.
         let stage = case_edge || !established.is_empty() || edge.scalar_arguments.iter().any(|argument| matches!(
             argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
         )) || edge.transfers.iter().any(|transfer| matches!(
             transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
                 | checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. }
                 | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. }
+                | checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. }
         )) || guarded
                 && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                     transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
