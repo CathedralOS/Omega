@@ -142,7 +142,7 @@ const GUARDED_REFERENCE_SOURCE: &str = r#"
 
 #[test]
 fn guarded_reference_arms_replay_exact_authored_sources() {
-    assert_guarded_reference_sources(GUARDED_REFERENCE_SOURCE);
+    assert_guarded_reference_sources(GUARDED_REFERENCE_SOURCE, "pick");
 }
 
 #[test]
@@ -153,18 +153,21 @@ fn guarded_attached_reference_arms_replay_exact_authored_sources() {
             "machine Bag::pick(&mut self,",
         )
         .replace("bag.holders", "self.holders");
-    assert_guarded_reference_sources(&attached);
+    assert_guarded_reference_sources(&attached, "Bag::pick");
 }
 
-fn assert_guarded_reference_sources(source_text: &str) {
+fn assert_guarded_reference_sources(source_text: &str, machine_name: &str) {
     use checked_trees::{
         CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
         CheckedUnitStructuralPathSegment,
     };
 
     let checked = crate::front_end::checked_program(source_text);
-    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("pick"))
-        .expect("guarded references lower with their exact arm sources and view cleanup");
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name(machine_name),
+    )
+    .expect("guarded references lower with their exact arm sources and view cleanup");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -175,7 +178,7 @@ fn assert_guarded_reference_sources(source_text: &str) {
     let machine = checked
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == "pick")
+        .find(|machine| machine.name.as_str() == machine_name)
         .expect("pick machine");
     let source = &checked.machine_states(machine)[0];
     let original = checked

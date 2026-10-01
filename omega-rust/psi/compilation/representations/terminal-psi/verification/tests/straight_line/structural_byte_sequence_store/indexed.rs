@@ -74,7 +74,7 @@ fn nested_static_byte_field_observations_replay_every_projection() {
         &AdmissionProfile::default(),
     )
     .expect("length observes the exact nested field without borrowing or writing it");
-    for mutation in 0..7 {
+    for mutation in 0..8 {
         let mut changed = module.clone();
         let OperationKind::StructuralByteSequenceFieldLength {
             source,
@@ -97,6 +97,14 @@ fn nested_static_byte_field_observations_replay_every_projection() {
             4 => path.insert(0, StructuralPathSegment::Referent),
             5 => *field = id(2),
             6 => *source = id(99),
+            7 => {
+                changed
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == id(5))
+                    .unwrap()
+                    .shape = terminal_psi::StructuralTypeShape::ElementView { element: id(4) };
+            }
             _ => unreachable!(),
         }
         assert!(

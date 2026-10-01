@@ -1198,6 +1198,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/branch_selected_record_composed_receiver_exit checked 1102ms @ae42075f1dcc+wt
 pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
@@ -2175,6 +2176,7 @@ pass/text/local_bounded_byte_indexed_write_exit checked 1159ms @251097c4c144+wt
 pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5
 pass/text/local_bounded_text_scalar_loan_exit checked 4200ms @ca8c127c90c5
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
+pass/text/nested_owned_byte_record_literal_exit checked 1087ms @ae42075f1dcc+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms @5826c9701ec3+wt
 pass/text/runtime_alias_string_write checked 381ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms @2d8ed253669f
