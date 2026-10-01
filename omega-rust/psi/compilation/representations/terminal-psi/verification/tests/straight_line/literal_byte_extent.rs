@@ -200,6 +200,78 @@ fn shared_parameter_has_no_literal_extent() {
 }
 
 #[test]
+fn parameter_length_proves_only_the_measured_views_extent() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let (mut module, mut bundle) = fixture(b"XXX");
+        module.structural_types[0].shape =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(access),
+            });
+        let machine = &mut module.machines[0];
+        machine.structural_places.clear();
+        for position in 0..2 {
+            let place = PlaceId::new(u64::from(position) + 1).unwrap();
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter {
+                    position,
+                    is_self: false,
+                },
+            });
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place,
+                    position,
+                    is_self: false,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+        }
+        machine.blocks[0].operations.remove(0);
+        let extent = ScalarTerm::view_extent(PlaceId::new(1).unwrap(), Vec::new(), integer());
+        let observation = Proposition::Equal(value(1), extent.clone());
+        let goal = Proposition::Equal(value(2), extent);
+        machine.contract.ensures[0].proposition = goal.clone();
+        let EvidenceRoute::CertificateDerived(envelope) = &mut bundle.evidence[0].route else {
+            panic!("fixture carries a certificate");
+        };
+        envelope.proof.conclusion = goal;
+        let ProofRule::EqualityTransitivity {
+            middle_equals_right,
+            ..
+        } = &mut envelope.proof.rule
+        else {
+            panic!("fixture composes observation and return identity");
+        };
+        middle_equals_right.conclusion = observation.clone();
+        validate_module(&module).unwrap();
+        let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+        assert!(
+            reconstructed.obligations()[0]
+                .semantic_axioms
+                .contains(&observation)
+        );
+        verify_module(&module, &bundle, &AdmissionProfile::default())
+            .expect("the measured parameter's extent proves the return contract");
+
+        // The second parameter has identical declared type and access, but
+        // measuring it cannot justify the first parameter's extent contract.
+        module.machines[0].blocks[0].operations[0].kind = OperationKind::ByteSequenceLength {
+            source: PlaceId::new(2).unwrap(),
+        };
+        validate_module(&module).unwrap();
+        assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+    }
+}
+
+#[test]
 fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
     let (mut module, bundle) = fixture(b"XXX");
     verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();

@@ -18,7 +18,30 @@ use terminal_semantics::{
 
 use crate::ModuleError;
 
-pub(super) fn length_fact(
+pub(super) fn append_length_equations(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    current: &Operation,
+    observation: &StructuralEffectObservation,
+    context: &super::super::machine_context::MachineReconstructionContext<'_>,
+    axioms: &mut Vec<Proposition>,
+) -> Result<(), ModuleError> {
+    let StructuralEffectObservation::ByteSequenceLengthRead { source, .. } = observation else {
+        return Ok(());
+    };
+    if let Some(equation) = length_fact(module, machine, current, observation, context)? {
+        crate::verification::substitution::push_unique_fact(axioms, equation);
+    }
+    // Keep independent backing/arrival equations first: value-definition
+    // transport selects the first equation. The descriptor identity adds a
+    // contract vocabulary bridge, not a replacement for that stronger fact.
+    if let Some(equation) = view_length_equation(module, machine, current, *source) {
+        crate::verification::substitution::push_unique_fact(axioms, equation);
+    }
+    Ok(())
+}
+
+fn length_fact(
     module: &TerminalModule,
     machine: &TerminalMachine,
     current: &Operation,
@@ -184,6 +207,59 @@ pub(super) fn length_fact(
     }
     subslice_length_equation(observation, &producer_observation)
         .map_err(ModuleError::OperationSemanticSchema)
+}
+
+/// A borrowed view's observed length denotes that exact parameter's extent.
+/// This is not a fixed capacity or a relationship between different views.
+/// Call and state-contract substitution retain the root identity, so a guard
+/// over this observation can justify a requirement on the forwarded view.
+/// Byte and element readers share this rule without equating their units.
+/// This holds for a block parameter's current descriptor too, regardless of
+/// which incoming edge supplied it. It asserts no relationship with a prior
+/// binding; the independent all-arrival walk still owns that relationship.
+pub(super) fn view_length_equation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    current: &Operation,
+    source: PlaceId,
+) -> Option<Proposition> {
+    let structural_type = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .find(|parameter| parameter.place == source)
+                .map(|parameter| parameter.structural_type)
+        })?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?;
+    if !matches!(
+        (&current.kind, &declaration.shape),
+        (
+            OperationKind::ByteSequenceLength { .. },
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+        ) | (
+            OperationKind::ElementViewLength { .. },
+            StructuralTypeShape::ElementView { .. }
+        )
+    ) {
+        return None;
+    }
+    let result = current.result.scalar()?;
+    let semantic_vocabulary::ScalarType::Integer(integer_type) = result.scalar_type else {
+        return None;
+    };
+    Some(Proposition::Equal(
+        ScalarTerm::value(result.id, result.scalar_type),
+        ScalarTerm::view_extent(source, Vec::new(), integer_type),
+    ))
 }
 
 /// The static capacity of a bounded-view byte carrier on this root, if the

@@ -428,6 +428,119 @@ fn acyclic_scalar_block_invariants_check_each_selected_actual_and_arrival() {
 }
 
 #[test]
+fn arrival_extent_uses_the_selected_structural_argument() {
+    use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+
+    let mut module = acyclic_module();
+    let structural_type = id(10, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+    });
+    let machine = &mut module.machines[0];
+    for position in 0..2 {
+        let place = id(10 + u64::from(position), PlaceId::new);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position,
+                is_self: false,
+            },
+        });
+        machine
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place,
+                position,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+    }
+    let header = &mut machine.blocks[1];
+    header
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: id(12, PlaceId::new),
+            structural_type,
+            position: 0,
+            is_self: false,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(12, PlaceId::new),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: header.id,
+            position: 0,
+        },
+    });
+    let extent_equals = |place, count| {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        Proposition::Equal(
+            ScalarTerm::view_extent(id(place, PlaceId::new), Vec::new(), integer_type),
+            ScalarTerm::integer(integer_type, IntegerValue::Unsigned(count)).unwrap(),
+        )
+    };
+    machine.contract.requires = vec![extent_equals(10, 3), extent_equals(11, 9)];
+    module.scalar_block_invariants[0].predicate = extent_equals(12, 3);
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        panic!("fixture has two arrivals");
+    };
+    for successor in [when_true, when_false] {
+        successor.structural_arguments.push(StructuralArgument {
+            place: id(10, PlaceId::new),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        });
+    }
+    validate_module(&module).unwrap();
+    let proofs = evidence(&module);
+    verify_module(&module, &proofs, &AdmissionProfile::default()).unwrap();
+    for question in reconstruct_terminal_obligations(&module)
+        .unwrap()
+        .obligations()
+    {
+        assert_eq!(question.obligation.proposition, extent_equals(10, 3));
+        assert!(!question.semantic_axioms.contains(&extent_equals(12, 3)));
+    }
+    // A same-typed descriptor on just one arrival must not reuse the proof
+    // for the other view, even when both edges share the destination block.
+    let Terminator::Conditional { when_false, .. } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!();
+    };
+    when_false.structural_arguments[0].place = id(11, PlaceId::new);
+    validate_module(&module).unwrap();
+    let questions = reconstruct_terminal_obligations(&module).unwrap();
+    assert!(
+        questions
+            .obligations()
+            .iter()
+            .any(|question| question.obligation.proposition == extent_equals(11, 3))
+    );
+    assert!(verify_module(&module, &proofs, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
 fn empty_fact_arrival_cannot_assume_its_destination_predicate() {
     let mut module = acyclic_module();
     module.machines[0].blocks[0].terminator = Terminator::Jump {

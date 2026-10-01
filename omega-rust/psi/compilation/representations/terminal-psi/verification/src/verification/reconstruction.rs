@@ -614,7 +614,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 context.proposition_context(),
                 &axioms,
                 &mut operation_obligations,
-            );
+            )?;
         }
         // Every retained ranked component needs per-edge reconstructed
         // premises: each measured edge must answer its decrease question

@@ -1,9 +1,7 @@
 //! Join an element-view length observation to its exact validated producer or
 //! to the descriptor every block arrival transfers.
 
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
-};
+use semantic_vocabulary::{Proposition, StructuralPlaceKind};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
@@ -120,13 +118,13 @@ pub(super) fn append_length_equations(
     context: &super::super::machine_context::MachineReconstructionContext<'_>,
     axioms: &mut Vec<Proposition>,
 ) -> Result<(), ModuleError> {
+    let StructuralEffectObservation::ElementViewLengthRead { source, .. } = observation else {
+        return Ok(());
+    };
     if let Some(equation) = source_length_equation(module, machine, current, observation, context)?
     {
         crate::verification::substitution::push_unique_fact(axioms, equation);
     }
-    let StructuralEffectObservation::ElementViewLengthRead { source, .. } = observation else {
-        return Ok(());
-    };
     if let Some(StructuralPlaceKind::BlockParameter { block, position }) = machine
         .structural_places
         .iter()
@@ -141,6 +139,14 @@ pub(super) fn append_length_equations(
             position,
             context.dominators(),
         )
+    {
+        crate::verification::substitution::push_unique_fact(axioms, equation);
+    }
+    // Existing producer/arrival equations stay ahead of the descriptor alias:
+    // join inference transports through the first definition of each value.
+    // Otherwise an exact backing count can disappear behind a local view name.
+    if let Some(equation) =
+        super::byte_extent::view_length_equation(module, machine, current, *source)
     {
         crate::verification::substitution::push_unique_fact(axioms, equation);
     }
@@ -207,26 +213,8 @@ fn source_length_equation(
                 },
             )
         }
-        StructuralPlaceKind::Parameter { position, .. } => {
-            let Some(parameter) = machine.structural_parameters.get(position as usize) else {
-                return Ok(None);
-            };
-            let is_element_view = module.structural_types.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
-                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-            });
-            if !is_element_view {
-                return Ok(None);
-            }
-            // A signature element view's extent is the descriptor the caller
-            // supplied: the read result is exactly the parameter's own
-            // `ViewExtent` term, which call-site composition instantiates
-            // against the actual argument.
-            let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-            return Ok(Some(Proposition::Equal(
-                ScalarTerm::value(*result, ScalarType::Integer(integer_type)),
-                ScalarTerm::view_extent(*source, Vec::new(), integer_type),
-            )));
+        StructuralPlaceKind::Parameter { .. } => {
+            return Ok(None);
         }
         _ => return Ok(None),
     };

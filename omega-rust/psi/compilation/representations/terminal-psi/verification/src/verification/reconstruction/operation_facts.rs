@@ -596,11 +596,14 @@ pub(super) fn append_operation(
                 }
             }
         }
-        if let Some(fact) =
-            byte_extent::length_fact(module, machine, operation, &observation, context)?
-        {
-            crate::verification::substitution::push_unique_fact(axioms, fact);
-        }
+        byte_extent::append_length_equations(
+            module,
+            machine,
+            operation,
+            &observation,
+            context,
+            axioms,
+        )?;
         element_extent::append_length_equations(
             module,
             machine,
