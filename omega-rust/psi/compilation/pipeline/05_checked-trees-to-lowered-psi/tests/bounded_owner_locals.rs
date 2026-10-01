@@ -32,6 +32,122 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn recursive_lookup_into_local_record_keeps_a_complete_write_frame() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data CellId [copy] { case Empty; case First; }
+        data EventKind [copy] { case Quiet; case Monster; }
+        data Exit [copy] { destination: CellId; }
+        data Enemy [copy] { name: [u8; 8] in Utf8; }
+        data Event [copy] { kind: EventKind; enemy: Enemy; }
+        data Room [copy] {
+            cell: CellId;
+            description: [u8; 8] in Utf8;
+            exits: [Exit; 2];
+            event: Event;
+        }
+        data Level [copy] { rooms: [Room; 2]; room_count: u64; }
+        data Lookup {}
+        data Formatter { lookup: Lookup; }
+
+        machine Lookup::find(&mut self, level: Level, cell: CellId, output: &mut Room)
+        ensures output.description in Utf8, output.event.enemy.name in Utf8 {
+            let rooms: &[Room] = level.rooms.as_slice();
+            transition level.room_count > 0 {
+                true -> search(rooms, level.room_count, cell, output, 0)
+                false -> {}
+            }
+            state search(&mut self, rooms: &[Room], room_count: u64,
+                         cell: CellId, output: &mut Room, index: u64 in Wrapping)
+            requires index < 2 {
+                let found: bool = rooms[index].cell == cell;
+                let next_index: u64 in Wrapping = index + 1;
+                let has_next: bool = next_index < room_count;
+                transition {
+                    found -> apply(rooms[index], output)
+                    has_next && next_index < 2 -> search(rooms, room_count, cell, output, next_index)
+                    _ -> {}
+                }
+            }
+            state apply(&mut self, room: Room, output: &mut Room) {
+                output.cell = room.cell;
+                output.description = room.description;
+                let output_exits: &mut [Exit] = output.exits.as_mut_slice();
+                let room_exits: &[Exit] = room.exits.as_slice();
+                output_exits[0] = room_exits[0];
+                output_exits[1] = room_exits[1];
+                output.event.kind = room.event.kind;
+                output.event.enemy = room.event.enemy;
+            }
+        }
+
+        machine Formatter::format(&mut self, level: Level, cell: CellId,
+                                  output: &mut [u8; 8] in Utf8)
+        ensures output in Utf8 {
+            let room: Room;
+            self.lookup.find(level, cell, &mut room);
+            output = room.description;
+        }
+        "#,
+    );
+    let resolver = validation::CallFrameResolver::new(&checked.typed)
+        .expect("resolved calls have a frame resolver");
+    let frames = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| matches!(machine.name.as_str(), "Lookup::find" | "Formatter::format"))
+        .map(|machine| {
+            (
+                machine.name.as_str(),
+                resolver.inferred_machine_state_write_frames(machine),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(frames.len(), 2, "both lookup and caller are inspected");
+    assert!(
+        frames
+            .iter()
+            .all(|(_, states)| states.iter().all(|frame| frame.complete_paths().is_some())),
+        "recursive slice lookup and its isolated output local retain complete frames: {frames:?}"
+    );
+    let formatter = frames
+        .iter()
+        .find(|(name, _)| *name == "Formatter::format")
+        .unwrap();
+    assert_eq!(
+        formatter.1[0].paths(),
+        ["$P2"],
+        "callee-private Room writes do not erase the caller's output write"
+    );
+    for (name, inferred) in &frames {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == *name)
+            .unwrap();
+        let recorded = &checked
+            .facts
+            .mutation
+            .for_machine(machine.symbol)
+            .unwrap()
+            .state_write_frames;
+        for (state, frame) in checked.machine_states(machine).iter().zip(inferred) {
+            assert_eq!(
+                &recorded
+                    .iter()
+                    .find(|row| row.state == state.symbol)
+                    .unwrap()
+                    .frame,
+                frame,
+                "retained and fresh frame agree for {name}"
+            );
+        }
+    }
+}
+
+#[test]
 fn owned_record_byte_predicates_survive_state_signatures() {
     let checked = crate::front_end::checked_program(
         r#"

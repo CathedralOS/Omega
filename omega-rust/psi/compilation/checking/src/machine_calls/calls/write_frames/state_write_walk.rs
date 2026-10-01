@@ -586,6 +586,16 @@ fn walk_state_write_prefix_inner(
         // frozen-binding opacity fence does not apply to it.
         let wire_codec_call = matches!(statement, StatementNode::Call(call)
             if wire_codecs::is_wire_codec_call(program, call));
+        if !wire_codec_call && let StatementNode::Call(call) = statement {
+            stored_origins::retire_private_call_argument_cases(
+                program,
+                state,
+                call,
+                &local_alias_origins,
+                &mut stored,
+                inference,
+            );
+        }
         if !wire_codec_call
             && stored_origins::statement_exposes_frozen_binding(
                 program,

@@ -1237,18 +1237,19 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `89e17edcc8`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `916377c9e1`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
   `Game::run_game_loop` reaches `GameView::render_room`, whose unavailable
-  `RoomFormatter::write_room_info` stops at `scalar field store sequence:
-  write frame agreement`. Trace its local `Room`, the `RoomLookup::find_room`
-  call and final buffer replacement through stage 04's
-  `execution/terminal_unit/structural_scalar_store/frame.rs` and the shared
-  call-frame inference owner; complete may-write evidence remains required.
-  The state signature failures for qualified mutable byte loans and owned
-  byte-bearing records are repaired: 78 selected loan/verifier controls and
-  19 selected record/copy controls pass, retaining nested UTF-8 predicates,
-  exact array extents and rejection of stale mutable names or changed custody.
+  `RoomFormatter::write_room_info` stops at `structural field store:
+  destination parameter`. Its `out_line = room.description` source is an owned
+  local record, but stage 04's `structural_scalar_store/byte_stores.rs` and
+  `CheckedByteSequenceValue::Field` currently describe parameter roots only.
+  Reuse exact live local-home custody in the byte-field source and stage 05
+  store emitter; preserve the field's UTF-8 predicate and current length.
+  The earlier frame refusal is repaired by retiring private enum-case/move
+  snapshots at exclusive local call arguments, without relaxing reference-slot
+  exposure or callee completeness. All 56 selected write-frame/bounded-owner
+  tests pass, including exact caller writes and retained-versus-fresh agreement.
   Acceptance remains
   native exit 0 with the authored room, prompt, command and goodbye output;
   independently verified helper plans are not native execution evidence.
