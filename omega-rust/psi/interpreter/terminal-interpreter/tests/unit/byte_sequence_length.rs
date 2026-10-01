@@ -225,12 +225,14 @@ fn bounded_owner_length_admits_borrowed_metadata_but_not_fabricated_contents() {
     module.structural_types[0].shape =
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
     // The structural-access contract allows live-length metadata even through
-    // write-only loans. Capacity is not that length, and admission supplies no
-    // initialized backing for an opaque host argument.
+    // write-only loans, and an owned bounded formal supplies its own length.
+    // Capacity is not that length, and admission supplies no initialized
+    // backing for an opaque host argument.
     for access in [
         StructuralAccess::SharedBorrow,
         StructuralAccess::MutableBorrow,
         StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::Owned,
     ] {
         module.machines[0].structural_parameters[0].access = access;
         terminal_verifier::validate_module_representation(&module).unwrap();
@@ -238,7 +240,13 @@ fn bounded_owner_length_admits_borrowed_metadata_but_not_fabricated_contents() {
         assert_eq!(decode_module(&semantic).unwrap(), module);
         assert_length_requires_initialized_contents(&module);
     }
-    module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+    // Ownership is a property of the bounded owner, not of any byte formal:
+    // an owned bounded view carries no length of its own.
+    module.structural_types[0].shape =
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            access: Some(StructuralAccess::SharedBorrow),
+            capacity: 8,
+        });
     assert!(terminal_verifier::validate_module_representation(&module).is_err());
     assert!(encode_module(&module).is_err());
 }
