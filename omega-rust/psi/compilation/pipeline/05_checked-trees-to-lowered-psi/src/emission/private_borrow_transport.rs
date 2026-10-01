@@ -1,4 +1,4 @@
-//! Preserve an authored state's exclusive record inputs across private control.
+//! Preserve an authored state's exclusive aggregate inputs across private control.
 //!
 //! Scalar evaluation and guards may split a state into several blocks. An
 //! exclusive block parameter is an edge-scoped name, not a dominating storage
@@ -9,6 +9,9 @@
 //! Byte and element views keep their dominating descriptor names until an
 //! explicit transfer consumes them. They do not have record loans' implicit
 //! end-at-edge rule and must not acquire extra forwarding here.
+//! Fixed arrays share record loans' edge-scoped names: indexing in a later
+//! short-circuit block must use that block's forwarded name, regardless of
+//! whether the backing was initialized or zero-constructed.
 //!
 //! Both state-graph producers split authored states this way, so both call
 //! this one transfer rule: the Unit state graph seals each state's blocks
@@ -51,7 +54,8 @@ pub(crate) fn forward_private_state_borrows(
                 && !has_explicit_transfer(blocks, parameter.place)
                 && structural_types.iter().any(|declaration| {
                     declaration.id == parameter.structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                        && matches!(declaration.shape,
+                            StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. })
                 })
         })
         .cloned()

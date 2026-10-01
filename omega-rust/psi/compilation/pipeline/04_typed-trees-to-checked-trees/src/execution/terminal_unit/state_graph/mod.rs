@@ -1950,19 +1950,15 @@ fn successor_bindings(
                             })
                     });
                     let result_subject = |local_index: usize| {
-                        let mut matches = operations.iter().filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                                result,
-                                ..
-                            }
-                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                                result,
-                                ..
-                            } => Some(result),
-                            _ => (!operand_owned_construction(operation))
-                                .then(|| retained_structural_result(operation))
-                                .flatten(),
-                        }).filter(|result| {
+                        // Loan the local's established home, independently of
+                        // its constructor. Call-owned operand temporaries and
+                        // results retired at return still cannot back an edge.
+                        let mut matches = operations.iter().filter(|operation| {
+                            !operand_owned_construction(operation)
+                                && !operation.discardable_structural_result()
+                                    .is_some_and(|(_, discard)| discard)
+                        }).filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                        .filter(|result| {
                             result.statement_index == local_index as u32
                         });
                         let result = matches.next()?;

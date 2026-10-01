@@ -112,3 +112,127 @@ fn state_graph_local_array_stores_rejoin_the_authored_destination() {
         );
     }
 }
+
+const INITIALIZED_LOAN: &str = r#"
+    data Root { out: u32; }
+    machine Root::enter(context: &mut Root) {
+        let mut values: [u32; 2] = [30, 40];
+        let mut other: [u32; 2] = [50, 60];
+        transition { _ -> write(context, &mut values) }
+        state write(context: &mut Root, values: &mut [u32; 2]) {
+            values[0] = 7;
+            transition values[0] == 7 && values[1] == 40 {
+                true -> done(context, 70)
+                false -> done(context, 71)
+            }
+        }
+        state done(context: &mut Root, result: u32) {
+            context.out = result;
+        }
+    }
+"#;
+
+#[test]
+fn initialized_array_state_loan_rejoins_its_local_and_constructor() {
+    use checked_trees::{
+        CheckedComposedUnitControlTerminatorPlan, CheckedStructuralControlTransferSourcePlan,
+        CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
+    };
+
+    let checked = crate::front_end::checked_program(INITIALIZED_LOAN);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("initialized storage loans through the ordinary state edge");
+    validate_module(&lowered.semantic_module).expect("initialized array loan validates");
+
+    for mutation in ["loan source", "constructor elements", "constructor owner"] {
+        let mut changed = checked.clone();
+        let entry = &mut changed.facts.flow.terminal_unit_effects.composed_machines[0].states[0];
+        let arrays = entry
+            .operations
+            .iter()
+            .filter_map(|operation| {
+                if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    result,
+                    elements,
+                    ..
+                } = operation
+                {
+                    Some((result.clone(), elements.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(arrays.len(), 2);
+        if mutation == "loan source" {
+            let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+                &mut entry.terminator
+            else {
+                panic!("authored state jump");
+            };
+            let subject = successor
+                .transfers
+                .iter_mut()
+                .find_map(|transfer| {
+                    if let CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                        subject,
+                        ..
+                    } = &mut transfer.source
+                    {
+                        Some(subject)
+                    } else {
+                        None
+                    }
+                })
+                .expect("local array loan");
+            subject.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: arrays[1].0.binding_ordinal,
+            };
+        } else {
+            let (result, elements) = entry
+                .operations
+                .iter_mut()
+                .find_map(|operation| {
+                    if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        result,
+                        elements,
+                        ..
+                    } = operation
+                    {
+                        Some((result, elements))
+                    } else {
+                        None
+                    }
+                })
+                .expect("first array constructor");
+            if mutation == "constructor elements" {
+                *elements = arrays[1].1.clone();
+            } else {
+                result.statement_index = arrays[1].0.statement_index;
+            }
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .is_err(),
+            "replay rejects substituted {mutation}"
+        );
+    }
+}
+
+#[test]
+fn mutable_array_initializer_also_composes_with_an_ordinary_call() {
+    let checked =
+        crate::front_end::checked_program(&SOURCE.replace("let values:", "let mut values:"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("mutable array storage uses the existing ordinary call loan");
+    validate_module(&lowered.semantic_module).expect("mutable array call validates");
+}

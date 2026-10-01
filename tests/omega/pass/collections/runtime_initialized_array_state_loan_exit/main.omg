@@ -1,0 +1,22 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(context: &mut Main) reaches Console {
+    let mut grid: [[u32; 2]; 2] = [[1, 2], [3, 4]];
+    transition { _ -> mutate(context, &mut grid, 1, 0) }
+
+    state mutate(context: &mut Main, grid: &mut [[u32; 2]; 2], row: u64, column: u64)
+    requires row < 2
+    requires column < 2 {
+        let previous: u32 = grid[row][column];
+        grid[row][column] = 9;
+        transition previous == 3 && grid[1][0] == 9 && grid[0][0] == 1 && grid[0][1] == 2 && grid[1][1] == 4 {
+            true -> success(context)
+            false -> failure(context)
+        }
+    }
+    state success(context: &mut Main) { context.console.exit_process(70); }
+    state failure(context: &mut Main) { context.console.exit_process(71); }
+}
