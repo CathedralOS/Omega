@@ -716,8 +716,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     jump_ordinal,
                 )?;
             }
-            // Both arms complete the machine: each is a terminal machine call
-            // or a Unit completion, and at least one is a call.
+            // Both arms complete the machine: each is a terminal machine call,
+            // a Unit completion or a scalar return value, and at least one is
+            // a call.
             (
                 CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
                     guard,
@@ -769,6 +770,27 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                     checked.statement_table.transition_target(arm_source.target),
                                     checked_trees::statement::TransitionTargetNode::Terminal
                                 ) =>
+                        {
+                            edges::return_discards(checked, plan.machine, source, state)?;
+                        }
+                        // Beside a terminal scalar call, the other arm may
+                        // return the value checking retained under its own
+                        // `Return` role, exactly as a conditional return's
+                        // scalar arm does.
+                        checked_trees::CheckedConditionalReturnArm::Scalar {
+                            statement_ordinal,
+                            primitive_type,
+                        } if plan.result
+                            == checked_trees::CheckedControlResultPlan::Scalar {
+                                primitive_type: *primitive_type,
+                            }
+                            && *statement_ordinal as usize == arm_ordinal
+                            && arm_source.exit == TransitionExit::Ordinary
+                            && !arm_source.continuation.is_valid()
+                            && matches!(
+                                checked.statement_table.transition_target(arm_source.target),
+                                checked_trees::statement::TransitionTargetNode::Value(_)
+                            ) =>
                         {
                             edges::return_discards(checked, plan.machine, source, state)?;
                         }
@@ -1192,8 +1214,11 @@ fn validate_guarded_return(
 /// through the shared computation expander, which rejoins its source custody.
 /// A terminal machine call on one conditional arm: the arm's own authored
 /// invocation of another machine (Terminal calls in transition arms,
-/// state_contracts.md), an ordinary Unit call that transfers no claim, run on
-/// that arm alone before its Unit completion's ordinary return disposal.
+/// state_contracts.md), an ordinary call that transfers no claim, run on
+/// that arm alone before its completion's ordinary return disposal. Its
+/// normal result is the machine's: Unit, or the primitive scalar the call
+/// binds at the arm's transition, which the arm returns. Emission rejoins
+/// that binding's ordinal in the namespace the arm inherits.
 fn validate_arm_call(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -1206,8 +1231,18 @@ fn validate_arm_call(
     let Some(call) = operation.call() else {
         return unsupported("Unit graph call arm lost its call");
     };
-    if plan.result != checked_trees::CheckedControlResultPlan::Unit
-        || *call.result() != checked_trees::CheckedUnitCallResult::Unit
+    let completes = match (&plan.result, call.result()) {
+        (
+            checked_trees::CheckedControlResultPlan::Unit,
+            checked_trees::CheckedUnitCallResult::Unit,
+        ) => true,
+        (
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type },
+            checked_trees::CheckedUnitCallResult::Scalar(result),
+        ) => result.primitive_type == *primitive_type && result.statement_index as usize == ordinal,
+        _ => false,
+    };
+    if !completes
         || call.is_boundary()
         || !call.claim_transfers().is_empty()
         || call.coordinate.statement_index as usize != ordinal

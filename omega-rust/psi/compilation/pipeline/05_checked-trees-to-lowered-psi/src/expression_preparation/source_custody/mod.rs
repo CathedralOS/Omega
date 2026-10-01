@@ -759,16 +759,16 @@ fn subslice_site_range(
             checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
         ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
             match program.statement_table.transition_target(transition.target) {
+                // A local state or, for a terminal machine call, another
+                // machine's entry state (state_contracts.md, "Terminal calls
+                // in transition arms"): the operand lanes index that target's
+                // own parameters, as the scalar `TransitionArgument` lane above
+                // resolves them.
                 TransitionTargetNode::Named {
                     path, arguments, ..
-                } => program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|target| {
-                        successors::normalize_machine_state_target(checked, machine, path.symbol)
-                            .ok()
-                            == Some(target.symbol)
-                    })
+                } => successors::normalize_machine_state_target(checked, machine, path.symbol)
+                    .ok()
+                    .and_then(|target| program.state_by_symbol(target))
                     .and_then(|target| {
                         let parameters = program.state_parameters(target);
                         let arguments = program.statement_table.expression_handles(*arguments);

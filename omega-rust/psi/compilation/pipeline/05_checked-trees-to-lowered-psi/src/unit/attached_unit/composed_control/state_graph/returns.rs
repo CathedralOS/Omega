@@ -378,15 +378,34 @@ pub(super) fn validate_scalar(
         checked_trees::CheckedScalarReturnPlan::Binding(binding) => binding,
     };
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let (Some([checked_trees::statement::StatementNode::Expression(expression)]), true) = (
-        statements.get(ordinal..),
-        binding.primitive_type == primitive_type,
-    ) else {
+    if binding.primitive_type != primitive_type {
         return unsupported("scalar graph return has no final authored expression");
+    }
+    let expression = match statements.get(ordinal..) {
+        Some([checked_trees::statement::StatementNode::Expression(expression)]) => {
+            Some(*expression)
+        }
+        // An unconditional terminal machine call at the closing transition
+        // completes with the result it binds there
+        // (state_contracts.md, "Terminal calls in transition arms").
+        Some([checked_trees::statement::StatementNode::Transition(_)])
+            if binding.statement_index as usize == ordinal
+                && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+                    checked,
+                    state.state,
+                    binding.statement_index,
+                )? =>
+        {
+            None
+        }
+        _ => return unsupported("scalar graph return has no final authored expression"),
     };
-    // A scalar local or an ordinary scalar call produces the returned binding.
+    // A scalar local or an ordinary scalar call produces the returned binding;
+    // a terminal machine call is necessarily that call.
     let mut producers = state.operations.iter().filter(|operation| match operation {
-        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => result == binding,
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+            expression.is_some() && result == binding
+        }
         CheckedUnitEffectOperationPlan::Call(call) => {
             !call.is_boundary() && call.scalar_result() == Some(binding)
         }
@@ -398,12 +417,12 @@ pub(super) fn validate_scalar(
     if binding.statement_index as usize == ordinal {
         return Ok(());
     }
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) =
-        statements.get(binding.statement_index as usize)
+    let (Some(expression), Some(checked_trees::statement::StatementNode::LocalData(local))) =
+        (expression, statements.get(binding.statement_index as usize))
     else {
         return unsupported("scalar graph return name has no immutable binding");
     };
-    let ExpressionNode::Name(name) = checked.expression_table.expression(*expression) else {
+    let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
         return unsupported("scalar graph return reads neither its producer nor a local");
     };
     if local.is_mutable

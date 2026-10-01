@@ -73,9 +73,11 @@ pub(super) fn validate(
         }),
     )
         // A scalar final expression's own producer occupies the tail statement:
-        // a scalar local or an ordinary scalar call.
+        // a scalar local or an ordinary scalar call. A terminal machine call
+        // at a closing transition counts as `terminal_call` below instead.
         + usize::from(returned_scalar.is_some_and(|binding| {
             binding.statement_index as usize + 1 == statements.len()
+                && matches!(statements.last(), Some(StatementNode::Expression(_)))
                 && state.operations.last().is_some_and(|operation| match operation {
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
                         result == binding
@@ -88,11 +90,14 @@ pub(super) fn validate(
         }));
     // An unconditional terminal machine call runs as the state's last
     // operation at its own transition; the `ReturnUnit` terminator completes
-    // after it. A guarded arm's call is never here: it runs in its arm.
-    let terminal_call = matches!(
+    // after it, or `ReturnScalar` returns the scalar result the call bound at
+    // that transition. A guarded arm's call is never here: it runs in its arm.
+    let terminal_call = (matches!(
         state.terminator,
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-    ) && end < statements.len()
+    ) || returned_scalar
+        .is_some_and(|binding| binding.statement_index as usize == end))
+        && end < statements.len()
         && crate::emission::call_source_custody::authored::linear_terminal_invocation(
             checked,
             state.state,
@@ -754,11 +759,18 @@ pub(super) fn validate(
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // The unconditional terminal machine call at the state's closing
-            // transition, counted above; its Unit completion follows it.
+            // transition, counted above; its Unit completion follows it, or
+            // the state returns the scalar result it binds there.
             (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Transition(_))
                 if terminal_call
                     && ordinal == end
-                    && *call.result() == CheckedUnitCallResult::Unit
+                    && match call.result() {
+                        CheckedUnitCallResult::Unit => returned_scalar.is_none(),
+                        CheckedUnitCallResult::Scalar(result) => {
+                            !call.is_boundary() && returned_scalar == Some(result)
+                        }
+                        CheckedUnitCallResult::Structural { .. } => false,
+                    }
                     && (call.is_boundary() || call.claim_transfers().is_empty())
                     && call.coordinate.statement_index as usize == ordinal
                     && call.coordinate.call_ordinal == 0 =>

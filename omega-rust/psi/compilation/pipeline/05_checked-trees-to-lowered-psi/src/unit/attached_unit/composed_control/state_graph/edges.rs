@@ -1277,7 +1277,7 @@ pub(super) fn return_discards(
                     | checked_trees::CheckedConditionalReturnArm::Call(_),
                 ..
             }
-            // Each arm completes with Unit, after its terminal call if any.
+            // Each arm completes the machine, after its terminal call if any.
             | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
         ) {
         result_custody::local_discards(checked, machine, source, state, None)?

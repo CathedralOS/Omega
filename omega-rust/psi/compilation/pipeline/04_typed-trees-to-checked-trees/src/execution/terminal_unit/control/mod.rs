@@ -24,7 +24,7 @@ pub(super) use call_occurrences::{
     outer_calls, outer_calls_before_traced, tail_call, terminal_named_call,
 };
 pub(crate) use call_results::{
-    bind_structural_call_result, checked_structural_result_type,
+    bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
     checked_unit_structural_result_local,
 };
 #[cfg(test)]

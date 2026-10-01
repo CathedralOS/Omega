@@ -299,3 +299,119 @@ fn guarded_tail_call_passes_a_subslice_beside_its_receiver() {
         }
     )));
 }
+
+/// A value-returning machine's terminal machine call forwards the callee's
+/// result: an internal state's unconditional arm binds it as that state's
+/// returned value, and a guarded arm binds it in its own completion beside a
+/// literal-return arm.
+const VALUE_TAIL_CALLS: &str = r#"
+    data Root { stored: i32; }
+    machine Root::add(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        self.stored = value;
+        transition { _ -> (value + 1) }
+    }
+    machine Root::staged(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        transition { _ -> adding(value) }
+        state adding(&mut self, value: i32) -> i32
+        requires 0 <= value && value <= 100;
+        {
+            transition { _ -> self.add(value) }
+        }
+    }
+    machine Root::choose(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        let doubled: i32 = value * 2;
+        transition doubled > 100 {
+            true -> self.add(value)
+            false -> 1
+        }
+    }
+"#;
+
+#[test]
+fn unconditional_value_tail_call_binds_the_state_result() {
+    let checked = checked(VALUE_TAIL_CALLS);
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "Root::staged"))
+        .expect("the internal value tail call plans");
+    let adding = &plan.states[1];
+    let [CheckedUnitEffectOperationPlan::Call(call)] = adding.operations.as_slice() else {
+        panic!("one call operation, found {:?}", adding.operations);
+    };
+    assert_eq!(call.target.machine, machine_named(&checked, "Root::add"));
+    let result = call
+        .scalar_result()
+        .expect("the call binds its scalar result");
+    assert_eq!(
+        (result.statement_index, result.binding_ordinal),
+        (0, 0),
+        "the closing transition binds the state's first scalar result"
+    );
+    assert_eq!(
+        adding.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: checked_trees::CheckedScalarReturnPlan::Binding(*result),
+        },
+        "the call's result completes the machine"
+    );
+}
+
+#[test]
+fn guarded_value_tail_call_binds_after_the_state_namespace() {
+    let checked = checked(VALUE_TAIL_CALLS);
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "Root::choose"))
+        .expect("a guarded value tail call takes the graph");
+    let state = &plan.states[0];
+    assert!(
+        state
+            .operations
+            .iter()
+            .all(|operation| operation.call().is_none()),
+        "the arm's call does not join the unconditional operations: {:?}",
+        state.operations
+    );
+    let CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+        when_true,
+        when_false,
+        ..
+    } = &state.terminator
+    else {
+        panic!("both arms complete: {:?}", state.terminator);
+    };
+    assert_eq!(
+        arm_call_target(when_true),
+        machine_named(&checked, "Root::add")
+    );
+    let checked_trees::CheckedConditionalReturnArm::Call(operation) = when_true else {
+        unreachable!()
+    };
+    let result = operation
+        .call()
+        .and_then(|call| call.scalar_result())
+        .expect("the arm call binds its scalar result");
+    // `doubled` holds the state's one retained scalar binding, so the arm's
+    // result takes the next ordinal of the namespace it inherits.
+    assert_eq!((result.statement_index, result.binding_ordinal), (1, 1));
+    assert!(
+        matches!(
+            when_false,
+            checked_trees::CheckedConditionalReturnArm::Scalar {
+                statement_ordinal: 2,
+                ..
+            }
+        ),
+        "the literal arm returns its own value: {when_false:?}"
+    );
+}

@@ -342,12 +342,17 @@ pub(super) fn build_traced(
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             terminator_index.checked_add(1)?
-        } else if result == checked_trees::CheckedControlResultPlan::Unit
-            && control::terminal_named_call(program, machine, state, terminator_index).is_some()
+        } else if matches!(
+            result,
+            checked_trees::CheckedControlResultPlan::Unit
+                | checked_trees::CheckedControlResultPlan::Scalar { .. }
+        ) && control::terminal_named_call(program, machine, state, terminator_index)
+            .is_some()
         {
             // An unconditional terminal machine call is this state's last
             // operation (`terminal_calls`): the sequence plans it and counts
-            // its occurrence, and the terminator completes after it.
+            // its occurrence, binding a scalar result as the state's returned
+            // value, and the terminator completes after it.
             terminator_index.checked_add(1)?
         } else {
             terminator_index
@@ -427,6 +432,7 @@ pub(super) fn build_traced(
             &state_entry_claims[state_index],
             sequence.scalar_result.as_ref(),
             sequence.structural_result.as_ref(),
+            sequence.next_scalar_binding,
             &mut operations,
             terminator_index,
             trace,

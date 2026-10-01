@@ -2,7 +2,7 @@
 //! that complete their caller (state_contracts.md, "Terminal calls in
 //! transition arms"): a guarded arm's call runs only in that arm's own
 //! completion block, and an internal state's unconditional arm calls before
-//! the state's Unit return.
+//! the state's return. A scalar callee's result is the value returned.
 
 use super::{CheckedTrees, lower_machine};
 use crate::TerminalMachineSelection;
@@ -209,4 +209,176 @@ fn arm_call_placement_is_rejoined_to_its_authored_arm() {
     };
     std::mem::swap(when_true, when_false);
     assert!(!lower(&swapped), "a swapped arm call rejects");
+}
+
+/// Value-result terminal calls: the callee's scalar result is the caller's
+/// returned value, from an internal state's unconditional arm and from a
+/// guarded arm beside a literal-return arm.
+const VALUE_SOURCE: &str = r#"
+    data Root { stored: i32; }
+    machine Root::add(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        self.stored = value;
+        transition { _ -> (value + 1) }
+    }
+    machine Root::staged(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        transition { _ -> adding(value) }
+        state adding(&mut self, value: i32) -> i32
+        requires 0 <= value && value <= 100;
+        {
+            transition { _ -> self.add(value) }
+        }
+    }
+    machine Root::choose(&mut self, value: i32) -> i32
+    requires 0 <= value && value <= 100;
+    {
+        let doubled: i32 = value * 2;
+        transition doubled > 100 {
+            true -> self.add(value)
+            false -> 1
+        }
+    }
+    data Entry { value: i32; }
+    machine Root::confirm(tail: &[Entry], chosen: u64) -> i32 {
+        transition chosen < tail.len {
+            true -> emit(tail[chosen].value)
+            false -> 4
+        }
+        state emit(first: i32) -> i32 {
+            transition { _ -> first }
+        }
+    }
+    machine Root::inspect(view: &[Entry], index: u64) -> i32 {
+        transition view.len >= 1 && index < view.len {
+            true -> Root::confirm(view[1..], index)
+            false -> 0
+        }
+    }
+"#;
+
+/// A terminal call's subslice operand replays at the callee's own parameter:
+/// the call names another machine's entry, not a state of the caller.
+#[test]
+fn terminal_call_subslice_operand_indexes_the_callee() {
+    let checked = crate::front_end::checked_program(VALUE_SOURCE);
+    verified(&checked, "Root::inspect");
+}
+
+/// Whether `block` binds a scalar call's result and returns exactly it.
+fn returns_scalar_call_result(block: &terminal_psi::Block) -> bool {
+    let Terminator::Return { value, .. } = &block.terminator else {
+        return false;
+    };
+    block.operations.iter().any(|operation| {
+        matches!(
+            operation.kind,
+            OperationKind::Call { .. } | OperationKind::CallStructuralScalar { .. }
+        ) && matches!(&operation.result,
+            terminal_psi::OperationResult::Scalar(result) if result.id == *value)
+    })
+}
+
+#[test]
+fn value_tail_calls_return_their_callee_result() {
+    let checked = crate::front_end::checked_program(VALUE_SOURCE);
+    for name in ["Root::staged", "Root::choose"] {
+        let module = verified(&checked, name);
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .expect("the selected entry machine");
+        assert!(
+            entry.blocks.iter().any(returns_scalar_call_result),
+            "{name}: a block calls `Root::add` and returns its result"
+        );
+        if name == "Root::choose" {
+            let first = entry.blocks.first().expect("an entry block");
+            assert!(
+                matches!(first.terminator, Terminator::Conditional { .. })
+                    && !first.operations.iter().any(|operation| matches!(
+                        operation.kind,
+                        OperationKind::Call { .. } | OperationKind::CallStructuralScalar { .. }
+                    )),
+                "{name}: the arm's call runs only after the decision"
+            );
+        }
+    }
+}
+
+#[test]
+fn value_tail_call_bindings_are_rejoined_to_their_arm() {
+    let checked = crate::front_end::checked_program(VALUE_SOURCE);
+    let plan_index = |name: &str| {
+        let machine = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .find(|selection| selection.name == name)
+            .expect("named machine")
+            .machine;
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .position(|plan| plan.machine == machine)
+            .expect("the machine plans as one graph")
+    };
+    let lower = |changed: &CheckedTrees, name: &str| {
+        lower_machine(changed, TerminalMachineSelection::Name(name)).is_ok()
+    };
+    assert!(lower(&checked, "Root::choose"), "the retained plan lowers");
+    assert!(lower(&checked, "Root::staged"), "the retained plan lowers");
+
+    // The guarded arm's result must take the next ordinal of the namespace
+    // its arm inherits, at its own transition.
+    let choose = plan_index("Root::choose");
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let state =
+            &mut changed.facts.flow.terminal_unit_effects.composed_machines[choose].states[0];
+        let CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { when_true, .. } =
+            &mut state.terminator
+        else {
+            panic!("both arms complete: {:?}", state.terminator);
+        };
+        let CheckedConditionalReturnArm::Call(operation) = when_true else {
+            panic!("the true arm calls");
+        };
+        let result = operation
+            .call_mut()
+            .and_then(|call| call.scalar_result_mut())
+            .expect("the arm call binds a scalar result");
+        match mutation {
+            0 => result.binding_ordinal += 1,
+            _ => result.statement_index += 1,
+        }
+        assert!(
+            !lower(&changed, "Root::choose"),
+            "arm binding mutation {mutation} rejects"
+        );
+    }
+
+    // The unconditional arm's state returns the binding its call produced.
+    let staged = plan_index("Root::staged");
+    let mut changed = checked.clone();
+    let state = &mut changed.facts.flow.terminal_unit_effects.composed_machines[staged].states[1];
+    let CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+        completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+    } = &mut state.terminator
+    else {
+        panic!("the call completes the state: {:?}", state.terminator);
+    };
+    binding.binding_ordinal += 1;
+    assert!(
+        !lower(&changed, "Root::staged"),
+        "a returned binding the call did not produce rejects"
+    );
 }
