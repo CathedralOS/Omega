@@ -587,6 +587,15 @@ pub(super) fn argument(
         || (!unrestricted
             && !linear
             && !owned_reference_record
+            // A projected loan leaves the constrained field in its existing
+            // storage. Its exact access and projected type were joined above;
+            // represented field predicates need no fresh owned-value proof.
+            // In particular, an affine mutable-view descriptor can lend an
+            // unrestricted record element containing qualified inline bytes.
+            && !(projected_borrow
+                && validation::has_plain_owned_contents_with_represented_constraints(
+                    program, referent,
+                ))
             && !validation::has_plain_owned_contents(program, referent)
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission

@@ -97,6 +97,113 @@ fn exclusive_whole_local_loans_use_captured_access_not_binding_mutability() {
 }
 
 #[test]
+fn qualified_record_view_element_loans_require_exact_captured_access() {
+    let checked = checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Tag [copy] { case First; case Second; }
+        data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
+        data Storage { cells: [Cell; 2]; }
+        machine fill(cell: &mut Cell, tag: Tag, value: u64) {
+            cell.tag = tag;
+            cell.value = value;
+        }
+        machine run(storage: &mut Storage) {
+            let view: &mut [Cell] = storage.cells.as_mut_slice();
+            fill(&mut view[0], Tag::First, 31);
+            fill(&mut view[1], Tag::Second, 39);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let target = machine_named(&checked, "fill");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "qualified view element loans: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .filter(|call| call.target.machine == target)
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2, "successive loans retain the view binding");
+    let mut binding = None;
+    for (element, call) in calls.iter().enumerate() {
+        let argument = &call.structural_arguments[0];
+        assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+        assert_eq!(
+            argument.path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(element as u64)]
+        );
+        let source = argument
+            .source_structural_result_binding_ordinal()
+            .expect("the projected loan retains its view result");
+        if let Some(previous) = binding {
+            assert_eq!(source, previous);
+        }
+        binding = Some(source);
+    }
+    let coordinate = calls[0].coordinate;
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .expect("caller borrow state");
+    let captured = checked
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .find(|call| {
+            call.statement_index == coordinate.statement_index as usize
+                && call.call_ordinal == coordinate.call_ordinal as usize
+        })
+        .expect("captured element loan");
+    let access = captured.accesses.start();
+    assert_eq!(
+        checked.facts.borrow.argument_accesses.get(access).kind,
+        checked_trees::BorrowAccessKind::Mutable
+    );
+    for changed_root in [false, true] {
+        let mut facts = checked.facts.clone();
+        let captured = facts.borrow.argument_accesses.get_mut(access);
+        if changed_root {
+            captured.root_symbol = symbols::SymbolHandle::invalid();
+        } else {
+            captured.kind = checked_trees::BorrowAccessKind::Read;
+        }
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "qualified element loan accepted changed root={changed_root} custody"
+        );
+    }
+}
+
+#[test]
 fn boundary_call_borrows_whole_local_buffer() {
     let checked = checked_program(
         r#"
