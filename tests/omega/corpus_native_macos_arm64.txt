@@ -922,12 +922,11 @@ pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def9
 pass/text/runtime_string_stored_suffix_exit rejected 1087ms @569fd648944c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_text_builder built 1544ms @fb2178def922
-pass/text/runtime_text_not_equals_exit rejected 569ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 0)
+pass/text/runtime_text_not_equals_exit rejected 547ms @5715dd4d97f7+wt
+	terminal-artifact production failed: Lowering(Unsupported("field store requires a matching branch-free pure value"))
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
 pass/text/utf8_boundary_established checked 211ms
-pass/text/zii_default_string_equality_exit rejected 542ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 2, statement 0)
+pass/text/zii_default_string_equality_exit built 1614ms exit:70 @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit built 940ms exit:70
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 807ms

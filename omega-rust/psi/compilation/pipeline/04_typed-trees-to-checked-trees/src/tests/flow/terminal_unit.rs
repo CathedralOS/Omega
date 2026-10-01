@@ -11,6 +11,7 @@ mod borrowed_view_returns;
 mod boundary_result_operands;
 mod binding_parameter_calls;
 mod byte_literal_equality;
+mod byte_pair_equality;
 mod call_result_field_stores;
 pub(crate) mod calls;
 mod cleanup;
