@@ -1,0 +1,64 @@
+// A scalar-returning machine reads its `&u8` formal through the loan, never
+// through a caller-side snapshot. The caller lends a mutable primitive local
+// whole, then one element of its receiver's byte array twice around a store
+// to that element, and finally the same element to a machine whose scalar
+// formal precedes the borrowed one. Exits 70 only when every read observed
+// the current storage; 71..74 name the read that did not.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 4];
+}
+
+machine is_seventy(leaf: &u8) -> bool {
+    transition leaf == 70 { true -> (true) _ -> (false) }
+}
+
+machine above(limit: u8, leaf: &u8) -> bool {
+    transition leaf > limit { true -> (true) _ -> (false) }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut value: u8 = 70;
+    let whole: bool = is_seventy(&value);
+    self.buf[1] = 69;
+    let before: bool = is_seventy(&self.buf[1]);
+    self.buf[1] = 70;
+    let after: bool = is_seventy(&self.buf[1]);
+    let mixed: bool = above(69, &self.buf[1]);
+    transition whole {
+        true -> check_before(before, after, mixed)
+        _ -> failed(71)
+    }
+
+    state check_before(&mut self, before: bool, after: bool, mixed: bool) {
+        transition before {
+            true -> failed(72)
+            _ -> check_after(after, mixed)
+        }
+    }
+
+    state check_after(&mut self, after: bool, mixed: bool) {
+        transition after {
+            true -> check_mixed(mixed)
+            _ -> failed(73)
+        }
+    }
+
+    state check_mixed(&mut self, mixed: bool) {
+        transition mixed {
+            true -> done()
+            _ -> failed(74)
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state failed(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

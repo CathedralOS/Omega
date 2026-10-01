@@ -20,6 +20,7 @@ mod atomic_access_events;
 mod boolean_entry_requirements;
 mod borrowed_computation_arguments;
 mod borrowed_computation_custody;
+mod borrowed_primitive_graph_reads;
 mod borrowed_scalar_call_source;
 mod borrowed_scalar_root;
 mod boundary_result_domain_calls;
