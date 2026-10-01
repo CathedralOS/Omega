@@ -630,7 +630,9 @@ reaches FilesystemHost
     }
     state rds_read_go(&mut self) {
         self.rda_fd = self.rda_stack[self.rda_depth - 1];
-        self.rdn_result = Filesystem::read_dir_entry_fd(&mut self, self.rda_fd, 0);
+        // Copy the descriptor before `&mut self` lends the whole receiver.
+        let fd: i32 = self.rda_fd;
+        self.rdn_result = Filesystem::read_dir_entry_fd(&mut self, fd, 0);
         transition self.rdn_result {
             DirEntryResult::End -> rds_pop()
             DirEntryResult::Ok { entry } -> rds_entry(entry)
@@ -657,7 +659,9 @@ reaches FilesystemHost
     }
     state rds_parent_go(&mut self) {
         self.rda_fd = self.rda_stack[self.rda_depth - 1];
-        self.rdn_result = Filesystem::read_dir_entry_fd(&mut self, self.rda_fd, 0);
+        // Copy the descriptor before `&mut self` lends the whole receiver.
+        let fd: i32 = self.rda_fd;
+        self.rdn_result = Filesystem::read_dir_entry_fd(&mut self, fd, 0);
         transition self.rdn_result {
             DirEntryResult::Ok { entry } -> rds_rm_child(entry)
             DirEntryResult::End -> rds_continue()

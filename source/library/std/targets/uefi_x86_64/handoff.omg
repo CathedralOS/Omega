@@ -459,14 +459,17 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // The live leg status is not an admitted rejection: the invocation's
     // firmware return carries it with the retained custody intact.
     state reject_status(&mut self) {
-        UefiOsHandoffCycle::firmware_return(&mut self, self.legs.status);
+        // Copy the status before `&mut self` lends the whole receiver.
+        let status: u64 = self.legs.status;
+        UefiOsHandoffCycle::firmware_return(&mut self, status);
         transition { _ -> reject_status() }
     }
 
     // Stale-key bound spent: the invocation's firmware return carries the
     // target-authored exhaustion status.
     state exhausted(&mut self) {
-        UefiOsHandoffCycle::firmware_return(&mut self, self.exhaustion);
+        let status: u64 = self.exhaustion;
+        UefiOsHandoffCycle::firmware_return(&mut self, status);
         transition { _ -> exhausted() }
     }
 
