@@ -24,6 +24,30 @@ fn accepts(source: &str) {
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
 }
 
+/// `source` beside the toolchain's `Binding<Requirement>` declaration. A
+/// boundary parameter lends its provider through that carrier: a boundary
+/// trait names a requirement, never the value that supplies it.
+fn binding_program(source: &str) -> typed_trees::TypedTrees {
+    let binding = "pub boundary data Binding<Requirement>;";
+    let mut sources = source::SourceMap::default();
+    let binding_id = sources
+        .add_with_metadata(
+            "source/library/core/binding.omg".into(),
+            binding.to_owned(),
+            "source/library/core".into(),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add("tests/main.omg".into(), source.to_owned())
+        .source_id;
+    crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(binding_id, binding), (source_id, source)],
+    )
+}
+
 #[test]
 fn private_states_are_jump_destinations_not_callable_methods() {
     for call in ["finish(42)", "self.finish(42)", "Helper::run::finish(42)"] {
@@ -69,6 +93,18 @@ fn discarded_unit_calls_cannot_invoke_private_states_either() {
 
 #[test]
 fn boundary_parameter_receiver_calls_obey_result_use_and_arity() {
+    let program = |body: &str| {
+        binding_program(&format!(
+            "pub boundary trait Probe {{
+                 machine sample(code: i32) -> bool
+                 reaches
+                     Probe;
+             }}
+             machine use_probe(probe: &mut Binding<Probe>) -> u64
+             reaches Probe
+             {{ {body} }}"
+        ))
+    };
     for (body, expected) in [
         ("probe.sample(7); 0", "discards its non-unit `bool` result"),
         (
@@ -76,30 +112,17 @@ fn boundary_parameter_receiver_calls_obey_result_use_and_arity() {
             "state `sample` expects 1 argument(s), got 0",
         ),
     ] {
-        rejects(
-            &format!(
-                "boundary trait Probe {{
-                     machine sample(code: i32) -> bool
-                     reaches
-                         Probe;
-                 }}
-                 machine use_probe(probe: &mut Probe) -> u64
-                 reaches Probe
-                 {{ {body} }}"
-            ),
-            expected,
+        let diagnostics = validation::validate_program(&program(body))
+            .expect_err("invalid boundary parameter receiver call must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected {expected:?}: {diagnostics:#?}"
         );
     }
-    accepts(
-        "boundary trait Probe {
-             machine sample(code: i32) -> bool
-             reaches
-                 Probe;
-         }
-         machine use_probe(probe: &mut Probe) -> u64
-         reaches Probe
-         { _ = probe.sample(7); 0 }",
-    );
+    validation::validate_program(&program("_ = probe.sample(7); 0"))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
 #[test]

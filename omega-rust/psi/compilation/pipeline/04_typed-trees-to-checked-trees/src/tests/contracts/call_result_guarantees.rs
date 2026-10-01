@@ -62,9 +62,9 @@ fn boundary_result_guarantees_bind_the_exact_invocation() {
                  }}
                  machine consume(value: Count, expected: u64)
                  requires value.remaining == expected {{}}
-                 machine caller(service: &Counts, mut input: u64, other: u64)
+                 machine caller(mut input: u64, other: u64)
                  reaches Counts
-                 {{ let mut value: Count = service.produce({actual});
+                 {{ let mut value: Count = Counts::produce({actual});
                     {after}
                     consume(value, input); }}"
             ),
@@ -85,10 +85,10 @@ fn boundary_result_guarantees_compose_with_caller_bounds() {
                      ensures result.remaining == input - requested;
                  }}
                  machine consume(value: Count) requires 32 <= value.remaining {{}}
-                 machine caller(service: &Counts, input: u64)
+                 machine caller(input: u64)
                  requires {bound} <= input
                  reaches Counts
-                 {{ let value: Count = service.produce(input, 16);
+                 {{ let value: Count = Counts::produce(input, 16);
                     consume(value); }}"
             ),
             accepted,

@@ -38,11 +38,11 @@ fn restating_let_accepts_the_instance_the_declared_return_type_names() {
                 machine mark(value: i64) -> i64 in Coordinate<7>;
                 machine relay(value: i64 in Coordinate<7>) -> i64 in Coordinate<7>;
             }
-            machine run(host: &Marker, value: i64) -> i64 in Coordinate<7>
+            machine run(value: i64) -> i64 in Coordinate<7>
             reaches Marker
             {
-                let placed: i64 in Coordinate<7> = host.mark(value);
-                host.relay(placed)
+                let placed: i64 in Coordinate<7> = Marker::mark(value);
+                Marker::relay(placed)
             }
         "#,
         true,

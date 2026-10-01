@@ -1031,11 +1031,11 @@ mod tests {
                 ensures separate(Granted::content(old(&first)), Granted::content(old(&second)))
                     == separate(Granted::content(&result.left), Granted::content(&result.right));
             }
-            machine forward(partition: &Partition, PARAMETERS) -> Parts
+            machine forward(PARAMETERS) -> Parts
             REQUIREMENTS
             reaches Partition
             {
-                let parts: Parts = partition.rearrange(first, second);
+                let parts: Parts = Partition::rearrange(first, second);
                 Parts { left: parts.left, right: parts.right }
             }
         "#
@@ -1179,10 +1179,10 @@ mod tests {
             boundary trait Provider {
                 machine grant(raw: Region) -> Region ensures result in Granted;
             }
-            machine obtain(provider: &Provider, raw: Region) -> Region in Granted
+            machine obtain(raw: Region) -> Region in Granted
             reaches Provider
             {
-                provider.grant(raw)
+                Provider::grant(raw)
             }
         "#;
         let checked = checked_program(source);
@@ -1236,10 +1236,10 @@ mod tests {
                 machine grant(raw: Region) -> Region ensures result in Granted;
                 machine mint(raw: Region) -> Region ensures result in Granted;
             }
-            machine obtain(provider: &Provider, raw: Region) -> Region in Granted
+            machine obtain(raw: Region) -> Region in Granted
             reaches Provider
             {
-                provider.mint(raw)
+                Provider::mint(raw)
             }
         "#;
         let error = checked_program_result(source)
@@ -1262,16 +1262,16 @@ mod tests {
             boundary trait Other {
                 machine issue() -> u32 ensures result in Secret;
             }
-            machine receive(provider: &Other) -> u32 in Secret
+            machine receive() -> u32 in Secret
             reaches Other
             {
-                let value: u32 in Secret = provider.issue();
+                let value: u32 in Secret = Other::issue();
                 value
             }
         "#;
         let check = |source: &str| checked_program_result(source);
         let authorized = source
-            .replace("provider: &Other", "provider: &Allowed")
+            .replace("Other::issue()", "Allowed::issue()")
             .replace("reaches Other", "reaches Allowed");
         check(&authorized)
             .expect("the exact allowed route establishes non-content scalar membership");

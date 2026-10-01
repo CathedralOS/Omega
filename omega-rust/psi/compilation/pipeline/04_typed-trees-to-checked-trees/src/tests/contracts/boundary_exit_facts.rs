@@ -5,7 +5,10 @@ use crate::tests::front_end::typed_program_with_core_service;
 
 #[test]
 fn output_predicates_survive_read_only_boundary_arguments() {
-    for receiver in ["console: Binding<Console>", "console: &mut Console"] {
+    for receiver in [
+        "console: Binding<Console>",
+        "console: &mut Binding<Console>",
+    ] {
         let source = format!(
             r#"
             domain [u8; 4]::Utf8 requires valid_utf8(self);
