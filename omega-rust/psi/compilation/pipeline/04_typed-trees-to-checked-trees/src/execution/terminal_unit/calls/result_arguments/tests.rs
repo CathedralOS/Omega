@@ -1123,6 +1123,109 @@ fn branch_selected_mutable_record_lends_its_producer_loan_to_a_receiver() {
 }
 
 #[test]
+fn closed_case_reference_result_rejoins_every_view_outcome() {
+    let checked = checked_program(
+        r#"
+        data Choice [copy] { case First; case Second; case Other; }
+        data Holder { value: i32 in Wrapping; }
+        data Bag { holders: [Holder; 2]; }
+        machine pick(bag: &mut Bag, choice: Choice) -> &mut Holder {
+            let holders: &mut [Holder] = bag.holders.as_mut_slice();
+            transition choice {
+                Choice::First -> &mut holders[0]
+                Choice::Second -> &mut holders[1]
+                _ -> &mut holders[0]
+            }
+        }
+        "#,
+    );
+    let pick = machine_named(&checked, "pick");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(pick)
+        .unwrap_or_else(|| {
+            panic!(
+                "closed-case reference result: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(pick)
+            )
+        });
+    let [state] = plan.states.as_slice() else {
+        panic!("one-state closed-case producer")
+    };
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } =
+        &state.terminator
+    else {
+        panic!("enum dispatch retains its closed-case result roster")
+    };
+    assert_eq!(cases.len(), 3);
+    assert!(cases.iter().all(|case| matches!(
+        &case.outcome,
+        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+            checked_trees::CheckedConditionalReturnArm::Structural(
+                CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            )
+        )
+    )));
+    assert_eq!(
+        plan.result_reference_sources.len(),
+        2,
+        "the repeated fallback origin deduplicates without losing the other candidate"
+    );
+
+    // The case roster cannot recover a forged view root from matching result
+    // types or paths. Break the one mutable view loan every arm reborrows and
+    // require source planning to withdraw the producer.
+    let typed_machine = checked.typed.machine_by_symbol(pick).expect("pick machine");
+    let typed_state = &checked.typed.machine_states(typed_machine)[0];
+    let holders = checked
+        .typed
+        .statement_table
+        .statements(typed_state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "holders" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("mutable holder view");
+    let view_loan = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .find_map(|(handle, loan)| {
+            (loan.owner_symbol == holders
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                && checked.facts.borrow.loan_owner_path(loan).is_empty())
+            .then_some(handle)
+        })
+        .expect("view loan");
+    let mut forged = checked.facts.clone();
+    forged.borrow.loans.get_mut(view_loan).root_symbol = symbols::SymbolHandle::invalid();
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &forged,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &forged.flow.terminal_boundary_scalar_returns,
+            structural_returns: &forged.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        rebuilt.composed_for_machine(pick).is_none(),
+        "a forged view root authorized the closed-case reference roster"
+    );
+}
+
+#[test]
 fn branch_selected_reference_rejects_different_ingress_origins() {
     let diagnostics = checked_program_result(
         r#"

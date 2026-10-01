@@ -38,6 +38,7 @@ pub(crate) fn emit(
     operation: &CheckedUnitEffectOperationPlan,
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
     next_place: &mut u64,
     temporary_places: &mut Vec<StructuralPlaceDeclaration>,
     call_emitter: &mut StructuralCallEmitter<'_>,
@@ -201,6 +202,24 @@ pub(crate) fn emit(
         multiplicity,
         structural_types,
         type_ids,
+        domain_ids,
+        type_reference: checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(
+                state,
+                result.statement_index,
+                checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(*value)
+                    .expression,
+            )
+            .map(|root| root.type_reference)
+            .unwrap_or_default(),
         next_place,
         temporary_places,
         calls,
@@ -263,6 +282,10 @@ pub(crate) fn emit(
                 .get(*value)
                 .kind
             && emission.copied_parameter(argument)?.is_none()
+            && !matches!(
+                argument.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+            )
         {
             emission.materialize_place(place)?
         } else {
@@ -536,6 +559,8 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
     pub(super) type_ids: &'a [(String, StructuralTypeId)],
+    pub(super) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    type_reference: checked_trees::types::TypeReferenceHandle,
     pub(super) next_place: &'b mut u64,
     pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
     pub(super) calls: &'b mut CallEmissionContext<'calls>,
@@ -580,6 +605,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn record_field_value(
         &mut self,
         value: CheckedStructuralValueHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<PlaceId, LoweringError> {
         // A fresh field's continuation joins that field, not the enclosing
         // selection's result/residual slots. Its constructors leave incoming
@@ -587,7 +613,9 @@ impl Emission<'_, '_, '_> {
         // a candidate. Source replay still refuses hidden owned child transfers.
         let sources = std::mem::take(&mut self.sources);
         let owners = std::mem::take(&mut self.owners);
+        let parent_reference = std::mem::replace(&mut self.type_reference, reference);
         let result = self.value(value, None);
+        self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
         result
@@ -1037,6 +1065,27 @@ impl Emission<'_, '_, '_> {
                 Ok(place)
             }
             CheckedStructuralValueKind::Place(argument) => {
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
+                    let domains = source_custody::byte_literals::validate(
+                        self.checked, node.expression, self.type_reference, &argument,
+                    )?;
+                    let qualifications = domains.into_iter().map(|domain|
+                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                            self.domain_ids, domain, self.structural_type,
+                        )
+                    ).collect::<Result<Vec<_>, _>>()?;
+                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(
+                        bytes, self.structural_type, qualifications, self.structural_types,
+                        self.temporary_places, self.next_place, self.next_value,
+                        &mut self.calls.next_obligation_identity, self.operations,
+                    )?;
+                    let place = declaration.id;
+                    self.temporary_places.push(declaration);
+                    if let Some(continuation) = continuation {
+                        self.complete_value(place, None, continuation)?;
+                    }
+                    return Ok(place);
+                }
                 if let Some(source) = self.copied_parameter(&argument)? {
                     return self.copied_leaf_place(&source, continuation);
                 }

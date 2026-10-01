@@ -21,6 +21,55 @@ const MUTABLE_LOCAL_WITNESS: &str = r#"
 "#;
 
 #[test]
+fn nested_copied_operand_retains_its_own_consuming_call() {
+    let source = r#"
+        data Direction [copy] { case East; case West; }
+        machine identity(direction: Direction) -> Direction { direction }
+        machine consume(first: Direction, second: Direction) {}
+        machine run(direction: Direction) { consume(identity(direction), direction); }
+    "#;
+    let mut checked = crate::front_end::checked_program(source);
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("nested and outer copies keep different consuming call coordinates");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("authored caller")
+        .symbol;
+    let source = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == machine)
+        .expect("caller plan")
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source:
+                    Some(
+                        source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
+                            call_ordinal: 1,
+                            ..
+                        },
+                    ),
+                ..
+            } => Some(source),
+            _ => None,
+        })
+        .expect("nested copy names its actual consumer");
+    *source = checked_trees::CheckedArrayConstructionSource::CallArgument {
+        call_ordinal: 0,
+        parameter_position: 0,
+    };
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect_err("an earlier operation is insufficient: the exact consumer must agree");
+}
+
+#[test]
 fn copied_local_operand_rejects_initializer_and_other_snapshot_substitution() {
     let checked = crate::front_end::checked_program(MUTABLE_LOCAL_WITNESS);
     let artifact = TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("run"))

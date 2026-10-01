@@ -1,0 +1,104 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+
+data Direction [copy] {
+    case East;
+    case West;
+}
+
+data CellId [copy] {
+    case None;
+    case First;
+    case Second;
+}
+
+data Exit [copy] {
+    command: [u8; 8] in Utf8;
+    direction: Direction;
+    destination: CellId;
+}
+
+data Room [copy] {
+    exits: [Exit; 1];
+    neighbor: u64;
+    observed_before: u64;
+}
+
+data Bag { rooms: [Room; 3]; }
+data CommandSource { tag: u64; }
+data Main { console: Binding<Console>; bag: Bag; commands: CommandSource; }
+
+machine Bag::pick(&mut self, marker: Direction, second: bool) -> &mut Room {
+    let room_view: &mut [Room] = self.rooms.as_mut_slice();
+    transition second {
+        true -> &mut room_view[1]
+        false -> &mut room_view[0]
+    }
+}
+
+machine CommandSource::next(&mut self, direction: Direction) -> [u8; 8] in Utf8 {
+    transition direction {
+        Direction::East -> "east"
+        Direction::West -> "west"
+    }
+}
+
+machine Room::install(
+    &mut self,
+    command: [u8; 8] in Utf8,
+    direction: Direction,
+    destination: CellId
+) {
+    transition { _ -> write(command, direction, destination) }
+
+    state write(
+        &mut self,
+        command: [u8; 8] in Utf8,
+        direction: Direction,
+        destination: CellId
+    ) {
+        self.observed_before = self.neighbor;
+        self.neighbor = 31;
+        self.exits[0] = Exit {
+            command: command,
+            direction: direction,
+            destination: destination,
+        };
+    }
+}
+
+machine CommandSource::connect(
+    &mut self,
+    bag: &mut Bag,
+    direction: Direction,
+    destination: CellId,
+    second: bool
+) {
+    let selected: &mut Room = bag.pick(direction, second);
+    selected.install(self.next(direction), direction, destination);
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.commands.connect(&mut self.bag, Direction::East, CellId::First, true);
+    self.commands.connect(&mut self.bag, Direction::West, CellId::Second, false);
+    transition self.bag.rooms[0].exits[0].command == "west"
+        && self.bag.rooms[0].exits[0].command.len == 4
+        && self.bag.rooms[0].exits[0].direction == Direction::West
+        && self.bag.rooms[0].exits[0].destination == CellId::Second
+        && self.bag.rooms[1].exits[0].command == "east"
+        && self.bag.rooms[1].exits[0].command.len == 4
+        && self.bag.rooms[1].exits[0].direction == Direction::East
+        && self.bag.rooms[1].exits[0].destination == CellId::First
+        && self.bag.rooms[0].neighbor == 31
+        && self.bag.rooms[1].neighbor == 31
+        && self.bag.rooms[0].observed_before == 0
+        && self.bag.rooms[1].observed_before == 0
+        && self.bag.rooms[2].neighbor == 0 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

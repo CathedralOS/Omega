@@ -57,8 +57,10 @@ pub enum CheckedStructuralValueKind {
         data_symbol: SymbolHandle,
         fields: HandleSpan<CheckedStructuralRecordField>,
     },
-    /// Existing storage is transferred, never reconstructed as a fresh case.
-    /// Conditional transfer and residual ownership come from checked flow.
+    /// Parameter and local sources transfer existing storage; conditional
+    /// transfer and residual ownership come from checked flow. A byte-literal
+    /// source instead constructs fresh bounded owned storage at its declared
+    /// carrier, never transferring ownership of immutable image bytes.
     Place(crate::CheckedUnitStructuralArgumentPlan),
     /// A borrowed `&[T]` view of the contiguous elements an owned collection
     /// place holds. `source` is that lent place under its shared loan, taken

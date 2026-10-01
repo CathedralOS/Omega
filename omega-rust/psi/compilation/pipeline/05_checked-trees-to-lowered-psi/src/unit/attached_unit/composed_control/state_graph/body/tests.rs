@@ -142,12 +142,27 @@ const GUARDED_REFERENCE_SOURCE: &str = r#"
 
 #[test]
 fn guarded_reference_arms_replay_exact_authored_sources() {
+    assert_guarded_reference_sources(GUARDED_REFERENCE_SOURCE);
+}
+
+#[test]
+fn guarded_attached_reference_arms_replay_exact_authored_sources() {
+    let attached = GUARDED_REFERENCE_SOURCE
+        .replace(
+            "machine pick(bag: &mut Bag,",
+            "machine Bag::pick(&mut self,",
+        )
+        .replace("bag.holders", "self.holders");
+    assert_guarded_reference_sources(&attached);
+}
+
+fn assert_guarded_reference_sources(source_text: &str) {
     use checked_trees::{
         CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
         CheckedUnitStructuralPathSegment,
     };
 
-    let checked = crate::front_end::checked_program(GUARDED_REFERENCE_SOURCE);
+    let checked = crate::front_end::checked_program(source_text);
     let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("pick"))
         .expect("guarded references lower with their exact arm sources and view cleanup");
     terminal_verifier::verify_module(

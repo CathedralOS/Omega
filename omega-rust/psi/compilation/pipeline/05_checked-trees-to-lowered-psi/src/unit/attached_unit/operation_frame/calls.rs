@@ -467,6 +467,7 @@ impl OperationFrame<'_, '_> {
             operation,
             structural_types,
             type_ids,
+            callees.domain_ids,
             next_place,
             private_places.temporaries(),
             &mut emit_member_call,

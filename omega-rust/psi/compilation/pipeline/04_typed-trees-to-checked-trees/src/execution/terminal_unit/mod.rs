@@ -1306,6 +1306,14 @@ fn value_leaf_type_identities(
     let mut identities = Vec::new();
     while let Some(node) = pending.pop() {
         match &plans.nodes.get(node).kind {
+            checked_trees::CheckedStructuralValueKind::Place(source)
+                if matches!(
+                    source.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                ) =>
+            {
+                identities.push(source.type_identity.as_str());
+            }
             checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 identities.push(source.type_identity.as_str());

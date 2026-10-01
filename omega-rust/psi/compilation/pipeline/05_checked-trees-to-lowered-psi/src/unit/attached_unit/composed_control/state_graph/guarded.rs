@@ -288,6 +288,11 @@ fn guarded_reference_source(
         return unsupported("ordered reference return target root is not exact");
     }
     let parameters = checked.state_parameters(authored);
+    let ingress_position = |symbol| {
+        parameters.iter().position(|parameter| {
+            parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
+        })
+    };
     let mut root_symbol = root.symbol;
     let borrow_state = {
         let mut states = checked
@@ -309,10 +314,33 @@ fn guarded_reference_source(
         state
     };
     for _ in 0..8 {
-        if parameters
+        if ingress_position(root_symbol).is_some() {
+            break;
+        }
+        // A view over an attached field can publish the field declaration as
+        // its loan root. Rejoin that declaration to self and restore its path
+        // segment before following the authored element suffix. Neither the
+        // candidate result roster nor a same-typed field supplies this identity.
+        let mut attached_fields = checked
+            .data_definitions()
             .iter()
-            .any(|parameter| parameter.symbol == root_symbol)
-        {
+            .filter(|data| data.symbol == machine.attached_data_symbol)
+            .flat_map(|data| checked.data_members(data))
+            .filter_map(|member| match member {
+                checked_trees::data::DataMember::Field(field) if field.symbol == root_symbol => {
+                    Some(field)
+                }
+                _ => None,
+            });
+        if let Some(field) = attached_fields.next() {
+            if attached_fields.next().is_some() {
+                return unsupported("ordered reference return has ambiguous attached fields");
+            }
+            path.insert(
+                0,
+                checked_trees::CheckedUnitStructuralPathSegment::Field(field.path_identity()),
+            );
+            root_symbol = machine.symbol;
             break;
         }
         let mut loans = checked.facts.borrow.loans.iter().filter(|(handle, loan)| {
@@ -338,12 +366,9 @@ fn guarded_reference_source(
         path = parent;
         root_symbol = loan.root_symbol;
     }
-    let position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == root_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "ordered reference return does not reach an ingress parameter",
-        ))?;
+    let position = ingress_position(root_symbol).ok_or(LoweringError::Unsupported(
+        "ordered reference return does not reach an ingress parameter",
+    ))?;
     let parameter = &parameters[position];
     if !parameter.is_mutable
         && validation::reference_result_custody::mutable_borrowed_parts(

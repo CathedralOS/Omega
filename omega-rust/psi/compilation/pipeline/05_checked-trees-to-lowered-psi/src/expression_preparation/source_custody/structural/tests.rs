@@ -4,6 +4,100 @@ use super::{
 };
 
 #[test]
+fn nested_owned_byte_literals_replay_bytes_carrier_and_access() {
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan,
+        CheckedUnitStructuralPathSegment,
+    };
+
+    for literal in ["", "Gate"] {
+        let original = crate::front_end::checked_program(&format!(
+            "domain [u8; 8]::Utf8 requires valid_utf8(self);
+             data Label [copy] {{ text: [u8; 8] in Utf8; sibling: u64; }}
+             data Entry [copy] {{ label: Label; sibling: u64; }}
+             machine make() -> Entry {{
+                 Entry {{ label: Label {{ text: \"{literal}\", sibling: 29 }}, sibling: 31 }}
+             }}"
+        ));
+        let lowered =
+            crate::lower_machine(&original, crate::TerminalMachineSelection::Name("make"))
+                .expect("nested byte literal constructs owned backing");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("record byte qualifications and capacity verify independently");
+        assert_eq!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishByteSequenceConcatenation { .. }
+                ))
+                .count(),
+            1,
+            "literal constructs one fresh bounded owner"
+        );
+
+        let (value, _) = original
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .iter()
+            .find(|(_, node)| {
+                matches!(&node.kind,
+                CheckedStructuralValueKind::Place(argument) if matches!(argument.source,
+                    CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }))
+            })
+            .expect("retained byte literal source");
+        for mutation in 0..4 {
+            let mut forged = original.clone();
+            let CheckedStructuralValueKind::Place(argument) = &mut forged
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get_mut(value)
+                .kind
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
+                        &mut argument.source
+                    else {
+                        unreachable!()
+                    };
+                    if bytes.is_empty() {
+                        bytes.push(b'x');
+                    } else {
+                        bytes[0] = b'B';
+                    }
+                }
+                1 => argument.access = CheckedStructuralAccess::SharedBorrow,
+                2 => argument.type_identity.push_str("::different_capacity"),
+                3 => argument
+                    .path
+                    .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::lower_machine(&forged, crate::TerminalMachineSelection::Name("make"))
+                    .is_err(),
+                "literal source mutation {mutation} must not become trusted construction"
+            );
+        }
+    }
+}
+
+#[test]
 fn zeroed_local_array_supplies_slice_view_without_an_initializer_expression() {
     let checked = crate::front_end::checked_program(
         "data Entry { value: u8; }

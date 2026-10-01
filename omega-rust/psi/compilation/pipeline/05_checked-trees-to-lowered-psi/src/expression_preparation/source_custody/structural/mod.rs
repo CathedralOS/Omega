@@ -20,6 +20,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+pub(crate) mod byte_literals;
 mod dispatch;
 mod record;
 mod slice_view;
@@ -319,7 +320,12 @@ pub(crate) fn validate(
                 )?;
             }
             CheckedStructuralValueKind::Place(argument) => {
-                if let Some(receipt) = selection {
+                if matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                ) {
+                    byte_literals::validate(checked, expression, reference, &argument)?;
+                } else if let Some(receipt) = selection {
                     if projected_leaf.is_some() {
                         return unsupported(
                             "projected selection root place bypassed its leaf validation",
