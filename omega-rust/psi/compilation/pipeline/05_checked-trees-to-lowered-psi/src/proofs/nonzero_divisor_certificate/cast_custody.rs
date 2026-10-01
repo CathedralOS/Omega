@@ -54,22 +54,66 @@ pub(super) fn prove_from_root(
         })
 }
 
-/// Whether an exact cast chain runs from `root` to a value goal endpoint:
-/// exactly the roots [`prove_from_root`] can complete, since its chain
-/// replay refuses every other root before reading the bound.
-pub(super) fn reaches_goal(
+/// Every root [`prove_from_root`] can complete for `goal`: those with an exact
+/// cast chain to a value goal endpoint, which its chain replay checks before
+/// reading the bound. A chain to a target can only start at a value the
+/// target's open cast walk passes, so each such value is confirmed with that
+/// same replay.
+pub(super) fn reaching_roots(
     goal: &Proposition,
     semantic_axioms: &[Proposition],
-    root: &ScalarTerm,
-) -> bool {
+) -> Vec<ScalarTerm> {
     let (goal_left, goal_right) = match goal {
         Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
-        _ => return false,
+        _ => return Vec::new(),
     };
-    [goal_left, goal_right]
+    let mut roots = Vec::new();
+    for target in [goal_left, goal_right]
         .into_iter()
         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-        .any(|target| cast_spine(target, Some(root), semantic_axioms).is_some())
+    {
+        for root in open_walk(target, semantic_axioms) {
+            if !roots.contains(&root) && cast_spine(target, Some(&root), semantic_axioms).is_some()
+            {
+                roots.push(root);
+            }
+        }
+    }
+    roots
+}
+
+/// The values the open walk of [`cast_spine`] from `target` reaches, in walk
+/// order, stopping where that walk stops.
+fn open_walk(target: &ScalarTerm, semantic_axioms: &[Proposition]) -> Vec<ScalarTerm> {
+    let mut current = target.clone();
+    let mut reversed = Vec::new();
+    let mut reached = Vec::new();
+    while reversed.len() < semantic_axioms.len() {
+        let mut definitions = semantic_axioms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, axiom)| {
+                let Proposition::Equal(
+                    output,
+                    ScalarTerm::IntegerExactCast { operand, .. }
+                    | ScalarTerm::IntegerWiden { operand, .. },
+                ) = axiom
+                else {
+                    return None;
+                };
+                (output == &current).then(|| (index, operand.as_ref().clone()))
+            });
+        let Some((index, operand)) = definitions.next() else {
+            break;
+        };
+        if definitions.next().is_some() || reversed.contains(&index) {
+            break;
+        }
+        reversed.push(index);
+        current = operand;
+        reached.push(current.clone());
+    }
+    reached
 }
 
 /// Restate an integer literal exactly in another integer carrier.

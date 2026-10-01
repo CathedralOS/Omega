@@ -53,25 +53,6 @@ enum Completion<'a> {
 }
 
 impl Completion<'_> {
-    /// Whether this completion can accept any bound on `root`: an affine
-    /// word, or an exact cast chain, from `root` to a value goal endpoint.
-    /// The completions below refuse every bound on any other root before
-    /// reading it, so the answer is exact.
-    fn reaches_goal(&mut self, request: Request, root: &ScalarTerm) -> bool {
-        match self {
-            Self::CastCustody => {
-                cast_custody::reaches_goal(request.goal, request.semantic_axioms, root)
-            }
-            Self::AffineCustody(definitions) => affine_custody::reaches_goal(
-                request.context,
-                request.goal,
-                request.semantic_axioms,
-                definitions,
-                root,
-            ),
-        }
-    }
-
     fn complete(
         &mut self,
         request: Request,
@@ -127,17 +108,42 @@ trait Complete {
 struct Selection<'request, 'completion> {
     request: Request<'request>,
     completion: Completion<'completion>,
+    /// Affine custody's admission answers by root.
     admitted: BTreeMap<ScalarTerm, bool>,
+    /// Cast custody's admitted roots, resolved at the first question: a
+    /// goal's cast chains are few and short, while sources ask about every
+    /// equality endpoint in the scope.
+    cast_roots: Option<Vec<ScalarTerm>>,
 }
 
 impl Complete for Selection<'_, '_> {
     fn admits(&mut self, root: &ScalarTerm) -> bool {
-        if let Some(&admitted) = self.admitted.get(root) {
-            return admitted;
+        // Each completion refuses every bound on a root it cannot carry to a
+        // value goal endpoint -- no exact cast chain, no checked affine word --
+        // before reading the bound, so these answers are exact.
+        let request = self.request;
+        match &mut self.completion {
+            Completion::CastCustody => self
+                .cast_roots
+                .get_or_insert_with(|| {
+                    cast_custody::reaching_roots(request.goal, request.semantic_axioms)
+                })
+                .contains(root),
+            Completion::AffineCustody(definitions) => {
+                if let Some(&admitted) = self.admitted.get(root) {
+                    return admitted;
+                }
+                let admitted = affine_custody::reaches_goal(
+                    request.context,
+                    request.goal,
+                    request.semantic_axioms,
+                    definitions,
+                    root,
+                );
+                self.admitted.insert(root.clone(), admitted);
+                admitted
+            }
         }
-        let admitted = self.completion.reaches_goal(self.request, root);
-        self.admitted.insert(root.clone(), admitted);
-        admitted
     }
 
     fn complete(&mut self, root: &ScalarTerm, root_bound: ProofNode) -> Option<ProofNode> {
@@ -256,6 +262,7 @@ fn select(request: Request, sources: &[RootSource], completion: Completion) -> O
         request,
         completion,
         admitted: BTreeMap::new(),
+        cast_roots: None,
     };
     sources
         .iter()
