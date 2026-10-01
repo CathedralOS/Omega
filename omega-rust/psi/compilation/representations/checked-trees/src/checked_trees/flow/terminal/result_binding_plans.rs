@@ -59,10 +59,10 @@ pub struct CheckedByteSequenceValuePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),
-    /// Read the current live bytes of one exact readable bounded parameter.
+    /// Read the current live bytes of a readable parameter or established local.
     /// Capacity is its carrier bound, not the observed content length.
-    WholeParameter {
-        parameter_position: u32,
+    Whole {
+        root: crate::CheckedStoreRoot,
         capacity: u64,
     },
     Field {

@@ -32,6 +32,142 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn whole_local_byte_operand_observes_completed_element_mutation() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+        domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+        data Greeting [copy] { bytes: [u8; 16] in Utf8; }
+        machine greet(output: &mut Greeting) {
+            let mut name: [u8; 8] in Utf8 = "ada";
+            name[0] = 65;
+            output.bytes = "Hi " + name + "!";
+        }
+        "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("greet"),
+    )
+    .expect("concatenation reads the whole local's current storage");
+    verify(&lowered).expect("live local length and predicates verify independently");
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let (path, field) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path, *field))
+            }
+            _ => None,
+        })
+        .expect("output field replacement");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &terminal_codec::encode_module(module).unwrap(),
+        &terminal_codec::encode_proof_section(module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 91,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(200),
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(
+        execution.structural_byte_sequence_field(91, path, field),
+        Some(b"Hi Ada!".as_slice())
+    );
+    for change_capacity in [false, true] {
+        let mut changed = checked.clone();
+        let mut changed_sources = 0;
+        for operation in changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+        {
+            if let checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceStore(store) =
+                operation
+            {
+                let nodes: Vec<_> = store.value.nodes.iter().map(|(node, _)| node).collect();
+                for node in nodes {
+                    if let checked_trees::CheckedByteSequenceValue::Whole { root, capacity } =
+                        store.value.nodes.get_mut(node)
+                        && matches!(root, checked_trees::CheckedStoreRoot::Local { .. })
+                    {
+                        if change_capacity {
+                            *capacity += 1;
+                        } else {
+                            *root = checked_trees::CheckedStoreRoot::Local {
+                                symbol: symbols::SymbolHandle::invalid(),
+                            };
+                        }
+                        changed_sources += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            changed_sources, 1,
+            "exactly one authored whole-local operand"
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("greet")
+            )
+            .is_err(),
+            "a forged local identity or capacity cannot replace the authored source"
+        );
+    }
+
+    let mut unqualified = module.clone();
+    let mut removed = 0;
+    for operation in unqualified
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if let terminal_psi::OperationResult::Structural(result) = &mut operation.result
+            && !result.qualifications.is_empty()
+        {
+            result.qualifications.clear();
+            removed += 1;
+        }
+    }
+    assert!(removed > 0);
+    assert!(
+        terminal_verifier::validate_module(&unqualified).is_err(),
+        "a readable local without its predicate cannot establish qualified output"
+    );
+}
+
+#[test]
 fn local_record_byte_field_copy_observes_completed_call_mutation() {
     let checked = crate::front_end::checked_program(
         r#"

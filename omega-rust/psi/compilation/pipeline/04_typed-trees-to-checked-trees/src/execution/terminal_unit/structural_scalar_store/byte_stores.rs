@@ -343,8 +343,8 @@ pub(super) fn field_store(
 }
 
 /// Preserve only the selected built-in byte law. Leaves are immutable literals
-/// or readable bounded parameters/declared fields; there is no delayed call
-/// evaluation in this plan. A whole parameter observes its current live extent,
+/// or readable bounded places; there is no delayed call evaluation in this
+/// plan. A whole place observes its current live extent,
 /// rather than padding the value to its carrier capacity.
 fn byte_value_plan(
     program: &TypedTrees,
@@ -453,11 +453,27 @@ fn byte_value_plan(
                 return None;
             }
             if place.segments.is_empty() {
-                let parameter_position = parameter_position?;
-                let parameter = program.state_parameters(state).get(parameter_position)?;
-                if program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
+                let source_root = if let Some(position) = parameter_position {
+                    checked_trees::CheckedStoreRoot::Parameter {
+                        position: u32::try_from(position).ok()?,
+                    }
+                } else {
+                    let facts::PlaceRoot::Symbol(symbol) = root else {
+                        return None;
+                    };
+                    let (_, local) = program
+                        .state_local_declaration(state, symbol)
+                        .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
+                    if structural_access_for_type_reference(program, local.type_reference)
+                        != Some(CheckedStructuralAccess::Owned)
+                    {
+                        return None;
+                    }
+                    checked_trees::CheckedStoreRoot::Local { symbol }
+                };
+                if program.type_multiplicity(type_reference) != Multiplicity::Unrestricted
                     || !matches!(
-                        structural_access_for_type_reference(program, parameter.type_reference),
+                        structural_access_for_type_reference(program, type_reference),
                         Some(
                             CheckedStructuralAccess::Owned
                                 | CheckedStructuralAccess::SharedBorrow
@@ -480,8 +496,8 @@ fn byte_value_plan(
                     return None;
                 }
                 return Some((
-                    plan.nodes.insert(Value::WholeParameter {
-                        parameter_position: u32::try_from(parameter_position).ok()?,
+                    plan.nodes.insert(Value::Whole {
+                        root: source_root,
                         capacity,
                     }),
                     capacity,

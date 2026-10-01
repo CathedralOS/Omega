@@ -156,13 +156,7 @@ fn validate_value(
                 depth + 1,
             )
         }
-        (
-            ByteValue::WholeParameter {
-                parameter_position,
-                capacity,
-            },
-            _,
-        ) => {
+        (ByteValue::Whole { root, capacity }, _) => {
             let (_, state) = crate::expression_preparation::source_custody::authored_state(
                 checked,
                 state_symbol,
@@ -175,16 +169,43 @@ fn validate_value(
                     Some(statement_index),
                     expression,
                 )?;
-            let parameter = checked
-                .state_parameters(state)
-                .get(*parameter_position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "whole byte source parameter is absent",
-                ))?;
-            let carrier = crate::unit::attached_unit::structural_carrier_type(
-                checked,
-                parameter.type_reference,
-            )?;
+            let (root_symbol, type_reference) = match *root {
+                checked_trees::CheckedStoreRoot::Parameter { position } => {
+                    let parameter = checked
+                        .state_parameters(state)
+                        .get(position as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "whole byte source parameter is absent",
+                        ))?;
+                    validate_whole_parameter_custody(
+                        checked,
+                        machine,
+                        state_symbol,
+                        position,
+                        parameter,
+                    )?;
+                    (parameter.symbol, parameter.type_reference)
+                }
+                checked_trees::CheckedStoreRoot::Local { symbol } => {
+                    let (_, local) = checked
+                        .state_local_declaration(state, symbol)
+                        .filter(|&(ordinal, _)| ordinal < statement_index)
+                        .ok_or(LoweringError::Unsupported(
+                            "whole byte source local has no earlier declaration",
+                        ))?;
+                    if validation::bounded_byte_buffer_capacity(
+                        &checked.typed,
+                        local.type_reference,
+                    )
+                    .is_none()
+                    {
+                        return unsupported("whole byte source local has no owned bounded storage");
+                    }
+                    (symbol, local.type_reference)
+                }
+            };
+            let carrier =
+                crate::unit::attached_unit::structural_carrier_type(checked, type_reference)?;
             let readable = match checked.type_reference_table.type_reference(carrier) {
                 checked_trees::types::TypeReferenceNode::FixedArray { .. } => true,
                 checked_trees::types::TypeReferenceNode::Reference { access, .. } => matches!(
@@ -195,32 +216,23 @@ fn validate_value(
                 _ => false,
             };
             let declared_capacity =
-                validation::bounded_byte_buffer_capacity(&checked.typed, parameter.type_reference)
+                validation::bounded_byte_buffer_capacity(&checked.typed, type_reference)
                     .or_else(|| {
                         validation::loaned_bounded_byte_buffer_capacity(
                             &checked.typed,
-                            parameter.type_reference,
+                            type_reference,
                         )
                     })
                     .and_then(|capacity| u64::try_from(capacity).ok());
-            if source.root != parameter.symbol
+            if source.root != root_symbol
                 || !source.path.is_empty()
                 || !readable
                 || declared_capacity != Some(*capacity)
-                || checked.type_multiplicity(parameter.type_reference)
+                || checked.type_multiplicity(type_reference)
                     != language_semantics::Multiplicity::Unrestricted
             {
-                return unsupported(
-                    "whole byte source differs from its readable authored parameter",
-                );
+                return unsupported("whole byte source differs from its readable authored place");
             }
-            validate_whole_parameter_custody(
-                checked,
-                machine,
-                state_symbol,
-                *parameter_position,
-                parameter,
-            )?;
             Ok(())
         }
         (
@@ -837,6 +849,48 @@ struct ValueEmitter<'input> {
 }
 
 impl ValueEmitter<'_> {
+    /// Locate the completed owner, without reconstructing its initial contents.
+    /// The caller checks the read shape; Terminal checks liveness at the use.
+    fn local_source(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
+        let mut locals = self
+            .locals
+            .iter()
+            .filter(|(candidate, _)| *candidate == symbol);
+        let (_, local) = locals.next().ok_or(LoweringError::Unsupported(
+            "byte value local has no established home",
+        ))?;
+        if locals.next().is_some()
+            || local.access != terminal_psi::StructuralAccess::Owned
+            || !local.path.is_empty()
+        {
+            return unsupported("byte value local lost its exact whole owned home");
+        }
+        self.emission
+            .operations
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == local.place)
+            .or_else(|| {
+                // Control joins register the same completed owner's custody.
+                self.emission
+                    .operations
+                    .structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| match binding {
+                        StructuralBinding::OperationResult(result) => Some(result),
+                        _ => None,
+                    })
+                    .find(|result| result.place == local.place)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "byte value local has no completed producer",
+            ))
+    }
+
     /// Source reads retain the local's current whole owned home, not write
     /// authority and not a copied constructor result. Receiving validation
     /// independently checks that the produced owner remains live here.
@@ -863,42 +917,7 @@ impl ValueEmitter<'_> {
                 Ok((parameter.place, parameter.structural_type))
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let mut locals = self
-                    .locals
-                    .iter()
-                    .filter(|(candidate, _)| *candidate == symbol);
-                let (_, local) = locals.next().ok_or(LoweringError::Unsupported(
-                    "byte value local has no established home",
-                ))?;
-                if locals.next().is_some()
-                    || local.access != terminal_psi::StructuralAccess::Owned
-                    || !local.path.is_empty()
-                {
-                    return unsupported("byte value local lost its exact whole owned home");
-                }
-                let produced = self
-                    .emission
-                    .operations
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == local.place)
-                    .or_else(|| {
-                        // A construction may complete at a control join; its
-                        // registered result owns the same home and custody.
-                        self.emission
-                            .operations
-                            .structural_values
-                            .iter()
-                            .filter_map(|(_, binding)| match binding {
-                                StructuralBinding::OperationResult(result) => Some(result),
-                                _ => None,
-                            })
-                            .find(|result| result.place == local.place)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "byte value local has no completed producer",
-                    ))?;
+                let produced = self.local_source(symbol)?;
                 if !matches!(
                     produced.multiplicity,
                     terminal_psi::StructuralMultiplicity::Unrestricted
@@ -909,7 +928,7 @@ impl ValueEmitter<'_> {
                 {
                     return unsupported("byte value local lost its ordinary read custody");
                 }
-                Ok((local.place, produced.structural_type))
+                Ok((produced.place, produced.structural_type))
             }
         }
     }
@@ -956,39 +975,54 @@ impl ValueEmitter<'_> {
         }
         match self.plan.nodes.get(node) {
             ByteValue::Literal(bytes) => self.emission.literal(bytes),
-            ByteValue::WholeParameter {
-                parameter_position,
-                capacity,
-            } => {
-                let (_, parameter) = self
-                    .parameters
-                    .iter()
-                    .find(|(authored, _)| *authored == *parameter_position)
-                    .ok_or(LoweringError::Unsupported(
-                        "whole byte value parameter is absent",
-                    ))?;
-                if !matches!(
-                    parameter.access,
-                    terminal_psi::StructuralAccess::Owned
-                        | terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow
-                ) || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
-                    || !self.emission.structural_types.iter().any(|row| {
-                        row.id == parameter.structural_type
-                            && row.shape
-                                == StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                                        capacity: *capacity,
-                                    },
-                                )
-                    })
-                {
-                    return unsupported(
-                        "whole byte parameter has different capacity or read authority",
-                    );
+            ByteValue::Whole { root, capacity } => {
+                let (source, structural_type) = match *root {
+                    checked_trees::CheckedStoreRoot::Parameter { position } => {
+                        let (_, parameter) = self
+                            .parameters
+                            .iter()
+                            .find(|(authored, _)| *authored == position)
+                            .ok_or(LoweringError::Unsupported(
+                                "whole byte value parameter is absent",
+                            ))?;
+                        if !matches!(
+                            parameter.access,
+                            terminal_psi::StructuralAccess::Owned
+                                | terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        ) || parameter.multiplicity
+                            != terminal_psi::StructuralMultiplicity::Unrestricted
+                            || !parameter.projected_qualifications.is_empty()
+                        {
+                            return unsupported(
+                                "whole byte parameter has no ordinary read authority",
+                            );
+                        }
+                        (parameter.place, parameter.structural_type)
+                    }
+                    checked_trees::CheckedStoreRoot::Local { symbol } => {
+                        let produced = self.local_source(symbol)?;
+                        if produced.multiplicity
+                            != terminal_psi::StructuralMultiplicity::Unrestricted
+                            || !produced.projected_qualifications.is_empty()
+                            || !produced.claims.is_empty()
+                        {
+                            return unsupported("whole byte local has no ordinary read custody");
+                        }
+                        (produced.place, produced.structural_type)
+                    }
+                };
+                if !self.emission.structural_types.iter().any(|row| {
+                    row.id == structural_type
+                        && row.shape
+                            == StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                    capacity: *capacity,
+                                },
+                            )
+                }) {
+                    return unsupported("whole byte source has a different capacity");
                 }
-                let source = parameter.place;
                 let length = self
                     .emission
                     .length(OperationKind::ByteSequenceLength { source })?;
