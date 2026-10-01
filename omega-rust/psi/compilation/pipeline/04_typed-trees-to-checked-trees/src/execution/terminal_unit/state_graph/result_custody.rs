@@ -150,9 +150,10 @@ pub(super) fn account(
                     disposable_locals,
                 )
         };
-        let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
-            edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
-        };
+        // A successor moves the result either as a direct transfer or, for
+        // a result with ownership debt, into one of its own operand calls.
+        let transferred =
+            |edge: &CheckedStructuralControlSuccessorPlan| edge.result_moves(result) == 1;
         // An owned selection moved each candidate source's custody into
         // the join's residual parameters, which die at the same authored
         // exit. The receipt, not a transfer or disposal row on the dead

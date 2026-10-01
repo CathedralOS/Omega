@@ -1049,9 +1049,39 @@ pub(super) fn state_exit_result_locals(
                             == 1
                 });
             edge_count += 1;
+            // An operand call of this edge may take the local whole on the
+            // edge alone; its ledger row sits at that call's occurrence,
+            // after selection. Each reconstructed occurrence must meet its
+            // one exact Transfer row; sibling edges keep the exit drop.
+            let operand_moves = validation::transition_operand_moves(
+                program,
+                facts,
+                machine.symbol,
+                state,
+                ordinal,
+                symbol,
+            )?;
+            for source in &operand_moves {
+                let mut rows = permissions.permissions.iter().filter(|(_, event)| {
+                    event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && event.root == drop.root
+                        && event.kind == PermissionEventKind::Transfer
+                        && event.access == PermissionAccess::Owned
+                        && event.source == *source
+                });
+                let (_, row) = rows.next()?;
+                if rows.next().is_some() || !exact(row) {
+                    return None;
+                }
+                transfer_count += 1;
+            }
             let Some((_, parameter)) = matching.next() else {
                 continue;
             };
+            if !operand_moves.is_empty() {
+                return None;
+            }
             if matching.next().is_some()
                 || program.normalized_type_identity(parameter.type_reference)
                     != program.normalized_type_identity(local.type_reference)

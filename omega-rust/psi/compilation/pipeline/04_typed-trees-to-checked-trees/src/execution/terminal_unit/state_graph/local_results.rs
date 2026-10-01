@@ -102,10 +102,9 @@ fn validate(
         if result.statement_index >= successor.statement_ordinal {
             return None;
         }
-        let count = successor.transfers.iter().filter(|transfer| matches!(transfer.source,
-            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
-                if binding_ordinal == result.binding_ordinal)).count();
-        match count {
+        // An edge whose operand call takes the local whole moves it there
+        // just as a direct transfer does; only a non-moving edge disposes.
+        match successor.result_moves(result) {
             0 => has_disposal_edge = true,
             1 => {}
             _ => return None,

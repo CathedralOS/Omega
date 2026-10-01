@@ -392,12 +392,24 @@ pub(super) fn admit_calls<'a>(
     for state in call_states.iter().copied() {
         let caller = CallerView::state(machine, state);
         let arm_calls = state.arm_calls();
+        let edge_values = state
+            .successors()
+            .into_iter()
+            .flat_map(|successor| successor.operand_establishments())
+            .collect::<Vec<_>>();
         for operation in state.operation_dependencies() {
             // A terminal call arm runs after the state's whole operation
             // sequence, on its selected arm alone: that sequence followed by
             // the call is the one its producers and cleanup rejoin against.
+            // A composite argument established on an edge runs at the same
+            // point, on its selected edge alone, and its member calls may
+            // read or take the state's own results through that sequence.
             let arm_sequence;
-            let caller = if arm_calls.iter().any(|arm| std::ptr::eq(*arm, operation)) {
+            let caller = if arm_calls
+                .iter()
+                .chain(&edge_values)
+                .any(|selected| std::ptr::eq(*selected, operation))
+            {
                 arm_sequence = state
                     .operations
                     .iter()

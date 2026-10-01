@@ -92,3 +92,78 @@ fn a_call_operand_belongs_to_its_call_not_the_bound_result_local() {
         "the call operand has exactly one owner"
     );
 }
+
+/// An edge call whose operand is one of the source state's `let` locals runs
+/// on that edge alone. It reads a `[copy]` local as a later statement's call
+/// would, and takes an affine local whole on its own edge while the sibling
+/// edge keeps that local's state-exit disposal; the state's operations keep
+/// no hoisted call and the cleanup plan still covers both edges.
+#[test]
+fn an_edge_call_reads_or_takes_a_state_local_on_its_edge_alone() {
+    let checked = crate::tests::front_end::checked_program(
+        r#"
+        data Pair [copy] { a: u32; b: u32; }
+        data Owned { value: u32; }
+        machine shift(pair: Pair, by: u32) -> Pair { Pair { a: pair.a + by, b: pair.b + by } }
+        machine settle(owned: Owned) -> Pair { Pair { a: owned.value, b: owned.value } }
+        machine walk(select: bool) {
+            let seed: Pair = Pair { a: 1, b: 2 };
+            let owned: Owned = Owned { value: 6 };
+            transition select {
+                true -> take(settle(owned))
+                false -> take(shift(seed, 10))
+            }
+            state take(pair: Pair) {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "walk")
+        .expect("walk machine");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine.symbol)
+        .expect("local operands plan their edge calls");
+    let entry = &plan.states[0];
+    assert!(
+        entry
+            .operations
+            .iter()
+            .all(|operation| operation.call().is_none()),
+        "no edge call is hoisted ahead of the selection"
+    );
+    let [seed, owned] = entry
+        .operations
+        .iter()
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::structural_result_binding)
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("two local results");
+    };
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("the entry selects between the two call-bearing edges");
+    };
+    assert_eq!(when_true.operand_result_moves(owned.binding_ordinal), 1);
+    assert_eq!(when_true.result_moves(owned), 1);
+    assert_eq!(when_false.result_moves(owned), 0);
+    assert_eq!(when_false.operand_result_moves(seed.binding_ordinal), 1);
+    assert_eq!(when_false.result_moves(seed), 0, "a copy read moves nothing");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_state(machine.symbol, entry.state)
+            .is_some(),
+        "the affine local keeps its exit disposal on the non-moving edge"
+    );
+}

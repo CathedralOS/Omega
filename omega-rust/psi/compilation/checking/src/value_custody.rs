@@ -26,6 +26,7 @@ pub(crate) mod scalar_case_constructor;
 pub(crate) mod scalar_representation_range;
 pub(crate) mod storage_contents;
 pub(crate) mod struct_literals;
+pub(crate) mod transition_operand_moves;
 pub(crate) mod type_references;
 pub(crate) mod wire;
 pub(crate) mod write_only_borrows;

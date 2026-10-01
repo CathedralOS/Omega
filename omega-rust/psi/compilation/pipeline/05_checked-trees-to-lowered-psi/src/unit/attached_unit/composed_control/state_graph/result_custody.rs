@@ -3,8 +3,12 @@
 //! StateExit records the lexical affine remainder even when a selected edge
 //! transfers that local. It is not an instruction to drop on every successor.
 //! Reconstruct the transfer roster from source, check its exact permission rows,
-//! then subtract the selected edge's transfers. The resulting reverse-ordered
-//! local roots use Terminal's existing edge disposal, after argument evaluation.
+//! then subtract the selected edge's transfers. A transfer is a whole local
+//! passed to the target state or, after selection, into one of the edge's
+//! own operand calls (`next(consume(local))`); either moves the local on that
+//! edge alone, and every sibling edge still disposes of it. The resulting
+//! reverse-ordered local roots use Terminal's existing edge disposal, after
+//! argument evaluation.
 use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, PlaceId, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{
@@ -537,6 +541,24 @@ pub(super) fn validate(
                 ));
             }
         }
+        // An operand call of this edge that takes the local whole moves it
+        // at the call's own occurrence, after the edge is selected.
+        let operand_moves = validation::transition_operand_moves(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            source,
+            statement_index,
+            local.symbol,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph local operand call lost its authored occurrence",
+        ))?;
+        expected.extend(
+            operand_moves
+                .into_iter()
+                .map(|source| (PermissionEventKind::Transfer, source)),
+        );
     }
     let provenance = match role {
         // The destination keeps its receipt's Unknown provenance; its sources
@@ -644,6 +666,7 @@ pub(super) fn local_discards(
         }
         // The case edges that consume a computed dispatch subject leave from
         // its own statement; the edge emitter removes it from their roster.
+        let mut authored_local = None;
         if !computed_case_subject(checked, statements, state, result) {
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
@@ -667,29 +690,18 @@ pub(super) fn local_discards(
                 // roster.
                 continue;
             }
+            authored_local = Some(local);
         }
-        let transferred = edge
-            .into_iter()
-            .flat_map(|edge| &edge.transfers)
-            .filter(|transfer| match &transfer.source {
-                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                    binding_ordinal,
-                } => *binding_ordinal == result.binding_ordinal,
-                // A projected loan transfers its root's custody for the
-                // loan's duration: the backing local stays live through the
-                // edge and dies with the loan, never on this edge itself.
-                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                    subject,
-                    ..
-                } => matches!(
-                    subject.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } if binding_ordinal == result.binding_ordinal
-                ),
-                _ => false,
-            })
-            .count();
+        let operand_call_moves = match edge {
+            Some(edge) => operand_moves(checked, machine, source, authored_local, result, edge)?,
+            None => 0,
+        };
+        let transferred = operand_call_moves
+            + edge
+                .into_iter()
+                .flat_map(|edge| &edge.transfers)
+                .filter(|transfer| transfer_holds_result(transfer, result.binding_ordinal))
+                .count();
         if transferred > 1 {
             return unsupported("Unit graph edge duplicates local ownership");
         }
@@ -698,6 +710,67 @@ pub(super) fn local_discards(
         }
     }
     Ok(discards)
+}
+
+/// Whether `transfer` takes the source state's result `binding_ordinal` off
+/// its edge's cleanup roster: a whole transfer to the target, or a projected
+/// loan whose backing local stays live through the edge and dies with the
+/// loan, never on this edge itself.
+fn transfer_holds_result(
+    transfer: &checked_trees::CheckedStructuralControlTransferPlan,
+    binding_ordinal: u32,
+) -> bool {
+    match &transfer.source {
+        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+            binding_ordinal: transferred,
+        } => *transferred == binding_ordinal,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            subject,
+            ..
+        } => subject.source_structural_result_binding_ordinal() == Some(binding_ordinal),
+        _ => false,
+    }
+}
+
+/// How many of `edge`'s operand calls move `result` out of its home.
+///
+/// The plan's count (`CheckedStructuralControlSuccessorPlan::operand_result_moves`)
+/// must equal the authored occurrences that pass the result's local whole,
+/// each of which `validate` already rejoined to its one ledger Transfer row.
+/// A copyable result's operand reads are copies and move nothing. A plan
+/// that names a move the source does not perform, or omits one it does,
+/// would dispose of a moved value or leak a live one, so it declines.
+fn operand_moves(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    local: Option<&checked_trees::statement::TableLocalData>,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    edge: &CheckedStructuralControlSuccessorPlan,
+) -> Result<usize, LoweringError> {
+    if result.multiplicity == Multiplicity::Unrestricted {
+        return Ok(0);
+    }
+    let planned = edge.operand_result_moves(result.binding_ordinal);
+    let authored = match local {
+        Some(local) => validation::transition_operand_moves(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            source,
+            edge.statement_ordinal as usize,
+            local.symbol,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph local operand call lost its authored occurrence",
+        ))?
+        .len(),
+        None => 0,
+    };
+    if planned != authored {
+        return unsupported("Unit graph operand call moves drifted from their authored local");
+    }
+    Ok(planned)
 }
 
 /// Rejoin the owned-selection frontier to one ordinary successor's cleanup
@@ -737,15 +810,16 @@ pub(super) fn selection_edge_discards(
             result.statement_index,
         );
         validate(checked, machine, source, local, result)?;
-        let transferred = edge
-            .transfers
-            .iter()
-            .filter(|transfer| {
-                matches!(transfer.source,
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
-                        if binding_ordinal == result.binding_ordinal)
-            })
-            .count();
+        let transferred = operand_moves(checked, machine, source, Some(local), result, edge)?
+            + edge
+                .transfers
+                .iter()
+                .filter(|transfer| {
+                    matches!(transfer.source,
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
+                            if binding_ordinal == result.binding_ordinal)
+                })
+                .count();
         if transferred > 1 || (role == Some(SelectionRole::Source) && transferred != 0) {
             return unsupported("Unit graph edge duplicates local ownership");
         }

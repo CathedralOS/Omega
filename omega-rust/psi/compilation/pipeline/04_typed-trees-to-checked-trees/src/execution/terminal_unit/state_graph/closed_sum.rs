@@ -24,17 +24,21 @@ use crate::semantic::calls::dispatch_subjects;
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state_index: usize,
     signatures: &[Signature],
-    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    edge_calls: EdgeCalls<'_>,
     result: &checked_trees::CheckedControlResultPlan,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     transition_start: usize,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    let EdgeCalls {
+        scalar_callees,
+        entry_claims,
+        ..
+    } = edge_calls;
     let states = program.machine_states(machine);
     let state = states.get(state_index)?;
     let (structural, _) = &signatures[state_index];
@@ -416,10 +420,7 @@ pub(super) fn build(
                         ordinal,
                         &payload_parameters,
                         SuccessorEdge::ClosedCase,
-                        EdgeCalls {
-                            scalar_callees,
-                            entry_claims,
-                        },
+                        edge_calls,
                         shapes,
                         trace,
                     )?;
