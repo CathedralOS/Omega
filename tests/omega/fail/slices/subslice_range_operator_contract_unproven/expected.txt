@@ -1,2 +1,2 @@
-cannot prove requires contract for call range from Main::main: 9 <= 4 && 4 <= view.len
-needs fact `start <= end && end <= items.len` here
+value call to `Slice::range` violates required fact `start <= end && end <= items.len`
+the instantiated fact is structurally false
