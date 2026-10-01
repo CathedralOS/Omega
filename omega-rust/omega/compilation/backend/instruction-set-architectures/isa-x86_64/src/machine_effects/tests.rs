@@ -17,6 +17,7 @@ use crate::{
 };
 use register_model::validate_physical_register_model;
 use selected_instructions::{
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatToIntegerDomain,
     MachineAlternativeFamily, SaturatingCarrier, SaturatingOperation, TrappingForm,
     TrappingOperation,
 };
@@ -536,43 +537,66 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                 right: 1,
             }
         );
-        assert!(catalog.declarations.iter().all(|row| {
-            row.barrier
-                == if matches!(
-                    row.semantic,
-                    MachineSemanticKind::ConditionalBranchNonZero
-                        | MachineSemanticKind::ConditionalBranchU64LessThan
-                        | MachineSemanticKind::ConditionalBranchI64LessThan
-                        | MachineSemanticKind::ReturnScalar
-                        | MachineSemanticKind::ReturnAggregate
-                        | MachineSemanticKind::Jump
-                        | MachineSemanticKind::ReturnUnit
-                        | MachineSemanticKind::Crash
-                ) {
-                    MachineBarrier::ControlFlow
-                } else if matches!(
-                    row.semantic,
-                    MachineSemanticKind::CallScalar
-                        | MachineSemanticKind::CallUnit
-                        | MachineSemanticKind::CallAggregate
-                        | MachineSemanticKind::NormalizedForeignCall
-                ) {
-                    MachineBarrier::Call
-                } else if matches!(
-                    row.semantic,
-                    MachineSemanticKind::HostedReadByte
-                        | MachineSemanticKind::SaveFloatingControl
-                        | MachineSemanticKind::RestoreFloatingControl
-                        | MachineSemanticKind::HostedWriteByteI32
-                        | MachineSemanticKind::HostedExitProcessI32
-                        | MachineSemanticKind::TrappingInteger(_)
-                        | MachineSemanticKind::AtomicAccess(_)
-                ) {
-                    MachineBarrier::ExternalEffect
-                } else {
-                    MachineBarrier::None
-                }
-        }));
+        let expected_barrier = |semantic: MachineSemanticKind| match semantic {
+            MachineSemanticKind::ConditionalBranchNonZero
+            | MachineSemanticKind::ConditionalBranchU64LessThan
+            | MachineSemanticKind::ConditionalBranchI64LessThan
+            | MachineSemanticKind::ReturnScalar
+            | MachineSemanticKind::ReturnAggregate
+            | MachineSemanticKind::Jump
+            | MachineSemanticKind::ReturnUnit
+            | MachineSemanticKind::Crash => MachineBarrier::ControlFlow,
+            MachineSemanticKind::CallScalar
+            | MachineSemanticKind::CallUnit
+            | MachineSemanticKind::CallAggregate
+            | MachineSemanticKind::NormalizedForeignCall => MachineBarrier::Call,
+            MachineSemanticKind::HostedReadByte
+            | MachineSemanticKind::SaveFloatingControl
+            | MachineSemanticKind::RestoreFloatingControl
+            | MachineSemanticKind::HostedWriteByteI32
+            | MachineSemanticKind::HostedExitProcessI32
+            | MachineSemanticKind::TrappingInteger(_)
+            | MachineSemanticKind::AtomicAccess(_) => MachineBarrier::ExternalEffect,
+            // A checked float-to-integer conversion and a float result policy
+            // that can trap are ordered like a trapping integer; saturating
+            // and exact forms only compute their result.
+            MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                operation:
+                    IeeeFloatArithmeticOperation::TruncateToInteger {
+                        domain: IeeeFloatToIntegerDomain::Trapping,
+                        ..
+                    },
+                ..
+            }) => MachineBarrier::ExternalEffect,
+            MachineSemanticKind::FloatResultPolicy(form) if form.can_trap() => {
+                MachineBarrier::ExternalEffect
+            }
+            _ => MachineBarrier::None,
+        };
+        assert!(
+            catalog
+                .declarations
+                .iter()
+                .all(|row| row.barrier == expected_barrier(row.semantic))
+        );
+        assert!(catalog.declarations.iter().any(|row| matches!(
+            row.semantic,
+            MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+                    domain: IeeeFloatToIntegerDomain::Trapping,
+                    ..
+                },
+                ..
+            })
+        )));
+        assert!(catalog.declarations.iter().any(|row| matches!(
+            row.semantic,
+            MachineSemanticKind::FloatResultPolicy(form) if form.can_trap()
+        )));
+        assert!(catalog.declarations.iter().any(|row| matches!(
+            row.semantic,
+            MachineSemanticKind::FloatResultPolicy(form) if !form.can_trap()
+        )));
         let scalar_call = catalog
             .declarations
             .iter()
