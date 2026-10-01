@@ -574,6 +574,7 @@ pub(super) fn lower_operation(
                 function,
                 structural_types,
                 &prepared.parameters,
+                &live.structural_homes,
                 &values,
                 &live.lengths,
                 *destination,

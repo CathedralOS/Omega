@@ -15,7 +15,7 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetElementView, TargetIntegerExpression, TargetStructuralArgumentSource,
-    TargetStructuralParameter,
+    TargetStructuralHomeOrigin, TargetStructuralHomeRequirement, TargetStructuralParameter,
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -50,6 +50,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     provenance: &mut Vec<OperationId>,
@@ -64,6 +65,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             function,
             structural_types,
             parameters,
+            homes,
             values,
             lengths,
             result.place,
@@ -91,6 +93,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         function,
         structural_types,
         parameters,
+        homes,
         values,
         lengths,
         source,
@@ -231,6 +234,7 @@ pub(in crate::lowering) fn element_view_for_place(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
@@ -286,7 +290,14 @@ pub(in crate::lowering) fn element_view_for_place(
             return Err(invalid());
         }
         let (root_structural_type, source_byte_offset, extent, element_stride, source_home) =
-            established_source(function, structural_types, parameters, source, *element)?;
+            established_source(
+                function,
+                structural_types,
+                parameters,
+                homes,
+                source,
+                *element,
+            )?;
         return Ok((
             TargetElementView::Established {
                 psi_operation: *psi_operation,
@@ -398,6 +409,7 @@ pub(in crate::lowering) fn element_view_for_place(
         function,
         structural_types,
         parameters,
+        homes,
         values,
         lengths,
         *source,
@@ -427,6 +439,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
@@ -445,6 +458,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
             function,
             structural_types,
             parameters,
+            homes,
             values,
             lengths,
             place,
@@ -487,6 +501,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
         function,
         structural_types,
         parameters,
+        homes,
         values,
         lengths,
         place,
@@ -503,6 +518,7 @@ fn established_source(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     source: &StructuralArgument,
     element: StructuralTypeId,
 ) -> Result<
@@ -563,14 +579,7 @@ fn established_source(
             TargetStructuralArgumentSource::from(parameter.placement.clone()),
         )
     } else {
-        let (producer, result) =
-            local_aggregate_home(function, source.place).ok_or_else(invalid)?;
-        (
-            result.structural_type,
-            TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: producer,
-            },
-        )
+        live_aggregate_backing(homes, source.place).ok_or_else(invalid)?
     };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -638,53 +647,42 @@ fn established_source(
     ))
 }
 
-/// The one operation establishing an owned, non-linear, claim-free and
-/// unqualified local aggregate at `place`: an array construction or zeroed
-/// local, a record, a leaf copy, or a structural call result. Its home is the
-/// view's backing. Operation-level lowering reaches element views without the
-/// graph's live home map, so the exact producer is the identity it names;
-/// Terminal verification owns availability and stage 03 replays dominance.
-fn local_aggregate_home(
-    function: &AbstractFunction,
+/// Resolve dominating storage supplied by the graph walk. Its origin
+/// distinguishes a local establishment from an owned state arrival. The caller
+/// resolves the exact array projection, excluding descriptor shells as backing.
+/// This inventory is not loan authority: independent ownership replay still
+/// rejects consumed roots and incompatible loans, including across transfers.
+fn live_aggregate_backing(
+    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     place: PlaceId,
-) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
-    let mut homes = function.operations.iter().filter_map(|operation| match operation {
-        AbstractOperation::EstablishScalarArray {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishZeroedStructural {
-            psi_operation,
-            result,
-        }
-        | AbstractOperation::EstablishRecord {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::StructuralLeafCopy {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::CallStructural {
-            psi_operation,
-            result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
-            ..
-        } if result.place == place => Some((*psi_operation, result)),
-        _ => None,
-    });
-    let (producer, result) = homes.next()?;
-    (homes.next().is_none()
-        && matches!(
-            result.multiplicity,
+) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
+    let home = homes.get(&place)?;
+    if home.place() != place
+        || home.access() != StructuralAccess::Owned
+        || !matches!(
+            home.multiplicity(),
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         )
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
-    .then_some((producer, result))
+        || !home.qualifications().is_empty()
+        || !home.projected_qualifications().is_empty()
+        || home.has_claims()
+    {
+        return None;
+    }
+    let source = match &home.origin {
+        TargetStructuralHomeOrigin::OperationResult { operation, .. } => {
+            TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *operation,
+            }
+        }
+        TargetStructuralHomeOrigin::BlockParameter { block, declaration } => {
+            TargetStructuralArgumentSource::BlockParameter {
+                block: *block,
+                place: declaration.place,
+            }
+        }
+    };
+    Some((home.structural_type(), source))
 }
 
 /// An element-view length observation measured exactly this descriptor.
@@ -732,41 +730,42 @@ mod tests {
             qualification_establishments: Vec::new(),
             claims: Vec::new(),
         };
-        let mut function = AbstractFunction {
-            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-            attachment: None,
-            entry: semantic_vocabulary::BlockId::new(1).unwrap(),
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: abstract_operations::AbstractFunctionResult::Unit,
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            block_entries: Vec::new(),
-            operations: vec![AbstractOperation::EstablishZeroedStructural {
-                psi_operation: producer,
-                result: result.clone(),
-            }],
-        };
+        let mut homes = BTreeMap::from([(
+            place,
+            TargetStructuralHomeRequirement {
+                origin: TargetStructuralHomeOrigin::OperationResult {
+                    operation: producer,
+                    result,
+                },
+                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                    ValueShape::borrowed_reference(16, 8),
+                ),
+            },
+        )]);
         assert_eq!(
-            local_aggregate_home(&function, place),
-            Some((producer, &result))
+            live_aggregate_backing(&homes, place),
+            Some((
+                StructuralTypeId::new(1).unwrap(),
+                TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: producer
+                },
+            ))
         );
-        function.operations.push(function.operations[0].clone());
-        assert!(
-            local_aggregate_home(&function, place).is_none(),
-            "duplicate producer"
-        );
-        function.operations.pop();
-        let AbstractOperation::EstablishZeroedStructural { result, .. } =
-            &mut function.operations[0]
+        let TargetStructuralHomeOrigin::OperationResult { result, .. } =
+            &mut homes.get_mut(&place).unwrap().origin
         else {
             unreachable!()
         };
         result.multiplicity = StructuralMultiplicity::Linear;
         assert!(
-            local_aggregate_home(&function, place).is_none(),
+            live_aggregate_backing(&homes, place).is_none(),
             "linear backing requires its own custody support"
         );
-        assert!(local_aggregate_home(&function, PlaceId::new(2).unwrap()).is_none());
+        assert!(live_aggregate_backing(&homes, PlaceId::new(2).unwrap()).is_none());
+        homes.clear();
+        assert!(
+            live_aggregate_backing(&homes, place).is_none(),
+            "a home absent from this graph context cannot supply backing"
+        );
     }
 }
