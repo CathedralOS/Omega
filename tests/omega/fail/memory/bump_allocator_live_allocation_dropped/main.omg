@@ -4,15 +4,16 @@
 // (`tests/omega/pass/memory/bump_allocator_canary`) spells the compliant
 // shape: every issued extent is consumed by `reset` before the backing is
 // recomposed.
+use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
-data Split {
+pub data Split {
     taken: Extent in Granted & Vacant;
     rest: Extent in Granted & Vacant;
 }
 
-boundary trait ExtentPartition {
+pub boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))
@@ -32,7 +33,7 @@ data Issued {
     allocation: Extent in Granted & Vacant;
 }
 
-machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+machine allocate(partition: &Binding<ExtentPartition>, strategy: Bump, length: u64) -> Issued
 requires
     length <= strategy.remaining
 reaches ExtentPartition
@@ -51,7 +52,7 @@ reaches ExtentPartition
 }
 
 machine abandon(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
