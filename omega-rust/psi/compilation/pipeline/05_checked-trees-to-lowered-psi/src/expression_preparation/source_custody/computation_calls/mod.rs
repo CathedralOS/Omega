@@ -391,6 +391,11 @@ pub(crate) fn validate_computation_calls(
                     *source_expression,
                     node.primitive_type,
                 )?;
+                // Synthetic case observations are meaningful only together:
+                // no individual membership may stand in for this equality.
+                if super::enum_equality::validate_application(checked, state, handle)? {
+                    continue;
+                }
                 let operands = plans
                     .operands
                     .span(*operands)

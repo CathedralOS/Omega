@@ -515,6 +515,44 @@ fn selector_names_field(
     )
 }
 
+/// Rejoin the selector's authored formal before comparing its dense scalar
+/// coordinate; another integer formal cannot stand in for the selected one.
+fn selector_names_parameter(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    selector: ExpressionHandle,
+    position: u32,
+) -> bool {
+    let ExpressionNode::Name(name) = checked.expression_table.expression(selector) else {
+        return false;
+    };
+    let mut parameters = checked
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.symbol == name.symbol);
+    let Some(parameter) = parameters.next() else {
+        return false;
+    };
+    name.symbol.is_valid()
+        && name.head_symbol == name.symbol
+        && checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            == 1
+        && parameters.next().is_none()
+        && !parameter.relevance.is_erased()
+        && !parameter.is_const
+        && !parameter.is_mutable
+        && checked.symbols.get(name.symbol).kind == symbols::SymbolKind::Parameter
+        && checked.symbols.get(name.symbol).parent == state.symbol
+        && super::structural_places::runtime_index_selector(checked, machine, state, selector)
+            .is_ok_and(|actual| {
+                actual == checked_trees::CheckedRuntimeIndex::Parameter { position }
+            })
+}
+
 /// The dense structural index counts the authored parameters that keep a
 /// structural plan slot: erased non-self bindings leave the namespace,
 /// `const` formals carry no runtime slot, direct `Placed` view parameters
@@ -556,6 +594,91 @@ fn parameter_place(
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     parameter_index: u32,
+) -> Result<TypeReferenceHandle, LoweringError> {
+    let parameter = structural_parameter(checked, state, parameter_index).ok_or(
+        LoweringError::Unsupported("case membership has no source parameter"),
+    )?;
+    parameter_place_for(checked, machine, state, expression, argument, parameter)
+}
+
+/// A symbol-based computation source can name a formal without guessing the
+/// emitted structural roster. It cannot substitute a local with the same name.
+pub(crate) fn named_parameter_place(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    expression: ExpressionHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+) -> Result<TypeReferenceHandle, LoweringError> {
+    let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source
+    else {
+        return unsupported("enum equality lost its named parameter source");
+    };
+    let mut parameters = checked
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.symbol == symbol);
+    let parameter = parameters.next().ok_or(LoweringError::Unsupported(
+        "enum equality has no exact named parameter",
+    ))?;
+    if !symbol.is_valid()
+        || parameters.next().is_some()
+        || parameter.is_const
+        || parameter.relevance.is_erased()
+        || checked.symbols.get(symbol).kind != symbols::SymbolKind::Parameter
+        || checked.symbols.get(symbol).parent != state.symbol
+        || checked.state_local_declaration(state, symbol).is_some()
+    {
+        return unsupported("enum equality substituted its named parameter declaration");
+    }
+    let mut root = expression;
+    let mut visited = Vec::new();
+    loop {
+        if !checked.expression_table.expression_is_valid(root) || visited.contains(&root) {
+            return unsupported("enum equality has a stale or cyclic parameter place");
+        }
+        visited.push(root);
+        match checked.expression_table.expression(root) {
+            ExpressionNode::Member(member) => root = member.receiver,
+            ExpressionNode::Indexed(indexed) => root = indexed.collection,
+            ExpressionNode::Name(name)
+                if name.head_symbol == name.symbol
+                    && (name.symbol == symbol
+                        || (parameter.is_self && name.symbol == machine.symbol)) =>
+            {
+                break;
+            }
+            _ => return unsupported("enum equality substituted its authored parameter root"),
+        }
+    }
+    let mut reference = parameter.type_reference;
+    let mut visited = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return unsupported("enum equality has a stale parameter type");
+        }
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                access: language_core::ReferenceAccess::WriteOnly,
+                ..
+            } => {
+                return unsupported("enum equality cannot observe write-only storage");
+            }
+            _ => break,
+        }
+    }
+    parameter_place_for(checked, machine, state, expression, argument, parameter)
+}
+
+fn parameter_place_for(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    expression: ExpressionHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+    parameter: &checked_trees::signature::StateParameter,
 ) -> Result<TypeReferenceHandle, LoweringError> {
     if argument.access != CheckedStructuralAccess::SharedBorrow {
         return unsupported("case membership changed its parameter custody");
@@ -602,9 +725,6 @@ fn parameter_place(
     };
     members.reverse();
     let parameters = checked.state_parameters(state);
-    let parameter = structural_parameter(checked, state, parameter_index).ok_or(
-        LoweringError::Unsupported("case membership has no source parameter"),
-    )?;
     let authored_self = parameter.is_self
         && (checked.symbols.get(root.symbol).kind == symbols::SymbolKind::Machine
             || matches!(
@@ -713,12 +833,15 @@ fn parameter_place(
                 type_reference = *element_type;
             }
             Step::Runtime(selector) => {
-                let TypeReferenceNode::FixedArray { element_type, .. } =
-                    checked.type_reference_table.type_reference(unwrapped)
-                else {
-                    return unsupported("case membership requires a fixed-array carrier");
+                let element_type = match checked.type_reference_table.type_reference(unwrapped) {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => element_type,
+                    _ => return unsupported("case membership requires an array or slice carrier"),
                 };
                 let names_selector = match segment {
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position },
+                    ) => selector_names_parameter(checked, machine, state, *selector, *position),
                     CheckedUnitStructuralPathSegment::RuntimeIndex(
                         checked_trees::CheckedRuntimeIndex::StructuralField(field),
                     ) => selector_names_field(checked, machine, state, *selector, field),

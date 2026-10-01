@@ -24,6 +24,11 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBra
 impl GraphEmission<'_> {
     /// Emit the state at `index` in the graph's emission order.
     pub(super) fn emit_state(&mut self, index: usize) -> Result<(), LoweringError> {
+        // States are stored in continuation-construction order, not dominance
+        // order. An observation emitted for another state cannot supply this
+        // state's live length; equalities with dominating reads are rebuilt by
+        // the verifier rather than inferred from emission order.
+        self.all_operations.element_lengths.clear();
         let states = self.states;
         // Only a re-entered entry row is a loop header block; otherwise its
         // roster stays on the machine signature.

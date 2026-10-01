@@ -9,6 +9,8 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
 
+#[cfg(test)]
+mod case_observation_tests;
 pub(crate) mod structural_cases;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
@@ -320,6 +322,58 @@ impl ScalarBindings {
         Ok((source.place, case))
     }
 
+    /// Rejoin an authored formal symbol only after receiver retention has
+    /// settled the structural roster. Actual locals keep their separate case
+    /// bindings; a missing formal cannot silently become a local observation.
+    pub(crate) fn case_parameter_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
+    ) -> Result<Option<checked_trees::CheckedUnitStructuralArgumentPlan>, LoweringError> {
+        match argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
+                return Ok(Some(argument.clone()));
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                if !symbol.is_valid() {
+                    return unsupported("case observation has an invalid source symbol");
+                }
+                let mut formals = parameters.iter().filter(|parameter| {
+                    parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
+                });
+                if formals.next().is_none() {
+                    return Ok(None);
+                }
+                if formals.next().is_some()
+                    || self.structural_locals.iter().any(|local| local.0 == symbol)
+                {
+                    return unsupported("case observation has ambiguous formal custody");
+                }
+            }
+            _ => return unsupported("case observation has no established source"),
+        }
+        let source = self.shared_structural_place(argument, machine, parameters)?;
+        let mut matching = self
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, parameter))| parameter.place == source);
+        let (position, _) = matching.next().ok_or(LoweringError::Unsupported(
+            "case observation lost its retained formal",
+        ))?;
+        if matching.next().is_some() {
+            return unsupported("case observation has ambiguous retained formals");
+        }
+        let mut resolved = argument.clone();
+        resolved.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(position).map_err(|_| {
+                LoweringError::Unsupported("case observation formal index exceeds its namespace")
+            })?,
+        };
+        Ok(Some(resolved))
+    }
+
     /// A parameter-field case observation resolves through the dense
     /// structural parameter index, then delegates to the shared
     /// case-binding resolver for the retained path and selected case.
@@ -378,8 +432,8 @@ impl ScalarBindings {
     }
 
     /// A case observation of a runtime-selected element of a parameter's
-    /// fixed array (`self.items[self.w] is Color::Red`). The checked path
-    /// carries exactly one `RuntimeIndex`; its field selector is read first
+    /// fixed array or element view. The checked path
+    /// carries exactly one `RuntimeIndex`; its selector is read first
     /// and becomes the observation's index, and the static halves on either
     /// side resolve against the parameter's declarations. A static path keeps
     /// `parameter_case_observation`.
@@ -437,14 +491,18 @@ impl ScalarBindings {
                 })
                 .collect::<Result<Vec<_>, _>>()
         };
-        let (source, path, element_path, case) = structural_cases::resolve_runtime_element(
-            &self.structural_cases,
-            *parameter_position,
-            &static_path(&argument.path[..selector_position])?,
-            &static_path(&argument.path[selector_position + 1..])?,
-            case,
-        )?;
+        let (source, path, element_path, case, observes_element_view_length) =
+            structural_cases::resolve_runtime_element(
+                &self.structural_cases,
+                *parameter_position,
+                &static_path(&argument.path[..selector_position])?,
+                &static_path(&argument.path[selector_position + 1..])?,
+                case,
+            )?;
         let index = match selector {
+            checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                self.runtime_index_parameter(*position)?
+            }
             checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
                 let (selector_source, selector_path, leaf, scalar_type) =
                     structural_fields::resolve_typed(
@@ -473,7 +531,7 @@ impl ScalarBindings {
                         .scalar_type,
                 }
             }
-            _ => return unsupported("runtime case observation requires a field or local selector"),
+            _ => return unsupported("runtime case observation requires a bound scalar selector"),
         };
         if !matches!(
             index.scalar_type(),
@@ -483,6 +541,7 @@ impl ScalarBindings {
         }
         Ok(LoweredBooleanReturnExpression::IndexedCaseMembership {
             source,
+            observes_element_view_length,
             path,
             index: Box::new(index),
             element_path,

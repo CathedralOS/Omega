@@ -2,15 +2,16 @@
 //! subslice endpoints, or the initializer itself under its
 //! `LocalInitializer` or `StorageInitializer` role. Every primitive local
 //! then joins the state's local roster, which later statements read.
+//! Only executable expressions belong here. Contract predicates can contain
+//! proof-only equality vocabulary; accepting those as pure initializers would
+//! suppress the ordinary computation builder that owns runtime evaluation.
 
 use super::{
-    ArithmeticDomain, CheckedLocatedScalarExpression, CheckedScalarExpression,
-    CheckedScalarExpressionBindings, CheckedScalarExpressionRole, ExpressionNode,
-    LoweredCallArguments, PrimitiveType, ScalarLocal, StatementPlanner, TypeReferenceNode,
-    TypedTrees, lower_call_arguments, lower_direct_call_binding_arguments,
-    lower_machine_parameter_boolean_expression, lower_return_expression,
-    lower_selected_operator_operands, retain_call_arguments, retain_subslice_endpoints,
-    scalar_qualified_call_expression,
+    ArithmeticDomain, CheckedLocatedScalarExpression, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, PrimitiveType, ScalarLocal,
+    StatementPlanner, TypeReferenceNode, TypedTrees, lower_call_arguments,
+    lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
+    retain_call_arguments, retain_subslice_endpoints, scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -193,40 +194,19 @@ pub(super) fn plan(
                 binding_symbols,
             );
         } else if let Some(initializer) =
-            crate::values::zeroed_scalar_local_initializer(program, local)
-                .or_else(|| {
-                    lower_return_expression(
-                        program,
-                        operators,
-                        local.initial_value,
-                        scalar_parameters,
-                        parameters,
-                        parameter_types,
-                        locals,
-                        primitive_type,
-                        exact_integer_casts,
-                    )
-                })
-                .or_else(|| {
-                    (primitive_type == PrimitiveType::Bool
-                        && locals.is_empty()
-                        && program
-                            .machine_states(machine)
-                            .first()
-                            .is_some_and(|entry| entry.symbol == state.symbol))
-                    .then(|| {
-                        lower_machine_parameter_boolean_expression(
-                            program,
-                            operators,
-                            machine,
-                            local.initial_value,
-                            exact_integer_casts,
-                        )
-                        .map(Box::new)
-                        .map(CheckedScalarExpression::Boolean)
-                    })
-                    .flatten()
-                })
+            crate::values::zeroed_scalar_local_initializer(program, local).or_else(|| {
+                lower_return_expression(
+                    program,
+                    operators,
+                    local.initial_value,
+                    scalar_parameters,
+                    parameters,
+                    parameter_types,
+                    locals,
+                    primitive_type,
+                    exact_integer_casts,
+                )
+            })
         {
             source_bindings.append(CheckedScalarExpressionBindings {
                 destination: local.symbol,

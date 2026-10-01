@@ -365,12 +365,14 @@ fn substitute_boolean(
         },
         Boolean::IndexedCaseMembership {
             source,
+            observes_element_view_length,
             path,
             index,
             element_path,
             case,
         } => Boolean::IndexedCaseMembership {
             source,
+            observes_element_view_length,
             path,
             index: Box::new(substitute_direct(*index, bound)),
             element_path,
