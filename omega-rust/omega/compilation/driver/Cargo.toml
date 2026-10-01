@@ -96,3 +96,7 @@ path = "tests/withheld_rewrite_reporting.rs"
 [[test]]
 name = "rollback_to_identity"
 path = "tests/rollback_to_identity.rs"
+
+[[test]]
+name = "composed_rewrites"
+path = "tests/composed_rewrites.rs"

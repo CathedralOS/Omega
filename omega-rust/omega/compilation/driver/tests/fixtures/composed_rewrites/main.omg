@@ -1,0 +1,22 @@
+// Two selected rules with work for each, so composing them can be observed.
+machine source() -> i32
+terminates;
+{
+    42
+}
+
+machine main()
+terminates;
+{
+    let produced: i32 = source();
+    let carried: i32 = produced;
+    let unused: bool = produced == 7;
+    transition carried == 42 {
+        true -> reached()
+        _ -> missed()
+    }
+
+    state reached() { }
+
+    state missed() { }
+}
