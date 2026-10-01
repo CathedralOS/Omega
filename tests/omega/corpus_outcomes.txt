@@ -1233,7 +1233,7 @@ pass/calls/mutable_receiver_scalar_destinations_exit checked 1901ms @2d8ed253669
 pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
 pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
-pass/calls/nested_call_init_transition checked 1326ms @2d8ed253669f
+pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 4446ms @48d34a64a938+wt
 pass/calls/nested_call_tail_roots_exit checked 6248ms @2d8ed253669f
 pass/calls/nested_indexed_scalar_arguments_exit checked 1426ms @2d8ed253669f
@@ -1242,8 +1242,8 @@ pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
 pass/calls/nested_value_call_arg_compile checked 1255ms @2d8ed253669f
 pass/calls/ordered_field_selector_calls_exit checked 1986ms @2d8ed253669f
 pass/calls/owned_state_parameter_call_exit checked 1250ms @2d8ed253669f
-pass/calls/requires_carrier_ceiling_vacuous checked 1231ms @2d8ed253669f
-pass/calls/requires_operand_flip_discharge checked 1412ms @2d8ed253669f
+pass/calls/requires_carrier_ceiling_vacuous checked 3103ms @527c7c316c6f+wt
+pass/calls/requires_operand_flip_discharge checked 3157ms @527c7c316c6f+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
 pass/calls/runtime_call_statement_before_state_return_exit checked 1642ms @ca8c127c90c5
@@ -1396,10 +1396,10 @@ pass/contracts/ensures_borrowed_parameter_field_exit checked 1465ms @a5f40f5895b
 pass/contracts/ensures_fact_list_exit checked 1427ms @a5f40f5895bf+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1484ms @a5f40f5895bf+wt
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
-pass/contracts/requires_narrow_ceiling_unproven checked 1251ms @2d8ed253669f
-pass/contracts/requires_u8_ceiling_below_carrier checked 885ms @2d8ed253669f
+pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
+pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms @527c7c316c6f+wt
 pass/control_flow/arm_pattern_rest_optout_exit checked 1748ms @ca8c127c90c5
-pass/control_flow/borrowed_state_argument checked 1813ms @ca8c127c90c5
+pass/control_flow/borrowed_state_argument checked 3409ms @527c7c316c6f+wt
 pass/control_flow/case_arm_payload_receiver_call rejected 1242ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1704ms @2d8ed253669f
@@ -2010,7 +2010,7 @@ pass/structs/zeroed_record_members_exit checked 1373ms @2d8ed253669f
 pass/structural/borrowed_array_state_carry checked 320ms @2d8ed253669f
 pass/structural/case_field_local_store checked 1214ms @2d8ed253669f
 pass/structural/case_field_member_store checked 1231ms @2d8ed253669f
-pass/structural/case_payload_record_member_read checked 1288ms @2d8ed253669f
+pass/structural/case_payload_record_member_read checked 3162ms @527c7c316c6f+wt
 pass/structural/composed_case_field_store_exit checked 1122ms @ca8c127c90c5
 pass/structural/element_store checked 1287ms @2d8ed253669f
 pass/structural/local_record_receivers checked 309ms @2d8ed253669f
