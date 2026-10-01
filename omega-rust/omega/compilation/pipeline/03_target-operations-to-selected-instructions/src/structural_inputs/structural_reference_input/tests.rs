@@ -195,21 +195,26 @@ fn owned_transport_keeps_byte_predicates_and_rejects_view_descriptors() {
                     .then_some(ValueShape::integer(48, 8)),
                 "carrier {carrier:?}, qualified {qualified}",
             );
-            // A declared byte leaf has the same transport restriction. A byte
-            // root still goes through its dedicated owner, not this ABI route.
+            // A declared byte leaf has the same transport restriction. A
+            // bounded byte root is itself owned aggregate payload, its length
+            // word and inline capacity; a view root stays a descriptor.
             declarations[1].shape = StructuralTypeShape::ByteSequence(carrier);
             assert_eq!(
                 owned_aggregate_shape(root, &declarations),
                 matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
                     .then_some(ValueShape::integer(48, 8)),
             );
-            assert_eq!(owned_aggregate_shape(nested, &declarations), None);
+            assert_eq!(
+                owned_aggregate_shape(nested, &declarations),
+                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
+                    .then_some(ValueShape::integer(17, 8)),
+            );
         }
     }
 }
 
 #[test]
-fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
+fn owned_byte_roots_transport_their_bounded_geometry_but_are_not_plain_records() {
     use terminal_psi::ByteSequenceCarrier;
 
     assert_eq!(
@@ -223,8 +228,9 @@ fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
         Some(ValueShape::integer(16, 8)),
     );
     let root = StructuralTypeId::new(1).unwrap();
-    // The length header and inline capacity have geometry, but that alone
-    // does not make byte storage a plain record or an ordinary owned aggregate.
+    // The length header and inline capacity are the owned payload a bounded
+    // byte result or argument transports. That geometry does not make byte
+    // storage a plain record.
     for (capacity, expected_size) in [
         (0, Some(8)),
         (3, Some(11)),
@@ -247,7 +253,11 @@ fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
             "capacity {capacity}",
         );
         assert_eq!(plain_record_shape(root, &declarations), None);
-        assert_eq!(owned_aggregate_shape(root, &declarations), None);
+        assert_eq!(
+            owned_aggregate_shape(root, &declarations),
+            expected_size.map(|size| ValueShape::integer(size, 8)),
+            "capacity {capacity}",
+        );
     }
 }
 
