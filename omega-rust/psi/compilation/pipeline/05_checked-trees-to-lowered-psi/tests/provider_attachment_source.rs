@@ -308,7 +308,12 @@ fn source_projection_is_deterministic_and_perturbations_fail_closed() {
         "source projection must be deterministic without a frozen checkpoint"
     );
     assert_eq!(&canonical[..8], b"PSITERM\0");
-    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 110);
+    // An independent cross-crate pin on the codec's own `FORMAT_MARKER`, which
+    // is `pub(crate)` and so cannot be read here. The literal is deliberate:
+    // bumping the format has to be a conscious edit in both places, this one
+    // and `codec/src/sections/semantic_module/current_format_tests.rs`. It
+    // moved to 111 without this half following.
+    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 111);
     assert_eq!(
         u16::from_le_bytes([canonical[10], canonical[11]]),
         terminal_psi::VocabularyMarker::CURRENT.get()
