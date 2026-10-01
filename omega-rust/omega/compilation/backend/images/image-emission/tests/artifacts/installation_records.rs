@@ -171,7 +171,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     // header, so either marker changes its identity. Pin those inputs beside
     // the digests and reconstruct fingerprint framing independently of the
     // production helper. A header relabel is not a format conversion.
-    assert_eq!(&bytes[8..12], &[102, 0, 113, 0]);
+    assert_eq!(&bytes[8..12], &[102, 0, 114, 0]);
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -191,9 +191,9 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
                 .to_string(),
         ),
         (
-            "d63e71ef1136a7e3cb7dbfb2cf4172b763c05141a19b2cccb7eb32152c3ea8d5".to_owned(),
-            "2e225fe0d3cf802d6aef0b84d2512683a40a586cb16874df54f4cfc1bb4ddb3b".to_owned(),
-            "2e225fe0d3cf802d6aef0b84d2512683a40a586cb16874df54f4cfc1bb4ddb3b".to_owned(),
+            "c8dcaece5eb0f6dd1c4abebbb7b9fac0e0db4a7428d4b0097f9830b589290aff".to_owned(),
+            "34a5c0fdadb2272a47ed30825a81b33106c448fdc9db867c779f116797b4b491".to_owned(),
+            "34a5c0fdadb2272a47ed30825a81b33106c448fdc9db867c779f116797b4b491".to_owned(),
         )
     );
     assert_eq!(
