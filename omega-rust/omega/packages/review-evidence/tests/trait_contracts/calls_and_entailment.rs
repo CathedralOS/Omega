@@ -349,6 +349,7 @@ ensures
     let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("fixture package closure"),
@@ -371,6 +372,7 @@ ensures
     let incomplete_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("fixture package closure"),

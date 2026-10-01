@@ -1314,7 +1314,7 @@ fn std_importing_check_invocation_executes_each_distinct_program_once() {
         .expect("the consuming check route completes");
         let occurrences = reviews.reviews().len() as u64;
         assert_eq!(occurrences, 2, "the consumer and the standard library");
-        assert!(checked.source_file_count() > 0);
+        assert!(checked.sources().source_file_count() > 0);
         assert_eq!(
             preparation.fresh_preparation_count(),
             closure.graph().packages().len(),
@@ -1370,8 +1370,8 @@ fn std_importing_check_invocation_executes_each_distinct_program_once() {
         .expect("a repeated identical check completes");
         assert_eq!(reviews_again.reviews().len() as u64, occurrences);
         assert_eq!(
-            checked_again.source_file_count(),
-            checked.source_file_count()
+            checked_again.sources().source_file_count(),
+            checked.sources().source_file_count()
         );
         assert_eq!(
             preparation.fresh_preparation_count(),

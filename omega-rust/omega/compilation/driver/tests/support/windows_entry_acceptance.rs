@@ -40,6 +40,7 @@ pub fn candidate_windows_x86_64_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
             package,

@@ -48,7 +48,8 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
         granted
             .checked
             .custody
-            .boundary_calling_plan_realizations()
+            .providers()
+            .boundary_calling_plan_realizations
             .iter()
             .all(|realization| realization.boundary_trait != host)
     );

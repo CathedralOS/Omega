@@ -122,7 +122,7 @@ fn project_requirement(
                 name: parameter.name.as_str().to_owned(),
                 type_identity: signature_type_identity(
                     &prepared.typed,
-                    compilation.custody.exact_toolchain_sources(),
+                    compilation.custody.sources().exact_toolchain_sources(),
                     parameter.type_reference,
                     &binders,
                     &prepared.lifetimes,
@@ -142,7 +142,7 @@ fn project_requirement(
         .then(|| {
             signature_type_identity(
                 &prepared.typed,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
                 prepared.signature.return_type,
                 &binders,
                 &prepared.lifetimes,

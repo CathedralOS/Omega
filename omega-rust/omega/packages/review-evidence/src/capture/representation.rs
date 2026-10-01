@@ -164,7 +164,11 @@ pub(crate) fn project_representation_tcb(
         }
     }
 
-    for realization in compilation.custody.boundary_calling_plan_realizations() {
+    for realization in &compilation
+        .custody
+        .providers()
+        .boundary_calling_plan_realizations
+    {
         let uses = realization
             .materialized_signature()
             .opaque_representation_uses();
@@ -194,6 +198,7 @@ pub(crate) fn project_representation_tcb(
         if realization.materialized_signature().native_target()
             != compilation
                 .custody
+                .execution()
                 .selected_native_target()
                 .ok_or_else(|| {
                     vec![Diagnostic::error(

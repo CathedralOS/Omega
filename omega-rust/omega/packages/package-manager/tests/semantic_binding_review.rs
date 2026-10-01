@@ -113,10 +113,12 @@ fn assert_accepted_native_report_custody(
         compiler::CompileOutputKind::RetainedNativeArtifact
     );
     assert!(!native_report.wrote_output());
-    let source_count = checked.source_file_count();
-    let profile = checked.selected_target_profile();
-    let target = checked.selected_native_target();
-    let application = checked.project_native_application_metadata();
+    let source_count = checked.sources().source_file_count();
+    let profile = checked.execution().selected_target_profile;
+    let target = checked.execution().selected_native_target();
+    let application = checked
+        .build_admission()
+        .native_application_metadata(&checked.build().config.settings, profile);
     native_report
         .verify_native_source_metadata(source_count, profile, target, &application)
         .expect("package realization rejoins the same checked source metadata");
@@ -916,11 +918,14 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     .expect("compile distinct build observation probe");
     let substituted_observation_subject = compiler::ProductionCompilationSubject::from_checked(
         exact_checked
-            .package_compilation_subject()
+            .sources()
+            .package_subject()
             .expect("exact checked package subject")
             .clone(),
         exact_checked
-            .selected_build_machine_identity()
+            .build_admission()
+            .selected_build_machine_identity
+            .as_deref()
             .expect("exact checked build-machine identity")
             .to_owned(),
         exact_checked
@@ -942,7 +947,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     );
     let observation_substituted_report = compiler::CompileReport::from_retained_terminal_artifact(
         root_path.clone(),
-        exact_checked.source_file_count(),
+        exact_checked.sources().source_file_count(),
         exact_report
             .into_retained_terminal_artifact()
             .expect("exact report retains Terminal product"),
@@ -1033,16 +1038,21 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     })
     .expect("compile same-identity source-substituted package subject");
     assert_ne!(
-        substituted_checked.source_consumption_commitment(),
-        exact_checked.source_consumption_commitment(),
+        substituted_checked
+            .sources()
+            .source_consumption_commitment(),
+        exact_checked.sources().source_consumption_commitment(),
     );
     let substituted_source_subject = compiler::ProductionCompilationSubject::from_checked(
         substituted_checked
-            .package_compilation_subject()
+            .sources()
+            .package_subject()
             .expect("substituted checked package subject")
             .clone(),
         exact_checked
-            .selected_build_machine_identity()
+            .build_admission()
+            .selected_build_machine_identity
+            .as_deref()
             .expect("exact checked build-machine identity")
             .to_owned(),
         exact_checked
@@ -1064,7 +1074,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     );
     let source_substituted_report = compiler::CompileReport::from_retained_terminal_artifact(
         root_path.clone(),
-        exact_checked.source_file_count(),
+        exact_checked.sources().source_file_count(),
         exact_report
             .into_retained_terminal_artifact()
             .expect("exact report retains Terminal product"),

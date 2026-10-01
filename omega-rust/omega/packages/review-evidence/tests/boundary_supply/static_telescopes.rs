@@ -358,8 +358,8 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     assert_eq!(policy.callable().owner(), supply.callable().owner());
     let surfaces = package_evidence::project_checked_callable_policy(
         &checked,
-        checked.custody.selected_target_profile().unwrap(),
-        checked.custody.package_identity().unwrap(),
+        checked.custody.execution().selected_target_profile.unwrap(),
+        checked.custody.sources().package_identity().unwrap(),
     )
     .unwrap();
     assert!(

@@ -27,9 +27,10 @@ pub(super) fn resolve_services<'a>(
     compilation: &'a PackageReviewInput<'_>,
 ) -> Result<Vec<ResolvedService<'a>>, Vec<Diagnostic>> {
     let mut services = Vec::new();
-    for accepted in compilation.custody.resolved_semantic_bindings() {
+    for accepted in compilation.custody.execution().accepted_semantic_bindings() {
         let resolved = compilation
             .custody
+            .execution()
             .resolved_semantic_binding(accepted.role())
             .ok_or_else(|| rejected("accepted binding lost its exact checked declaration"))?;
         if resolved.accepted() != accepted {

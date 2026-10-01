@@ -173,6 +173,7 @@ pub(crate) fn dangerous_authority_class(
 ) -> Option<PackageReviewDangerousAuthorityClass> {
     if compilation
         .custody
+        .execution()
         .resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         )
@@ -182,6 +183,7 @@ pub(crate) fn dangerous_authority_class(
     }
     if compilation
         .custody
+        .execution()
         .resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
         )

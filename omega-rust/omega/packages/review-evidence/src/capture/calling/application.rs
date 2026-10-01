@@ -21,7 +21,8 @@ pub fn project_checked_calling_policy<'a>(
     let compilation = &input.into();
     let candidates = compilation
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .filter(|candidate| {
             candidate.boundary_trait == realization.boundary_trait
@@ -44,7 +45,8 @@ pub fn project_checked_calling_policy<'a>(
                 || !materialized.callback_layout_catalog().is_empty()
                 || !materialized.direct_callback_parameters().is_empty()))
         || &realization.boundary_entry_plan != realization.exact_boundary_entry_plan()
-        || compilation.custody.selected_native_target() != Some(materialized.native_target())
+        || compilation.custody.execution().selected_native_target()
+            != Some(materialized.native_target())
     {
         return Err(rejected(
             "detached signature, callback context, plan, or target",

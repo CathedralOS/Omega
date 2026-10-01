@@ -327,7 +327,7 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
     let Ok(checked) = compile_to_checked(request) else {
         return vec!["interpreter:unchecked".to_owned()];
     };
-    let Some(entry) = checked.selected_program_entry() else {
+    let Some(entry) = checked.execution().selected_program_entry.as_ref() else {
         return vec!["interpreter:unchecked".to_owned()];
     };
     let stdin = fs::read(fixture_dir.join("input.txt")).unwrap_or_default();

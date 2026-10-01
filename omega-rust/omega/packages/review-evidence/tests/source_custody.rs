@@ -35,11 +35,12 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
     );
     assert_eq!(
         toolchain_sources.len(),
-        checked.custody.exact_toolchain_sources().len()
+        checked.custody.sources().exact_toolchain_sources().len()
     );
     for source in toolchain_sources {
         let retained = checked
             .custody
+            .sources()
             .exact_toolchain_sources()
             .iter()
             .find(|(source_id, _)| *source_id == source.source_id)
@@ -309,6 +310,7 @@ invokes FilesystemHost;
     );
     let accepted = candidate_checked
         .custody
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),

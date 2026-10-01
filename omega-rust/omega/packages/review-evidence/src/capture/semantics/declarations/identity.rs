@@ -11,7 +11,7 @@ pub(crate) fn nominal_identity(
     nominal_identity_from_symbols(
         &compilation.typed.symbols,
         symbol,
-        compilation.custody.exact_toolchain_sources(),
+        compilation.custody.sources().exact_toolchain_sources(),
     )
 }
 

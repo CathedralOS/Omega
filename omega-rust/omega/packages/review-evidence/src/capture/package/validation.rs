@@ -7,27 +7,28 @@ pub(super) fn validate_review_compilation(
     compilation: &PackageReviewInput<'_>,
 ) -> Result<(PackageKeyIdentity, TargetProfile), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    let package = compilation.custody.package_identity().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "package review requires package-aware checked compilation",
-        )]
-    })?;
-    let target = compilation
+    let evaluated_via_bindings = &compilation.custody.providers().evaluated_via_bindings;
+    let package = compilation
         .custody
-        .selected_target_profile()
+        .sources()
+        .package_identity()
         .ok_or_else(|| {
             vec![Diagnostic::error(
-                "package review requires one explicit target selection",
+                "package review requires package-aware checked compilation",
             )]
         })?;
-    compilation
-        .custody
-        .evaluated_via_bindings()
-        .validate_against_typed(provider_planning::ProviderPlanningContext::new(
+    let target = selected_execution.selected_target_profile.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "package review requires one explicit target selection",
+        )]
+    })?;
+    evaluated_via_bindings.validate_against_typed(
+        provider_planning::ProviderPlanningContext::new(
             &compilation.typed,
             source::DependencyScope::Product,
-        ))?;
-    if compilation.custody.evaluated_via_bindings().target() != Some(target) {
+        ),
+    )?;
+    if evaluated_via_bindings.target() != Some(target) {
         return Err(vec![Diagnostic::error(
             "package review target disagrees with the evaluated `via` binding table",
         )]);

@@ -192,11 +192,15 @@ pub(crate) fn project_contracts(
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
-    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "contract review requires package-aware checked compilation",
-        )]
-    })?;
+    let reviewed_package = compilation
+        .custody
+        .sources()
+        .package_identity()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "contract review requires package-aware checked compilation",
+            )]
+        })?;
     let mut projected = Vec::new();
     for contract in contracts {
         let (kind, guarded_symbols, result_case) = match contract.kind {

@@ -8,8 +8,12 @@ program or re-enters compilation.
 [`checked_compilation.rs`](src/checked_compilation.rs) owns the immutable checked
 product: whole selected-execution results, source-custody sealing, metadata,
 generated-source handoffs and the production-report subject. The coordinator
-supplies completed stage products through `CheckedCompilationInputs`; sealing
-rejoins source custody but does not grant package admission or native authority.
+supplies completed stage products through `CheckedCompilationInputs`, each as
+the record its producer returned: selected execution, the shared evaluated
+Build, this compilation's Build admission, provider settlement and checked-tree
+product selection. Consumers borrow the unit they read rather than per-field
+accessors. Sealing rejoins source custody but does not grant package admission
+or native authority.
 Its [Terminal projections](src/checked_compilation/terminal.rs) assemble native
 proposal requests and Terminal reports from retained checked custody. Inspection
 uses those same checked provider selections for comparison-custody joins; stage
@@ -18,8 +22,10 @@ execution stay visible in the coordinator, not inside the checked product.
 Package review consumes this product directly, without a production dependency
 on compiler orchestration, and still independently reconstructs evidence.
 [`evaluated_build.rs`](src/evaluated_build.rs) owns the shared retained Build
-configuration and execution-result records. Build evaluation produces them;
-product consumers do not depend on the evaluator.
+configuration and execution-result records, plus the per-compilation Build
+admission (application declaration, evaluated machine identity, restricted host
+requests) that cannot live in the shared configuration. Build evaluation
+produces them; product consumers do not depend on the evaluator.
 
 [compile_request.rs](src/compile_request.rs) owns request normalization:
 target-local policies, separate staging directories, package input joins, and

@@ -838,6 +838,7 @@ fn dangerous_service_bindings(
     if required.filesystem {
         bindings.push(
             preliminary
+                .execution()
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     standard_library_identity,
@@ -849,6 +850,7 @@ fn dangerous_service_bindings(
     if required.time {
         bindings.push(
             preliminary
+                .execution()
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::TimeHostService,
                     standard_library_identity,

@@ -93,7 +93,8 @@ fn unused_placement_and_semantic_copy_selections_both_remain_visible() {
         fixture
             .checked
             .custody
-            .boundary_calling_plan_realizations()
+            .providers()
+            .boundary_calling_plan_realizations
             .iter()
             .all(|realization| {
                 fixture
@@ -177,7 +178,8 @@ fn used_selection_retains_the_complete_calling_application() {
     let realization = fixture
         .checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .find(|realization| {
             fixture.checked.symbols.name(realization.boundary_trait) == "TransferEntry"
@@ -243,6 +245,7 @@ fn foreign_demands_preserve_owners_and_rejoin_exact_producer_instances() {
     let instance = fixture
         .checked
         .custody
+        .sources()
         .source_consumption_commitment()
         .expect("package-aware review compilation retains a source commitment");
     assert_eq!(

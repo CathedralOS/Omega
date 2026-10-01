@@ -28,11 +28,15 @@ pub(crate) fn project_contract_constructor_expression(
         ))]);
     };
     let data_identity = nominal_identity(compilation, data.symbol)?;
-    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "package review requires package-aware checked compilation",
-        )]
-    })?;
+    let reviewed_package = compilation
+        .custody
+        .sources()
+        .package_identity()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review requires package-aware checked compilation",
+            )]
+        })?;
     if context.requires_public_nominals()
         && reviewed_package_owns(&data_identity, reviewed_package)?
         && !data.is_public

@@ -129,7 +129,7 @@ pub fn required_dangerous_services(
             _ => {}
         }
     }
-    for requirement in checked.selected_program_entry_service_requirements() {
+    for requirement in checked.execution().program_entry_service_requirements() {
         let Some(definition) = program
             .traits()
             .iter()

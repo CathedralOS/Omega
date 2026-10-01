@@ -61,7 +61,7 @@ pub fn produce_terminal_report(
 ) -> Result<compilation_products::CompileReport, Vec<Diagnostic>> {
     let pcc_requests = checked.build().config.settings.pcc;
     compilation_products::RequestedCompileProduct::TerminalArtifact.admit_build_requirements(
-        checked.application_artifact_only(),
+        checked.build_admission().artifact_only(),
         pcc_requests,
         rollback,
     )?;
@@ -114,7 +114,7 @@ pub(crate) fn produce_retained_terminal_artifact(
     let produced = stage_timings
         .record_result(TERMINAL_PRODUCTION_STAGE, || {
             terminal_production::TerminalProductionRequest {
-                checked: checked.terminal_production_trees(),
+                checked: &checked.execution().program,
                 machine: terminal_production::TerminalMachineSelection::Symbol(
                     entry_machine_symbol,
                 ),

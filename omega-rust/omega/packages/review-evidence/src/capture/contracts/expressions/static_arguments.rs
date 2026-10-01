@@ -294,7 +294,7 @@ pub(crate) fn project_static_argument(
         let base = compilation
             .exact_owner_nominal_identity(
                 argument.symbol,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
             )
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         let arguments = application
@@ -408,7 +408,7 @@ pub(crate) fn project_static_argument(
         let identity = compilation
             .exact_owner_nominal_identity(
                 argument.symbol,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
             )
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         return Ok(PackageReviewContractStaticArgument::Type(

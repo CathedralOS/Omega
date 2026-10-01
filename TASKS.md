@@ -2286,32 +2286,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   behavior, Build-effect custody and per-target admission/publication checks.
   **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
 
-- **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group the remaining settlement
-  fields in [execution_settlement.rs](omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs)
-  by producing owner and expose those units through
-  [checked_compilation.rs](omega-rust/omega/compilation/products/src/checked_compilation.rs).
-  Consumers in product dispatch, Terminal proposal construction, reports, trust
-  and package admission should take the unit they need. Follow the
-  [coordinator boundary](omega-rust/pipeline.md): this is removal of forwarding
-  and duplicate assembly, not another IR or consolidation of independent owners.
-
-  The immutable Build configuration already groups evaluated settings; preserve
-  its package-owned normalization and shared evaluation. Group the remaining
-  target/entry, provider-plan, settled-surface, optimization and product
-  selections without duplicating that record. Preserve source/generated-source
-  sealing, target-profile versus native-ABI distinctions, authority boundaries,
-  and genuine checked-program queries. Source-custody joins and entry traversal
-  are queries, not field forwarding.
-
-  Acceptance: retain the façade reduction target of ≤12 public methods;
-  consumers use owner units rather than nested-field pass-throughs, and
-  `CheckedExecution` has no loose settlement fields outside those units.
-  Preserve genuine query operations at their owning boundaries.
-  `mbx check -p compiler` and `mbx nextest run -p compiler` pass, including
-  retained callback and installed-provider replay. Run
-  `python3 tools/corpus_gate.py --filter providers/` and its `--native`
-  counterpart; checked goldens and matching-host execution must both hold.
-
 - **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
   report construction in
   [compile_report.rs](omega-rust/omega/compilation/products/src/compilation_products.rs),
@@ -2320,6 +2294,10 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Variant-owned artifact/rollback/application payloads already exist.
   Remaining eligibility checks live in `admit_requested_product` and package
   admission, while `with_pcc_context` can attach incompatible requests directly.
+  `CheckedCompilation`'s remaining product operations (`production_subject`,
+  `admit_terminal_production`, `terminal_native_proposal_request`,
+  `terminal_report`, `native_report`, `check_report`, `prepare_product_report`)
+  are this item's report-construction surface.
 
   Centralize the [proof-product](wiki/spec/proofs/publication.md#product-selection)
   and [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)

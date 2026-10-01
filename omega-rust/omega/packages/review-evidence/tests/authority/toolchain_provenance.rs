@@ -50,7 +50,8 @@ pub CopyTokenRepresentation:
     assert!(
         checked
             .custody
-            .boundary_calling_plan_realizations()
+            .providers()
+            .boundary_calling_plan_realizations
             .iter()
             .all(|realization| realization
                 .materialized_signature()

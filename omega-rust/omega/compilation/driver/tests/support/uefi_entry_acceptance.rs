@@ -37,6 +37,7 @@ pub fn candidate_uefi_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::UefiX64ProgramEntry,
             package,

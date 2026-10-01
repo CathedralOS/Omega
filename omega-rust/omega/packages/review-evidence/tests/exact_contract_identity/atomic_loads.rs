@@ -58,6 +58,7 @@ fn review_projects_each_legal_atomic_load_ordering_and_round_trips_rows() {
         }
         let closure = checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("package-aware compilation retains dependency closure");

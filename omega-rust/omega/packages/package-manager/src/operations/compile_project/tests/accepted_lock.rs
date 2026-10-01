@@ -176,7 +176,12 @@ machine build(builder: &mut Build) {
             );
             assert!(generated.error.is_none(), "{:?}", generated.error);
             assert_eq!(generated.exit_code, 3);
-            let entry = checked.selected_program_entry_machine().unwrap();
+            let entry = checked
+                .execution()
+                .selected_program_entry
+                .as_ref()
+                .map(|entry| entry.machine_name())
+                .unwrap();
             let outcome = checked_interpreter::interpret_entry(
                 checked,
                 BuildMachineEntry::Name(entry),

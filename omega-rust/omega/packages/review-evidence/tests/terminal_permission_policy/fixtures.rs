@@ -184,6 +184,7 @@ machine build(builder: &mut Build) {
         } else {
             candidate
                 .custody
+                .execution()
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     owner,

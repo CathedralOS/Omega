@@ -24,6 +24,7 @@ pub fn project_checked_representation_policy<'a>(
     let compilation = &input.into();
     if !compilation
         .custody
+        .sources()
         .dependency_closure()
         .is_some_and(|closure| closure.packages().contains(&package))
     {
@@ -50,7 +51,11 @@ pub fn project_checked_representation_policy<'a>(
     let producer_availability = availability::project(compilation, package)?;
     let selected_availability = selections::project(compilation, package, &selections)?;
     let mut demands = Vec::new();
-    for realization in compilation.custody.boundary_calling_plan_realizations() {
+    for realization in &compilation
+        .custody
+        .providers()
+        .boundary_calling_plan_realizations
+    {
         let uses = realization
             .materialized_signature()
             .opaque_representation_uses();

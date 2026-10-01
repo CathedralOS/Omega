@@ -20,8 +20,8 @@ fn assert_external_policy_round_trip(
     assert_eq!(policy.callable().owner(), supply.callable().owner());
     let surfaces = package_evidence::project_checked_callable_policy(
         checked,
-        checked.custody.selected_target_profile().unwrap(),
-        checked.custody.package_identity().unwrap(),
+        checked.custody.execution().selected_target_profile.unwrap(),
+        checked.custody.sources().package_identity().unwrap(),
     )
     .unwrap();
     assert!(
@@ -119,7 +119,15 @@ fn checked_fixture() -> ReviewFixture {
 #[test]
 fn review_projects_all_package_owned_evaluated_via_leaves_with_exact_receipts() {
     let checked = checked_fixture();
-    assert_eq!(checked.custody.evaluated_via_bindings().rows().len(), 2);
+    assert_eq!(
+        checked
+            .custody
+            .providers()
+            .evaluated_via_bindings
+            .rows()
+            .len(),
+        2
+    );
 
     let review = project_checked_package_review(&checked)
         .expect("ordinary evaluated-via supply should project exactly");

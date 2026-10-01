@@ -106,6 +106,7 @@ pub machine expose() reaches Console + FilesystemHost {}
     .expect("two exposed service candidates check");
     let filesystem = candidate
         .custody
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),
@@ -204,6 +205,7 @@ ensures result == constant<LIMIT>();
         .expect("ordinary package obligation rows");
     let dependency_closure = original_checked
         .custody
+        .sources()
         .dependency_closure()
         .cloned()
         .expect("package-aware compilation retains its dependency closure");
@@ -369,6 +371,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     .expect("first package source should check");
     let first_commitment = first_checked
         .custody
+        .sources()
         .source_consumption_commitment()
         .expect("package-aware compilation must retain source consumption");
     assert_ne!(first_commitment.digest(), [0; 32]);
@@ -389,6 +392,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
         first_commitment,
         relocated_checked
             .custody
+            .sources()
             .source_consumption_commitment()
             .expect("relocated package source commitment"),
         "absolute cache location and source-id assignment are not source identity"
@@ -406,6 +410,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
         first_commitment,
         changed_checked
             .custody
+            .sources()
             .source_consumption_commitment()
             .expect("changed package source commitment")
     );
@@ -511,8 +516,14 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     })
     .expect("renamed reconciled graph should check");
     assert_ne!(
-        first_graph.custody.source_consumption_commitment(),
-        renamed_graph.custody.source_consumption_commitment(),
+        first_graph
+            .custody
+            .sources()
+            .source_consumption_commitment(),
+        renamed_graph
+            .custody
+            .sources()
+            .source_consumption_commitment(),
         "requester-local dependency bindings must enter compiler-consumption identity even when unused"
     );
 }
@@ -1086,6 +1097,7 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
     let honest = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("replay compilation retains its closure"),

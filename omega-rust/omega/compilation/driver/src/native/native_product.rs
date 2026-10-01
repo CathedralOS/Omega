@@ -20,7 +20,7 @@ pub fn produce_native_report(
     // proposal being produced. These are NOT receiver permission rows: the
     // separately supplied receiver policy remains optional and unchanged.
     let accepted_package_terminal_authority_permission_policy =
-        checked.accepted_terminal_authority_permission_policy()?;
+        accepted_terminal_authority_permission_policy(&checked)?;
     let terminal = crate::terminal::produce_retained_terminal_artifact(
         &mut checked,
         &request.terminal_admission_profile,
@@ -54,4 +54,26 @@ pub fn produce_native_report(
             request.terminal_admission_profile,
         )
         .map(|report| report.with_withheld_rewrites(withheld_rewrites))
+}
+
+/// Project and validate the checked package's accepted Terminal permission
+/// rows before native proposal production. These are package evidence, not
+/// the independently supplied receiver-admission policy.
+fn accepted_terminal_authority_permission_policy(
+    checked: &CheckedCompilation,
+) -> Result<
+    terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+    Vec<Diagnostic>,
+> {
+    use terminal_psi_to_abstract_operations::provider_admission::{
+        terminal_authority_permission_policy_with_rows,
+        terminal_authority_permissions::validate_package_terminal_authority_permission_custody,
+    };
+    let permissions = checked.execution().terminal_authority_permissions();
+    validate_package_terminal_authority_permission_custody(permissions.iter())?;
+    terminal_authority_permission_policy_with_rows(permissions).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "checked package terminal-authority permissions are invalid: {error:?}"
+        ))]
+    })
 }

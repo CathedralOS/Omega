@@ -104,6 +104,7 @@ fn exit_membership_discharge_replays_custody_and_keeps_persisted_rows_inert() {
     let missing = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("package closure"),
@@ -259,6 +260,7 @@ fn scalar_post_state_guarantees_close_by_exit_evidence_at_every_exit() {
     let missing = ordinary_package_obligation_ledger_from_compiler_rows(
         checked
             .custody
+            .sources()
             .dependency_closure()
             .cloned()
             .expect("package closure"),

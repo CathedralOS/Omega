@@ -121,7 +121,7 @@ fn application(
         policy: nominal_identity(compilation, plan.policy_symbol)?,
         schema: signature_type_identity(
             &projected,
-            compilation.custody.exact_toolchain_sources(),
+            compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &[],
             lifetime_binders,

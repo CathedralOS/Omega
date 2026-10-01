@@ -518,10 +518,10 @@ fn compile_pass(
                 package: root.clone(),
             }
         })?;
-        let subject = checked.package_compilation_subject();
+        let subject = checked.sources().package_subject();
         if subject.map(|subject| subject.root()) != Some(root.identity())
             || subject.map(|subject| subject.root_role()) != Some(closure.root_role())
-            || checked.selected_target_profile() != Some(target_closure.target_profile())
+            || checked.execution().selected_target_profile != Some(target_closure.target_profile())
         {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: root.clone(),

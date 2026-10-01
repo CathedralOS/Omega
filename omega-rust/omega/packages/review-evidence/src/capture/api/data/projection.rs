@@ -41,11 +41,15 @@ pub(crate) fn project_data_invariant_facts(
         lifetime_substitutions: &[],
         selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
-    let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "data invariant review requires package-aware checked compilation",
-        )]
-    })?;
+    let reviewed_package = compilation
+        .custody
+        .sources()
+        .package_identity()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "data invariant review requires package-aware checked compilation",
+            )]
+        })?;
     let mut projected = Vec::new();
     for offset in 0..definition.where_facts.count() {
         let fact_handle = arena::Handle::from_parts(

@@ -82,6 +82,7 @@ fn checked_with_filesystem_binding() -> (TempPackage, ReviewFixture) {
     .expect("exposed filesystem candidate checks");
     let filesystem = candidate
         .custody
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),
@@ -111,6 +112,7 @@ fn checked_with_time_host_binding() -> (TempPackage, ReviewFixture) {
     .expect("exposed time host candidate checks");
     let time_host = candidate
         .custody
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::TimeHostService,
             package_identity(),

@@ -249,7 +249,7 @@ pub(crate) fn project_selected_conformance_application(
                 );
                 PackageReviewContractStaticArgument::Type(signature_type_identity(
                     &instantiated,
-                    compilation.custody.exact_toolchain_sources(),
+                    compilation.custody.sources().exact_toolchain_sources(),
                     carrier,
                     binders,
                     lifetime_binders,
@@ -331,7 +331,7 @@ pub(crate) fn project_selected_conformance_application(
         .map(|argument| {
             signature_type_identity(
                 &instantiated,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
                 binders,
                 lifetime_binders,

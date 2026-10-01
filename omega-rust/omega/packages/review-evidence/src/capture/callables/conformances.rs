@@ -90,11 +90,16 @@ pub(super) fn project_callable_conformances(
                     if conformance.external_binding.is_none()
                         && conformance.via_expression.is_valid() =>
                 {
-                    let Some(row) = compilation.custody.evaluated_via_bindings().exact(
-                        machine.symbol,
-                        conformance.symbol,
-                        conformance.requirement_symbol,
-                    ) else {
+                    let Some(row) = compilation
+                        .custody
+                        .providers()
+                        .evaluated_via_bindings
+                        .exact(
+                            machine.symbol,
+                            conformance.symbol,
+                            conformance.requirement_symbol,
+                        )
+                    else {
                         return Err(vec![Diagnostic::error(format!(
                             "reviewed external callable `{}` has no exact evaluated `via` row",
                             machine.name
