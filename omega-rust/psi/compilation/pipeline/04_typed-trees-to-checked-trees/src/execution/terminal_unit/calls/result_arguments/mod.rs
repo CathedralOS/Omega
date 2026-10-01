@@ -472,7 +472,12 @@ pub(super) fn argument(
                     // domains ride the loan, and the local's contents and
                     // identity are rejoined against the binding below.
                     matches!(place.root, facts::PlaceRoot::Symbol(_))
-                        .then(|| shared_numeric_affine_referent(program, parameter.type_reference))
+                        .then(|| {
+                            shared_numeric_affine_referent(program, parameter.type_reference)
+                                .or_else(|| {
+                                    shared_view_affine_referent(program, parameter.type_reference)
+                                })
+                        })
                         .flatten()
                 })?;
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
@@ -602,6 +607,12 @@ pub(super) fn argument(
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
             && !validation::has_cleanup_owned_contents(program, referent)
+            // A shared borrow of a view-carrying affine record moves no view
+            // custody — the descriptor members ride the loan while each
+            // view's captured loan stays with the caller — so the same
+            // contents family that admits plain owned storage admits this
+            // carrier too.
+            && !validation::has_owned_or_shared_view_contents(program, referent)
             && !(constructed_literal
                 && validation::has_structural_construction_contents(program, referent)))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
@@ -646,7 +657,14 @@ pub(super) fn argument(
                 let owned_contents = if access == CheckedStructuralAccess::Owned {
                     validation::has_plain_owned_contents(program, local.type_reference)
                 } else {
+                    // A loan presents the declared record: a member that is
+                    // itself a shared view rides the same carrier the
+                    // disposal, result-custody and scalar-read gates already
+                    // admit — the view's own loan stays with the caller.
                     validation::has_plain_owned_contents_with_represented_constraints(
+                        program,
+                        local.type_reference,
+                    ) || validation::has_owned_or_shared_view_contents(
                         program,
                         local.type_reference,
                     )
@@ -993,6 +1011,29 @@ fn shared_numeric_affine_referent(
     };
     (program.type_multiplicity(*referee) == Multiplicity::Affine
         && validation::has_plain_owned_contents_with_numeric_constraints(program, *referee))
+    .then_some(*referee)
+}
+
+/// Shared references to an affine record whose members mix plain owned
+/// scalars and shared views (`&[T]` / `&'a V`) ride the same lane as the
+/// plain-affine companion: the loan presents the declared record unchanged,
+/// and a shared borrow moves no view custody — each view field's captured
+/// loan stays with the caller for the call's duration. Mutable access,
+/// linear referents and mutating loans stay out.
+fn shared_view_affine_referent(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let typed_trees::types::TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) == Multiplicity::Affine
+        && validation::has_owned_or_shared_view_contents(program, *referee))
     .then_some(*referee)
 }
 

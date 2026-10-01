@@ -575,7 +575,9 @@ fn member_shape(
             }
         }
         TypeReferenceNode::Generic {
-            base_name, arguments, ..
+            base_name,
+            arguments,
+            ..
         } if base_name.as_str() == "FixedVec" => {
             let arguments = syntax_trees
                 .tables
@@ -639,7 +641,10 @@ fn scalar_kind_of_type(
 /// are not yet elaborated into `ConstExpression` nodes); a
 /// `ConstExpression` wrapping an integer literal is also accepted, and any
 /// other spelling declines.
-fn const_literal_capacity(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<usize> {
+fn const_literal_capacity(
+    syntax_trees: &SyntaxTrees,
+    handle: TypeReferenceHandle,
+) -> Option<usize> {
     match syntax_trees.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(identifier) => identifier.as_str().parse::<usize>().ok(),
         TypeReferenceNode::ConstExpression(expression) => {
@@ -1013,30 +1018,41 @@ impl MachineEmitter<'_> {
         let walk = format!("{name}_walk");
         let bound = format!("{name}_bound");
         let put = format!("{name}_put");
-        self.hop(name, "", &walk, ", 0");
+        // `requires` only admits parameter operands, so the member is seeded
+        // as a `view` local at the entry state: `i < view.len` is a
+        // parameter-rooted term the contract namespace admits, and `view[i]`
+        // proves in `put` without any member-path correspondence.
         self.state(
-            &walk,
-            "i: u64",
+            name,
+            "",
             "",
             &format!(
-                "        transition i < value.{field}.len {{\n            true -> {bound}(value, out, written, at, i)\n            _ -> {next}(value, out, written, at)\n        }}\n"
+                "        let view: &[u8] = value.{field};\n        transition {{ _ -> {walk}(value, out, written, at, 0, view) }}\n"
+            ),
+        );
+        self.state(
+            &walk,
+            "i: u64, view: &[u8]",
+            "",
+            &format!(
+                "        transition i < view.len {{\n            true -> {bound}(value, out, written, at, i, view)\n            _ -> {next}(value, out, written, at)\n        }}\n"
             ),
         );
         self.state(
             &bound,
-            "i: u64",
+            "i: u64, view: &[u8]",
             "",
             &format!(
-                "        transition at < {} && i < value.{field}.len {{\n            true -> {put}(value, out, written, at, i)\n            _ -> encode_overflow{}\n        }}\n",
+                "        transition at < {} && i < view.len {{\n            true -> {put}(value, out, written, at, i, view)\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.state(
             &put,
-            "i: u64",
-            &format!("at < {} && i < value.{field}.len", self.limit),
+            "i: u64, view: &[u8]",
+            &format!("at < {} && i < view.len", self.limit),
             &format!(
-                "        out[at] = value.{field}[i];\n        transition {{ _ -> {walk}(value, out, written, at + 1, i + 1) }}\n"
+                "        out[at] = view[i];\n        transition {{ _ -> {walk}(value, out, written, at + 1, i + 1, view) }}\n"
             ),
         );
     }
@@ -1070,35 +1086,40 @@ impl MachineEmitter<'_> {
         element: ScalarKind,
         next: &str,
     ) {
-        // Slices guard on the view's intrinsic `.len` (the only form whose
-        // extent the index checker reads); `FixedVec` seeds a `slen` local
-        // because `value.samples.length` is a member path no predicate
-        // admits, bounded additionally by the const capacity.
+        // `requires` predicates only admit parameter operands, never a
+        // member-path read like `value.readings.len` or
+        // `value.samples.length`. `FixedVec` seeds a `slen` local; slices
+        // instead seed a `view` local bound to the member itself, so every
+        // guard and requires spells `i < view.len` — a parameter-rooted
+        // term the contract namespace admits — and `view[i]` reads are
+        // provable inside each callee without any correspondence.
         let seed_len = bound_expr.is_some();
-        let (index_guard, loop_guard, carry, carry_arg) = match bound_expr {
-            Some(bound) => (
-                format!("i < slen && i < {bound}"),
-                "i < slen".to_string(),
-                ", slen: u64",
-                ", slen",
-            ),
-            None => (
-                format!("i < {len_expr}"),
-                format!("i < {len_expr}"),
-                "",
-                "",
-            ),
-        };
+        let member_expr = items_expr;
+        let (index_guard, loop_guard, index_requires, carry, carry_arg, items_expr) =
+            match bound_expr {
+                Some(bound) => (
+                    format!("i < slen && i < {bound}"),
+                    "i < slen".to_string(),
+                    format!("i < slen && i < {bound}"),
+                    ", slen: u64".to_string(),
+                    ", slen".to_string(),
+                    member_expr.to_string(),
+                ),
+                None => (
+                    "i < view.len".to_string(),
+                    "i < view.len".to_string(),
+                    "i < view.len".to_string(),
+                    format!(", view: &[{}]", element.name()),
+                    ", view".to_string(),
+                    "view".to_string(),
+                ),
+            };
         let measure_entry = format!("{name}_measure");
         let measure_elem = format!("{name}_measure_elem");
         let measure_varint = format!("{name}_measure_varint");
         let length = format!("{name}_length");
         let emit_entry = format!("{name}_emit");
-        let emit_entry_target = if seed_len {
-            format!("{name}_emit_seed")
-        } else {
-            emit_entry.clone()
-        };
+        let emit_entry_target = format!("{name}_emit_seed");
         let emit_elem = format!("{name}_emit_elem");
         let emit_varint = format!("{name}_emit_varint");
         let emit_last = format!("{name}_emit_last");
@@ -1106,9 +1127,9 @@ impl MachineEmitter<'_> {
         let emit_more = format!("{name}_emit_more");
         let emit_more_put = format!("{name}_emit_more_put");
         let bits_expr = |i: &str| element.encode_bits_expression(&format!("{items_expr}[{i}]"));
-        // The iteration bound rides as a seeded `slen` local: requires and
-        // transition predicates only admit parameter operands, never a
-        // member-path read like `value.samples.length`. Element-bound
+        // `FixedVec` seeds `slen` (`value.samples.length` is a member path
+        // no predicate admits); slices seed `view` from the member itself —
+        // `i < view.len` is parameter-rooted everywhere it rides. The bound
         // checks live only at the two entry states; the inner varint byte
         // loops re-enter through them, so `bits < 128` alone decides.
         if seed_len {
@@ -1123,7 +1144,15 @@ impl MachineEmitter<'_> {
             );
             self.hop(&seed, "slen: u64", &measure_entry, ", 0, 0, slen");
         } else {
-            self.hop(name, "", &measure_entry, ", 0, 0");
+            self.state(
+                name,
+                "",
+                "",
+                &format!(
+                    "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {measure_entry}(value, out, written, at, 0, 0, view) }}\n",
+                    element.name()
+                ),
+            );
         }
         self.state(
             &measure_entry,
@@ -1136,7 +1165,7 @@ impl MachineEmitter<'_> {
         self.state(
             &measure_elem,
             &format!("i: u64, acc: u64 in Wrapping{carry}"),
-            &index_guard,
+            &index_requires,
             &format!(
                 "        let bits: u64 = {};\n        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits{carry_arg}) }}\n",
                 bits_expr("i")
@@ -1209,15 +1238,26 @@ impl MachineEmitter<'_> {
                 ),
             );
         }
-        // The emit half re-seeds `slen` under `FixedVec` so the length-loop
-        // tail stays thin; slices enter `emit_entry` directly.
-        if seed_len {
+        // The emit half re-seeds the iteration bound under each member
+        // kind — `slen` for `FixedVec`, `view` for slices — so the
+        // length-loop tail stays thin.
+        if bound_expr.is_some() {
             self.state(
                 &emit_entry_target,
                 "i: u64",
                 "",
                 &format!(
                     "        let slen: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, slen) }}\n"
+                ),
+            );
+        } else {
+            self.state(
+                &emit_entry_target,
+                "i: u64",
+                "",
+                &format!(
+                    "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, view) }}\n",
+                    element.name()
                 ),
             );
         }
@@ -1232,7 +1272,7 @@ impl MachineEmitter<'_> {
         self.state(
             &emit_elem,
             &format!("i: u64{carry}"),
-            &index_guard,
+            &index_requires,
             &format!(
                 "        let bits: u64 = {};\n        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits{carry_arg}) }}\n",
                 bits_expr("i")
@@ -1916,8 +1956,13 @@ fn member_facts(
                 return None;
             };
             let TypeReferenceNode::Generic {
-                base_name, arguments, ..
-            } = syntax_trees.tables.type_references.type_reference(field_handle)
+                base_name,
+                arguments,
+                ..
+            } = syntax_trees
+                .tables
+                .type_references
+                .type_reference(field_handle)
             else {
                 return None;
             };
@@ -2043,9 +2088,7 @@ fn nested_sub_facts(
         return None;
     };
     let nested_fields = data_fields.get(value_name.as_str())?;
-    let (_, sub_members) = schemas
-        .iter()
-        .find(|(name, _)| name.as_str() == schema)?;
+    let (_, sub_members) = schemas.iter().find(|(name, _)| name.as_str() == schema)?;
     let mut all = Vec::with_capacity(sub_members.len());
     for sub in sub_members {
         let MemberShape::Scalar(kind) = &sub.shape else {
