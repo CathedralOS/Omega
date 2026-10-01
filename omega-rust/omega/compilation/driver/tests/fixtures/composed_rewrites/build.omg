@@ -1,0 +1,14 @@
+// Authors BOTH rules. The test derives every other selection from this one by
+// rolling rules back through the compiler's own overlay, so the four builds
+// differ only in the overlay and not in authored source.
+machine build(builder: &mut Build) {
+    builder.application("composed_rewrites");
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+    builder.optimizations.enable(Optimization::CopyPropagation);
+    builder.optimizations.enable(
+        Optimization::DeadPureScalarElimination,
+    );
+}

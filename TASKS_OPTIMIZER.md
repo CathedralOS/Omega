@@ -665,6 +665,28 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   all — emission normalizes `ControlFlowCleanup` away — so this axis compares
   `semantic_bytes()`.
 
+  Composition coverage starts here. `driver/tests/composed_rewrites.rs` builds
+  one fixture four ways — the authored `{CopyPropagation,
+  DeadPureScalarElimination}` selection, each rule rolled back alone, and both
+  rolled back — so only the compiler's own overlay differs and no source
+  change can explain a module difference. It asserts that selecting both
+  differs from each rule alone, which is the failure the axis exists to catch:
+  equality with one of them means the other stopped reaching the module once
+  its neighbour was selected. Both vacuity guards are live, and they earned
+  their place — the first two fixtures silently had one rule not fire, a
+  dead COPY rather than a dead pure computation. The modules measure 1079,
+  1051, 985 and 957 bytes, so each saving is exactly its own, 28 and 94.
+
+  A keyword screen of the six stage-06 rules' own tests, which is a screen and
+  not proof, finds the same three axes absent for every rule: rollback,
+  composition and budget. Fixed-point appears only for `control_flow_cleanup`.
+  Publication is absent for `copy_propagation`, `global_value_numbering` and
+  `sparse_conditional_constant_propagation`; corruption for
+  `dead_scalar_elimination` and `global_value_numbering`; boundary for
+  `control_flow_cleanup`. Rollback is covered for `ControlFlowCleanup` at the
+  driver level only, which is why the stage files do not mention it. Budget is
+  the one with no coverage anywhere and no customer yet.
+
   Acceptance: each applicable axis executes and independently replays through
   the rule's public entrance and compiler-produced publication. A fixed-point
   check feeds the published artifact back as legal input; repeated construction
