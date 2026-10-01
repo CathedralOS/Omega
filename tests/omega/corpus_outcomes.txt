@@ -202,7 +202,7 @@ fail/build/package_local_calling_copy rejected 226ms expected @2d8ed253669f
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
-fail/build/placed_view_program_entry_input rejected 4332ms unexpected @2d8ed253669f
+fail/build/placed_view_program_entry_input rejected 677ms expected @c9ed9f7b9e4c+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
 fail/build/product_entry_description_slot_mismatch rejected 546ms expected @b09f66e07ebd+wt
 	root binding slot `windows_x86_64::ProgramEntry` does not match the product description's slot `linux_arm64::ProgramEntry`
@@ -943,7 +943,7 @@ fail/slices/signed_slice_index_upper_only rejected 567ms expected @2d8ed253669f
 	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 599ms expected @2d8ed253669f
 	cannot prove every subslice range endpoint of `start..end` is non-negative
-fail/slices/subslice_range_operator_contract_unproven rejected 264ms unexpected @2d8ed253669f
+fail/slices/subslice_range_operator_contract_unproven rejected 65ms expected @c9ed9f7b9e4c+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
 fail/slices/termination_slice_length_order_unimplemented rejected 648ms expected @2d8ed253669f
 	cannot prove the `terminates by` ranking for machine Main::walk
