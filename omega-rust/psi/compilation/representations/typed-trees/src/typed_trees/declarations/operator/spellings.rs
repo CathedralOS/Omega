@@ -251,7 +251,10 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 indexing::shared_collection_elements(program, actual, expected.type_reference)
                     .unwrap_or((actual, expected.type_reference))
             } else {
-                (actual, expected.type_reference)
+                (
+                    scalar_operand_read_type(program, actual, expected.type_reference),
+                    expected.type_reference,
+                )
             };
             (type_reference_matches(
                 program,
@@ -272,6 +275,36 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
             )) && declared_domain_constraints_match(program, actual, expected.type_reference)
                 && declared_domain_constraints_match(program, matched_actual, matched_expected)
         })
+}
+
+/// A readable primitive referent supplies its scalar value to a scalar
+/// formal, just as the ordinary expression reader does. Reference formals
+/// retain the reference itself; generic and structural formals never acquire
+/// an implicit dereference. This changes candidate input types only: source
+/// checking and lowering still retain the actual storage observation.
+fn scalar_operand_read_type(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let Some(expected_primitive) = program.primitive_type_reference(expected) else {
+        return actual;
+    };
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(actual)
+    else {
+        return actual;
+    };
+    if matches!(
+        access,
+        language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable
+    ) && program.primitive_type_reference(*referee) == Some(expected_primitive)
+    {
+        *referee
+    } else {
+        actual
+    }
 }
 
 /// The `[]`/`[..]` receiver loan behind the ordinary match: position zero as

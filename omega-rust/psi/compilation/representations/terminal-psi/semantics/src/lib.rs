@@ -51,11 +51,11 @@ pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,
     CallEvidenceRule, CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule,
     CallResultRule, CallTargetRule, CallTransferRule, FixedByteArrayWindow,
-    boundary_buffer_capacity, bounded_byte_owner_capacity, stored_view_field_presentation,
+    boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
     call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
     fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
-    validate_call_composition_semantic_rows,
+    stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{
@@ -75,7 +75,6 @@ pub use record_field::{
     record_field_carrier,
 };
 pub use scalar_array::scalar_array_leaf_shape;
-pub use scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
@@ -85,6 +84,7 @@ pub use scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, constant_goal_free_scalar_leaf,
     goal_free_scalar_leaf_semantics,
 };
+pub use scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use semantic_rows::{
     OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
     exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,

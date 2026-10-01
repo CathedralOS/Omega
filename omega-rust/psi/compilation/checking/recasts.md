@@ -48,23 +48,24 @@ declared-type checks intact and replays the carrier relation
 (`expression_preparation/representation_view.rs`): equal-width integer
 carriers read the two's-complement modular image, and a wider integer view of
 a runtime-selected `u8` element reads the byte region little-endian, one
-element read (and one Terminal index obligation) per byte. Boolean and IEEE float
-cross-carrier views (`bool` as `u8`, `f32` as `u32`) reject there because
-Terminal Psi has no bit-reinterpretation or 0/1-landing re-view operation yet;
-Boolean view targets still retag their guard leaf until that form exists.
+element read (and one Terminal index obligation) per byte. Boolean and IEEE
+float cross-carrier views use `ScalarRepresentationView`: independent
+verification reconstructs the equal-width carrier pair and requires a proved
+0/1 landing when an integer becomes Boolean. Native selection preserves the
+stored bits and applies only the result carrier's register normalization.
 Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
 like shared loan locals do.
 
-A record-as-record view erases at Terminal: stage 05 reads each view field
-as the source leaf at the same offset under the source's declaration
+A record-as-record view retains its source leaf at Terminal: stage 05 reads
+each view field at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes
 exact. A mutable view's direct field store rejoins the same leaf in stage 04
 (`structural_scalar_store/destination.rs`); both store replays recompute it
 (`representation_view_store::record_view_leaf_destination`). An equal-width
 integer leaf of the other sign (`i16` seen as `u16`) reads its declared
 carrier and takes the modular image, and a store writes the image of the
-view's value. A leaf of another carrier kind (`f32` seen as `u32`) and nested
-view paths do not lower yet.
+view's value. A leaf of another carrier kind (`f32` seen as `u32`) uses the
+same scalar representation-view replay. Nested view paths remain unsupported.
 
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence

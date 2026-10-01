@@ -48,9 +48,8 @@ impl ScalarRepresentationViewPair {
     /// Classify one carrier pair, or `None` when the pair has unequal widths,
     /// does not change family, or reaches a non-fixed integer carrier.
     pub fn classify(source: ScalarType, target: ScalarType) -> Option<Self> {
-        let fixed = |integer: IntegerType, bits: u16| {
-            !integer.is_address() && integer.bits() == bits
-        };
+        let fixed =
+            |integer: IntegerType, bits: u16| !integer.is_address() && integer.bits() == bits;
         match (source, target) {
             (ScalarType::IeeeFloat(format), ScalarType::Integer(integer))
                 if fixed(integer, format_bits(format)) =>
@@ -119,7 +118,9 @@ impl ScalarRepresentationViewPair {
             (Self::BitsFloat { integer, format }, ScalarViewValue::Integer(value)) => {
                 let bits = integer_bits(integer, value)?;
                 Some(ScalarViewValue::IeeeFloat(match format {
-                    IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(u32::try_from(bits).ok()?),
+                    IeeeFloatFormat::Binary32 => {
+                        IeeeFloatValue::Binary32(u32::try_from(bits).ok()?)
+                    }
                     IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(bits),
                 }))
             }

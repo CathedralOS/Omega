@@ -358,9 +358,13 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
                     | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. }
-                    | LegalizedScalarInstructionKind::ScalarRepresentationView { operand, .. } => {
+                    | LegalizedScalarInstructionKind::ScalarRepresentationView {
+                        operand, ..
+                    } => {
                         let source_type = match &operation.kind {
-                            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. }
+                            LegalizedScalarInstructionKind::IntegerWiden {
+                                source_type, ..
+                            }
                             | LegalizedScalarInstructionKind::IntegerExactCast {
                                 source_type,
                                 ..

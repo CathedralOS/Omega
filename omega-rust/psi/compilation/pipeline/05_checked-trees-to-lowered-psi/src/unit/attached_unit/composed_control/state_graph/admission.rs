@@ -1332,7 +1332,7 @@ fn validate_guard(
                 binding,
                 ScalarType::Boolean,
             )?;
-            if !matches!(expression, CheckedScalarExpression::Boolean(_)) {
+            if expression.primitive_type() != Some(PrimitiveType::Bool) {
                 return unsupported("Unit graph guard is not Boolean");
             }
         }

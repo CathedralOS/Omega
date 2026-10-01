@@ -938,13 +938,8 @@ pub(crate) fn prepare(
                 };
             let (walk, identity, expected_type, leaf_primitive) = match &typed_overlay {
                 Some(overlay) => {
-                    let (walk, identity, leaf_primitive) = record_view_source_walk(
-                        checked,
-                        overlay,
-                        subject,
-                        *field,
-                        node.primitive_type,
-                    )?;
+                    let (walk, identity, leaf_primitive) =
+                        record_view_source_walk(checked, overlay, subject, *field)?;
                     (walk, identity, None, leaf_primitive)
                 }
                 None => (
@@ -1094,16 +1089,14 @@ pub(crate) fn prepare(
 /// The source-side walk for a read through a typed record view: the canonical
 /// path segments from the source record to the leaf's declaring record, the
 /// leaf's own field identity, and the leaf's declared carrier. Only a direct
-/// scalar field of the view is admitted. Its leaf keeps the view's carrier or
-/// is an equal-width integer of the other sign, whose modular image
-/// `representation_view::replay` spells; any other carrier change needs a
-/// Terminal re-view this read does not perform.
+/// scalar field of the view is admitted. The leaf keeps its source carrier;
+/// the ordinary representation-view replay independently checks and emits
+/// the carrier relation after the source observation has been lowered.
 fn record_view_source_walk(
     checked: &CheckedTrees,
     overlay: &TypedRecordOverlay,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
-    primitive: PrimitiveType,
 ) -> Result<
     (
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -1124,12 +1117,6 @@ fn record_view_source_walk(
     .ok_or(LoweringError::Unsupported(
         "record view field has no single source leaf",
     ))?;
-    let equal_width_integers = leaf.primitive.accepts_integer_literal()
-        && primitive.accepts_integer_literal()
-        && leaf.primitive.scalar_byte_size() == primitive.scalar_byte_size();
-    if leaf.primitive != primitive && !equal_width_integers {
-        return unsupported("record view leaf changes its scalar carrier");
-    }
     let (last, prefix) = leaf.path.split_last().ok_or(LoweringError::Unsupported(
         "record view source leaf has an empty path",
     ))?;
@@ -1259,7 +1246,6 @@ pub(super) fn observation(
     parameters: &[checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
-    primitive: PrimitiveType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive)?;
     let mut matching = fields.iter().filter(|binding| {

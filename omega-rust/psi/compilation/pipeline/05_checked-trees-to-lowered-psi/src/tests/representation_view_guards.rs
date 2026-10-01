@@ -4,8 +4,7 @@
 //! its declared carrier followed by the replayed view: equal-width integer
 //! views read the modular image, so the verifier never meets a field read whose
 //! carrier its declaration does not name. Boolean and IEEE float cross-carrier
-//! views name the Terminal re-view vocabulary they are still owed instead of
-//! retagging the field read.
+//! views retain a Terminal re-view instead of retagging the field read.
 // `TerminalMachineSelection` must come through `terminal_production`'s
 // re-export, not `crate::`: in the lib test target `crate` is the test
 // instance of this crate while `terminal_production` holds the library
@@ -41,14 +40,14 @@ fn equal_width_integer_recast_guards_read_declared_fields_and_verify() {
     let module = produce(
         r#"
         data Main { value: i32; small: i8; }
-        machine Main::main(&mut self) {
-            let bits: &u32 = &self.value as &u32;
-            transition bits == 4294967294 && (&self.small as &u8) == 200 {
-                true -> good()
-                _ -> bad()
+        machine Main::main(context: &mut Main) {
+            let bits: &u32 = &context.value as &u32;
+            transition bits == 4294967294 && (&context.small as &u8) == 200 {
+                true -> good(context)
+                _ -> bad(context)
             }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
     )
@@ -84,30 +83,73 @@ fn equal_width_integer_recast_guards_read_declared_fields_and_verify() {
 }
 
 #[test]
-fn boolean_and_float_recast_reads_name_the_missing_terminal_re_view() {
+fn boolean_and_float_recast_reads_retain_terminal_bit_views() {
     for source in [
         r#"
         data Main { flag: bool; }
-        machine Main::main(&mut self) {
-            let bits: &u8 = &self.flag as &u8;
-            transition bits == 1 { true -> good() _ -> bad() }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+        machine Main::main(context: &mut Main) {
+            let bits: &u8 = &context.flag as &u8;
+            transition bits == 1 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
         r#"
         data Main { value: f32; }
-        machine Main::main(&mut self) {
-            let bits: &u32 = &self.value as &u32;
-            transition bits == 0 { true -> good() _ -> bad() }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+        machine Main::main(context: &mut Main) {
+            let bits: &u32 = &context.value as &u32;
+            transition bits == 0 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
     ] {
-        let error = produce(source).expect_err("no Terminal re-view spells this pair yet");
-        assert!(error.contains("no Terminal Psi vocabulary"), "{error}");
+        let module = produce(source).expect("cross-family re-views retain their stored bits");
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::ScalarRepresentationView { .. }
+                ))
+        );
     }
+}
+
+#[test]
+fn byte_boolean_guards_retain_and_discharge_representation_landing() {
+    let module = produce(
+        r#"
+        data Main where byte <= 1, { byte: u8; }
+        machine Main::main(context: &mut Main) {
+            let flag: &bool = &context.byte as &bool;
+            transition flag && (&context.byte as &bool) {
+                true -> good(context)
+                _ -> bad(context)
+            }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+    )
+    .expect("byte-to-bool guards prove the source byte belongs to the bool representation");
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ScalarRepresentationView {
+                    landing_obligation: Some(_),
+                    ..
+                }
+            ))
+    );
 }
 
 /// A shared record-as-record view erases at Terminal: each view field reads
@@ -122,14 +164,14 @@ fn shared_record_view_reads_rejoin_source_leaves_and_verify() {
         data Narrow where count >= 0 && count <= 10, { count: i32; ratio: f32; }
         data Wide where total >= 0 && total <= 20, { total: i32; scale: f32; }
         data Main { narrow: Narrow; }
-        machine Main::main(&mut self) {
-            let view: &Wide = &self.narrow as &Wide;
-            transition view.total == self.narrow.count {
-                true -> good()
-                _ -> bad()
+        machine Main::main(context: &mut Main) {
+            let view: &Wide = &context.narrow as &Wide;
+            transition view.total == context.narrow.count {
+                true -> good(context)
+                _ -> bad(context)
             }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
     )
@@ -146,54 +188,60 @@ fn record_view_integer_leaves_of_the_other_sign_read_and_store_their_image() {
         data Signed where value >= 0 && value <= 100, { value: i16; flag: bool; }
         data Unsigned where value >= 0 && value <= 100, { value: u16; active: bool; }
         data Main { signed: Signed; }
-        machine Main::main(&mut self) {
-            self.signed.value = 7;
-            let view: &mut Unsigned = &mut self.signed as &mut Unsigned;
+        machine Main::main(context: &mut Main) {
+            context.signed.value = 7;
+            let view: &mut Unsigned = &mut context.signed as &mut Unsigned;
             view.value = 99;
             view.active = true;
             let seen: u16 = view.value;
-            transition seen == 99 && self.signed.value == 99 && self.signed.flag {
-                true -> good()
-                _ -> bad()
+            transition seen == 99 && context.signed.value == 99 && context.signed.flag {
+                true -> good(context)
+                _ -> bad(context)
             }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
     )
     .expect("sign-changing record view leaves lower through the modular image and verify");
 }
 
-/// A record view field whose leaf has a different kind of carrier (an `f32`
-/// seen as `u32`) needs the Terminal bit re-view the record read does not
-/// perform, so it refuses rather than retagging the source field.
+/// A record view field reads its source carrier before the same Terminal bit
+/// re-view used by whole scalar places.
 #[test]
-fn record_view_leaf_with_another_carrier_kind_refuses() {
-    let error = produce(
+fn record_view_leaf_with_another_carrier_kind_verifies() {
+    let module = produce(
         r#"
         data Reading { value: f32; }
         data Bits { value: u32; }
         data Main { reading: Reading; }
-        machine Main::main(&mut self) {
-            let view: &Bits = &self.reading as &Bits;
+        machine Main::main(context: &mut Main) {
+            let view: &Bits = &context.reading as &Bits;
             transition view.value == 0 {
-                true -> good()
-                _ -> bad()
+                true -> good(context)
+                _ -> bad(context)
             }
-            state good(&mut self) {}
-            state bad(&mut self) {}
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
         }
         "#,
     )
-    .expect_err("a float leaf viewed as integer bits has no record read form yet");
+    .expect("record leaf bit views replay through the scalar operation");
     assert!(
-        error.contains("record view leaf changes its scalar carrier"),
-        "{error}"
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ScalarRepresentationView { .. }
+            ))
     );
 }
 
 #[test]
-fn probe_float_bit_view_with_where_fact() {
+fn scalar_loan_operands_with_data_predicates_produce_and_verify() {
     for source in [
         r#"
         boundary operator == Float::equal(left: f32, right: f32) -> bool;
@@ -226,6 +274,16 @@ fn probe_float_bit_view_with_where_fact() {
         }
         "#,
         r#"
+        boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        data Main { value: f32; }
+        machine Main::main(context: &mut Main) {
+            let wide: &mut f32 = &mut context.value;
+            transition wide == 0.0f32 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+        r#"
         data Main where byte >= 0 && byte <= 1, { flag: bool; byte: u8; }
         machine Main::main(context: &mut Main) {
             context.flag = true;
@@ -238,13 +296,25 @@ fn probe_float_bit_view_with_where_fact() {
         }
         "#,
     ] {
-        let checked = crate::front_end::checked_program(source);
-        for root in checked.facts.values.scalar_computations.roots.iter() {
-            eprintln!("PROBE ROOT: {:?} ordinal={} -> {:?}", root.1.role, root.1.statement_ordinal, checked.facts.values.scalar_computations.nodes.get(root.1.root).kind);
-        }
-        for expression in checked.facts.values.scalar_expressions.expressions.iter() {
-            eprintln!("PROBE EXPR: {:?} ordinal={} -> {:?}", expression.role, expression.statement_ordinal, expression.expression);
-        }
-        eprintln!("PROBE RESULT: {:?}", produce(source).map(|_| ()));
+        produce(source).unwrap_or_else(|error| {
+            panic!("scalar loan source {source} failed: {error}");
+        });
     }
+}
+
+#[test]
+fn scalar_operator_projection_never_reads_a_write_only_reference() {
+    let errors = crate::front_end::checked_program_result(
+        r#"
+        boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        machine observe(value: &write f32) -> bool { value == 0.0f32 }
+        "#,
+    )
+    .expect_err("an operator cannot read through write-only authority");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.to_string().contains("write-only")),
+        "{errors:?}"
+    );
 }
