@@ -29,8 +29,11 @@ machine Random::range(
     &mut self,
     state: &mut RandomState,
     exclusive_max: u32 in Wrapping
-    ) -> u32 {
-    let raw: u32 in Wrapping = self.next_u32(state);
+    ) -> u32
+requires exclusive_max > 0
+ensures result < exclusive_max
+{
+    let raw: u32 in Wrapping = self.next_u32(state) as u32 in Wrapping;
 
     transition {
         _ -> ((raw % exclusive_max) as u32)
@@ -42,8 +45,10 @@ machine Random::chance(
     state: &mut RandomState,
     numerator: u32 in Wrapping,
     denominator: u32 in Wrapping
-    ) -> bool {
-    let roll: u32 in Wrapping = self.range(state, denominator);
+    ) -> bool
+requires denominator > 0
+{
+    let roll: u32 in Wrapping = self.range(state, denominator) as u32 in Wrapping;
 
     transition {
         _ -> (roll < numerator)

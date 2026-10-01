@@ -10,6 +10,7 @@ use crate::proof_contracts::arithmetic_domains::range_constraints::range_constra
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -57,6 +58,7 @@ pub(crate) fn call_return_type(
 pub(crate) fn ensured_call_result_interval(
     program: &TypedTrees,
     call: &TableCallExpression,
+    actuals: &[(SymbolHandle, Interval)],
 ) -> Option<Interval> {
     use typed_trees::domain::ProofFact;
     use typed_trees::expression::BinaryOperator;
@@ -112,10 +114,13 @@ pub(crate) fn ensured_call_result_interval(
                     program, subject,
                 )
                 .is_some_and(|(owner, _)| owner == machine.symbol);
-                if names_result && let Some(value) = super::literal_i64(program, operand) {
+                let bound = super::literal_i64(program, operand)
+                    .map(Interval::constant)
+                    .or_else(|| actual_interval(program, operand, actuals));
+                if names_result && let Some(bound) = bound {
                     interval = interval.intersect(super::guard_narrowing::comparison_interval(
                         binary.operator,
-                        Interval::constant(value),
+                        bound,
                         subject_on_left,
                     ));
                     bounded = true;
@@ -124,6 +129,30 @@ pub(crate) fn ensured_call_result_interval(
         }
     }
     bounded.then_some(interval)
+}
+
+fn actual_interval(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    actuals: &[(SymbolHandle, Interval)],
+) -> Option<Interval> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    actuals
+        .iter()
+        .find(|(symbol, _)| *symbol == path.symbol)
+        .map(|(_, interval)| *interval)
 }
 
 thread_local! {

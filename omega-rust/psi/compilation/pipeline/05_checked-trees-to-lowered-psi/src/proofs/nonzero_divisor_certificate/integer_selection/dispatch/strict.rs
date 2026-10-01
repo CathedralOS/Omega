@@ -11,6 +11,7 @@ use super::super::super::integer_evidence::{closed_integer_relation, projected_f
 use super::super::{bound, exact, wrapping};
 
 mod antitone;
+mod remainder;
 mod subtract;
 mod transitive;
 
@@ -30,6 +31,7 @@ pub(super) fn prove(
                 semantic_axioms,
             )
         })
+        .or_else(|| remainder::prove(context, goal, assumptions, semantic_axioms, definitions))
         .or_else(|| subtract::prove(context, goal, assumptions, semantic_axioms, definitions))
         // Strict endpoints traverse checked wrapping-update chains that the
         // non-strict affine selection cannot cite.

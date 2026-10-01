@@ -28,6 +28,7 @@ pass/arithmetic/runtime_monte_carlo_pi_exit built 912ms exit:70
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 750ms exit:70
 pass/arithmetic/runtime_observed_call_bound_exit built 963ms exit:42 @f85b70aa567c+wt
 pass/arithmetic/runtime_payload_range_narrowing_exit built 570ms exit:70
+pass/arithmetic/runtime_remainder_result_cast_exit built 841ms exit:70 @7c72db8f2645+wt
 pass/arithmetic/runtime_requires_one_sided_bound_exit built 628ms exit:42
 pass/arithmetic/runtime_shift_count_domain_exit built 657ms exit:70
 pass/arithmetic/runtime_shl_saturating_exit built 1083ms exit:70

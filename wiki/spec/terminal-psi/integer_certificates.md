@@ -133,6 +133,16 @@ same endpoint rule without an invented value definition. Zero divisors reject;
 the direct signed form also rejects `-1`, since type validity alone does not
 establish the signed-minimum exclusion.
 
+For a runtime unsigned fixed-carrier divisor, the witness may instead root at
+that exact divisor and retain the remainder expression or one canonical
+`result = remainder(dividend, divisor)` definition. An independently checked
+`0 < divisor` or `1 <= divisor` child then establishes `result < divisor`.
+Exact, Wrapping, and Saturating unsigned remainder share this bound. The
+dividend retains its declared carrier and identity; the cited definition stays
+in premise closure. A `Truth` child, an unrelated positive value, or a signed
+carrier cannot establish this relational form. Formation of the remainder and
+availability of its result remain separate verifier obligations.
+
 For affine maps, positive coefficients preserve bound orientation and negative
 coefficients reverse it. A zero coefficient retains the cited orientation and
 maps to the constant offset. Mapped endpoints must inhabit the checked carrier.

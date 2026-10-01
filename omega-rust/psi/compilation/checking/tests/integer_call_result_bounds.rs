@@ -115,3 +115,73 @@ fn receiver_method_results_carry_their_declared_policy_into_arithmetic() {
         "an unqualified result still owes the Exact overflow proof: {exact:?}"
     );
 }
+
+#[test]
+fn relational_result_bounds_substitute_the_selected_call_actual() {
+    let source = |actual: &str| {
+        format!(
+            r#"
+            machine bounded(raw: u32 in Wrapping, divisor: u32 in Wrapping) -> u32
+            requires divisor > 0
+            ensures result < divisor
+            {{ (raw % divisor) as u32 }}
+
+            machine value(
+                raw: u32 in Wrapping,
+                bounded_divisor: u32 in Wrapping,
+                unbounded_divisor: u32 in Wrapping
+            ) -> i32
+            requires bounded_divisor > 0 && bounded_divisor <= 100
+                && unbounded_divisor > 0
+            {{ bounded(raw, {actual}) as i32 }}
+            "#
+        )
+    };
+
+    validation::validate_specialized_program(
+        &crate::front_end::typed_program(&source("bounded_divisor")),
+        validation::OpaquePropertyValidation::Required(&[]),
+    )
+    .expect("the result bound follows the exact selected divisor actual");
+
+    let diagnostics = validation::validate_program(&crate::front_end::typed_program(&source(
+        "unbounded_divisor",
+    )))
+    .expect_err("a different same-carrier actual must not borrow the bounded divisor interval");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not provably representable")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn relational_result_bound_does_not_reuse_a_preceding_argument_snapshot() {
+    let program = crate::front_end::typed_program(
+        r#"
+        machine replace(value: &mut u32) -> u32 in Wrapping {
+            value = 4000000000;
+            0 as u32 in Wrapping
+        }
+
+        machine bounded(raw: u32 in Wrapping, divisor: u32 in Wrapping) -> u32
+        requires divisor > 0
+        ensures result < divisor
+        { (raw % divisor) as u32 }
+
+        machine value() -> i32 {
+            let mut divisor: u32 = 3;
+            bounded(replace(&mut divisor), divisor as u32 in Wrapping) as i32
+        }
+        "#,
+    );
+    let diagnostics = validation::validate_program(&program)
+        .expect_err("the later argument must observe the preceding argument's write");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not provably representable")),
+        "{diagnostics:#?}"
+    );
+}

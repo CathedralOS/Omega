@@ -1167,6 +1167,7 @@ pass/arithmetic/runtime_monte_carlo_pi_exit checked 1623ms @2d8ed253669f
 pass/arithmetic/runtime_nested_unsigned_witness_exit checked 1419ms @2d8ed253669f
 pass/arithmetic/runtime_observed_call_bound_exit checked 1432ms @ca8c127c90c5
 pass/arithmetic/runtime_payload_range_narrowing_exit checked 1217ms @2d8ed253669f
+pass/arithmetic/runtime_remainder_result_cast_exit checked 689ms @7c72db8f2645+wt
 pass/arithmetic/runtime_requires_one_sided_bound_exit checked 1194ms @2d8ed253669f
 pass/arithmetic/runtime_shift_count_domain_exit checked 1358ms @2d8ed253669f
 pass/arithmetic/runtime_shl_saturating_exit checked 3352ms @2d8ed253669f

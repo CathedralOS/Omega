@@ -35,6 +35,11 @@ pub struct TestOnlySource {
 
 pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
     TestOnlySource {
+        path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/remainder/tests.rs",
+        parent: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/remainder.rs",
+        module: "tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast/expression_roots.rs",
         parent: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast.rs",
         module: "expression_roots",
@@ -409,22 +414,27 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine.rs",
-        sha256: Some("573cf4a16b3e17ae75ca34a988306aef3ea620a14e9776e9b18de6d296300eb6"),
+        sha256: Some("62afc2c3601a06a5175556d98022ec80d66321e158ae2dd1b296bf9a04ade90d"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping.rs",
-        sha256: Some("597800de03a2025068b81f208c9b040e3c429d94fe2a23c558275268bbac3c9a"),
+        sha256: Some("efe5a7a6dbed69150b814fcff0e07c08fc968178015fbf6e9812373649e93edd"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/remainder.rs",
+        sha256: Some("4b18f94c8235c9e32a77b5f41f20e4af09572d9c82320bfc2d1061e49a1d04d6"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/truth_bounds.rs",
-        sha256: Some("14698fd254936e56884e5f4c1843b436f36c58d1b43bdbe321e914d05389f90d"),
+        sha256: Some("4dcfeb434fb8e982156f24f6f4003ab4ec397598242709c8e91232f00fd5c1f4"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("80a2d4f0ac32735649a6c37e9cfe78d16eb85ea0264c8797e916cfe78bec7b6e"),
+        sha256: Some("b03d82b2c427d50366670b9337b2f0f58395e2b4e5907b5eb63e92680642e55e"),
         inventory_machinery: false,
     },
     ImplementationSite {

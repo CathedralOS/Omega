@@ -1,0 +1,55 @@
+// RUN CANARY (exit 70). The divisor reaches bounded_remainder as a runtime
+// value, so its result guarantee must be proved from the helper's requires and
+// body rather than from a literal modulus. The body deliberately computes in
+// Wrapping and erases that policy with a same-carrier cast. At each call site,
+// `result < divisor` then proves that the returned u32 is representable as i32.
+// The two calls use different runtime inputs and exercise both the maximum u32
+// dividend and an ordinary dividend: 0xffff_ffff % 97 == 34 and 125 % 89 == 36.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine bounded_remainder(
+    raw: u32 in Wrapping,
+    divisor: u32 in Wrapping
+) -> u32
+requires divisor > 0
+ensures result < divisor
+{
+    (raw % divisor) as u32
+}
+
+machine check_remainders(
+    first_raw: u32 in Wrapping,
+    first_divisor: u32 in Wrapping,
+    second_raw: u32 in Wrapping,
+    second_divisor: u32 in Wrapping
+) -> bool
+requires first_divisor > 0 && first_divisor <= 97
+    && second_divisor > 0 && second_divisor <= 89
+{
+    let first: u32 = bounded_remainder(first_raw, first_divisor);
+    let second: u32 = bounded_remainder(second_raw, second_divisor);
+    let first_signed: i32 = first as i32;
+    let second_signed: i32 = second as i32;
+    first_signed == 34 && second_signed == 36
+}
+
+machine Main::main(&mut self) reaches Console {
+    let correct: bool = check_remainders(
+        (0 as u32 in Wrapping) - 1,
+        97,
+        125,
+        89
+    );
+    transition correct {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

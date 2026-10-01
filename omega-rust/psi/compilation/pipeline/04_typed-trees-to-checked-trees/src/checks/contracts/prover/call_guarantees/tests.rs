@@ -8,6 +8,7 @@
 
 use super::captured_place;
 use crate::flow::CanonicalPlace;
+use crate::tests::front_end::checked_program_result;
 use crate::tests::front_end::typed_program;
 use facts::{Fact, FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint};
 use symbols::SymbolHandle;
@@ -100,4 +101,51 @@ fn replaced_call_row_retires_the_capture() {
         FactPayload::AssignedValue { value: calls[1] },
     );
     assert!(capture(&program, &semantic, &[first, second], symbol).is_none());
+}
+
+#[test]
+fn wrapping_remainder_policy_erasure_proves_only_its_divisor_result_bound() {
+    let source = |declaration: &str, requirement: &str, guarantee: &str| {
+        format!(
+            r#"
+            {declaration}
+            machine bounded(
+                raw: u32 in Wrapping,
+                divisor: u32 in Wrapping,
+                unrelated: u32 in Wrapping
+            ) -> u32
+            requires {requirement}
+            ensures result < {guarantee}
+            {{ (raw % divisor) as u32 }}
+            "#
+        )
+    };
+
+    checked_program_result(&source("", "divisor > 0", "divisor"))
+        .expect("builtin unsigned remainder establishes its exact divisor bound");
+    let diagnostics = checked_program_result(&source("", "divisor > 0", "unrelated"))
+        .expect_err("an unrelated same-carrier formal must not receive the remainder bound");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+        "{diagnostics:#?}"
+    );
+
+    assert!(
+        checked_program_result(&source("", "divisor >= 0", "divisor")).is_err(),
+        "unsigned nonnegativity alone must not establish a nonzero divisor"
+    );
+    let diagnostics = checked_program_result(&source(
+        "boundary operator % Meaning::remainder(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping;",
+        "divisor > 0",
+        "divisor",
+    ))
+    .expect_err("an overridden remainder spelling must not receive builtin meaning");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+        "the declaration must parse and reach semantic contract checking: {diagnostics:#?}"
+    );
 }

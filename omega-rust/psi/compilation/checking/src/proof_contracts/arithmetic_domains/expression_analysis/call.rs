@@ -56,10 +56,10 @@ pub(super) fn analyze(
         return result;
     }
     let analysis = named_operator_result(walk.program, call)
-        .or_else(|| resolved_static_integer_call(walk.program, call))
+        .or_else(|| resolved_static_integer_call(walk, call))
         .or_else(|| selected_const_call_result(walk, expression))
         .or_else(|| bounding_builtin_result(walk, call))
-        .or_else(|| declared_return_range(walk.program, call))
+        .or_else(|| declared_return_range(walk, call))
         .or_else(|| inferred_return_range(walk, call))
         .unwrap_or(NEUTRAL);
     with_declared_result_policy(walk.program, call, analysis)
@@ -165,9 +165,10 @@ fn named_operator_result(program: &TypedTrees, call: &TableCallExpression) -> Op
 /// later operations. An attached static call retains its exact Data receiver
 /// symbol, not a runtime place whose state or aliasing must be inferred.
 fn resolved_static_integer_call(
-    program: &TypedTrees,
+    walk: &ExpressionWalk,
     call: &TableCallExpression,
 ) -> Option<Analysis> {
+    let program = walk.program;
     if !call.target_symbol.is_valid()
         || !call.machine_arguments.is_empty()
         || !call.selects_only_nominal_route()
@@ -207,7 +208,13 @@ fn resolved_static_integer_call(
         .unwrap_or(carrier_range);
     Some(Analysis {
         domain: Some(program.arithmetic_domain_for_type_reference(state.return_type)),
-        interval: call_result_bounds::normal_return_interval(program, machine, state, declared),
+        interval: call_result_bounds::normal_return_interval(
+            program,
+            machine,
+            state,
+            declared,
+            &exact_ordinary_actual_intervals(walk, call).unwrap_or_default(),
+        ),
         primitive: Some(primitive),
     })
 }
@@ -292,11 +299,13 @@ fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) ->
 /// type's full range + primitive to an otherwise-unbounded call result would
 /// turn a previously-unchecked expression into a spurious overflow. A callee's
 /// `ensures result <= K` is the same enforced guarantee.
-fn declared_return_range(program: &TypedTrees, call: &TableCallExpression) -> Option<Analysis> {
+fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
+    let program = walk.program;
     let return_type = call_return_type(program, call)?;
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
-    let ensured = ensured_call_result_interval(program, call).map(|ensured| {
+    let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
+    let ensured = ensured_call_result_interval(program, call, &actuals).map(|ensured| {
         primitive
             .and_then(primitive_range)
             .map_or(ensured, |carrier| ensured.intersect(carrier))
@@ -310,6 +319,61 @@ fn declared_return_range(program: &TypedTrees, call: &TableCallExpression) -> Op
         interval,
         primitive,
     })
+}
+
+/// Pair immutable ordinary formals with the selected call's current actual
+/// intervals before reading a relational result guarantee. This is a semantic
+/// substitution, not initializer replay: expression analysis reads the
+/// caller's already established environment at this call site. Receivers,
+/// static dispatch and mutable parameters retain their dedicated owners.
+fn exact_ordinary_actual_intervals(
+    walk: &ExpressionWalk,
+    call: &TableCallExpression,
+) -> Option<Vec<(symbols::SymbolHandle, Interval)>> {
+    if !call.selects_only_nominal_route() {
+        return None;
+    }
+    let (callee, entry) =
+        crate::machine_calls::calls::machine_state_by_symbol(walk.program, call.target_symbol)?;
+    if walk.program.machine_states(callee).first()?.symbol != entry.symbol {
+        return None;
+    }
+    let parameters = walk
+        .program
+        .state_parameters(entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let arguments = walk
+        .program
+        .expression_table
+        .expression_handles(call.arguments);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    let operand_walk = walk.with_destination(None, ArithmeticDomain::Exact);
+    let intervals = parameters
+        .into_iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            if parameter.is_mutable
+                || parameter.is_const
+                || !parameter.symbol.is_valid()
+                || walk
+                    .program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            {
+                return Some(None);
+            }
+            let mut diagnostics = Vec::new();
+            let analysis = operand_walk.analyze(*argument, &mut diagnostics);
+            diagnostics
+                .is_empty()
+                .then_some(Some((parameter.symbol, analysis.interval)))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(intervals.into_iter().flatten().collect())
 }
 
 /// ch15 stage 2 (modular return-range inference): with no DECLARED range, infer

@@ -8,12 +8,14 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
 use language_core::OperatorSpelling;
+use symbols::SymbolHandle;
 
 pub(super) fn normal_return_interval(
     program: &TypedTrees,
     machine: &Machine,
     entry: &State,
     declared: Interval,
+    actuals: &[(SymbolHandle, Interval)],
 ) -> Interval {
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
@@ -28,6 +30,12 @@ pub(super) fn normal_return_interval(
         else {
             continue;
         };
+        if let Some((_, actual)) = actuals
+            .iter()
+            .find(|(symbol, _)| *symbol == parameter.symbol)
+        {
+            interval = interval.intersect(*actual);
+        }
         for contract in program
             .machine_contracts(machine)
             .iter()
