@@ -141,33 +141,27 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **STAGE05-DATA-PARAMETER-LOOP-INVARIANT.** (split-of:STATIC-MACHINE-MIGRATION)
-  Carry a monotone loop counter's index proof into stage 05 when the counter is
-  rooted at the machine's attached data parameter rather than at `self`.
-  Stage 04 admits it as of `ce3b083057d`: `attached_storage_root` names the one
-  binding a declaration reaches its attached data through, the five
-  loop-invariant gates in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/loop_invariants.rs`
-  resolve that root by symbol, and cross-state labels canonicalize to the
-  receiver root. Stage 05 then reconstructs the same obligation independently
-  and refuses it. Frontier: two reductions identical but for the authored
-  `main.i >= 0` conjunct — a two-element array summed by a parameter-rooted
-  counter, and `samples/cli/collections/array_sum` — both reach `checked`
-  through `corpus_gate` with the conjunct and both stop at
-  `Lowering(OperationProofUnavailable)` without it, while the receiver-rooted
-  twin of the same loop passes with no conjunct at all. So the gap is a
-  producer in
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/`
-  (`field_bounds` proposes storage-observation bounds at joins; `entry_ranges`
-  and `joins` are its neighbours), not the admission stage. The five migrated
-  samples — `sensor_min_max`, `print_number`, `array_sum`,
-  `run_length_encode`, `caesar_cipher` — therefore still state the bound their
-  inference derives; removing it trades a program that builds for one that only
-  checks, which is why it stays stated until this closes.
-  Acceptance: the five samples drop the authored `main.i >= 0` conjunct and
-  still reach their authored native exit under
-  `tools/sample_native_gate.py`, and a corpus fixture pinning the
-  parameter-rooted counter builds and runs rather than only checking.
+- **FORWARDED-CONTEXT-BLOCK-PARAMETER-MODULE.** (split-of:STATIC-MACHINE-MIGRATION)
+  Emit a valid Terminal module for a machine that forwards its attached data
+  across state edges beside other block parameters. `print_number`,
+  `run_length_encode` and `caesar_cipher` check and then stop at
+  `terminal-artifact production failed:
+  Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
+  BlockId(2), place: PlaceId(7) }))`, so stage 05 produces a module whose own
+  validation rejects it: block 2 names a structural place it does not declare.
+  Frontier: the refusal is independent of every range fact — the same three
+  samples give it with and without an authored `main.i >= 0` conjunct, and at
+  `6422c069252~` as well — and `sensor_min_max` and `array_sum`, the two
+  migrated siblings that do not hit it, meet their native oracle. So the
+  question is which block parameter the forwarded context's declaration misses,
+  not whether a proof is available. Owners are
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/`
+  for parameter declaration and the module validator in
+  `omega-rust/psi/compilation/representations/terminal-psi/verification/`.
+  Acceptance: the three samples meet their documented oracle under
+  `tools/sample_native_gate.py` on a matching host, with a corpus fixture
+  pinning the forwarded-context block parameter shape that produced the
+  invalid module.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
