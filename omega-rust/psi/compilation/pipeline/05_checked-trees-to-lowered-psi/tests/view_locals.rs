@@ -489,6 +489,263 @@ fn a_byte_field_view_cannot_read_a_write_only_root() {
 }
 
 #[test]
+fn byte_field_subslice_cannot_share_an_edge_with_its_mutable_backing() {
+    use semantic_vocabulary::{
+        BlockId, EdgeId, OperationId, PlaceId, StructuralPlaceKind, ValueId,
+    };
+    use terminal_psi::{
+        Block, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, Terminator,
+    };
+
+    let lowered = lower(BYTE_FIELD_RANGE).expect("the byte field range lowers");
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the unchanged emitted module validates");
+    let mut shared_only = lowered.semantic_module;
+    let machine_index = shared_only
+        .machines
+        .iter()
+        .position(|machine| {
+            machine.blocks.iter().any(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(operation.kind, OperationKind::EstablishElementView { .. })
+                })
+            })
+        })
+        .unwrap();
+    let machine = &mut shared_only.machines[machine_index];
+    let source_block_index = machine
+        .blocks
+        .iter()
+        .position(|block| {
+            block.operations.iter().any(|operation| {
+                matches!(operation.kind, OperationKind::EstablishElementView { .. })
+            })
+        })
+        .unwrap();
+    let source_block = &machine.blocks[source_block_index];
+    let (backing, whole_view) = source_block
+        .operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::EstablishElementView { source, .. } => {
+                Some((source.place, operation.result.structural().unwrap().place))
+            }
+            _ => None,
+        })
+        .unwrap();
+    let subslice = source_block
+        .operations
+        .iter()
+        .find_map(|operation| match operation.kind {
+            OperationKind::ByteSequenceSubslice { source, .. } if source == whole_view => {
+                operation.result.structural().cloned()
+            }
+            _ => None,
+        })
+        .expect("the emitted subslice narrows the established field view");
+    let establishment = source_block
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishElementView { .. }))
+        .unwrap()
+        .clone();
+    let length_observation = source_block
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
+        .unwrap()
+        .clone();
+    let mut backing_parameter = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == backing)
+        .unwrap()
+        .clone();
+
+    // Fresh test coordinates leave every emitted operation, source access,
+    // extent obligation and existing state binding unchanged. The positive
+    // validation below also checks that these coordinates do not collide.
+    let receiving_block = BlockId::new(u64::MAX).unwrap();
+    let shared_place = PlaceId::new(u64::MAX).unwrap();
+    let mutable_place = PlaceId::new(u64::MAX - 1).unwrap();
+    let edge = EdgeId::new(u64::MAX).unwrap();
+    let return_terminator = std::mem::replace(
+        &mut machine.blocks[source_block_index].terminator,
+        Terminator::Jump {
+            edge,
+            target: receiving_block,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: subslice.place,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    assert!(matches!(return_terminator, Terminator::ReturnUnit { .. }));
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: shared_place,
+        kind: StructuralPlaceKind::BlockParameter {
+            block: receiving_block,
+            position: 0,
+        },
+    });
+    machine.blocks.push(Block {
+        id: receiving_block,
+        parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: shared_place,
+            position: 0,
+            is_self: false,
+            structural_type: subslice.structural_type,
+            multiplicity: subslice.multiplicity,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: subslice.qualifications.clone(),
+            projected_qualifications: subslice.projected_qualifications.clone(),
+        }],
+        operations: Vec::new(),
+        terminator: return_terminator,
+    });
+    terminal_verifier::validate_module(&shared_only)
+        .expect("an established byte subslice can enter a shared-only successor");
+
+    backing_parameter.place = mutable_place;
+    backing_parameter.position = 1;
+    backing_parameter.is_self = false;
+    assert_eq!(backing_parameter.access, StructuralAccess::MutableBorrow);
+    // The whole-view control already carries its backing origin. Narrowing
+    // that view must not erase the same simultaneous-loan conflict.
+    for (description, shared_source) in [("whole view", whole_view), ("subslice", subslice.place)] {
+        let mut overlapping = shared_only.clone();
+        let machine = &mut overlapping.machines[machine_index];
+        machine
+            .blocks
+            .last_mut()
+            .unwrap()
+            .structural_parameters
+            .push(backing_parameter.clone());
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: mutable_place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: receiving_block,
+                position: 1,
+            },
+        });
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut machine.blocks[source_block_index].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].place = shared_source;
+        structural_arguments.push(StructuralArgument {
+            place: backing,
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        });
+        let result = terminal_verifier::validate_module(&overlapping).map(|_| ());
+        assert!(
+            matches!(&result, Err(terminal_verifier::ModuleError::InvalidStructuralSuccessorArgument {
+                edge: rejected_edge, ..
+            }) if *rejected_edge == edge),
+            "{description} cannot accompany its mutable backing on the same edge: {result:?}"
+        );
+    }
+
+    // Passing only the mutable backing ends the old state's shared views.
+    // Their descriptor definitions still dominate, but dominance alone must
+    // not authorize observations after the exclusive name has transferred.
+    let mut mutable_only = shared_only.clone();
+    let machine = &mut mutable_only.machines[machine_index];
+    backing_parameter.place = shared_place;
+    backing_parameter.position = 0;
+    machine.blocks.last_mut().unwrap().structural_parameters[0] = backing_parameter;
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut machine.blocks[source_block_index].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0] = StructuralArgument {
+        place: backing,
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    };
+    terminal_verifier::validate_module(&mutable_only)
+        .expect("the mutable backing alone can enter its successor");
+
+    let fresh_place = PlaceId::new(u64::MAX - 2).unwrap();
+    let observation_id = OperationId::new(u64::MAX).unwrap();
+    for (description, observed_place) in [
+        ("fresh current-root view", fresh_place),
+        ("stale whole view", whole_view),
+        ("stale subslice", subslice.place),
+    ] {
+        let mut observed = mutable_only.clone();
+        let machine = &mut observed.machines[machine_index];
+        if observed_place == fresh_place {
+            let mut fresh = establishment.clone();
+            fresh.id = OperationId::new(u64::MAX - 1).unwrap();
+            let OperationKind::EstablishElementView {
+                destination,
+                source,
+                ..
+            } = &mut fresh.kind
+            else {
+                unreachable!()
+            };
+            *destination = fresh_place;
+            source.place = shared_place;
+            let OperationResult::Structural(result) = &mut fresh.result else {
+                unreachable!()
+            };
+            result.place = fresh_place;
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: fresh_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: fresh.id,
+                    structural_type: result.structural_type,
+                },
+            });
+            machine.blocks.last_mut().unwrap().operations.push(fresh);
+        }
+        let mut length = length_observation.clone();
+        length.id = observation_id;
+        length.result.scalar_mut().unwrap().id = ValueId::new(u64::MAX).unwrap();
+        length.kind = OperationKind::ByteSequenceLength {
+            source: observed_place,
+        };
+        machine.blocks.last_mut().unwrap().operations.push(length);
+        let result = terminal_verifier::validate_module(&observed).map(|_| ());
+        if observed_place == fresh_place {
+            result.expect("a fresh view of the successor's current mutable root remains readable");
+        } else {
+            assert!(
+                matches!(&result, Err(terminal_verifier::ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation, place,
+                }) if *operation == observation_id && *place == observed_place),
+                "{description} cannot observe backing handed to an exclusive successor: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_byte_field_range_proof_is_bound_to_its_backing_extent() {
     let mut lowered = lower(BYTE_FIELD_RANGE).expect("the dynamic byte range lowers");
     let backing = lowered
