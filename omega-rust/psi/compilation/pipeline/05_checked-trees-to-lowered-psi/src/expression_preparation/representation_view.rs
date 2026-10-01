@@ -35,10 +35,9 @@
 //! - Any other pairing rejects: unequal widths, two floats, or a Boolean
 //!   against a float have no bit view to replay.
 //!
-//! Guard positions do not reach this module for an integer seen as `bool`:
-//! a checked Boolean expression has no scalar leaf to hold a re-view, so
-//! stage 04 spells that guard operand as the image `read != 0`, which is total
-//! and equals the re-view on every byte the recast judgment admits.
+//! Boolean guard positions retain this same operation through the scalar
+//! computation graph, including beneath short-circuit operators. Their byte
+//! landing therefore owes the same independently reconstructed obligation.
 //!
 //! The operand must observe one place. A re-view of a computed value would be
 //! a conversion, which the recast contract forbids a cast to perform.

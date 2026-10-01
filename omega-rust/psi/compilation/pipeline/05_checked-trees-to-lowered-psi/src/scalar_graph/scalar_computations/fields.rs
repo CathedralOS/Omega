@@ -930,12 +930,6 @@ pub(crate) fn prepare(
                     )
                 }
             };
-            let mut primitive_path =
-                if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
-                    carrier_path.clone()
-                } else {
-                    Vec::new()
-                };
             let (walk, identity, expected_type, leaf_primitive) = match &typed_overlay {
                 Some(overlay) => {
                     let (walk, identity, leaf_primitive) =
@@ -949,6 +943,12 @@ pub(crate) fn prepare(
                     node.primitive_type,
                 ),
             };
+            let mut primitive_path =
+                if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                    carrier_path.clone()
+                } else {
+                    Vec::new()
+                };
             // Terminal's scalar field read names record fields followed by at
             // most one literal element selection; a deeper element path
             // (`rows[1].cells[2].value`) has no read form yet.
@@ -976,7 +976,7 @@ pub(crate) fn prepare(
                         path.push(
                             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index),
                         );
-                        if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                        if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
                             primitive_path
                                 .push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                         }
@@ -1010,7 +1010,7 @@ pub(crate) fn prepare(
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     selected.id,
                 ));
-                if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
                     primitive_path.push(terminal_psi::StructuralPathSegment::Field(
                         selected.identity.clone(),
                     ));
@@ -1246,6 +1246,7 @@ pub(super) fn observation(
     parameters: &[checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive)?;
     let mut matching = fields.iter().filter(|binding| {
@@ -1448,9 +1449,8 @@ pub(super) fn observation(
             scalar_type: leaf_type,
         },
     };
-    // A record view field over an equal-width integer leaf of the other sign
-    // observes the leaf at its declared carrier, then takes the same modular
-    // image a scalar re-view replays.
+    // Every record view observes its leaf at the declared source carrier,
+    // then uses the same carrier relation as a whole scalar re-view.
     if leaf_type == scalar_type {
         Ok(leaf)
     } else {

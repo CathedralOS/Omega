@@ -123,7 +123,7 @@ fn boolean_and_float_recast_reads_retain_terminal_bit_views() {
 fn byte_boolean_guards_retain_and_discharge_representation_landing() {
     let module = produce(
         r#"
-        data Main where byte <= 1, { byte: u8; }
+        data Main where byte >= 0 && byte <= 1, { byte: u8; }
         machine Main::main(context: &mut Main) {
             let flag: &bool = &context.byte as &bool;
             transition flag && (&context.byte as &bool) {
