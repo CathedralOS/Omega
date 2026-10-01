@@ -66,12 +66,12 @@ domain Buf::Full established by Filler::fill;
 boundary trait Filler {
     machine fill(buf: &mut Buf) ensures buf in Buf::Full;
 }
-machine fill_wrapper(filler: &Filler, buf: &mut Buf) ensures buf in Buf::Full reaches Filler {
-    filler.fill(buf);
+machine fill_wrapper(buf: &mut Buf) ensures buf in Buf::Full reaches Filler {
+    Filler::fill(buf);
 }
 machine consume(x: Buf in Full) -> u64 { x.length }
-machine use_fill(filler: &Filler, buf: &mut Buf) reaches Filler {
-    fill_wrapper(filler, buf);
+machine use_fill(buf: &mut Buf) reaches Filler {
+    fill_wrapper(buf);
     let _r: u64 = consume(buf);
 }
 "#,

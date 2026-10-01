@@ -131,9 +131,9 @@ fn routed_partition_merge_preserves_call_ensures() {
                 == Granted::content(&result);
         }
         data Wrapped { region: Region in Granted; }
-        machine merge_wrapper(merger: &Merge, parts: Parts) -> Wrapped
+        machine merge_wrapper(parts: Parts) -> Wrapped
         reaches Merge {
-            let whole: Region in Granted = merger.merge(parts);
+            let whole: Region in Granted = Merge::merge(parts);
             Wrapped { region: whole }
         }
     "#
