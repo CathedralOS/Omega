@@ -1,9 +1,7 @@
-//! Materialize immutable literals at their selected call and authored argument position.
-use super::super::super::ByteSequenceCarrier;
+//! Materialize literals at their selected call and authored argument position.
+//! Owned formals receive fresh bounded backing; borrowed formals retain views.
 use super::super::{
-    CheckedUnitEffectOperationPlan, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, ValueDeclaration,
-    allocate_dense, lookup_type_id, place_id, unsupported,
+    CheckedUnitEffectOperationPlan, PlaceId, ValueDeclaration, lookup_type_id, unsupported,
 };
 use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -122,6 +120,7 @@ pub(super) fn evaluate(
                         LoweringError::Unsupported("literal call target parameter is absent"),
                     )?,
                     catalogs,
+                    next_value,
                     operations,
                 )?);
             }
@@ -167,6 +166,7 @@ fn establish(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter_qualifications: &[language_semantics::SemanticDomainId],
     catalogs: &mut catalogs::ComposedCatalogs,
+    next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<PlaceId, LoweringError> {
     let bytes = argument
@@ -175,49 +175,24 @@ fn establish(
             "literal call argument has no payload",
         ))?;
     let structural_type = lookup_type_id(&catalogs.type_ids, &argument.type_identity)?;
-    if !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-        || !catalogs.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-                )
-        })
-    {
-        return unsupported("literal call argument is not a whole immutable byte view");
+    if !argument.path.is_empty() {
+        return unsupported("literal call argument is not a whole byte carrier");
     }
     let qualifications = parameter_qualifications
         .iter()
         .map(|domain| lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type))
         .collect::<Result<Vec<_>, _>>()?;
-    let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
-    // The temporary roster also holds constructor and join places; only its
-    // literals share the dense literal ordinal namespace.
-    let declaration_ordinal =
-        crate::emission::next_byte_sequence_literal_ordinal(&catalogs.temporary_places)?;
-    catalogs.temporary_places.push(StructuralPlaceDeclaration {
-        id: destination,
-        kind: StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal,
-            structural_type,
-        },
-    });
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Unit,
-        kind: OperationKind::EstablishByteSequenceLiteral {
-            destination,
-            bytes: bytes.to_vec(),
-            // The callee's required parameter domains are the memberships
-            // checking already discharged for this literal occurrence; the
-            // establishment carries them as the argument's qualification
-            // evidence.
-            qualifications,
-        },
-    });
-    Ok(destination)
+    let declaration = crate::emission::structural_byte_sequence_store::emit_call_literal(
+        bytes,
+        structural_type,
+        argument.access,
+        qualifications,
+        &catalogs.structural_types,
+        &mut catalogs.temporary_places,
+        &mut catalogs.next_place,
+        next_value,
+        &mut catalogs.scalar_calls.next_call_obligation,
+        operations,
+    )?;
+    Ok(declaration.id)
 }

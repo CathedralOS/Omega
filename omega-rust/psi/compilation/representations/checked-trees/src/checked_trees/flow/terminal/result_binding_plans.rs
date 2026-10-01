@@ -59,6 +59,12 @@ pub struct CheckedByteSequenceValuePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),
+    /// Read the current live bytes of one exact readable bounded parameter.
+    /// Capacity is its carrier bound, not the observed content length.
+    WholeParameter {
+        parameter_position: u32,
+        capacity: u64,
+    },
     Field {
         parameter_position: u32,
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,

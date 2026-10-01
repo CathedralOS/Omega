@@ -293,11 +293,13 @@ pub(in crate::validation) fn validate_structural_argument(
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
                             || boundary_byte_view_call)
                             && argument.path.is_empty()
-                            && argument.access == StructuralAccess::SharedBorrow
+                            && (argument.access == StructuralAccess::SharedBorrow
+                                || (ordinary_call && argument.access == StructuralAccess::Owned))
                             && crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place).is_some() =>
                     {
                         // An owned bounded byte local is a concatenation's
-                        // established backing. It lends its live bytes shared;
+                        // established backing. An ordinary call may receive
+                        // its whole unrestricted owned value or a shared loan;
                         // current predicates replay below without changing the
                         // source's owned carrier or reviving initializer facts.
                         let result = crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
@@ -802,8 +804,8 @@ pub(in crate::validation) fn validate_structural_argument(
     Ok(())
 }
 
-/// A whole established byte local lends either its exact bounded carrier or a
-/// shared byte view. The source keeps its owned identity and live extent;
+/// A whole established byte local supplies its exact owned carrier, or lends
+/// that carrier/a shared byte view. The source keeps its identity and live extent;
 /// current predicates, not stale initializer octets, supply formal membership.
 fn owned_bounded_owner_presentation(
     module: &TerminalModule,
@@ -812,8 +814,11 @@ fn owned_bounded_owner_presentation(
     expected: &StructuralParameterDeclaration,
 ) -> bool {
     if !argument.path.is_empty()
-        || argument.access != StructuralAccess::SharedBorrow
-        || expected.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::Owned
+        )
+        || expected.access != argument.access
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || expected.is_self
         || !expected.projected_qualifications.is_empty()
@@ -845,7 +850,7 @@ fn owned_bounded_owner_presentation(
                     terminal_psi::ByteSequenceCarrier::BorrowedView {
                         access: None | Some(StructuralAccess::SharedBorrow),
                     },
-                ) => true,
+                ) => argument.access == StructuralAccess::SharedBorrow,
                 _ => false,
             }
     });

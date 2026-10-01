@@ -429,10 +429,25 @@ pub fn byte_sequence_source_predicates(
                         && parameter.position == position
                         && parameter.is_self == is_self
                 })?;
-                if !matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) {
+                // A by-value bounded formal carries its declared invariants
+                // just as its borrowed counterpart does. Owning a view does
+                // not confer authority over the view's backing storage.
+                let owned_buffer = parameter.access == StructuralAccess::Owned
+                    && module.structural_types.iter().any(|row| {
+                        row.id == parameter.structural_type
+                            && matches!(
+                                row.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    });
+                if !owned_buffer
+                    && !matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                {
                     return None;
                 }
                 byte_parameter_predicates(module, parameter)

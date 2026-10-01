@@ -18,7 +18,7 @@ use terminal_semantics::{
 
 use crate::ModuleError;
 
-pub(super) fn length_equation(
+pub(super) fn length_fact(
     module: &TerminalModule,
     machine: &TerminalMachine,
     current: &Operation,
@@ -36,6 +36,44 @@ pub(super) fn length_equation(
     else {
         return Ok(None);
     };
+    if let StructuralPlaceKind::Parameter { position, is_self } = place_kind
+        && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
+            parameter.place == *source
+                && parameter.position == position
+                && parameter.is_self == is_self
+        })
+        && let Some(capacity) =
+            module
+                .structural_types
+                .iter()
+                .find_map(|declaration| match declaration.shape {
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                        capacity,
+                    }) if declaration.id == parameter.structural_type => Some(capacity),
+                    _ => None,
+                })
+        && let Some(result) = current.result.scalar()
+    {
+        // Validation binds this exact readable length operation to the formal.
+        // Capacity constrains the observed SSA snapshot, not its exact length
+        // and not the owner's contents after a later mutation.
+        let integer =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        let capacity = ScalarTerm::integer(
+            integer,
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+        )
+        .map_err(|error| {
+            ModuleError::OperationSemanticSchema(
+                terminal_semantics::OperationSemanticError::InvalidProposition(error),
+            )
+        })?;
+        return Ok(Some(Proposition::LessOrEqual(
+            ScalarTerm::value(result.id, result.scalar_type),
+            capacity,
+        )));
+    }
     if matches!(place_kind, StructuralPlaceKind::ByteSequenceLiteral { .. }) {
         let Some(producer) = machine
             .blocks

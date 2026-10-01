@@ -28,6 +28,28 @@ pub(super) fn validate(
     let signature = authored::target_signature(checked, caller_machine, authored.source_target)?;
     let positions = structural_positions(checked, &signature, arguments.len())?;
     for (position, argument) in positions.into_iter().zip(arguments) {
+        let formal = signature
+            .parameters
+            .get(position as usize)
+            .ok_or(LoweringError::Unsupported("literal call formal is absent"))?;
+        // Peel constraints, never references: a referenced bounded buffer is
+        // still a loan and cannot authorize constructing an owned argument.
+        let formal_carrier =
+            crate::unit::attached_unit::structural_carrier_type(checked, formal.type_reference)?;
+        let owned_literal = argument.access == CheckedStructuralAccess::Owned
+            && matches!(
+                checked.type_reference_table.type_reference(formal_carrier),
+                checked_trees::types::TypeReferenceNode::FixedArray { .. }
+            )
+            && validation::bounded_byte_buffer_capacity(&checked.typed, formal.type_reference)
+                .is_some_and(|capacity| {
+                    argument
+                        .byte_sequence_literal()
+                        .is_some_and(|bytes| bytes.len() <= capacity)
+                })
+            && checked.type_multiplicity(formal.type_reference)
+                == language_semantics::Multiplicity::Unrestricted
+            && checked.normalized_type_identity(formal_carrier).as_str() == argument.type_identity;
         let source = authored
             .structural_arguments
             .iter()
@@ -37,7 +59,8 @@ pub(super) fn validate(
             (Some(bytes), Some(ExpressionNode::String(source)))
                 if bytes == source.as_ref()
                     && argument.path.is_empty()
-                    && argument.access == CheckedStructuralAccess::SharedBorrow => {}
+                    && (argument.access == CheckedStructuralAccess::SharedBorrow
+                        || owned_literal) => {}
             (Some(_), _) | (_, Some(ExpressionNode::String(_))) => {
                 return unsupported(
                     "literal call argument differs from its authored bytes or access",

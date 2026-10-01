@@ -384,7 +384,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a byte-sequence operation or structural byte-sequence field whose validated extent is known, including a dominating byte length observation of a view established from an exact fixed-u8 array whose element type and readable backing are independently validated",
-    conclusion: "the exact length equation, the declaration-derived upper bound on a bounded-owned field length snapshot, and the capacity obligation for owned concatenation or structural byte-field replacement",
+    conclusion: "the exact length equation, the declaration-derived upper bound on a bounded-owned field or whole formal length snapshot (never equality with capacity), and the capacity obligation for owned concatenation or structural byte-field replacement",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
