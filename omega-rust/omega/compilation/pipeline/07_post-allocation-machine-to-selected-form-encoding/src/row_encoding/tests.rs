@@ -118,13 +118,29 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
         panic!("ordinary materialization must own bytes")
     };
     assert_eq!(bytes, &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]);
-    crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+    crate::validation::row::validate(
+        target,
+        &selected_function(),
+        &selected,
+        &machine,
+        &physical,
+        &row,
+    )
+    .unwrap();
     let mut changed = row.clone();
     changed.machine_disposition = SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
         consumer: SelectedInstructionId(2),
     };
     assert!(
-        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+        crate::validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        )
+        .is_err()
     );
     let mut changed = row;
     let SelectedFormEncodingState::Encoded { bytes, .. } = &mut changed.state else {
@@ -132,7 +148,57 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
     };
     bytes[0] ^= 1;
     assert!(
-        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+        crate::validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
+    let (physical, mut selected, machine) = fixture();
+    let target = target::NativeTarget::linux_x64();
+    let ordinary = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
+    selected.kind = SelectedInstructionKind::NormalizedForeignCall {
+        boundary: semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
+        ordinal: 0,
+    };
+    selected.constraint = isa_x86_64::x86_64_linux_system_call_keys()[0];
+    assert!(
+        encode_row(
+            target,
+            &selected,
+            &machine,
+            &physical,
+            &selected_function(),
+            None
+        )
+        .is_err()
+    );
+    assert!(
+        crate::validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &ordinary,
+        )
+        .is_err()
     );
 }
 
@@ -173,7 +239,15 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
     let mut changed = row;
     changed.address = unrouted;
     assert!(
-        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+        crate::validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        )
+        .is_err()
     );
 }
 
@@ -215,10 +289,26 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
         row.state,
         SelectedFormEncodingState::DeferredControl { .. }
     ));
-    crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+    crate::validation::row::validate(
+        target,
+        &selected_function(),
+        &selected,
+        &machine,
+        &physical,
+        &row,
+    )
+    .unwrap();
     let mut changed = row;
     changed.address = unrouted;
     assert!(
-        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+        crate::validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        )
+        .is_err()
     );
 }

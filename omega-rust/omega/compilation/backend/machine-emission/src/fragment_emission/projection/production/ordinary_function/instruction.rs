@@ -140,6 +140,21 @@ fn translate_foreign_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
 ) -> Result<Option<FunctionFragmentNormalizedForeignCallFixup>, ResolvedFragmentEmissionError> {
+    // Supervisor entries were decoded completely before layout. They keep the
+    // ordinary foreign-call provenance, but must not manufacture an import field.
+    if matches!(
+        instruction.kind,
+        SelectedInstructionKind::NormalizedForeignCall { .. }
+    ) && instruction.constraint.family == register_model::RegisterConstraintFamily::SystemCall
+    {
+        if row.normalized_foreign_call_fixup.is_some()
+            || row.internal_machine_fixup.is_some()
+            || row.branch.is_some()
+        {
+            return Err(ResolvedFragmentEmissionError::RootMismatch);
+        }
+        return Ok(None);
+    }
     let Some(fixup) = row.normalized_foreign_call_fixup.clone() else {
         if matches!(
             instruction.kind,
@@ -262,6 +277,34 @@ mod tests {
             clobbers: Vec::new(),
             provenance: SelectedInstructionProvenance::default(),
         }
+    }
+
+    #[test]
+    fn system_call_projection_has_no_import_fixup_but_imports_still_require_one() {
+        let mut instruction = selected_call(MachineId::new(29).unwrap());
+        instruction.kind = SelectedInstructionKind::NormalizedForeignCall {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
+            ordinal: 0,
+        };
+        instruction.constraint = isa_x86_64::x86_64_linux_system_call_keys()[0];
+        let row = ResolvedSelectedFormRow {
+            instruction: instruction.id,
+            alternative: MachineAlternativeKey {
+                family: MachineAlternativeFamily::NormalizedForeignCall,
+                variant: 0,
+            },
+            offset: 37,
+            bytes: Vec::new(),
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+        };
+        assert_eq!(
+            super::translate_foreign_fixup(&row, &instruction).unwrap(),
+            None
+        );
+        instruction.constraint.family = RegisterConstraintFamily::Call;
+        assert!(super::translate_foreign_fixup(&row, &instruction).is_err());
     }
 
     fn row(bytes: Vec<u8>, fixup: SelectedFormInternalMachineFixup) -> ResolvedSelectedFormRow {

@@ -38,6 +38,7 @@ mod normalized_foreign_call;
 mod request_validation;
 pub(crate) mod saturating_forms;
 mod scalar_call;
+pub(crate) mod system_call;
 #[cfg(test)]
 mod tests;
 pub(crate) mod trapping_forms;

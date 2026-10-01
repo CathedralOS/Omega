@@ -101,6 +101,9 @@ pub use selected_form_encoding::hosted_read_byte::{
     validate_aarch64_selected_hosted_read_byte_form,
 };
 pub use selected_form_encoding::hosted_write_byte::decode_aarch64_selected_hosted_write_byte_i32;
+pub use selected_form_encoding::system_call::{
+    encode_aarch64_selected_system_call_form, validate_aarch64_selected_system_call_form,
+};
 pub use selected_form_encoding::{
     AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
     AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,

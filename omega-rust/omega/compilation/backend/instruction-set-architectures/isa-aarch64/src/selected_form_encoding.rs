@@ -32,6 +32,7 @@ mod movn_materialization;
 mod normalized_foreign_call;
 mod scalar_call;
 mod selected_forms;
+pub(crate) mod system_call;
 #[cfg(test)]
 mod tests;
 

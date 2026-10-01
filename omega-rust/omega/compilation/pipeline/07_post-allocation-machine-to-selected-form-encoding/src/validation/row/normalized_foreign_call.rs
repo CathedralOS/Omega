@@ -22,7 +22,9 @@ use machine_code::{
     SelectedFormNormalizedForeignCallFixupState,
 };
 
-/// Independently validate one unresolved normalized-foreign-call row. The
+/// Independently validate the retained entry mechanism and its bytes. Kernel
+/// entries must decode the selected roster's number without any import fixup.
+/// For an unresolved normalized-foreign-call row, the
 /// validator re-derives the canonical template from the machine row and the
 /// kind's `{boundary, ordinal}` binding; a substituted boundary, ordinal,
 /// byte, fixup, or effect cannot self-certify. Each callback entry in the
@@ -30,12 +32,87 @@ use machine_code::{
 /// against the constraint row's declared shape.
 pub(super) fn validate(
     target: NativeTarget,
+    selected_function: &selected_instructions::SelectedFunction,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     state: &SelectedFormEncodingState,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let record = selected_function
+        .normalized_foreign_calls
+        .get(ordinal as usize)
+        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+    if record.instruction != instruction
+        || record.call.boundary != boundary
+        || record.call.binding.native_target() != Some(target)
+        || !record.call.binding.has_valid_entry_mechanism()
+    {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    if let Some(binding) = record.call.binding.system_call() {
+        let SelectedFormEncodingState::Encoded { bytes, footprint } = state else {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        };
+        if !record.call.callbacks.is_empty() {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let views = operand_views(machine);
+        let accesses = machine
+            .operands
+            .iter()
+            .map(|operand| operand.access)
+            .collect::<Vec<_>>();
+        let decoded = match target.architecture {
+            Architecture::X86_64 => {
+                let validated = isa_x86_64::validate_x86_64_selected_system_call_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                    binding.number,
+                    bytes,
+                )
+                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                let footprint = validated.footprint();
+                decoded_footprint(
+                    &footprint.register_reads,
+                    &footprint.register_writes,
+                    &footprint.encoded,
+                )
+            }
+            Architecture::Aarch64 => {
+                let validated = isa_aarch64::validate_aarch64_selected_system_call_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                    binding.number,
+                    bytes,
+                )
+                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                let footprint = validated.footprint();
+                decoded_footprint(
+                    &footprint.register_reads,
+                    &footprint.register_writes,
+                    &footprint.encoded,
+                )
+            }
+        };
+        validate_machine_footprint(instruction, machine, &decoded)?;
+        validate_size(instruction, machine.alternative.size, bytes.len())?;
+        if footprint.as_ref() != &decoded {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        return Ok(());
+    }
     let SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
         bytes,
         footprint,

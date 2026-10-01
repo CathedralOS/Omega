@@ -839,28 +839,60 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
 }
 
 #[test]
-fn system_call_transport_does_not_select_an_import_instruction() {
+fn system_call_transport_selects_supervisor_rows_without_floating_control_envelopes() {
     use target_operations::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
     for profile in [
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxArm64,
     ] {
-        for argument_count in [0, 1] {
+        for (argument_count, returns_value) in
+            [(0, false), (0, true), (1, false), (4, true), (6, true)]
+        {
             let (mut source, execution) = scalar_fixture();
-            if argument_count == 0 {
-                source.boundary_machines[0].scalar_parameters.clear();
-                source.boundary_machines[0].parameter_order.clear();
-                let AbstractOperation::BoundaryCall { arguments, .. } =
-                    &mut source.functions[0].operations[1]
+            let scalar_type = source.boundary_machines[0].scalar_parameters[0];
+            source.boundary_machines[0].scalar_parameters = vec![scalar_type; argument_count];
+            source.boundary_machines[0].parameter_order =
+                vec![terminal_psi::BoundaryParameterKind::Scalar; argument_count];
+            if returns_value {
+                source.boundary_machines[0].result =
+                    terminal_psi::BoundaryMachineResult::Scalar(scalar_type);
+            }
+            {
+                let AbstractOperation::BoundaryCall {
+                    arguments, result, ..
+                } = &mut source.functions[0].operations[1]
                 else {
                     panic!("boundary call");
                 };
-                arguments.clear();
+                *arguments = vec![ValueId::new(5).unwrap(); argument_count];
+                if returns_value {
+                    *result = AbstractBoundaryResult::Scalar(AbstractResult {
+                        value: ValueId::new(9).unwrap(),
+                        scalar_type,
+                    });
+                }
+            }
+            if returns_value && argument_count != 0 {
+                source.functions[0].operations.insert(
+                    2,
+                    AbstractOperation::BoundaryCall {
+                        psi_operation: OperationId::new(8).unwrap(),
+                        result: AbstractBoundaryResult::Scalar(AbstractResult {
+                            value: ValueId::new(10).unwrap(),
+                            scalar_type,
+                        }),
+                        boundary: BoundaryMachineId::new(1).unwrap(),
+                        arguments: vec![ValueId::new(9).unwrap(); argument_count],
+                        structural_arguments: Vec::new(),
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                );
             }
             let native = profile.native_target();
             let signature = calling_conventions::CallSignature {
                 parameters: vec![calling_conventions::ValueShape::integer(4, 4); argument_count],
-                result: None,
+                result: returns_value.then_some(calling_conventions::ValueShape::integer(4, 4)),
             };
             let binding = NormalizedForeignCallBinding {
                 boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
@@ -881,11 +913,98 @@ fn system_call_transport_does_not_select_an_import_instruction() {
                 ),
             };
             let target = lower(&source, native, &execution, binding);
+            let unit = seed(&source);
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = crate::select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let function = &selected.plan().functions[0];
+            for call in &function.normalized_foreign_calls {
+                let instruction = function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .find(|instruction| instruction.id == call.instruction)
+                    .unwrap();
+                assert_eq!(
+                    instruction.constraint.family,
+                    register_model::RegisterConstraintFamily::SystemCall
+                );
+                assert_eq!(
+                    instruction.operands.len(),
+                    argument_count + usize::from(returns_value)
+                );
+            }
             assert!(
-                matches!(legalize_target_operations(&target, &source, &seed(&source)),
-                Err(crate::LegalizationError::UnsupportedSystemCallSelection { boundary }) if boundary == BoundaryMachineId::new(1).unwrap()
-                )
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .all(|instruction| {
+                        !matches!(instruction.kind,
+                    selected_instructions::SelectedInstructionKind::SaveFloatingControl { .. }
+                    | selected_instructions::SelectedInstructionKind::RestoreFloatingControl { .. })
+                    })
             );
+            assert!(function.local_storage_slots.iter().all(|slot| {
+                !matches!(
+                    slot.id,
+                    selected_instructions::LocalStorageSlotId::Boundary { .. }
+                )
+            }));
+            for mutation in 0..3 {
+                let mut forged = selected.plan().clone();
+                let function = &mut forged.functions[0];
+                let call = &mut function.normalized_foreign_calls[0];
+                if mutation == 0 {
+                    let NormalizedForeignCallMechanism::SystemCall(binding) =
+                        &mut call.call.binding.mechanism
+                    else {
+                        panic!("kernel binding");
+                    };
+                    binding.number += 1;
+                } else {
+                    let instruction = function
+                        .blocks
+                        .iter_mut()
+                        .flat_map(|block| &mut block.instructions)
+                        .find(|instruction| instruction.id == call.instruction)
+                        .unwrap();
+                    if mutation == 1 {
+                        instruction.clobbers.clear();
+                    } else {
+                        instruction.constraint.family =
+                            register_model::RegisterConstraintFamily::Call;
+                    }
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        forged,
+                    )
+                    .is_err(),
+                    "accepted mutation {mutation} on {profile:?}"
+                );
+            }
         }
     }
 }

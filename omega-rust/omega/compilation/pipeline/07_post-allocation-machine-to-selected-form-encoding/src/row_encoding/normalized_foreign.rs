@@ -20,8 +20,9 @@ use machine_code::{
     SelectedFormNormalizedForeignCallFixupState,
 };
 
-/// Encode one normalized foreign call row into the canonical unresolved
-/// import-field template. The fixup carries the selected `{boundary,
+/// Encode the selected entry mechanism. Kernel entries materialize the exact
+/// retained number and are fully encoded here; imports remain unresolved.
+/// The import fixup carries the selected `{boundary,
 /// ordinal}` roster binding; the byte field stays a canonical zero/immediate
 /// placeholder until object construction names the import symbol. The
 /// evaluated callback roster on the selected function supplies each private
@@ -35,6 +36,20 @@ pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
 ) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let record = selected_function
+        .normalized_foreign_calls
+        .get(ordinal as usize)
+        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+    if record.instruction != instruction
+        || record.call.boundary != boundary
+        || record.call.binding.native_target() != Some(target)
+        || !record.call.binding.has_valid_entry_mechanism()
+    {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
     let views = machine
         .operands
         .iter()
@@ -45,6 +60,58 @@ pub(super) fn encode(
         .iter()
         .map(|operand| operand.access)
         .collect::<Vec<_>>();
+    if let Some(binding) = record.call.binding.system_call() {
+        if !record.call.callbacks.is_empty() {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let (bytes, effects) = match target.architecture {
+            Architecture::X86_64 => {
+                let encoded = isa_x86_64::encode_x86_64_selected_system_call_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                    binding.number,
+                )
+                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                (
+                    encoded.bytes().to_vec(),
+                    encoded.footprint().encoded.clone(),
+                )
+            }
+            Architecture::Aarch64 => {
+                let encoded = isa_aarch64::encode_aarch64_selected_system_call_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                    binding.number,
+                )
+                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+                (
+                    encoded.bytes().to_vec(),
+                    encoded.footprint().encoded.clone(),
+                )
+            }
+        };
+        let footprint = decoded_footprint(machine, &effects)?;
+        validate_operand_footprint(
+            instruction,
+            machine,
+            &effects,
+            &footprint.register_reads,
+            &footprint.register_writes,
+        )?;
+        validate_size(instruction, machine.alternative.size, bytes.len())?;
+        return Ok(SelectedFormEncodingState::Encoded {
+            bytes,
+            footprint: Box::new(footprint),
+        });
+    }
     let destinations = callback_destinations(selected_function, instruction, kind)?;
     let (bytes, effects, fixup) = match target.architecture {
         Architecture::X86_64 => {

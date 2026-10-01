@@ -50,7 +50,7 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
     .unwrap();
     assert!(matches!(
         validation::row::validate(
-            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_x64(), &selected_function(),
             &selected,
             &mutated,
             &physical,
@@ -89,7 +89,7 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
     .unwrap();
     assert!(matches!(
         validation::row::validate(
-            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_x64(), &selected_function(),
             &selected,
             &mutated,
             &physical,
@@ -139,7 +139,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         )
         .unwrap();
         assert!(matches!(
-            validation::row::validate(target, &selected, &mutated, &physical, &row),
+            validation::row::validate(target, &selected_function(), &selected, &mutated, &physical, &row),
             Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -159,7 +159,15 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         None,
     )
     .unwrap();
-    validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+    validation::row::validate(
+        target,
+        &selected_function(),
+        &selected,
+        &machine,
+        &physical,
+        &row,
+    )
+    .unwrap();
 }
 
 /// The stored row footprint is a claim, not authority: mutating it after
@@ -182,7 +190,14 @@ fn stored_footprint_drift_rejects_in_replay() {
     };
     footprint.register_reads.push(footprint.register_writes[0]);
     assert!(matches!(
-        validation::row::validate(target, &selected, &machine, &physical, &row),
+        validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &row
+        ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
 }
@@ -205,13 +220,27 @@ fn row_header_substitutions_reject_in_replay() {
     let mut changed = row.clone();
     changed.instruction = SelectedInstructionId(77);
     assert!(matches!(
-        validation::row::validate(target, &selected, &machine, &physical, &changed),
+        validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
     let mut changed = row.clone();
     changed.alternative.variant = 7;
     assert!(matches!(
-        validation::row::validate(target, &selected, &machine, &physical, &changed),
+        validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &changed
+        ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
 }
@@ -247,7 +276,14 @@ fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
     ));
     row.state = ordinary_row.state;
     assert!(matches!(
-        validation::row::validate(target, &selected, &machine, &physical, &row),
+        validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &row
+        ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
 }

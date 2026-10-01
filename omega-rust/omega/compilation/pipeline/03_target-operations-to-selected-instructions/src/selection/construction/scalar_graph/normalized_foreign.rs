@@ -54,32 +54,37 @@ pub(super) fn emit(
     // the counterparty's register clobbers. Save before any argument transport;
     // restore before interpreting its result. Both remain ordinary selected
     // instructions so allocation and byte replay see their complete effects.
-    let saved_controls = LocalStorageSlotId::Boundary {
+    // Only returning user-space counterparties can change floating controls.
+    // Supervisor entries retain the same argument/result sequence without a
+    // private floating-control home or save/restore instructions.
+    let saved_controls = call.binding.import().map(|_| LocalStorageSlotId::Boundary {
         operation: operation.operation,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: saved_controls,
-            byte_size: 8,
-            alignment: 8,
-        });
-    builder.emit(
-        SelectedInstructionKind::SaveFloatingControl {
-            slot: saved_controls,
-        },
+    });
+    if let Some(saved_controls) = saved_controls {
         builder
-            .constraints
-            .keys
-            .save_floating_control
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[],
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            ..Default::default()
-        },
-    )?;
+            .transport
+            .local_slots
+            .push(SelectedLocalStorageSlot {
+                id: saved_controls,
+                byte_size: 8,
+                alignment: 8,
+            });
+        builder.emit(
+            SelectedInstructionKind::SaveFloatingControl {
+                slot: saved_controls,
+            },
+            builder
+                .constraints
+                .keys
+                .save_floating_control
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[],
+            SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                ..Default::default()
+            },
+        )?;
+    }
     // Durable scalars retain their bits in GPR storage. Transfer floating
     // arguments into short ABI-bank homes only at the call boundary; stack
     // arguments store those same bits directly into their exact-width slots.
@@ -272,21 +277,23 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
-    builder.emit(
-        SelectedInstructionKind::RestoreFloatingControl {
-            slot: saved_controls,
-        },
-        builder
-            .constraints
-            .keys
-            .restore_floating_control
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[],
-        SelectedInstructionProvenance {
-            operations: vec![operation.operation],
-            ..Default::default()
-        },
-    )?;
+    if let Some(saved_controls) = saved_controls {
+        builder.emit(
+            SelectedInstructionKind::RestoreFloatingControl {
+                slot: saved_controls,
+            },
+            builder
+                .constraints
+                .keys
+                .restore_floating_control
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[],
+            SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                ..Default::default()
+            },
+        )?;
+    }
     // After restoring machine controls, retain the exact result bits in the
     // ordinary scalar home. Integer and Boolean carriers normalize as before.
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
