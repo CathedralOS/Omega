@@ -264,6 +264,7 @@ pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @480
 pass/collections/runtime_argmax_index_exit built 750ms exit:70
 pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2178def922
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
+pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit:70 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit rejected 922ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))

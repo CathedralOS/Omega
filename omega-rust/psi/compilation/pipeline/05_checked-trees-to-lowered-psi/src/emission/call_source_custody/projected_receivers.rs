@@ -177,6 +177,13 @@ fn resolve_source(
                         checked.expression_table.expression(indexed.index),
                         ExpressionNode::Integer(_) | ExpressionNode::Range(_)
                     )
+                    // The checker's place facts fold a constant expression
+                    // (`cells[3 - 1]`) to its element; a constant local's
+                    // name stays the statement's runtime selector.
+                    && checked
+                        .expression_table
+                        .constant_integer_value(indexed.index)
+                        .is_none()
                     && let Some(depth) = assignment_selector_depth(
                         checked,
                         state,
@@ -330,17 +337,8 @@ fn resolve_source(
             ExpressionNode::Indexed(indexed)
                 if !matches!(
                     checked.expression_table.expression(indexed.index),
-                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-                ) && !matches!(
-                    checked.expression_table.expression(indexed.index),
-                    ExpressionNode::Name(name)
-                        if crate::expression_preparation::source_custody::structural_places::constant_local_index(
-                            checked,
-                            state,
-                            name.symbol,
-                        )
-                        .is_some()
-                ) =>
+                    ExpressionNode::Range(_)
+                ) && fixed_index(checked, state, indexed.index).is_none() =>
             {
                 let selector = crate::expression_preparation::source_custody::structural_places::field_selector(
                     checked,
@@ -389,25 +387,11 @@ fn resolve_source(
                 cursor = indexed.collection;
             }
             ExpressionNode::Indexed(indexed) => {
-                // An immutable local scalar bound to a constant folds the
-                // same way the checker folded it at admission; every other
-                // non-literal shape took a runtime-selector arm above.
-                let index = match checked.expression_table.expression(indexed.index) {
-                    ExpressionNode::Integer(index) => index
-                        .value_bignum()
-                        .and_then(|value| value.to_u64()),
-                    ExpressionNode::Name(name) => {
-                        crate::expression_preparation::source_custody::structural_places::constant_local_index(
-                            checked,
-                            state,
-                            name.symbol,
-                        )
-                    }
-                    _ => None,
-                }
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver requires a literal fixed index",
-                ))?;
+                // Every selector `fixed_index` does not fold took a
+                // runtime-selector arm above.
+                let index = fixed_index(checked, state, indexed.index).ok_or(
+                    LoweringError::Unsupported("projected receiver requires a literal fixed index"),
+                )?;
                 if !validation::place_has_builtin_coordinates(
                     &checked.typed,
                     machine,
@@ -581,6 +565,31 @@ fn resolve_source(
         },
         erased_alias,
     })
+}
+
+/// The element ordinal a fixed selector denotes: an integer literal, an
+/// immutable local bound to a constant, or a constant integer expression such
+/// as `3 - 1`. The checker's place facts fold that last form the same way, so
+/// the checked path names `FixedIndex(2)` rather than a runtime selector.
+fn fixed_index(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    index: ExpressionHandle,
+) -> Option<u64> {
+    match checked.expression_table.expression(index) {
+        ExpressionNode::Integer(index) => index.value_bignum().and_then(|value| value.to_u64()),
+        ExpressionNode::Name(name) => {
+            crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                checked,
+                state,
+                name.symbol,
+            )
+        }
+        _ => checked
+            .expression_table
+            .constant_integer_value(index)
+            .and_then(|value| u64::try_from(value).ok()),
+    }
 }
 
 /// The `AssignmentIndex` depth of `index` among the selectors of the

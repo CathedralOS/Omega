@@ -57,6 +57,53 @@ fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
 }
 
 #[test]
+fn a_constant_expression_selector_stores_its_folded_element() {
+    // The checker's place facts fold `256 - 1` to element 255, so the store
+    // destination must name that fixed element, not a runtime selector.
+    let checked = checked_source_with_core_service(
+        "data Buffer { bytes: [u8; 256]; }
+        machine Buffer::update(&mut self) -> u8 {
+            self.bytes[256 - 1] = 65;
+            self.bytes[255]
+        }",
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a folded selector stores through its fixed element")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let paths = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::PrimitiveScalarRead { path, .. }
+            | OperationKind::WriteOnlyPrimitiveStore { path, .. } => Some(path),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 2);
+    assert_eq!(paths[0], paths[1]);
+    assert!(matches!(
+        paths[0].as_slice(),
+        [
+            StructuralPathSegment::Field(_),
+            StructuralPathSegment::FixedIndex(255)
+        ]
+    ));
+}
+
+#[test]
 fn source_indexed_primitive_store_and_read_share_serialized_backing() {
     let checked = checked_source_with_core_service(&source("u8", "65"));
     let artifact = terminal_production::TerminalProductionRequest::new(
