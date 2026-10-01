@@ -1,0 +1,49 @@
+// A result-bearing machine fills a record whose members include text views
+// and a fixed array of records, stores each array element whole from a record
+// literal, writes three of those text members back out, and returns 0.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data CellId {
+    case Empty;
+    case A1;
+    case A2;
+}
+
+data Exit {
+    command: &[u8] in Utf8;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    label: &[u8] in Utf8;
+    description: &[u8] in Utf8;
+    exits: [Exit; 2];
+}
+
+data Main {
+    console: Binding<Console>;
+    room: Room;
+}
+
+machine result_code(context: &mut Main) -> i32 reaches Console {
+    context.room.cell = CellId::A1;
+    context.room.label = "A1";
+    context.room.description = "A1: a stone entry.";
+    context.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+    context.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
+
+    context.console.write_line(context.room.label);
+    context.console.write_line(context.room.description);
+    context.console.write_line(context.room.exits[0].command);
+    0
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let result: i32 = result_code(context);
+    context.console.exit_process(result);
+}

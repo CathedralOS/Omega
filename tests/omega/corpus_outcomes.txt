@@ -1260,6 +1260,7 @@ pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
 pass/calls/runtime_std_math_sin_cos_exit rejected 5067ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("Unit graph primitive store has no retained parameter destination"))
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms @2d8ed253669f
+pass/calls/runtime_trailing_state_mut_param_phase_exit checked 970ms @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms @2d8ed253669f
 pass/calls/runtime_value_call_dispatch_results_exit checked 1550ms @2d8ed253669f
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 1412ms @2d8ed253669f
@@ -1321,6 +1322,8 @@ pass/collections/mutable_slice_view_establishment checked 1329ms @2d8ed253669f
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
 pass/collections/policy_array_literal_store_exit checked 1541ms @2d8ed253669f
+pass/collections/record_array_field_access_exit rejected 588ms @765e6c51624f+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`result_code`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/collections/record_array_literal_field_store_exit checked 1646ms @2d8ed253669f
 pass/collections/runtime_argmax_index_exit checked 1390ms @2d8ed253669f
 pass/collections/runtime_case_array_element_write_exit checked 2347ms @2d8ed253669f
@@ -1381,6 +1384,7 @@ pass/control_flow/guarded_jump_field_view_forward rejected 407ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
+pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
 pass/control_flow/guarded_value_transition_roster checked 1554ms @15f38e49aac2+wt
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 1890ms @2d8ed253669f
