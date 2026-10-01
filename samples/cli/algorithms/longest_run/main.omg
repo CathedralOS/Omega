@@ -4,12 +4,12 @@
 // For "aaabbbbccdaa", the longest run is 4 (the "bbbb").
 // Expected exit: 4.
 
-domain [u8]::Utf8
+domain [u8]::Utf8(text)
 requires
-    valid_utf8(self);
-domain [u8; 16]::Utf8
+    valid_utf8(text);
+domain [u8; 16]::Utf8(text)
 requires
-    valid_utf8(self);
+    valid_utf8(text);
 use omega_language_std::console;
 use omega::language::core::binding;
 
