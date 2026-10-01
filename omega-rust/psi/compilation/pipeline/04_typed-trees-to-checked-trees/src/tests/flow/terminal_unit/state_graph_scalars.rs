@@ -493,13 +493,13 @@ fn nested_runtime_selectors_read_in_order_under_the_element_policy() {
     }
 }
 
-/// A member between the two runtime selectors (`self.rows[i].data[k]`) is a
-/// shape checking admits but the nested read does not spell: its inner
-/// array is reached through a field of the selected element, not directly.
-/// It keeps declining, while the directly nested array read is admitted.
+/// A member between the two runtime selectors (`self.rows[i].data[k]`)
+/// reaches its inner array through a field of the selected element. The
+/// nested read spells that member in its element path, so the state graph
+/// admits it exactly as it admits the directly nested `self.a[i][k]`.
 #[test]
-fn a_member_between_runtime_selectors_keeps_declining() {
-    for (read, admitted) in [("self.a[i][k]", true), ("self.rows[i].data[k]", false)] {
+fn a_member_between_runtime_selectors_is_admitted_like_a_direct_nested_read() {
+    for (read, admitted) in [("self.a[i][k]", true), ("self.rows[i].data[k]", true)] {
         let source = format!(
             r#"
             data Row {{ data: [i32 in Wrapping; 2]; }}
