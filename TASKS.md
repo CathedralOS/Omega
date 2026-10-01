@@ -157,6 +157,38 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
+- **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
+  Root a field store at a declared record local whose fields include a
+  borrowed view. `pass/text/runtime_string_stored_suffix_exit`,
+  `pass/text/runtime_local_struct_string_field_concat_exit` and
+  `pass/wire/runtime_wire_utf8_edge_verdicts_exit` all check and then report
+  `the machine's unit plan was omitted at local construction at `structural
+  field store: destination parameter``. The reduction is three lines:
+  `data Room [copy] { label: &[u8] in Utf8; }`, then `let room: Room;` and
+  `room.label = source.label;`.
+  Frontier: instrumented, all three take the same exit in
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/destination.rs`
+  — the `StoreRoots::Parameters` arm finds no parameter plan for the root, and
+  both local fallbacks decline. `borrowed_view_local_root` wants a `&mut`
+  reference-typed local with an initializer and a mutable loan; `owned_local_root`
+  wants an initializer or `zeroed_structural_parts`, which refuses a record
+  carrying a reference field, correctly, since a zeroed view is not a view.
+  The `StoreRoots::RecordLocals` admission is not the missing path either:
+  probing it on the same root gives `(earlier, no_dynamic_index, record_shape,
+  disposition) = (true, true, false, false)`, so `scalar_graph_record_shapes`
+  and `validation::record_local_disposition` both decline a reference-bearing
+  record. So this is a missing establishment route, not a classifier that is
+  narrower than its sibling.
+  The question the route has to answer is what `room` is between its
+  declaration and the store that establishes its view: source validation
+  admits member writes as the ZII construction-by-fill idiom
+  (`validate_assignment_target_handle` leaves them ungated), so the fill is
+  authored, but nothing downstream tracks a record local as partially
+  established. If that needs a language answer rather than an implementation,
+  it belongs in **OWNER_QUESTIONS.md** before the route is built.
+  Acceptance: the three fixtures reach their authored native exits, with the
+  three-line reduction pinned as its own fixture.
+
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
   native execution. Preserve the
