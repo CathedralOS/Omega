@@ -1300,6 +1300,16 @@ the complete product bar; focused successes below do not establish that baseline
   divisor invariant are implemented; preserve these controls on the hosted
   matrix.
 
+  The samples `collections/array_max`, `arithmetic/dot_product` and
+  `algorithms/horner_eval` loop over a shared `&[T; N]` machine parameter.
+  Stage 05 now reads it through its declared extent
+  (`collections/runtime_borrowed_fixed_array_state_reads_exit` exits 70
+  without a loop). In a loop, `unranked_cycles.rs` reports
+  `ControlCycleIneligible { reason: Parameter { index: 0 } }`: its parameter
+  roster admits shared plain records, borrowed byte views, element views and
+  scalars, not a shared fixed array, whose frozen extent and contents serve
+  every arrival the same way.
+
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or
     claim-carrying structural call results, moving claims, content
