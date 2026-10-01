@@ -288,8 +288,7 @@ pub(super) fn build_traced(
         // leave a later effectful assignment without its established referent.
         .take_while(|binding| {
             binding.value == CheckedScalarBindingValue::Expression
-                && binding.destination
-                    == checked_trees::CheckedScalarBindingDestination::Immutable
+                && binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
         })
         // An atomic load or result placeholder is an event, not a pure prefix.
         .take_while(|binding| {

@@ -31,8 +31,8 @@ pub use machine_calls::structural_call_custody::{
     DeclarationPredicateRow, StateScalarContractRow, declaration_facts_carried,
     finite_arrival_parameter, machine_declaration_predicates, reconstruct_structural_call_custody,
     reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
-    structural_claim_path, structural_result_projected_qualifications,
-    state_declaration_predicates, state_finite_predicate, structural_result_qualifications,
+    state_declaration_predicates, state_finite_predicate, structural_claim_path,
+    structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
