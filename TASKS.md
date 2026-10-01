@@ -272,56 +272,6 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **CYCLIC-CANDIDATE-PROOF-SEARCH-COST.** (new-scope) Bound the per-candidate
-  canonical proof search that dominates compiling an unranked cyclic scalar
-  loop. Three samples are blocked on compile time alone, not on any refusal.
-  `samples/cli/systems/wire_protocol` exceeds even `--timeout 900`.
-  `samples/cli/collections/array_max` needs about five minutes and
-  `samples/cli/simulation/cellular_automaton` more than the gate's 300-second
-  default; both meet their documented oracle at `--timeout 900`, so for those
-  two the cost is the whole remaining distance.
-  Frontier: measured with `OMEGA_PROOF_TIMINGS=1` on
-  [pass/collections/cyclic_shared_plain_array_parameter_exit](tests/omega/pass/collections/cyclic_shared_plain_array_parameter_exit/main.omg),
-  a three-state cycle over `&[i32; 3]` that takes **54 seconds**. Three
-  candidate verdict searches account for essentially all of it:
-  `canonical_ms=26108`, `25605` and `22993`, each over **878 to 889 axioms**,
-  each ending `proved=false`. Their relaxed counterparts answer the same goals
-  in `113`, `112` and `96` milliseconds — about 200x less for the same
-  question. The capacities in
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lowering_error.rs`
-  bound discovery work — roster rounds, candidate transport pools — but
-  nothing bounds one candidate's own canonical search, so a failing candidate
-  pays unbounded time before it is dropped.
-  A bounded canonical search is the route the evidence supports, and the
-  margin is large. Aggregating every `OMEGA_PROOF_TIMINGS` search over the
-  `range`, `ranges`, `collections`, `proofs`, `termination` and `text` groups —
-  2017 searches — **every search that succeeded was fast and every slow search
-  failed**: candidate verdicts that proved peak at **129.8ms** (p99 21.9ms,
-  median 3.3ms) even with up to **1054 axioms**, final obligations at 46.2ms,
-  and of the **37 searches over 1000ms, none proved**. Failing candidate
-  verdicts reach 8716ms in that sample and 26108ms on the cyclic fixture. So a
-  cap set anywhere above a few hundred milliseconds of equivalent work drops
-  only searches that were going to fail.
-  The cap must be a WORK bound, not a time bound: a wall-clock cap would make
-  the published module depend on machine speed, and the corpus already pins
-  that the source projection is deterministic
-  (`source_projection_is_deterministic_and_perturbations_fail_closed`). So the
-  task is to find the canonical search's own step or axiom-visit counter and
-  bound that, in the existing `ProofSearchCapacity` style whose decline is the
-  modeled `Incomplete` outcome rather than a disproof, then calibrate it
-  against the measured successful maximum rather than against elapsed time.
-  The two other routes stay available and are weaker: relevance filtering so a
-  cyclic header does not present ~880 axioms to every candidate, and ordering
-  the relaxed producer first for candidate verdicts. The last is not obviously
-  safe — finalization proves the retained roster, so retaining a candidate the
-  canonical producer cannot prove may move the failure rather than remove it.
-  Not caused by `6422c069252`: the same fixture measures 55282ms with that
-  commit's `field_bounds` restatement reverted and 54185ms with it.
-  Acceptance: `wire_protocol`, `cellular_automaton` and `array_max` meet their
-  documented oracles inside the sample gate's 300-second default, and the
-  pinned fixture's recorded millis fall far enough that it stops timing out
-  under the full corpus pool.
-
 - **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
   Root a field store at a declared record local whose fields include a
   borrowed view. `pass/text/runtime_string_stored_suffix_exit`,

@@ -25,9 +25,10 @@ use crate::proofs::nonzero_divisor_certificate::{scope_identity, search_context}
 /// the producer's repeated cost concentrates. `proofs` holds the produced
 /// certificates per goal under one exact `(context, assumptions,
 /// semantic_axioms)` scope and is shared across every index built under that
-/// scope: a produced proof cites the scope's facts by position, so it may be
+/// scope within one search invocation: a produced proof cites the scope's facts by position, so it may be
 /// replayed only under the content-equal scope that produced it — which is
-/// exactly what the shared store's full-content match guarantees.
+/// exactly what the shared store's full-content match guarantees. The search
+/// generation also keeps budget-dependent answers out of later invocations.
 pub(crate) struct DefinitionIndex {
     tables: Rc<RefCell<Tables>>,
     proofs: Rc<RefCell<ScopeProofs>>,
@@ -207,8 +208,8 @@ impl Tables {
 /// Goal-keyed proof answers under one fixed scope. A stored proof cites this
 /// scope's assumptions and semantic axioms by position, so the whole store is
 /// valid only under the `(context, assumptions, semantic_axioms)` that built
-/// it — `shared_proofs` matches all three by full content before handing one
-/// out. `None` entries are the producer's own memo of a computed negative
+/// it — `shared_proofs` matches all three by full content and the invocation
+/// generation before handing one out. `None` entries are the producer's own memo of a computed negative
 /// and the in-progress marker that turns a hypothetical cycle into `None`
 /// rather than recursion.
 struct ScopeProofs {

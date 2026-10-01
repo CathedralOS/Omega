@@ -1393,7 +1393,7 @@ pass/collections/case_array_literal_callee_store_exit checked 1364ms @2d8ed25366
 pass/collections/case_array_literal_field_store_exit checked 1498ms @2d8ed253669f
 pass/collections/case_array_literal_nested_store_exit checked 1327ms @2d8ed253669f
 pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
-pass/collections/cyclic_shared_plain_array_parameter_exit checked 54185ms @93913f8a1223
+pass/collections/cyclic_shared_plain_array_parameter_exit checked 40086ms @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
 pass/collections/element_view_borrow_local checked 1364ms @2d8ed253669f
 pass/collections/element_view_edge_loan checked 1307ms @ca8c127c90c5
