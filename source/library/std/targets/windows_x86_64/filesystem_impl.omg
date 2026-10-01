@@ -130,7 +130,8 @@ invokes
         transition filesystem.w_help_rc == 0 { true -> rd_open(filesystem, path) _ -> rd_err(filesystem, path) }
     }
     state rd_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
-        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        let pattern_len: u64 in Wrapping = filesystem.w_pat_len;
+        Filesystem::w_find_open(filesystem, pattern_len);
         transition filesystem.w_find >= 0 { true -> rd_scan(filesystem, path) _ -> rd_nf(filesystem, path) }
     }
     state rd_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
@@ -175,7 +176,8 @@ reaches FilesystemHost
         transition filesystem.w_help_rc == 0 { true -> rds_open(filesystem, path) _ -> rds_err(filesystem, path) }
     }
     state rds_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
-        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        let pattern_len: u64 in Wrapping = filesystem.w_pat_len;
+        Filesystem::w_find_open(filesystem, pattern_len);
         transition filesystem.w_find >= 0 { true -> rds_scan(filesystem, path) _ -> rds_nf(filesystem, path) }
     }
     state rds_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
@@ -227,7 +229,8 @@ invokes
         transition filesystem.w_help_rc == 0 { true -> rdn_open(filesystem, path) _ -> rdn_err(filesystem, path) }
     }
     state rdn_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
-        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        let pattern_len: u64 in Wrapping = filesystem.w_pat_len;
+        Filesystem::w_find_open(filesystem, pattern_len);
         transition filesystem.w_find >= 0 { true -> rdn_scan(filesystem, path) _ -> rdn_nf(filesystem, path) }
     }
     state rdn_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {

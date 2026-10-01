@@ -415,7 +415,8 @@ reaches FilesystemHost
     // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a no-op
     // for the interpreter's model and rewinds the native cursor.
     filesystem.rd_seek_rc = filesystem.host.seek(dfd, 0, 0);
-    transition filesystem.rd_seek_rc >= 0 { true -> rdef_read(filesystem, dfd) _ -> rdef_err(filesystem, filesystem.rd_seek_rc) }
+    let seek_rc: i64 = filesystem.rd_seek_rc;
+    transition seek_rc >= 0 { true -> rdef_read(filesystem, dfd) _ -> rdef_err(filesystem, seek_rc) }
     state rdef_read(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
         filesystem.rd_off = 0;
         let total: i64 = filesystem.host.read_dir(dfd, &mut filesystem.dir_buf, 512, &mut filesystem.rd_position);
