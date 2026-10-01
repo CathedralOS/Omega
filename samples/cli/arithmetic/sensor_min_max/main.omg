@@ -54,7 +54,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Loop head: fold readings until every element has been visited.
     state step(main: &mut Main) {
-        transition main.i >= 0 && main.i < 6 {
+        transition main.i < 6 {
             true -> body(main)
             _ -> done(main)
         }

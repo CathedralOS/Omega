@@ -35,7 +35,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state step(main: &mut Main) {
-        transition main.i >= 0 && main.i < 2 {
+        transition main.i < 2 {
             true -> add(main)
             _ -> done(main)
         }
