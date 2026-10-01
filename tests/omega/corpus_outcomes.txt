@@ -2123,6 +2123,7 @@ pass/text/local_bounded_byte_indexed_write_exit checked 1159ms @251097c4c144+wt
 pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5
 pass/text/local_bounded_text_scalar_loan_exit checked 4200ms @ca8c127c90c5
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
+pass/text/owned_byte_call_result_field_exit checked 1039ms @5826c9701ec3+wt
 pass/text/runtime_alias_string_write checked 381ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_concat_exit checked 1496ms @2d8ed253669f

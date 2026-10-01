@@ -1,6 +1,9 @@
-use super::{indexed_store_retained, replacement_retained, retained};
+use super::{
+    indexed_store_retained, replacement_footprints_retained, replacement_retained, retained,
+};
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
+    AbstractStructuralCallResult,
 };
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::{
@@ -718,6 +721,134 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
             &target
         ));
     }
+}
+
+#[test]
+fn returned_bounded_owner_publication_uses_inline_payload_offset() {
+    use selected_instructions::{
+        SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
+        SelectedMemoryAccessRole,
+    };
+    use semantic_vocabulary::{ObligationId, StructuralDomainId};
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralOperationResult, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+
+    let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let (mut function, _) = field_fixture(count_type);
+    let destination = function.structural_parameters[0].place;
+    let source = PlaceId::new(2).unwrap();
+    let structural_type = StructuralTypeId::new(2).unwrap();
+    let call_operation = OperationId::new(1).unwrap();
+    let store_operation = OperationId::new(2).unwrap();
+    let length = ValueId::new(1).unwrap();
+    let obligation = ObligationId::new(1).unwrap();
+    let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: source,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: vec![StructuralDomainId::new(1).unwrap()],
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    function.operations = vec![
+        AbstractOperation::CallStructural {
+            psi_operation: call_operation,
+            callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::StructuralByteSequenceFieldStore {
+            psi_operation: store_operation,
+            destination,
+            path: Vec::new(),
+            field: StructuralFieldId::new(1).unwrap(),
+            source,
+            length,
+            obligation,
+        },
+    ];
+    let structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::ReturnedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+            capacity: 16,
+        }),
+    }];
+    let accepted_fact =
+        || optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(b"copy bound");
+    let access = |instruction, place, byte_offset, byte_count, role| SelectedMemoryAccess {
+        instruction: SelectedInstructionId(instruction),
+        origin: SelectedMemoryAccessOrigin::Operation(store_operation),
+        place,
+        byte_offset,
+        byte_count,
+        role,
+    };
+    let accesses = vec![
+        access(
+            0,
+            source,
+            8,
+            0,
+            SelectedMemoryAccessRole::ReadByteSpan {
+                length,
+                obligation,
+                accepted_fact: accepted_fact(),
+            },
+        ),
+        access(
+            0,
+            destination,
+            8,
+            0,
+            SelectedMemoryAccessRole::WriteByteSpan {
+                length,
+                obligation,
+                accepted_fact: accepted_fact(),
+            },
+        ),
+        access(1, destination, 0, 8, SelectedMemoryAccessRole::WritePlace),
+    ];
+    assert!(replacement_footprints_retained(
+        &function,
+        &function.operations[1],
+        &accesses,
+        &structural_types,
+    ));
+
+    let mut descriptor_offset = accesses.clone();
+    descriptor_offset[0].byte_offset = 0;
+    assert!(!replacement_footprints_retained(
+        &function,
+        &function.operations[1],
+        &descriptor_offset,
+        &structural_types,
+    ));
+
+    let borrowed = [StructuralTypeDeclaration {
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+        ..structural_types[0].clone()
+    }];
+    assert!(!replacement_footprints_retained(
+        &function,
+        &function.operations[1],
+        &accesses,
+        &borrowed,
+    ));
 }
 
 #[test]

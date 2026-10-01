@@ -260,7 +260,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::ByteSequenceStore { .. } | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
                     structural_fields::replacement_retained(abstracted, operation, targeted)
-                        && structural_fields::replacement_footprints_retained(abstracted, operation, &selected.memory_accesses)
+                        && structural_fields::replacement_footprints_retained(
+                            abstracted,
+                            operation,
+                            &selected.memory_accesses,
+                            &current.optimized_target().optimized().plan().structural_types,
+                        )
                 }
                 AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
                     structural_fields::retained(abstracted, operation, targeted)

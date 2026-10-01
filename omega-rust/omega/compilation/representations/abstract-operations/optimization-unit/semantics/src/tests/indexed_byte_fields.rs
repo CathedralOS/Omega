@@ -62,7 +62,7 @@ pub(crate) fn indexed_field_with_primitive_sibling_unit() -> PsiOptimizationUnit
     )
 }
 
-fn indexed_field_source_unit(source: &str) -> PsiOptimizationUnit {
+pub(crate) fn indexed_field_source_unit(source: &str) -> PsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();

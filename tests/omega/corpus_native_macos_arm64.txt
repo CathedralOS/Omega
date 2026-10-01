@@ -1021,6 +1021,7 @@ pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c1
 pass/text/local_bounded_text_case_result_loan_exit built 1698ms exit:70 @48008365d839
 pass/text/local_bounded_text_scalar_loan_exit built 6611ms exit:70 @48008365d839
 pass/text/local_record_byte_field_copy_exit built 1021ms exit:70 stdout:match @9484e48a74ff+wt
+pass/text/owned_byte_call_result_field_exit built 1201ms exit:70 @5826c9701ec3+wt
 pass/text/runtime_alias_string_write built 688ms @fb2178def922
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1278ms exit:70
 pass/text/runtime_bounded_carrier_concat_exit built 1302ms exit:70

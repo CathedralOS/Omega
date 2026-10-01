@@ -419,6 +419,7 @@ pub(super) fn replacement_footprints_retained(
     function: &AbstractFunction,
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
     use selected_instructions::{
         SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
@@ -465,11 +466,38 @@ pub(super) fn replacement_footprints_retained(
     else {
         return false;
     };
-    // Owned concatenations use the same inline layout as bounded fields;
-    // borrowed descriptor sources account for their backing from offset zero.
-    let source_byte_offset = if function.operations.iter().any(|operation| {
-        matches!(operation, AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == *source)
-    }) { 8 } else { 0 };
+    // Owned concatenations and ordinary bounded-owner call results use the
+    // same `{live length, inline backing}` layout as bounded fields. Borrowed
+    // descriptor sources account for their external backing from offset zero.
+    let source_byte_offset = if function.operations.iter().any(|operation| match operation {
+        AbstractOperation::EstablishByteSequenceConcatenation { result, .. } => {
+            result.place == *source
+        }
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } => {
+            result.place == *source
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty()
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                })
+        }
+        _ => false,
+    }) {
+        8
+    } else {
+        0
+    };
     read.place == *source
         && read.byte_count == 0
         && read.byte_offset == source_byte_offset
