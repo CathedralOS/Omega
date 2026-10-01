@@ -12,9 +12,15 @@ machine label(short: bool) -> [u8; 16] in Utf8 {
     }
 }
 
+// The ordinary helper and the caller's composed state graph must both retain
+// the exact returned buffer before replacing its destination field.
+machine replace(holder: &mut Holder, short: bool) {
+    holder.text = label(short);
+}
+
 machine Main::main(&mut self) reaches Console {
     self.holder.sibling = 29;
-    self.holder.text = label(false);
+    replace(&mut self.holder, false);
     let longer_matches: bool = self.holder.text == "Branch Room"
         && self.holder.text.len == 11;
     self.holder.text = label(true);
