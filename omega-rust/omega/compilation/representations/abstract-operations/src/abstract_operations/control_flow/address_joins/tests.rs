@@ -403,8 +403,11 @@ fn array_referents_retain_nested_storage_but_cannot_hide_loans_or_cycles() {
         StructuralAccess::SharedBorrow,
         StructuralAccess::MutableBorrow,
     ] {
+        assert!(is_address_join(&parameter(8, access), &types));
         assert!(is_address_join(&parameter(9, access), &types));
+        assert!(!is_address_join(&parameter(10, access), &types));
         assert!(!is_address_join(&parameter(11, access), &types));
+        assert!(!is_address_join(&parameter(12, access), &types));
         assert!(!is_address_join(&parameter(13, access), &types));
     }
 }

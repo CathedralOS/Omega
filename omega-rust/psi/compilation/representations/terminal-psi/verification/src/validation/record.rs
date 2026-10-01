@@ -598,29 +598,6 @@ pub(super) fn owned_byte_source(
     })
 }
 
-pub(super) fn result(
-    machine: &TerminalMachine,
-    source: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::EstablishRecord { .. }
-                    | OperationKind::EstablishZeroedStructural { .. }
-                    | OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
-            )
-        })
-        .filter_map(|operation| operation.result.structural())
-        .find(|result| result.place == source)
-}
-
 /// A validated affine record establishment returns whole: `fields` has already
 /// checked every binding, so reference-free records — plain payloads and
 /// borrowed-view descriptor carriers alike — relocate into the caller.

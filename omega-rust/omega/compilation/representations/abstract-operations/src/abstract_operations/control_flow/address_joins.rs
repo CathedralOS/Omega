@@ -1,7 +1,7 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
 //! Shared joins admit primitive scalars, service binding leaves and plain records
-//! through static projections. Mutable joins admit records, plain sums and binding
+//! through static projections. Mutable joins admit plain aggregates and binding
 //! leaves, whole or statically projected, while transferring the exact incoming
 //! mutable permission. Neither carrier copies the referent.
 //! A shared bounded byte owner loan (`owner_loans`) is also carried as its
@@ -45,6 +45,7 @@ fn is_plain_address_join<'a>(
                         | StructuralTypeShape::FusedServiceBinding
                         | StructuralTypeShape::Sum { .. }
                         | StructuralTypeShape::Mixed { .. }
+                        | StructuralTypeShape::FixedArray { .. }
                 )
             }))
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
