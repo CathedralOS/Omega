@@ -155,6 +155,40 @@ impl ProofSearchDeclines {
     }
 }
 
+/// Fresh obligation identities one optional pass mints above the module's
+/// registered identities, under the `proof_obligation_identities` provision.
+pub(crate) struct FreshObligations {
+    next: u64,
+    minted: u64,
+}
+
+impl FreshObligations {
+    pub(crate) fn above(module: &TerminalModule) -> Result<Self, LoweringError> {
+        Ok(Self {
+            next: terminal_verifier::maximum_registered_obligation_id(module)
+                .map_err(LoweringError::InvalidTerminalModule)?,
+            minted: 0,
+        })
+    }
+
+    /// The next fresh identity, or `None` after recording the decline when
+    /// the provision or the identity space is spent.
+    pub(crate) fn mint(&mut self, declines: &mut ProofSearchDeclines) -> Option<ObligationId> {
+        let capacity = ProofSearchCapacity::TerminalObligationIdentities;
+        let fresh = (self.minted < capacity.limit())
+            .then(|| self.next.checked_add(1))
+            .flatten()
+            .and_then(ObligationId::new);
+        let Some(fresh) = fresh else {
+            declines.record(capacity);
+            return None;
+        };
+        self.next = fresh.get();
+        self.minted += 1;
+        Some(fresh)
+    }
+}
+
 /// Scratch instrumentation for C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT attribution.
 /// Enabled by OMEGA_PROOF_TIMINGS=1; prints to stderr.
 pub(crate) mod proof_timing {

@@ -470,16 +470,30 @@ capacity:
 | 25 | `coverage_request_semantics` | 0 | 0 none | zero |
 | 26 | `request_staging_bytes` | 65,536 | 1 request | first request byte the entry could not stage |
 | 27 | `proof_search_roster_rounds` | 128 | 3 internal row | identity of the obligation left unproved |
-| 28 | `proof_search_candidate_work` | 4,096 | 3 internal row | identity of the obligation left unproved |
+| 28 | `proof_search_candidate_work` | 65,536 | 3 internal row | identity of the obligation left unproved |
 | 29 | `proof_search_cyclic_guarantee_work` | 4,096 | 3 internal row | identity of the obligation left unproved |
+| 30 | `proof_search_result_guarantee_work` | 4,096 | 3 internal row | identity of the obligation left unproved |
+| 31 | `proof_search_divisor_definition_visits` | 128 | 3 internal row | identity of the obligation left unproved |
+| 32 | `proof_search_divisor_search_depth` | 32 | 3 internal row | identity of the obligation left unproved |
+| 33 | `proof_search_divisor_computed_joins` | 8 | 3 internal row | identity of the obligation left unproved |
+| 34 | `proof_obligation_identities` | 65,536 | 3 internal row | identity of the obligation left unproved |
 
-Codes 27–29 are the optional proof-search provisions of the lowering stage.
+Codes 27–34 are the optional proof-search provisions of the lowering stage.
 `proof_search_roster_rounds` bounds the scalar block-invariant pass's
 aggregate whole-module discovery and proof rounds;
 `proof_search_candidate_work` bounds the shared candidate-transport pool the
 pass's field-bound and join producers draw from;
 `proof_search_cyclic_guarantee_work` bounds the cyclic-guarantee
-strengthening pass's separate transport pool. A refusal names the obligation
+strengthening pass's separate transport pool;
+`proof_search_result_guarantee_work` bounds candidate discovery and equation
+transport for optional scalar result relations. The three
+`proof_search_divisor_*` provisions bound one integer certificate search's
+direct-add conjunction derivation: shared definition visits, nested operand
+depth, and add-of-adds certificate joins, each of which nests one bound
+certificate. `proof_obligation_identities` bounds the fresh obligation
+identities one optional pass mints above the module's registered identities
+for its proposals' arrivals and guarantee clauses; reaching the end of the
+nonzero identity space declines the same resource. A refusal names the obligation
 left unproved — an internal row identity — as its coordinate and reports
 the declined draw as `requested`: one past the provisioned limit for a unit
 draw, or the refused amount for a bulk check. A decline is a search bound,
