@@ -1,8 +1,8 @@
-//! A whole local array lent through a borrowed byte or element view.
+//! A local array lent through a borrowed byte window or element view.
 //!
 //! Terminal verification admits one loan of activation-local storage as a
 //! fixed-array view: an unrestricted, unqualified, claim-free plain array
-//! result named with an empty path, presented through the argument's own
+//! result with an independently checked window, presented through the argument's own
 //! shared or exclusive borrow. The call receives a descriptor over the array's
 //! exact extent while the argument keeps naming the producing home; no copy or
 //! descriptor allocation replaces the backing. Parameter windows keep their
@@ -18,8 +18,8 @@ use abstract_operations::{AbstractBoundaryResult, AbstractStructuralCallResult};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
-/// Rejoin a whole local array loan, or `Ok(None)` when the argument is not
-/// one: a projected path, an owned transfer, a non-local root, or a
+/// Rejoin a local array loan, or `Ok(None)` when the argument is not
+/// one: an owned transfer, a non-local root, or a
 /// destination that is no fixed-array view of the home. A local home that is
 /// such a view but fails its custody or placement replay rejects.
 pub(super) fn argument(
@@ -31,12 +31,10 @@ pub(super) fn argument(
     parameter_ordinal: usize,
     plan: &AbstractOperationPlan,
 ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
-    if !semantic.path.is_empty()
-        || !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-    {
+    if !matches!(
+        semantic.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) {
         return Ok(None);
     }
     let Ok((producer, result)) = structural_case::source_result(caller, semantic.place) else {
@@ -127,7 +125,7 @@ pub(super) fn argument(
     Ok(Some(TargetStructuralArgument {
         place: semantic.place,
         access: semantic.access,
-        path: Vec::new(),
+        path: semantic.path.clone(),
         root_structural_type: result.structural_type,
         structural_type: destination.structural_type,
         shape,

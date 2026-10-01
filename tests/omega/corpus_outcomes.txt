@@ -1216,6 +1216,7 @@ pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
+pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 910ms @ba014724095f+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt

@@ -122,22 +122,19 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    // A whole-place shared or exclusive borrow of a produced fixed-array
+    // A shared or exclusive borrow of a produced fixed-array
     // result lends the caller's dense leaf storage in place; the aggregate
     // route rejoins the producing home exactly as a projected borrow does.
-    if semantic.path.is_empty()
-        && matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && plan.structural_types.iter().any(|declaration| {
-            declaration.id == destination_parameter.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::FixedArray { .. }
-                )
-        })
-        && super::structural_case::source_result(caller, semantic.place).is_ok()
+    if matches!(
+        semantic.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && plan.structural_types.iter().any(|declaration| {
+        declaration.id == destination_parameter.structural_type
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+    }) && super::structural_case::source_result(caller, semantic.place).is_ok()
     {
         return super::aggregate_results::call_argument(
             semantic,
@@ -151,12 +148,17 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    // A borrowed projection rooted at a local aggregate result rejoins the
-    // producing home through the same call-argument reconstruction used for
-    // aggregate destinations; the routes below only know entrance parameters,
-    // block parameters, and primitive locals.
+    // A scalar projection of a local aggregate rejoins its producing home.
+    // Dispatch by the callee's carrier: byte/element views belong to their
+    // presentation routes below. Sending every projected local to aggregate
+    // reconstruction creates a callback cycle for those non-aggregate views.
     if !semantic.path.is_empty()
         && super::structural_case::source_result(caller, semantic.place).is_ok()
+        && super::primitive_locals::scalar(
+            &plan.structural_types,
+            destination_parameter.structural_type,
+        )
+        .is_some()
     {
         return super::aggregate_results::call_argument(
             semantic,
@@ -181,7 +183,7 @@ pub(in crate::legalization) fn argument_at(
     )? {
         return Ok(argument);
     }
-    // A whole dominating local array lends its producing home through a
+    // A dominating local array lends its producing home through a
     // borrowed byte or element view: the same presentation an incoming
     // parameter's fixed-array window takes, rejoined to the producer.
     if let Some(argument) = local_array::argument(

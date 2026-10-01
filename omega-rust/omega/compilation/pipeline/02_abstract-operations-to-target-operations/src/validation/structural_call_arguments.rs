@@ -193,31 +193,30 @@ struct Replay<'a> {
 /// The semantic referent declaration bound to one argument place: the root
 /// structural type and the access that declaration grants. Operation
 /// establishments own their storage; caller and block parameters keep their
-/// declared access. `whole_loan` marks an unrestricted, unqualified,
+/// declared access. `local_loan` marks an unrestricted, unqualified,
 /// claim-free operation result: the only local home Terminal verification lets
-/// a call borrow whole as a fixed-array view. `graph_home` marks an aggregate
+/// a call borrow through the exact fixed-array window relation. `graph_home` marks an aggregate
 /// home established in this body: any call argument rooted there takes the
 /// live-graph lowering, never the parameter-roster one.
 struct RootDeclaration {
     structural_type: StructuralTypeId,
     multiplicity: terminal_psi::StructuralMultiplicity,
     access: StructuralAccess,
-    whole_loan: bool,
+    local_loan: bool,
     graph_home: bool,
 }
 
 impl RootDeclaration {
-    /// Present a whole local home through the argument's own borrow for
+    /// Present a local home through the argument's own borrow for
     /// fixed-array window geometry, exactly as Terminal verification presents
-    /// its array-result loan. The home itself stays owned; parameters and
-    /// projected arguments present nothing here.
+    /// its array-result loan. The home itself stays owned; the window relation
+    /// separately checks the projection. Parameters present nothing here.
     fn loan_presentation(
         &self,
         semantic: &StructuralArgument,
         declared: &StructuralParameterDeclaration,
     ) -> Option<StructuralParameterDeclaration> {
-        (self.whole_loan
-            && semantic.path.is_empty()
+        (self.local_loan
             && matches!(
                 semantic.access,
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -3769,7 +3768,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
         };
-        let (place, structural_type, multiplicity, whole_loan, graph_home) = match operation {
+        let (place, structural_type, multiplicity, local_loan, graph_home) = match operation {
             AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
@@ -3809,7 +3808,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             structural_type,
             multiplicity,
             access: StructuralAccess::Owned,
-            whole_loan,
+            local_loan,
             graph_home,
         });
     }
@@ -3822,7 +3821,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
                 access: parameter.access,
-                whole_loan: false,
+                local_loan: false,
                 graph_home: false,
             });
         }
@@ -3832,7 +3831,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
             access: parameter.access,
-            whole_loan: false,
+            local_loan: false,
             graph_home: false,
         });
     }
