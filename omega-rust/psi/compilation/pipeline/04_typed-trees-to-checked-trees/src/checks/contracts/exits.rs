@@ -84,6 +84,26 @@ fn collection_premises_prove_exit(
         .is_some_and(|machine| validation::premises_prove_expression(program, machine, expression))
 }
 
+/// Whether one exit's live facts prove a scalar postcondition: the entry
+/// contexts prove the predicate, or the exit's exact return and live place
+/// values evaluate it. These are the two live-context routes
+/// `check_exit_ensures` offers a Boolean fact; package exit evidence replays
+/// exactly them, never an assumption, entailment or header route.
+pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
+    program: &'program typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    exit_flow: &checked_trees::FlowExitFact,
+    entry_contexts: &[facts::FactContextHandle],
+    fact: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+) -> bool {
+    matches!(
+        fact.payload,
+        facts::FactPayload::ContractBooleanExpression { .. }
+    ) && (semantic_contexts_prove_contract_fact(program, &facts.semantic, entry_contexts, fact)
+        || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
+}
+
 pub(super) fn check_exit_ensures(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,

@@ -1337,17 +1337,23 @@ the complete product bar; focused successes below do not establish that baseline
     qualified results, state/control contracts and compound arithmetic
     guarantees. Ordinary and composed Unit bodies share guarantee publication
     in stage 05's `unit/attached_unit/normal_guarantees.rs`; every clause still
-    needs an independently reconstructed exit proof. At `e181715305f` on macOS
-    ARM64, 50 focused guarantee/source-custody tests pass, but unchanged
-    `collections/runtime_fixed_vec_round_trip_exit` still stops at
-    `scalar guarantee has no exact authored predicate`: replay must preserve
-    every fact in its authored `ensures` clause and compose field arithmetic
-    through the shared scalar semantics. Ordinary package preparation also
-    reports three unresolved contract obligations; no approval substitutes
-    for their exit evidence. Acceptance remains package preparation followed
-    by `omega run tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit/main.omg`
-    with exit 70. Reuse `tests/unit_scalar_result_source/boundary_wrappers/`;
-    preserve transitive contracts and exact entry versions across joins.
+    needs an independently reconstructed exit proof. Fact lists, Exact/Wrapping
+    field arithmetic and fields below `&`/`&mut` parameters now publish and
+    carry package exit evidence, so package preparation completes and
+    `collections/runtime_fixed_vec_round_trip_exit` and
+    `contracts/ensures_{fact_list,wrapping_field_arithmetic,borrowed_parameter_field}_exit`
+    exit 70 natively and interpreted on macOS ARM64. Remaining: a named
+    `&mut` parameter's field after an arithmetic store (`counter.count =
+    counter.count + 1`, or `= start + 1`) fails stage 04's exit check, which
+    proves the same guarantee for `&mut self` and for a constant store, so
+    static-form `fixed_vec` cannot migrate yet; stage 05 has no exit proof for
+    a Wrapping guarantee over a constant store (`self.remaining = 5` with
+    `ensures self.remaining - 1 < 8`), a nonliteral wrapping operand or
+    Saturating field arithmetic (`OperationProofUnavailable`); and
+    `proofs/runtime_inductive_gauss_sum_exit`'s Wrapping result identity now
+    lowers but needs an inductive exit proof. Reuse
+    `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
+    contracts and exact entry versions across joins.
   - Complete package crash-expression projection in
     `review-evidence/src/capture/behavior/crash/expressions.rs`: indexed scalar
     reads, byte lengths and integer casts currently return `None`. Verify

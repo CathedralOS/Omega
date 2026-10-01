@@ -151,3 +151,179 @@ fn exit_membership_cannot_recover_after_an_alias_invalidates_the_subject() {
         "{diagnostics:#?}"
     );
 }
+
+const SCALAR_POST_STATE_SOURCE: &str = r#"
+data Vec { items: [i32; 4]; length: u64 in Wrapping; }
+machine Vec::clear(&mut self) ensures self.length < self.items.len { self.length = 0; }
+machine Vec::push(&mut self, value: i32 in Wrapping)
+requires self.length < self.items.len
+ensures self.length > 0; self.length - 1 < self.items.len
+{
+    let slots: &mut [i32] = self.items.as_mut_slice();
+    let index: u64 in Wrapping = self.length;
+    let raw_value: i32 = value as i32;
+    slots[index] = raw_value;
+    self.length = self.length + 1;
+}
+"#;
+
+#[test]
+fn scalar_post_state_guarantees_close_by_exit_evidence_at_every_exit() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", SCALAR_POST_STATE_SOURCE);
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("post-state field guarantees are checked at normal exits");
+    let review = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("fresh package review replays exact scalar exit evidence");
+    // `clear` and both facts `push` lists stand down: the entailment engine
+    // reads neither post-state storage nor these transition-shaped bodies.
+    // Three open questions, each closed by its own exit evidence rather than
+    // left open or approved.
+    let open = review.projection.contract_entailment_open_obligations();
+    assert_eq!(open.len(), 3, "{open:#?}");
+    assert!(
+        open.iter().all(|obligation| matches!(
+            obligation.reason(),
+            PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage
+                | PackageReviewContractEntailmentOpenReason::UnrecognizedInductiveBody
+        )),
+        "{open:#?}"
+    );
+    assert_eq!(
+        review
+            .projection
+            .contract_entailment_exit_membership_discharges()
+            .len(),
+        3
+    );
+    assert!(
+        review
+            .results
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+    let discharges = review
+        .results
+        .contract_entailment_exit_membership_discharges();
+    assert_eq!(discharges.len(), 3);
+    for discharge in discharges {
+        assert_eq!(
+            discharge.status(),
+            OrdinaryPackageObligationStatus::Discharged
+        );
+        assert_eq!(discharge.covered_exits().len(), 1);
+        assert_eq!(
+            discharge.evidence_row().kind(),
+            PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge
+        );
+    }
+
+    // Recovered rows stay inert questions until fresh reconstruction
+    // reproduces the evidence, and a ledger missing the evidence fails replay.
+    let recovered = decode_ordinary_package_obligation_ledger(
+        &encode_ordinary_package_obligation_ledger(&review.ledger)
+            .expect("encode scalar exit evidence"),
+    )
+    .expect("recover inert scalar exit evidence");
+    validate_ordinary_package_obligation_ledger(&recovered, &checked)
+        .expect("persisted scalar exit evidence rejoins fresh custody");
+    let inert = package_evidence::ledger::ordinary_package_obligation_results_from_projection(
+        &recovered,
+        &review.projection,
+    )
+    .expect("projection-only recovery retains open questions");
+    assert_eq!(inert.open_contract_entailment_obligations().len(), 3);
+    assert!(
+        inert
+            .contract_entailment_exit_membership_discharges()
+            .is_empty()
+    );
+    let rows_without_evidence = review
+        .canonical_rows
+        .iter()
+        .filter(|row| {
+            row.kind() != PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let missing = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked
+            .custody
+            .dependency_closure()
+            .cloned()
+            .expect("package closure"),
+        &rows_without_evidence,
+    )
+    .expect("missing evidence is representable as an inert ledger");
+    validate_ordinary_package_obligation_ledger(&missing, &checked)
+        .expect_err("missing scalar exit evidence must fail exact replay");
+}
+
+#[test]
+fn a_guarantee_its_requires_discharges_gains_no_exit_evidence() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"machine retain(value: u64) -> u64
+requires
+    value >= 1
+ensures
+    value >= 1
+{
+    let retained: u64 = value;
+    retained
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("a restated requirement checks");
+    let review = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("fresh package review replays the assumption discharge");
+    assert_eq!(
+        review
+            .projection
+            .contract_entailment_open_obligations()
+            .len(),
+        1
+    );
+    assert_eq!(
+        review
+            .results
+            .contract_entailment_assumption_discharges()
+            .len(),
+        1
+    );
+    assert!(
+        review
+            .results
+            .contract_entailment_exit_membership_discharges()
+            .is_empty(),
+        "exit evidence never doubles an assumption discharge"
+    );
+    assert!(
+        review
+            .results
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+}
