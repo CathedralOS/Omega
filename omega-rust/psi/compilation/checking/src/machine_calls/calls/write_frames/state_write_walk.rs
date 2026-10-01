@@ -27,6 +27,9 @@ use crate::machine_calls::calls::write_frames::boundary_calls::{
 use crate::machine_calls::calls::write_frames::caller_aliases::AssignmentWriteTarget;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallOriginContext;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
+use crate::machine_calls::calls::write_frames::cycle_frames::{
+    summarize_state_written_paths_with_cycles, summarize_transition_target_written_paths,
+};
 use crate::machine_calls::calls::write_frames::demand::{
     collect_expression_call_written_paths, statement_value_expression_roots,
     syntactic_call_written_paths,
@@ -35,9 +38,6 @@ use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
-use crate::machine_calls::calls::write_frames::permuted_cycle_frames::{
-    summarize_state_written_paths_with_permuted_cycles, summarize_transition_target_written_paths,
-};
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, split_place_root,
 };
@@ -119,7 +119,7 @@ pub(crate) fn summarize_complete_state_written_paths(
     if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
         // The solver already records every state it solves — including `state`
         // — into `complete_state_summaries`.
-        return summarize_state_written_paths_with_permuted_cycles(
+        return summarize_state_written_paths_with_cycles(
             program,
             machine,
             state,

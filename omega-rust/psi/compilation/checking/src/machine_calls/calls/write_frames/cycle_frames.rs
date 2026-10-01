@@ -1,5 +1,4 @@
-//! Transition-cycle frame equations over exact write-parameter
-//! permutations and transition-target write summaries.
+//! Finite transition-cycle write-frame equations over storage-root substitutions.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
@@ -26,51 +25,40 @@ use crate::machine_calls::calls::write_frames::path_instantiation::{
     instantiate_written_path, instantiate_written_path_with_origins,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, coarse_place_path, frame_place_path, split_place_root,
+    FramePathPrecision, FramePlaceOrigin, coarse_place_path,
 };
 use crate::machine_calls::calls::write_frames::state_paths::{
-    expression_forwards_exact_symbol, push_visible_frame_path, relative_state_path_is_visible,
+    push_visible_frame_path, relative_state_path_is_visible,
 };
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     summarize_complete_state_written_paths, summarize_state_written_paths,
 };
 use crate::machine_calls::calls::write_frames::stored_origins::expand_write_path;
 use crate::machine_calls::calls::write_frames::transition_equations::{
-    PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
+    CycleFrameEquation, append_cycle_frame_edge, transition_state_reaches,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
     named_state_transition_subgraph_is_acyclic, named_transition_preserves_state_namespace,
-    named_transition_target_state, reachable_cycle_edges_can_permute_write_parameters,
-    write_parameter_counts_can_permute,
+    named_transition_target_state,
 };
-use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origin;
-use crate::machine_calls::calls::write_frames::type_capabilities::{
-    parameter_may_carry_write, type_may_carry_write,
-};
+use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
 use crate::machine_calls::calls::write_frames::{alias_bindings, stored_origins, wire_codecs};
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-/// Recover an exact finite frame for transition SCCs whose write-capable state
-/// parameters are only permuted around each cycle.
+/// Solve complete may-write equations for a named transition graph.
 ///
-/// The ordinary recursive summarizer above deliberately fails closed when it
-/// reaches a named cycle that redirects an exclusive parameter. A permutation
-/// is nevertheless finite: repeated traversal can only move an already-known
-/// path among the SCC's positional roots. This fallback solves the reachable
-/// state equations to a fixed point after proving that every cyclic edge is an
-/// exact bijection over those write-capable roots. Structurally transparent
-/// returned places preserve the root they forward. Projections, opaque helper
-/// results, duplication, omission, and computed rebinding stay opaque;
-/// otherwise suffix growth could make the path set unbounded or alias two
-/// semantic roots.
-pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
+/// Edges substitute each target storage root through the actual argument's
+/// proven origins. Roots may be introduced, dropped, or shared; a may-write
+/// union does not require a parameter bijection. The storage-root dependency
+/// graph must prove that repeated substitution cannot grow paths without
+/// bound. Unknown effects or origins remain opaque. Borrow admission is a
+/// separate judgment and still rejects conflicting uses of aliased storage.
+pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     entry: &'program State,
@@ -78,16 +66,6 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
     outer_inference: &FrameInference,
     complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
-    // The prefix walk below re-enters this solver at every nested visit of a
-    // state that reaches a named cycle. When a cyclic edge cannot pair the
-    // write-capable parameters by count, the solve is doomed before any
-    // equation exists; deciding that from the topology keeps a declined
-    // system from rebuilding every reachable equation, and every nested call
-    // inside them, once per visit. The answer is the same `None` the
-    // permutation check would have produced.
-    if !reachable_cycle_edges_can_permute_write_parameters(program, machine, entry) {
-        return None;
-    }
     // The equations below take their edges from the same top-level named
     // transitions the topology walk follows, so a state whose reachable named
     // subgraph is acyclic can never set `has_transition_cycle`. Answer its
@@ -102,7 +80,7 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
         return None;
     }
 
-    let mut equations = Vec::<PermutedCycleFrameEquation<'program>>::new();
+    let mut equations = Vec::<CycleFrameEquation<'program>>::new();
     let mut pending = vec![entry.symbol];
     while let Some(symbol) = pending.pop() {
         if equations
@@ -115,7 +93,7 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
             .machine_states(machine)
             .iter()
             .find(|candidate| candidate.symbol == symbol)?;
-        let equation = build_permuted_cycle_frame_equation(
+        let equation = build_cycle_frame_equation(
             program,
             machine,
             state,
@@ -128,31 +106,20 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
         equations.push(equation);
     }
 
-    let mut has_transition_cycle = false;
-    for equation in &equations {
-        for edge in &equation.edges {
-            if transition_state_reaches(&equations, edge.target, equation.state.symbol) {
-                has_transition_cycle = true;
-                let target = equations
-                    .iter()
-                    .find(|candidate| candidate.state.symbol == edge.target)?
-                    .state;
-                let mut inference = outer_inference.clone();
-                if !transition_is_exact_write_parameter_permutation(
-                    program,
-                    equation.state,
-                    target,
-                    &edge.arguments,
-                    &equation.local_alias_origins,
-                    symbols,
-                    &mut inference,
-                ) {
-                    return None;
-                }
-            }
-        }
-    }
-    if !has_transition_cycle {
+    let has_transition_cycle = equations.iter().any(|equation| {
+        equation
+            .edges
+            .iter()
+            .any(|edge| transition_state_reaches(&equations, edge.target, equation.state.symbol))
+    });
+    if !has_transition_cycle
+        || !super::cycle_substitutions::substitutions_are_finite(
+            program,
+            &equations,
+            symbols,
+            outer_inference,
+        )
+    {
         return None;
     }
 
@@ -236,7 +203,7 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
         .find_map(|(symbol, writes)| (symbol == entry.symbol).then_some(writes))
 }
 
-fn build_permuted_cycle_frame_equation<'program>(
+fn build_cycle_frame_equation<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     state: &'program State,
@@ -244,7 +211,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     machine_symbols: &MachineSymbols<'program>,
     outer_inference: &FrameInference,
     complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
-) -> Option<PermutedCycleFrameEquation<'program>> {
+) -> Option<CycleFrameEquation<'program>> {
     #[cfg(test)]
     super::CYCLE_EQUATIONS.with(|equations| equations.set(equations.get() + 1));
     let parameters = program.state_parameters(state);
@@ -556,7 +523,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                         }
                         continue;
                     }
-                    append_permuted_cycle_frame_edge(program, machine, state, target, &mut edges)?;
+                    append_cycle_frame_edge(program, machine, state, target, &mut edges)?;
                 }
             }
             StatementNode::LocalData(local) => {
@@ -600,7 +567,7 @@ fn build_permuted_cycle_frame_equation<'program>(
         }
     }
 
-    Some(PermutedCycleFrameEquation {
+    Some(CycleFrameEquation {
         state,
         locals,
         local_alias_origins,
@@ -608,84 +575,6 @@ fn build_permuted_cycle_frame_equation<'program>(
         direct_writes,
         edges,
     })
-}
-
-fn transition_is_exact_write_parameter_permutation(
-    program: &TypedTrees,
-    source: &State,
-    target: &State,
-    arguments: &[ExpressionHandle],
-    aliases: &[(String, FramePlaceOrigin)],
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> bool {
-    if !write_parameter_counts_can_permute(program, source, target, arguments) {
-        return false;
-    }
-    let source_write_parameters = program
-        .state_parameters(source)
-        .iter()
-        .filter(|parameter| !parameter.is_self && parameter_may_carry_write(program, parameter))
-        .collect::<Vec<_>>();
-    let target_write_positions = program
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-        .filter(|(_, parameter)| parameter_may_carry_write(program, parameter))
-        .collect::<Vec<_>>();
-
-    let mut forwarded = Vec::new();
-    for (position, _) in target_write_positions {
-        let Some(source_parameter) = source_write_parameters.iter().find(|parameter| {
-            expression_forwards_exact_write_parameter(
-                program,
-                arguments[position],
-                parameter,
-                aliases,
-                symbols,
-                inference,
-            )
-        }) else {
-            return false;
-        };
-        if forwarded.contains(&source_parameter.symbol) {
-            return false;
-        }
-        forwarded.push(source_parameter.symbol);
-    }
-    forwarded.len() == source_write_parameters.len()
-}
-
-fn expression_forwards_exact_write_parameter(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameter: &StateParameter,
-    aliases: &[(String, FramePlaceOrigin)],
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> bool {
-    if expression_forwards_exact_symbol(program, expression, parameter.symbol) {
-        return true;
-    }
-    if transparent_place_expression_origin(program, expression, symbols, inference).is_some_and(
-        |origin| {
-            origin.precision == FramePathPrecision::Exact && origin.path == parameter.name.as_str()
-        },
-    ) {
-        return true;
-    }
-    let Some(argument) = frame_place_path(program, expression) else {
-        return false;
-    };
-    let (root, suffix) = split_place_root(&argument.path);
-    suffix.is_empty()
-        && argument.precision == FramePathPrecision::Exact
-        && aliases.iter().any(|(alias, origin)| {
-            alias == root
-                && origin.precision == FramePathPrecision::Exact
-                && origin.path == parameter.name.as_str()
-        })
 }
 
 #[allow(clippy::too_many_arguments)]

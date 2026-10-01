@@ -1,6 +1,5 @@
 use crate::CallFrameResolver;
 use crate::machine_calls::calls::write_frames::CYCLE_EQUATIONS;
-use crate::machine_calls::calls::write_frames::transition_topology::reachable_cycle_edges_can_permute_write_parameters;
 
 #[test]
 fn callback_through_named_transition_never_caches_a_truncated_call_frame() {
@@ -44,8 +43,8 @@ fn callback_through_named_transition_never_caches_a_truncated_call_frame() {
 }
 
 /// A named cycle whose edges carry an exclusive reference into one state and
-/// drop it on the way back. A `&mut u64` is a write-capable root, so no edge
-/// can be an exact permutation.
+/// drop it on the way back. Its effects are finite even without a bijection.
+/// This tests effect inference, not admission of the overlapping arguments.
 const REFERENCE_CYCLE: &str = r#"
 data Output { accepted: bool; count: u64; }
 machine classify(output: &mut Output) {
@@ -68,30 +67,27 @@ machine classify(output: &mut Output) {
 "#;
 
 #[test]
-fn count_mismatched_cycle_declines_before_building_equations() {
+fn reference_roots_can_enter_and_leave_a_cycle() {
     let program = crate::front_end::typed_program(REFERENCE_CYCLE);
     let machine = &program.machines()[0];
     let resolver = CallFrameResolver::new(&program).expect("resolver");
     CYCLE_EQUATIONS.with(|equations| equations.set(0));
     let frames = resolver.inferred_machine_state_write_frames(machine);
-    let equations = CYCLE_EQUATIONS.with(|equations| equations.get());
-    let outcomes = frames
-        .iter()
-        .map(|frame| frame.complete_paths().map(<[String]>::to_vec))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        outcomes,
-        vec![None, None, None, Some(vec!["$P0.accepted".to_owned()])],
-        "the prefix walk keeps the cycle opaque and the acyclic tail complete"
-    );
-    assert_eq!(
-        equations, 0,
-        "a topology that cannot permute by count never builds a frame equation"
-    );
+    for (position, frame) in frames.iter().enumerate() {
+        let paths = frame.complete_paths().expect("finite root substitutions");
+        assert!(paths.iter().any(|path| path == "$P0.accepted"), "{frame:?}");
+        if position < 3 {
+            assert!(paths.iter().any(|path| path == "$P0.count"), "{frame:?}");
+        }
+        if position == 2 {
+            assert!(paths.iter().any(|path| path == "$P1"), "{frame:?}");
+        }
+    }
+    assert!(CYCLE_EQUATIONS.with(|equations| equations.get()) > 0);
 }
 
 #[test]
-fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
+fn cycle_substitution_retains_swapped_write_roots() {
     let program = crate::front_end::typed_program(
         r#"
         data Kind [copy] { case Next; case Stop; }
@@ -105,14 +101,6 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         "#,
     );
     let machine = &program.machines()[0];
-    let states = program.machine_states(machine);
-    assert!(
-        reachable_cycle_edges_can_permute_write_parameters(&program, machine, &states[0]),
-        "the entry edge drops `kind` but lies on no cycle"
-    );
-    assert!(reachable_cycle_edges_can_permute_write_parameters(
-        &program, machine, &states[1]
-    ));
     let resolver = CallFrameResolver::new(&program).expect("resolver");
     let frames = resolver.inferred_machine_state_write_frames(machine);
     assert_eq!(
@@ -120,19 +108,4 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         Some(["$P0".to_owned(), "$P1".to_owned()].as_slice()),
         "the swapped cycle still solves to both roots"
     );
-
-    let program = crate::front_end::typed_program(REFERENCE_CYCLE);
-    let machine = &program.machines()[0];
-    for state in program.machine_states(machine).iter().take(3) {
-        assert!(
-            !reachable_cycle_edges_can_permute_write_parameters(&program, machine, state),
-            "{} reaches the reference-dropping edge",
-            state.name.as_str()
-        );
-    }
-    assert!(reachable_cycle_edges_can_permute_write_parameters(
-        &program,
-        machine,
-        &program.machine_states(machine)[3]
-    ));
 }

@@ -2,9 +2,8 @@
 //!
 //! This leaf resolves authored named edges within one machine, checks the
 //! reachable named-transition subgraph for cycles, recognizes exact
-//! write-capable namespace preservation, and decides from parameter counts
-//! alone whether a cycle can be an exact write-parameter permutation. It does
-//! not build or solve frame equations.
+//! write-capable namespace preservation for contextual prefixes. It does not
+//! build or solve frame equations; complete cycle frames use root substitutions.
 
 use super::state_paths::expression_forwards_exact_symbol;
 use super::type_capabilities::parameter_may_carry_write;
@@ -123,118 +122,10 @@ pub(super) fn named_transition_target_state<'program>(
         })
 }
 
-/// The parameter-count half of the exact write-parameter permutation law: a
-/// bijection over write-capable roots needs equally many on both ends, and
-/// the authored arguments must fill exactly the target's parameters. The
-/// argument-forwarding half is decided by the equation solver.
-pub(super) fn write_parameter_counts_can_permute(
-    program: &TypedTrees,
-    source: &State,
-    target: &State,
-    arguments: &[ExpressionHandle],
-) -> bool {
-    let source_write_parameters = program
-        .state_parameters(source)
-        .iter()
-        .filter(|parameter| !parameter.is_self && parameter_may_carry_write(program, parameter))
-        .count();
-    let target_parameters = program
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    let target_write_parameters = target_parameters
-        .iter()
-        .filter(|parameter| parameter_may_carry_write(program, parameter))
-        .count();
-    source_write_parameters == target_write_parameters && target_parameters.len() == arguments.len()
-}
-
-/// True when every named edge on a cycle reachable from `state` passes
-/// `write_parameter_counts_can_permute`. The permuted-cycle solver checks the
-/// same counts on every cyclic edge after building one frame equation per
-/// reachable state, and one failing edge fails the whole solve. Deciding that
-/// from the authored topology first lets a state that cannot be solved fall
-/// through to its prefix walk without rebuilding the equations at every
-/// nested visit. An unresolvable named target also fails the solve, so it
-/// fails here too. This is a count-only filter: a passing topology still has
-/// to prove exact argument forwarding in the solver.
-pub(super) fn reachable_cycle_edges_can_permute_write_parameters(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-) -> bool {
-    struct Edge<'program> {
-        source: usize,
-        target: usize,
-        arguments: &'program [ExpressionHandle],
-    }
-
-    let mut states: Vec<&State> = vec![state];
-    let mut edges = Vec::<Edge<'_>>::new();
-    let mut next = 0;
-    while next < states.len() {
-        let source = states[next];
-        for statement in program.statement_table.statements(source.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            for edge in [transition.target, transition.continuation] {
-                if !edge.is_valid() {
-                    continue;
-                }
-                if super::terminal_calls::target(program, machine, edge).is_valid() {
-                    continue;
-                }
-                let TransitionTargetNode::Named { arguments, .. } =
-                    program.statement_table.transition_target(edge)
-                else {
-                    continue;
-                };
-                let Some(target) = named_transition_target_state(program, machine, source, edge)
-                else {
-                    return false;
-                };
-                let target_index = match states
-                    .iter()
-                    .position(|candidate| candidate.symbol == target.symbol)
-                {
-                    Some(index) => index,
-                    None => {
-                        states.push(target);
-                        states.len() - 1
-                    }
-                };
-                edges.push(Edge {
-                    source: next,
-                    target: target_index,
-                    arguments: program.statement_table.expression_handles(*arguments),
-                });
-            }
-        }
-        next += 1;
-    }
-
-    let mut successors = vec![Vec::new(); states.len()];
-    for edge in &edges {
-        successors[edge.source].push(edge.target);
-    }
-    let components = strongly_connected_components(&successors);
-    edges.iter().all(|edge| {
-        components[edge.source] != components[edge.target]
-            || write_parameter_counts_can_permute(
-                program,
-                states[edge.source],
-                states[edge.target],
-                edge.arguments,
-            )
-    })
-}
-
 /// Tarjan's algorithm over successor lists; an edge lies on a cycle exactly
 /// when both ends share a component. A self edge keeps its node in the same
 /// component, which matches the solver's reachability test.
-fn strongly_connected_components(successors: &[Vec<usize>]) -> Vec<usize> {
+pub(super) fn strongly_connected_components(successors: &[Vec<usize>]) -> Vec<usize> {
     struct Search<'graph> {
         successors: &'graph [Vec<usize>],
         index: Vec<Option<usize>>,

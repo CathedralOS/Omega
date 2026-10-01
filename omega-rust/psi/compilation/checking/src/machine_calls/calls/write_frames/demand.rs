@@ -19,7 +19,7 @@ use super::{
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
-use crate::machine_calls::calls::write_frames::permuted_cycle_frames::summarize_state_written_paths_with_permuted_cycles;
+use crate::machine_calls::calls::write_frames::cycle_frames::summarize_state_written_paths_with_cycles;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, summarize_state_written_paths,
 };
@@ -817,7 +817,7 @@ impl<'program> CallFrameResolver<'program> {
             complete_state_summaries,
         )
         .or_else(|| {
-            summarize_state_written_paths_with_permuted_cycles(
+            summarize_state_written_paths_with_cycles(
                 self.program,
                 machine,
                 state,
