@@ -49,6 +49,24 @@ pub struct BuildConfig {
 }
 
 impl BuildConfig {
+    /// The selector paths of the accepted root grants, as trust reconstruction
+    /// and provider checking name them.
+    pub fn root_grant_selectors(&self) -> Vec<String> {
+        self.grants
+            .iter()
+            .map(|grant| grant.selector.clone())
+            .collect()
+    }
+
+    /// The accepted component-assumption digests. Provider settlement and any
+    /// later replay verify attached component descriptions under this one set.
+    pub fn accepted_component_assumption_digests(&self) -> std::collections::BTreeSet<[u8; 32]> {
+        self.accepted_component_assumptions
+            .iter()
+            .map(|acceptance| acceptance.digest)
+            .collect()
+    }
+
     /// Project the effective checked-tree pruning selection into exact roots.
     /// A target product retains only its validated entry; a targetless product
     /// retains every authored root. An enabled selection with no roots remains
@@ -94,6 +112,76 @@ pub struct ComputedBuildConfig {
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
+/// The admitted Build facts one compilation retains beside the shared evaluated
+/// configuration. Each is derived for this continuation, so none belongs in the
+/// configuration that target products and review clones share.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BuildAdmission {
+    /// The validated authored `builder.application` declaration; its name
+    /// supplies the `.app` basename and inner executable leaf at publication
+    /// and its artifact-only intent narrows the admitted route.
+    pub application: Option<build_declarations::ApplicationDeclaration>,
+    /// Canonical semantic identity of the build machine actually evaluated,
+    /// derived while the final typed declarations remain available. Custody
+    /// must not rediscover it by short name.
+    pub selected_build_machine_identity: Option<String>,
+    /// The normalized restricted build-host requests the admitted activation
+    /// asked of the host before it executed
+    /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). This is
+    /// admission intent in package vocabulary, never host paths or live grants.
+    pub restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+}
+
+impl BuildAdmission {
+    /// The Build evaluated once for every target; one target's compilation
+    /// records the restricted requests as its own.
+    #[must_use]
+    pub fn for_target(mut self, profile: Option<target::TargetProfile>) -> Self {
+        self.restricted_build_requests = self
+            .restricted_build_requests
+            .into_iter()
+            .map(|request| request.for_target(profile))
+            .collect();
+        self
+    }
+
+    /// The validated `builder.artifact_only()` intent. Package and workspace
+    /// builds and missing build roots declare no application, so they answer
+    /// `false`.
+    pub const fn artifact_only(&self) -> bool {
+        match self.application.as_ref() {
+            Some(application) => application.artifact_only,
+            None => false,
+        }
+    }
+
+    /// Project the build-owned image metadata as one retention unit. The name
+    /// comes from the application declaration; intent, signing identity and
+    /// subsystem come from evaluated settings and remain distinct facts. The
+    /// ELF loader is the realized target's effective selection: the build's
+    /// explicit row, else the target environment's declared default.
+    /// Retaining it here carries a defaulted path through the same proposal,
+    /// report and package custody as an authored one.
+    pub fn native_application_metadata(
+        &self,
+        settings: &EvaluatedBuildSettings,
+        selected_target_profile: Option<target::TargetProfile>,
+    ) -> target::NativeApplicationMetadata {
+        target::NativeApplicationMetadata {
+            name: self
+                .application
+                .as_ref()
+                .map(|application| application.name.as_str().to_owned()),
+            intent: settings.application_intent,
+            identifier: settings.application_identifier.clone(),
+            subsystem: settings.subsystem,
+            elf_interpreter: selected_target_profile
+                .and_then(|profile| settings.elf_interpreters.effective(profile)),
+        }
+    }
+}
+
 /// An authored Independent selection and the provider's owning package.
 /// No package means no dependency can answer it; self-deployment likewise
 /// remains unanswerable. Neither case may silently become a Fused edge.
@@ -113,6 +201,26 @@ pub struct IndependentComponentDiscovery {
 }
 
 impl ComputedBuildConfig {
+    pub fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {
+        self.observation_summary
+            .as_ref()
+            .map(package_compilation::BuildObservationSummary::identity)
+    }
+
+    /// Select the completed-file product from this Build's observation.
+    /// Compiler and package production share this projection; neither
+    /// interprets the settlement roster or stages the build again.
+    pub fn completed_outputs(
+        &self,
+    ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<diagnostics::Diagnostic>> {
+        self.observation_summary
+            .as_ref()
+            .map(crate::RetainedBuildOutputs::from_observation)
+            .transpose()
+            .map(Option::flatten)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])
+    }
+
     /// Preserve every authored Independent selection in evaluation order,
     /// including absent or self package identities for the consumer to reject.
     /// Discovery grants no component authority and does not settle providers.

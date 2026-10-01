@@ -1,7 +1,9 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{BuiltTypedProgram, CheckedExecutionRequest, TypedCompilationFrontier};
+use compilation_products::{
+    BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, TypedCompilationFrontier,
+};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
@@ -98,17 +100,18 @@ pub(crate) fn evaluate_build_and_continue(
     } else {
         typing.into_typed()
     };
-    let selected_build_machine_identity =
-        computed_build_config.selected_machine_identity(&typed)?;
+    let admission = BuildAdmission {
+        application,
+        selected_build_machine_identity: computed_build_config.selected_machine_identity(&typed)?,
+        restricted_build_requests,
+    };
     Ok((
         BuiltTypedProgram {
             typed,
             selected_target_machine_declarations,
             pending_pre_checks,
             computed_build_config,
-            restricted_build_requests,
-            application,
-            selected_build_machine_identity,
+            admission,
         },
         sources,
         accounting,

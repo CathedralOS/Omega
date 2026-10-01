@@ -59,14 +59,39 @@ pub struct SettledTargetMachineDeclarations {
     pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
-/// Final typed provider choices and their evidence, retained for checking and
-/// selected execution. Candidate plans stay separate from selected plan facts.
+/// Final typed provider choices and their evidence. The selected plan facts
+/// and review provenance move into checking and selected execution; the
+/// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    pub provider_plans: Vec<ProviderPlan>,
-    pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    pub settlement: ProviderSettlement,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
+}
+
+/// Provider-planning results a checked compilation retains for package review,
+/// trust replay and native realization. Candidate plans stay separate from the
+/// selected plan facts that selected execution owns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderSettlement {
+    /// Validated boundary calling-plan realizations, computed while typed
+    /// declarations and selected opaque representations coexist and closed
+    /// over outbound callbacks by checking. Presence publishes no package ABI.
+    pub boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
+    /// Every derived candidate plan plus toolchain-settled plans; trust
+    /// replays each selected plan against exactly one of these.
+    pub provider_plans: Vec<ProviderPlan>,
+    /// Complete ordinary-`via` evaluation population, including leaves not
+    /// selected for this executable. Backend lowering reads only the imports
+    /// installed in provider plans.
+    pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    /// Selected normalized-import bindings and their evaluated calling plans,
+    /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    /// The attached component descriptions this settlement verified, in
+    /// package-identity order, so a replay re-verifies the same admission
+    /// instead of rediscovering unattached inputs.
+    pub independent_component_descriptions:
+        Vec<package_compilation::IndependentComponentDescription>,
 }
 
 /// Settle the final authored/generated target roster, validate and select its
@@ -79,7 +104,7 @@ pub fn settle_checked_providers(
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
-    boundary_calling_plan_realizations: &[BoundaryCallingPlanRealization],
+    boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     // Target-scoped machines were selected before resolution against the
@@ -210,7 +235,7 @@ pub fn settle_checked_providers(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,
-        boundary_calling_plan_realizations,
+        &boundary_calling_plan_realizations,
         typed,
         opaque_representation_selections,
     )?;
@@ -287,10 +312,21 @@ pub fn settle_checked_providers(
         provider_plans.push(minted.plan);
     }
     Ok(CheckedProviderSelection {
-        provider_plans,
-        evaluated_via_bindings,
+        settlement: ProviderSettlement {
+            boundary_calling_plan_realizations,
+            provider_plans,
+            evaluated_via_bindings,
+            external_binding_rows,
+            independent_component_descriptions: package_inputs
+                .map(|inputs| {
+                    inputs
+                        .independent_component_descriptions()
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default(),
+        },
         selected_provider_plan_facts,
         selected_provider_provenance,
-        external_binding_rows,
     })
 }

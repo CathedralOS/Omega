@@ -23,9 +23,7 @@ pub(crate) fn check_selected_execution(
         mut selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
-        restricted_build_requests,
-        application,
-        selected_build_machine_identity,
+        admission,
     } = built;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = &computed_build_config.config;
@@ -38,7 +36,7 @@ pub(crate) fn check_selected_execution(
         &mut typed,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     )?;
-    let mut boundary_calling_plan_realizations =
+    let boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &mut typed,
             selected_native_target,
@@ -58,28 +56,21 @@ pub(crate) fn check_selected_execution(
         &boundary_calling_plan_realizations,
         package_inputs,
     )?;
-    let accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]> = build_config
-        .accepted_component_assumptions
-        .iter()
-        .map(|acceptance| acceptance.digest)
-        .collect();
     let settled_target_machines = selected_target_machine_declarations.settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
     )?;
     let provider_planning::CheckedProviderSelection {
-        provider_plans,
-        evaluated_via_bindings,
+        settlement: mut providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
-        external_binding_rows,
     } = provider_planning::settle_checked_providers(
         &mut typed,
         settled_target_machines,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,
-        &accepted_component_assumptions,
-        &boundary_calling_plan_realizations,
+        &build_config.accepted_component_assumption_digests(),
+        boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
     )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
@@ -103,19 +94,15 @@ pub(crate) fn check_selected_execution(
         &selected_provider_plan_facts,
         pending_pre_checks,
     )?;
-    let root_grants = build_config
-        .grants
-        .iter()
-        .map(|grant| grant.selector.clone())
-        .collect::<Vec<_>>();
+    let root_grants = build_config.root_grant_selectors();
     let provider_request = ProviderCheckingRequest {
         native_target: selected_native_target,
         package_inputs,
         build_settings: &build_config.settings,
         selected_build_machine: selected_build_machine_symbol,
-        boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
+        boundary_calling_plan_realizations: &mut providers.boundary_calling_plan_realizations,
         opaque_representation_selections,
-        provider_plans: &provider_plans,
+        provider_plans: &providers.provider_plans,
         selected_provider_plan_facts,
         root_grants: &root_grants,
         authored_root_grants: &build_config.grants,
@@ -171,28 +158,8 @@ pub(crate) fn check_selected_execution(
     Ok(CheckedCompilationInputs {
         settled: selected_execution_settlement,
         build: computed_build_config,
-        application,
-        selected_build_machine_identity,
-        boundary_calling_plan_realizations,
+        build_admission: admission.for_target(selected_target_profile),
+        providers,
         product_selection,
-        provider_plans,
-        evaluated_via_bindings,
-        external_binding_rows,
-        root_grants,
-        // The Build evaluated once for every target; this target's
-        // compilation records the requests as its own.
-        restricted_build_requests: restricted_build_requests
-            .into_iter()
-            .map(|request| request.for_target(selected_target_profile))
-            .collect(),
-        independent_component_descriptions: package_inputs
-            .map(|inputs| {
-                inputs
-                    .independent_component_descriptions()
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default(),
-        accepted_component_assumptions,
     })
 }

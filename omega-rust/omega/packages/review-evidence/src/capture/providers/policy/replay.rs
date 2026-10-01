@@ -15,10 +15,11 @@ pub(super) fn validate(
     package: PackageKeyIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    if compilation.custody.package_identity() != Some(package)
-        || compilation.custody.selected_target_profile() != Some(target)
-        || compilation.custody.selected_native_target() != Some(target.native_target())
-        || compilation.custody.evaluated_via_bindings().target() != Some(target)
+    let providers = compilation.custody.providers();
+    if compilation.custody.sources().package_identity() != Some(package)
+        || selected_execution.selected_target_profile != Some(target)
+        || selected_execution.selected_native_target() != Some(target.native_target())
+        || providers.evaluated_via_bindings.target() != Some(target)
     {
         return Err(rejected(
             "package or target differs from the checked root activation",
@@ -63,8 +64,12 @@ pub(super) fn validate(
     // re-verifying them under the build's admission profile reproduces the
     // verified set rather than trusting the retained join outcome.
     let independent_components = provider_planning::verify_independent_component_descriptions(
-        compilation.custody.independent_component_descriptions(),
-        compilation.custody.accepted_component_assumptions(),
+        &providers.independent_component_descriptions,
+        &compilation
+            .custody
+            .build()
+            .config
+            .accepted_component_assumption_digests(),
         |_| None,
     )?;
     let (replayed, _) =
@@ -73,7 +78,7 @@ pub(super) fn validate(
                 &compilation.typed,
                 source::DependencyScope::Product,
             ),
-            compilation.custody.evaluated_via_bindings(),
+            &providers.evaluated_via_bindings,
             selected,
             &independent_components,
         )?;
@@ -147,7 +152,7 @@ fn validate_authored_activation(
     let authored = trust_model::harvest_root_grants(&compilation.typed, build)
         .map_err(|diagnostic| vec![diagnostic])?;
     let grants = trust_model::resolve_authored_selected_provider_grants(
-        compilation.custody.provider_plans(),
+        &compilation.custody.providers().provider_plans,
         &selected_execution.selected_provider_plan_facts,
         &authored,
     )

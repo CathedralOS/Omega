@@ -123,6 +123,35 @@ impl CheckedSourceCustody {
         self.package_subject.as_ref()
     }
 
+    /// Reconciled root package identity of a package-aware compilation.
+    /// Standalone compilation has no package identity.
+    pub const fn package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        match self.package_subject.as_ref() {
+            Some(subject) => Some(subject.root()),
+            None => None,
+        }
+    }
+
+    /// Exact source-path-free dependency closure consumed by a package-aware
+    /// compilation. Standalone compilation has no package closure.
+    pub const fn dependency_closure(&self) -> Option<&crate::PackageDependencyClosure> {
+        match self.package_subject.as_ref() {
+            Some(subject) => Some(subject.dependency_closure()),
+            None => None,
+        }
+    }
+
+    /// Canonical commitment to the exact source bytes a package-aware
+    /// compilation consumed. Standalone compilation has none.
+    pub const fn source_consumption_commitment(
+        &self,
+    ) -> Option<PackageSourceConsumptionCommitment> {
+        match self.package_subject.as_ref() {
+            Some(subject) => Some(subject.source_consumption_commitment()),
+            None => None,
+        }
+    }
+
     pub const fn base_source_consumption_commitment(
         &self,
     ) -> Option<PackageSourceConsumptionCommitment> {
