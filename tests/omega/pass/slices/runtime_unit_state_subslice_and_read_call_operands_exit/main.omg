@@ -1,0 +1,90 @@
+// A Unit state passes both a subslice of a borrowed element view and a
+// scalar read of an element of that same view to one call, in each authored
+// order. Arguments evaluate left to right, each operand in its own block, so
+// the subslice and the read must each observe the view's length where they
+// run: a length observed while producing the other operand does not
+// dominate them. `confirm` selects the tail's first element (9) only when the
+// subslice starts at element 1; `confirm_after` selects the tail's second
+// element (42) only when the read delivered element 1. Any other path exits
+// 1, 2 or 3.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    entries: [Entry; 4];
+}
+
+// The subslice operand precedes the read operand.
+machine Main::confirm(tail: &[Entry], chosen: i32) -> i32 {
+    transition tail.len >= 1 {
+        true -> emit(tail[0].value)
+        false -> chosen
+    }
+
+    state emit(first: i32) -> i32 {
+        transition {
+            _ -> first
+        }
+    }
+}
+
+// The read operand precedes the subslice operand.
+machine Main::confirm_after(chosen: i32, tail: &[Entry]) -> i32 {
+    transition chosen == 9 {
+        true -> check(tail)
+        false -> 1
+    }
+
+    state check(tail: &[Entry]) -> i32 {
+        transition tail.len >= 2 {
+            true -> emit(tail[1].value)
+            false -> 2
+        }
+    }
+
+    state emit(second: i32) -> i32 {
+        transition {
+            _ -> second
+        }
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.entries[1].value = 9;
+    self.entries[2].value = 42;
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> picked(view)
+    }
+
+    state picked(&mut self, sub: &[Entry]) {
+        transition sub.len >= 2 {
+            true -> chosen(sub)
+            false -> bad()
+        }
+    }
+
+    state chosen(&mut self, sub: &[Entry]) {
+        let first: i32 = Main::confirm(sub[1..], sub[1].value);
+        let second: i32 = Main::confirm_after(sub[1].value, sub[1..]);
+        transition first == 9 {
+            true -> report(second)
+            false -> bad()
+        }
+    }
+
+    state report(&mut self, value: i32) {
+        self.console.exit_process(value);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(3);
+    }
+}

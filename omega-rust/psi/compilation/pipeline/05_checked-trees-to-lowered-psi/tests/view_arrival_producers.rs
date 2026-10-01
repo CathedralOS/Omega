@@ -332,3 +332,61 @@ fn verify_operand_lengths(source: &str) {
 fn subslice_and_read_call_operands_observe_their_own_view_length() {
     verify_operand_lengths(SAME_VIEW_CALL_OPERANDS);
 }
+
+/// The same operands inside a Unit state: the Unit graph expands a call's
+/// operands into their own blocks through attached argument evaluation.
+const UNIT_STATE_CALL_OPERANDS: &str = r#"
+        boundary trait Output {
+            machine count(value: u64) reaches Output;
+        }
+        data Entry {
+            value: i32;
+        }
+        data Root {
+            entries: [Entry; 4];
+        }
+        machine Root::confirm(tail: &[Entry], chosen: i32) -> i32 {
+            transition tail.len >= 1 {
+                true -> emit(tail[0].value)
+                false -> chosen
+            }
+            state emit(first: i32) -> i32 {
+                transition { _ -> first }
+            }
+        }
+        machine Root::confirm_after(chosen: i32, tail: &[Entry]) -> i32 {
+            transition tail.len >= 1 {
+                true -> emit(tail[0].value)
+                false -> chosen
+            }
+            state emit(first: i32) -> i32 {
+                transition { _ -> first }
+            }
+        }
+        machine Root::enter(&mut self) reaches Output {
+            self.entries[1].value = 9;
+            let view: &[Entry] = self.entries.as_slice();
+            transition { _ -> picked(view) }
+            state picked(&mut self, sub: &[Entry]) {
+                transition sub.len >= 2 {
+                    true -> chosen(sub)
+                    false -> bad()
+                }
+            }
+            state chosen(&mut self, sub: &[Entry]) {
+                let first: i32 = Root::confirm(sub[1..], sub[1].value);
+                let second: i32 = Root::confirm_after(sub[1].value, sub[1..]);
+                transition first == second {
+                    true -> good()
+                    false -> bad()
+                }
+            }
+            state good(&mut self) { Output::count(1); }
+            state bad(&mut self) { Output::count(2); }
+        }
+    "#;
+
+#[test]
+fn unit_state_subslice_and_read_call_operands_observe_their_own_view_length() {
+    verify_operand_lengths(UNIT_STATE_CALL_OPERANDS);
+}
