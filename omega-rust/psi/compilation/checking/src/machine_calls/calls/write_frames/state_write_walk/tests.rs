@@ -91,3 +91,135 @@ fn whole_state_demand_retains_successor_effects() {
         assert_eq!(boundaries.len(), 2);
     }
 }
+
+/// A completed owned result does not expose the construction writes to its
+/// caller. A payload-free case field must not make those private writes opaque.
+#[test]
+fn owned_local_result_initialization_has_a_complete_private_frame() {
+    for (kind_type, kind_value) in [("u32 in Wrapping", "0"), ("EnemyKind", "EnemyKind::Bat")] {
+        let source = format!(
+            "domain [u8; 24]::Utf8 requires valid_utf8(self);
+             data EnemyKind [copy] {{ case Bat; case Spider; }}
+             data Enemy [copy] {{
+                 kind: {kind_type};
+                 name: [u8; 24] in Utf8;
+                 health: i32 in Wrapping;
+             }}
+             data Builder {{}}
+             machine Builder::empty_enemy(&mut self) -> Enemy {{
+                 let enemy: Enemy;
+                 enemy.kind = {kind_value};
+                 enemy.name = \"\";
+                 enemy.health = 1;
+                 transition {{ _ -> enemy }}
+             }}"
+        );
+        let program = crate::front_end::typed_program(&source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Builder::empty_enemy")
+            .expect("owned-result producer");
+        let frames = crate::CallFrameResolver::new(&program)
+            .expect("frame resolver")
+            .inferred_machine_state_write_frames(machine);
+        assert_eq!(frames.len(), 1);
+        if kind_type == "EnemyKind" {
+            let state = &program.machine_states(machine)[0];
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let typed_trees::statement::StatementNode::LocalData(local) = &statements[0] else {
+                panic!("owned local declaration");
+            };
+            let typed_trees::statement::StatementNode::Assignment(assignment) = &statements[1]
+            else {
+                panic!("case initialization");
+            };
+            let constructor = crate::scalar_case_constructor(&program, assignment.value)
+                .expect("exact named case constructor");
+            let mut diagnostics = Vec::new();
+            let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
+            assert!(diagnostics.is_empty());
+            let origins = |reference, suffix| {
+                super::super::path_instantiation::aggregate_arguments::reference_leaves(
+                    &program,
+                    machine,
+                    assignment.value,
+                    reference,
+                    suffix,
+                    &symbols,
+                    &mut FrameInference::default(),
+                )
+            };
+            let selected = origins(constructor.type_reference, "").expect("constructed case");
+            assert!(selected.references.is_empty());
+            assert!(selected.moves.is_empty());
+            assert_eq!(
+                selected.cases,
+                vec![vec![facts::PlaceSegment::Case {
+                    variant: constructor.case,
+                }]]
+            );
+            assert!(origins(local.type_reference, "").is_none(), "wrong owner");
+            assert!(
+                origins(constructor.type_reference, ".missing").is_none(),
+                "a payload-free case supplies no projected payload"
+            );
+            let prefixes = collect_state_write_prefixes(&program, machine, state, &symbols, false)
+                .expect("private construction prefixes");
+            let before = prefixes[1].as_ref().expect("declared local frontier");
+            let fresh = before
+                .stored
+                .iter()
+                .find(|row| row.local_symbol == local.symbol)
+                .expect("fresh local case inventory");
+            let incoming = super::super::stored_origins::declared_origins(
+                &program,
+                local.symbol,
+                local.name.as_str(),
+                local.type_reference,
+            )
+            .expect("input case inventory");
+            assert_eq!(
+                fresh.cases, incoming.cases,
+                "preserve the symbolic case roster"
+            );
+            assert!(fresh.references.is_empty());
+            assert!(fresh.moves.is_empty(), "fresh storage transports no input");
+            assert!(
+                !incoming.moves.is_empty(),
+                "input identity remains indivisible"
+            );
+            for (position, prefix) in prefixes.iter().enumerate() {
+                assert!(
+                    prefix.is_some(),
+                    "private construction lost its frame before statement {position}: {:?}",
+                    statements[position]
+                );
+            }
+            let moved_source = source
+                .replace(
+                    "(&mut self) -> Enemy",
+                    "(&mut self, incoming: Enemy) -> Enemy",
+                )
+                .replace("let enemy: Enemy;", "let enemy: Enemy = incoming;");
+            let moved_program = crate::front_end::typed_program(&moved_source);
+            let moved_machine = moved_program
+                .machines()
+                .iter()
+                .find(|candidate| candidate.name.as_str() == "Builder::empty_enemy")
+                .unwrap();
+            let moved_frames = crate::CallFrameResolver::new(&moved_program)
+                .unwrap()
+                .inferred_machine_state_write_frames(moved_machine);
+            assert!(
+                moved_frames[0].complete_paths().is_none(),
+                "an actual moved subtree cannot keep stale origins after an interior replacement"
+            );
+        }
+        assert_eq!(
+            frames[0].complete_paths(),
+            Some([].as_slice()),
+            "{kind_type}: private local construction must retain a complete empty caller frame; {source}"
+        );
+    }
+}

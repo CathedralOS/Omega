@@ -6,7 +6,7 @@ use super::{FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_pla
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::{
-    concrete_nominal_type, struct_literal_matches_expected_type,
+    aggregate_storage_types_match, concrete_nominal_type, struct_literal_matches_expected_type,
 };
 use crate::machine_calls::calls::write_frames::reference_origins::{
     exclusive_reference_origins, referent_has_only_owned_storage,
@@ -166,6 +166,28 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                     local_coarse,
                 ));
             }
+            continue;
+        }
+        // A resolved payload-free case name constructs a fresh value; unlike
+        // an ordinary name it has no previous binding whose origins can be
+        // transferred. Keep the selected declaration's case evidence rather
+        // than discarding it merely because the payload has no references.
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) && let Some(constructor) = crate::scalar_case_constructor(program, expression)
+        {
+            if !constructor.fields.is_empty()
+                || !suffix.is_empty()
+                || !aggregate_storage_types_match(program, constructor.type_reference, reference)
+            {
+                return None;
+            }
+            let mut selected = local_segments;
+            selected.push(PlaceSegment::Case {
+                variant: constructor.case,
+            });
+            leaves.cases.push(selected);
             continue;
         }
         if !matches!(
