@@ -3,6 +3,7 @@
 use crate::tests::front_end::{checked_program, checked_program_result};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralPathSegment,
 };
 
 #[test]
@@ -538,6 +539,79 @@ fn domain_carrying_local_records_lend_whole_and_projected_loans() {
     assert!(
         rebuilt.for_machine(machine).is_none(),
         "a projected local loan accepted a changed loan root"
+    );
+}
+
+#[test]
+fn affine_local_records_lend_unrestricted_leaves_to_scalar_calls() {
+    // `Pair` and `Words` are affine; their `u8` leaves are unrestricted. A
+    // projected shared loan observes the leaf in the local's own storage, so
+    // the leaf's multiplicity, not the root's, meets the formal, and both the
+    // field and the array element name the local's result binding.
+    let checked = checked_program(
+        r#"
+        data Pair { low: u8; high: u8; }
+        data Words { count: u8; bytes: [u8; 4]; }
+        machine is_seventy(leaf: &u8) -> bool {
+            transition leaf == 70 { true -> (true) _ -> (false) }
+        }
+        machine run() {
+            let pair: Pair = Pair { low: 3, high: 70 };
+            let words: Words = Words { count: 4, bytes: [1, 70, 3, 4] };
+            let field: bool = is_seventy(&pair.high);
+            let element: bool = is_seventy(&words.bytes[1]);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "affine local leaf loans: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let arguments = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::Call(call) => call.structural_arguments.first(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [field, element] = arguments.as_slice() else {
+        panic!("two leaf loans: {arguments:?}");
+    };
+    assert!(matches!(
+        field.path.as_slice(),
+        [CheckedUnitStructuralPathSegment::Field(_)]
+    ));
+    assert!(matches!(
+        element.path.as_slice(),
+        [
+            CheckedUnitStructuralPathSegment::Field(_),
+            CheckedUnitStructuralPathSegment::FixedIndex(1)
+        ]
+    ));
+    for argument in [field, element] {
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+        );
+    }
+    assert_ne!(
+        field.source_structural_result_binding_ordinal(),
+        element.source_structural_result_binding_ordinal()
     );
 }
 

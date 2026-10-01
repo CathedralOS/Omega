@@ -1221,6 +1221,7 @@ pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8
 pass/calls/local_projected_field_scalar_result_argument_exit checked 1947ms @2d8ed253669f
 pass/calls/local_projected_field_shared_argument_exit checked 1272ms @2d8ed253669f
 pass/calls/local_record_forwarded_across_callee_states_exit checked 2197ms @0508a5426a27+wt
+pass/calls/local_record_leaf_loan_scalar_calls_exit checked 2445ms @ff6d0c077d78+wt
 pass/calls/local_record_mutable_argument_exit checked 1211ms @2d8ed253669f
 pass/calls/local_record_record_result_argument_exit checked 1977ms @2d8ed253669f
 pass/calls/local_record_shared_argument_exit checked 1248ms @2d8ed253669f
@@ -1292,6 +1293,7 @@ pass/calls/runtime_value_call_return_types_exit checked 3338ms @2d8ed253669f
 pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
+pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms @ff6d0c077d78+wt
 pass/calls/scalar_return_after_unit_call_exit checked 1178ms @ca8c127c90c5
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f

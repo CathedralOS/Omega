@@ -576,7 +576,14 @@ pub(super) fn argument(
             // the projected path's identity check, and the binding stores
             // only the unrestricted descriptor.
             && !(access == CheckedStructuralAccess::SharedBorrow
-                && result.multiplicity == Multiplicity::Unrestricted))
+                && result.multiplicity == Multiplicity::Unrestricted)
+            // A projected loan of an unrestricted leaf (`&pair.high`) observes
+            // or replaces that leaf in place; the affine root keeps its own
+            // custody and cleanup, so the leaf's multiplicity is not the
+            // root's. Whole loans and moves keep the exact equality above.
+            && !(projected_borrow
+                && program.type_multiplicity(referent) == Multiplicity::Unrestricted
+                && result.multiplicity == Multiplicity::Affine))
         || (!unrestricted
             && !linear
             && !owned_reference_record
