@@ -10,7 +10,10 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 CLAIMS = Path(__file__).resolve().parents[1] / "claims.py"
@@ -82,6 +85,116 @@ class PathTests(unittest.TestCase):
         name = " ".join(["segment/" + "x" * 200 + ".rs"] * 4)
         with tempfile.TemporaryDirectory() as repository:
             self.assertFalse(module.is_directory_fence(repository, name))
+
+
+class RegistrationBudgetTests(unittest.TestCase):
+    def registry(self):
+        module = load_claims()
+        registry = module.Claims.__new__(module.Claims)
+        registry.attempted_claims = []
+        registry.git = mock.Mock(return_value=SimpleNamespace(returncode=1, stdout=""))
+        return module, registry
+
+    def options(self, fresh=True):
+        return SimpleNamespace(ticket="a" * 32, owner="worker", item="ITEM",
+                               paths=["src/file.rs"], board=None, note=None,
+                               lease_minutes=15, allow_overlap=False, fresh_ticket=fresh)
+
+    def snapshot(self):
+        return {"version": "b" * 40, "record": {"claims": [], "notes": []}}
+
+    def test_new_ticket_never_searches_historical_messages(self):
+        _, registry = self.registry()
+        snapshot = self.snapshot()
+        result = registry.prepare_claim(self.options(), snapshot, [])
+        self.assertTrue(result["proceed"])
+        registry.git.assert_not_called()
+
+    def test_external_retired_ticket_still_rejects(self):
+        module, registry = self.registry()
+        registry.git.return_value = SimpleNamespace(returncode=0, stdout="removed")
+        with self.assertRaises(module.ClaimsError):
+            registry.prepare_claim(self.options(fresh=False), self.snapshot(), [])
+        self.assertEqual(registry.git.call_args.args[0], "log")
+
+    def test_uncertain_accepted_then_removed_claim_cannot_resurrect(self):
+        module, registry = self.registry()
+        registry.attempted_claims = ["c" * 40]
+        registry.git.return_value = SimpleNamespace(returncode=0, stdout="")
+        with self.assertRaises(module.ClaimsError):
+            registry.prepare_claim(self.options(), self.snapshot(), [])
+        self.assertEqual(registry.git.call_args.args[:2], ("merge-base", "--is-ancestor"))
+
+    def test_lost_push_race_only_checks_this_invocations_candidates(self):
+        _, registry = self.registry()
+        registry.attempted_claims = ["c" * 40]
+        self.assertTrue(registry.prepare_claim(self.options(), self.snapshot(), [])["proceed"])
+        self.assertEqual(registry.git.call_count, 1)
+
+    def test_failed_ancestry_check_cannot_recreate_claim(self):
+        module, registry = self.registry()
+        registry.attempted_claims = ["c" * 40]
+        registry.git.return_value = SimpleNamespace(returncode=128, stdout="")
+        with self.assertRaises(module.ClaimsError):
+            registry.prepare_claim(self.options(), self.snapshot(), [])
+        self.assertEqual(registry.git.call_args.args[0], "merge-base")
+
+    def test_existing_snapshot_is_not_refetched(self):
+        module, registry = self.registry()
+        registry.git.return_value = SimpleNamespace(returncode=0, stdout="")
+        with mock.patch.object(module.coordination, "fetch_object") as fetch:
+            registry.fetch_version("b" * 40)
+        fetch.assert_not_called()
+
+    def test_git_timeout_is_an_uncertain_outcome_not_success(self):
+        module = load_claims()
+        with mock.patch.object(module.coordination.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("git", 0.1)) as run:
+            with self.assertRaises(module.coordination.CoordinationTimeout):
+                module.coordination.git(".", "push", deadline=time.monotonic() + 0.1)
+        self.assertGreater(run.call_args.kwargs["timeout"], 0)
+        self.assertLessEqual(run.call_args.kwargs["timeout"], 0.1)
+
+    def test_deadline_applies_before_launch_and_sleep(self):
+        module, registry = self.registry()
+        registry.deadline = time.monotonic() - 1
+        with mock.patch.object(module.coordination.subprocess, "run") as run:
+            with self.assertRaises(module.coordination.CoordinationTimeout):
+                module.coordination.git(".", "status", deadline=registry.deadline)
+        run.assert_not_called()
+        with self.assertRaises(module.coordination.CoordinationTimeout):
+            registry.pause(1, 1, 1)
+
+    def test_transport_child_cannot_hold_timeout_output_open(self):
+        module = load_claims()
+        run = subprocess.run
+        script = ("import subprocess, sys, time; "
+                  "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(3)']); "
+                  "time.sleep(3)")
+
+        def stalled_transport(arguments, **options):
+            return run([sys.executable, "-c", script], **options)
+
+        started = time.monotonic()
+        with mock.patch.object(module.coordination.subprocess, "run", side_effect=stalled_transport):
+            with self.assertRaises(module.coordination.CoordinationTimeout):
+                module.coordination.git(".", "status", deadline=started + 0.2)
+        self.assertLess(time.monotonic() - started, 2)
+
+    def test_timed_out_claim_keeps_scope_and_ticket_locally(self):
+        module = load_claims()
+        with tempfile.TemporaryDirectory() as repository:
+            with mock.patch.object(module, "Claims", side_effect=module.coordination.CoordinationTimeout("test")), \
+                    mock.patch.object(module, "emit") as emit:
+                result = module.main(["--repository", repository, "claim", "--item", "ITEM",
+                                      "--owner", "worker", "--path", "src/file.rs"])
+            self.assertEqual(result, 3)
+            report = emit.call_args.args[0]
+            self.assertEqual(report["state"], "unavailable")
+            pending = json.loads(Path(report["pending_file"]).read_text(encoding="utf-8"))
+            self.assertEqual(pending["ticket"], report["ticket"])
+            self.assertEqual(pending["paths"], ["src/file.rs"])
+            self.assertTrue(pending["may_have_published"])
 
 
 class ClaimsTests(unittest.TestCase):

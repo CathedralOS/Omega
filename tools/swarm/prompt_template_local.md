@@ -43,6 +43,11 @@ a live session, pick an unclaimed board item that is not in this wave's
 sessions ({wave_items}) or the wave exclusions ({exclusions}), claim that
 instead, and record the pivot in your report. Never pass `--allow-overlap`.
 
+Exit 3 means coordination timed out, not a live conflict. Keep the pending
+claim record, report the outage, and continue the assigned work in this isolated
+worktree. Do not repeatedly wait for registration. Inspect status before retrying
+an uncertain write. The landing queue remains mandatory.
+
 Keep `TASKS*.md` and other coordination files out of claimed paths — board
 files are hot singletons, and `landing.py` refuses candidates that touch only
 coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`, `tools/swarm/waves/`)
