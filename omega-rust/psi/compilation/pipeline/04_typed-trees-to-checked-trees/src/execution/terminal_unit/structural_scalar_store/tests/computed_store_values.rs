@@ -31,12 +31,11 @@ fn stores(source: &str, state_index: usize) -> Option<Vec<CheckedUnitEffectOpera
     )
 }
 
-/// The relaxation reaches only values that still lower through the ordinary
-/// scalar vocabulary: a named-domain cast chain whose leaf is a structural
-/// field read needs binding lists the store's value lane does not carry, so
-/// it must keep declining rather than stand on its retained expression.
+/// A policy cast chain ending in an exact narrowing re-lowers through the
+/// unit-argument vocabulary once that lowering sees validation's exact-cast
+/// facts, so the store keeps the retained value by exact equality.
 #[test]
-fn binding_needs_still_decline_inside_a_named_domain_chain() {
+fn an_exact_cast_chain_over_a_member_read_relowers_and_composes() {
     let source = r#"
         data T { bytes: [u8; 16]; v: u8; }
         machine T::poke(&mut self, digit_index: u64) {
@@ -50,8 +49,12 @@ fn binding_needs_still_decline_inside_a_named_domain_chain() {
             state done(&mut self) {}
         }
     "#;
+    let stores = stores(source, 1).expect("the exact-cast chain re-lowers");
     assert!(
-        stores(source, 1).is_none(),
-        "a retained member-read leaf is not an ordinary scalar value"
+        matches!(
+            stores.as_slice(),
+            [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }]
+        ),
+        "one element store: {stores:#?}"
     );
 }

@@ -55,14 +55,7 @@ pub use contract_queries::{
 };
 use statements::validate_state_statement_node;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExactIntegerCastFact {
-    pub expression: ExpressionHandle,
-    pub source_type: typed_trees::types::PrimitiveType,
-    pub target_type: typed_trees::types::PrimitiveType,
-    pub minimum: numerics::bignum::BigInt,
-    pub maximum: numerics::bignum::BigInt,
-}
+pub use checked_trees::operators::ExactIntegerCastFact;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {

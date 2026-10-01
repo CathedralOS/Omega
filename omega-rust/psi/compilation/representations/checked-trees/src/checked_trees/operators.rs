@@ -551,9 +551,24 @@ impl CheckedOperatorCrashContract {
     }
 }
 
+/// The range validation proved for one exact (`as T`) integer conversion of a
+/// runtime value. Checked scalar lowering spells the conversion as
+/// `IntegerExactCast` carrying this range; without the row it declines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactIntegerCastFact {
+    pub expression: ExpressionHandle,
+    pub source_type: typed_trees::types::PrimitiveType,
+    pub target_type: typed_trees::types::PrimitiveType,
+    pub minimum: numerics::bignum::BigInt,
+    pub maximum: numerics::bignum::BigInt,
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
+    /// Every exact integer conversion validation proved, so a later lowering
+    /// of the same authored expression spells it as the retained one did.
+    pub exact_integer_casts: Vec<ExactIntegerCastFact>,
     /// Target-neutral executions settled by Omega from exact selected plans.
     /// Source classification alone never populates this roster.
     pub selected_float_comparisons: Arena<CheckedSelectedFloatComparisonExecution>,
@@ -629,6 +644,7 @@ impl std::fmt::Debug for CheckedOperatorFacts {
         formatter
             .debug_struct("CheckedOperatorFacts")
             .field("uses", &self.uses)
+            .field("exact_integer_casts", &self.exact_integer_casts)
             .field(
                 "selected_float_comparisons",
                 &self.selected_float_comparisons,
@@ -765,6 +781,7 @@ impl CheckedOperatorFacts {
     ) -> Self {
         Self {
             uses,
+            exact_integer_casts: Vec::new(),
             selected_float_comparisons: Arena::new(),
             named_uses,
             named_requirement_uses: Arena::new(),
