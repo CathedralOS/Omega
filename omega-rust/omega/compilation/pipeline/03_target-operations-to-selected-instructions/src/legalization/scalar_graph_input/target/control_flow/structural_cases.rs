@@ -62,56 +62,27 @@ pub(super) fn home_available(
                                 },
                             ..
                         } if home.place() == expected_source => {
-                            Some((candidate.block, Some(home.clone())))
+                            Some((candidate.block, home.clone()))
                         }
                         TargetUnitOperation::EstablishByteSequenceConcatenation {
                             result, ..
                         } if result.place == expected_source => Some((
                             candidate.block,
-                            Some(
-                                super::super::super::aggregate_results::result_home(
-                                    optimized,
-                                    expected_source,
-                                    plan,
-                                )
-                                .ok()?,
-                            ),
+                            super::super::super::aggregate_results::result_home(
+                                optimized,
+                                expected_source,
+                                plan,
+                            )
+                            .ok()?,
                         )),
-                        // A reference-only call result carries no physical
-                        // home; the custody metadata roster stands in for it.
-                        TargetUnitOperation::Call {
-                            result:
-                                target_operations::TargetCallResult::Structural {
-                                    result_home: None,
-                                    result,
-                                    reference_results,
-                                    ..
-                                },
-                            ..
-                        } if !reference_results.is_empty() && result.place == expected_source => {
-                            Some((candidate.block, None))
-                        }
                         _ => None,
                     })
             });
             let Some((producer_block, home)) = producers.next() else {
                 return false;
             };
-            let home_matches = match &home {
-                Some(home) => source == home,
-                None => {
-                    super::super::super::aggregate_results::result_home(
-                        optimized,
-                        expected_source,
-                        plan,
-                    )
-                    .ok()
-                    .as_ref()
-                        == Some(source)
-                }
-            };
             if producers.next().is_some()
-                || !home_matches
+                || source != &home
                 || (producer_block != block
                     && !sources::dominates(optimized, producer_block, block))
             {

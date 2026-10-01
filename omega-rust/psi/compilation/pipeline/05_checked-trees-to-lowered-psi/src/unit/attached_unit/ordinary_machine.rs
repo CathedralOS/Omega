@@ -712,7 +712,7 @@ pub(super) fn emit(
                             )?;
                             Ok(terminal_psi::StructuralReferenceResultSource {
                                 path: lower_structural_path(&reference.path)?,
-                                source: arguments[0].clone(),
+                                sources: arguments,
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()

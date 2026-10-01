@@ -40,6 +40,7 @@ mod primitive_locals;
 pub(super) use case_membership::observe;
 pub(super) mod indirect_results;
 mod record;
+pub(super) mod reference;
 mod scalar_array;
 mod scalar_case;
 mod zeroed;
@@ -360,48 +361,24 @@ pub(super) fn operation(
         element_subslice::create(source, replay, node)?;
         return Ok(true);
     }
-    // Reference custody is compile-time metadata: the rows carry operation
-    // provenance and ordering but emit no executable instruction and no
-    // physical result home. The carrier's zero-byte shape and non-owned
-    // source are the only admission checks here; the referent never exists
-    // as pointer bits at this stage.
     if matches!(
         node.kind,
         LegalizedScalarInstructionKind::EstablishReference { .. }
-            | LegalizedScalarInstructionKind::ReleaseReference { .. }
+    ) {
+        reference::establish(source, node, replay)?;
+        return Ok(true);
+    }
+    // Release changes only the independently replayed loan ledger.
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::ReleaseReference { .. }
     ) {
         if node.result.is_some() {
             return Err(replay.invalid());
         }
-        if let LegalizedScalarInstructionKind::EstablishReference {
-            result,
-            source: argument,
-            shape,
-        } = &node.kind
-        {
-            let valid = source.structural.as_ref().is_some_and(|signature| {
-                signature
-                    .structural_places
-                    .iter()
-                    .any(|declaration| declaration.id == result.place)
-                    && signature.structural_types.iter().any(|declaration| {
-                        declaration.id == result.structural_type
-                            && matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::Reference { .. }
-                            )
-                    })
-            });
-            if !valid
-                || *shape != calling_conventions::ValueShape::integer(0, 1)
-                || argument.access == StructuralAccess::Owned
-            {
-                return Err(replay.invalid());
-            }
-        }
         return Ok(true);
     }
-    // An empty-record local is metadata like reference custody: its place
+    // An empty-record local has no initialization payload: its place
     // must be the trivial local of the signature's own empty record.
     if let LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
         place,

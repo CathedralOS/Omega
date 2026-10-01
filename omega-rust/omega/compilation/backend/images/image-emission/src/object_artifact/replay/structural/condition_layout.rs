@@ -42,10 +42,9 @@ fn replay_structural_shape(
     let shape = match &declaration.shape {
         // A nested established Binding contributes no condition payload.
         terminal_psi::StructuralTypeShape::FusedServiceBinding => ValueShape::integer(0, 1),
-        // A reference carrier transports no referent storage: custody is
-        // compile-time metadata, so its value shape is the empty aggregate
-        // slot the lowering layout assigns.
-        terminal_psi::StructuralTypeShape::Reference { .. } => ValueShape::integer(0, 1),
+        // A reference field contains one address, not the referent's storage.
+        // Its payload participates in enclosing offsets like any other field.
+        terminal_psi::StructuralTypeShape::Reference { .. } => ValueShape::integer(8, 8),
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
             ValueShape::integer(1, 1)
         }

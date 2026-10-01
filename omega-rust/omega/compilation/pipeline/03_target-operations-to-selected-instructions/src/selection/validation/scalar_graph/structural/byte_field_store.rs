@@ -66,7 +66,18 @@ pub(super) fn replace(
         ),
         _ => return Err(replay.invalid()),
     };
-    let destination_type = if destination.access == StructuralAccess::Owned && field.is_some() {
+    let reference = if field.is_some() && destination.access == StructuralAccess::MutableBorrow {
+        crate::selection::reference_input::mutable_projection(
+            function,
+            destination.place,
+            &destination.path,
+        )
+    } else {
+        None
+    };
+    let destination_type = if let Some((referent, _)) = reference {
+        referent
+    } else if destination.access == StructuralAccess::Owned && field.is_some() {
         let (_, result) =
             crate::selection::aggregate_result_input::home(function, destination.place)
                 .ok_or_else(|| replay.invalid())?;
@@ -113,7 +124,7 @@ pub(super) fn replace(
     let metadata_offset = if let Some(field) = field {
         crate::structural_inputs::structural_reference_input::byte_field_storage(
             destination_type,
-            &destination.path,
+            reference.map_or(destination.path.as_slice(), |(_, suffix)| suffix),
             field,
             &signature.structural_types,
         )
@@ -163,7 +174,10 @@ pub(super) fn replace(
         )?;
         source_pointer = address;
     }
-    let root = if destination.access == StructuralAccess::Owned {
+    let root = if reference.is_some() {
+        let home = super::place_pointer(replay, row, destination.place, 0)?;
+        super::reference::load(replay, row, destination.place, home)?
+    } else if destination.access == StructuralAccess::Owned {
         super::place_pointer(replay, row, destination.place, 0)?
     } else {
         replay

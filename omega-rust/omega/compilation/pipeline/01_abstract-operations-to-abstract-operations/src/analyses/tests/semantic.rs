@@ -722,11 +722,11 @@ fn place_access_summaries_resolve_aliases_external_roots_and_result_sources() {
             projected_qualifications: Vec::new(),
             reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
                 path: vec![terminal_psi::StructuralPathSegment::from("out")],
-                source: argument_view(
+                sources: vec![argument_view(
                     200,
                     vec![terminal_psi::StructuralPathSegment::from("inner")],
                     StructuralAccess::SharedBorrow,
-                ),
+                )],
             }],
         },
     );

@@ -468,16 +468,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::FloatResultPolicy { .. } => true,
                 // A static store writes one exact place row; a store through
                 // runtime-selected elements publishes one row per element.
-                AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } => {
+                AbstractOperation::StructuralScalarFieldStore { .. } => {
                     if operation.runtime_indices().is_empty() {
-                        structural_fields::scalar_store_place(abstracted, operation, targeted)
-                            .is_some_and(|write_place| {
-                                selected.memory_accesses.iter().any(|access| {
-                                    access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
-                                        && access.place == write_place
-                                        && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
-                                })
-                            })
+                        structural_fields::scalar_store_footprints_retained(
+                            abstracted, operation, targeted, &selected.memory_accesses,
+                        )
                     } else {
                         structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                     }

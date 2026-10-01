@@ -4,7 +4,8 @@ mod tests;
 
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
+    terminal_scalar_type, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
@@ -329,6 +330,27 @@ pub(super) fn validate(
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
+                    value,
+                    discard_result_on_return: true,
+                    ..
+                },
+                StatementNode::LocalData(_)
+                | StatementNode::Expression(_)
+                | StatementNode::Call(_),
+            ) if result.statement_index as usize == ordinal
+                && guarded_view_discard(checked, machine, state, index, result, *value) =>
+            {
+                crate::expression_preparation::source_custody::structural::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    value,
                     discard_result_on_return: false,
                     ..
                 },
@@ -338,7 +360,9 @@ pub(super) fn validate(
                 // A value-returning transition tail establishes its result on
                 // the transition's own statement — the value arm's source.
                 | StatementNode::Transition(_),
-            ) if result.statement_index as usize == ordinal => {
+            ) if result.statement_index as usize == ordinal
+                && !guarded_view_discard(checked, machine, state, index, result, *value) =>
+            {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
                     machine,
@@ -956,6 +980,108 @@ pub(super) fn validate(
         }
     }
     Ok(end)
+}
+
+/// Replay the one checked loan release that makes an affine slice-view
+/// carrier disposable on every guarded return arm. The returned reference is
+/// established separately inside the arm; this prefix carrier has no later
+/// reborrow rooted at that view which could own the same release.
+fn guarded_view_discard(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &CheckedComposedUnitControlStatePlan,
+    operation_index: usize,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    value: checked_trees::CheckedStructuralValueHandle,
+) -> bool {
+    let Some(view_source) = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .is_valid(value)
+        .then(|| &checked.facts.values.structural_values.nodes.get(value).kind)
+        .and_then(|kind| match kind {
+            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
+            | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
+                Some(source)
+            }
+            _ => None,
+        })
+    else {
+        return false;
+    };
+    let Ok((source_machine, source_state)) =
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)
+    else {
+        return false;
+    };
+    let parameter_symbol = |parameter_index: u32| {
+        let parameter = state.structural_parameters.get(parameter_index as usize)?;
+        let authored = checked
+            .typed
+            .state_parameters(source_state)
+            .get(parameter.position as usize)?;
+        authored
+            .is_self
+            .then_some(source_machine.symbol)
+            .or(Some(authored.symbol))
+    };
+    let same_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| match (
+        &argument.source,
+        &view_source.source,
+    ) {
+        (
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+        ) => parameter_symbol(*parameter_index) == Some(*symbol),
+        (
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+        ) => Some(*symbol) == parameter_symbol(*parameter_index),
+        _ => argument.source == view_source.source,
+    };
+
+    result.multiplicity == Multiplicity::Affine
+        && matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+        )
+        && !state.operations[operation_index + 1..]
+            .iter()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
+                        if same_root(source) && source.path.starts_with(&view_source.path)
+                )
+            })
+        && checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.kind == language_semantics::PermissionEventKind::Consume
+                    && event.machine_symbol == machine
+                    && event.state_symbol == state.state
+                    && matches!(
+                        event.claim_identity,
+                        language_semantics::PermissionClaimIdentity::Established {
+                            machine_symbol,
+                            state_symbol,
+                            source: language_semantics::PermissionEventSource::Statement {
+                                statement_index,
+                            },
+                            ..
+                        } if machine_symbol == machine
+                            && state_symbol == state.state
+                            && statement_index == result.statement_index as usize
+                    )
+            })
+            .count()
+            == 1
 }
 
 /// The rejection for a store the walk attributed to another statement than

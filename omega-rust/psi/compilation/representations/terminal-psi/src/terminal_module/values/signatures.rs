@@ -104,8 +104,8 @@ pub struct StructuralResultDeclaration {
     /// Strictly ordered exact qualifications transferred with nonempty paths
     /// beneath the result root.
     pub projected_qualifications: Vec<StructuralPathQualification>,
-    /// Exact reference leaves and their formal ingress sources. Verification
-    /// reconstructs each returned carrier's origin before accepting this map;
+    /// Exact reference leaves and their possible formal ingress sources. Verification
+    /// reconstructs every returning arm's origin before accepting this map;
     /// callers substitute actual places only after successful completion.
     pub reference_sources: Vec<StructuralReferenceResultSource>,
 }
@@ -113,7 +113,19 @@ pub struct StructuralResultDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralReferenceResultSource {
     pub path: Vec<StructuralPathSegment>,
-    pub source: StructuralArgument,
+    /// Nonempty, strictly ordered alternatives for this one reference leaf.
+    /// These are possible origins, not simultaneous permission carriers.
+    pub sources: Vec<StructuralArgument>,
+}
+
+impl StructuralReferenceResultSource {
+    /// An exact static origin exists only when the complete roster is a singleton.
+    pub fn sole_source(&self) -> Option<&StructuralArgument> {
+        let [source] = self.sources.as_slice() else {
+            return None;
+        };
+        Some(source)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

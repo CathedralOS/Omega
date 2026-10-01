@@ -28,12 +28,8 @@ pub(in crate::legalization) fn scalar_store_destination(
         result.place,
         path,
     )?;
-    (resolved.producer == *producer && resolved.result == *result).then(|| {
-        (
-            abstract_operations::StructuralScalarStoreDestination::Parameter(resolved.parameter),
-            resolved.path,
-        )
-    })
+    (resolved.producer == *producer && resolved.result == *result)
+        .then(|| (destination.clone(), path.to_vec()))
 }
 
 pub(in crate::legalization) fn replacement(
@@ -103,6 +99,7 @@ pub(in crate::legalization) fn replacement(
         } => (destination, path, field, None),
         _ => return None,
     };
+    let semantic_path = path.clone();
     // Whole-field replacement may address the exact completed owned record.
     // Indexed writes retain their existing borrowed-storage contract.
     let owned_result = source.and_then(|_| {
@@ -141,23 +138,11 @@ pub(in crate::legalization) fn replacement(
             terminal_psi::StructuralAccess::Owned,
             path.clone(),
         )
-    } else {
-        let (parameter, path) = if let Some(parameter) = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)
-        {
-            (parameter.clone(), path.clone())
-        } else {
-            let resolved = super::reference_custody::writable_referent_destination(
-                custody,
-                function,
-                types,
-                *destination,
-                path,
-            )?;
-            (resolved.parameter, resolved.path)
-        };
+    } else if let Some(parameter) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)
+    {
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow
@@ -172,7 +157,21 @@ pub(in crate::legalization) fn replacement(
             parameter.place,
             parameter.structural_type,
             parameter.access,
+            path.clone(),
+        )
+    } else {
+        let resolved = super::reference_custody::writable_referent_destination(
+            custody,
+            function,
+            types,
+            *destination,
             path,
+        )?;
+        (
+            *destination,
+            resolved.referent,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            resolved.path,
         )
     };
     if !terminal_psi::is_bounded_structural_scalar_store_path(&path)
@@ -197,7 +196,7 @@ pub(in crate::legalization) fn replacement(
     Some(terminal_psi::StructuralArgument {
         place: root,
         access,
-        path,
+        path: semantic_path,
     })
 }
 
@@ -221,12 +220,22 @@ pub(in crate::legalization) fn view_replacement(
     else {
         return None;
     };
-    let (parameter, path) = if let Some(parameter) = function
+    let (root_type, access, projected_path) = if let Some(parameter) = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == *destination)
     {
-        (parameter.clone(), path.clone())
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        (parameter.structural_type, parameter.access, path.clone())
     } else {
         let resolved = super::reference_custody::writable_referent_destination(
             custody,
@@ -235,38 +244,35 @@ pub(in crate::legalization) fn view_replacement(
             *destination,
             path,
         )?;
-        (resolved.parameter, resolved.path)
+        (
+            resolved.referent,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            resolved.path,
+        )
     };
-    if !matches!(
-        parameter.access,
-        terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || source == destination
+    if source == destination
         || super::literals::declaration_producer(function, *source).is_none()
         || function
             .entry_claim_declarations
             .iter()
-            .any(|claim| claim.input == parameter.place)
+            .any(|claim| claim.input == *destination)
         || function
             .content_entry_claims
             .iter()
-            .any(|claim| claim.input.root == parameter.place)
+            .any(|claim| claim.input.root == *destination)
     {
         return None;
     }
     crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
-        parameter.structural_type,
-        &path,
+        root_type,
+        &projected_path,
         *field,
         types,
     )?;
     Some(terminal_psi::StructuralArgument {
-        place: parameter.place,
-        access: parameter.access,
-        path,
+        place: *destination,
+        access,
+        path: path.clone(),
     })
 }
 
@@ -515,6 +521,7 @@ pub(in crate::legalization) fn read(
                 let (root_place, root_path) = match &leaf.root {
                     super::reference_custody::Root::Place(place) => (*place, Vec::new()),
                     super::reference_custody::Root::Ingress(place, path) => (*place, path.clone()),
+                    super::reference_custody::Root::Alternatives(..) => return None,
                 };
                 let root_contract = function
                     .structural_parameters

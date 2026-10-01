@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 15.2, "load1_start": 15.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.02, "load1_start": 4.02, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1198,6 +1198,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
@@ -1205,7 +1206,9 @@ pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
+pass/borrows/returned_record_byte_field_store_exit checked 884ms @e7c13a0f55b2+wt
 pass/borrows/returned_record_method_receiver_exit checked 904ms @db98ccdfb56c+wt
+pass/borrows/returned_record_projected_call_exit checked 760ms @e7c13a0f55b2+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt

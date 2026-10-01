@@ -1011,3 +1011,143 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
         "a shared returned carrier was retagged as a mutable receiver"
     );
 }
+
+#[test]
+fn branch_selected_mutable_record_lends_its_producer_loan_to_a_receiver() {
+    let checked = checked_program(
+        r#"
+        data Child { value: i32 in Wrapping; }
+        data Holder { child: Child; sibling: i32 in Wrapping; }
+        data Bag { holders: [Holder; 2]; }
+        data Main { bag: Bag; }
+        machine pick(bag: &mut Bag, first: bool) -> &mut Holder {
+            let holders: &mut [Holder] = bag.holders.as_mut_slice();
+            transition first {
+                true -> &mut holders[0]
+                false -> &mut holders[1]
+            }
+        }
+        machine Holder::replace(&mut self) { self.child.value = 41; }
+        machine Main::run(&mut self, first: bool) {
+            let selected: &mut Holder = pick(&mut self.bag, first);
+            selected.replace();
+            self.bag.holders[0].sibling = 31;
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let pick = machine_named(&checked, "pick");
+    let replace = machine_named(&checked, "replace");
+    let pick_plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(pick)
+        .expect("branch-selected producer plan");
+    assert_eq!(pick_plan.result_reference_sources.len(), 2);
+    assert!(
+        pick_plan
+            .result_reference_sources
+            .iter()
+            .all(|source| source.path.is_empty()),
+        "one whole-reference leaf carries every return-arm candidate",
+    );
+    assert_ne!(
+        pick_plan.result_reference_sources[0], pick_plan.result_reference_sources[1],
+        "distinct return-arm sources were collapsed",
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "branch-selected receiver plan: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let pick_call = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == pick)
+        .expect("branch-selected reference producer");
+    let result = pick_call
+        .structural_result()
+        .expect("branch-selected reference result");
+    let loan = pick_call
+        .structural_custody()
+        .map(|custody| custody.reference_loan)
+        .filter(|loan| loan.is_valid())
+        .expect("branch-selected result loan");
+    let replace_call = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == replace)
+        .expect("branch-selected implicit receiver call");
+    let [receiver] = replace_call.structural_arguments.as_slice() else {
+        panic!(
+            "replace receives one branch-selected referent: {:?}",
+            replace_call.structural_arguments
+        );
+    };
+    assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
+    assert_eq!(receiver.path, [CheckedUnitStructuralPathSegment::Referent]);
+    assert_eq!(
+        receiver.source_structural_result_binding_ordinal(),
+        Some(result.binding_ordinal)
+    );
+
+    // Receiver reconciliation independently rejoins the call's exact loan;
+    // a changed caller root cannot be repaired from the matching result type.
+    let mut forged = checked.facts.clone();
+    forged.borrow.loans.get_mut(loan).root_symbol = symbols::SymbolHandle::invalid();
+    let forged_plan = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &forged,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &forged.flow.terminal_boundary_scalar_returns,
+            structural_returns: &forged.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        forged_plan.for_machine(machine).is_none(),
+        "a forged branch-selected producer root authorized the receiver"
+    );
+}
+
+#[test]
+fn branch_selected_reference_rejects_different_ingress_origins() {
+    let diagnostics = checked_program_result(
+        r#"
+        data Holder { value: i32 in Wrapping; }
+        data Bag { holders: [Holder; 2]; }
+        machine pick(left: &mut Bag, right: &mut Bag, first: bool) -> &mut Holder {
+            let left_holders: &mut [Holder] = left.holders.as_mut_slice();
+            let right_holders: &mut [Holder] = right.holders.as_mut_slice();
+            transition first {
+                true -> &mut left_holders[0]
+                false -> &mut right_holders[1]
+            }
+        }
+        machine Holder::replace(&mut self) { self.value = 41; }
+        machine run(left: &mut Bag, right: &mut Bag, first: bool) {
+            let selected: &mut Holder = pick(left, right, first);
+            selected.replace();
+        }
+        "#,
+    )
+    .expect_err("different ingress origins have no inferred return lifetime");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot infer which input the returned view borrows")),
+        "different returned ingress origins were not rejected exactly: {diagnostics:#?}"
+    );
+}

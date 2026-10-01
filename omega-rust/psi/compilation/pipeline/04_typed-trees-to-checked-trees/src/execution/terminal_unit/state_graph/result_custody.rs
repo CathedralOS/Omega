@@ -16,9 +16,9 @@ use checked_trees::CheckedUnitStructuralParameterPlan;
 
 /// A whole reference is one permission leaf, even when its value is emitted
 /// on a guarded return edge. Publish its captured source instead of silently
-/// dropping the roster for a named referent. The current interface names one
-/// exact origin: differing arm origins require result-address transport, not
-/// selecting an arbitrary arm's storage.
+/// dropping the roster for a named referent. Each independently checked exit
+/// contributes its exact candidate source for that leaf; equal rows deduplicate,
+/// while distinct arm paths remain distinct rather than selecting one origin.
 pub(super) fn reference_sources(
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
@@ -26,24 +26,22 @@ pub(super) fn reference_sources(
         CheckedClosedSumCaseOutcomePlan, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
         CheckedReferenceResultSourcePlan,
     };
-    let mut common = None;
-    let mut retain = |sources: Vec<CheckedReferenceResultSourcePlan>| {
-        if sources.len() != 1 {
+    let mut retained = Vec::new();
+    let mut retain = |sources: &[CheckedReferenceResultSourcePlan]| {
+        if sources.is_empty() {
             return None;
         }
-        match &common {
-            Some(previous) if *previous != sources => None,
-            Some(_) => Some(()),
-            None => {
-                common = Some(sources);
-                Some(())
+        for source in sources {
+            if !retained.contains(source) {
+                retained.push(source.clone());
             }
         }
+        Some(())
     };
     for state in states {
         let returned: Vec<_> = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
-                retain(result.reference_sources.clone())?;
+                retain(&result.reference_sources)?;
                 continue;
             }
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
@@ -88,13 +86,13 @@ pub(super) fn reference_sources(
             else {
                 return None;
             };
-            retain(vec![CheckedReferenceResultSourcePlan {
+            retain(std::slice::from_ref(&CheckedReferenceResultSourcePlan {
                 path: Vec::new(),
                 source: source.clone(),
-            }])?;
+            }))?;
         }
     }
-    common
+    (!retained.is_empty()).then_some(retained)
 }
 
 pub(super) fn account(
@@ -103,7 +101,7 @@ pub(super) fn account(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
     disposable_locals: &[symbols::SymbolHandle],
     trace: &control::LocalConstructionTrace,
@@ -123,6 +121,7 @@ pub(super) fn account(
         _ => Vec::new(),
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations)?;
+    let mut guarded_discards = Vec::new();
     for (producer_index, operation) in operations.iter().enumerate() {
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
@@ -500,6 +499,15 @@ pub(super) fn account(
         } else {
             0
         };
+        // The checked loan release is the semantic owner of an affine view,
+        // while Terminal's structural frontier owns the materialized carrier.
+        // On an all-return guarded state the same one release therefore
+        // restores the carrier's physical discard row; it is not a second
+        // source-custody disposition in `total` below.
+        let guarded_view_disposal = matches!(
+            terminator,
+            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+        ) && view_releases == 1;
         // A byte replacement copies the completed live prefix and length;
         // it neither moves an affine owner nor invents a disposal receipt.
         // The store's source replay separately rejoins the exact call.
@@ -542,6 +550,15 @@ pub(super) fn account(
         if total != 1 {
             return None;
         }
+        if guarded_view_disposal {
+            guarded_discards.push(producer_index);
+        }
+    }
+    for producer_index in guarded_discards {
+        let (_, discard_result_on_return) = operations
+            .get_mut(producer_index)?
+            .discardable_structural_result_mut()?;
+        *discard_result_on_return = true;
     }
     Some(())
 }

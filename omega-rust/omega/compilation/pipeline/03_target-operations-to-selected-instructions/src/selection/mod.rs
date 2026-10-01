@@ -25,6 +25,7 @@ mod owned_block_home_input;
 mod parameter_use;
 pub(crate) mod primitive_local_input;
 mod record_input;
+mod reference_input;
 mod scalar_array_input;
 mod scalar_call_abi;
 mod validation;

@@ -15,7 +15,7 @@ use super::{
     edges,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::CheckedScalarBranchDestination;
+use checked_trees::{CheckedScalarBranchDestination, expression::ExpressionNode};
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -83,6 +83,8 @@ pub(super) fn validate(
         bindings.push(result.binding_ordinal);
     }
     let statements = checked.statement_table.statements(source.statement_nodes);
+    let reference_result = !plan.result_reference_sources.is_empty();
+    let mut returned_reference_sources = Vec::new();
     for (destination, operation) in guards
         .iter()
         .map(|guard| &guard.destination)
@@ -95,15 +97,6 @@ pub(super) fn validate(
         } = destination
         else {
             return unsupported("ordered structural destination is not its retained value return");
-        };
-        let result = match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => result,
-            _ => return unsupported("ordered return lost its structural producer"),
         };
         let expression = match statements.get(*statement_ordinal as usize) {
             Some(checked_trees::statement::StatementNode::Expression(expression))
@@ -127,6 +120,58 @@ pub(super) fn validate(
                 *expression
             }
             _ => return unsupported("ordered return has no exact authored expression"),
+        };
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                discard_result_on_return: false,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
+                if !reference_result =>
+            {
+                result
+            }
+            CheckedUnitEffectOperationPlan::EstablishReference {
+                result,
+                source: reference_source,
+            } if reference_result => {
+                let expected = guarded_reference_source(checked, plan, source, state, expression)?;
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } = &reference_source.source
+                else {
+                    return unsupported("ordered reference return lost its ingress parameter");
+                };
+                let parameter = state
+                    .structural_parameters
+                    .get(*parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordered reference return ingress parameter is absent",
+                    ))?;
+                let candidate_count = plan
+                    .result_reference_sources
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.path.is_empty() && candidate.source == *reference_source
+                    })
+                    .count();
+                if expected != *reference_source
+                    || parameter.access != reference_source.access
+                    || parameter.multiplicity != Multiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || candidate_count != 1
+                {
+                    return unsupported(
+                        "ordered reference return differs from its exact candidate ingress",
+                    );
+                }
+                if !returned_reference_sources.contains(reference_source) {
+                    returned_reference_sources.push(reference_source.clone());
+                }
+                result
+            }
+            _ => return unsupported("ordered return lost its structural producer"),
         };
         if result.statement_index != *statement_ordinal
             || result.type_identity != signature.type_identity
@@ -152,12 +197,220 @@ pub(super) fn validate(
                 state.state,
                 operation,
             )?;
-        } else {
+        } else if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
+        ) {
             super::super::super::byte_locals::validate(checked, state.state, operation)?;
         }
     }
+    if reference_result
+        && (plan.result_reference_sources.iter().any(|candidate| {
+            !candidate.path.is_empty() || !returned_reference_sources.contains(&candidate.source)
+        }) || returned_reference_sources.len() != plan.result_reference_sources.len())
+    {
+        return unsupported("ordered reference returns do not cover their candidate roster");
+    }
     edges::return_discards(checked, plan.machine, source, state)?;
     Ok(())
+}
+
+/// Rebuild one guarded `&mut place` arm from authored syntax and the checked
+/// loan ledger. The composed plan's candidate roster is only a correspondence
+/// receipt: admission must not let a producer and that receipt be forged to a
+/// different, same-typed ingress together.
+fn guarded_reference_source(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    authored: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Result<checked_trees::CheckedUnitStructuralArgumentPlan, LoweringError> {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == plan.machine)
+        .ok_or(LoweringError::Unsupported(
+            "ordered reference return lost its machine",
+        ))?;
+    let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
+        return unsupported("ordered reference return lost its authored borrow");
+    };
+    if borrow.access != language_core::ReferenceAccess::Mutable {
+        return unsupported("ordered reference return changed its mutable access");
+    }
+    let (referent, access) = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        authored.return_type,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "ordered reference return lost its mutable result type",
+    ))?;
+    let leaf = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        authored,
+        borrow.target,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "ordered reference return lost its target type",
+    ))?;
+    if checked.normalized_type_identity(leaf) != checked.normalized_type_identity(referent) {
+        return unsupported("ordered reference return changed its referent type");
+    }
+    let (mut path, root) =
+        crate::expression_preparation::source_custody::structural_places::walk_exact_place(
+            checked,
+            machine,
+            authored,
+            borrow.target,
+            true,
+        )?;
+    if !path.iter().all(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return unsupported("ordered reference return has a non-static target path");
+    }
+    let ExpressionNode::Name(root) = checked.expression_table.expression(root) else {
+        return unsupported("ordered reference return lost its named target root");
+    };
+    if root.head_symbol != root.symbol
+        || checked
+            .expression_table
+            .name_path_members(root.members)
+            .len()
+            != 1
+    {
+        return unsupported("ordered reference return target root is not exact");
+    }
+    let parameters = checked.state_parameters(authored);
+    let mut root_symbol = root.symbol;
+    let borrow_state = {
+        let mut states = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, candidate)| candidate)
+            .filter(|candidate| {
+                candidate.machine_symbol == machine.symbol
+                    && candidate.state_symbol == authored.symbol
+            });
+        let state = states.next().ok_or(LoweringError::Unsupported(
+            "ordered reference return lost its borrow state",
+        ))?;
+        if states.next().is_some() {
+            return unsupported("ordered reference return has ambiguous borrow states");
+        }
+        state
+    };
+    for _ in 0..8 {
+        if parameters
+            .iter()
+            .any(|parameter| parameter.symbol == root_symbol)
+        {
+            break;
+        }
+        let mut loans = checked.facts.borrow.loans.iter().filter(|(handle, loan)| {
+            checked.facts.borrow.state_owns_loan(borrow_state, *handle)
+                && loan.owner_symbol == root_symbol
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                && checked.facts.borrow.loan_owner_path(loan).is_empty()
+        });
+        let (_, loan) = loans.next().ok_or(LoweringError::Unsupported(
+            "ordered reference return target has no exact parent loan",
+        ))?;
+        if loans.next().is_some() {
+            return unsupported("ordered reference return target has ambiguous parent loans");
+        }
+        let mut parent = checked
+            .facts
+            .borrow
+            .loan_segments(loan)
+            .iter()
+            .map(|segment| guarded_loan_segment(checked, segment))
+            .collect::<Result<Vec<_>, _>>()?;
+        parent.append(&mut path);
+        path = parent;
+        root_symbol = loan.root_symbol;
+    }
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == root_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "ordered reference return does not reach an ingress parameter",
+        ))?;
+    let parameter = &parameters[position];
+    if !parameter.is_mutable
+        && validation::reference_result_custody::mutable_borrowed_parts(
+            &checked.typed,
+            parameter.type_reference,
+        )
+        .is_none()
+    {
+        return unsupported("ordered reference return ingress is not mutable");
+    }
+    let parameter_index = state
+        .structural_parameters
+        .iter()
+        .position(|candidate| candidate.position as usize == position)
+        .and_then(|index| u32::try_from(index).ok())
+        .ok_or(LoweringError::Unsupported(
+            "ordered reference return lost its dense ingress parameter",
+        ))?;
+    Ok(checked_trees::CheckedUnitStructuralArgumentPlan {
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index,
+        },
+        path,
+        type_identity: checked.normalized_type_identity(referent).into_string(),
+        access,
+    })
+}
+
+fn guarded_loan_segment(
+    checked: &CheckedTrees,
+    segment: &facts::PlaceSegment,
+) -> Result<checked_trees::CheckedUnitStructuralPathSegment, LoweringError> {
+    match segment {
+        facts::PlaceSegment::Field { symbol } => {
+            let mut fields = checked
+                .data_definitions()
+                .iter()
+                .flat_map(|data| checked.data_members(data))
+                .filter_map(|member| match member {
+                    checked_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
+                        Some(field)
+                    }
+                    _ => None,
+                });
+            let field = fields.next().ok_or(LoweringError::Unsupported(
+                "ordered reference return loan lost its field declaration",
+            ))?;
+            if fields.next().is_some() {
+                return unsupported("ordered reference return loan field is ambiguous");
+            }
+            Ok(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                field.path_identity(),
+            ))
+        }
+        facts::PlaceSegment::FixedIndex { index } => {
+            Ok(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                u64::try_from(*index).map_err(|_| {
+                    LoweringError::Unsupported("ordered reference return index is too large")
+                })?,
+            ))
+        }
+        facts::PlaceSegment::Case { .. }
+        | facts::PlaceSegment::FixedRange { .. }
+        | facts::PlaceSegment::Index { .. } => {
+            unsupported("ordered reference return loan path is not static")
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -350,7 +603,8 @@ pub(super) fn emit_return(
     )?;
     let result = match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => result,
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => result,
         _ => return unsupported("ordered return has no structural producer"),
     };
     let source = operations

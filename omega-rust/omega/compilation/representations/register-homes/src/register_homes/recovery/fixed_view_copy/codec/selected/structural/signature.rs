@@ -38,7 +38,10 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, value: &LegalizedStructuralC
             length(bytes, result.reference_sources.len());
             for reference in &result.reference_sources {
                 encode_path(bytes, &reference.path);
-                encode_semantic_argument(bytes, &reference.source);
+                length(bytes, reference.sources.len());
+                for source in &reference.sources {
+                    encode_semantic_argument(bytes, source);
+                }
             }
         }
     }
@@ -84,7 +87,14 @@ pub(super) fn decode_signature(
                 for _ in 0..count {
                     sources.push(terminal_psi::StructuralReferenceResultSource {
                         path: decode_path(cursor)?,
-                        source: decode_semantic_argument(cursor)?,
+                        sources: {
+                            let count = cursor.length()?;
+                            let mut candidates = Vec::new();
+                            for _ in 0..count {
+                                candidates.push(decode_semantic_argument(cursor)?);
+                            }
+                            candidates
+                        },
                     });
                 }
                 sources
@@ -110,4 +120,56 @@ pub(super) fn decode_signature(
         entry_claims,
         published_service_ceiling: decode_ids(cursor, ServiceId::new)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cursor, LegalizedStructuralContract, decode_signature, encode_signature};
+
+    #[test]
+    fn reference_signature_round_trip_retains_every_origin_candidate() {
+        let signature = LegalizedStructuralContract {
+            result: Some(terminal_psi::StructuralResultDeclaration {
+                place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
+                    path: Vec::new(),
+                    sources: [2, 3]
+                        .into_iter()
+                        .map(|place| terminal_psi::StructuralArgument {
+                            place: semantic_vocabulary::PlaceId::new(place).unwrap(),
+                            access: terminal_psi::StructuralAccess::MutableBorrow,
+                            path: Vec::new(),
+                        })
+                        .collect(),
+                }],
+            }),
+            structural_types: Vec::new().into(),
+            parameters: Vec::new(),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        };
+        let mut bytes = Vec::new();
+        encode_signature(&mut bytes, &signature);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
+        assert_eq!(cursor.remaining(), 0);
+        let mut reordered = signature.clone();
+        reordered.result.as_mut().unwrap().reference_sources[0]
+            .sources
+            .swap(0, 1);
+        let mut changed = Vec::new();
+        encode_signature(&mut changed, &reordered);
+        assert_ne!(bytes, changed);
+        reordered.result.as_mut().unwrap().reference_sources[0]
+            .sources
+            .pop();
+        changed.clear();
+        encode_signature(&mut changed, &reordered);
+        assert_ne!(bytes, changed);
+    }
 }

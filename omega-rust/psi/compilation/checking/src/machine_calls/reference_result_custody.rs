@@ -1607,26 +1607,17 @@ pub fn source_leaf(
         .map(|source| (position, source.source))
 }
 
-/// The authored parameter position a `&mut` view return borrows from, read off
-/// the callee's tail expression: `transition { _ -> &mut slots[2] }` names a
-/// place whose root rejoins through member folds and `&mut` view loans until
-/// it reaches a parameter or `*self`. The walk mirrors the checked-side
-/// `mutable_view_result_operation` place walk exactly — same loan uniqueness
-/// and the same member-of-self fold — so the reconstructed custody names the
-/// same denoted root the emitted `EstablishReference` carries.
+/// The authored parameter position every `&mut` result exit borrows from.
+/// Each returned place rejoins through member folds and exact `&mut` view
+/// loans until it reaches one parameter or `*self`; all exits must agree on
+/// that caller ingress. Their projections deliberately remain distinct: this
+/// join authorizes the one conservative caller loan, not a chosen return path.
 fn mutable_view_source_parameter(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
     if mutable_borrowed_parts(program, state.return_type).is_none() {
-        return None;
-    }
-    let expression = tail_return_expression(program, state)?;
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if borrow.access != language_semantics::ReferenceAccess::Mutable {
         return None;
     }
     let Some(machine) = program.machines().iter().find(|machine| {
@@ -1637,6 +1628,51 @@ fn mutable_view_source_parameter(
     }) else {
         return None;
     };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut source = None;
+    for (ordinal, statement) in statements.iter().enumerate() {
+        let returned = match statement {
+            StatementNode::Transition(transition) => {
+                match program.statement_table.transition_target(transition.target) {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        Some(*expression)
+                    }
+                    _ => None,
+                }
+            }
+            StatementNode::Expression(expression) if ordinal + 1 == statements.len() => {
+                Some(*expression)
+            }
+            _ => None,
+        };
+        let Some(returned) = returned else {
+            continue;
+        };
+        let next = mutable_view_exit_source_parameter(program, facts, machine, state, returned)?;
+        if source.is_some_and(|prior| prior != next) {
+            return None;
+        }
+        source = Some(next);
+    }
+    source
+}
+
+/// Resolve one returned projection to the ingress whose loan it descends
+/// from. This answers only the authored parameter position; the return arm's
+/// distinct field/index path remains in its own checked reference formation.
+fn mutable_view_exit_source_parameter(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
     let authored = program.state_parameters(state);
     let mut cursor = borrow.target;
     let mut symbol = loop {

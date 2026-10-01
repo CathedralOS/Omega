@@ -824,7 +824,7 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
 }
 
 #[test]
-fn returned_reference_byte_store_rejoins_only_its_exact_root() {
+fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     use semantic_vocabulary::ObligationId;
     use target_operations::{
         TargetCallResult, TargetReferenceResult, TargetStructuralHomeLayout,
@@ -936,11 +936,11 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: Vec::new(),
-            source: StructuralArgument {
+            sources: vec![StructuralArgument {
                 place: PlaceId::new(21).unwrap(),
                 access: StructuralAccess::MutableBorrow,
                 path: Vec::new(),
-            },
+            }],
         }],
     };
     target.graph.blocks[0].operations = vec![
@@ -952,11 +952,17 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
             result: TargetCallResult::Structural {
                 result: result.clone(),
                 callee_result: declaration,
-                result_home: None,
+                result_home: Some(TargetStructuralHomeRequirement {
+                    origin: TargetStructuralHomeOrigin::OperationResult {
+                        operation: call_operation,
+                        result: result.clone(),
+                    },
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8)),
+                }),
                 reference_results: vec![TargetReferenceResult {
                     path: Vec::new(),
                     root,
-                    root_path: holder_path.clone(),
+                    root_paths: vec![holder_path.clone()],
                 }],
                 returned_claim_transfers: Vec::new(),
             },
@@ -969,9 +975,9 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
         TargetUnitOperation::StructuralByteSequenceFieldStore {
             psi_operation: store_operation,
             destination: StructuralArgument {
-                place: root,
+                place: carrier,
                 access: StructuralAccess::MutableBorrow,
-                path: holder_path,
+                path: vec![StructuralPathSegment::Referent],
             },
             field,
             source,
@@ -989,7 +995,127 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
         &target
     ));
 
+    // The selected pointer, not the first candidate, remains the write subject.
+    let mut grouped = target.clone();
+    let StructuralTypeShape::Record { fields } =
+        &mut grouped.graph.structural_types.make_mut()[0].shape
+    else {
+        unreachable!()
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: StructuralFieldId::new(3).unwrap(),
+        identity: "sibling".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(holder_type),
+    });
+    let TargetUnitOperation::Call {
+        result: TargetCallResult::Structural {
+            reference_results, ..
+        },
+        ..
+    } = &mut grouped.graph.blocks[0].operations[0]
+    else {
+        unreachable!()
+    };
+    reference_results[0]
+        .root_paths
+        .push(vec![StructuralPathSegment::Field("sibling".into())]);
+    assert!(replacement_retained(
+        &function,
+        &function.operations[1],
+        &grouped
+    ));
+    assert!(super::reference_root(&grouped, carrier).is_none());
+    let TargetUnitOperation::Call {
+        result: TargetCallResult::Structural {
+            reference_results, ..
+        },
+        ..
+    } = &mut grouped.graph.blocks[0].operations[0]
+    else {
+        unreachable!()
+    };
+    reference_results[0].root_paths.swap(0, 1);
+    assert!(!replacement_retained(
+        &function,
+        &function.operations[1],
+        &grouped
+    ));
+
+    use selected_instructions::{
+        SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin as Origin,
+        SelectedMemoryAccessRole as Role,
+    };
+    let accepted_fact = || {
+        optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+            b"reference field copy",
+        )
+    };
+    let access = |instruction, place, byte_offset, byte_count, role| SelectedMemoryAccess {
+        instruction: SelectedInstructionId(instruction),
+        origin: Origin::Operation(store_operation),
+        place,
+        byte_offset,
+        byte_count,
+        role,
+    };
+    let footprints = vec![
+        access(0, carrier, 0, 8, Role::ReadPlace),
+        access(
+            1,
+            source,
+            0,
+            0,
+            Role::ReadByteSpan {
+                length,
+                obligation,
+                accepted_fact: accepted_fact(),
+            },
+        ),
+        access(
+            1,
+            carrier,
+            8,
+            0,
+            Role::WriteByteSpan {
+                length,
+                obligation,
+                accepted_fact: accepted_fact(),
+            },
+        ),
+        access(2, carrier, 0, 8, Role::WritePlace),
+    ];
+    assert!(replacement_footprints_retained(
+        &function,
+        &function.operations[1],
+        Some(&target),
+        &footprints,
+        &target.graph.structural_types
+    ));
     for corruption in 0..5 {
+        let mut changed = footprints.clone();
+        match corruption {
+            0 => {
+                changed.remove(0);
+            }
+            1 => changed[0].place = root,
+            2 => changed[0].byte_offset = 8,
+            3 => changed[0].instruction = SelectedInstructionId(2),
+            _ => changed.insert(0, changed[0].clone()),
+        }
+        assert!(
+            !replacement_footprints_retained(
+                &function,
+                &function.operations[1],
+                Some(&target),
+                &changed,
+                &target.graph.structural_types
+            ),
+            "pointer footprint corruption {corruption}"
+        );
+    }
+
+    for corruption in 0..8 {
         let mut changed_function = function.clone();
         let mut changed_target = target.clone();
         match corruption {
@@ -1017,7 +1143,7 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
                 else {
                     unreachable!()
                 };
-                reference_results[0].root_path.clear();
+                reference_results[0].root_paths[0].clear();
             }
             2 => {
                 let StructuralTypeShape::Reference { access, .. } =
@@ -1035,7 +1161,7 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
                 };
                 path.clear();
             }
-            _ => {
+            4..=6 => {
                 let TargetUnitOperation::Call {
                     result: TargetCallResult::Structural { result_home, .. },
                     ..
@@ -1045,11 +1171,30 @@ fn returned_reference_byte_store_rejoins_only_its_exact_root() {
                 };
                 *result_home = Some(TargetStructuralHomeRequirement {
                     origin: TargetStructuralHomeOrigin::OperationResult {
-                        operation: call_operation,
+                        operation: if corruption == 5 {
+                            OperationId::new(99).unwrap()
+                        } else {
+                            call_operation
+                        },
                         result: result.clone(),
                     },
-                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8)),
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(
+                        if corruption == 6 { 16 } else { 8 },
+                        8,
+                    )),
                 });
+                if corruption == 4 {
+                    *result_home = None;
+                }
+            }
+            _ => {
+                let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
+                    &mut changed_target.graph.blocks[0].operations[1]
+                else {
+                    unreachable!()
+                };
+                destination.place = root;
+                destination.path = holder_path.clone();
             }
         }
         assert!(

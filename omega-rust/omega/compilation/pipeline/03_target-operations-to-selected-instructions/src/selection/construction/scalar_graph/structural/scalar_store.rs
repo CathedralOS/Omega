@@ -15,72 +15,79 @@ pub(super) fn emit(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (destination, value, byte_offset, byte_size, indices) = match &row.kind {
-        LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-            destination,
-            path,
-            field,
-            value,
-            byte_offset,
-            byte_size,
-            indices,
-        } => {
-            let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-            let (offset, size, elements) =
-                crate::structural_inputs::structural_reference_input::store(
-                    destination.structural_type(),
-                    path,
-                    *field,
-                    value.scalar_type,
-                    &signature.structural_types,
-                )
-                .ok_or_else(|| invalid())?;
-            if (offset, size) != (*byte_offset, *byte_size)
-                || !runtime_indices_match(indices, &elements)
-            {
-                return Err(invalid());
-            }
-            (
-                destination.clone(),
+    let (destination, value, byte_offset, byte_size, indices, reference_destination) =
+        match &row.kind {
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
                 value,
-                *byte_offset,
-                *byte_size,
+                byte_offset,
+                byte_size,
                 indices,
-            )
-        }
-        LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-            destination,
-            path,
-            value,
-            byte_offset,
-            byte_size,
-            indices,
-        } => {
-            let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-            let (offset, size, elements) =
-                crate::structural_inputs::structural_reference_input::primitive_store(
-                    destination,
-                    path,
-                    value.scalar_type,
-                    &signature.structural_types,
+            } => {
+                let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+                let reference =
+                    crate::selection::reference_input::store_destination(source, destination, path);
+                let (root, suffix) =
+                    reference.unwrap_or((destination.structural_type(), path.as_slice()));
+                let (offset, size, elements) =
+                    crate::structural_inputs::structural_reference_input::store(
+                        root,
+                        suffix,
+                        *field,
+                        value.scalar_type,
+                        &signature.structural_types,
+                    )
+                    .ok_or_else(|| invalid())?;
+                if (offset, size) != (*byte_offset, *byte_size)
+                    || !runtime_indices_match(indices, &elements)
+                {
+                    return Err(invalid());
+                }
+                (
+                    destination.clone(),
+                    value,
+                    *byte_offset,
+                    *byte_size,
+                    indices,
+                    reference.is_some(),
                 )
-                .ok_or_else(|| invalid())?;
-            if !signature.entry_claims.is_empty()
-                || (offset, size) != (*byte_offset, *byte_size)
-                || !runtime_indices_match(indices, &elements)
-            {
-                return Err(invalid());
             }
-            (
-                destination.clone(),
+            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                destination,
+                path,
                 value,
-                *byte_offset,
-                *byte_size,
+                byte_offset,
+                byte_size,
                 indices,
-            )
-        }
-        _ => return Err(invalid()),
-    };
+            } => {
+                let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+                let (offset, size, elements) =
+                    crate::structural_inputs::structural_reference_input::primitive_store(
+                        destination,
+                        path,
+                        value.scalar_type,
+                        &signature.structural_types,
+                    )
+                    .ok_or_else(|| invalid())?;
+                if !signature.entry_claims.is_empty()
+                    || (offset, size) != (*byte_offset, *byte_size)
+                    || !runtime_indices_match(indices, &elements)
+                {
+                    return Err(invalid());
+                }
+                (
+                    destination.clone(),
+                    value,
+                    *byte_offset,
+                    *byte_size,
+                    indices,
+                    false,
+                )
+            }
+            _ => return Err(invalid()),
+        };
     let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     let declared = match &destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
@@ -97,9 +104,10 @@ pub(super) fn emit(
                 )
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
-            crate::selection::aggregate_result_input::owned_store_destination(
-                source, *producer, result,
-            )
+            reference_destination
+                || crate::selection::aggregate_result_input::owned_store_destination(
+                    source, *producer, result,
+                )
         }
         // An owned arrival's field lands in its own block home, the slot
         // whose address `block_entry` placed in the transport pointers.
@@ -127,7 +135,10 @@ pub(super) fn emit(
     let destination_is_view = view_home.is_some()
         || crate::selection::established_view_input::element_view_type(source, destination.place())
             .is_some();
-    let pointer = if destination_is_view {
+    let pointer = if reference_destination {
+        let home = super::place_pointer(builder, row, destination.place(), 0)?;
+        super::reference::load(builder, row, destination.place(), home)?
+    } else if destination_is_view {
         // A view destination stores through the loan's backing pointer; an
         // established view's register names its descriptor, never the
         // referent, so the store cannot land on the descriptor directly.

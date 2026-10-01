@@ -142,10 +142,11 @@ pub(crate) fn structural_shape(
             // Established Fused bindings have no payload. This describes only
             // geometry; their marker is not an empty-record constructor.
             StructuralTypeShape::FusedServiceBinding => Ok(ValueShape::integer(0, 1)),
-            // A reference carrier transports no referent storage: custody is
-            // compile-time metadata, so its value shape is an empty aggregate
-            // slot rather than a pointer-sized payload.
-            StructuralTypeShape::Reference { .. } => Ok(ValueShape::integer(0, 1)),
+            // All supported native ABIs use 64-bit addresses. The carrier
+            // stores the referent's address, never its contents; custody is
+            // checked separately. Nested reference leaves use the same layout
+            // as whole results, so enclosing record offsets remain coherent.
+            StructuralTypeShape::Reference { .. } => Ok(ValueShape::integer(8, 8)),
             StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
                 Ok(ValueShape::integer(1, 1))
             }

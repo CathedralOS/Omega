@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V39 retains the exact post-call
-//! IEEE result policy form and format as a closed selected-instruction payload.
+//! Owns admission and authentication order. V40 retains every ordered origin
+//! alternative of each returned reference leaf.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -13,11 +13,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v39_identity;
+use self::envelope::v40_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 39;
+const VERSION: u32 = 40;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -27,7 +27,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v39_identity(self, &content));
+        encoded.extend_from_slice(&v40_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

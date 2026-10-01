@@ -79,22 +79,11 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            let reference_only = plan.structural_types.iter().any(|declaration| {
-                declaration.id == expected_result.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Reference { .. }
-                    )
-            });
-            let expected_home = if reference_only {
-                None
-            } else {
-                Some(aggregate_results::result_home(
-                    caller,
-                    expected_result.place,
-                    plan,
-                )?)
-            };
+            let expected_home = Some(aggregate_results::result_home(
+                caller,
+                expected_result.place,
+                plan,
+            )?);
             let expected_references = reference_custody::reference_results(
                 caller,
                 callee,

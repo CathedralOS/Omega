@@ -307,8 +307,9 @@ pub(super) fn lower_terminator(
                     cleanup_actions,
                 });
             }
-            // A bare reference carrier returns through its canonical zero-byte
-            // custody home; the referent is never read or transported.
+            // A bare reference returns the address payload established by its
+            // producer. Its loan is checked independently; referent contents
+            // are never copied into the return ABI.
             if reference_bearing && let Some(leaf) = live.references.get(&(*source, Vec::new())) {
                 if !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()

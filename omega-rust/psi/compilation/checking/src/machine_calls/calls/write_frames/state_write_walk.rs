@@ -1007,17 +1007,36 @@ fn walk_state_write_prefix_inner(
                 let arguments = program
                     .statement_table
                     .expression_handles(nested_call.arguments);
-                if nested_receiver_members.first().is_some_and(|root| {
-                    divergent_alias_origins.iter().any(|(name, _)| name == root)
-                }) {
+                let divergent_receiver_origins = nested_receiver_members
+                    .first()
+                    .and_then(|root| {
+                        divergent_alias_origins
+                            .iter()
+                            .find(|(name, _)| name == root)
+                    })
+                    .map(|(_, origins)| origins.as_slice());
+                // The recorded origins replace one whole local receiver. A
+                // projection through that local still needs a compositional
+                // projected-origin proof; do not guess a suffix for each arm.
+                if divergent_receiver_origins.is_some() && nested_receiver_members.len() != 1 {
                     return None;
                 }
+                let has_divergent_receiver = divergent_receiver_origins.is_some();
+                let receiver_members = if has_divergent_receiver {
+                    &[]
+                } else {
+                    nested_receiver_members.as_slice()
+                };
+                let receiver_origins = divergent_receiver_origins.unwrap_or_default();
                 // A synthesized wire codec has no body to summarize and no
                 // parameters to instantiate; its frame is its exclusively
                 // borrowed arguments. The type-name receiver must never reach
                 // the ownership floor, which would poison it as a place.
                 let codec = wire_codecs::is_wire_codec_call(program, nested_call);
                 let nested_writes = if codec {
+                    if has_divergent_receiver {
+                        return None;
+                    }
                     // A divergent argument is resolved rather than refused:
                     // the resolver below takes the candidate set and unions
                     // every proven referent, and keeps an unproven binding
@@ -1039,7 +1058,7 @@ fn walk_state_write_prefix_inner(
                         machine,
                         nested_call.target_symbol,
                         nested_call.target.as_str(),
-                        &nested_receiver_members,
+                        receiver_members,
                         CallerWriteSite::Call(nested_call),
                         symbols,
                     );
@@ -1059,8 +1078,8 @@ fn walk_state_write_prefix_inner(
                         program,
                         nested_call.target_symbol,
                         nested_call.target.as_str(),
-                        &nested_receiver_members,
-                        &[],
+                        receiver_members,
+                        receiver_origins,
                         None,
                         arguments,
                         machine,
@@ -1071,6 +1090,9 @@ fn walk_state_write_prefix_inner(
                         complete_state_summaries,
                     )
                     .or_else(|| {
+                        if has_divergent_receiver {
+                            return None;
+                        }
                         (!arguments.iter().any(|argument| {
                             expression_is_effectful_indexed_place(program, *argument)
                         }))
@@ -1080,7 +1102,7 @@ fn walk_state_write_prefix_inner(
                                 machine,
                                 &machine_symbols,
                                 symbols,
-                                &nested_receiver_members,
+                                receiver_members,
                                 nested_call.target.as_str(),
                                 CallerWriteSite::Call(nested_call),
                                 arguments,
@@ -1090,6 +1112,9 @@ fn walk_state_write_prefix_inner(
                         .flatten()
                     })
                     .or_else(|| {
+                        if has_divergent_receiver {
+                            return None;
+                        }
                         (!arguments.iter().any(|argument| {
                             expression_is_effectful_indexed_place(program, *argument)
                         }))
@@ -1099,7 +1124,7 @@ fn walk_state_write_prefix_inner(
                                 machine,
                                 &machine_symbols,
                                 symbols,
-                                &nested_receiver_members,
+                                receiver_members,
                                 nested_call.target.as_str(),
                                 None,
                                 CallerWriteSite::Call(nested_call),
@@ -1110,13 +1135,13 @@ fn walk_state_write_prefix_inner(
                         .flatten()
                     })
                     .or_else(|| {
-                        if has_divergent_actual {
+                        if has_divergent_receiver || has_divergent_actual {
                             return None;
                         }
                         syntactic_call_written_paths(
                             program,
                             machine,
-                            &nested_receiver_members,
+                            receiver_members,
                             arguments,
                             &machine_symbols,
                             symbols,

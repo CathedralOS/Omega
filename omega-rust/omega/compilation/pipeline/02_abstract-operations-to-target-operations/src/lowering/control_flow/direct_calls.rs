@@ -305,20 +305,13 @@ fn land_result(
                 live,
                 moved,
             )?;
-            // A bare reference result is custody only: no physical result
-            // home is established, so downstream sees a zero-sized result
-            // placement.
-            let reference_only = matches!(
-                types
-                    .get(&result.structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Reference { .. })
-            );
-            if !reference_only
-                && live
-                    .structural_homes
-                    .insert(result.place, result_home.clone())
-                    .is_some()
+            // Reference results own an address payload home, not referent
+            // storage. The separate roster above retains loan authority;
+            // ordinary result transport captures the actually selected address.
+            if live
+                .structural_homes
+                .insert(result.place, result_home.clone())
+                .is_some()
             {
                 return Err(unsupported());
             }
@@ -333,7 +326,7 @@ fn land_result(
             TargetCallResult::Structural {
                 result: result.clone(),
                 callee_result: callee_result.clone(),
-                result_home: (!reference_only).then_some(result_home),
+                result_home: Some(result_home),
                 reference_results,
                 returned_claim_transfers: returned_claim_transfers.clone(),
             }
@@ -890,7 +883,6 @@ fn structural_argument(
             declaration,
             destination,
             function,
-            prepared,
             live,
             types,
         )?;

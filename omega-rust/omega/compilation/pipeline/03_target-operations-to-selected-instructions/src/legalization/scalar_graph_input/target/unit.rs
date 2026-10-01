@@ -815,34 +815,15 @@ pub(super) fn validate_operation(
                 ..
             },
         ) => {
-            let (expected_destination, expected_path) = match expected_destination {
-                abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                    producer,
-                    result,
-                } => {
-                    let resolved = super::super::reference_custody::writable_referent_destination(
-                        custody,
-                        optimized,
-                        &unit.structural_types,
-                        result.place,
-                        expected_path,
-                    );
-                    match resolved {
-                        Some(resolved)
-                            if resolved.producer == *producer && resolved.result == *result =>
-                        {
-                            (
-                                abstract_operations::StructuralScalarStoreDestination::Parameter(
-                                    resolved.parameter,
-                                ),
-                                resolved.path,
-                            )
-                        }
-                        _ => (expected_destination.clone(), expected_path.clone()),
-                    }
-                }
-                _ => (expected_destination.clone(), expected_path.clone()),
-            };
+            let (expected_destination, expected_path) =
+                super::super::structural_fields::scalar_store_destination(
+                    optimized,
+                    expected_destination,
+                    expected_path,
+                    &unit.structural_types,
+                    custody,
+                )
+                .ok_or(LegalizationError::custody())?;
             // The physical home must retain the same semantic owner: either an
             // incoming borrow or the exact fresh result, never a forged parameter.
             let storage_matches = match (destination, destination_storage) {

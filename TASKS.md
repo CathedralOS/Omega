@@ -1235,28 +1235,30 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `9aae7a801c`
-  plus the returned-reference receiver change on macOS ARM64, the closed-stdin
-  command still exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `e7c13a0f55`
+  plus the selected-reference address transport change on macOS ARM64, the
+  closed-stdin command still exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect` →
-  receiver reconciliation. Stage 04 `receiver_calls/mod.rs::result_receiver_argument`
-  now consumes an immutable local's exact returned-reference permission;
-  `borrows/returned_record_method_receiver_exit` executes 70 and observes the
-  original record's method mutation, a later sibling store and an untouched
-  neighboring element. Source replay rejects stale or substituted permissions;
-  native replay rejects forged roots, indices and offsets. The real
+  receiver reconciliation. `borrows/branch_selected_record_receiver_exit` now
+  executes its authored 70: a helper chooses either of two mutable record
+  addresses, and the caller stores before and after a receiver call while
+  observing both outcomes and an untouched neighbor. Source replay joins the
+  producer's checked loan across returning arms; Terminal replay checks exact
+  finite candidate coverage, custody and acyclic result dependencies. Native
+  consumers retain and load the actual returned address, never choose a static
+  candidate. The three single-origin byte-store, method-receiver and projected-call
+  controls also execute 70. These results do not clear the real
   `from_room.append_exit(self.direction_command(direction), direction, to)`
-  composition still fails reconciliation: `structural_result_call::view_result_loan`
-  records the producer's checked loan across `Level::room_mut`'s alternative
-  return arms, but receiver reconciliation retains only the result binding and
-  re-derives its loan through single-tail `reference_result_custody::result_loan`.
-  Rejoin that existing call custody with independent producer/lifetime replay;
-  preserve the runtime-selected slot. Native bare-reference results currently
-  retain one static `root_path`, so alternative slots also need returned-address
-  transport rather than an invented fixed origin. The nested byte operand does
-  not explain this refusal.
-  Do not infer full customer support from the single-origin receiver fixture.
+  composition. Its next focused reproduction must combine an attached,
+  alternative-origin reference producer with a composed receiver that forwards
+  a nested qualified-byte call result and enum/record arguments. Stage 04
+  `receiver_calls/mod.rs::reconcile_state` inserts the retained receiver into
+  the existing argument roster and shifts Unit-call claim transfers; identify
+  the exact declining condition rather than assume the remaining omission is
+  another origin join. Preserve authored argument order and independent custody
+  replay. The aggregate receiver-reconciliation diagnostic has not yet isolated
+  that condition, and the full customer still does not emit.
   `structs/qualified_record_element_assignment_exit` executes 70: a method
   forwards qualified owned bytes and a direction through a state, constructs
   and stores an indexed record, and observes its bytes, live length, direction,

@@ -238,12 +238,17 @@ impl TerminalExecution {
             .reference_sources
             .iter()
             .map(|origin| {
-                if origin.source.access != StructuralAccess::MutableBorrow {
+                let source = origin.sole_source().ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "selected reference returns require alternative backing transport",
+                    ),
+                )?;
+                if source.access != StructuralAccess::MutableBorrow {
                     return Err(invalid());
                 }
                 let parameter = parameters
                     .iter()
-                    .find(|parameter| parameter.place == origin.source.place)
+                    .find(|parameter| parameter.place == source.place)
                     .ok_or_else(invalid)?;
                 let leaf_type = resolve_structural_path_type(
                     &self.program.structural_types,
@@ -251,7 +256,7 @@ impl TerminalExecution {
                     &origin.path,
                 )?;
                 let referent_type = self.mutable_primitive_referent(leaf_type)?;
-                let expected = if origin.source.path.is_empty() {
+                let expected = if source.path.is_empty() {
                     if parameter.access != StructuralAccess::MutableBorrow
                         || parameter.structural_type != referent_type
                     {
@@ -260,7 +265,7 @@ impl TerminalExecution {
                     arguments.get(&parameter.place).ok_or_else(invalid)?
                 } else {
                     let Some((StructuralPathSegment::Referent, carrier_path)) =
-                        origin.source.path.split_last()
+                        source.path.split_last()
                     else {
                         return Err(invalid());
                     };
@@ -361,6 +366,12 @@ impl TerminalExecution {
         // bound ingress before the return charge. The ordinary return then moves
         // this same owner identity; its descriptor subtree is never discarded.
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
+            let source =
+                origin
+                    .sole_source()
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "selected reference returns require alternative backing transport",
+                    ))?;
             if signature.reference_sources[..ordinal]
                 .iter()
                 .any(|previous| previous.path == origin.path)
@@ -368,7 +379,7 @@ impl TerminalExecution {
                     .path
                     .iter()
                     .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                || origin.source.access != StructuralAccess::MutableBorrow
+                || source.access != StructuralAccess::MutableBorrow
             {
                 return Err(invalid());
             }

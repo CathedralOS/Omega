@@ -40,6 +40,7 @@ mod primitive_locals;
 pub(super) use case_membership::observe;
 pub(super) mod indirect_results;
 mod record;
+pub(super) mod reference;
 mod scalar_array;
 mod scalar_case;
 mod zeroed;
@@ -360,14 +361,18 @@ pub(super) fn operation(
         element_subslice::create(source, builder, row)?;
         return Ok(true);
     }
-    // Reference custody is compile-time metadata: the rows carry operation
-    // provenance and ordering but emit no executable instruction and no
-    // physical result home. An empty-record local is the same: it occupies
-    // no bytes, and a call transporting it owes no physical home.
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishReference { .. }
-            | LegalizedScalarInstructionKind::ReleaseReference { .. }
+    ) {
+        reference::establish(source, row, builder)?;
+        return Ok(true);
+    }
+    // Closing a loan changes custody, not referent bytes. Trivial empty locals
+    // likewise carry no executable initialization.
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
     ) {
         if row.result.is_some() {

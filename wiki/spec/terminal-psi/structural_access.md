@@ -40,11 +40,12 @@ the explicit `Referent` path segment crosses the borrowed boundary. Owned
 transfer, claims, and referent cleanup cannot cross that segment. Exclusive
 carriers have affine custody even when their referent is unrestricted.
 
-Structural result signatures bind each returned reference leaf to its exact
-formal ingress source. Independent verification reconstructs actual origins
-from establishments and call substitution, rejects local escapes, and checks
-the result mapping against the returned carrier. Returning or moving a carrier
-does not end its loan. `ReleaseReference` ends it only after its descendants
+Structural result signatures bind each returned reference leaf to a nonempty,
+ordered set of possible formal ingress sources. Independent verification
+reconstructs actual origins from establishments and call substitution, rejects
+local escapes, and checks the result mapping against the returned carrier.
+Returning or moving a carrier does not end its loan. `ReleaseReference` ends
+it only after its descendants
 have ended; same-block restoration therefore precedes any renewed parent use.
 Formation, release, and successful return commit only after their fuel charge.
 
@@ -52,35 +53,48 @@ The current executable slice retains whole mutable primitive references,
 mutable references to plain records, and record-contained reference leaves
 through ordinary calls and returns. A plain record referent contains no nested
 permission carriers. A projected formal origin retains its complete static
-field/fixed-index path. Every returning arm must identify the same origin;
-runtime-selected origins require separate result-address transport, not choosing
-one arm's storage. Returning a permission does not transfer or consume the
-temporary slice descriptor used to select that referent.
-Native byte/scalar field stores through a returned mutable record reference
-rejoin its one exact static ingress root/path; the result carries permission
-metadata without a physical result home. Lowering, receiving validation and
-publication independently retain that identity. The authored
-`borrows/returned_record_byte_field_store_exit` fixture observes both writes
-and untouched neighboring storage after release on macOS ARM64.
+field/fixed-index path. A whole mutable plain-record result may choose among
+static paths below one mutably borrowed parameter. Each return must establish
+a declared origin, and the union across reachable returns must exactly cover
+the declared set. Reference-result dependency cycles cannot supply that evidence.
+The caller holds one affine permission which conservatively suspends every possible origin,
+not one permission per candidate. Returning that permission does not transfer
+the temporary slice descriptor used to select the referent; its own checked
+release still requires disposal of the materialized descriptor.
+
+Native reference values carry an address word (eight bytes on the supported
+64-bit targets), including reference leaves inside records. A call captures
+that word into the exact producer's result home. Byte/scalar stores load the
+word before applying referent-relative field offsets. The home contains the
+pointer, never a copy of the referent, and the origin set is custody evidence,
+not a list from which code generation may choose an address. Native lowering,
+receiving validation, instruction replay and publication retain this distinction.
+`borrows/branch_selected_record_receiver_exit` selects each of two records in
+turn, writes before and after a method call, and checks the untouched neighbor;
+it executes with its authored exit 70 on macOS ARM64.
+
 An ordinary, nonescaping call may also borrow a static child through that
-returned mutable-record carrier. Its semantic argument keeps the carrier place
-and explicit `Referent` crossing followed by the exact field/fixed-index suffix;
-its physical argument names the captured ingress root and complete composed
-path. Source replay binds the suffix to the authored borrow. Terminal checks
-the live, unsuspended parent and compatible access; native lowering and
-re-legalization reconstruct the original address rather than allocate a copy.
+returned mutable-record carrier. Both its semantic and target argument keep the
+carrier place and explicit `Referent` crossing followed by the exact
+field/fixed-index suffix. The target row names the carrier's producer home;
+its offset is relative to the loaded referent. Source replay binds the suffix
+to the authored borrow. Terminal checks the live, unsuspended parent and
+compatible access; native lowering and re-legalization retain the selected
+address rather than allocate a copy or substitute a static origin.
 Selection checks pointer geometry and placement against that admitted input;
 its custody receipt includes re-legalization's exact-origin check. This does
 not admit a new escaping reference result or reference establishment from the
 projected child. Stores before and after the call continue to use the same
 parent permission until its existing release boundary.
 Reference-valued entry parameters or host-entry results, reference projections
-into host-boundary calls, shared/write-only record carriers and runtime-selected
-result origins remain explicit implementation limits. Ordinary calls may
-temporarily attenuate a mutable carrier to shared or write-only access without
-creating such a carrier. None
-of the unsupported forms gains authority merely because its shape or source
-lifetime resembles an admitted reference.
+into host-boundary calls, shared/write-only record carriers, runtime-indexed
+result paths and alternative roots from different formals remain explicit
+implementation limits. The Terminal interpreter still declines alternative-origin
+result signatures; native address transport is not an interpreter implementation.
+Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only
+access without creating such a carrier. None of the unsupported forms gains
+authority merely because its shape or source lifetime resembles an admitted
+reference.
 
 Structural signatures derive from parameter declarations and resolved referent
 shapes through one exhaustive access classifier. All structural-call producers

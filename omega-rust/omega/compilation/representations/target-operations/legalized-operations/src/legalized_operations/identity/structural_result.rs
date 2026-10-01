@@ -34,7 +34,10 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclar
     encode_len(bytes, result.reference_sources.len());
     for reference in &result.reference_sources {
         encode_structural_path(bytes, &reference.path);
-        encode_structural_argument(bytes, &reference.source);
+        encode_len(bytes, reference.sources.len());
+        for source in &reference.sources {
+            encode_structural_argument(bytes, source);
+        }
     }
 }
 
@@ -57,11 +60,18 @@ mod tests {
             projected_qualifications: Vec::new(),
             reference_sources: vec![StructuralReferenceResultSource {
                 path: Vec::new(),
-                source: StructuralArgument {
-                    place: PlaceId::new(2).unwrap(),
-                    path: Vec::new(),
-                    access: StructuralAccess::MutableBorrow,
-                },
+                sources: vec![
+                    StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                    StructuralArgument {
+                        place: PlaceId::new(4).unwrap(),
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                ],
             }],
         };
         let identity = |result: &StructuralResultDeclaration| {
@@ -70,19 +80,25 @@ mod tests {
             bytes
         };
         let original = identity(&result);
-        for mutation in 0..5 {
+        for mutation in 0..8 {
             let mut changed = result.clone();
             match mutation {
                 0 => changed.reference_sources.clear(),
-                1 => changed.reference_sources[0].source.place = PlaceId::new(3).unwrap(),
-                2 => changed.reference_sources[0]
-                    .source
+                1 => changed.reference_sources[0].sources[0].place = PlaceId::new(3).unwrap(),
+                2 => changed.reference_sources[0].sources[0]
                     .path
                     .push(StructuralPathSegment::Referent),
                 3 => changed.reference_sources[0]
                     .path
                     .push(StructuralPathSegment::Field("held".into())),
-                4 => changed.reference_sources[0].source.access = StructuralAccess::SharedBorrow,
+                4 => {
+                    changed.reference_sources[0].sources[0].access = StructuralAccess::SharedBorrow
+                }
+                5 => changed.reference_sources[0].sources[1].place = PlaceId::new(5).unwrap(),
+                6 => changed.reference_sources[0].sources.swap(0, 1),
+                7 => {
+                    changed.reference_sources[0].sources.pop();
+                }
                 _ => unreachable!(),
             }
             assert_ne!(identity(&changed), original, "custody mutation {mutation}");

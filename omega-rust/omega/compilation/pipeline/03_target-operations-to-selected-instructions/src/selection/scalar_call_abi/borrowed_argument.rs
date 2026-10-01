@@ -22,9 +22,8 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
-    // A whole returned record uses the same captured ingress as its children.
-    // Primitive referents keep their separate route below; the record validator
-    // independently rejoins the producer's exact Reference<Record> carrier.
+    // A whole returned record and its children borrow through the completed
+    // carrier's address word. Primitive static referents keep their route below.
     if (semantic.path.len() > 1
         || signature.structural_types.iter().any(|declaration| {
             declaration.id == target.structural_type
@@ -597,8 +596,8 @@ pub(super) fn validate_borrowed_argument(
 }
 
 /// Validate the physical pointer row for a child borrowed through one
-/// returned mutable-record carrier. Selection checks the clean carrier and
-/// retained static geometry. The exact captured origin remains guarded by
+/// returned mutable-record carrier. Selection checks the completed carrier
+/// home and referent-relative geometry. The possible origins remain guarded by
 /// `validate_optimized_selection_custody`, which re-legalizes this immutable
 /// plan from the raw target/reference-result roster before publication.
 fn validate_returned_record_projection(
@@ -626,7 +625,7 @@ fn validate_returned_record_projection(
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
         || !indices.is_empty()
-        || !target.path.ends_with(suffix)
+        || target.path != semantic.path
     {
         return None;
     }
@@ -681,41 +680,11 @@ fn validate_returned_record_projection(
     {
         return None;
     }
-    let root = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == target.place)?;
-    if root.semantic.access != StructuralAccess::MutableBorrow
-        || root.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !root.semantic.qualifications.is_empty()
-        || !root.semantic.projected_qualifications.is_empty()
-        || root.target.place != root.semantic.place
-        || root.target.structural_type != root.semantic.structural_type
-        || target.root_structural_type != root.semantic.structural_type
-        || target.source
-            != target_operations::TargetStructuralArgumentSource::Placement(
-                root.target.placement.clone(),
-            )
-    {
-        return None;
-    }
-    let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
-        root.semantic.structural_type,
-        &target.path,
-        &signature.structural_types,
-    )?;
-    let selected_shape = crate::structural_inputs::structural_reference_input::shape(
-        selected,
-        &signature.structural_types,
-    )?;
-    let shape = ValueShape::borrowed_reference(selected_shape.byte_size, selected_shape.alignment);
-    if target.structural_type != selected
-        || target.source_byte_offset != offset
-        || target.shape != shape
-        || target.destination.shape != shape
-    {
-        return None;
-    }
+    // Rejoin the actual producer and full authored crossing. A static ingress
+    // re-root is no longer an alternative representation of this argument:
+    // selection must load the address returned by the executed callee.
+    crate::selection::reference_input::borrowed_argument(source, semantic, target)?;
+    let shape = target.shape;
     let expected = evaluate_call_plan(
         source.call_plan.policy,
         &CallSignature {

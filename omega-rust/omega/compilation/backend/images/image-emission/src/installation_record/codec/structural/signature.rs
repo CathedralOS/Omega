@@ -46,7 +46,14 @@ pub(crate) fn encode_structural_result(
     );
     for source in &result.reference_sources {
         encode_path(bytes, &source.path)?;
-        encode_structural_argument(bytes, &source.source)?;
+        push_u32(
+            bytes,
+            u32::try_from(source.sources.len())
+                .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?,
+        );
+        for candidate in &source.sources {
+            encode_structural_argument(bytes, candidate)?;
+        }
     }
     Ok(())
 }
@@ -101,8 +108,16 @@ pub(crate) fn decode_structural_result(
     let mut reference_sources = Vec::with_capacity(source_count);
     for _ in 0..source_count {
         let path = decode_path(reader)?;
-        let source = decode_structural_argument(reader)?;
-        reference_sources.push(terminal_psi::StructuralReferenceResultSource { path, source });
+        let count = usize::try_from(reader.u32()?)
+            .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?;
+        if count > reader.remaining() / 4 {
+            return Err(InstallationError::UnexpectedEnd);
+        }
+        let mut sources = Vec::with_capacity(count);
+        for _ in 0..count {
+            sources.push(decode_structural_argument(reader)?);
+        }
+        reference_sources.push(terminal_psi::StructuralReferenceResultSource { path, sources });
     }
     Ok(StructuralResultDeclaration {
         reference_sources,
@@ -148,14 +163,21 @@ mod tests {
             .reference_sources
             .push(StructuralReferenceResultSource {
                 path: vec![terminal_psi::StructuralPathSegment::Field("held".into())],
-                source: StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: vec![
-                        terminal_psi::StructuralPathSegment::Field("body".into()),
-                        terminal_psi::StructuralPathSegment::Referent,
-                    ],
-                    access: StructuralAccess::MutableBorrow,
-                },
+                sources: vec![
+                    StructuralArgument {
+                        place: PlaceId::new(1).unwrap(),
+                        path: vec![
+                            terminal_psi::StructuralPathSegment::Field("body".into()),
+                            terminal_psi::StructuralPathSegment::Referent,
+                        ],
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                    StructuralArgument {
+                        place: PlaceId::new(2).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::MutableBorrow,
+                    },
+                ],
             });
         let mut bytes = Vec::new();
         encode_structural_result(&mut bytes, &result).unwrap();

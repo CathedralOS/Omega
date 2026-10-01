@@ -240,6 +240,66 @@ pub(crate) fn shape(
 }
 
 #[test]
+fn reference_payload_is_one_address_word_per_leaf() {
+    let referent = StructuralTypeId::new(9100).unwrap();
+    let reference = StructuralTypeId::new(9101).unwrap();
+    let array = StructuralTypeId::new(9102).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: referent,
+            identity: "EmptyReferent".into(),
+            shape: StructuralTypeShape::Record { fields: vec![] },
+        },
+        StructuralTypeDeclaration {
+            id: reference,
+            identity: "MutableReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "ReferencePair".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: reference,
+                length: 2,
+            },
+        },
+    ];
+    assert_eq!(
+        shape(referent, &declarations),
+        Some(ValueShape::integer(0, 1))
+    );
+    assert_eq!(
+        shape(reference, &declarations),
+        Some(ValueShape::integer(8, 8))
+    );
+    assert_eq!(
+        shape(array, &declarations),
+        Some(ValueShape::integer(16, 8))
+    );
+    assert_eq!(
+        project(
+            array,
+            &[StructuralPathSegment::FixedIndex(1)],
+            &declarations
+        ),
+        Some((reference, 8))
+    );
+    assert!(
+        project(
+            array,
+            &[StructuralPathSegment::FixedIndex(2)],
+            &declarations
+        )
+        .is_none()
+    );
+    // Layout does not make a reference a constructible plain-owned aggregate.
+    assert!(owned_aggregate_shape(reference, &declarations).is_none());
+}
+
+#[test]
 fn fused_binding_borrow_keeps_pointer_abi_without_payload() {
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
@@ -970,10 +1030,9 @@ fn shape_inner(
                     .shape,
             )
         }
-        // A reference carrier transports no referent storage: custody is
-        // compile-time metadata, so its shape is an empty aggregate slot
-        // rather than a pointer-sized payload.
-        StructuralTypeShape::Reference { .. } => Some(ValueShape::integer(0, 1)),
+        // A reference owns permission, not its referent's bytes. Its payload
+        // transports one address; custody remains independently reconstructed.
+        StructuralTypeShape::Reference { .. } => Some(ValueShape::integer(8, 8)),
         StructuralTypeShape::Record { fields } => {
             let mut bytes = 0;
             let mut alignment = 1;
@@ -1384,6 +1443,30 @@ pub(crate) fn store(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    // The owner retains the reference carrier and explicit crossing. Layout
+    // continues inside its mutable record referent; this supplies geometry,
+    // never permission or evidence that the carrier is currently live.
+    let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
+        let StructuralTypeShape::Reference {
+            referent,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+        } = declarations
+            .iter()
+            .find(|declaration| declaration.id == root)?
+            .shape
+        else {
+            return None;
+        };
+        if !declarations.iter().any(|declaration| {
+            declaration.id == referent
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        }) {
+            return None;
+        }
+        (referent, suffix)
+    } else {
+        (root, path)
+    };
     if !terminal_psi::is_structural_scalar_store_path(path) {
         return None;
     }

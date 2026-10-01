@@ -49,12 +49,21 @@ pub(super) enum BoundaryCallRow {
 enum Root {
     Place(PlaceId),
     Ingress(PlaceId, Vec<StructuralPathSegment>),
+    Alternatives(PlaceId, Vec<Vec<StructuralPathSegment>>),
 }
 
 impl Root {
     fn place(&self) -> PlaceId {
         match self {
-            Self::Place(place) | Self::Ingress(place, _) => *place,
+            Self::Place(place) | Self::Ingress(place, _) | Self::Alternatives(place, _) => *place,
+        }
+    }
+
+    fn paths(&self) -> Vec<Vec<StructuralPathSegment>> {
+        match self {
+            Self::Place(_) => vec![Vec::new()],
+            Self::Ingress(_, path) => vec![path.clone()],
+            Self::Alternatives(_, paths) => paths.clone(),
         }
     }
 }
@@ -465,15 +474,15 @@ fn normalized_source(
 fn call_source(
     callee: &AbstractFunction,
     arguments: &[StructuralArgument],
-    mapping: &terminal_psi::StructuralReferenceResultSource,
+    formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
     let position = callee
         .structural_parameters
         .iter()
-        .position(|parameter| parameter.place == mapping.source.place)?;
+        .position(|parameter| parameter.place == formal.place)?;
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(mapping.source.path.iter().cloned());
-    source.access = mapping.source.access;
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
     Some(source)
 }
 
@@ -647,58 +656,117 @@ fn call_result_leaves(
     let mut roster = Vec::with_capacity(callee_result.reference_sources.len());
     let mut established = Vec::with_capacity(callee_result.reference_sources.len());
     for mapping in &callee_result.reference_sources {
-        let source = call_source(callee, structural_arguments, mapping)?;
-        let leaf = if matches!(
-            formal_origin(callee, declarations, &mapping.source),
-            Some(Root::Ingress(..))
-                if mapping
-                    .source
-                    .path
-                    .split_last()
-                    .and_then(|(tail, carrier_path)| {
-                        if !matches!(tail, StructuralPathSegment::Referent) {
-                            return None;
-                        }
-                        let parameter = callee
-                            .structural_parameters
-                            .iter()
-                            .find(|parameter| parameter.place == mapping.source.place)?;
-                        leaf_type(declarations, parameter.structural_type, carrier_path)
-                    })
-                    .and_then(|leaf| lookup(declarations, leaf))
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::Reference { .. }
-                        )
-                    })
-        ) {
-            // An owned-carrier ingress mapping relocates one of the leaves the
-            // moved arguments just transferred; it keeps its root.
-            let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last()
-            else {
+        if mapping.sources.is_empty() || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return None;
+        }
+        if mapping.sources.len() > 1 {
+            let referent = bare_referent(declarations, result.structural_type)?;
+            if !mapping.path.is_empty()
+                || !matches!(
+                    lookup(declarations, referent).map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::Record { .. })
+                )
+                || mapping.sources.iter().any(|formal| {
+                    formal.place != mapping.sources[0].place
+                        || formal.access != StructuralAccess::MutableBorrow
+                        || formal.path.is_empty()
+                        || formal.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        })
+                })
+            {
                 return None;
-            };
-            moved.get(&(source.place, carrier_path.to_vec()))?.clone()
-        } else {
-            let root = normalized_source(function, custody, declarations, &source)?;
-            Leaf {
-                root,
-                structural_type: result.structural_type,
-                multiplicity: result.multiplicity,
             }
-        };
+        }
+        let mut candidates = Vec::with_capacity(mapping.sources.len());
+        for formal in &mapping.sources {
+            let source = call_source(callee, structural_arguments, formal)?;
+            let leaf = if matches!(
+                formal_origin(callee, declarations, formal),
+                Some(Root::Ingress(..))
+                    if formal
+                        .path
+                        .split_last()
+                        .and_then(|(tail, carrier_path)| {
+                            if !matches!(tail, StructuralPathSegment::Referent) {
+                                return None;
+                            }
+                            let parameter = callee
+                                .structural_parameters
+                                .iter()
+                                .find(|parameter| parameter.place == formal.place)?;
+                            leaf_type(declarations, parameter.structural_type, carrier_path)
+                        })
+                        .and_then(|leaf| lookup(declarations, leaf))
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference { .. }
+                            )
+                        })
+            ) {
+                // An owned-carrier ingress mapping relocates one of the leaves the
+                // moved arguments just transferred; it keeps its root.
+                let Some((StructuralPathSegment::Referent, carrier_path)) =
+                    source.path.split_last()
+                else {
+                    return None;
+                };
+                moved.get(&(source.place, carrier_path.to_vec()))?.clone()
+            } else {
+                let root = normalized_source(function, custody, declarations, &source)?;
+                Leaf {
+                    root,
+                    structural_type: result.structural_type,
+                    multiplicity: result.multiplicity,
+                }
+            };
+            candidates.push(leaf);
+        }
+        let leaf = combine_alternatives(candidates)?;
         roster.push(TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
-            root_path: match &leaf.root {
-                Root::Place(_) => Vec::new(),
-                Root::Ingress(_, path) => path.clone(),
-            },
+            root_paths: leaf.root.paths(),
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
     Some((roster, established))
+}
+
+/// Reconstruct one carrier's possible roots without consulting the target roster.
+fn combine_alternatives(candidates: Vec<Leaf>) -> Option<Leaf> {
+    let mut candidates = candidates.into_iter();
+    let mut leaf = candidates.next()?;
+    let mut paths = Vec::new();
+    for candidate in candidates {
+        if candidate.structural_type != leaf.structural_type
+            || candidate.multiplicity != leaf.multiplicity
+            || candidate.root.place() != leaf.root.place()
+        {
+            return None;
+        }
+        let Root::Ingress(_, path) = candidate.root else {
+            return None;
+        };
+        paths.push(path);
+    }
+    if !paths.is_empty() {
+        let Root::Ingress(place, path) = &leaf.root else {
+            return None;
+        };
+        paths.push(path.clone());
+        paths.sort();
+        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+            return None;
+        }
+        leaf.root = Root::Alternatives(*place, paths);
+    }
+    Some(leaf)
 }
 
 /// The custody effect of one authored or resolved provider call: owned

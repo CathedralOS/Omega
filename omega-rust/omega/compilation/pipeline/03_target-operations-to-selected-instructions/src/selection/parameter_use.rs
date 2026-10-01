@@ -2,7 +2,7 @@
 //!
 //! Entry capture keeps an incoming referent pointer only for a parameter the
 //! body actually reaches through: a store (including a view field's
-//! descriptor replacement), read, view, case test, leaf copy
+//! descriptor replacement), read, reference establishment, view, case test, leaf copy
 //! (including a borrowed window's move), window reseat, call argument, or a
 //! view it transfers. Construction and its validation
 //! replay both ask this one question, so a newly lowered instruction family
@@ -28,6 +28,9 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
             .iter()
             .flat_map(|block| &block.instructions)
             .any(|row| match &row.kind {
+                // Forming a reference needs the incoming address even when
+                // this activation never reads the referent's contents.
+                LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {

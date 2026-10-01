@@ -80,6 +80,7 @@ pub(super) fn validate_current_ownership_cfg(
     let mut ready = BTreeSet::from([function.entry]);
     let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
     incoming.insert(function.entry, entry);
+    let mut returned_reference_sources = Vec::new();
 
     while let Some(block_id) = ready.pop_first() {
         let mut frontier = incoming
@@ -585,6 +586,7 @@ pub(super) fn validate_current_ownership_cfg(
                         block_id,
                         *source,
                         &mut frontier.live_references,
+                        &mut returned_reference_sources,
                     )?;
                     if frontier.partial_custody_paths.contains_key(source) {
                         return Err(
@@ -763,5 +765,6 @@ pub(super) fn validate_current_ownership_cfg(
         });
     }
 
+    super::references::validate_return_coverage(function, &returned_reference_sources)?;
     Ok(())
 }

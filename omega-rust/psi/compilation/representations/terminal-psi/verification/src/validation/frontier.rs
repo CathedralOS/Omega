@@ -348,6 +348,7 @@ pub(super) fn validate_structural_frontier(
         shared_loans: &shared_loans,
         window_aliases: &window_aliases,
     };
+    let mut returned_reference_sources = Vec::new();
     for block_id in order {
         let frontiers = incoming
             .remove(&block_id)
@@ -371,7 +372,14 @@ pub(super) fn validate_structural_frontier(
         for edge in block.terminator.edges() {
             snapshots.edge_entries.insert(edge, frontier.snapshot());
         }
-        terminators::close_block(&walk, block, frontier, &mut snapshots, &mut incoming)?;
+        terminators::close_block(
+            &walk,
+            block,
+            frontier,
+            &mut snapshots,
+            &mut incoming,
+            &mut returned_reference_sources,
+        )?;
     }
     // Each block's transfer is deterministic for its incoming frontier. A
     // first arrival seeds that frontier; every later arrival must match it
@@ -387,6 +395,7 @@ pub(super) fn validate_structural_frontier(
             require_snapshot_match(block, established, &frontier.snapshot())?;
         }
     }
+    super::references::validate_return_coverage(machine, &returned_reference_sources)?;
     Ok(snapshots)
 }
 

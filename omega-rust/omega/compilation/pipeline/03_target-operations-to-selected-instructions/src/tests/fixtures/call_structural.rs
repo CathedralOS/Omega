@@ -229,7 +229,7 @@ pub(in crate::tests) fn reference_fixture(
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: leaf_path(),
-            source,
+            sources: vec![source],
         }],
     };
     let result = |place| terminal_psi::StructuralOperationResult {
@@ -426,7 +426,7 @@ pub(in crate::tests) fn sum_reference_fixture(
         projected_qualifications: Vec::new(),
         reference_sources: vec![StructuralReferenceResultSource {
             path: leaf_path(),
-            source,
+            sources: vec![source],
         }],
     };
     let result = |place| terminal_psi::StructuralOperationResult {
@@ -556,7 +556,17 @@ pub(in crate::tests) fn sum_reference_fixture(
     // abstract→target lowering of a sum-typed reference carrier is still a
     // pending admission upstream, while every layer below it replays this
     // exact emission.
-    let shape = calling_conventions::ValueShape::integer(4, 4);
+    // The Some payload transports its reference's address word. Derive the
+    // complete tagged layout before building either side's ABI contract.
+    let sum_layout = calling_conventions::evaluate_conventional_sum_layout(
+        &[],
+        &[
+            Vec::new(),
+            vec![calling_conventions::ValueShape::integer(8, 8)],
+        ],
+    )
+    .unwrap();
+    let shape = sum_layout.shape;
     let call_plan = calling_conventions::evaluate_call_plan(
         calling_conventions::CallingPolicy::native_for_target(native),
         &calling_conventions::CallSignature {
@@ -575,14 +585,6 @@ pub(in crate::tests) fn sum_reference_fixture(
         shape,
         placement: parameter_placement.clone(),
     };
-    let sum_layout = calling_conventions::evaluate_conventional_sum_layout(
-        &[],
-        &[
-            Vec::new(),
-            vec![calling_conventions::ValueShape::integer(0, 1)],
-        ],
-    )
-    .unwrap();
     let operation_result = |place| terminal_psi::StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place,
@@ -641,9 +643,9 @@ pub(in crate::tests) fn sum_reference_fixture(
                                 reference_results: vec![target_operations::TargetReferenceResult {
                                     path: leaf_path(),
                                     root: caller_place,
-                                    root_path: vec![StructuralPathSegment::Field(
+                                    root_paths: vec![vec![StructuralPathSegment::Field(
                                         "reference".into(),
-                                    )],
+                                    )]],
                                 }],
                                 returned_claim_transfers: Vec::new(),
                             },
