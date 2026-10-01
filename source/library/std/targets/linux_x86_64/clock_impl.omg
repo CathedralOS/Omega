@@ -1,19 +1,54 @@
-// linux_x86_64 `Clock` provider closure over the kernel `nanosleep` leaf
-// (linux_x86_64 `nanosleep` is 35). This leg does not sleep yet, for two
-// reasons. Provider admission classifies an authored syscall leaf's mechanism
-// but settles no native realization for it, so target lowering rejects the
-// demanded leaf with `MissingBoundarySettlement`. And normalized syscall
-// plans place each leaf parameter straight into a syscall register
-// (`evaluate_syscall` in `calling-conventions/src/plans/call_plan_evaluation.rs`),
-// so the millisecond count would reach `nanosleep` as its `timespec*` request
-// pointer. Once authored syscall leaves settle, the darwin leg's shape carries
-// over: a checked adapter over a std-private wait requirement that reaches
-// `Clock`, realized by the kernel `poll` syscall (7), whose three arguments
-// are integers.
+// Linux x86-64 timed waiting uses poll with no descriptors. Its timeout is
+// an integer millisecond count; nanosleep instead needs a timespec pointer,
+// so binding Clock::sleep's u32 directly to nanosleep would not implement it.
+// The raw kernel ABI (fs/select.c), unlike libc's nfds_t spelling, takes an
+// unsigned int descriptor count and signed int timeout.
+// https://man7.org/linux/man-pages/man2/poll.2.html
+// Native execution still requires the general authored-syscall settlement
+// path. The checked adapter does not manufacture that execution evidence.
+use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
+
+data LinuxClockWait { }
+
+boundary requirement LinuxClockWait::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
+reaches
+    Clock;
+
+data LinuxClockPoll { }
+
+linux_x86_64 machine LinuxClockPoll::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
+    satisfies LinuxClockWait::poll
+    via ForeignBinding::Syscall(7);
+
+// Negative poll timeouts wait indefinitely. Divide large u32 durations into
+// three signed-range parts and the remainder, preserving the full duration
+// without converting a value above i32::MAX to a negative timeout. As with
+// the Darwin adapter, a delivered signal may interrupt an individual wait.
 linux_x86_64 machine ClockNativeProvider::sleep(milliseconds: u32)
     satisfies Clock::sleep
-    via ForeignBinding::Syscall(35);
+reaches
+    Clock
+{
+    transition milliseconds > 2147483647 {
+        true -> in_parts(milliseconds)
+        _ -> at_once(milliseconds)
+    }
+
+    state at_once(milliseconds: u32) {
+        LinuxClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
+    }
+
+    state in_parts(milliseconds: u32) {
+        let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
+        LinuxClockWait::poll(0, 0, third);
+        LinuxClockWait::poll(0, 0, third);
+        LinuxClockWait::poll(0, 0, third);
+        LinuxClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
+    }
+}
 
 linux_x86_64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     defaults.select_provider<Clock, ClockNativeProvider>();
+    defaults.select_provider<LinuxClockWait::poll, LinuxClockPoll>();
 }
