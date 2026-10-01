@@ -1237,26 +1237,28 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `9484e48a74`
-  on macOS ARM64, the closed-stdin command
-  exits 200 before emission: `Game::initialize` → `Dungeon::initialize` →
-  `DungeonGenerator::generate` → `MazeBuilder::build` stops at `state graph:
-  operation custody: other operation` (state 0). The previous write-frame
-  rejection is repaired: ordinary multi-arm reference returns retain their
-  finite origin union, and fresh zeroed case storage no longer masquerades as
-  a transferred input. All 83 selected write-frame controls pass. The remaining
-  operation is `level.start_cell = CellId::R00`: stage 04 emits
-  `StructuralCaseLiteralFieldStore`, but state-graph operation custody and
-  stage 05 composed admission/body replay lack the case-store families.
-  Reuse the existing operation-frame emission and move/restore ledger, with
-  exact destination/case source replay; do not waive ownership checks.
-  Local byte-field sources retain their owned home, UTF-8 predicates and
-  post-call live length through source-free replay, interpretation and native
-  execution. At `9ddf8099a0` on macOS ARM64, the dependency fixture
-  `text/local_record_byte_field_copy_exit` executes with authored exit 70 and
-  matching `é\n`, preserving its snapshot after another call changes the local.
-  Stale mutable-view observations, consumed/partial owners and suspended-root
-  controls reject. This does not close the dungeon application acceptance.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `a6e363c318`
+  on macOS ARM64, the closed-stdin command exits 200 before emission:
+  `Game::run_game_loop` → `GameView::render_room` →
+  `RoomFormatter::write_room_info` → `RoomLookup::find_room` stops at
+  `state graph: prefix initializers: bound expression` (state 1, statement 0).
+  The missing initializer is `rooms[index].cell == cell`, with `rooms: &[Room]`.
+  Stage 04 `values/scalar/boolean_lowering.rs`
+  has no executable nominal-sum equality route; its contract-only
+  `PayloadlessSumEqual` is not an executable scalar computation. Compose exact
+  payload-free sum equality from the existing case observations, retaining
+  both operand identities and the complete nominal case roster. Extend stage 05
+  case-source preparation to element views and parameter selectors, preserving
+  a dominating live-length observation and `index < rooms.len()` evidence;
+  `index < 16` alone is not an interchangeable bound.
+  Initialization's composed case-field stores now reuse ordinary emission and
+  move/restore custody with independent authored-source replay. Six focused
+  case-store tests pass; the dependency fixture
+  `structural/composed_case_field_store_exit` executes with authored exit 70,
+  as does the existing `structs/case_field_type_store_shapes` fixture.
+  Preserve the established local byte-copy, write-frame, stale-view,
+  consumed/partial-owner and suspended-root controls. These dependency results
+  do not close the dungeon application acceptance.
   Acceptance remains
   native exit 0 with the authored room, prompt, command and goodbye output;
   independently verified helper plans are not native execution evidence.
