@@ -31,7 +31,7 @@ pub(crate) use evaluation::{
 };
 pub(crate) use snapshots::{
     AssignmentObservation, PlaceScalarValues, integer_bounds_at_place,
-    integer_bounds_from_payloads, literal_assignment_payload, literal_at_place,
+    integer_bounds_from_payloads, is_assignment_literal, literal_assignment_payload, literal_at_place,
     prepare_assignment_observations, scalar_value_at_place, scalar_value_from_payloads,
 };
 mod scalar;

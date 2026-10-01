@@ -29,10 +29,11 @@
 //! left as it is: it still checks and interprets, and native production keeps
 //! rejecting it for want of a route.
 //!
-//! Exact float-to-integer casts stay casts. Their obligation is the cast's own
-//! finite-and-in-range proof (declared ranges and dominating guards), which
-//! the unqualified conversion's `requires` entailment does not yet discharge;
-//! binding them would reject valid programs.
+//! Exact float-to-integer casts select the unqualified conversion through the
+//! same route. Selection grants no conversion proof: ordinary call validation
+//! still checks the selected requirement's finite/truncated-range premises,
+//! and Terminal publication retains those obligations. Leaving Exact casts
+//! behind would give valid checked expressions no executable operation.
 //!
 //! The pass runs after `resolve_named_result_overloads`. That pass re-selects
 //! a named operator call from the result type its context expects, and a
@@ -68,7 +69,7 @@ struct ConversionCastBinding {
     requirement_member: Identifier,
 }
 
-/// Rewrite exact float widenings and float-to-integer policy casts whose
+/// Rewrite exact float widenings and float-to-integer casts whose
 /// destination-owned conversion overload is visible into a call of that
 /// overload. Returns the number of casts bound.
 pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
@@ -225,7 +226,7 @@ fn selected_conversion(
         source_is_float
             && matches!(
                 cast.domain,
-                ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+                ArithmeticDomain::Exact | ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
             )
     };
     if !supported {

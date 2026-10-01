@@ -97,10 +97,7 @@ pub(super) fn append_constructed_field_values(
         for segment in destination_segments.iter().chain(&projection.destination) {
             semantic.push_place_segment(place, *segment);
         }
-        if matches!(
-            program.expression_table.expression(projection.expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        ) {
+        if crate::values::is_assignment_literal(program, projection.expression) {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,

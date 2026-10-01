@@ -144,8 +144,8 @@ fn policy_casts_bind_the_overload_their_result_qualification_selects() {
 }
 
 #[test]
-fn exact_casts_and_unselectable_policies_stay_casts() {
-    // Exact float-to-integer casts keep their own finite-and-range proof.
+fn exact_casts_select_unqualified_conversion_without_substituting_policies() {
+    // Exact selects its own requirement, whose premises remain obligations.
     // A policy without its own overload is never served by another one:
     // neither the unqualified conversion nor a same-signature Saturating
     // conversion on another path substitutes for `I32::from_f64 in Saturating`.
@@ -155,24 +155,23 @@ fn exact_casts_and_unselectable_policies_stay_casts() {
         requires value == value && value > -2147483649.0 && value < 2147483648.0;
         pub boundary operator I32::from_f64(value: f64) -> i32 in Trapping;
         pub boundary operator I32::round_from_f64(value: f64) -> i32 in Saturating;
-        machine value(input: f64 [0.0..=100.0]) -> i32 {
+        machine value(input: f64) -> i32
+        requires input >= 0.0 && input <= 100.0 {
             let exact: i32 = input as i32;
             let clamped: i32 = (input as i32 in Saturating) as i32;
             exact
         }",
     );
-    assert_eq!(count, 0);
-    for local in ["exact", "clamped"] {
-        let root = initializer(&program, local);
-        let node = conversion(&program, root);
-        assert!(
-            !matches!(
-                program.expression_table.expression(node),
-                ExpressionNode::Call(_)
-            ),
-            "{local} stays a cast"
-        );
-    }
+    assert_eq!(count, 1);
+    assert_eq!(
+        call_target(&program, initializer(&program, "exact")),
+        overload(&program, "from_f64", ""),
+    );
+    let unselected = conversion(&program, initializer(&program, "clamped"));
+    assert!(!matches!(
+        program.expression_table.expression(unselected),
+        ExpressionNode::Call(_)
+    ));
 }
 
 #[test]

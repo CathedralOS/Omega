@@ -11,6 +11,113 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 }
 
 #[test]
+fn named_float_requires_use_stronger_operand_bounds() {
+    check(
+        "boundary operator Ns::probe(value: f64) -> bool
+         requires value == value && value > -1.0 && value < 101.0;
+         machine compare(value: f64) -> bool
+         requires value >= 0.0 && value <= 100.0 { Ns::probe(value) }",
+    )
+    .expect("positive ordered facts prove non-NaN and weaker bounds");
+}
+
+#[test]
+fn named_float_requires_keep_bounds_of_an_already_copied_operand() {
+    check(
+        "boundary operator Ns::probe(left: f64, right: i32) -> bool
+         requires left == left && left > -1.0;
+         machine reset(value: &mut f64) -> i32 { value = -10.0; 0 }
+         machine compare(mut value: f64) -> bool requires value >= 0.0 {
+             Ns::probe(value, reset(&mut value))
+         }",
+    )
+    .expect("a later storage write cannot change the captured scalar's bounds");
+}
+
+#[test]
+fn named_float_requires_retain_an_assigned_field_across_a_state_edge() {
+    check(
+        "data Cell { value: f64; }
+         boundary operator Ns::probe(value: f64) -> bool
+         requires value == value && value > 0.0 && value < 2.0;
+         machine Cell::compare(&mut self) -> bool {
+             self.value = 1.5;
+             transition true { true -> next() }
+             state next(&mut self) -> bool { Ns::probe(self.value) }
+         }",
+    )
+    .expect("an immutable literal observation survives an unchanged state transfer");
+}
+
+#[test]
+fn named_float_requires_reject_unestablished_bounds() {
+    for source in [
+        // A false IEEE ordered comparison may describe NaN.
+        "boundary operator Ns::probe(value: f64) -> bool requires value >= 0.0;
+         machine compare(value: f64) -> bool requires !(value < 0.0) {
+             Ns::probe(value)
+         }",
+        // An inclusive bound cannot imply a strict bound at the same endpoint.
+        "boundary operator Ns::probe(value: f64) -> bool requires value > 0.0;
+         machine compare(value: f64) -> bool requires value >= 0.0 {
+             Ns::probe(value)
+         }",
+        // Equal spelling on another place does not identify the captured value.
+        "boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine compare(left: f64, right: f64) -> bool requires left >= 0.0 {
+             Ns::probe(right)
+         }",
+        // Facts established after capture describe the later storage version.
+        "boundary operator Ns::probe(left: f64, right: i32) -> bool requires left > -1.0;
+         machine prepare(value: &mut f64) -> i32 ensures value >= 0.0 { value = 1.0; 0 }
+         machine compare(mut value: f64) -> bool {
+             Ns::probe(value, prepare(&mut value))
+         }",
+        // A write retires the old literal observation, including its bounds.
+        "boundary operator Ns::probe(value: f64) -> bool requires value > 0.0;
+         machine compare() -> bool {
+             let mut value: f64 = 1.0;
+             value = -1.0;
+             Ns::probe(value)
+         }",
+        // f32 rounds 16777217 to 16777216, so the strict bound is not proved.
+        "boundary operator Ns::probe(value: f32) -> bool requires value > 16777216.0;
+         machine compare(value: f32) -> bool requires value >= 16777217.0 {
+             Ns::probe(value)
+         }",
+        // An arbitrary selected relation cannot supply IEEE order laws.
+        "boundary operator >= Custom::at_least(left: f64, right: f64) -> bool;
+         boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
+         machine compare(value: f64) -> bool requires value >= 0.0 {
+             Ns::probe(value)
+         }",
+        // Every incoming edge must deliver the same observed field value.
+        "data Cell { value: f64; }
+         boundary operator Ns::probe(value: f64) -> bool requires value > 0.0;
+         machine Cell::compare(&mut self, choose: bool) -> bool {
+             transition choose { true -> good() false -> bad() }
+             state good(&mut self) -> bool {
+                 self.value = 1.0;
+                 transition true { true -> joined() }
+             }
+             state bad(&mut self) -> bool {
+                 self.value = -1.0;
+                 transition true { true -> joined() }
+             }
+             state joined(&mut self) -> bool { Ns::probe(self.value) }
+         }",
+    ] {
+        let diagnostics = check(source).expect_err("missing bounds must remain unproven");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn named_call_requires_keep_a_copied_generic_record_after_a_right_operand_write() {
     // A generic instantiation is the same detached copy: `h`'s bound snapshot
     // for `left` predates `reset`'s write to the source storage. `Holder` is

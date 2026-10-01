@@ -60,6 +60,7 @@ use crate::labels::{
     symbol_name,
 };
 
+mod float_bounds;
 mod invocation;
 use invocation::InvocationContexts;
 
@@ -636,6 +637,9 @@ fn contexts_prove_boolean_expression(
             operand_labels,
             expression,
         ) || instantiated_leaf_is_closed_true(program, operators, parameters, operands, expression)
+            || float_bounds::contexts_prove_comparison(
+                program, semantic, operators, contexts, parameters, operands, expression,
+            )
             || contexts_prove_case_membership(
                 program, semantic, contexts, parameters, operands, expression,
             )
