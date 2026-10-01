@@ -6,6 +6,12 @@ Compiler cases are organized by outcome first, then by feature area.
 - `fail/`: should be rejected with the expected diagnostic fragment
 - `run/`: ad hoc runnable probes and exploratory cases that are not part of the
   main pass/fail contract suite
+- `pending/`: committed witnesses for refusals that have no fix yet. The corpus
+  runner walks `pass`, `fail` and `run` only, so a case here is a reduction the
+  next session can reproduce without turning the gate red — there is no
+  "checks but does not build" status in `pass/`. Move the directory into
+  `pass/` with its golden row once the refusal is gone; record the exact
+  diagnostic and the variants that bound it in the case's own header
 - `packages/`, `package-remotes/`, `package-workspaces/`: multi-package
   projects read by the package manager's and `omega install`/`update` tests;
   the corpus gate does not compile them
