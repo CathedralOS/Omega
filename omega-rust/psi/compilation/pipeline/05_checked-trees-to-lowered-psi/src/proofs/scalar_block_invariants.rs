@@ -100,6 +100,9 @@ fn run_verdict_searches(
         // threads never borrow the batch's; declines join in batch order
         // the same way verdicts do.
         let mut search_declines = ProofSearchDeclines::default();
+        let started = std::time::Instant::now();
+        let mut canonical_elapsed = None;
+        let mut relaxed_ran = false;
         let verdict = produce_checked_canonical_integer_proof(
             context,
             goal,
@@ -108,6 +111,7 @@ fn run_verdict_searches(
             parameters,
             &mut search_declines,
         )
+        .inspect(|_| canonical_elapsed = Some(started.elapsed()))
         // Arrival obligations can outgrow the canonical custody envelope the
         // same way operation obligations do: an endpoint that meets cited facts
         // only through equality/definition chains. The relaxed search is the
@@ -116,6 +120,8 @@ fn run_verdict_searches(
         // certificate before the candidate is retained. Guarded `Implication`
         // premises keep their scope.
         .or_else(|| {
+            canonical_elapsed = Some(started.elapsed());
+            relaxed_ran = true;
             produce_relaxed_integer_proof(
                 context,
                 goal,
@@ -126,6 +132,20 @@ fn run_verdict_searches(
             )
         })
         .is_some();
+        if crate::proofs::proof_timing::enabled() {
+            let canonical = canonical_elapsed.unwrap_or_default();
+            let total = started.elapsed();
+            crate::proofs::proof_timing::search(
+                "verdict",
+                crate::proofs::proof_timing::key_digest(key),
+                goal,
+                requirements.len(),
+                semantic_axioms.len(),
+                canonical,
+                relaxed_ran.then(|| total.saturating_sub(canonical)),
+                verdict,
+            );
+        }
         drop(counted);
         (verdict, search_declines)
     };
@@ -462,6 +482,7 @@ fn retain_provable_roster_bounded(
     // context reads the machine's own places, which roster pruning never
     // mutates.
     let mut contexts = BTreeMap::new();
+    let mut proof_round = 0usize;
     if module.scalar_block_invariants.is_empty() {
         // Nothing survived discovery: the proof loop checks only invariant
         // arrivals, so its whole-module revalidation would decide nothing.
@@ -572,6 +593,21 @@ fn retain_provable_roster_bounded(
             pending_goals.push(key);
         }
         run_verdict_searches(&pending_goals, &contexts, &mut verdicts, declines);
+        if crate::proofs::proof_timing::enabled() {
+            for (machine, header, site, parameters) in &pending {
+                let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
+                eprintln!(
+                    "[roster-site] round={} header={} obligation={} conjunction={} key={} proved={}",
+                    proof_round,
+                    header.get(),
+                    site.obligation.id.get(),
+                    matches!(site.obligation.proposition, Proposition::Conjunction(_)),
+                    crate::proofs::proof_timing::key_digest(&key),
+                    verdicts[&key],
+                );
+            }
+        }
+        proof_round += 1;
         let mut rejected = BTreeSet::new();
         // Members of a rejected header's conjunction that fail on their own at
         // some arrival, by position, with the conjunction's arity at that arrival.
