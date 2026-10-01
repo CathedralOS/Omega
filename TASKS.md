@@ -157,37 +157,6 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **FORWARDED-RECORD-NAME-HANDOFF-AVAILABILITY.** (new-scope) Retire a
-  predecessor block's mutable record name when its successor receives the same
-  storage. `samples/cli/collections/matrix_multiply` checks and then reports
-  `InvalidTerminalModule(OwnedStructuralPlaceNotLiveAtOperation { operation:
-  OperationId(60), place: PlaceId(11) })`; it is the only customer.
-  Frontier: instrumented to the exact refusal. Operation 60 is
-  `PrimitiveScalarRead { source: PlaceId(11), path: [Field("c"), FixedIndex(0),
-  FixedIndex(0)] }` — the authored `matrices.c[0][0]` — and `PlaceId(11)` is
-  `BlockParameter { block: BlockId(6), position: 1 }`, the reading block's OWN
-  `&mut Matrices` parameter. It is refused by `usable_source` in
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/block_views/mutable_records.rs`,
-  which rejects a source when any OTHER available block parameter names the
-  same storage. The other one is
-  `(BlockId(5), PlaceId(9), MutableBorrow)`, the predecessor's parameter, and
-  the available set at the read is `{PlaceId(9), PlaceId(10), PlaceId(11)}`.
-  So the rule is working as written — "after a state handoff, a dominating
-  descriptor must not read through the new exclusive name" — but it fires on
-  the newest name rather than an older one, because the predecessor's name is
-  still in the available set at the successor.
-  That points at `block_views::mutable_availability` rather than at
-  `usable_source`: `control_flow/block_checks.rs` already retains only the
-  per-block mutable views that fixpoint supplies, so a handoff edge should have
-  dropped `PlaceId(9)` before `BlockId(6)`. Fixing `usable_source` to exempt
-  the operation's own block parameter would also clear the sample, but it would
-  paper over an availability set that still holds a consumed name, so prefer
-  the fixpoint unless the exemption is independently justified.
-  Acceptance: `matrix_multiply` meets its documented exit 189 under
-  `tools/sample_native_gate.py`, with a corpus fixture pinning a `&mut` record
-  forwarded across a state cycle and read in a later block, and no `fail`
-  fixture stops rejecting.
-
 - **CYCLIC-CANDIDATE-PROOF-SEARCH-COST.** (new-scope) Bound the per-candidate
   canonical proof search that dominates compiling an unranked cyclic scalar
   loop. Three samples are blocked on compile time alone, not on any refusal.
