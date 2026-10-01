@@ -305,10 +305,10 @@ pub(super) fn validate_reference_roster(
             _ => {}
         }
         for operation in operations {
-            if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation {
-                if !returned.contains(source) {
-                    returned.push(source.clone());
-                }
+            if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
+                && !returned.contains(source)
+            {
+                returned.push(source.clone());
             }
         }
     }

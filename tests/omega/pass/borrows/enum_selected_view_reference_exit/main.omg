@@ -17,9 +17,9 @@ machine Bag::pick(&mut self, choice: Choice) -> &mut Holder {
 
 machine pick_free(bag: &mut Bag, choice: Choice) -> &mut Holder {
     let slots: &mut [Holder] = bag.holders.as_mut_slice();
-    transition choice {
-        Choice::First -> &mut slots[0]
-        Choice::Second -> &mut slots[1]
+    transition {
+        choice == Choice::First -> &mut slots[0]
+        choice == Choice::Second -> &mut slots[1]
         _ -> &mut slots[0]
     }
 }

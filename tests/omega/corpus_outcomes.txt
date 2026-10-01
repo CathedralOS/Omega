@@ -1201,6 +1201,7 @@ pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1102ms @ae42075f1dcc+wt
 pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
+pass/borrows/enum_selected_view_reference_exit checked 810ms @be20683757eb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f

@@ -34,6 +34,7 @@ mod byte_write_parameter_roots;
 mod call_operand_source_custody;
 mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
+mod case_guard_source;
 mod case_payload_guard_observation;
 mod case_payload_path_boundaries;
 mod case_payload_record_member_read;
