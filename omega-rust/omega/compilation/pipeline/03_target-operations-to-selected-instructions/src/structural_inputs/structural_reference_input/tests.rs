@@ -439,3 +439,91 @@ fn whole_byte_array_loans_read_as_byte_and_element_views_with_one_geometry() {
         }
     }
 }
+
+#[test]
+fn fixed_array_root_reads_its_literal_elements_record_fields() {
+    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
+
+    let row = StructuralTypeId::new(1).unwrap();
+    let rows = StructuralTypeId::new(2).unwrap();
+    let scalar = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .unwrap(),
+    );
+    let tag = StructuralFieldId::new(1).unwrap();
+    let value = StructuralFieldId::new(2).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: row,
+            identity: "Row".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: tag,
+                        identity: "tag".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar),
+                    },
+                    StructuralFieldDeclaration {
+                        id: value,
+                        identity: "value".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar),
+                    },
+                ],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: rows,
+            identity: "[Row; 3]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: row,
+                length: 3,
+            },
+        },
+    ];
+    // `rows[2].tag` and `rows[2].value` sit past two eight-byte records.
+    assert_eq!(
+        field_read(
+            rows,
+            &[StructuralPathSegment::FixedIndex(2)],
+            tag,
+            scalar,
+            &declarations
+        ),
+        Some((16, 4)),
+    );
+    assert_eq!(
+        field_read(
+            rows,
+            &[StructuralPathSegment::FixedIndex(2)],
+            value,
+            scalar,
+            &declarations
+        ),
+        Some((20, 4)),
+    );
+    // No element past the declared extent, and no field without a selected
+    // element record.
+    assert_eq!(
+        field_read(
+            rows,
+            &[StructuralPathSegment::FixedIndex(3)],
+            tag,
+            scalar,
+            &declarations
+        ),
+        None,
+    );
+    assert_eq!(field_read(rows, &[], tag, scalar, &declarations), None);
+    assert_eq!(
+        field_read(
+            rows,
+            &[StructuralPathSegment::FixedIndex(0)],
+            tag,
+            ScalarType::Boolean,
+            &declarations
+        ),
+        None,
+    );
+}

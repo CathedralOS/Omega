@@ -2778,9 +2778,20 @@ completion syntax or other terminal service is a prerequisite.
 - **PLACED-ACCESS-NATIVE-OPS.** Close source-to-native indexed access under
   [structural access](wiki/spec/terminal-psi/structural_access.md), preserving
   original caller storage. `collections/runtime_indexed_struct_field_rmw_exit`
-  exits 1 as authored on macOS ARM64. `runtime_double_indexed_rmw_exit` now
-  checks with invocation-local arrays and explicit borrowed state parameters;
-  execute its authored native exit **1** to close the remaining acceptance.
+  exits 1 as authored on macOS ARM64, and
+  `collections/runtime_parameter_nested_literal_index_read_exit` exits **70**:
+  helper machines borrow a caller's `[[i32; 4]; 3]` and `[Row; 3]` locals,
+  store through literal and runtime selectors, and read `grid[1][2]`,
+  `rows[2].data[1]` and `rows[2].tag` back. `runtime_double_indexed_rmw_exit`
+  makes the same accesses through state parameters and still stops in stage 05
+  at `Unit graph local loan requires an activation entry home`: its
+  `prepare_rows` state lends its own local, and a home established in a
+  non-entry state is missing on the paths that return without visiting it.
+  Declaring both locals in the entry state instead reaches Terminal
+  verification's `InvalidBlockStructuralParameter`, which admits a mutable
+  block parameter only over a record or service carrier. `&mut [T; N]` state
+  parameters need the same Terminal decision as **COMPOSITE-TRANSITION-ARGUMENT**'s
+  owned array block parameter; execute the authored native exit **1** after both.
   Source checking does not establish native store correctness. The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;

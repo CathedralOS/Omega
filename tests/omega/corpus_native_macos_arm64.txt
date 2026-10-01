@@ -277,6 +277,7 @@ pass/collections/runtime_indexed_struct_field_rmw_exit built 2368ms exit:1 @fb21
 pass/collections/runtime_indexed_successor_argument_exit built 1723ms exit:70 @48008365d839
 pass/collections/runtime_maze_pathfind_exit built 1835ms exit:70
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
+pass/collections/runtime_parameter_nested_literal_index_read_exit built 1177ms exit:70 @5f978f80e84b+wt
 pass/collections/runtime_signed_element_offset_read_exit built 587ms exit:70
 pass/collections/runtime_vec_u32_growth_exit built 2538ms exit:70
 pass/collections/runtime_whole_array_value_copy_exit built 857ms exit:70 @a59d5a661528+wt

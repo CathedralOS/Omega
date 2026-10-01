@@ -91,11 +91,14 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    // A whole-place shared borrow of a produced fixed-array result lends the
-    // caller's dense leaf storage in place; the aggregate route rejoins the
-    // producing home exactly as a projected borrow does.
+    // A whole-place shared or exclusive borrow of a produced fixed-array
+    // result lends the caller's dense leaf storage in place; the aggregate
+    // route rejoins the producing home exactly as a projected borrow does.
     if semantic.path.is_empty()
-        && semantic.access == StructuralAccess::SharedBorrow
+        && matches!(
+            semantic.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         && plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type
                 && matches!(
