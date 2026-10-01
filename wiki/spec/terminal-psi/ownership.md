@@ -76,6 +76,20 @@ name, carrier type, or bytes at another place is insufficient. Contained loans
 travel with their values, and filling vacant storage must not dispose the moved
 value again. Residual siblings and the removed value retain their own obligations.
 
+Whole-value assignment through an exclusive loan (`referent = value` where
+`referent: &mut T`) is the same window rooted at the loan itself: the move names
+no field and an empty path, vacating the whole referent, and the store reseats
+it. Only a mutable-borrowed machine or block parameter opens a root window; an
+owned home's whole value moves by ordinary transfer, and shared or write-only
+loans open no window. The displaced value carries the referent's exact type and
+its own declared multiplicity, exactly as a field window's: displaced affine
+contents owe ordinary disposal on a following edge, while plain contents need
+none. A borrowed parameter's multiplicity describes its loan carrier, not the
+referent, so it is no evidence for either value. Every observation of the root
+overlaps the vacated referent until the repair, and the repair invalidates every
+fact observed beneath the root. A plain sum loan, like a record loan, may join a
+block parameter as its referent's address, so a later state can replace it.
+
 Replay checks reads, calls, joins, loan restoration, and exits against the exact
 frontier. Reject missing repair on a returning path, duplicate extraction,
 overlapping observation, wrong-place repair, whole-owner cleanup while incomplete,

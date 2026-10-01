@@ -1,0 +1,25 @@
+// Whole-value assignment through `&mut Verdict` must write a `Verdict`:
+// the replacement's type is the referent's exact type, not any sum with a
+// same-shaped case.
+
+data Verdict {
+    case Invalid;
+    case Sound;
+}
+
+data Outcome {
+    case Lost;
+    case Won;
+}
+
+data Main {
+    verdict: Verdict;
+}
+
+machine settle(verdict: &mut Verdict) {
+    verdict = Outcome::Won;
+}
+
+machine Main::main(&mut self) {
+    settle(&mut self.verdict);
+}

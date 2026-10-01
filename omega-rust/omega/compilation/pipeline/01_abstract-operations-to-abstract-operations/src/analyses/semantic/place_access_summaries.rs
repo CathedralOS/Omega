@@ -949,6 +949,7 @@ fn scan_operation(
             with_field(&mut view, *field);
             pending.attribute(context, *destination, view, AccessKind::Write);
         }
+        // A root window (`field: None`) writes the whole referent.
         O::MoveStructuralField {
             source,
             path,
@@ -956,7 +957,9 @@ fn scan_operation(
             ..
         } => {
             let mut view = runtime_prefix(path);
-            with_field(&mut view, *field);
+            if let Some(field) = field {
+                with_field(&mut view, *field);
+            }
             pending.attribute(context, source.place(), view, AccessKind::Write);
         }
         O::StoreStructuralField {
@@ -967,7 +970,9 @@ fn scan_operation(
             ..
         } => {
             let mut view = runtime_prefix(path);
-            with_field(&mut view, *field);
+            if let Some(field) = field {
+                with_field(&mut view, *field);
+            }
             pending.attribute(context, destination.place(), view, AccessKind::Write);
             let (reads, writes) = declared_access(value.access);
             pending.attribute_argument(context, value, reads, writes);

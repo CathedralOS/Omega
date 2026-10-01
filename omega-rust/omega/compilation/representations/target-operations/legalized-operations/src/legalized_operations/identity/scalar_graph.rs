@@ -316,7 +316,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(88);
                     super::structural_types::encode_window_root(bytes, destination);
                     super::structural_types::encode_structural_path(bytes, path);
-                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                    // A root window spells field zero, which no declared
+                    // field identity takes.
+                    bytes.extend_from_slice(
+                        &field
+                            .map_or(0, semantic_vocabulary::StructuralFieldId::get)
+                            .to_le_bytes(),
+                    );
                     bytes.extend_from_slice(&value.get().to_le_bytes());
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);

@@ -12,6 +12,10 @@
 //! parameter declaration so no consumer reconstructs borrow authority from
 //! physical ABI shape. The dynamic debt itself needs no replay here: the
 //! spelled pairs reach Omega only through a verified module.
+//!
+//! A root window (`field: None`, empty path) vacates and reseats the whole
+//! referent of an exclusive loan: its root must be a mutable-borrowed
+//! parameter, as the verifier admitted.
 
 use abstract_operations::{AbstractOperation, StructuralWindowRoot};
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
@@ -60,7 +64,7 @@ fn lower_move(
     structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidBorrowedStorageWindow(operation.id);
     let result = operation.result.structural().ok_or_else(invalid)?;
@@ -92,6 +96,7 @@ fn lower_move(
     let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
     if declared_window_field_type(structural_types, source.structural_type(), path, field)
         != Some(result.structural_type)
+        || !root_window_loan(&source, field)
     {
         return Err(invalid());
     }
@@ -110,7 +115,7 @@ fn lower_store(
     structural_types: &[StructuralTypeDeclaration],
     destination: PlaceId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
     value: &StructuralArgument,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidBorrowedStorageWindow(operation.id);
@@ -129,7 +134,10 @@ fn lower_store(
     let Some(source) = source_signature(machine, value.place) else {
         return Err(invalid());
     };
-    if source.structural_type != field_type || !source.has_empty_qualifications() {
+    if source.structural_type != field_type
+        || !source.has_empty_qualifications()
+        || !root_window_loan(&destination, field)
+    {
         return Err(invalid());
     }
     Ok(AbstractOperation::StoreStructuralField {
@@ -198,15 +206,26 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
         })
 }
 
+/// A root window (`field: None`) names the whole referent of an exclusive
+/// loan: only a borrowed parameter root qualifies. Field windows keep their
+/// own contract.
+fn root_window_loan(root: &StructuralWindowRoot, field: Option<StructuralFieldId>) -> bool {
+    field.is_some() || matches!(root, StructuralWindowRoot::BorrowedParameter(_))
+}
+
 /// The declared `Structural` type of the field a window operation names,
-/// resolved beneath `root` through the spelled path. `None` means the place
-/// does not host a structural field there.
+/// resolved beneath `root` through the spelled path; a root window names the
+/// whole referent with no path. `None` means the place does not host a
+/// structural field there.
 fn declared_window_field_type(
     structural_types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
 ) -> Option<StructuralTypeId> {
+    let Some(field) = field else {
+        return path.is_empty().then_some(root);
+    };
     if matches!(
         path.last(),
         Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })

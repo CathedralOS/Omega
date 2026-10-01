@@ -512,6 +512,7 @@ pub(crate) fn validate_structural_root_operations(
                             path,
                             *field,
                         ) == Some(result.structural_type)
+                        && root_window_loan(source, *field)
                         && matches!(
                             result.multiplicity,
                             terminal_psi::StructuralMultiplicity::Unrestricted
@@ -547,6 +548,7 @@ pub(crate) fn validate_structural_root_operations(
                     // the Terminal verifier retained; the unit keeps the
                     // static contract honest.
                     let valid = borrowed_window_root(function, destination, &place_kinds)
+                        && root_window_loan(destination, *field)
                         && value.access == terminal_psi::StructuralAccess::Owned
                         && value.path.is_empty()
                         && window_field_type(
@@ -1077,15 +1079,33 @@ fn borrowed_window_root(
     }
 }
 
+/// A root window (`field: None`) replaces the whole referent of an exclusive
+/// loan, so its root must be a borrowed parameter. Field windows keep their
+/// own per-field contract.
+fn root_window_loan(
+    root: &abstract_operations::StructuralWindowRoot,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> bool {
+    field.is_some()
+        || matches!(
+            root,
+            abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+        )
+}
+
 /// The declared `Structural` type of the field a window operation names,
-/// resolved beneath the borrowed root through the spelled path. `None` means
-/// the place does not host a structural field there.
+/// resolved beneath the borrowed root through the spelled path; a root
+/// window names the whole referent with no path. `None` means the place does
+/// not host a structural field there.
 fn window_field_type(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<StructuralTypeId> {
+    let Some(field) = field else {
+        return path.is_empty().then_some(root);
+    };
     if matches!(
         path.last(),
         Some(

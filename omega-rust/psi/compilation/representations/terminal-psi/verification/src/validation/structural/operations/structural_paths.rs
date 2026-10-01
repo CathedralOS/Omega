@@ -169,7 +169,7 @@ pub(crate) fn structural_field_store_write_path(
             path,
             field,
             ..
-        } => (*destination, path, *field, false),
+        } => (*destination, path, Some(*field), false),
         OperationKind::StoreStructuralField {
             destination,
             path,
@@ -182,6 +182,11 @@ pub(crate) fn structural_field_store_write_path(
             field,
         } => (*source, path, *field, true),
         _ => return None,
+    };
+    // A root window writes the whole referent: its hole is the empty
+    // canonical path, which every observation of the root overlaps.
+    let Some(field) = field else {
+        return (window && path.is_empty()).then_some((root, Vec::new()));
     };
     let root_type = caller_structural_root_type(machine, root)?;
     // A window operation whose spelled path crosses a runtime element names

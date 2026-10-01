@@ -122,7 +122,7 @@ fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPla
                 result: result(3),
                 source: abstract_operations::StructuralWindowRoot::BorrowedParameter(root(access)),
                 path: Vec::new(),
-                field: StructuralFieldId::new(2).unwrap(),
+                field: Some(StructuralFieldId::new(2).unwrap()),
             },
             AbstractOperation::StoreStructuralField {
                 psi_operation: operation(3),
@@ -130,7 +130,7 @@ fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPla
                     access,
                 )),
                 path: Vec::new(),
-                field: StructuralFieldId::new(2).unwrap(),
+                field: Some(StructuralFieldId::new(2).unwrap()),
                 value: StructuralArgument {
                     place: place(2),
                     access: StructuralAccess::Owned,
@@ -190,7 +190,7 @@ fn window_rows_reject_extent_field_and_home_substitution() {
                     *byte_offset = 0
                 }
                 (1, TargetUnitOperation::StoreStructuralField { field, .. }) => {
-                    *field = StructuralFieldId::new(1).unwrap()
+                    *field = Some(StructuralFieldId::new(1).unwrap())
                 }
                 (2, TargetUnitOperation::StoreStructuralField { value, .. }) => {
                     *value = displaced_home.place()

@@ -202,12 +202,13 @@ pub enum TargetUnitOperation {
     /// consumed owned subtree in a local home or incoming ABI parameter, are written at
     /// `byte_offset` beneath `destination`'s referent, the resolved offset of
     /// `field` under the spelled `path`. The value is spent and the
-    /// borrowed root regains full custody of the field.
+    /// borrowed root regains full custody of the field. A root window
+    /// (`field: None`, empty path) writes the whole referent at offset zero.
     StoreStructuralField {
         psi_operation: OperationId,
         destination: abstract_operations::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
         value: PlaceId,
         byte_offset: u32,
         /// Runtime traversals through `RuntimeIndex` segments, in path

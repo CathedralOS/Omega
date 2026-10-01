@@ -1,4 +1,5 @@
-//! Exclusive record and service state loans keep the caller's storage identity.
+//! Exclusive record, plain sum and service state loans keep the caller's
+//! storage identity.
 //!
 //! The ordinary mutable-parameter fixed point transfers the usable name on
 //! each edge. This replay also follows borrowed block aliases so an earlier
@@ -28,12 +29,20 @@ pub(super) fn borrowed_carrier_type(
     module: &TerminalModule,
     root: super::StructuralTypeId,
 ) -> bool {
+    // A plain sum loan carries its referent's address exactly as a record's
+    // does: the state may replace the whole referent through its root window
+    // or write a common field, and the caller observes those writes.
     if !module.structural_types.iter().any(|declaration| {
         declaration.id == root
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::FusedServiceBinding | StructuralTypeShape::Record { .. }
-            )
+            && match declaration.shape {
+                StructuralTypeShape::FusedServiceBinding | StructuralTypeShape::Record { .. } => {
+                    true
+                }
+                StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
+                    super::super::record::plain_type(module, root)
+                }
+                _ => false,
+            }
     }) {
         return false;
     }

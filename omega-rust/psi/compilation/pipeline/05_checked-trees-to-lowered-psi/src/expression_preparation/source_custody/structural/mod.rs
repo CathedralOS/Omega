@@ -963,8 +963,10 @@ fn authored_destination(
                 // `place = <construction>` establishes the value that replaces a
                 // structural field; its destination type is the authored place's own
                 // declared type, reconstructed here rather than read from the root.
-                // Peeling a policy or reference here would certify a different
-                // value type even when the underlying storage shape is identical.
+                // Peeling a policy here would certify a different value type even
+                // when the underlying storage shape is identical. The one shell
+                // assignment itself removes is a reference: writing through
+                // `referent: &mut T` replaces the referent, a `T`.
                 Some(StatementNode::Assignment(assignment)) => (
                     assignment.value,
                     validation::declared_place_type_raw(
@@ -973,6 +975,9 @@ fn authored_destination(
                         Some(source),
                         assignment.target,
                     )
+                    .map(|destination| {
+                        validation::assignment_value_type(&checked.typed, destination)
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "structural construction lost its authored destination",
                     ))?,

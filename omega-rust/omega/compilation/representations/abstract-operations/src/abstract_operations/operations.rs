@@ -248,13 +248,14 @@ pub enum AbstractOperation {
     /// exact-once custody. The window stays open until a
     /// `StoreStructuralField` reseats this exact hole; consumers must not
     /// erase, duplicate, or reorder either side of the pair against the
-    /// borrowed root's other observations.
+    /// borrowed root's other observations. `field: None` with an empty path
+    /// is a root window: the whole referent of the exclusive loan moves out.
     MoveStructuralField {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         source: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
-        field: semantic_vocabulary::StructuralFieldId,
+        field: Option<semantic_vocabulary::StructuralFieldId>,
     },
     /// Establish one owned copy of an `Unrestricted` leaf projected out of a
     /// live readable root. The source stays fully intact: copying observes
@@ -274,12 +275,13 @@ pub enum AbstractOperation {
     /// root's complete authority; `value` is the consumed whole-place owned
     /// argument whose declared type the verifier matched to the declared
     /// field. This is only the repair of an open hole — it never replaces a
-    /// live field and it re-disposes nothing.
+    /// live field and it re-disposes nothing. `field: None` with an empty
+    /// path reseats the whole referent a root window vacated.
     StoreStructuralField {
         psi_operation: OperationId,
         destination: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
-        field: semantic_vocabulary::StructuralFieldId,
+        field: Option<semantic_vocabulary::StructuralFieldId>,
         value: StructuralArgument,
     },
     /// One normalized atomic memory event with its proof-static ordering

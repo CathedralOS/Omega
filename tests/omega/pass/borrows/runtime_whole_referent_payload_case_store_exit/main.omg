@@ -1,0 +1,60 @@
+// Whole-referent replacement of payload cases through `&mut`: an authored
+// case literal with a scalar payload, then a whole owned case copied from a
+// parameter. exits: 70 = both replacements reached the caller; 71 = the
+// literal did not; 72 = the copy did not.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Reading {
+    case Missing;
+    case Level(amount: u32);
+}
+
+data Main {
+    console: Binding<Console>;
+    reading: Reading;
+}
+
+machine record_level(reading: &mut Reading, amount: u32) {
+    reading = Reading::Level { amount: amount };
+}
+
+machine adopt(reading: &mut Reading, other: Reading) {
+    reading = other;
+}
+
+machine Main::main(&mut self) reaches Console {
+    record_level(&mut self.reading, 41);
+    transition self.reading {
+        Reading::Level { amount } -> copied(&mut self, amount)
+        Reading::Missing -> bad_literal(&mut self)
+    }
+
+    state copied(main: &mut Main, amount: u32) {
+        adopt(&mut main.reading, Reading::Missing);
+        transition amount == 41 {
+            true -> check_copy(main)
+            _ -> bad_literal(main)
+        }
+    }
+
+    state check_copy(main: &mut Main) {
+        transition main.reading {
+            Reading::Missing -> good(main)
+            Reading::Level { amount } -> bad_copy(main)
+        }
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state bad_literal(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+
+    state bad_copy(main: &mut Main) {
+        main.console.exit_process(72);
+    }
+}

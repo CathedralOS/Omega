@@ -22,6 +22,11 @@
 //!
 //! Only plain subtrees move this way. A reference-bearing field carries loan
 //! custody a byte copy cannot relocate, so it keeps rejecting here.
+//!
+//! A root window (`field: None`, empty path) is whole-value assignment
+//! through an exclusive loan: both copies span the whole referent at offset
+//! zero beneath the loan's pointer, and only a borrowed-parameter root
+//! qualifies.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -54,6 +59,7 @@ pub(super) fn move_field(
         return Err(invalid());
     };
     if !window_root(function, prepared, live, source)
+        || !root_window_loan(source, *field)
         || super::references::contains_reference(types, result.structural_type)
     {
         return Err(invalid());
@@ -94,6 +100,7 @@ pub(super) fn store_field(
         return Err(invalid());
     };
     if !window_root(function, prepared, live, destination)
+        || !root_window_loan(destination, *field)
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
@@ -176,6 +183,20 @@ pub(super) fn store_field(
     Ok(())
 }
 
+/// A root window (`field: None`) replaces a loan's whole referent, so its
+/// root must be a borrowed parameter; an owned home's whole value never
+/// moves through a window.
+fn root_window_loan(
+    root: &abstract_operations::StructuralWindowRoot,
+    field: Option<StructuralFieldId>,
+) -> bool {
+    field.is_some()
+        || matches!(
+            root,
+            abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+        )
+}
+
 /// The window root retains its exact mutable-borrowed declaration. An entry
 /// parameter has an ABI pointer; a live block arrival has the address forwarded
 /// by its incoming edge. Both copies use that pointer without copying the root.
@@ -221,13 +242,17 @@ fn window_root(
 /// the byte copy resolves the field's offset and extent like any projection.
 /// A path already ending in an element selection is complete as spelled —
 /// `field` then names the array's own declaration in the last record the
-/// path crosses, not a further member.
+/// path crosses, not a further member. A root window is the whole referent:
+/// the empty path.
 fn field_path(
     types: &StructuralTypeLookup<'_>,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[StructuralPathSegment],
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
 ) -> Option<Vec<StructuralPathSegment>> {
+    let Some(field) = field else {
+        return path.is_empty().then(Vec::new);
+    };
     if matches!(
         path.last(),
         Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
