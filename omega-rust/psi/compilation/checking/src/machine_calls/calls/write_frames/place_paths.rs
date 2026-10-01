@@ -50,18 +50,19 @@ pub(super) fn push_unique_origin(origins: &mut Vec<FramePlaceOrigin>, origin: Fr
 }
 
 /// Collapse a proven candidate set to the one storage place every route
-/// agrees on. Candidates naming the same place merge, coarsening when their
-/// referent position or structural source differs; candidates naming
-/// different storage have no single origin and stay with the set consumers.
+/// agrees on. Candidates naming the same place and structural source merge,
+/// coarsening when their path precision differs. Candidates whose structural
+/// sources differ name different storage even under one coarse collection
+/// path (`others[0]` and `others[1]`): keeping either source would re-anchor
+/// a write to that one element, so they have no single origin and stay with
+/// the set consumers, like candidates naming different storage.
 pub(super) fn single_place_origin(candidates: Vec<FramePlaceOrigin>) -> Option<FramePlaceOrigin> {
     let mut merged: Option<FramePlaceOrigin> = None;
     for origin in candidates {
         match &mut merged {
             None => merged = Some(origin),
-            Some(existing) if existing.path == origin.path => {
-                if origin.precision == FramePathPrecision::CollectionCoarse
-                    || origin.source != existing.source
-                {
+            Some(existing) if existing.path == origin.path && existing.source == origin.source => {
+                if origin.precision == FramePathPrecision::CollectionCoarse {
                     existing.precision = FramePathPrecision::CollectionCoarse;
                 }
             }
