@@ -11,11 +11,12 @@
 //! endpoint the plan retains equals that fact. Only the lookup of the source
 //! place differs by route, so each route resolves `ViewRangeSource` itself.
 //!
-//! A view local's range over a fixed-array field (`self.items[a..b]`) names
-//! no established view: its route first establishes a whole collection view of
-//! the field and passes that place as the source, together with the checked
-//! field path. `emit_over_field` then replays the authored member chain to
-//! that exact field in place of the bare view name.
+//! A range over a fixed-array field (`self.items[a..b]`, as a view local's
+//! initializer or a call argument) names no established view: its route
+//! first establishes a whole collection view of the field
+//! (`establish_field_view`) and passes that place as the source, together
+//! with the checked field path. `emit_over_field` then replays the authored
+//! member chain to that exact field in place of the bare view name.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -143,6 +144,123 @@ fn emit_ranged(
         next_value,
         operations,
     )
+}
+
+/// Establish the whole shared view of the fixed-array field `collection`
+/// names below the structural parameter `owner`, into `destination`: the
+/// view a field range narrows. `owner_place` is the place currently holding
+/// the owner on the emitting route and `symbol` its authored name.
+///
+/// Both descriptor families use the existing collection-view operation
+/// (`EstablishElementView`) under a shared loan of the field, so the
+/// verifier relates the view's length to the array's declared extent and
+/// keeps the owner frozen while the view lives. A byte view may borrow only
+/// an exact `u8` element array, never reinterpret another primitive's bytes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn establish_field_view(
+    owner: &terminal_psi::StructuralParameterDeclaration,
+    owner_place: PlaceId,
+    symbol: symbols::SymbolHandle,
+    collection: &[CheckedUnitStructuralPathSegment],
+    view_type: StructuralTypeId,
+    family: ViewFamily,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    destination: PlaceId,
+    operations: &mut OperationBuffer,
+) -> Result<(ViewRangeSource, StructuralPlaceDeclaration), LoweringError> {
+    if collection.is_empty()
+        || !matches!(
+            owner.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::Owned
+        )
+        || !owner.qualifications.is_empty()
+        || !owner.projected_qualifications.is_empty()
+    {
+        return unsupported("view subslice field owner cannot lend a shared collection view");
+    }
+    let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+        collection,
+    )?;
+    let array = terminal_semantics::runtime_structural_path_tip(
+        declarations.iter(),
+        owner.structural_type,
+        &path,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "view subslice field lost its exact collection",
+    ))?;
+    let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = array.shape else {
+        return unsupported("view subslice field is not fixed-array backing");
+    };
+    let view = declarations
+        .iter()
+        .find(|declaration| declaration.id == view_type)
+        .ok_or(LoweringError::Unsupported(
+            "view subslice field range lost its view type",
+        ))?;
+    let matches_family = match (family, &view.shape) {
+        (
+            ViewFamily::Elements,
+            terminal_psi::StructuralTypeShape::ElementView { element: expected },
+        ) => *expected == element,
+        (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
+            let byte_scalar = crate::emission::scalar_types::terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?;
+            declarations.iter().any(|declaration| {
+                declaration.id == element
+                    && declaration.shape
+                        == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte_scalar)
+            })
+        }
+        _ => false,
+    };
+    if !matches_family {
+        return unsupported("view subslice field element disagrees with its view family");
+    }
+    let producer = operations.allocate();
+    operations.push(terminal_psi::Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: producer,
+        result: terminal_psi::OperationResult::Structural(
+            terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: destination,
+                structural_type: view_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+        ),
+        kind: terminal_psi::OperationKind::EstablishElementView {
+            destination,
+            source: terminal_psi::StructuralArgument {
+                place: owner_place,
+                path,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            element,
+        },
+    });
+    Ok((
+        ViewRangeSource {
+            symbol,
+            place: destination,
+            structural_type: view_type,
+            family,
+        },
+        StructuralPlaceDeclaration {
+            id: destination,
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: view_type,
+            },
+        },
+    ))
 }
 
 /// Bind replayed endpoints into the current scalar namespace. Replay itself

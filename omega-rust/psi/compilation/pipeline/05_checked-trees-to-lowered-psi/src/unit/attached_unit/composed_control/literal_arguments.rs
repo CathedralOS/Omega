@@ -1,17 +1,26 @@
-//! Materialize literals at their selected call and authored argument position.
-//! Owned formals receive fresh bounded backing; borrowed formals retain views.
+//! Materialize literals and view ranges at their selected call and authored
+//! argument position. Owned literal formals receive fresh bounded backing;
+//! borrowed formals retain views. A range (`view[a..b]`, `self.items[a..b]`)
+//! narrows its source at its own position through the one call-argument
+//! range staging both Unit routes share (`byte_subslices`), so a terminal
+//! call in a guarded transition arm stages it inside the arm, where only the
+//! selected arm evaluates it.
+use super::super::super::StructuralParameterDeclaration;
 use super::super::{
     CheckedUnitEffectOperationPlan, PlaceId, ValueDeclaration, lookup_type_id, unsupported,
 };
 use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::unit::attached_unit::byte_subslices;
 use checked_trees::CheckedUnitCallResult;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    parameters: &[StructuralParameterDeclaration],
     operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
@@ -21,11 +30,12 @@ pub(super) fn evaluate(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(Option<Vec<ValueDeclaration>>, Vec<PlaceId>), LoweringError> {
-    let arguments = crate::unit::attached_unit::byte_subslices::arguments(operation);
-    if !arguments
-        .iter()
-        .any(|argument| argument.byte_sequence_literal().is_some())
-    {
+    let state_plan = state;
+    let state = state.state;
+    let arguments = byte_subslices::arguments(operation);
+    if !arguments.iter().any(|argument| {
+        argument.byte_sequence_literal().is_some() || byte_subslices::range(argument).is_some()
+    }) {
         let mut calls = catalogs.scalar_calls.emission_context();
         let values = evaluation.arguments(
             checked, machine, state, operation, values, next_value, next_block, next_edge,
@@ -123,6 +133,20 @@ pub(super) fn evaluate(
                     next_value,
                     operations,
                 )?);
+            } else if byte_subslices::range(argument).is_some() {
+                byte_places.push(stage_range(
+                    checked,
+                    state_plan,
+                    parameters,
+                    operation,
+                    structural_ordinal,
+                    source_value_count,
+                    catalogs,
+                    evaluation,
+                    values,
+                    next_value,
+                    operations,
+                )?);
             }
             structural_ordinal += 1;
         } else if scalar_positions.get(scalar_slots.len()) == Some(&argument_position) {
@@ -160,6 +184,70 @@ pub(super) fn evaluate(
         .collect::<Result<Vec<_>, _>>()?;
     values.truncate(source_value_count);
     Ok((Some(scalars), byte_places))
+}
+
+/// Narrow the call's `ordinal`th structural argument's source at its
+/// position. The endpoints read the namespace the call's authored operands
+/// read, before any of this call's own operands evaluated.
+#[allow(clippy::too_many_arguments)]
+fn stage_range(
+    checked: &CheckedTrees,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    parameters: &[StructuralParameterDeclaration],
+    operation: &CheckedUnitEffectOperationPlan,
+    ordinal: usize,
+    source_value_count: usize,
+    catalogs: &mut catalogs::ComposedCatalogs,
+    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<PlaceId, LoweringError> {
+    let bindings = evaluation
+        .scalar_bindings
+        .clone()
+        .unwrap_or_else(|| {
+            crate::expression_preparation::bindings::ScalarBindings::new(
+                values
+                    .iter()
+                    .take(source_value_count)
+                    .map(|value| value.scalar_type),
+            )
+        })
+        .with_structural_parameters(&evaluation.structural_parameters)
+        .with_resolved_structural_observations(
+            &evaluation.structural_fields,
+            &evaluation.structural_cases,
+        )
+        .with_primitive_storage(&evaluation.primitive_storage)
+        .with_local_cases(&evaluation.local_cases)
+        .with_structural_locals(&evaluation.structural_locals)
+        .with_view_locals(&evaluation.view_locals)
+        .with_element_views(&evaluation.element_views);
+    let current = |place| evaluation.current_structural_place(place);
+    let context = byte_subslices::StagingContext {
+        state: state.state,
+        parameters: byte_subslices::SourceParameters {
+            plans: &state.structural_parameters,
+            declarations: parameters,
+            current: &current,
+        },
+        view_locals: &evaluation.view_locals,
+        structural_types: &catalogs.structural_types,
+        type_ids: &catalogs.type_ids,
+        bindings: &bindings,
+    };
+    byte_subslices::emit_staged(
+        checked,
+        &context,
+        operation,
+        ordinal,
+        values,
+        &mut catalogs.temporary_places,
+        &mut catalogs.next_place,
+        next_value,
+        operations,
+    )
 }
 
 fn establish(

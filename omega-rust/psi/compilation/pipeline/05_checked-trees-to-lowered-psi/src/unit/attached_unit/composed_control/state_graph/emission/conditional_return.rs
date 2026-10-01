@@ -34,7 +34,24 @@ impl StateGraphEmission<'_, '_> {
         let retained_bindings = operations.structural_values.len();
         let mut arm_evaluation = evaluation.branch(target, operations.len());
         let mut arm_values = arm_namespace;
-        operations.byte_lengths.clear();
+        // The arm's block is dominated by the state's current decision block,
+        // not by the private blocks a planned short-circuit guard observes
+        // lengths in. Keep only the view lengths the decision block itself
+        // observed: an immutable view's extent cannot change, and reusing the
+        // guard's own observation is what lets a range inside the arm
+        // discharge its bound from that guard (`self.k < path.len` before
+        // `path[0..self.k]`). Every other length is observed afresh; field
+        // lengths always are, since a call may replace the field.
+        let decided = operations[evaluation.operation_start..]
+            .iter()
+            .filter_map(|operation| operation.result.scalar().map(|value| value.id))
+            .collect::<std::collections::BTreeSet<_>>();
+        operations
+            .byte_lengths
+            .retain(|(_, value)| decided.contains(value));
+        operations
+            .element_lengths
+            .retain(|(_, value)| decided.contains(value));
         operations.field_byte_lengths.clear();
         let mut terminator = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
@@ -223,6 +240,7 @@ impl StateGraphEmission<'_, '_> {
         evaluation.blocks.extend(arm_evaluation.blocks);
         operations.structural_values.truncate(retained_bindings);
         operations.byte_lengths.clear();
+        operations.element_lengths.clear();
         operations.field_byte_lengths.clear();
         Ok(SuccessorEdge {
             edge: edge_id(allocate_dense(next_edge)?),

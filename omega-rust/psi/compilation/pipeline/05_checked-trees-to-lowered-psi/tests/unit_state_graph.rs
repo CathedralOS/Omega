@@ -16,6 +16,9 @@ mod scalars;
 #[path = "unit_state_graph/tails.rs"]
 mod tails;
 
+#[path = "unit_state_graph/call_argument_ranges.rs"]
+mod call_argument_ranges;
+
 #[path = "unit_state_graph/reachable_states.rs"]
 mod reachable_states;
 

@@ -289,6 +289,8 @@ pub(super) fn build(
                 argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
             },
         ) && subslice.range.kind == view_subslice::ViewKind::Bytes
+            // A boundary call stages no whole-field view to narrow.
+            && subslice.range.collection.is_empty()
         {
             structural_arguments.push(subslice.argument());
             continue;

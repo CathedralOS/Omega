@@ -232,10 +232,14 @@ fn append(
             )?;
             continue;
         }
-        if byte_subslices::arguments(&plan.operations[index]).get(argument_ordinal).is_some_and(|argument| {
-            matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
-        }) {
-            steps.push(Step::Subslice { operation: index, ordinal: argument_ordinal });
+        if byte_subslices::arguments(&plan.operations[index])
+            .get(argument_ordinal)
+            .is_some_and(|argument| byte_subslices::range(argument).is_some())
+        {
+            steps.push(Step::Subslice {
+                operation: index,
+                ordinal: argument_ordinal,
+            });
             continue;
         }
         let Some(expression) = parameters::expression_producer(checked, expression) else {

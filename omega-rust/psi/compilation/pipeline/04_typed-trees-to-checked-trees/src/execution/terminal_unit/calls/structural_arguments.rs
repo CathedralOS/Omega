@@ -161,6 +161,22 @@ pub(crate) fn structural_call_arguments(
                 output.push(subslice.argument());
                 continue;
             }
+            // A range the lane above refused only because its formal is
+            // domain-qualified has no other lowering; name that boundary.
+            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && view_subslice::narrows_into_qualified_formal(
+                    program,
+                    caller_machine,
+                    caller_state,
+                    caller_parameters,
+                    target.type_reference,
+                    expression,
+                    statement_index,
+                )
+            {
+                arm("call operation: structural arguments: range into a qualified view formal");
+                return None;
+            }
             // A fixed range projection must still name the builtin slice
             // operation. Canonical storage identity alone does not authorize
             // replacing an authored range operator with a byte-window loan.
@@ -964,19 +980,15 @@ pub(crate) fn call_claim_transfers(
             }
             continue;
         }
-        if argument.byte_sequence_literal().is_some()
-            || matches!(
-                argument.source,
-                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            )
-        {
+        if argument.byte_sequence_literal().is_some() || view_subslice::is_view_subslice(argument) {
             // Literal admission reconstructs either an immutable shared view
             // or a fresh unrestricted bounded owner with plain byte domains.
-            // Neither supplies a claim. Any ownership event must still be
+            // A range is a fresh shared view of a view or of a field's
+            // array. None supplies a claim. Any ownership event must still be
             // accounted for by the complete event-roster check below.
             let owned_literal = argument.byte_sequence_literal().is_some()
                 && argument.access == CheckedStructuralAccess::Owned;
-            if !argument.path.is_empty()
+            if (!argument.path.is_empty() && !view_subslice::is_field_range(argument))
                 || (!owned_literal && argument.access != CheckedStructuralAccess::SharedBorrow)
             {
                 return None;
