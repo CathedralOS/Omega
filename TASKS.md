@@ -861,49 +861,36 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Published application `a3186ac92eb2bc495817e3d42a9222460db53983` still has
-  the disconnected entry. Unpublished application checkpoint `c9e4cf4` restores
-  that route and delegates listing to Snapshot's deletion-aware page/count APIs,
-  retaining global IDs and the eight/seven-result oracle. On macOS ARM64,
-  ordinary `omega update --resume --offline --project
-  samples/apps/squalr/squalr-tests` now accepts all 17 packages after explicit
-  review of the local-source and execution-host changes. The retained local
-  lockfile records that acceptance; the application checkpoints remain unpublished.
-  The published array-shape repair gets past `Main::main`'s attached data shape
-  without application changes. The application command remains `omega run
-  --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
-  Temporary call-argument cleanup now composes with ordinary caller results.
-  The unchanged application command on `e720ff4e35f` plus the projected-call
-  fact repair still refuses
-  `SqualrEngine::init`, statement 1, at `statement sequence: assignment:
-  structural call result field store`. A diagnostic probe isolates stage 04's
+  Restored application checkpoint `c9e4cf4` connects the command route and
+  Snapshot's deletion-aware page/count APIs, retaining global IDs and the
+  eight/seven-result oracle; it remains unpublished. Its retained local lock
+  records the previously reviewed 17-package acceptance with std
+  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`. On macOS ARM64, compiler
+  `bd5db53b6d` and the bounded statement-prefix query repair rebased onto
+  `1777ad706f` both reach the same
+  failure with unchanged source: `omega run --target linux_x86_64
+  samples/apps/squalr/squalr-tests/main.omg` exits 200 at
+  `SqualrEngine::init`, statement 1, `statement sequence: assignment:
+  structural call result field store`. Prefix collection now stops at its last
+  incoming statement boundary; complete write summaries still follow successor
+  effects. This removes unnecessary checking work, not the missing result shape.
+  The separately retained application checkout `8bc13d5` stops earlier at an
+  unsupported `omega.lock` version; preserve its pins and obtain ordinary fresh
+  package review rather than transplanting the older accepted lock.
+
+  The result-store diagnostic isolates stage 04's
   `control/call_results.rs` result-shape classification: `EnginePrivilegedState`
   nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
   need no fabricated binding, but transporting the aggregate must preserve
   routed authority and must not grant plain no-code disposal. The restored
-  native reproduction from unpublished `9cc10a72110e` rejected at the
-  result-field store on `4c26ea27e805`. Revalidate the routed-owned classifier and
-  ordinary result consumers from `9cc10a72110e` / `f0da848a3ef` against the
+  native reproduction still needs the routed-owned classifier and
+  ordinary result consumers revalidated against the
   current Binding representation; their old `InvalidErasedStructuralField`
   diagnostic is not evidence of the current next failure. Coordinate the shared
   `checking/src/value_custody/storage_contents.rs` with
   `DUNGEON-OWNED-COPY-CONTENTS` before editing it.
 
-  Value-returning states keep non-final expression calls in their ordinary
-  statement sequence. Terminal call composition now expires observations of
-  the validated writable subtree rather than its entire containing record;
-  unknown paths and reference aliases retain conservative invalidation. On
-  macOS ARM64, `python3 tools/corpus_gate.py --native --filter
-  calls/runtime_call_statement_before_state_return_exit` changes from
-  `OperationProofUnavailable(ObligationId(21))` to native **42**: an indexed
-  receiver call preserves the sibling count bound for the subsequent exact
-  increment. The interpreter agrees; ordinary sequence and float sequence
-  controls agree on **42** and **70**. Twenty-six verifier controls cover
-  overlapping/disjoint paths, captures, aliases and stale-proof rejection;
-  eleven trust-ledger checks pass and five mutation/loan misuse fixtures keep
-  their expected rejections. Direct CLI use of the new fixture requires its
-  first package review; no review was bypassed. The earlier Squalr failure
-  remains. Restore owned-result transport, then rerun the unchanged application
+  Restore owned-result transport, then rerun the unchanged application
   to identify its next dependency. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
