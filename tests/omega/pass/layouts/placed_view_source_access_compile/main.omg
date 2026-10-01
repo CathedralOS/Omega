@@ -20,11 +20,9 @@ pub data Registers {
     transmit: u8;
 }
 
-pub data RegPlacement {
-    services: [u64; 32];
-}
+pub data RegPlacement {}
 
-machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -44,7 +42,8 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
     ) -> PlacementPlan {
         transition { _ -> place_transmit(
             schema,
-            access.with(
+            AccessPlan::with(
+                access,
                 schema.fields[0].key,
                 FieldAccess::External {
                     read: ExternalRead::Read,
@@ -62,7 +61,8 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
         transition { _ -> finish(
-            access.with(
+            AccessPlan::with(
+                access,
                 schema.fields[1].key,
                 FieldAccess::External {
                     read: ExternalRead::None,
@@ -75,11 +75,11 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
     }
 
     state finish(
-        &mut self,
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
-        self.services[0] = 7;
+        let mut services: [u64; 32];
+        services[0] = 7;
         PlacementPlan {
             layout: Plan {
                 entries: entries,
@@ -90,7 +90,7 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
             },
             access: access,
             reach: BoundaryReach {
-                services: self.services,
+                services: services,
                 service_count: 0,
             },
         }

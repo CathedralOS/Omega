@@ -304,8 +304,8 @@ pub machine AccessPlan::inaccessible(schema: &Schema) -> AccessPlan {
 // A key outside the seed is deliberately retained as an extra/overwriting
 // entry so compiler validation rejects it rather than silently ignoring an
 // authored mistake.
-pub machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
-    AccessPlan::with_bounded(self, key, access, 128)
+pub machine AccessPlan::with(plan: AccessPlan, key: u64, access: FieldAccess) -> AccessPlan {
+    AccessPlan::with_bounded(plan, key, access, 128)
 }
 
 // The helper makes the finite search's ordinary termination witness explicit.
