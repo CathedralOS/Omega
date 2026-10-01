@@ -409,7 +409,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && call.accesses.len() == 1
             && call_access.root_symbol == parent.owner_symbol
             && borrow.access_segments(call_access).is_empty()
-            && call_access.kind == BorrowAccessKind::Read
+            // The restored parent is forwarded to a `&mut` formal, so checking
+            // records the callee's mutable loan held through the invocation,
+            // not a copied read of the reference binding.
+            && call_access.kind == BorrowAccessKind::Mutable
+            && call_access.end_before_access.is_none()
             && span_contains(call.entry_constraints, certificate.parent_entry_constraint)
             && parent_constraint.kind == FlowConstraintKind::BorrowLoan { loan: parent.loan };
         if !exact_resource || !exact_disposition || !exact_containment || !exact_call {
