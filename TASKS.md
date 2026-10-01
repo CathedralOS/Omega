@@ -1913,18 +1913,22 @@ crash and native exit behavior. Use affected check/native corpus slices under
   refuses mutable bindings, and whole-array computation-argument loans.
 
   Borrowed views are another field producer, not owned array storage.
-  On macOS ARM64 at `57c4ef5e087`, native corpus checks of
-  `wire/runtime_wire_decode_byte_slice_exit`,
-  `wire/runtime_wire_encode_byte_slice_exit` and
-  `wire/runtime_wire_encode_borrowed_scalar_slice_exit` get through field-site
-  construction but reject at stage 04 `call operation: structural arguments:
-  caller structural result`. `computations/slice_view.rs` already constructs
-  field-site views; `calls/result_arguments/mod.rs` still fences the resulting
-  record with stored borrowed-view fields. Compose that ordinary record loan
-  with its exact stored-loan origins and lifetimes; the reference-result
-  receiver assignment owns that module. **REFERENCE-LOCAL-BINDING-ROUTES**
-  owns reference locals. These three wire programs remain required native runs,
-  not successes merely because their rejection matches an old golden.
+  `computations/slice_view.rs` constructs field-site views, and a generated
+  codec machine's `&Sample` parameter keeps the entry's place through its
+  states (`state_graph/entry_aliases.rs`). On macOS ARM64 at `0f045d449cd` with that
+  aliasing, none of the three wire programs runs yet:
+  `wire/runtime_wire_encode_byte_slice_exit` stops in trusted Terminal
+  verification (`argument_checks.rs`, `UnknownStructuralArgument`), which
+  admits an `EstablishRecord` result as a call argument only as the owned
+  argument of a reference-result call, not as a shared loan of a constructed
+  record whose member is a borrowed view; that needs a verifier rule with the
+  member's stored-loan origin. `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
+  stops in stage 05 at "borrowed slice view path does not match its projected
+  path", and `wire/runtime_wire_decode_byte_slice_exit` at stage 04
+  `structural field store: borrowed view field: declared domains`.
+  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. These three wire
+  programs remain required native runs, not successes merely because their
+  rejection matches an old golden.
 
   The wire customers construct their records and call the checked codec
   machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`
