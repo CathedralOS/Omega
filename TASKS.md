@@ -1453,24 +1453,21 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `83d1d72291`
-  plus the slice-copy and byte-result schedule repairs, on macOS ARM64, source
-  checking and local package review succeed; closed stdin exits 200 during
-  Terminal production with `Unit graph reordered a source effect`.
-  The next dependency is stage 05
-  `unit/attached_unit/composed_control/state_graph/body.rs`: identify and rejoin
-  the exact authored statement/operation pair without relaxing source order.
-  `MazeBuilder::carve_room` now passes ordinary call/store sequencing;
-  `text/owned_byte_call_result_field_exit` executes exit 70 through both an
-  ordinary helper and the caller's composed graph, preserving field contents,
-  length and sibling storage. The binding/order corruption controls reject.
-  `RoomLookup::find_room` now crosses slice-copy source replay with retained
-  live-length obligations. `collections/runtime_slice_record_copy_exit`
-  executes its authored exit 70, preserving qualified byte fields, enum values,
-  the source and destination sibling; fifteen existing native controls retain
-  their results and four invalid-copy/bounds fixtures still reject. Those
-  witnesses do not establish that Dungeon runs. Acceptance remains the two
-  complete game commands above.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `be20683757eb`
+  plus the case-source and retained-call-parameter repairs, on macOS ARM64,
+  source checking and local package review succeed; closed stdin exits 200
+  during Terminal production with `byte value parameter has no ordinary read
+  authority`. The next dependency is stage 05
+  `emission/structural_byte_sequence_store.rs::ValueEmitter::field_source`:
+  identify the actual source parameter and retain its ordinary read custody
+  through byte construction, without dropping qualifications or loan evidence.
+  Call scheduling now joins authored positions to the callee's exact retained
+  parameters; source syntax and argument counts cannot invent receiver slots.
+  `borrows/enum_selected_view_reference_exit` and
+  `calls/retained_receiver_argument_order_exit` execute their authored exit 70;
+  sixteen related native controls retain their results and four invalid-copy/
+  bounds fixtures still reject. Those witnesses do not establish that Dungeon
+  runs. Acceptance remains the two complete game commands above.
 
   The composed receiver reproduction
   `borrows/branch_selected_record_composed_receiver_exit` and nested owned

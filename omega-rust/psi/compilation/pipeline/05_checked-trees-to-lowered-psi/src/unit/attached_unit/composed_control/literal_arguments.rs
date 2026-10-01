@@ -13,7 +13,6 @@ use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::attached_unit::byte_subslices;
-use checked_trees::CheckedUnitCallResult;
 
 /// Completed operands from the shared authored-position schedule. Their slots
 /// have already followed any control splits; evaluating them again at the call
@@ -56,35 +55,11 @@ pub(super) fn evaluate(
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         return Ok((values, Vec::new()));
     }
-    let plans = crate::unit::attached_unit::bodies::UnitPlans::published(
-        &checked.facts.flow.terminal_unit_effects,
-    );
     let Some(call) = operation.call() else {
         return unsupported("literal call escaped the composed Unit operation family");
     };
-    // A scalar callee's entry roster lives on whichever body owns it.
-    let scalar_target;
-    let target_parameters = if call.is_boundary() {
-        crate::unit::attached_unit::unique_unit_boundary(plans, call.target.machine)?
-            .structural_parameters
-            .as_slice()
-    } else if let CheckedUnitCallResult::Scalar(_) = call.result() {
-        scalar_target =
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-                checked,
-                call.target.machine,
-            )?;
-        scalar_target.structural_parameters()
-    } else {
-        crate::unit::attached_unit::bodies::UnitBody::find(plans, call.target.machine)?
-            .entry()?
-            .structural_parameters
-    };
+    let target_parameters = super::super::call_parameters::structural_parameters(checked, call)?;
     let (scalar_count, coordinate) = (call.scalar_arguments.len(), call.coordinate);
-    let positions = target_parameters
-        .iter()
-        .map(|parameter| parameter.position as usize)
-        .collect::<Vec<_>>();
     // A literal occurrence's qualification evidence is its target parameter's
     // declared domain set; clone the roster so the call machinery can borrow
     // the catalogs mutably below.
@@ -99,12 +74,10 @@ pub(super) fn evaluate(
         machine,
         authored.source_target,
     )?;
-    let source_positions =
-        crate::emission::call_source_custody::literal_arguments::structural_positions(
-            checked,
-            &signature,
-            arguments.len(),
-        )?;
+    let positions = super::super::call_parameters::structural_positions(checked, call, &signature)?
+        .into_iter()
+        .map(|position| position as usize)
+        .collect::<Vec<_>>();
     let scalar_positions = signature
         .parameters
         .iter()
@@ -117,9 +90,6 @@ pub(super) fn evaluate(
         .map(|(position, _)| position)
         .collect::<Vec<_>>();
     if positions.len() != arguments.len()
-        || positions.iter().copied().ne(source_positions
-            .into_iter()
-            .map(|position| position as usize))
         || scalar_positions.len() != scalar_count
         || positions.iter().any(|position| {
             *position >= signature.parameters.len() || scalar_positions.contains(position)

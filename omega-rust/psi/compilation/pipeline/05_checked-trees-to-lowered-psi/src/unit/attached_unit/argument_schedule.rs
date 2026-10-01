@@ -190,10 +190,11 @@ fn append(
         authored.source_target,
     )?;
     let parameters = target.parameters;
-    // An ordinary receiver occupies a structural slot even when implicit.
-    // A boundary service receiver is erased: it owns requirement identity,
-    // not a runtime argument. Keep authored positions separate from both
-    // dense lanes rather than shifting later operands into the receiver slot.
+    // Authored positions and retained argument slots are different namespaces.
+    // The callee's checked signature decides which structural formals survive;
+    // neither attachment syntax nor the number of supplied arguments can do so.
+    let structural_positions =
+        super::call_parameters::structural_positions(checked, call, &target)?;
     let implicit_self = |position: usize| {
         parameters[position].is_self
             && !authored
@@ -204,35 +205,21 @@ fn append(
     let implicit_self_count = (0..parameters.len())
         .filter(|position| implicit_self(*position))
         .count();
-    let structural_count = authored
-        .structural_arguments
-        .iter()
-        .filter(|(position, _)| !call.is_boundary() || !parameters[*position as usize].is_self)
-        .count()
-        + if call.is_boundary() {
-            0
-        } else {
-            implicit_self_count
-        };
     if parameters.len()
         != authored.scalar_arguments.len()
             + authored.structural_arguments.len()
             + implicit_self_count
         || scalar_arguments.len() != authored.scalar_arguments.len()
-        || structural_arguments.len() != structural_count
+        || structural_arguments.len() != structural_positions.len()
     {
         return unsupported("nested argument schedule has no exact positional signature");
     }
     active.push(index);
     let mut scalar_ordinal = 0;
-    // Dense ordinal into the lowered structural argument list. Authored
-    // positions and lowered slots agree except at an implicit `self`, which
-    // has a slot but no authored formal.
+    // Walk both lanes in authored evaluation order; a retained receiver can
+    // consume a structural slot without an explicit argument expression.
     let mut structural_ordinal = 0;
     for (position, parameter) in parameters.iter().enumerate() {
-        if call.is_boundary() && parameter.is_self {
-            continue;
-        }
         if checked
             .primitive_type_reference(parameter.type_reference)
             .is_some()
@@ -244,8 +231,17 @@ fn append(
             scalar_ordinal += 1;
             continue;
         }
+        if structural_positions
+            .get(structural_ordinal)
+            .copied()
+            .map(|position| position as usize)
+            != Some(position)
+        {
+            continue;
+        }
+        let argument_ordinal = structural_ordinal;
+        structural_ordinal += 1;
         if implicit_self(position) {
-            structural_ordinal += 1;
             continue;
         }
         let expression = authored
@@ -255,8 +251,6 @@ fn append(
             .ok_or(LoweringError::Unsupported(
                 "nested structural argument has no authored position",
             ))?;
-        let argument_ordinal = structural_ordinal;
-        structural_ordinal += 1;
         let mut constructors = group.clone().filter_map(|producer| {
             let (source, formal, result) = argument_construction(&operations[producer])?;
             (source == coordinate && formal as usize == position).then_some((producer, result))

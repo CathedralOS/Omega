@@ -128,28 +128,21 @@ fn locate<'a>(
     let coordinate = call.coordinate;
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
-    // The call's structural slots are the callee's retained structural
-    // formals, in order: an implicit `self` the callee keeps takes a slot
-    // and has no authored argument, and one it erases takes neither. Each
-    // retained formal names its authored position, which the authored
-    // argument list keys its explicit arguments by.
-    let plans = super::bodies::UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    let formals = if call.is_boundary() {
-        super::unique_unit_boundary(plans, call.target.machine)?
-            .structural_parameters
-            .as_slice()
-    } else {
-        super::bodies::UnitBody::find(plans, call.target.machine)?
-            .entry()?
-            .structural_parameters
-    };
-    let authored_ordinal = formals
+    let (machine, _) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let signature = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        machine.symbol,
+        authored.source_target,
+    )?;
+    let positions = super::call_parameters::structural_positions(checked, call, &signature)?;
+    let authored_ordinal = positions
         .get(ordinal)
-        .and_then(|formal| {
+        .and_then(|formal_position| {
             authored
                 .structural_arguments
                 .iter()
-                .position(|(position, _)| *position == formal.position)
+                .position(|(position, _)| position == formal_position)
         })
         .ok_or(LoweringError::Unsupported(
             "subslice disagrees with its authored call argument",

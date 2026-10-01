@@ -134,7 +134,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }
     }
 
-    pub(crate) fn structural_parameters(&self) -> &[CheckedUnitStructuralParameterPlan] {
+    pub(crate) fn structural_parameters(&self) -> &'checked [CheckedUnitStructuralParameterPlan] {
         match self {
             Self::Graph(graph) => graph
                 .states

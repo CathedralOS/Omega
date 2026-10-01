@@ -1,6 +1,6 @@
 //! Byte loans retain their authored field, array, or borrowed-view root.
 
-use super::{authored, literal_arguments, projected_receivers};
+use super::{authored, projected_receivers};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
@@ -62,7 +62,9 @@ pub(super) fn validate(
     {
         return Ok(());
     }
-    let positions = literal_arguments::structural_positions(checked, &signature, arguments.len())?;
+    let positions = crate::unit::attached_unit::call_parameters::structural_positions(
+        checked, planned, &signature,
+    )?;
     for (position, argument) in positions.into_iter().zip(arguments) {
         let Some(expected_access) = byte_view_access(&signature.parameters[position as usize])
         else {

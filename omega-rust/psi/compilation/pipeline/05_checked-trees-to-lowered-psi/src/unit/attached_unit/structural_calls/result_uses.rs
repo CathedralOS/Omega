@@ -1170,33 +1170,7 @@ pub(crate) fn validate_consumer(
         &call.structural_arguments,
         call.claim_transfers(),
     );
-    // A borrowed receiver the callee leaves ambient on its attachment carrier
-    // still occupies its authored slot among the call's structural arguments;
-    // it owns no forwarded formal, so the walk skips that position. The gap is
-    // real only when the arguments actually carry one extra slot — a roster
-    // that forwards self keeps argument and parameter arity equal.
-    let ambient_receiver =
-        crate::expression_preparation::source_custody::authored_state(checked, target_state)
-            .ok()
-            .and_then(|(_, callee_state)| {
-                checked
-                    .state_parameters(callee_state)
-                    .iter()
-                    .position(|parameter| {
-                        parameter.is_self
-                            && matches!(
-                                checked
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                TypeReferenceNode::Reference { .. }
-                            )
-                    })
-                    .filter(|_| !target_parameters.iter().any(|parameter| parameter.is_self))
-            })
-            .filter(|_| structural_arguments.len() == target_parameters.len() + 1);
-    if structural_arguments.len()
-        != target_parameters.len() + usize::from(ambient_receiver.is_some())
-    {
+    if structural_arguments.len() != target_parameters.len() {
         return unsupported("Unit structural argument arity disagrees with its target");
     }
     let operation_index = caller
@@ -1228,40 +1202,21 @@ pub(crate) fn validate_consumer(
         caller.machine,
         authored.source_target,
     )?;
-    // Boundary plans omit the provider-selecting receiver from ABI positions.
-    // Operand constructions retain authored positions, including that receiver.
-    // Reuse the source partition that already joins literal boundary arguments.
-    let boundary_source_positions = if authored.boundary {
-        Some(
-            crate::emission::call_source_custody::literal_arguments::structural_positions(
-                checked,
-                &signature,
-                structural_arguments.len(),
-            )?,
-        )
-    } else {
-        None
-    };
-    let mut forwarded_parameters = target_parameters.iter();
-    let mut parameter_position = 0usize;
-    // `index` keeps the argument's authored call position (claim transfers,
-    // boundary positions, consumer callbacks); `parameter_index` is the
-    // forwarded formal's position in the callee roster (entry claims).
-    for (index, argument) in structural_arguments.iter().enumerate() {
-        if ambient_receiver == Some(index) {
-            continue;
-        }
-        let parameter = forwarded_parameters
-            .next()
-            .ok_or(LoweringError::Unsupported(
-                "structural result consumer lost a target parameter",
-            ))?;
-        let parameter_index = parameter_position;
-        parameter_position += 1;
-        let source_position = boundary_source_positions
-            .as_ref()
-            .map(|positions| positions[index])
-            .unwrap_or(parameter.position);
+    let retained = super::super::call_parameters::structural_parameters(checked, call)?;
+    if retained != target_parameters {
+        return unsupported("structural result consumer changed its retained target parameters");
+    }
+    let source_positions =
+        super::super::call_parameters::structural_positions(checked, call, &signature)?;
+    // Claims use dense runtime slots; constructions retain authored positions.
+    // The declaration projection joins them without manufacturing a receiver slot.
+    for (index, ((argument, parameter), source_position)) in structural_arguments
+        .iter()
+        .zip(target_parameters)
+        .zip(source_positions)
+        .enumerate()
+    {
+        let parameter_index = index;
         let boundary_array_argument = authored.boundary
             && signature
                 .parameters
