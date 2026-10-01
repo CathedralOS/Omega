@@ -359,24 +359,36 @@ pub(super) fn parameter_source(
                 if !contains_owner(checked, child.initial_value, owner) {
                     continue;
                 }
-                let ExpressionNode::Borrow(initializer) =
-                    checked.expression_table.expression(child.initial_value)
-                else {
-                    return unsupported("receiver alias escapes through a local initializer");
-                };
-                if child.is_mutable
-                    || !matches!(
-                        (local_access, initializer.access),
-                        (
-                            ReferenceAccess::Mutable,
-                            ReferenceAccess::Mutable | ReferenceAccess::WriteOnly
-                        ) | (ReferenceAccess::WriteOnly, ReferenceAccess::WriteOnly)
-                    )
-                    || receiver_root(checked, initializer.target)? != owner
+                // A scalar local initialized from member reads of the referent
+                // observes the loan exactly as a guard's member reads do: the
+                // copied scalar carries no loan, so the statement is a use.
+                if checked
+                    .typed
+                    .primitive_type_reference(child.type_reference)
+                    .is_some()
+                    && owner_mentions_are_member_reads(checked, child.initial_value, owner)
                 {
-                    return unsupported("receiver alias child formation changed");
+                    (owner, &[][..])
+                } else {
+                    let ExpressionNode::Borrow(initializer) =
+                        checked.expression_table.expression(child.initial_value)
+                    else {
+                        return unsupported("receiver alias escapes through a local initializer");
+                    };
+                    if child.is_mutable
+                        || !matches!(
+                            (local_access, initializer.access),
+                            (
+                                ReferenceAccess::Mutable,
+                                ReferenceAccess::Mutable | ReferenceAccess::WriteOnly
+                            ) | (ReferenceAccess::WriteOnly, ReferenceAccess::WriteOnly)
+                        )
+                        || receiver_root(checked, initializer.target)? != owner
+                    {
+                        return unsupported("receiver alias child formation changed");
+                    }
+                    (owner, &[][..])
                 }
-                (owner, &[][..])
             }
             StatementNode::Call(call) => (
                 call.receiver_root_symbol,
