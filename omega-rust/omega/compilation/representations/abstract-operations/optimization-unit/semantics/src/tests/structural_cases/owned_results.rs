@@ -1,5 +1,5 @@
 use super::id;
-use crate::tests::structural_cases::source_machine_unit;
+use crate::tests::structural_cases::verified_source_machine_unit;
 use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
@@ -9,8 +9,11 @@ use semantic_vocabulary::{OperationId, PlaceId};
 #[path = "owned_results/returns.rs"]
 mod returns;
 
+// The store state's `out[0] = 42` is a checked indexed byte write. Since
+// 96b19673959 the validator requires that write's exact accepted bounds fact,
+// so the fixture is the admitted unit rather than a fact-free seed.
 fn owned_result_unit() -> PsiOptimizationUnit {
-    source_machine_unit(
+    verified_source_machine_unit(
         r#"
         data Outcome { case Empty; case Value(value: u64); }
         machine choose(selector: u64, value: u64) -> Outcome {
@@ -35,7 +38,6 @@ fn owned_result_unit() -> PsiOptimizationUnit {
         }
     "#,
         "collect",
-        true,
     )
 }
 

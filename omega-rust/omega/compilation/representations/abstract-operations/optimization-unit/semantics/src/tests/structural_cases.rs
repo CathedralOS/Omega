@@ -99,6 +99,58 @@ pub(super) fn source_machine_unit(
     unit
 }
 
+/// The admitted unit of one source machine, including every accepted
+/// obligation fact. A fixture whose body performs a checked indexed byte write
+/// needs that write's exact bounds fact; the seed above carries none.
+pub(super) fn verified_source_machine_unit(source: &str, machine: &str) -> PsiOptimizationUnit {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(machine),
+    )
+    .expect("Terminal");
+    let semantic =
+        terminal_codec::encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof =
+        terminal_codec::encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+            .expect("encode proof");
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
+    .expect("verified abstract lowering");
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("verified optimization unit")
+    .into_parts()
+    .1
+}
+
 fn case_location(unit: &PsiOptimizationUnit) -> (usize, usize, usize) {
     unit.functions
         .iter()
