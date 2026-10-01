@@ -880,7 +880,7 @@ pass/slices/guarded_slice_parameter_min_length_tail_compile checked 187ms
 pass/slices/guarded_slice_parameter_successor_index_compile checked 193ms
 pass/slices/inclusive_subslice_literal_bounds_compile checked 207ms
 pass/slices/local_array_element_view_exit built 1877ms exit:70 @48008365d839
-pass/slices/recursive_subslice_element_accumulator_exit built 738ms exit:70
+pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @ad4cf8611e36+wt
 pass/slices/runtime_byte_view_guarded_state_contract_exit built 1070ms exit:70 @5fb2e19e1f1+wt
@@ -888,6 +888,7 @@ pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
+pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
 pass/slices/runtime_slice_element_runtime_index_read_exit built 1557ms exit:1 @fb2178def922
 pass/slices/runtime_slice_fixed_index_guard_exit built 1483ms exit:121 @fb2178def922
