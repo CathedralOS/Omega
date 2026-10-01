@@ -298,3 +298,32 @@ fn an_ieee_range_fact_is_one_row_of_exact_format_comparisons() {
         )));
     }
 }
+
+#[test]
+fn a_looping_machine_drops_exclusive_rows_and_its_caller_stops_restoring() {
+    let program = program(&format!(
+        "{CELLS_VALID}
+         data Grid where cells_valid(&board) == true {{ board: [i32; 4]; }}
+         data Main {{ g: Grid; }}
+         machine Main::scan(context: &mut Main) {{
+             transition {{ _ -> step(context) }}
+             state step(context: &mut Main) {{ transition {{ _ -> step(context) }} }}
+         }}
+         machine Main::read(context: &Main) {{ }}
+         machine Main::run(context: &mut Main) {{ Main::scan(context); }}
+         machine Main::seed(context: &mut Main) {{ Main::read(context); }}"
+    ));
+    let operators = CheckedOperatorFacts::default();
+    let rows = |name: &str| {
+        machine_declaration_predicates(&program, &operators, machine(&program, name))
+            .iter()
+            .map(|row| row.restored_on_return)
+            .collect::<Vec<_>>()
+    };
+    // The loop can neither assume nor restore the exclusive rows.
+    assert!(rows("Main::scan").is_empty());
+    // Its caller still requires them at entry but cannot restore them.
+    assert_eq!(rows("Main::run"), vec![false; 4]);
+    // A caller of only shared-row callees restores its own.
+    assert_eq!(rows("Main::seed"), vec![true; 4]);
+}
