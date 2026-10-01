@@ -20,6 +20,7 @@ fn collects_domain_surface() {
 
     syntax_trees.push_root_item(Item::Domain(DomainDefinition {
         name: Identifier::generated("NonEmpty"),
+        subject: None,
         type_parameters: HandleSpan::empty(),
         target_type,
         index_arguments: HandleSpan::empty(),
