@@ -23,6 +23,75 @@ machine enter(before: u64, slot: &mut u64, after: u64) -> u64 {
 "#;
 
 #[test]
+fn state_prefix_reads_primitive_loans_and_local_windows_keep_custody() {
+    let source = r#"
+        boundary trait Output { machine count(value: u64) reaches Output; }
+        machine consume(bytes: &[u8]) reaches Output { Output::count(bytes.len); }
+        machine enter(value: &u64) reaches Output {
+            let bytes: [u8; 3];
+            consume(&bytes[..]);
+            transition { _ -> snapshot(value) }
+            state snapshot(value: &u64) {
+                let saved: u64 = value;
+                Output::count(saved);
+            }
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("local windows and primitive state parameters compose")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile)
+        .expect("decoded artifact independently verifies");
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut changed = module.clone();
+        let argument = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .filter_map(|operation| match &mut operation.kind {
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments),
+                _ => None,
+            })
+            .flatten()
+            .find(|argument| {
+                argument.path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                    )
+                })
+            })
+            .expect("the call retains its local byte-window path");
+        argument.access = access;
+        if access == StructuralAccess::SharedBorrow {
+            *argument.path.last_mut().unwrap() =
+                terminal_psi::StructuralPathSegment::FixedByteRange { start: 0, end: 4 };
+        }
+        assert!(
+            terminal_verifier::verify_module(&changed, &proof, &profile).is_err(),
+            "a local window cannot extend its backing or change its formal access"
+        );
+    }
+}
+
+#[test]
 fn scalar_root_known_guard_result_preserves_left_effects() {
     let source = r#"
         machine stamp(value: &mut u64, number: u64, answer: bool) -> bool {

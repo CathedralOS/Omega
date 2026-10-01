@@ -9,6 +9,8 @@ use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
+use semantic_vocabulary::{PlaceId, ScalarType};
+use symbols::SymbolHandle;
 
 /// Select the retained value at its authored successor coordinate. Storage
 /// reads use computation nodes; pure expressions keep their ordinary binding.
@@ -170,6 +172,7 @@ pub(super) fn emit_prefix(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     parameters: &[(u32, StructuralParameterDeclaration)],
+    primitive_storage: &[(SymbolHandle, PlaceId, ScalarType)],
     structural_types: &[StructuralTypeDeclaration],
     byte_record_loans: &std::sync::Arc<
         [crate::expression_preparation::bindings::recast_records::ByteRecordLoan],
@@ -179,6 +182,10 @@ pub(super) fn emit_prefix(
     operations: &mut OperationBuffer,
 ) -> Result<ScalarBindings, LoweringError> {
     let mut bindings = ScalarBindings::new(values.iter().map(|value| value.scalar_type))
+        // Prefix initializers read the same independently established referents
+        // as later operations; rebuilding only scalar SSA slots loses borrowed
+        // primitive parameters before their first authored local read.
+        .with_primitive_storage(primitive_storage)
         .with_structural_parameters(parameters)
         .with_structural_observations(structural_types)
         .with_byte_record_loans(byte_record_loans);
