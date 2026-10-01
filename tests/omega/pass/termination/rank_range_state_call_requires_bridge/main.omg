@@ -8,8 +8,8 @@
 
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> Main::outer(&mut self, 6, 4) }
+machine Main::main(main: &mut Main) -> u64 {
+    transition { _ -> Main::outer(main, 6, 4) }
 }
 
 machine Main::outer(main: &mut Main, cap: u64, remaining: u64)

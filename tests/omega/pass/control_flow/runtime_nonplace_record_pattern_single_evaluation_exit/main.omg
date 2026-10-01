@@ -13,26 +13,26 @@ machine Main::make(main: &mut Main) -> Point {
     transition { _ -> Point { x: 30, y: 40 } }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.calls = 0;
-    transition Main::make(&mut self) {
-        Point { x, y } -> check(x, y)
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.calls = 0;
+    transition Main::make(main) {
+        Point { x, y } -> check(main, x, y)
+        _ -> bad(main)
     }
-    state check(&mut self, x: i32, y: i32) {
-        transition self.calls {
-            1 -> check_values(x, y)
-            2 -> exit_two()
-            3 -> exit_three()
-            _ -> bad()
+    state check(main: &mut Main, x: i32, y: i32) {
+        transition main.calls {
+            1 -> check_values(main, x, y)
+            2 -> exit_two(main)
+            3 -> exit_three(main)
+            _ -> bad(main)
         }
     }
-    state check_values(x: i32, y: i32) {
-        transition x == 30 && y == 40 { true -> good() _ -> exit_values() }
+    state check_values(main: &mut Main, x: i32, y: i32) {
+        transition x == 30 && y == 40 { true -> good(main) _ -> exit_values(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state exit_two(&mut self) { self.console.exit_process(2); }
-    state exit_three(&mut self) { self.console.exit_process(3); }
-    state exit_values(&mut self) { self.console.exit_process(4); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state exit_two(main: &mut Main) { main.console.exit_process(2); }
+    state exit_three(main: &mut Main) { main.console.exit_process(3); }
+    state exit_values(main: &mut Main) { main.console.exit_process(4); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

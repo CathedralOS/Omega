@@ -12,13 +12,13 @@ data Main {
     result: u64;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches MachineControl + PortIo
 {
     asm where clobbers rax, rcx, rdx, r10, r11, r15 {
-        out self.port, self.byte;
-        in self.byte, self.port;
-        rdmsr self.result, self.index;
-        wrmsr self.index, self.value
+        out main.port, main.byte;
+        in main.byte, main.port;
+        rdmsr main.result, main.index;
+        wrmsr main.index, main.value
     }
 }

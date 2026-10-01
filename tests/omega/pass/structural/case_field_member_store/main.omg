@@ -31,8 +31,8 @@ machine Main::copy_fmt<'a>(main: &mut Main, source: &'a Box) {
     main.boxed.fmt = source.fmt;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let source: Box = Box { fmt: Fmt::Hex, tag: 7 };
-    Main::copy_fmt(&mut self, &source);
-    self.console.exit_process(0);
+    Main::copy_fmt(main, &source);
+    main.console.exit_process(0);
 }

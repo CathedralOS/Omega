@@ -46,10 +46,10 @@ data Main {
     direct: [u8; limit()];
 }
 
-machine Main::main(&mut self) reaches
+machine Main::main(main: &mut Main) reaches
     ProcessExit
 {
-    self.value.values[8] = 70;
-    self.direct[8] = 70;
-    self.exit.exit_process(70);
+    main.value.values[8] = 70;
+    main.direct[8] = 70;
+    main.exit.exit_process(70);
 }

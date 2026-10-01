@@ -20,14 +20,14 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.mode = 420;
-    self.fd = self.fs.create("/tmp/omega_cd_a.txt", self.mode);
-    self.n = self.fs.write(self.fd, "a");
-    self.discard = self.fs.close(self.fd);
-    self.fd = self.fs.create("/tmp/omega_cd_b.txt", self.mode);
-    self.discard = self.fs.close(self.fd);
-    self.rc = self.fs.read_metadata("/tmp/omega_cd_a.txt", &mut self.buffer);
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.mode = 420;
+    main.fd = main.fs.create("/tmp/omega_cd_a.txt", main.mode);
+    main.n = main.fs.write(main.fd, "a");
+    main.discard = main.fs.close(main.fd);
+    main.fd = main.fs.create("/tmp/omega_cd_b.txt", main.mode);
+    main.discard = main.fs.close(main.fd);
+    main.rc = main.fs.read_metadata("/tmp/omega_cd_a.txt", &mut main.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
     // shifted byte is Exact-representable: 255 << 24 is 4278190080 against
@@ -36,36 +36,36 @@ machine Main::main(&mut self) reaches FilesystemHost {
     // carriers reaches the same values against ceilings of 2147483647 and
     // 9223372036854775807, a decision-17 obligation no return range can
     // discharge.
-    self.ctime = narrow_u64_to_i64_wrapping(
-        widen_u8_to_u64(self.buffer[64])
-            | (widen_u8_to_u64(self.buffer[65]) << 8)
-            | (widen_u8_to_u64(self.buffer[66]) << 16)
-            | (widen_u8_to_u64(self.buffer[67]) << 24)
-            | (widen_u8_to_u64(self.buffer[68]) << 32)
-            | (widen_u8_to_u64(self.buffer[69]) << 40)
-            | (widen_u8_to_u64(self.buffer[70]) << 48)
-            | (widen_u8_to_u64(self.buffer[71]) << 56));
-    self.dev_a = narrow_u32_to_i32_wrapping(
-        widen_u8_to_u32(self.buffer[0])
-            | (widen_u8_to_u32(self.buffer[1]) << 8)
-            | (widen_u8_to_u32(self.buffer[2]) << 16)
-            | (widen_u8_to_u32(self.buffer[3]) << 24));
-    self.rc = self.fs.read_metadata("/tmp/omega_cd_b.txt", &mut self.buffer);
-    self.dev_b = narrow_u32_to_i32_wrapping(
-        widen_u8_to_u32(self.buffer[0])
-            | (widen_u8_to_u32(self.buffer[1]) << 8)
-            | (widen_u8_to_u32(self.buffer[2]) << 16)
-            | (widen_u8_to_u32(self.buffer[3]) << 24));
-    self.discard = self.fs.remove("/tmp/omega_cd_a.txt");
-    self.discard = self.fs.remove("/tmp/omega_cd_b.txt");
-    transition self.ctime > 1000000000 { true -> checkdev() _ -> fail() }
-    state checkdev(&mut self) {
+    main.ctime = narrow_u64_to_i64_wrapping(
+        widen_u8_to_u64(main.buffer[64])
+            | (widen_u8_to_u64(main.buffer[65]) << 8)
+            | (widen_u8_to_u64(main.buffer[66]) << 16)
+            | (widen_u8_to_u64(main.buffer[67]) << 24)
+            | (widen_u8_to_u64(main.buffer[68]) << 32)
+            | (widen_u8_to_u64(main.buffer[69]) << 40)
+            | (widen_u8_to_u64(main.buffer[70]) << 48)
+            | (widen_u8_to_u64(main.buffer[71]) << 56));
+    main.dev_a = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(main.buffer[0])
+            | (widen_u8_to_u32(main.buffer[1]) << 8)
+            | (widen_u8_to_u32(main.buffer[2]) << 16)
+            | (widen_u8_to_u32(main.buffer[3]) << 24));
+    main.rc = main.fs.read_metadata("/tmp/omega_cd_b.txt", &mut main.buffer);
+    main.dev_b = narrow_u32_to_i32_wrapping(
+        widen_u8_to_u32(main.buffer[0])
+            | (widen_u8_to_u32(main.buffer[1]) << 8)
+            | (widen_u8_to_u32(main.buffer[2]) << 16)
+            | (widen_u8_to_u32(main.buffer[3]) << 24));
+    main.discard = main.fs.remove("/tmp/omega_cd_a.txt");
+    main.discard = main.fs.remove("/tmp/omega_cd_b.txt");
+    transition main.ctime > 1000000000 { true -> checkdev(main) _ -> fail(main) }
+    state checkdev(main: &mut Main) {
         // two files on the same filesystem share a device id
-        transition self.dev_a == self.dev_b { true -> checkdevnz() _ -> fail() }
+        transition main.dev_a == main.dev_b { true -> checkdevnz(main) _ -> fail(main) }
     }
-    state checkdevnz(&mut self) {
-        transition self.dev_a == 0 { true -> fail() _ -> good() }
+    state checkdevnz(main: &mut Main) {
+        transition main.dev_a == 0 { true -> fail(main) _ -> good(main) }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: ctime/dev\n"); }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: ctime/dev\n"); }
 }

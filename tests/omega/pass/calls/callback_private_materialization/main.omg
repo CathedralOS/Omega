@@ -145,8 +145,8 @@ data Main {
     specification: Spread<ForeignRecord>;
 }
 
-machine Main::main(&mut self) reaches WindowRegistrar
+machine Main::main(main: &mut Main) reaches WindowRegistrar
 invokes WindowRegistrar;
 {
-    WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&self.specification);
+    WindowRegistrar::register<CallbackProvider::call, CallbackProvider::call>(&main.specification);
 }

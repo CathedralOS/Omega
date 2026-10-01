@@ -18,13 +18,13 @@ where
     rows: [[Cell; 2]; 2];
     i: u64;
 }
-machine Main::main(&mut self) reaches Console {
-    self.rows[0] = [Cell::Wall, Cell::Wall];
-    self.i = 1;
-    self.rows[self.i] = [Cell::Floor, Cell::Door];
-    transition self.rows[1][1] {
-        Cell::Door -> check_row(&mut self)
-        _ -> finish(&mut self, 1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.rows[0] = [Cell::Wall, Cell::Wall];
+    main.i = 1;
+    main.rows[main.i] = [Cell::Floor, Cell::Door];
+    transition main.rows[1][1] {
+        Cell::Door -> check_row(main)
+        _ -> finish(main, 1)
     }
     state check_row(main: &mut Main) {
         transition main.rows[0][1] {

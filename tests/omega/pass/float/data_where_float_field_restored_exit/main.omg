@@ -25,8 +25,8 @@ machine Main::fill(main: &mut Main) {
     main.value = 0.25;
 }
 
-machine Main::main(&mut self) reaches Console {
-    transition { _ -> step(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> step(main) }
 
     state step(main: &mut Main) {
         Main::fill(main);

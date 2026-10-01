@@ -13,17 +13,17 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let s: u64 = opaque();
     transition s >= 1 {
-        true -> run(s)
-        _ -> self.bad()
+        true -> run(main, s)
+        _ -> bad(main)
     }
-    state run(&mut self, s: u64) {
+    state run(main: &mut Main, s: u64) {
         let r: u64 = rounded(10, s);
-        self.console.exit_process(70);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
 
 machine opaque() -> u64 {

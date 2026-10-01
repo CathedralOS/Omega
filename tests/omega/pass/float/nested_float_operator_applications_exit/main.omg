@@ -33,16 +33,16 @@ data Main {
     quotient: f64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = 3.0;
-    self.b = 4.0;
-    self.c = 2.0;
-    self.tenth = 0.1;
-    self.count = 3;
-    let product_sum: f64 = self.a * self.b + self.c;
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = 3.0;
+    main.b = 4.0;
+    main.c = 2.0;
+    main.tenth = 0.1;
+    main.count = 3;
+    let product_sum: f64 = main.a * main.b + main.c;
     transition product_sum == 14.0 {
-        true -> grouped(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> grouped(main)
+        _ -> fail(main, 71)
     }
 
     state grouped(main: &mut Main) {

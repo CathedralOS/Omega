@@ -22,12 +22,12 @@ data Main {
     continued: Output;
 }
 
-machine Main::main(&mut self) reaches Console {
-    select(true, &mut self.stopped);
-    select(false, &mut self.continued);
-    transition self.stopped.value == 5 && self.continued.value == 7 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    select(true, &mut main.stopped);
+    select(false, &mut main.continued);
+    transition main.stopped.value == 5 && main.continued.value == 7 {
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

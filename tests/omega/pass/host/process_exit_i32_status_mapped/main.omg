@@ -17,13 +17,13 @@ data Main {
     exit: Binding<ProcessExit>;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches
     ProcessExit
 {
     transition 120 == 120 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

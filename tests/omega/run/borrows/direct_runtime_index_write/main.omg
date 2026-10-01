@@ -10,10 +10,10 @@ data Main {
     off: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.off = 0;
-    self.buf[self.off] = 9;
-    transition self.buf[self.off] == 9 { true -> done(&mut self) _ -> bad(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.off = 0;
+    main.buf[main.off] = 9;
+    transition main.buf[main.off] == 9 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
         main.console.exit_process(9);

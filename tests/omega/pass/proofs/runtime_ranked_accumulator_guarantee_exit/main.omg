@@ -20,11 +20,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let floor: u64 = descend(3, 9);
     transition floor == 1 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

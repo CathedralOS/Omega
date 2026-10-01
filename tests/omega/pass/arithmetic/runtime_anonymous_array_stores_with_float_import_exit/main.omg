@@ -10,13 +10,13 @@ data Main {
     cells: [i32; 3];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cells[0] = 0 - 64;
-    self.cells[1] = (7 / 2) * 2;
-    self.cells[2] = 1 + 2 * 3;
-    transition self.cells[0] == -64 && self.cells[1] == 7 && self.cells[2] == 7 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0] = 0 - 64;
+    main.cells[1] = (7 / 2) * 2;
+    main.cells[2] = 1 + 2 * 3;
+    transition main.cells[0] == -64 && main.cells[1] == 7 && main.cells[2] == 7 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

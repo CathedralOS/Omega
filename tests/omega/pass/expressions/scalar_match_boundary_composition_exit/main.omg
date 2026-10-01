@@ -18,14 +18,14 @@ machine marker(value: i64) -> i64 { value }
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let first: i64 = narrow(0.5f32, 2.0f32, 2.0f32);
     let intervening: i64 = marker(3);
     let second: i64 = wide(0.5f64, 4.0f64, 2.0f64);
     let fallback: i64 = narrow(0.5f32, 2.0f32, 3.0f32);
     transition first == 7 && intervening == 3 && second == 9 && fallback == 11 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

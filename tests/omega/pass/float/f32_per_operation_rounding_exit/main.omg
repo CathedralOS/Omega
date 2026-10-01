@@ -17,11 +17,11 @@ data Main {
     value: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.value = 16777216.0;
-    transition self.value == (16777216.0f32 + 1.0f32 + 1.0f32) {
-        true -> static_local_face(&mut self)
-        _ -> bad(&mut self, 78)
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = 16777216.0;
+    transition main.value == (16777216.0f32 + 1.0f32 + 1.0f32) {
+        true -> static_local_face(main)
+        _ -> bad(main, 78)
     }
 
     state static_local_face(main: &mut Main) {

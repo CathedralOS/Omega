@@ -17,12 +17,12 @@ machine double(x: i32) -> i32
 {
     transition { _ -> (x + x) }
 }
-machine Main::main(&mut self) reaches Console
+machine Main::main(main: &mut Main) reaches Console
 {
     let out: i32 = double(inc(3));
     transition out == 8 {
-        true -> yes(&mut self)
-        false -> no(&mut self)
+        true -> yes(main)
+        false -> no(main)
     }
     state yes(main: &mut Main)
     { main.console.exit_process(1); }

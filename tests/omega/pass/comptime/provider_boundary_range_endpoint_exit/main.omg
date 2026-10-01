@@ -30,11 +30,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let bounded: u64 = take_bounded(7);
     transition bounded == 7 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

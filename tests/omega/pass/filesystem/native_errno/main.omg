@@ -14,14 +14,14 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.rdonly = 0;
-    self.fd = self.fs.open("/tmp/omega_definitely_absent_xyzzy.txt", self.rdonly);
-    transition self.fd < 0 { true -> classify() _ -> fail() }
-    state classify(&mut self) {
-        self.code = self.fs.errno();
-        transition self.code == 2 { true -> good() _ -> fail() }
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.rdonly = 0;
+    main.fd = main.fs.open("/tmp/omega_definitely_absent_xyzzy.txt", main.rdonly);
+    transition main.fd < 0 { true -> classify(main) _ -> fail(main) }
+    state classify(main: &mut Main) {
+        main.code = main.fs.errno();
+        transition main.code == 2 { true -> good(main) _ -> fail(main) }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: errno == ENOENT (2) for a missing open\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: errno\n"); }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: errno == ENOENT (2) for a missing open\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: errno\n"); }
 }

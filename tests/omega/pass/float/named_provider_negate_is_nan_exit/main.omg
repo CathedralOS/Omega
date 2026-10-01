@@ -27,34 +27,34 @@ data Main {
     finite_verdict64: bool;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let zero32: f32 = 0.0f32;
     let nan32: f32 = zero32 / zero32;
     let infinity32: f32 = 1.0f32 / zero32;
-    self.negative_zero32 = F32::negate(zero32);
-    self.positive_zero32 = F32::negate(self.negative_zero32);
-    self.negative_infinity32 = F32::negate(infinity32);
-    self.nan_verdict32 = F32::is_nan(nan32);
-    self.infinity_verdict32 = F32::is_nan(infinity32);
-    self.finite_verdict32 = F32::is_nan(1.0f32);
-    self.negative_zero_reciprocal32 = 1.0f32 / self.negative_zero32;
-    self.positive_zero_reciprocal32 = 1.0f32 / self.positive_zero32;
+    main.negative_zero32 = F32::negate(zero32);
+    main.positive_zero32 = F32::negate(main.negative_zero32);
+    main.negative_infinity32 = F32::negate(infinity32);
+    main.nan_verdict32 = F32::is_nan(nan32);
+    main.infinity_verdict32 = F32::is_nan(infinity32);
+    main.finite_verdict32 = F32::is_nan(1.0f32);
+    main.negative_zero_reciprocal32 = 1.0f32 / main.negative_zero32;
+    main.positive_zero_reciprocal32 = 1.0f32 / main.positive_zero32;
 
     let zero64: f64 = 0.0;
     let nan64: f64 = zero64 / zero64;
     let infinity64: f64 = 1.0 / zero64;
-    self.negative_zero64 = F64::negate(zero64);
-    self.positive_zero64 = F64::negate(self.negative_zero64);
-    self.negative_infinity64 = F64::negate(infinity64);
-    self.nan_verdict64 = F64::is_nan(nan64);
-    self.infinity_verdict64 = F64::is_nan(infinity64);
-    self.finite_verdict64 = F64::is_nan(1.0);
-    self.negative_zero_reciprocal64 = 1.0 / self.negative_zero64;
-    self.positive_zero_reciprocal64 = 1.0 / self.positive_zero64;
+    main.negative_zero64 = F64::negate(zero64);
+    main.positive_zero64 = F64::negate(main.negative_zero64);
+    main.negative_infinity64 = F64::negate(infinity64);
+    main.nan_verdict64 = F64::is_nan(nan64);
+    main.infinity_verdict64 = F64::is_nan(infinity64);
+    main.finite_verdict64 = F64::is_nan(1.0);
+    main.negative_zero_reciprocal64 = 1.0 / main.negative_zero64;
+    main.positive_zero_reciprocal64 = 1.0 / main.positive_zero64;
 
-    transition self.negative_zero_reciprocal32 < 0.0f32 {
-        true -> check_positive_zero32(&mut self)
-        _ -> fail(&mut self, 71)
+    transition main.negative_zero_reciprocal32 < 0.0f32 {
+        true -> check_positive_zero32(main)
+        _ -> fail(main, 71)
     }
 
     state check_positive_zero32(main: &mut Main) {

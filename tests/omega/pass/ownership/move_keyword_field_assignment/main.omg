@@ -13,9 +13,9 @@ data Main {
     inventory: Inventory;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.inventory.slots = 41;
-    let replacement: Inventory = self.inventory;
-    self.inventory = move replacement;
-    self.console.exit_process(self.inventory.slots);
+machine Main::main(main: &mut Main) reaches Console {
+    main.inventory.slots = 41;
+    let replacement: Inventory = main.inventory;
+    main.inventory = move replacement;
+    main.console.exit_process(main.inventory.slots);
 }

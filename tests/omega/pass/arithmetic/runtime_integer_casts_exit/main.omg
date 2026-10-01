@@ -14,7 +14,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let a8: i8 = -5;
     let aw: i32 in Trapping = a8 as i32 in Trapping;
     let b8: u8 = 200;
@@ -27,7 +27,7 @@ machine Main::main(&mut self) reaches Console {
     let eu: u16 = e16 as u16;
     let ew: u32 in Trapping = eu as u32 in Trapping;
 
-    transition aw == -5 { true -> ck2(&mut self, bw, cn, dw, ew) _ -> bad(&mut self) }
+    transition aw == -5 { true -> ck2(main, bw, cn, dw, ew) _ -> bad(main) }
 
     state ck2(main: &mut Main, bw: i32 in Trapping, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
         transition bw == 200 { true -> ck3(main, cn, dw, ew) _ -> bad(main) }

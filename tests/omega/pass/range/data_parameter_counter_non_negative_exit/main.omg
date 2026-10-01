@@ -27,13 +27,13 @@ data Main {
     i: i32;
     last: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.nums[0] = 7;
-    self.nums[1] = 11;
-    self.i = 0;
-    self.last = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.nums[0] = 7;
+    main.nums[1] = 11;
+    main.i = 0;
+    main.last = 0;
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
     state step(main: &mut Main) {
         transition main.i < 2 {

@@ -12,17 +12,17 @@ data Main {
     node: Node;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let r: &write Node = &write self.node;
+machine Main::main(main: &mut Main) reaches Console {
+    let r: &write Node = &write main.node;
     r.value = 7;
     r.tag = 3;
-    transition self.node.value == 7 { true -> done() _ -> bad() }
+    transition main.node.value == 7 { true -> done(main) _ -> bad(main) }
 
-    state done(&mut self) {
-        self.console.exit_process(181);
+    state done(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

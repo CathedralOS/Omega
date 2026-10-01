@@ -8,11 +8,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let total: u64 = climb(4, 999);
     transition total == 1000 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

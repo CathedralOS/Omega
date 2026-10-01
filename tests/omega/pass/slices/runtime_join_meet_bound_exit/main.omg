@@ -17,18 +17,18 @@ data Main {
     r: i32 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.arr[0] = 10;
-    self.arr[1] = 20;
-    self.arr[2] = 30;
-    self.arr[3] = 40;
-    self.idx = 2;
-    self.flag = true;
+machine Main::main(main: &mut Main) reaches Console {
+    main.arr[0] = 10;
+    main.arr[1] = 20;
+    main.arr[2] = 30;
+    main.arr[3] = 40;
+    main.idx = 2;
+    main.flag = true;
 
     // Establish the bound once, before the branch.
-    transition self.idx < 4 {
-        true -> split(&mut self)
-        _ -> bad(&mut self)
+    transition main.idx < 4 {
+        true -> split(main)
+        _ -> bad(main)
     }
 
     state split(main: &mut Main) {

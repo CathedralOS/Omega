@@ -22,10 +22,10 @@ machine pick(x: i32) -> i32 {
     state hi() -> i32 { 100 }
     state lo() -> i32 { 200 }
 }
-machine Main::main(&mut self) reaches Console {
-    self.d = 1;
-    self.vec = Main::delta(&self, self.d);
-    transition self.vec.x == 3 { true -> chk_y(&mut self) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.d = 1;
+    main.vec = Main::delta(main, main.d);
+    transition main.vec.x == 3 { true -> chk_y(main) _ -> bad(main, 71) }
     state chk_y(main: &mut Main) {
         transition main.vec.y == 4 { true -> chk_pick(main) _ -> bad(main, 72) }
     }

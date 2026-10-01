@@ -12,16 +12,16 @@ data Main where 0 <= j, j <= 3 {
     j: u64;
     got: i32;
 }
-machine Main::main(&mut self) reaches Console
+machine Main::main(main: &mut Main) reaches Console
 {
-    self.grid[1][2] = 42;
-    self.grid[1][3] = 9;
-    self.grid[2][2] = 5;
-    self.j = 2;
-    self.got = self.grid[1][self.j];
-    transition self.got == 42 {
-        true -> let_read(&mut self)
-        false -> no(&mut self)
+    main.grid[1][2] = 42;
+    main.grid[1][3] = 9;
+    main.grid[2][2] = 5;
+    main.j = 2;
+    main.got = main.grid[1][main.j];
+    transition main.got == 42 {
+        true -> let_read(main)
+        false -> no(main)
     }
     state let_read(main: &mut Main)
     {

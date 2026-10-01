@@ -15,13 +15,13 @@ data Main {
     cells: [Cell; 4];
     k: u64 [0..=3];
 }
-machine Main::main(&mut self) reaches Console {
-    self.cells[2].hp = 1;
-    self.cells[2].v = 7;
-    self.k = 2;
-    transition self.cells[self.k].v == 7 {
-        true -> yes(&mut self)
-        false -> no(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[2].hp = 1;
+    main.cells[2].v = 7;
+    main.k = 2;
+    transition main.cells[main.k].v == 7 {
+        true -> yes(main)
+        false -> no(main)
     }
     state yes(main: &mut Main) { main.console.exit_process(70); }
     state no(main: &mut Main) { main.console.exit_process(3); }

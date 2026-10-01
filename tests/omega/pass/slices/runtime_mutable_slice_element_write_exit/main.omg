@@ -10,13 +10,13 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    let entry_slice: &mut [Entry] = self.entries.as_mut_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    let entry_slice: &mut [Entry] = main.entries.as_mut_slice();
     entry_slice[0].value = 7;
 
-    transition self.entries[0].value == 7 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+    transition main.entries[0].value == 7 {
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

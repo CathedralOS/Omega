@@ -24,10 +24,10 @@ machine Picker::pick(x: i32, tally: &mut Tally) -> i32 {
         200
     }
 }
-machine Main::main(&mut self) reaches Console {
-    self.v = 5;
-    let n: i32 = Picker::pick(self.v, &mut self.tally);
-    transition n == 100 { true -> report(&mut self) _ -> bad(&mut self, 99) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.v = 5;
+    let n: i32 = Picker::pick(main.v, &mut main.tally);
+    transition n == 100 { true -> report(main) _ -> bad(main, 99) }
     state report(main: &mut Main) { main.console.exit_process(main.tally.count as i32); }
     state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

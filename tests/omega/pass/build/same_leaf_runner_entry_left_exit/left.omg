@@ -8,12 +8,12 @@ pub data Provider {}
 machine Provider::read() -> i32 satisfies Reader::read { 11 }
 
 pub data Runner { reader: Binding<Reader>; console: Binding<Console>; }
-pub machine Runner::run(&mut self) reaches Reader, Console
+pub machine Runner::run(runner: &mut Runner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
-    let value: i32 = self.reader.read();
-    transition value == 11 { true -> deliver(value) _ -> wrong(value) }
-    state deliver(&mut self, observed: i32) { self.console.exit_process(observed); }
-    state wrong(&mut self, observed: i32) { self.console.exit_process(65); }
+    let value: i32 = runner.reader.read();
+    transition value == 11 { true -> deliver(runner, value) _ -> wrong(runner, value) }
+    state deliver(runner: &mut Runner, observed: i32) { runner.console.exit_process(observed); }
+    state wrong(runner: &mut Runner, observed: i32) { runner.console.exit_process(65); }
 }

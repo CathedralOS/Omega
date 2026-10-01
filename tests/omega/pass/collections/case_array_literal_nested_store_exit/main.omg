@@ -13,11 +13,11 @@ data Main {
     console: Binding<Console>;
     rows: [[Cell; 2]; 2];
 }
-machine Main::main(&mut self) reaches Console {
-    self.rows = [[Cell::Wall, Cell::Floor], [Cell::Door, Cell::Water]];
-    transition self.rows[1][0] {
-        Cell::Door -> check_row(&mut self)
-        _ -> finish(&mut self, 1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.rows = [[Cell::Wall, Cell::Floor], [Cell::Door, Cell::Water]];
+    transition main.rows[1][0] {
+        Cell::Door -> check_row(main)
+        _ -> finish(main, 1)
     }
     state check_row(main: &mut Main) {
         transition main.rows[0][1] {

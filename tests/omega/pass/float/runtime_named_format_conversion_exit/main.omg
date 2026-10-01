@@ -7,7 +7,7 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let halfway: f64 = 1.000000059604644775390625;
     let above_halfway: f64 = 1.0000000596046449;
     let down: f32 = F32::from_f64(halfway);
@@ -27,8 +27,8 @@ machine Main::main(&mut self) reaches Console {
             && up == 1.00000011920928955078125f32
             && widened_down == 1.0
             && widened_up == 1.00000011920928955078125
-            && infinity_ok -> good(&mut self)
-        _ -> bad(&mut self)
+            && infinity_ok -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) { main.console.exit_process(70); }

@@ -31,7 +31,7 @@ data Main {
     out: u64;
 }
 
-machine Main::main(&mut self) reaches Console + Sink {
-    self.out = self.sink.take(self.buf);
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console + Sink {
+    main.out = main.sink.take(main.buf);
+    main.console.exit_process(0);
 }

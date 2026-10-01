@@ -17,14 +17,14 @@ data Main {
     low: f64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.readings[0] = 20.5;
-    self.readings[1] = 18.0;
-    self.readings[2] = 24.5;
-    self.low = self.readings[1];
-    transition self.low == 18.0 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.readings[0] = 20.5;
+    main.readings[1] = 18.0;
+    main.readings[2] = 24.5;
+    main.low = main.readings[1];
+    transition main.low == 18.0 {
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

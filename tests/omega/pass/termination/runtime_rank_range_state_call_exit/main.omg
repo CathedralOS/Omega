@@ -11,11 +11,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let result: u32 = Main::count(&mut self, 5);
+machine Main::main(main: &mut Main) reaches Console {
+    let result: u32 = Main::count(main, 5);
     transition result == 0 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) { main.console.exit_process(70); }

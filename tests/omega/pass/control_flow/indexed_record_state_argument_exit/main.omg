@@ -18,22 +18,22 @@ machine select(items: &[Item], index: u64, output: &mut Output)
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.items[0] = Item { kind: Kind::First, value: 11 };
-    self.items[1] = Item { kind: Kind::Second, value: 22 };
-    let entries: &[Item] = self.items.as_slice();
-    select(entries, 1, &mut self.output);
+machine Main::main(main: &mut Main) reaches Console {
+    main.items[0] = Item { kind: Kind::First, value: 11 };
+    main.items[1] = Item { kind: Kind::Second, value: 22 };
+    let entries: &[Item] = main.items.as_slice();
+    select(entries, 1, &mut main.output);
     // An unselected edge must not evaluate its out-of-bounds copy.
-    select(entries, 99, &mut self.output);
-    transition self.output.kind {
-        Kind::First -> finish(1)
-        Kind::Second -> check_value()
+    select(entries, 99, &mut main.output);
+    transition main.output.kind {
+        Kind::First -> finish(main, 1)
+        Kind::Second -> check_value(main)
     }
-    state check_value(&mut self) {
-        transition self.output.value == 22 {
-            true -> finish(70)
-            false -> finish(2)
+    state check_value(main: &mut Main) {
+        transition main.output.value == 22 {
+            true -> finish(main, 70)
+            false -> finish(main, 2)
         }
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

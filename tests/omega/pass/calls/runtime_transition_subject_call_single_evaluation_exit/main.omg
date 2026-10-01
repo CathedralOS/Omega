@@ -34,12 +34,12 @@ machine Main::roll(
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.tally.calls = 40;
-    self.tally.pad = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.tally.calls = 40;
+    main.tally.pad = 0;
 
     transition {
-        _ -> decide(&mut self)
+        _ -> decide(main)
     }
 
 

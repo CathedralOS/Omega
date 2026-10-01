@@ -13,13 +13,13 @@ data Main {
     b: u8 in Saturating;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = 200;
-    self.b = 100;
-    let c: u8 in Saturating = (self.a as u8 in Saturating) + self.b;
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = 200;
+    main.b = 100;
+    let c: u8 in Saturating = (main.a as u8 in Saturating) + main.b;
     transition c == 255 {
-        true -> fused(&mut self)
-        _ -> bad(&mut self)
+        true -> fused(main)
+        _ -> bad(main)
     }
     state fused(main: &mut Main) {
         // The retag must also reach arithmetic FUSED under a guard compare

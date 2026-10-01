@@ -14,11 +14,11 @@ machine Counter::double(counter: &mut Counter, value: i32 in Wrapping) -> i32 in
     value * 2
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.base = 10;
-    self.counter.count = 0;
-    let result: i32 in Wrapping = self.base + Counter::double(&mut self.counter, 6) * 3;
-    transition { _ -> observe(&mut self, result) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.base = 10;
+    main.counter.count = 0;
+    let result: i32 in Wrapping = main.base + Counter::double(&mut main.counter, 6) * 3;
+    transition { _ -> observe(main, result) }
     state observe(main: &mut Main, result: i32 in Wrapping) {
         transition result == 46 {
             true -> count(main)

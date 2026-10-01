@@ -11,10 +11,10 @@ data Main {
     size: u32;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let v: u32 = 7;
     let borrowed: &u32 = &v;
-    transition borrowed == 7 { true -> done(&mut self) _ -> bad(&mut self) }
+    transition borrowed == 7 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
         main.console.exit_process(0);

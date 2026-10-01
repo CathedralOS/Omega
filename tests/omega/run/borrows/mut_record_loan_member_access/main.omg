@@ -14,16 +14,16 @@ data Main {
     desc: Desc;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let m: &mut Desc = &mut self.desc;
+machine Main::main(main: &mut Main) reaches Console {
+    let m: &mut Desc = &mut main.desc;
     m.tag = 9;
-    transition m.tag == 9 { true -> done() _ -> bad() }
+    transition m.tag == 9 { true -> done(main) _ -> bad(main) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

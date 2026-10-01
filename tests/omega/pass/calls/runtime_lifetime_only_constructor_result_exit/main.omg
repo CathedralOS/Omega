@@ -39,7 +39,7 @@ machine Envelope::wrap<'region>(output: Output<'region>) -> Envelope<'region> {
 }
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let output: Output = Output::make(Input { value: 50 });
     let result: u64 = Output::read_value(output);
     let envelope: Envelope = Envelope::wrap(output);
@@ -47,8 +47,8 @@ machine Main::main(&mut self) reaches Console {
     let observed: u64 = Envelope::read_observed(envelope);
     let literal: u64 = Envelope::read_literal(envelope);
     transition result == 70 && marker == 70 && observed == 70 && literal == 70 {
-        true -> passed(&mut self)
-        false -> failed(&mut self)
+        true -> passed(main)
+        false -> failed(main)
     }
     state passed(main: &mut Main) { main.console.exit_process(70); }
     state failed(main: &mut Main) { main.console.exit_process(71); }

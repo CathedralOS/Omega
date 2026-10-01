@@ -17,13 +17,13 @@ data Main {
     c: bool;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = true;
-    self.b = false;
-    self.c = true;
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = true;
+    main.b = false;
+    main.c = true;
 
     // a && b == false -> takes the `_` arm
-    transition self.a && self.b { true -> bad(&mut self) _ -> check_or(&mut self) }
+    transition main.a && main.b { true -> bad(main) _ -> check_or(main) }
 
     state check_or(main: &mut Main) {
         // a || b == true

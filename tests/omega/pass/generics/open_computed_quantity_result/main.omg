@@ -91,7 +91,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let left: i64 in Indexed<1> = indexed_left(68);
     let right: i64 in Indexed<2> = indexed_right(2);
     // `+` is the selected requirement, not compiler-known integer arithmetic.
@@ -99,5 +99,5 @@ machine Main::main(&mut self) reaches Console {
     // `reorder_indexed` row above remains a licensed-AC judgment.
     _ = establish_three<Nat, Canonical>(1, 2);
     let sum: i64 in Indexed<3> = add_indexed<Nat, 1, 2, Canonical>(left, right);
-    self.console.exit_process((sum as i32 in Wrapping) as i32);
+    main.console.exit_process((sum as i32 in Wrapping) as i32);
 }

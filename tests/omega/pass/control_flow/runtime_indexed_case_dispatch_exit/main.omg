@@ -25,16 +25,16 @@ data Main {
     w: u64 [0..=2];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.items[0] = Color::Blue;
-    self.items[2] = Color::White;
-    self.w = 2;
-    transition self.items[self.w] {
-        Color::Red -> red()
-        Color::White -> white()
-        _ -> other()
+machine Main::main(main: &mut Main) reaches Console {
+    main.items[0] = Color::Blue;
+    main.items[2] = Color::White;
+    main.w = 2;
+    transition main.items[main.w] {
+        Color::Red -> red(main)
+        Color::White -> white(main)
+        _ -> other(main)
     }
-    state red(&mut self) { self.console.exit_process(1); }
-    state white(&mut self) { self.console.exit_process(2); }
-    state other(&mut self) { self.console.exit_process(3); }
+    state red(main: &mut Main) { main.console.exit_process(1); }
+    state white(main: &mut Main) { main.console.exit_process(2); }
+    state other(main: &mut Main) { main.console.exit_process(3); }
 }

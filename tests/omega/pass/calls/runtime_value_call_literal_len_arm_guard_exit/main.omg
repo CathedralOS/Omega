@@ -17,12 +17,12 @@ machine Main::classify(main: &mut Main, path: &[u8]) -> i32 {
     state big() -> i32 { 2 }
     state small() -> i32 { 1 }
 }
-machine Main::main(&mut self) reaches Console {
-    let a: i32 = Main::classify(&mut self, "a/b/c");
-    let b: i32 = Main::classify(&mut self, "ab");
+machine Main::main(main: &mut Main) reaches Console {
+    let a: i32 = Main::classify(main, "a/b/c");
+    let b: i32 = Main::classify(main, "ab");
     transition a == 2 {
-        true -> check_b(&mut self, b)
-        _ -> bad(&mut self, 71)
+        true -> check_b(main, b)
+        _ -> bad(main, 71)
     }
     state check_b(main: &mut Main, b: i32) {
         transition b == 1 { true -> good(main) _ -> bad(main, 72) }

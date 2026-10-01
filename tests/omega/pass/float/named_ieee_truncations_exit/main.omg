@@ -45,31 +45,31 @@ data Main {
     seventy_thousand32: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut huge64: f64 = 3000000000.0;
-    self.negative_huge64 = -3000000000.0;
-    self.fraction64 = -1234.9;
-    self.enormous64 = 10000000000000000000.0;
-    self.negative_enormous64 = -10000000000000000000.0;
-    self.large_fraction64 = -123456789012.75;
-    self.unsigned_huge64 = 5000000000.0;
-    self.negative_small64 = -5.5;
-    self.unsigned_fraction64 = 3000000000.75;
-    self.zero64 = 0.0;
-    self.huge32 = 10000000000.0f32;
-    self.fraction32 = -7.875f32;
-    self.negative_enormous32 = -10000000000000000000.0f32;
-    self.unsigned32 = 4000000000.0f32;
-    self.zero32 = 0.0f32;
-    self.thousand64 = 1000.0;
-    self.negative_thousand64 = -1000.0;
-    self.negative_million32 = -1000000.0f32;
-    self.three_hundred64 = 300.0;
-    self.seventy_thousand32 = 70000.0f32;
+    main.negative_huge64 = -3000000000.0;
+    main.fraction64 = -1234.9;
+    main.enormous64 = 10000000000000000000.0;
+    main.negative_enormous64 = -10000000000000000000.0;
+    main.large_fraction64 = -123456789012.75;
+    main.unsigned_huge64 = 5000000000.0;
+    main.negative_small64 = -5.5;
+    main.unsigned_fraction64 = 3000000000.75;
+    main.zero64 = 0.0;
+    main.huge32 = 10000000000.0f32;
+    main.fraction32 = -7.875f32;
+    main.negative_enormous32 = -10000000000000000000.0f32;
+    main.unsigned32 = 4000000000.0f32;
+    main.zero32 = 0.0f32;
+    main.thousand64 = 1000.0;
+    main.negative_thousand64 = -1000.0;
+    main.negative_million32 = -1000000.0f32;
+    main.three_hundred64 = 300.0;
+    main.seventy_thousand32 = 70000.0f32;
     let value: i32 in Saturating = I32::from_f64(huge64);
     transition value == 2147483647 {
-        true -> i32_below(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> i32_below(main)
+        _ -> fail(main, 71)
     }
 
     state i32_below(main: &mut Main) {

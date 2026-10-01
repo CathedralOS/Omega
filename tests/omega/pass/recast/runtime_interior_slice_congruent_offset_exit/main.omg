@@ -12,12 +12,12 @@ data Main where k <= 3 {
     k: u32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.k = 2;
-    let words: &mut [u16] = &mut self.bytes[self.k * 2] as &mut [u16];
+machine Main::main(main: &mut Main) reaches Console {
+    main.k = 2;
+    let words: &mut [u16] = &mut main.bytes[main.k * 2] as &mut [u16];
     transition words.len > 1 {
-        true -> write_words(&mut self, words)
-        _ -> bad_length(&mut self)
+        true -> write_words(main, words)
+        _ -> bad_length(main)
     }
 
     state write_words(main: &mut Main, words: &mut [u16]) {

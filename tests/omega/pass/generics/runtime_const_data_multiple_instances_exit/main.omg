@@ -13,9 +13,9 @@ data Main {
     large: FixedBuffer<i32 in Wrapping, 4>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.small.items[1] = 30;
-    self.large.items[3] = 40;
-    let result: i32 in Wrapping = self.small.items[1] + self.large.items[3];
-    self.console.exit_process(result as i32);
+machine Main::main(main: &mut Main) reaches Console {
+    main.small.items[1] = 30;
+    main.large.items[3] = 40;
+    let result: i32 in Wrapping = main.small.items[1] + main.large.items[3];
+    main.console.exit_process(result as i32);
 }

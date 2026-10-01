@@ -27,17 +27,17 @@ data Main {
     two32: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.zero64 = 0.0;
-    self.one64 = 1.0;
-    self.two64 = 2.0;
-    self.zero32 = 0.0f32;
-    self.one32 = 1.0f32;
-    self.two32 = 2.0f32;
-    let negated64: f64 = F64::negate(self.two64);
+machine Main::main(main: &mut Main) reaches Console {
+    main.zero64 = 0.0;
+    main.one64 = 1.0;
+    main.two64 = 2.0;
+    main.zero32 = 0.0f32;
+    main.one32 = 1.0f32;
+    main.two32 = 2.0f32;
+    let negated64: f64 = F64::negate(main.two64);
     transition negated64 < 0.0 {
-        true -> negate_value64(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> negate_value64(main)
+        _ -> fail(main, 71)
     }
 
     state negate_value64(main: &mut Main) {

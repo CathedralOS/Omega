@@ -11,9 +11,9 @@ use omega::language::core::binding;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Main { console: Binding<Console>; stored: Msg; }
 
-machine Main::main(&mut self) {
-    self.stored = Msg::Pong { y: 10, z: 20 };
-    Main::dispatch(&mut self);
+machine Main::main(main: &mut Main) {
+    main.stored = Msg::Pong { y: 10, z: 20 };
+    Main::dispatch(main);
 }
 
 machine Main::dispatch(main: &mut Main) reaches Console {

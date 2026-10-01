@@ -10,9 +10,9 @@ data Main {
     buffer: [u64; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     asm {
-        str self.value, self.buffer[0];
-        ldr self.value, self.buffer[0]
+        str main.value, main.buffer[0];
+        ldr main.value, main.buffer[0]
     }
 }

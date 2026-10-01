@@ -7,6 +7,6 @@
 // it; value terminals (the EFI entry's `-> (0)`) and exit_process paths
 // are untouched.
 data Main { count: i32 in Wrapping; }
-machine Main::main(&mut self) {
-    self.count = 7;
+machine Main::main(main: &mut Main) {
+    main.count = 7;
 }

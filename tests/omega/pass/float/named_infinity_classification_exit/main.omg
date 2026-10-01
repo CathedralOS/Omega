@@ -6,7 +6,7 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let zero32: f32 = 0.0f32;
     let infinity32: f32 = 1.0f32 / zero32;
     let negative32: f32 = F32::negate(infinity32);
@@ -35,8 +35,8 @@ machine Main::main(&mut self) reaches Console {
             && subnormal_result32 == false && finite_result32 == false
             && positive_result64 && negative_result64
             && nan_result64 == false && zero_result64 == false
-            && subnormal_result64 == false && finite_result64 == false -> good(&mut self)
-        _ -> bad(&mut self)
+            && subnormal_result64 == false && finite_result64 == false -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

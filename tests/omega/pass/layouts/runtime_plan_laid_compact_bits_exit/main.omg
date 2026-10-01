@@ -101,14 +101,14 @@ data Main {
     packed: CompactBits<PackedFlags>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.packed.present = true;
-    self.packed.mode = 5;
-    self.packed.code = 10;
+machine Main::main(main: &mut Main) reaches Console {
+    main.packed.present = true;
+    main.packed.mode = 5;
+    main.packed.code = 10;
 
-    transition self.packed.present == true {
-        true -> check_mode(&mut self)
-        false -> bad(&mut self)
+    transition main.packed.present == true {
+        true -> check_mode(main)
+        false -> bad(main)
     }
 
     state check_mode(main: &mut Main) {

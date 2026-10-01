@@ -14,10 +14,10 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let s: u64 = opaque();
     let r: u64 = echo(s);
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }
 
 machine opaque() -> u64 {

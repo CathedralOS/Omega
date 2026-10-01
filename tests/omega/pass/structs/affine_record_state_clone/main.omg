@@ -34,17 +34,17 @@ machine Worker::valid(cell: &Cell) -> bool {
 machine Worker::changed(cell: &Cell) -> bool {
     cell.count == 2 && cell.values[0] == 99 && cell.values[1] == 70
 }
-machine Main::main(&mut self) reaches Console {
-    self.cell.count = 2;
-    self.cell.values[0] = 35;
-    self.cell.values[1] = 70;
-    let copied: Cell = Worker::clone(&self.cell);
-    self.cell.values[0] = 99;
+machine Main::main(main: &mut Main) reaches Console {
+    main.cell.count = 2;
+    main.cell.values[0] = 35;
+    main.cell.values[1] = 70;
+    let copied: Cell = Worker::clone(&main.cell);
+    main.cell.values[0] = 99;
     let valid_copy: bool = Worker::valid(&copied);
-    let valid_source: bool = Worker::changed(&self.cell);
+    let valid_source: bool = Worker::changed(&main.cell);
     transition valid_copy && valid_source {
-        true -> success(&mut self)
-        false -> failure(&mut self)
+        true -> success(main)
+        false -> failure(main)
     }
     state success(main: &mut Main) { main.console.exit_process(70); }
     state failure(main: &mut Main) { main.console.exit_process(71); }

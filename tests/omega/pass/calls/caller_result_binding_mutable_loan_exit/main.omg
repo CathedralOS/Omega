@@ -23,13 +23,13 @@ data Main {
     store: Store;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let found: Item = Item { key: 0, val: 0 };
     find(2, &mut found);
 
     transition found.val == 5 {
-        true -> check_key(&mut self, found)
-        false -> bad(&mut self)
+        true -> check_key(main, found)
+        false -> bad(main)
     }
     // Carry the Console-bearing receiver to good/bad even without a direct read.
     state check_key(main: &mut Main, found: Item) {

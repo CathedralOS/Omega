@@ -14,9 +14,9 @@ use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; host: Binding<FilesystemHost>; }
-machine Main::main(&mut self) reaches Console + FilesystemHost {
-    let fd: i32 = self.host.open("omega_definitely_absent_9x7.dat", 0);
-    transition fd < 0 { true -> good() _ -> bad(71) }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
+    let fd: i32 = main.host.open("omega_definitely_absent_9x7.dat", 0);
+    transition fd < 0 { true -> good(main) _ -> bad(main, 71) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

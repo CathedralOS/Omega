@@ -10,13 +10,13 @@ data Main {
     narrow: f32;
     wide: f64;
 }
-machine Main::main(&mut self) reaches Console {
-    self.cells[0] = Cell { tag: 3, narrow: 1.0f32, wide: 2.0f64 };
-    self.cells[1] = Cell { tag: 5, narrow: 7.5f32, wide: 12.25f64 };
-    self.position = 1;
-    transition self.position < 2 {
-        true -> read(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0] = Cell { tag: 3, narrow: 1.0f32, wide: 2.0f64 };
+    main.cells[1] = Cell { tag: 5, narrow: 7.5f32, wide: 12.25f64 };
+    main.position = 1;
+    transition main.position < 2 {
+        true -> read(main)
+        false -> bad(main)
     }
     state read(main: &mut Main) {
         main.narrow = main.cells[main.position].narrow;

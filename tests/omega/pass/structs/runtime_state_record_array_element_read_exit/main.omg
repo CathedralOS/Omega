@@ -30,13 +30,13 @@ machine fill(packet: &mut Packet) {
     packet.depth = 0 - 64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let packet: Packet = Packet {
         samples: Samples { items: [0, 0, 0, 0], length: 0 },
         depth: 0
     };
     fill(&mut packet);
-    transition { _ -> check(&mut self, packet, 1) }
+    transition { _ -> check(main, packet, 1) }
 
     state check(main: &mut Main, packet: Packet, cursor: u64)
     requires cursor < 4 {

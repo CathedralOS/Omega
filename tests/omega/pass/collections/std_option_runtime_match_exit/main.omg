@@ -11,11 +11,11 @@ data Main {
     b: Optional<i32>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = Optional::Some { value: 70 };
-    transition self.a {
-        Optional::Some { value } -> check_b(&mut self, value)
-        Optional::None -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = Optional::Some { value: 70 };
+    transition main.a {
+        Optional::Some { value } -> check_b(main, value)
+        Optional::None -> bad(main)
     }
     state check_b(main: &mut Main, value: i32) {
         transition main.b {

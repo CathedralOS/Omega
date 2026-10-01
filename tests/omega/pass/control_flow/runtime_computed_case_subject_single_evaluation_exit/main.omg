@@ -23,41 +23,41 @@ machine Main::pick(main: &mut Main, second: bool) -> Pick {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.calls = 0;
-    transition Main::pick(&mut self, false) {
-        Pick::First { v } -> first(v)
-        Pick::Second { .. } -> wrong_arm()
+machine Main::main(main: &mut Main) reaches Console {
+    main.calls = 0;
+    transition Main::pick(main, false) {
+        Pick::First { v } -> first(main, v)
+        Pick::Second { .. } -> wrong_arm(main)
     }
-    state first(&mut self, v: i32) {
-        transition self.calls {
-            1 -> first_payload(v)
-            2 -> exit_two()
-            _ -> exit_three()
+    state first(main: &mut Main, v: i32) {
+        transition main.calls {
+            1 -> first_payload(main, v)
+            2 -> exit_two(main)
+            _ -> exit_three(main)
         }
     }
-    state first_payload(&mut self, v: i32) {
-        transition v == 10 { true -> again() _ -> wrong_payload() }
+    state first_payload(main: &mut Main, v: i32) {
+        transition v == 10 { true -> again(main) _ -> wrong_payload(main) }
     }
-    state again(&mut self) {
-        transition Main::pick(&mut self, true) {
-            Pick::First { .. } -> wrong_arm()
-            Pick::Second { v } -> second(v)
+    state again(main: &mut Main) {
+        transition Main::pick(main, true) {
+            Pick::First { .. } -> wrong_arm(main)
+            Pick::Second { v } -> second(main, v)
         }
     }
-    state second(&mut self, v: i32) {
-        transition self.calls {
-            2 -> second_payload(v)
-            3 -> exit_two()
-            _ -> exit_three()
+    state second(main: &mut Main, v: i32) {
+        transition main.calls {
+            2 -> second_payload(main, v)
+            3 -> exit_two(main)
+            _ -> exit_three(main)
         }
     }
-    state second_payload(&mut self, v: i32) {
-        transition v == 20 { true -> good() _ -> wrong_payload() }
+    state second_payload(main: &mut Main, v: i32) {
+        transition v == 20 { true -> good(main) _ -> wrong_payload(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state exit_two(&mut self) { self.console.exit_process(2); }
-    state exit_three(&mut self) { self.console.exit_process(3); }
-    state wrong_payload(&mut self) { self.console.exit_process(4); }
-    state wrong_arm(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state exit_two(main: &mut Main) { main.console.exit_process(2); }
+    state exit_three(main: &mut Main) { main.console.exit_process(3); }
+    state wrong_payload(main: &mut Main) { main.console.exit_process(4); }
+    state wrong_arm(main: &mut Main) { main.console.exit_process(71); }
 }

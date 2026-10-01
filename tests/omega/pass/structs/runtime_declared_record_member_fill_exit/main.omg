@@ -6,13 +6,13 @@ use omega::language::core::binding;
 data Point { x: i32; y: i32; }
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let point: Point;
     point.x = 7;
     point.y = 12;
     transition point.x == 7 && point.y == 12 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

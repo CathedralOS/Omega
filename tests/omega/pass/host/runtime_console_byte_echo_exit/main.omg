@@ -16,11 +16,11 @@ data Main {
     sum: i32 in Wrapping;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.sum = 70 as i32 in Wrapping;
-    transition { _ -> rd(&mut self) }
+    main.sum = 70 as i32 in Wrapping;
+    transition { _ -> rd(main) }
 
     state rd(main: &mut Main) {
         let r: ByteRead = block main.console.read_byte();

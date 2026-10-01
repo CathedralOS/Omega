@@ -29,13 +29,13 @@ machine table_size() -> u64 {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.slots[0] = 7;
-    self.slots[15] = 63;
+machine Main::main(main: &mut Main) reaches Console {
+    main.slots[0] = 7;
+    main.slots[15] = 63;
 
-    transition self.slots[0] == 7 {
-        true -> check_last(&mut self)
-        false -> bad(&mut self)
+    transition main.slots[0] == 7 {
+        true -> check_last(main)
+        false -> bad(main)
     }
 
     state check_last(main: &mut Main) {

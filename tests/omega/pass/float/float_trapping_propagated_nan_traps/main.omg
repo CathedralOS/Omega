@@ -14,9 +14,9 @@ data Main {
     trapped: f64 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.quiet = 0.0f64 / 0.0;
-    self.trapped = self.quiet as f64 in Trapping;
-    self.trapped = (self.trapped + 1.0) as f64 in Trapping;
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.quiet = 0.0f64 / 0.0;
+    main.trapped = main.quiet as f64 in Trapping;
+    main.trapped = (main.trapped + 1.0) as f64 in Trapping;
+    main.console.exit_process(70);
 }

@@ -13,23 +13,23 @@ data Main {
     source: [u8; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source[0] = 72;
-    self.source[1] = 105;
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0] = 72;
+    main.source[1] = 105;
 
-    let s: &[u8] = self.source[0..2];
+    let s: &[u8] = main.source[0..2];
 
     let matches: bool = s.len == 2;
     transition matches {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

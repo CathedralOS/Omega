@@ -23,13 +23,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let left: Sum = Sum::Left { v: 41 };
     let right: Sum = Sum::Right { w: 29 };
 
     transition Sum::pick(&left) == 41 {
-        true -> first(&mut self, right)
-        _ -> missed(&mut self)
+        true -> first(main, right)
+        _ -> missed(main)
     }
 
     state first(main: &mut Main, right: Sum) {

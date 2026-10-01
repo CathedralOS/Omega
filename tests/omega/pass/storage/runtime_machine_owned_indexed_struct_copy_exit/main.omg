@@ -11,14 +11,14 @@ data Main {
     copy: Item;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let index: u64 = 1;
-    self.items[index].value = 23;
-    self.copy = self.items[index];
+    main.items[index].value = 23;
+    main.copy = main.items[index];
 
-    transition self.copy.value == 23 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+    transition main.copy.value == 23 {
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

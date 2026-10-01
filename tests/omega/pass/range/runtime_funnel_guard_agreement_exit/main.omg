@@ -15,28 +15,28 @@ data Main {
     sp: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.sp = 7;
-    transition self.sp >= 0 && self.sp < 16 {
-        true -> push(self.sp)
-        false -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.sp = 7;
+    transition main.sp >= 0 && main.sp < 16 {
+        true -> push(main)
+        false -> bad(main)
     }
 
-    state other(&mut self) {
-        transition self.sp >= 0 && self.sp < 16 {
-            true -> push(self.sp)
-            false -> bad()
+    state other(main: &mut Main) {
+        transition main.sp >= 0 && main.sp < 16 {
+            true -> push(main)
+            false -> bad(main)
         }
     }
 
-    state push(&mut self, v: i32) requires v >= 0 && v < 16 {
-        let mut y: i32 = v;
+    state push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
+        let mut y: i32 = main.sp;
         transition y == 7 {
-            true -> matched()
-            false -> unmatched()
+            true -> matched(main)
+            false -> unmatched(main)
         }
     }
-    state matched(&mut self) { self.console.exit_process(7); }
-    state unmatched(&mut self) { self.console.exit_process(0); }
-    state bad(&mut self) { self.console.exit_process(8); }
+    state matched(main: &mut Main) { main.console.exit_process(7); }
+    state unmatched(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(8); }
 }

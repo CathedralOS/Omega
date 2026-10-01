@@ -15,11 +15,11 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    fill(&mut self.bag);
-    transition self.bag.cells[2].value == 7 {
-        true -> tagged(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    fill(&mut main.bag);
+    transition main.bag.cells[2].value == 7 {
+        true -> tagged(main)
+        false -> bad(main)
     }
 
     state tagged(main: &mut Main) {

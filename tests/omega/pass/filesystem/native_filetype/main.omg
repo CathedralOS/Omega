@@ -20,32 +20,32 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.mode = 420;
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.mode = 420;
     // 1: /dev/null must stat as a character device
-    self.rc = self.fs.read_metadata("/dev/null", &mut self.buffer);
-    transition self.rc == 0 { true -> checkchar() _ -> fail() }
-    state checkchar(&mut self) {
-        self.fmt =
-            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+    main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);
+    transition main.rc == 0 { true -> checkchar(main) _ -> fail(main) }
+    state checkchar(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
-        transition self.fmt == 8192 { true -> regular() _ -> fail() }
+        transition main.fmt == 8192 { true -> regular(main) _ -> fail(main) }
     }
-    state regular(&mut self) {
+    state regular(main: &mut Main) {
         // 2: a fresh regular file must stat as S_IFREG (not a device)
-        self.fd = self.fs.create("/tmp/omega_ftype.txt", self.mode);
-        self.n = self.fs.write(self.fd, "hi");
-        self.discard = self.fs.close(self.fd);
-        self.rc = self.fs.read_metadata("/tmp/omega_ftype.txt", &mut self.buffer);
-        self.discard = self.fs.remove("/tmp/omega_ftype.txt");
-        transition self.rc == 0 { true -> checkreg() _ -> fail() }
+        main.fd = main.fs.create("/tmp/omega_ftype.txt", main.mode);
+        main.n = main.fs.write(main.fd, "hi");
+        main.discard = main.fs.close(main.fd);
+        main.rc = main.fs.read_metadata("/tmp/omega_ftype.txt", &mut main.buffer);
+        main.discard = main.fs.remove("/tmp/omega_ftype.txt");
+        transition main.rc == 0 { true -> checkreg(main) _ -> fail(main) }
     }
-    state checkreg(&mut self) {
-        self.fmt =
-            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+    state checkreg(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
-        transition self.fmt == 32768 { true -> good() _ -> fail() }
+        transition main.fmt == 32768 { true -> good(main) _ -> fail(main) }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native filetype\n"); }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: native filetype\n"); }
 }

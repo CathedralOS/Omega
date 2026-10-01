@@ -14,10 +14,10 @@ use omega_language_std::math;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // sin(1) = 0.841470984807896507...
     let s: f64 = sin(1.0);
-    transition s > 0.84147098480 && s < 0.84147098481 { true -> a(&mut self) _ -> bad_s(&mut self) }
+    transition s > 0.84147098480 && s < 0.84147098481 { true -> a(main) _ -> bad_s(main) }
     state a(main: &mut Main) {
         // sin(10) = -0.544021110889...; 10 > pi exercises the ladder.
         let t: f64 = sin(10.0);

@@ -26,11 +26,11 @@ data Main {
     register: Register;
 }
 
-machine Main::main(&mut self) reaches Console {
-    Main::apply(&mut self, Event::Insert { cents: 50 });
-    transition self.register.balance == 50 {
-        true -> report(&mut self, 70)
-        _ -> not_fifty(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    Main::apply(main, Event::Insert { cents: 50 });
+    transition main.register.balance == 50 {
+        true -> report(main, 70)
+        _ -> not_fifty(main)
     }
     state not_fifty(main: &mut Main) {
         transition main.register.balance == 0 {

@@ -7,7 +7,7 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let i8_32: i8 = I8::from_f32(-8.75f32);
     let i8_64: i8 = I8::from_f64(-9.75);
     let i16_32: i16 = I16::from_f32(-160.25f32);
@@ -49,8 +49,8 @@ machine Main::main(&mut self) reaches Console {
             && trapped_value == 70
             && saturated_i8_value == 127
             && saturated_u64_value == 0
-            && saturated_nan_value == 0 -> good(&mut self)
-        _ -> bad(&mut self)
+            && saturated_nan_value == 0 -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) { main.console.exit_process(70); }

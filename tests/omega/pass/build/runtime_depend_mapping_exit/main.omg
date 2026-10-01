@@ -9,8 +9,8 @@ use mylib::values;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
-    transition ANSWER == 42 { true -> yes(&mut self) _ -> no(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    transition ANSWER == 42 { true -> yes(main) _ -> no(main) }
     state yes(main: &mut Main) { main.console.exit_process(70); }
     state no(main: &mut Main)  { main.console.exit_process(71); }
 }

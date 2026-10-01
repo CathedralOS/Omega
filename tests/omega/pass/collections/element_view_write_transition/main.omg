@@ -16,11 +16,11 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    release(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    release(&mut main.bag);
 
     transition {
-        _ -> good(&mut self)
+        _ -> good(main)
     }
 
     state good(main: &mut Main) {

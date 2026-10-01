@@ -21,28 +21,28 @@ data Main {
     buffer: [u8; 1024];
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.mode = 420;
-    self.fd = self.fs.create("/tmp/omega_canon.txt", self.mode);
-    self.discard = self.fs.close(self.fd);
-    self.rc = self.fs.canonicalize("/tmp/omega_canon.txt", &mut self.buffer);
-    self.discard = self.fs.remove("/tmp/omega_canon.txt");
-    transition self.rc != 0 { true -> decode() _ -> fail() }
-    state decode(&mut self) {
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.mode = 420;
+    main.fd = main.fs.create("/tmp/omega_canon.txt", main.mode);
+    main.discard = main.fs.close(main.fd);
+    main.rc = main.fs.canonicalize("/tmp/omega_canon.txt", &mut main.buffer);
+    main.discard = main.fs.remove("/tmp/omega_canon.txt");
+    transition main.rc != 0 { true -> decode(main) _ -> fail(main) }
+    state decode(main: &mut Main) {
         // realpath resolves /tmp -> /private/tmp: the canonical path is
         // "/private/tmp/omega_canon.txt".
-        self.b0 = self.buffer[0];
-        self.b1 = self.buffer[1];
-        self.b8 = self.buffer[8];
-        transition self.b0 == 47 { true -> checkp() _ -> fail() }
+        main.b0 = main.buffer[0];
+        main.b1 = main.buffer[1];
+        main.b8 = main.buffer[8];
+        transition main.b0 == 47 { true -> checkp(main) _ -> fail(main) }
     }
-    state checkp(&mut self) {
+    state checkp(main: &mut Main) {
         // buffer[1] == 'p' (of "private") proves /tmp was resolved, not left as-is
-        transition self.b1 == 112 { true -> checkslash() _ -> fail() }
+        transition main.b1 == 112 { true -> checkslash(main) _ -> fail(main) }
     }
-    state checkslash(&mut self) {
-        transition self.b8 == 47 { true -> good() _ -> fail() }
+    state checkslash(main: &mut Main) {
+        transition main.b8 == 47 { true -> good(main) _ -> fail(main) }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: canonicalize resolves /tmp -> /private/tmp\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: canonicalize\n"); }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: canonicalize resolves /tmp -> /private/tmp\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: canonicalize\n"); }
 }

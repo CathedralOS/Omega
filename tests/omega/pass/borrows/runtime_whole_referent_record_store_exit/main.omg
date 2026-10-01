@@ -24,11 +24,11 @@ machine adopt(point: &mut Point, other: Point) {
     point = other;
 }
 
-machine Main::main(&mut self) reaches Console {
-    place(&mut self.point, 5, 6);
-    transition self.point.x == 5 && self.point.y == 6 {
-        true -> copied(&mut self)
-        _ -> bad_literal(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    place(&mut main.point, 5, 6);
+    transition main.point.x == 5 && main.point.y == 6 {
+        true -> copied(main)
+        _ -> bad_literal(main)
     }
 
     state copied(main: &mut Main) {

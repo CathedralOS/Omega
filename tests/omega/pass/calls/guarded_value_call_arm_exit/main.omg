@@ -18,12 +18,12 @@ requires
 {
     transition x > 50 { true -> (dbl(x)) _ -> (x) }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let hot: i32 = pick(60);
     let cold: i32 = pick(10);
     transition hot == 120 {
-        true -> check_cold(&mut self, cold)
-        _ -> bad(&mut self)
+        true -> check_cold(main, cold)
+        _ -> bad(main)
     }
     state check_cold(main: &mut Main, cold: i32) {
         transition cold == 10 { true -> good(main) _ -> bad(main) }

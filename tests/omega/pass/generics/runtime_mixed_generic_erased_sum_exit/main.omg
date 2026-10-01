@@ -14,14 +14,14 @@ data Main {
     value: Mixed<i32 in Wrapping>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.value = Mixed::Some { common: 7, value: 63 };
-    transition self.value {
-        Mixed::Some { value, case_proof as _ } -> good(value)
-        Mixed::None -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = Mixed::Some { common: 7, value: 63 };
+    transition main.value {
+        Mixed::Some { value, case_proof as _ } -> good(main, value)
+        Mixed::None -> bad(main)
     }
-    state good(&mut self, value: i32 in Wrapping) {
-        self.console.exit_process((self.value.common + value) as i32);
+    state good(main: &mut Main, value: i32 in Wrapping) {
+        main.console.exit_process((main.value.common + value) as i32);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

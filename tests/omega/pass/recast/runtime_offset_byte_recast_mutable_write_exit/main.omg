@@ -12,28 +12,28 @@ data Main {
     k: u32 [0..=4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.buf[0] = 9;
-    self.buf[1] = 8;
-    self.buf[6] = 7;
-    self.buf[7] = 6;
-    self.k = 2;
+machine Main::main(main: &mut Main) reaches Console {
+    main.buf[0] = 9;
+    main.buf[1] = 8;
+    main.buf[6] = 7;
+    main.buf[7] = 6;
+    main.k = 2;
 
-    let view: &mut u32 = &mut self.buf[self.k] as &mut u32;
+    let view: &mut u32 = &mut main.buf[main.k] as &mut u32;
     view = 67305985;
-    transition self.buf[0] == 9
-        && self.buf[1] == 8
-        && self.buf[2] == 1
-        && self.buf[3] == 2
-        && self.buf[4] == 3
-        && self.buf[5] == 4
-        && self.buf[6] == 7
-        && self.buf[7] == 6
+    transition main.buf[0] == 9
+        && main.buf[1] == 8
+        && main.buf[2] == 1
+        && main.buf[3] == 2
+        && main.buf[4] == 3
+        && main.buf[5] == 4
+        && main.buf[6] == 7
+        && main.buf[7] == 6
         && view == 67305985 {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main)  { main.console.exit_process(71); }
 }

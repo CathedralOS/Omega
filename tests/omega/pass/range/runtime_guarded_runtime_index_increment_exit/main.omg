@@ -14,21 +14,21 @@ data Main {
     tallies: [i32; 4];
     k: u64;
 }
-machine Main::main(&mut self) reaches Console {
-    self.k = 2;
-    let t: i32 = self.tallies[self.k];
+machine Main::main(main: &mut Main) reaches Console {
+    main.k = 2;
+    let t: i32 = main.tallies[main.k];
     transition t < 16 {
-        true -> bump(t, self.k)
-        false -> full()
+        true -> bump(main, t)
+        false -> full(main)
     }
-    state bump(&mut self, v: i32, ki: u64) requires v < 16, ki < 4 {
-        self.tallies[ki] = v + 1;
-        transition self.tallies[2] == 1 {
-            true -> matched()
-            false -> unmatched()
+    state bump(main: &mut Main, v: i32) requires v < 16, main.k < 4 {
+        main.tallies[main.k] = v + 1;
+        transition main.tallies[2] == 1 {
+            true -> matched(main)
+            false -> unmatched(main)
         }
     }
-    state matched(&mut self) { self.console.exit_process(1); }
-    state unmatched(&mut self) { self.console.exit_process(9); }
-    state full(&mut self) { self.console.exit_process(8); }
+    state matched(main: &mut Main) { main.console.exit_process(1); }
+    state unmatched(main: &mut Main) { main.console.exit_process(9); }
+    state full(main: &mut Main) { main.console.exit_process(8); }
 }

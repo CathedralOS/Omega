@@ -38,17 +38,17 @@ machine Main::step(main: &mut Main, direction: Direction) {
     main.total = main.total + (output.value as u64 in Saturating);
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.total = 0;
-    Main::step(&mut self, Direction::Left);
-    Main::step(&mut self, Direction::Right);
-    Main::direct(&mut self, Direction::Left);
-    Main::direct(&mut self, Direction::Right);
-    Main::direct(&mut self, Direction::Up);
-    Main::direct(&mut self, Direction::Down);
-    transition self.total == 80 {
-        true -> passed(&mut self)
-        false -> failed(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.total = 0;
+    Main::step(main, Direction::Left);
+    Main::step(main, Direction::Right);
+    Main::direct(main, Direction::Left);
+    Main::direct(main, Direction::Right);
+    Main::direct(main, Direction::Up);
+    Main::direct(main, Direction::Down);
+    transition main.total == 80 {
+        true -> passed(main)
+        false -> failed(main)
     }
     state passed(main: &mut Main) { main.console.exit_process(70); }
     state failed(main: &mut Main) { main.console.exit_process(71); }

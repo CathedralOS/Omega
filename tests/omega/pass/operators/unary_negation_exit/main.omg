@@ -10,13 +10,13 @@ data Main {
     n: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.v = 10;
-    self.n = -self.v;
+machine Main::main(main: &mut Main) reaches Console {
+    main.v = 10;
+    main.n = -main.v;
 
-    transition self.n == -10 {
-        true -> check_literal(&mut self)
-        false -> bad(&mut self)
+    transition main.n == -10 {
+        true -> check_literal(main)
+        false -> bad(main)
     }
 
     state check_literal(main: &mut Main) {

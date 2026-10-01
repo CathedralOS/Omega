@@ -41,15 +41,15 @@ where
     bp: u64;
     t: Color;
 }
-machine Main::main(&mut self) reaches Console {
-    self.items[0] = Color::White;
-    self.items[1] = Color::Blue;
-    self.items[2] = Color::Red;
-    self.r = 0;
-    self.w = 0;
-    self.b = 3;
+machine Main::main(main: &mut Main) reaches Console {
+    main.items[0] = Color::White;
+    main.items[1] = Color::Blue;
+    main.items[2] = Color::Red;
+    main.r = 0;
+    main.w = 0;
+    main.b = 3;
     transition {
-        _ -> head(&mut self)
+        _ -> head(main)
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
@@ -60,7 +60,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    // Literal re-guard: dominates every items[self.w] access downstream
+    // Literal re-guard: dominates every items[main.w] access downstream
     // (classify, red_swap, blue_swap -- no state between rewrites w).
     state w_guard(main: &mut Main) {
         transition main.w < 3 {

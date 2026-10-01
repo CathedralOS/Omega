@@ -10,9 +10,9 @@ data Main where 0 <= i, i <= 4 {
     i: u64;
 }
 
-machine Main::main(&mut self) reaches Console
+machine Main::main(main: &mut Main) reaches Console
 {
-    transition { _ -> write(&mut self) }
+    transition { _ -> write(main) }
 
     state write(main: &mut Main)
     {

@@ -19,14 +19,14 @@ data Main {
     record: Certified;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.record = Certified::Proven { value: 70 };
-    transition self.record {
-        Certified::Proven { value, proof as _ } -> good(value)
-        Certified::Pending -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.record = Certified::Proven { value: 70 };
+    transition main.record {
+        Certified::Proven { value, proof as _ } -> good(main, value)
+        Certified::Pending -> bad(main)
     }
-    state good(&mut self, value: i32) {
-        self.console.exit_process(value);
+    state good(main: &mut Main, value: i32) {
+        main.console.exit_process(value);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

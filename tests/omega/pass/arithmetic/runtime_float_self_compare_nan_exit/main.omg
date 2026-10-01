@@ -12,11 +12,11 @@ data Main {
     console: Binding<Console>;
     f: f64;
 }
-machine Main::main(&mut self) reaches Console {
-    self.f = 0.0f64 / 0.0;
-    transition self.f != self.f {
-        true -> check_eq(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.f = 0.0f64 / 0.0;
+    transition main.f != main.f {
+        true -> check_eq(main)
+        false -> bad(main)
     }
     state check_eq(main: &mut Main) {
         // NaN == NaN must be FALSE.

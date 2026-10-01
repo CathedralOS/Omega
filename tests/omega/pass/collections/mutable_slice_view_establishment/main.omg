@@ -16,13 +16,13 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    fill(&mut self.bag);
-    Main::sow(&mut self);
+machine Main::main(main: &mut Main) reaches Console {
+    fill(&mut main.bag);
+    Main::sow(main);
 
-    transition self.bag.cells[2] == 7 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+    transition main.bag.cells[2] == 7 {
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

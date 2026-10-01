@@ -30,12 +30,12 @@ data Main {
     cell: Cell;
 }
 
-machine Main::main(&mut self) reaches Console {
-    Cell::publish(&self.cell, 10);
-    let prior: u32 = Cell::mark(&self.cell, 5);
+machine Main::main(main: &mut Main) reaches Console {
+    Cell::publish(&main.cell, 10);
+    let prior: u32 = Cell::mark(&main.cell, 5);
     transition prior == 10 {
-        true -> check_value(&mut self)
-        false -> bad_prior(&mut self)
+        true -> check_value(main)
+        false -> bad_prior(main)
     }
 
     state check_value(main: &mut Main) {

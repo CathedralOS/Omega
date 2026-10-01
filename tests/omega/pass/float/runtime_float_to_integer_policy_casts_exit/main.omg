@@ -24,19 +24,19 @@ data Main {
     below_short: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut huge: f64 = 3000000000.0;
-    self.negative_huge = -3000000000.0;
-    self.zero = 0.0;
-    self.fraction = -7.9;
-    self.celsius = 20.0;
-    self.above_byte = 300.5;
-    self.below_byte = -5.5;
-    self.below_short = -40000.75f32;
+    main.negative_huge = -3000000000.0;
+    main.zero = 0.0;
+    main.fraction = -7.9;
+    main.celsius = 20.0;
+    main.above_byte = 300.5;
+    main.below_byte = -5.5;
+    main.below_short = -40000.75f32;
     let mut high: i32 = (huge as i32 in Saturating) as i32;
     transition high == 2147483647 {
-        true -> low(&mut self)
-        _ -> fail(&mut self, 71)
+        true -> low(main)
+        _ -> fail(main, 71)
     }
 
     state low(main: &mut Main) {

@@ -123,7 +123,7 @@ data Main {
     packed: CompactBits<PackedFlags>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Runtime lets pin the same fold the consts carry: a retained query in a
     // machine body must reach checked-tree construction as the settled
     // literal, not as a callee-less call that omits the unit plan.
@@ -131,52 +131,52 @@ machine Main::main(&mut self) reaches Console {
     let pair_bytes: u64 = size_of<Pair>();
     let packed_bytes: u64 = size_of<CompactBits<PackedFlags>>();
     let packed_align: u64 = align_of<CompactBits<PackedFlags>>();
-    self.row = Row { a: row_bytes, b: 7 };
+    main.row = Row { a: row_bytes, b: 7 };
 
     transition row_bytes == ROW_BYTES && ROW_ALIGN == 8 && pair_bytes == 2
-        && self.row.a == 16 {
-        true -> check_zero_sized(row_bytes, packed_bytes, packed_align)
-        false -> bad_padding()
+        && main.row.a == 16 {
+        true -> check_zero_sized(main, row_bytes, packed_bytes, packed_align)
+        false -> bad_padding(main)
     }
 
-    state check_zero_sized(&mut self, row_bytes: u64, packed_bytes: u64, packed_align: u64) {
+    state check_zero_sized(main: &mut Main, row_bytes: u64, packed_bytes: u64, packed_align: u64) {
         transition EMPTY_BYTES == 0 && size_of<Empty>() == 0 && row_bytes == 16 {
-            true -> check_reference(packed_bytes, packed_align)
-            false -> bad_zero()
+            true -> check_reference(main, packed_bytes, packed_align)
+            false -> bad_zero(main)
         }
     }
 
-    state check_reference(&mut self, packed_bytes: u64, packed_align: u64) {
+    state check_reference(main: &mut Main, packed_bytes: u64, packed_align: u64) {
         transition REF_BYTES == 8 && size_of<&Row>() == 8 && align_of<&Row>() == 8 {
-            true -> check_plan(packed_bytes, packed_align)
-            false -> bad_reference()
+            true -> check_plan(main, packed_bytes, packed_align)
+            false -> bad_reference(main)
         }
     }
 
-    state check_plan(&mut self, packed_bytes: u64, packed_align: u64) {
+    state check_plan(main: &mut Main, packed_bytes: u64, packed_align: u64) {
         transition packed_bytes == 1 && packed_align == 1 {
-            true -> good()
-            false -> bad_plan()
+            true -> good(main)
+            false -> bad_plan(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad_padding(&mut self) {
-        self.console.exit_process(71);
+    state bad_padding(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state bad_zero(&mut self) {
-        self.console.exit_process(72);
+    state bad_zero(main: &mut Main) {
+        main.console.exit_process(72);
     }
 
-    state bad_reference(&mut self) {
-        self.console.exit_process(73);
+    state bad_reference(main: &mut Main) {
+        main.console.exit_process(73);
     }
 
-    state bad_plan(&mut self) {
-        self.console.exit_process(74);
+    state bad_plan(main: &mut Main) {
+        main.console.exit_process(74);
     }
 }

@@ -15,12 +15,12 @@ machine LeftProvider::read() -> i32 satisfies Reader::read { 11 }
 // dispatch is symbol-keyed -- so the package still carries two `Reader`
 // conformances and the selection must pick `right::Reader`'s provider.
 pub data LeftRunner { reader: Binding<Reader>; console: Binding<Console>; }
-pub machine LeftRunner::run(&mut self) reaches Reader, Console
+pub machine LeftRunner::run(left_runner: &mut LeftRunner) reaches Reader, Console
 invokes Reader;
 invokes Console;
 {
-    let value: i32 = self.reader.read();
-    transition value == 11 { true -> deliver(value) _ -> wrong(value) }
-    state deliver(&mut self, observed: i32) { self.console.exit_process(observed); }
-    state wrong(&mut self, observed: i32) { self.console.exit_process(65); }
+    let value: i32 = left_runner.reader.read();
+    transition value == 11 { true -> deliver(left_runner, value) _ -> wrong(left_runner, value) }
+    state deliver(left_runner: &mut LeftRunner, observed: i32) { left_runner.console.exit_process(observed); }
+    state wrong(left_runner: &mut LeftRunner, observed: i32) { left_runner.console.exit_process(65); }
 }

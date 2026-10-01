@@ -35,7 +35,7 @@ data Main {
     row: [i32 in Wrapping; 3];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.row = [1, 2, 3];
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.row = [1, 2, 3];
+    main.console.exit_process(0);
 }

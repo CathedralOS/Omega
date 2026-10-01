@@ -25,15 +25,15 @@ data Main {
     bytes: [u8; 3];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bytes[1] = 70;
-    let found: bool = contains_marker(&self.bytes, 1);
-    let outside: bool = contains_marker(&self.bytes, 3);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[1] = 70;
+    let found: bool = contains_marker(&main.bytes, 1);
+    let outside: bool = contains_marker(&main.bytes, 3);
     transition found && !outside {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -22,9 +22,9 @@ ensures result == input + 0 && input == input
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
     let result: i32 = CheckedMath::offset_zero(70);
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }

@@ -10,7 +10,7 @@ pub data Pair {
 
 pub data Main { observed: f64; }
 
-boundary machine Main::main(&mut self, pair: Pair) -> i32 {
-    self.observed = pair.second;
+boundary machine Main::main(main: &mut Main, pair: Pair) -> i32 {
+    main.observed = pair.second;
     transition { _ -> (0) }
 }

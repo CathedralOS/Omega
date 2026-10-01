@@ -29,10 +29,10 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag = Bag { count: 2 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag = Bag { count: 2 };
 
-    transition self.bag.pts[1].x == 0 { true -> check_inner(&mut self) _ -> bad(&mut self) }
+    transition main.bag.pts[1].x == 0 { true -> check_inner(main) _ -> bad(main) }
     state check_inner(main: &mut Main) {
         transition main.bag.inner.code == 0 { true -> check_flag(main) _ -> bad(main) }
     }

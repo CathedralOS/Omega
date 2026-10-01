@@ -11,11 +11,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut v: u32 = 7;
     let borrowed: &mut u32 = &mut v;
     borrowed = 9;
-    transition v == 9 { true -> done(&mut self) _ -> bad(&mut self) }
+    transition v == 9 { true -> done(main) _ -> bad(main) }
 
     state done(main: &mut Main) {
         main.console.exit_process(9);

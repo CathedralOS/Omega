@@ -18,11 +18,11 @@ machine opaque() -> u64 {
     transition { _ -> (7u64) }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let v: u64 = opaque();
     transition v >= 100u64 {
-        true -> bad(&mut self)
-        _ -> then(&mut self, v)
+        true -> bad(main)
+        _ -> then(main, v)
     }
     state then(main: &mut Main, v: u64) {
         check(v);

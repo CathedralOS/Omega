@@ -19,14 +19,14 @@ machine read_x() -> i32 in Trapping {
     made.x
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // The helper's signature does not publish a result bound. Observe zero
     // explicitly before doing exact arithmetic; otherwise the exit expression
     // asks the caller to assume a guarantee the helper never declared.
     let observed: i32 = read_x() as i32;
     transition observed == 0 {
-        true -> zero(&mut self, observed)
-        _ -> bad(&mut self)
+        true -> zero(main, observed)
+        _ -> bad(main)
     }
     state zero(main: &mut Main, value: i32 [0..=0]) {
         main.console.exit_process(70 + value);

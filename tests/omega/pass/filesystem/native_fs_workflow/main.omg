@@ -34,72 +34,72 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches FilesystemHost {
-    self.mode = 420;      // 0o644
-    self.dir_mode = 493;  // 0o755
-    self.ro_mode = 292;   // 0o444
-    self.rdonly = 0;
-    self.cap = 144;
+machine Main::main(main: &mut Main) reaches FilesystemHost {
+    main.mode = 420;      // 0o644
+    main.dir_mode = 493;  // 0o755
+    main.ro_mode = 292;   // 0o444
+    main.rdonly = 0;
+    main.cap = 144;
     // 1. working directory
-    self.rc = self.fs.create_dir("/tmp/omega_wf", self.dir_mode);
-    transition self.rc == 0 { true -> makefile() _ -> fail() }
-    state makefile(&mut self) {
+    main.rc = main.fs.create_dir("/tmp/omega_wf", main.dir_mode);
+    transition main.rc == 0 { true -> makefile(main) _ -> fail(main) }
+    state makefile(main: &mut Main) {
         // 2. create + write + close
-        self.fd = self.fs.create("/tmp/omega_wf/a.txt", self.mode);
-        self.n = self.fs.write(self.fd, "hello world");
-        self.discard = self.fs.close(self.fd);
+        main.fd = main.fs.create("/tmp/omega_wf/a.txt", main.mode);
+        main.n = main.fs.write(main.fd, "hello world");
+        main.discard = main.fs.close(main.fd);
         // 3. stat: regular file, size 11
-        self.rc = self.fs.read_metadata("/tmp/omega_wf/a.txt", &mut self.buffer);
-        transition self.rc == 0 { true -> checktype() _ -> fail() }
+        main.rc = main.fs.read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
+        transition main.rc == 0 { true -> checktype(main) _ -> fail(main) }
     }
-    state checktype(&mut self) {
-        self.fmt =
-            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+    state checktype(main: &mut Main) {
+        main.fmt =
+            (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 61440;
-        transition self.fmt == 32768 { true -> checksize() _ -> fail() }
+        transition main.fmt == 32768 { true -> checksize(main) _ -> fail(main) }
     }
-    state checksize(&mut self) {
-        self.size = widen_u8_to_i32(self.buffer[96]); // st_size low byte (11 < 256)
-        transition self.size == 11 { true -> link() _ -> fail() }
+    state checksize(main: &mut Main) {
+        main.size = widen_u8_to_i32(main.buffer[96]); // st_size low byte (11 < 256)
+        transition main.size == 11 { true -> link(main) _ -> fail(main) }
     }
-    state link(&mut self) {
+    state link(main: &mut Main) {
         // 4. hard link, then 5. rename it
-        self.rc = self.fs.hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
-        transition self.rc == 0 { true -> renameit() _ -> fail() }
+        main.rc = main.fs.hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
+        transition main.rc == 0 { true -> renameit(main) _ -> fail(main) }
     }
-    state renameit(&mut self) {
-        self.rc = self.fs.rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
-        transition self.rc == 0 { true -> lockread() _ -> fail() }
+    state renameit(main: &mut Main) {
+        main.rc = main.fs.rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
+        transition main.rc == 0 { true -> lockread(main) _ -> fail(main) }
     }
-    state lockread(&mut self) {
+    state lockread(main: &mut Main) {
         // 6. open, flock, read back, unlock, close
-        self.fd = self.fs.open("/tmp/omega_wf/c.txt", self.rdonly);
-        self.rc = self.fs.lock_file(self.fd, 2); // LOCK_EX
-        self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
-        self.first = self.buffer[0];
-        self.discard = self.fs.lock_file(self.fd, 8); // LOCK_UN
-        self.discard = self.fs.close(self.fd);
-        transition self.first == 104 { true -> chmod() _ -> fail() }
+        main.fd = main.fs.open("/tmp/omega_wf/c.txt", main.rdonly);
+        main.rc = main.fs.lock_file(main.fd, 2); // LOCK_EX
+        main.n = main.fs.read(main.fd, &mut main.buffer, main.cap);
+        main.first = main.buffer[0];
+        main.discard = main.fs.lock_file(main.fd, 8); // LOCK_UN
+        main.discard = main.fs.close(main.fd);
+        transition main.first == 104 { true -> chmod(main) _ -> fail(main) }
     }
-    state chmod(&mut self) {
+    state chmod(main: &mut Main) {
         // 7. chmod read-only, re-stat, assert write bits cleared
-        self.rc = self.fs.set_permissions("/tmp/omega_wf/a.txt", self.ro_mode);
-        self.rc = self.fs.read_metadata("/tmp/omega_wf/a.txt", &mut self.buffer);
-        transition self.rc == 0 { true -> checkro() _ -> fail() }
+        main.rc = main.fs.set_permissions("/tmp/omega_wf/a.txt", main.ro_mode);
+        main.rc = main.fs.read_metadata("/tmp/omega_wf/a.txt", &mut main.buffer);
+        transition main.rc == 0 { true -> checkro(main) _ -> fail(main) }
     }
-    state checkro(&mut self) {
-        self.wbits =
-            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+    state checkro(main: &mut Main) {
+        main.wbits =
+            (widen_u8_to_i32(main.buffer[4]) | (widen_u8_to_i32(main.buffer[5]) << 8))
                 & 146; // 0o222
-        transition self.wbits == 0 { true -> cleanup() _ -> fail() }
+        transition main.wbits == 0 { true -> cleanup(main) _ -> fail(main) }
     }
-    state cleanup(&mut self) {
+    state cleanup(main: &mut Main) {
         // 8. remove everything
-        self.discard = self.fs.remove("/tmp/omega_wf/a.txt");
-        self.discard = self.fs.remove("/tmp/omega_wf/c.txt");
-        self.rc = self.fs.remove_dir("/tmp/omega_wf");
-        transition self.rc == 0 { true -> good() _ -> fail() }
+        main.discard = main.fs.remove("/tmp/omega_wf/a.txt");
+        main.discard = main.fs.remove("/tmp/omega_wf/c.txt");
+        main.rc = main.fs.remove_dir("/tmp/omega_wf");
+        transition main.rc == 0 { true -> good(main) _ -> fail(main) }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
-    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: fs workflow\n"); }
+    state good(main: &mut Main) { main.n = main.fs.write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
+    state fail(main: &mut Main) { main.n = main.fs.write(1, "FAIL: fs workflow\n"); }
 }

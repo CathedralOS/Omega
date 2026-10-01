@@ -16,20 +16,20 @@ data Main {
     event: Event;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.event = Event::Treasure { gold: 50, consumed: true };
-    transition self.event {
-        Event::Treasure { gold } -> check_gold(gold)
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.event = Event::Treasure { gold: 50, consumed: true };
+    transition main.event {
+        Event::Treasure { gold } -> check_gold(main, gold)
+        _ -> bad(main)
     }
 
-    state check_gold(gold: i32) {
+    state check_gold(main: &mut Main, gold: i32) {
         transition gold == 50 {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

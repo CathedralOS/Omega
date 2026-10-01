@@ -27,35 +27,35 @@ machine Main::make(main: &mut Main, base: i32) -> Point {
     transition { _ -> Point { x: base, y: 20 } }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.left = Cell::Value { n: 30 };
-    self.right = Cell::Value { n: 40 };
-    self.calls = 0;
-    transition (self.left, self.right) {
-        (Cell::Value { n as left_n }, Cell::Value { n as right_n }) -> sum(left_n, right_n)
-        (Cell::Value { n as left_n }, Cell::Empty) -> wrong()
-        (Cell::Empty, Cell::Value { n as right_n }) -> wrong()
-        (Cell::Empty, Cell::Empty) -> wrong()
+machine Main::main(main: &mut Main) reaches Console {
+    main.left = Cell::Value { n: 30 };
+    main.right = Cell::Value { n: 40 };
+    main.calls = 0;
+    transition (main.left, main.right) {
+        (Cell::Value { n as left_n }, Cell::Value { n as right_n }) -> sum(main, left_n, right_n)
+        (Cell::Value { n as left_n }, Cell::Empty) -> wrong(main)
+        (Cell::Empty, Cell::Value { n as right_n }) -> wrong(main)
+        (Cell::Empty, Cell::Empty) -> wrong(main)
     }
 
-    state sum(&mut self, left_n: i32, right_n: i32) {
-        transition (self.left, self.right) {
-            (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if (guard_left as i64) + (guard_right as i64) == (left_n as i64) + (right_n as i64) -> records()
-            _ -> wrong()
+    state sum(main: &mut Main, left_n: i32, right_n: i32) {
+        transition (main.left, main.right) {
+            (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if (guard_left as i64) + (guard_right as i64) == (left_n as i64) + (right_n as i64) -> records(main)
+            _ -> wrong(main)
         }
     }
-    state records(&mut self) {
-        transition (Main::make(&mut self, 10), Main::make(&mut self, 20)) {
-            (Point { x as ax, y as ay }, Point { x as bx, y as by }) -> check_points(ax, ay, bx, by)
-            _ -> wrong()
+    state records(main: &mut Main) {
+        transition (Main::make(main, 10), Main::make(main, 20)) {
+            (Point { x as ax, y as ay }, Point { x as bx, y as by }) -> check_points(main, ax, ay, bx, by)
+            _ -> wrong(main)
         }
     }
-    state check_points(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
-        transition self.calls == 2 && (ax as i64) + (ay as i64) + (bx as i64) + (by as i64) == 70 {
-            true -> good()
-            _ -> wrong()
+    state check_points(main: &mut Main, ax: i32, ay: i32, bx: i32, by: i32) {
+        transition main.calls == 2 && (ax as i64) + (ay as i64) + (bx as i64) + (by as i64) == 70 {
+            true -> good(main)
+            _ -> wrong(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state wrong(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state wrong(main: &mut Main) { main.console.exit_process(71); }
 }

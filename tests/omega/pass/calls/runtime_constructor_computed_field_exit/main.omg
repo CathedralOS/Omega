@@ -19,11 +19,11 @@ requires n <= 10000
 {
     transition { _ -> Pair8 { a: n / 100, b: 7 } }
 }
-machine Main::main(&mut self) reaches Console {
-    self.p = Pair8::make(3500);
-    transition self.p.a == 35 && self.p.b == 7 {
-        true -> yes(&mut self)
-        false -> no(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.p = Pair8::make(3500);
+    transition main.p.a == 35 && main.p.b == 7 {
+        true -> yes(main)
+        false -> no(main)
     }
     state yes(main: &mut Main) { main.console.exit_process(1); }
     state no(main: &mut Main) { main.console.exit_process(2); }

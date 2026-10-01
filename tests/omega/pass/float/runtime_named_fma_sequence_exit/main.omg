@@ -11,7 +11,7 @@ machine repeated_fma(value: f64) -> f64 {
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let next32: f32 = 1.00000011920928955078125;
     let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
     let fused32: f32 = F32::fused_multiply_add(next32, next32, cancel32);
@@ -23,8 +23,8 @@ machine Main::main(&mut self) reaches Console {
     let repeated64: f64 = repeated_fma(fused64);
     transition fused32 > 0.0f32 && separate32 == 0.0f32 &&
         fused64 > 0.0 && separate64 == 0.0 && repeated64 == fused64 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

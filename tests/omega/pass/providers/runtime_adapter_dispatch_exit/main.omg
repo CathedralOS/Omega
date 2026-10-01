@@ -12,9 +12,9 @@ machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
 data Main { console: Binding<Console>; e: Binding<Echo>; }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console, Echo
 {
-    let v: i32 = self.e.echo(70);
-    self.console.exit_process(v);
+    let v: i32 = main.e.echo(70);
+    main.console.exit_process(v);
 }

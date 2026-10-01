@@ -36,13 +36,13 @@ data Main {
     tally: Tally;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.tally.target = 4;
-    let found: u64 in Saturating = Tally::first_reaching(&self.tally, 0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.tally.target = 4;
+    let found: u64 in Saturating = Tally::first_reaching(&main.tally, 0);
 
     transition found == 4 {
-        true -> done(&mut self)
-        false -> missed(&mut self)
+        true -> done(main)
+        false -> missed(main)
     }
 
     state done(main: &mut Main) {

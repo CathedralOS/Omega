@@ -9,9 +9,9 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let r: Inner = Inner { tag: 9 };
-    transition true { _ -> next(&mut self, &r.tag) }
+    transition true { _ -> next(main, &r.tag) }
 
     state next(main: &mut Main, leaf: &u32) {
         transition leaf == 9 { true -> done(main) _ -> bad(main) }

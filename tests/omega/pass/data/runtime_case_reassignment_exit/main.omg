@@ -19,14 +19,14 @@ data Main {
     mode: Mode;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.mode = Mode::Walk { pace: 9 };
-    self.mode = Mode::Run { speed: 70 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.mode = Mode::Walk { pace: 9 };
+    main.mode = Mode::Run { speed: 70 };
 
-    transition self.mode {
-        Mode::Walk { pace } -> bad(&mut self, pace)
-        Mode::Run { speed } -> done(&mut self, speed)
-        _ -> bad(&mut self, 72)
+    transition main.mode {
+        Mode::Walk { pace } -> bad(main, pace)
+        Mode::Run { speed } -> done(main, speed)
+        _ -> bad(main, 72)
     }
 
     state done(main: &mut Main, speed: i32) {

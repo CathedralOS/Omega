@@ -17,16 +17,16 @@ machine echo(value: i32) -> i32 {
     value
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut seed: i32 = 70;
     let mut total: i32 = echo(seed);
     let first: i32 = total;
     total = 71;
     total = echo(first);
     transition first == 70 && total == 70 {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

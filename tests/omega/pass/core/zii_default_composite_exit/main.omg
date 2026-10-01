@@ -20,10 +20,10 @@ data Main where 0 <= i, i <= 3 {
     nested: Outer;
     i: u64;
 }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 {
-    self.i = 2;
-    Main::build(&mut self);
+    main.i = 2;
+    Main::build(main);
 }
 machine Main::build(main: &mut Main) reaches Console
 {

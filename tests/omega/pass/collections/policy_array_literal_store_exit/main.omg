@@ -18,14 +18,14 @@ where
     rows: [[i32 in Wrapping; 3]; 2];
     i: u64;
 }
-machine Main::main(&mut self) reaches Console {
-    self.bare = [1, 2, 3];
-    self.wrapped = [4, 5, 6];
-    self.saturated = [7, 8, 9];
-    self.whole = [10, 11, 12];
-    self.i = 1;
-    self.rows[self.i] = [13, 14, 15];
-    transition { _ -> check(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.bare = [1, 2, 3];
+    main.wrapped = [4, 5, 6];
+    main.saturated = [7, 8, 9];
+    main.whole = [10, 11, 12];
+    main.i = 1;
+    main.rows[main.i] = [13, 14, 15];
+    transition { _ -> check(main) }
     state check(main: &mut Main) {
         transition main.bare[2] == 3
             && main.wrapped[1] == 5

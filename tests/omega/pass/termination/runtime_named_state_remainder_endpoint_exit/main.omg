@@ -38,12 +38,12 @@ terminates by remaining in 0..(cap % divisor + 6);
     }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let tick: u64 = 40 + 2;
     let outcome: u64 = walk(5, 17, 4);
     transition outcome == 0 && tick == 42 {
-        true -> passed(&mut self)
-        _ -> failed(&mut self)
+        true -> passed(main)
+        _ -> failed(main)
     }
 
     state passed(main: &mut Main) { main.console.exit_process(0); }
