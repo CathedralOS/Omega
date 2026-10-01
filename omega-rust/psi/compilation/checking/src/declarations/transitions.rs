@@ -11,6 +11,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 mod evaluation;
+mod terminal_results;
 pub(crate) use evaluation::TransitionValueEnvironments;
 
 /// Resolve a named transfer's exact declaration, retaining its owning machine.
@@ -131,7 +132,22 @@ pub(crate) fn validate_transition_target_node(
     // name their state declaration. Resolve both exact identities before the
     // compatibility spelling paths: a generated `entry` state is not found
     // by looking up the machine's source name in the local state table.
-    if let Some((_, state)) = resolved_transition_target_state(program, path.symbol) {
+    if let Some((owner, state)) = resolved_transition_target_state(program, path.symbol) {
+        // Another machine in target position is a terminal call whose
+        // normal result completes this state; a state of this machine,
+        // including its re-entered entry, is a jump.
+        if owner.symbol != current_machine.symbol
+            && let Some(current_state) = current_state
+        {
+            terminal_results::validate(
+                program,
+                current_machine,
+                current_state,
+                owner,
+                state,
+                diagnostics,
+            );
+        }
         validate_transition_arguments_handles(
             program,
             current_machine,
