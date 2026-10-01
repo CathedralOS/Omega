@@ -345,7 +345,7 @@ fn fixed_byte_array_unit_view_retains_true_type_extent_and_field_path() {
 
 #[test]
 fn fixed_byte_array_unit_view_rejects_wrong_primitive_array_and_access() {
-    for mutation in 0..11 {
+    for mutation in 0..10 {
         let mut module = fixture(false);
         verify_module(
             &module,
@@ -392,7 +392,7 @@ fn fixed_byte_array_unit_view_rejects_wrong_primitive_array_and_access() {
                     ScalarType::Integer(IntegerType::address(64).unwrap()),
                 )
             }
-            _ => module.machines[0].structural_parameters[0].access = StructuralAccess::Owned,
+            _ => unreachable!("mutation {mutation}"),
         }
         assert_eq!(extent(&module), None, "shape mutation {mutation}");
         assert!(
@@ -404,6 +404,19 @@ fn fixed_byte_array_unit_view_rejects_wrong_primitive_array_and_access() {
             "boundary shape mutation {mutation}"
         );
     }
+}
+
+/// An owned root lends its own initialized storage: the owner keeps the
+/// payload, and structural-argument replay still checks the loan's type,
+/// bounds, access and overlap (9aae7a801c admitted loans from owned storage).
+/// The unit view extent stays a borrowed-root fact, so the boundary buffer
+/// realization still declines to take its extent from an owned array.
+#[test]
+fn fixed_byte_array_unit_view_lends_from_an_owned_root() {
+    let mut module = fixture(false);
+    module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+    assert_eq!(extent(&module), None);
+    validate_module(&module).expect("an owned array root lends its unit view");
 }
 
 #[test]
