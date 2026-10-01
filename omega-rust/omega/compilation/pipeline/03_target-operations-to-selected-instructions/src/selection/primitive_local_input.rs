@@ -85,7 +85,7 @@ pub(super) fn readable(
     }
     source.structural.as_ref().is_some_and(|signature| {
         signature.entry_claims.is_empty()
-            && borrowed_parameter(source, place).is_some_and(|parameter| {
+            && read_parameter(source, place).is_some_and(|parameter| {
                 (matches!(
                     parameter.access,
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -106,9 +106,11 @@ pub(super) fn readable(
     })
 }
 
-/// Entry referents and state address joins retain the same declared storage
-/// type. The join lookup also rejoins its exact block/place declaration.
-fn borrowed_parameter(
+/// Entry referents, state address joins and a state's owned arrivals retain
+/// the same declared storage type. The join lookup also rejoins its exact
+/// block/place declaration; an owned arrival is observed in its block home,
+/// exactly as a field read of that arrival is.
+fn read_parameter(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
@@ -120,6 +122,36 @@ fn borrowed_parameter(
         .find(|parameter| parameter.semantic.place == place)
         .map(|parameter| &parameter.semantic)
         .or_else(|| super::address_join_input::join(source, place).map(|(_, parameter)| parameter))
+        .or_else(|| owned_arrival(source, place))
+}
+
+/// A non-entry block's owned structural parameter at its exact block/place
+/// declaration.
+fn owned_arrival(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    let signature = source.structural.as_ref()?;
+    let mut matching = source.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+            .map(move |parameter| (block.id, parameter))
+    });
+    let (block, parameter) = matching.next()?;
+    (matching.next().is_none()
+        && block != source.entry_block
+        && parameter.access == StructuralAccess::Owned
+        && signature.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && declaration.kind
+                    == (StructuralPlaceKind::BlockParameter {
+                        block,
+                        position: parameter.position,
+                    })
+        }))
+    .then_some(parameter)
 }
 
 /// Exact field geometry is independent of whether its home came from an owned
@@ -148,7 +180,7 @@ pub(super) fn read_geometry(
             let structural_type = super::aggregate_result_input::home(source, *place)
                 .map(|(_, result)| result.structural_type)
                 .or_else(|| {
-                    borrowed_parameter(source, *place).map(|parameter| parameter.structural_type)
+                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
                 })?;
             let (offset, _, elements) =
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(

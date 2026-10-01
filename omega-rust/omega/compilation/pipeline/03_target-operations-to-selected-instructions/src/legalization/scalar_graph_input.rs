@@ -37,7 +37,7 @@ pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
 mod literals;
-mod primitive_locals;
+pub(super) mod primitive_locals;
 pub(super) mod reference_custody;
 pub(super) mod structural_call;
 pub(super) mod structural_fields;

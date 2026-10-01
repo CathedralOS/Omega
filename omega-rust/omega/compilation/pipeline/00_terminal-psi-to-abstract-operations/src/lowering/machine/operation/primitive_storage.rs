@@ -44,6 +44,44 @@ pub(super) fn parameter<'a>(
     .then_some(parameter)
 }
 
+/// A state's owned structural parameter: the value arrives whole on its block
+/// edge and lives in the block's own value storage, exactly as the root a
+/// structural field read observes. Only a projected read below it is a
+/// primitive leaf; the whole owned record never is.
+fn owned_state_parameter(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    let mut declarations = machine
+        .structural_places
+        .iter()
+        .filter(|row| row.id == place);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+        return None;
+    };
+    let parameter = machine
+        .blocks
+        .iter()
+        .find(|row| row.id == block)?
+        .structural_parameters
+        .get(position as usize)?;
+    (parameter.place == place
+        && parameter.position == position
+        && parameter.access == StructuralAccess::Owned
+        && matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
+    .then_some(parameter)
+}
+
 pub(super) fn local(
     machine: &TerminalMachine,
     place: PlaceId,
@@ -194,6 +232,12 @@ pub(super) fn lower(
                         .then(|| owned_result(machine, source))
                         .flatten()
                         .map(|(_, result)| result.structural_type)
+                })
+                .or_else(|| {
+                    (!path.is_empty())
+                        .then(|| owned_state_parameter(machine, source))
+                        .flatten()
+                        .map(|parameter| parameter.structural_type)
                 })
                 .or_else(|| {
                     parameter(machine, types, source)
@@ -440,5 +484,66 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn a_state_owned_arrival_is_a_projected_read_root() {
+        use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
+        use terminal_psi::{
+            StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+            StructuralPlaceDeclaration,
+        };
+        let place = PlaceId::new(4).unwrap();
+        let arrival = |access, multiplicity| StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type: StructuralTypeId::new(2).unwrap(),
+            multiplicity,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let with_arrival = |parameter: StructuralParameterDeclaration| {
+            let mut arm = block(5, Vec::new(), Vec::new());
+            arm.structural_parameters.push(parameter);
+            let mut source = machine(arm);
+            source.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: BlockId::new(5).unwrap(),
+                    position: 0,
+                },
+            });
+            source
+        };
+        for multiplicity in [
+            StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Affine,
+        ] {
+            let source = with_arrival(arrival(StructuralAccess::Owned, multiplicity));
+            assert!(super::owned_state_parameter(&source, place).is_some());
+        }
+        // Linear custody, a borrowed join and a misdeclared position are not
+        // owned arrival storage.
+        let linear = with_arrival(arrival(
+            StructuralAccess::Owned,
+            StructuralMultiplicity::Linear,
+        ));
+        assert!(super::owned_state_parameter(&linear, place).is_none());
+        let borrowed = with_arrival(arrival(
+            StructuralAccess::MutableBorrow,
+            StructuralMultiplicity::Unrestricted,
+        ));
+        assert!(super::owned_state_parameter(&borrowed, place).is_none());
+        let mut misplaced = with_arrival(arrival(
+            StructuralAccess::Owned,
+            StructuralMultiplicity::Unrestricted,
+        ));
+        misplaced.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+            block: BlockId::new(2).unwrap(),
+            position: 0,
+        };
+        assert!(super::owned_state_parameter(&misplaced, place).is_none());
     }
 }
