@@ -55,7 +55,12 @@ pub(in crate::validation) fn validate(
                 | StructuralAccess::MutableBorrow
         ) || (!element_result && access == StructuralAccess::WriteOnlyBorrow)
     };
-    if !access_admitted || !terminal_psi::is_bounded_structural_scalar_store_path(path) {
+    // Observations compose through the complete static path resolver below:
+    // each field and fixed index must match its declaration and extent. The
+    // narrower store grammar is not a restriction on reading nested storage.
+    // Dynamic indices and reference crossings still fail path resolution.
+    if !access_admitted || (writing && !terminal_psi::is_bounded_structural_scalar_store_path(path))
+    {
         return Err(invalid());
     }
     field_path(

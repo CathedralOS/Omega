@@ -49,7 +49,7 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(replay.invalid());
     }
-    let geometry = match crate::structural_inputs::structural_reference_input::byte_field_storage(
+    let geometry = match crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
         parameter.semantic.structural_type,
         &source.path,
         *field,
@@ -61,7 +61,7 @@ pub(in crate::selection) fn read_byte(
                 .ok_or_else(|| replay.invalid())?,
         ),
         None => crate::selection::field_bytes::FieldBytes::Descriptor(
-            crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+            crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
                 parameter.semantic.structural_type,
                 &source.path,
                 *field,

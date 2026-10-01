@@ -358,7 +358,7 @@ pub(super) fn read_geometry(
                     &signature.structural_types,
                 )?,
                 _ if observes_byte_length => {
-                    crate::structural_inputs::structural_reference_input::byte_field_length(
+                    crate::structural_inputs::structural_reference_input::observed_byte_field_length(
                         structural_type,
                         path,
                         *field,

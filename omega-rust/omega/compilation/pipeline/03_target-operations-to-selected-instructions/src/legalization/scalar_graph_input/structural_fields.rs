@@ -367,7 +367,7 @@ pub(in crate::legalization) fn byte_read(
     }
     // A bounded owner holds its bytes inline; a shared view field holds a
     // descriptor whose pointer the read follows.
-    crate::structural_inputs::structural_reference_input::byte_field_storage(
+    crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
         structural_type,
         path,
         *field,
@@ -375,7 +375,7 @@ pub(in crate::legalization) fn byte_read(
     )
     .map(|_| ())
     .or_else(|| {
-        crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+        crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
             structural_type,
             path,
             *field,
@@ -416,7 +416,7 @@ pub(in crate::legalization) fn read(
     } = operation
     {
         let (structural_type, access) = byte_field_root(function, *source)?;
-        crate::structural_inputs::structural_reference_input::byte_field_length(
+        crate::structural_inputs::structural_reference_input::observed_byte_field_length(
             structural_type,
             path,
             *field,

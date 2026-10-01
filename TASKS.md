@@ -1241,92 +1241,40 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `e7c13a0f55`
-  plus the selected-reference address transport change on macOS ARM64, the
-  closed-stdin command still exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `f14e818bdc`
+  on macOS ARM64, closed stdin still exits 200 before Terminal production:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect` →
-  receiver reconciliation. `borrows/branch_selected_record_receiver_exit` now
-  executes its authored 70: a helper chooses either of two mutable record
-  addresses, and the caller stores before and after a receiver call while
-  observing both outcomes and an untouched neighbor. Source replay joins the
-  producer's checked loan across returning arms; Terminal replay checks exact
-  finite candidate coverage, custody and acyclic result dependencies. Native
-  consumers retain and load the actual returned address, never choose a static
-  candidate. The three single-origin byte-store, method-receiver and projected-call
-  controls also execute 70. These results do not clear the real
-  `from_room.append_exit(self.direction_command(direction), direction, to)`
-  composition. Its next focused reproduction must combine an attached,
-  alternative-origin reference producer with a composed receiver that forwards
-  a nested qualified-byte call result and enum/record arguments. Stage 04
-  `receiver_calls/mod.rs::reconcile_state` inserts the retained receiver into
-  the existing argument roster and shifts Unit-call claim transfers; identify
-  the exact declining condition rather than assume the remaining omission is
-  another origin join. Preserve authored argument order and independent custody
-  replay. The aggregate receiver-reconciliation diagnostic has not yet isolated
-  that condition, and the full customer still does not emit.
-  `structs/qualified_record_element_assignment_exit` executes 70: a method
-  forwards qualified owned bytes and a direction through a state, constructs
-  and stores an indexed record, and observes its bytes, live length, direction,
-  nested destination and untouched neighbor. Source/Terminal/native replay
-  retain exact predicates, producer, capacity and bounds; copying a byte field
-  does not authorize borrowing it. The scripted customer session cannot run yet.
-  `calls/qualified_record_call_result_field_exit` executes 70: two effectful
-  mutable-self calls return independently completed copy records with qualified
-  byte fields, then store them into separate fields. Exact call order, bytes,
-  live lengths, scalar fields and an untouched sibling are observed natively;
-  canonical and target replay reject wrong producers, homes and payload extents.
-  Keep `text/nested_mutable_receiver_byte_result_exit` as the ordered byte-owner
-  operand control (exit 70).
-  Owned bounded-byte completions now retain predicates and live length through
-  calls, ordinary parameter-rooted field replacement and native aggregate
-  returns: `text/owned_byte_call_result_field_exit` executes 70, including a
-  longer-to-shorter replacement and sibling preservation.
-  `borrows/returned_record_byte_field_store_exit` also executes 70: an explicit
-  borrowed member actual returns a reference to one fixed array element, byte
-  and scalar stores mutate its original record, and transition reads observe
-  the parent after release without changing its neighbor. Canonical publication,
-  optimizer validation and native replay retain the exact static origin; no
-  copied record home or descriptor stands in for a reference. The current
-  static child-call route now also executes:
-  `borrows/returned_record_projected_call_exit` exits 70 after a helper mutates
-  a nested child through the returned permission, with stores before/after,
-  parent restoration and unchanged neighboring storage. Its observation uses
-  an ordinary read helper; direct nested field reads below fixed-array indices
-  now also execute in the record-element witness. Source replay rejects same-typed sibling
-  substitution; Terminal checks path/access/lifetime and suspended parents;
-  x64/ARM64 target replay rejects forged root, index and sibling-field rows.
-  Remaining receiver work in Stage 04
-  `receiver_calls/mod.rs::result_receiver_argument` must retain the loan of
-  immutable `let from_room: &mut Room`, not require a mutable owned-record
-  binding; Stage 05 receiver replay must retain the same distinction.
-  `Level::room_mut`
-  additionally returns different array elements across its 16 branches, beyond
-  the now-executable single-static-origin result contract. Retain the selected
-  result address and independently verified origin alternatives rather than
-  choosing one arm's path. Preserve capacity, predicates, producer availability,
-  access, disjointness and exact release boundaries through both dependencies.
-  `clear_level` now admits its mutable
-  view element calls; projected loans and independent slice replay preserve
-  represented field constraints without applying owned-move restrictions.
-  Readable owned projections now copy unrestricted nested records through
-  ordinary field replacement and exact source replay; native argument
-  transport retains bounded-owned byte fields and their declared predicates.
-  Both `borrows/owned_nested_record_copy_exit` and
-  `borrows/qualified_record_view_call_exit` execute 70; the latter performs
-  two successive mutable element calls and preserves both UTF8 labels.
-  Three neighboring native controls retain exits 70, 181 and 0. Twelve
-  call-argument tests and shared/mutable slice replay controls reject altered
-  root, path, type or access; bounds and write-only widening still reject.
-  Preserve exact copied-source replay, borrowed-descriptor exclusion,
-  guarded Unit cleanup, selected-edge indexed arguments,
-  and whole-view descriptor copying separately from projected backing reads.
-  Preserve the established local byte-copy, write-frame, stale-view,
-  consumed/partial-owner and suspended-root controls. These dependency results
-  do not close the dungeon application acceptance.
-  Acceptance remains
-  native exit 0 with the authored room, prompt, command and goodbye output;
-  independently verified helper plans are not native execution evidence.
+  `MazeBuilder::build` → `MazeBuilder::carve_room` → `RoomEvents::roll_event` →
+  `RoomEvents::apply_event` → `EnemyTables::roll_enemy` →
+  `EnemyTables::roll_enemy_kind` declines at
+  `structural field store: pure source: scalar expression row`
+  (state 1, statement 3). The authored health expression adds a `u32`
+  random result and assigns it to `i32 in Wrapping`; follow
+  **IMPLICIT-STORE-CONVERSION** for explicit value-preserving conversion and
+  real bounds evidence, never relabel a typed operand to force lowering.
+
+  The composed receiver reproduction
+  `borrows/branch_selected_record_composed_receiver_exit` now passes source
+  receiver reconciliation and attached-reference ingress replay, but Terminal
+  rejects `InvalidStructuralByteSequenceFieldAccess(OperationId(11))`.
+  Trace the emitted operation and exact source place before changing emission
+  or receiving validation. It combines a selected reference result, a nested
+  qualified-byte result, copied enum operands and a composed mutable receiver;
+  its authored native exit 70 is still required. The independent nested owned
+  byte-record literal witness executes 70, and 15 existing native controls
+  retain their authored results. None of those closes the application.
+
+  Preserve exact initializer identity, nested consuming-call coordinates,
+  finite reference-origin coverage, selected result addresses and loan release;
+  statement coincidence or a same-typed sibling cannot substitute provenance.
+  Keep the returned-record receiver/projected-call/byte-store controls,
+  `structs/qualified_record_element_assignment_exit`,
+  `text/nested_mutable_receiver_byte_result_exit`, copied nested-record
+  predicates, and the local-loan/mutable-and-shared-argument negative controls.
+  Guarded and closed-case returns must preserve physical view cleanup as well
+  as semantic custody. The application acceptance remains native exit 0 with
+  its authored room, prompt, command and goodbye output; independently checked
+  helper plans are not native application execution evidence.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
   output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`
