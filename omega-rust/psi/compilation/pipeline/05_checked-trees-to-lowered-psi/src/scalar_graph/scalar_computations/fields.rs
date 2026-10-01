@@ -14,12 +14,13 @@
 //! normalization supplies nested field offsets and physical integer widths;
 //! an `IntegerAt` read decodes that width before widening to its semantic
 //! carrier. Recomputing a flat scalar layout here loses both relationships.
-//! A shared record-as-record recast (`&place as &View`) erases the same way:
-//! the checked judgment proved identical geometry, so a view field reads the
-//! source leaf at its offset under the source's own declaration
+//! A record-as-record recast (`&place as &View`, shared or mutable) erases the
+//! same way: the checked judgment proved identical geometry, so a view field
+//! reads the source leaf at its offset under the source's own declaration
 //! (`validation::recast_record_source_leaf`). Terminal then verifies an
-//! ordinary read of a field the source declares, with the source's stronger
-//! facts. A leaf whose carrier differs needs a re-view and refuses here.
+//! ordinary read of a field the source declares, with the source's facts. An
+//! equal-width integer leaf of the other sign reads its declared carrier and
+//! replays the view's modular image; any other carrier change refuses.
 //! Stores use the same captured source and normalized geometry. A loan local
 //! is not a second storage home; write permission and concrete encoding fit
 //! remain separate obligations at the emitting operation.
@@ -82,6 +83,11 @@ pub(crate) struct Binding {
     bounded_leaf: bool,
     field: StructuralFieldId,
     scalar_type: ScalarType,
+    /// The carrier the observed leaf declares. It equals `scalar_type` except
+    /// through a typed record view whose field re-views an equal-width
+    /// integer leaf of another sign; the read then observes the leaf at this
+    /// carrier and replays the view's modular image.
+    leaf_scalar_type: ScalarType,
 }
 
 #[derive(Clone)]
@@ -570,8 +576,9 @@ fn record_loan_subject(
             remaining_bytes: tail.and_then(|(index, length)| length.checked_sub(index)),
         });
     }
-    // A shared record-as-record recast keeps the source declaration as the
-    // namespace; each read rejoins its view field to the source leaf.
+    // A record-as-record recast keeps the source declaration as the
+    // namespace; each read rejoins its view field to the source leaf. A
+    // mutable view reads the same way: the loan only adds write authority.
     // The recast may wrap the borrow or sit inside its target
     // (`&place as &View` parses as a borrow of the recast place).
     let recast = recast
@@ -582,7 +589,7 @@ fn record_loan_subject(
     let mut typed_overlay = None;
     if recast
         && byte_overlay.is_none()
-        && *access == language_core::ReferenceAccess::Shared
+        && runtime_index.is_none()
         && declaration.identity != referee_identity
         && matches!(declaration.shape, StructuralTypeShape::Record { .. })
     {
@@ -874,21 +881,22 @@ pub(crate) fn prepare(
                 } else {
                     Vec::new()
                 };
-            let (walk, identity, expected_type) = match &typed_overlay {
+            let (walk, identity, expected_type, leaf_primitive) = match &typed_overlay {
                 Some(overlay) => {
-                    let (walk, identity) = record_view_source_walk(
+                    let (walk, identity, leaf_primitive) = record_view_source_walk(
                         checked,
                         overlay,
                         subject,
                         *field,
                         node.primitive_type,
                     )?;
-                    (walk, identity, None)
+                    (walk, identity, None, leaf_primitive)
                 }
                 None => (
                     subject.path.clone(),
                     identity,
                     Some(subject.type_identity.as_str()),
+                    node.primitive_type,
                 ),
             };
             // Terminal's scalar field read names record fields followed by at
@@ -975,6 +983,7 @@ pub(crate) fn prepare(
                 "record read has no declared field identity",
             ))?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;
+            let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
             if fields.next().is_some()
                 || retained.relevance.is_erased()
                 || !matches!(
@@ -983,13 +992,13 @@ pub(crate) fn prepare(
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_)
                 )
-                || retained.field_type.scalar_type() != Some(scalar_type)
+                || retained.field_type.scalar_type() != Some(leaf_scalar_type)
             {
                 return unsupported("record read changed its scalar field carrier");
             }
             let bounded_leaf =
                 matches!(retained.field_type, StructuralFieldType::BoundedInteger(_));
-            if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+            if matches!(leaf_scalar_type, ScalarType::IeeeFloat(_)) {
                 primitive_path.push(terminal_psi::StructuralPathSegment::Field(
                     retained.identity.clone(),
                 ));
@@ -1020,6 +1029,7 @@ pub(crate) fn prepare(
                 primitive_path,
                 field: retained.id,
                 scalar_type,
+                leaf_scalar_type,
             });
         }
     }
@@ -1027,18 +1037,26 @@ pub(crate) fn prepare(
 }
 
 /// The source-side walk for a read through a typed record view: the canonical
-/// path segments from the source record to the leaf's declaring record, and
-/// the leaf's own field identity. Only a direct scalar field of the view with
-/// the source leaf's exact carrier is admitted here; a nested view path or a
-/// leaf whose carrier differs (a signed field viewed as unsigned) needs a
-/// representation re-view this read does not perform.
+/// path segments from the source record to the leaf's declaring record, the
+/// leaf's own field identity, and the leaf's declared carrier. Only a direct
+/// scalar field of the view is admitted. Its leaf keeps the view's carrier or
+/// is an equal-width integer of the other sign, whose modular image
+/// `representation_view::replay` spells; any other carrier change needs a
+/// Terminal re-view this read does not perform.
 fn record_view_source_walk(
     checked: &CheckedTrees,
     overlay: &TypedRecordOverlay,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
-) -> Result<(Vec<checked_trees::CheckedUnitStructuralPathSegment>, String), LoweringError> {
+) -> Result<
+    (
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        String,
+        PrimitiveType,
+    ),
+    LoweringError,
+> {
     if !subject.path.is_empty() {
         return unsupported("record view read selects below a direct view field");
     }
@@ -1051,7 +1069,10 @@ fn record_view_source_walk(
     .ok_or(LoweringError::Unsupported(
         "record view field has no single source leaf",
     ))?;
-    if leaf.primitive != primitive {
+    let equal_width_integers = leaf.primitive.accepts_integer_literal()
+        && primitive.accepts_integer_literal()
+        && leaf.primitive.scalar_byte_size() == primitive.scalar_byte_size();
+    if leaf.primitive != primitive && !equal_width_integers {
         return unsupported("record view leaf changes its scalar carrier");
     }
     let (last, prefix) = leaf.path.split_last().ok_or(LoweringError::Unsupported(
@@ -1077,11 +1098,11 @@ fn record_view_source_walk(
     let validation::RecastLeafSegment::Field(last) = last else {
         return unsupported("record view source leaf is not a field");
     };
-    Ok((walk, field_path_identity(checked, *last)?))
+    Ok((walk, field_path_identity(checked, *last)?, leaf.primitive))
 }
 
 /// The canonical path identity of one declared record field symbol.
-fn field_path_identity(
+pub(crate) fn field_path_identity(
     checked: &CheckedTrees,
     field: symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
@@ -1242,6 +1263,11 @@ pub(super) fn observation(
                 .place
         }
     };
+    if binding.leaf_scalar_type != scalar_type
+        && (binding.runtime_index.is_some() || binding.byte_overlay.is_some())
+    {
+        return unsupported("record view carrier change needs a static source leaf");
+    }
     if let Some(selector) = binding.runtime_index.clone() {
         // A loan captures its selector at formation. Immutable scalar
         // coordinates retain that value, while a field coordinate here would
@@ -1363,7 +1389,8 @@ pub(super) fn observation(
             scalar_type,
         );
     }
-    Ok(match scalar_type {
+    let leaf_type = binding.leaf_scalar_type;
+    let leaf = match leaf_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
                 source,
@@ -1375,14 +1402,22 @@ pub(super) fn observation(
             source,
             path: binding.path.clone(),
             field: binding.field,
-            scalar_type,
+            scalar_type: leaf_type,
         },
         ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
             source: PrimitiveReadSource::Place(source),
             path: binding.primitive_path.clone(),
-            scalar_type,
+            scalar_type: leaf_type,
         },
-    })
+    };
+    // A record view field over an equal-width integer leaf of the other sign
+    // observes the leaf at its declared carrier, then takes the same modular
+    // image a scalar re-view replays.
+    if leaf_type == scalar_type {
+        Ok(leaf)
+    } else {
+        crate::expression_preparation::representation_view::replay(leaf, scalar_type)
+    }
 }
 
 /// Observe just the selected field's bytes at its exact layout offset. The

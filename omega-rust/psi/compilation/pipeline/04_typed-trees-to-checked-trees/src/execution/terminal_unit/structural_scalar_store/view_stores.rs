@@ -6,8 +6,9 @@
 //! rejoined place decides the leaf family:
 //!
 //! - a whole primitive field of the same integer width (`&mut self.x as
-//!   &mut u8` over an `i8` field) lowers to one primitive store whose value
-//!   is retagged to the leaf's declared carrier at emission;
+//!   &mut u8` over an `i8` field, or a direct field of a record view whose
+//!   source leaf has the other sign) lowers to one primitive store whose
+//!   value is retagged to the leaf's declared carrier at emission;
 //! - one `u8` element selected by `FixedIndex`/`RuntimeIndex` below a
 //!   bounded-owned byte field (`&mut self.buf[k] as &mut u32`) lowers to one
 //!   primitive store per little-endian footprint byte, each byte's `index +

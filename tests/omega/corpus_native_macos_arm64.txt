@@ -851,8 +851,7 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 736ms @48008
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1530ms exit:70 @fb2178def922
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @48008365d839
-pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2043ms @b5d2bc92c85f
-	terminal-artifact production failed: Lowering(Unsupported("receiver alias escapes through a local initializer"))
+pass/recast/runtime_mutable_equivalent_record_recast_exit built 2362ms exit:70 @a2c11620030e
 pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d7b4+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 728ms @48008365d839

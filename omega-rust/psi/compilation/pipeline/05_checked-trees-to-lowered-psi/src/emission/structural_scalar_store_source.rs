@@ -743,7 +743,25 @@ pub(crate) fn validate_assignment(
     path.push(CheckedUnitStructuralPathSegment::Field(
         store.field_identity.clone(),
     ));
-    if source.root != destination || source.path != path {
+    // A same-carrier field of a typed record view writes the source leaf the
+    // recast judgment matched; the checked plan names that leaf directly.
+    let (authored_root, authored_path) =
+        match crate::emission::representation_view_store::record_view_leaf_destination(
+            checked,
+            machine,
+            state_symbol,
+            statement_index as usize,
+            assignment.target,
+        )? {
+            Some(rejoined) if rejoined.view == rejoined.leaf => (rejoined.root, rejoined.path),
+            Some(_) => {
+                return unsupported(
+                    "structural scalar store through a record view changes its carrier",
+                );
+            }
+            None => (source.root, source.path),
+        };
+    if authored_root != destination || authored_path != path {
         return unsupported("structural scalar store destination drifted from its authored place");
     }
     if computation_root(

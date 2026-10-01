@@ -1885,12 +1885,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `runtime_mutable_equivalent_record_recast_exit`) now bound their fields with
   data `where` facts in static form and check: interval-only `where` bounds
   narrow recast leaves (`checking/src/value_custody/recasts/record_representation.rs`).
-  The shared customer runs natively (exit **70**, interpreter agrees): stage
-  05 reads a view field as the source leaf at the same offset
-  (`scalar_computations/fields.rs`). The mutable customer stops at stage 05
-  `receiver alias escapes through a local initializer`; it also needs its
-  `i16`-as-`u16` leaves read through the modular re-view, which record view
-  reads refuse today (`record view leaf changes its scalar carrier`). The scalar customer
+  Both run natively (exit **70**, interpreter agrees): stage 05 reads a view
+  field as the source leaf at the same offset
+  (`scalar_computations/fields.rs`), a mutable view's field store rejoins
+  that leaf in stage 04 (`structural_scalar_store/destination.rs`), and an
+  equal-width integer leaf of the other sign takes the modular image. The scalar customer
   `runtime_float_range_representation_recast_exit` still spells
   `f32 [0..=1]`: its `&u32` view of an `f32` needs a Terminal bit re-view,
   which Terminal does not have. `generics/ranged_const_parameter_attached_shape`

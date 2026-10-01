@@ -6,7 +6,10 @@
 //! Replay rejoins the checked plan to the recast loan: the named target's
 //! `LocalData` statement unwraps `Borrow` and the recast `Cast` to the place
 //! the loan carries, and that place's parameter root and structural path
-//! must equal the plan's. Emission follows the view's read decomposition:
+//! must equal the plan's. A direct field of a record view appends the source
+//! leaf the recast judgment matched at the same offset and width
+//! (`record_view_leaf_destination`, shared with the ordinary store replay).
+//! Emission follows the view's read decomposition:
 //!
 //! - a leaf field of the view's own integer width emits one
 //!   `WriteOnlyPrimitiveStore`, the authored value retagged to the leaf's
@@ -57,19 +60,46 @@ pub(crate) fn validate_assignment(
     if owner.symbol != machine {
         return unsupported("representation view store changed its authored machine");
     }
-    let ExpressionNode::Name(name) = checked.expression_table.expression(assignment.target) else {
-        return unsupported("representation view store lost its named destination");
+    // `view = v` names a scalar view local; `view.field = v` names one direct
+    // field of a record view local.
+    let (view_local, view_field) = match checked.expression_table.expression(assignment.target) {
+        ExpressionNode::Name(name) => {
+            if !name.symbol.is_valid()
+                || name.head_symbol != name.symbol
+                || checked
+                    .expression_table
+                    .name_path_members(name.members)
+                    .len()
+                    != 1
+            {
+                return unsupported(
+                    "representation view store substituted its view local destination",
+                );
+            }
+            (name.symbol, None)
+        }
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(name) = checked.expression_table.expression(member.receiver)
+            else {
+                return unsupported("representation view store field has no view local receiver");
+            };
+            if !name.symbol.is_valid()
+                || name.head_symbol != name.symbol
+                || !member.member_symbol.is_valid()
+                || checked
+                    .expression_table
+                    .name_path_members(name.members)
+                    .len()
+                    != 1
+            {
+                return unsupported(
+                    "representation view store substituted its view local destination",
+                );
+            }
+            (name.symbol, Some(member.member_symbol))
+        }
+        _ => return unsupported("representation view store lost its named destination"),
     };
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || checked
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return unsupported("representation view store substituted its view local destination");
-    }
     let CheckedStoreRoot::Parameter { position } = write.destination else {
         return unsupported("representation view store has no parameter root");
     };
@@ -82,7 +112,7 @@ pub(crate) fn validate_assignment(
     // The view local is the `&mut`/`&write` recast loan whose statement
     // precedes the assignment; unwrap its value to the carried place.
     let Some((_, local)) = checked
-        .state_local_declaration(state, name.symbol)
+        .state_local_declaration(state, view_local)
         .filter(|(ordinal, _)| *ordinal < write.statement_index as usize)
     else {
         return unsupported("representation view store names an unknown view local");
@@ -117,9 +147,6 @@ pub(crate) fn validate_assignment(
     else {
         return unsupported("representation view store's local lost its mutable view type");
     };
-    if checked.primitive_type_reference(*referee) != Some(write.view) {
-        return unsupported("representation view store changed its view carrier");
-    }
     let source = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine,
@@ -127,7 +154,34 @@ pub(crate) fn validate_assignment(
         Some(write.statement_index as usize),
         place,
     )?;
-    if source.root != parameter.symbol || source.path != write.path {
+    let mut expected_path = source.path.clone();
+    match view_field {
+        None => {
+            if checked.primitive_type_reference(*referee) != Some(write.view) {
+                return unsupported("representation view store changed its view carrier");
+            }
+        }
+        // A record view's field writes the source leaf the recast judgment
+        // matched at the same offset and width, recomputed here from the
+        // loaned place's declared type rather than taken from the plan.
+        Some(_) => {
+            let rejoined = record_view_leaf_destination(
+                checked,
+                machine,
+                state_symbol,
+                write.statement_index as usize,
+                assignment.target,
+            )?
+            .ok_or(LoweringError::Unsupported(
+                "representation view store's record field has no recast loan",
+            ))?;
+            if rejoined.view != write.view || rejoined.leaf != write.element {
+                return unsupported("representation view store changed its view carrier");
+            }
+            expected_path = rejoined.path;
+        }
+    }
+    if source.root != parameter.symbol || expected_path != write.path {
         return unsupported("representation view store differs from its loaned place");
     }
     let statement_index = write.statement_index;
@@ -186,6 +240,131 @@ pub(crate) fn validate_assignment(
         }
     }
     Ok(())
+}
+
+/// A store through one direct field of a typed record recast view local
+/// (`let view: &mut View = &mut place as &mut View; view.field = v`), rejoined
+/// to the source leaf the recast judgment matched at the same offset and
+/// width: the loaned place's root, its path followed by the leaf's segments,
+/// and the carriers on both sides. `None` when the target is not such a
+/// field, so other store routes keep their own replay.
+pub(crate) struct RecordViewLeafDestination {
+    pub(crate) root: SymbolHandle,
+    pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(crate) view: PrimitiveType,
+    pub(crate) leaf: PrimitiveType,
+}
+
+pub(crate) fn record_view_leaf_destination(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    target: checked_trees::expression::ExpressionHandle,
+) -> Result<Option<RecordViewLeafDestination>, LoweringError> {
+    let (owner, state) = source_custody::authored_state(checked, state_symbol)?;
+    let ExpressionNode::Member(member) = checked.expression_table.expression(target) else {
+        return Ok(None);
+    };
+    let ExpressionNode::Name(name) = checked.expression_table.expression(member.receiver) else {
+        return Ok(None);
+    };
+    if !name.symbol.is_valid()
+        || name.head_symbol != name.symbol
+        || !member.member_symbol.is_valid()
+        || checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return Ok(None);
+    }
+    let Some((_, local)) = checked
+        .state_local_declaration(state, name.symbol)
+        .filter(|(ordinal, _)| *ordinal < statement_index)
+    else {
+        return Ok(None);
+    };
+    let TypeReferenceNode::Reference {
+        access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::WriteOnly,
+        referee,
+        ..
+    } = checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return Ok(None);
+    };
+    if local.is_mutable || checked.primitive_type_reference(*referee).is_some() {
+        return Ok(None);
+    }
+    let mut cursor = local.initial_value;
+    let mut recast = false;
+    let place = loop {
+        match checked.expression_table.expression(cursor) {
+            ExpressionNode::Borrow(borrow)
+                if matches!(
+                    borrow.access,
+                    language_core::ReferenceAccess::Mutable
+                        | language_core::ReferenceAccess::WriteOnly
+                ) =>
+            {
+                cursor = borrow.target;
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                recast = true;
+                cursor = cast.value;
+            }
+            _ => break cursor,
+        }
+    };
+    if !recast || !checked.expression_table.expression_is_valid(place) {
+        return Ok(None);
+    }
+    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine,
+        state_symbol,
+        Some(statement_index),
+        place,
+    )?;
+    let source_type =
+        validation::declared_place_type_raw(&checked.typed, owner, Some(state), place).ok_or(
+            LoweringError::Unsupported("record view store lost its source place type"),
+        )?;
+    let leaf = validation::recast_record_source_leaf(
+        &checked.typed,
+        source_type,
+        *referee,
+        member.member_symbol,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "record view store field has no single source leaf",
+    ))?;
+    let mut path = source.path;
+    for segment in &leaf.path {
+        path.push(match segment {
+            validation::RecastLeafSegment::Field(symbol) => {
+                CheckedUnitStructuralPathSegment::Field(
+                    crate::scalar_graph::scalar_computations::fields::field_path_identity(
+                        checked, *symbol,
+                    )?,
+                )
+            }
+            validation::RecastLeafSegment::Element(index) => {
+                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).map_err(
+                    |_| LoweringError::Unsupported("record view store element exceeds u64"),
+                )?)
+            }
+        });
+    }
+    Ok(Some(RecordViewLeafDestination {
+        root: source.root,
+        path,
+        view: leaf.view_primitive,
+        leaf: leaf.primitive,
+    }))
 }
 
 /// Emit the store's operations: the whole value lowered at the view carrier,
