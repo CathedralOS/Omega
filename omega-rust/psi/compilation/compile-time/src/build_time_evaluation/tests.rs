@@ -24,6 +24,18 @@ fn completed_precheck_binds_accessors_after_installing_placed_plans() {
                 "../../../../../../tests/omega/pass/layouts/placed_view_source_access_compile/main.omg"
             ),
         ),
+        // The canary's entry holds a `Binding<Console>` and reaches `Console`
+        // to exit. Supply the core carrier and the one std requirement it
+        // calls; the std console module's target closure is not this test's
+        // subject.
+        (
+            source::SourceId(3),
+            include_str!("../../../../../../source/library/core/binding.omg"),
+        ),
+        (
+            source::SourceId(4),
+            "pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }",
+        ),
     ];
     let mut sources = SourceMap::default();
     for (source_id, text) in &texts {
