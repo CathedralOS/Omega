@@ -127,6 +127,14 @@ pub(super) fn replay(
                     return unsupported("scalar state interval predicate disagrees with source");
                 }
             }
+            validation::StateScalarContractRow::Finite { parameter } => {
+                // Rederived from the declaration, never read from the plan.
+                if validation::state_finite_predicate(&checked.typed, source, parameter).as_ref()
+                    != Some(predicate)
+                {
+                    return unsupported("scalar state finite predicate disagrees with source");
+                }
+            }
         }
     }
     let mut requirements = retained.requires.clone();

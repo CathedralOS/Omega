@@ -130,13 +130,17 @@ pub(in crate::validation) fn validate(
 // The context admits only invocation-lived places: an observation rooted at
 // an operation result or another block's local cannot be invariant scope.
 // Explicitly reject non-scalar atoms which do not necessarily contain values.
+// An IEEE comparison of one exact format is a scalar predicate: its operands
+// are values or field observations in that format, and it denotes the
+// format's ordered comparison, never mathematical equality.
 fn scalar_predicate(predicate: &Proposition) -> bool {
     match predicate {
         Proposition::Truth
         | Proposition::Falsehood
         | Proposition::Equal(..)
         | Proposition::LessThan(..)
-        | Proposition::LessOrEqual(..) => true,
+        | Proposition::LessOrEqual(..)
+        | Proposition::ScalarIeeeFloatComparison { .. } => true,
         Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
             members.iter().all(scalar_predicate)
         }
@@ -258,5 +262,24 @@ mod tests {
         for rejected in [place(3), place(4), place(5)] {
             assert!(context.validate(&observation(rejected)).is_err());
         }
+    }
+
+    #[test]
+    fn exact_format_ieee_comparisons_are_scalar_members() {
+        use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+        let comparison = |left: f32, right: f32| Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::LessOrEqual,
+            format: IeeeFloatFormat::Binary32,
+            left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(left.to_bits())),
+            right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(right.to_bits())),
+        };
+        assert!(super::scalar_predicate(&Proposition::Conjunction(vec![
+            comparison(-f32::MAX, 0.5),
+            comparison(0.5, f32::MAX),
+        ])));
+        // Content and proposition atoms remain outside the scalar vocabulary.
+        assert!(!super::scalar_predicate(&Proposition::Atom(
+            semantic_vocabulary::PropositionId::new(1).unwrap()
+        )));
     }
 }

@@ -36,6 +36,7 @@ mod dynamic_composed_unit;
 mod element_view_computed_arguments;
 mod exclusive_loan_locals;
 mod field_case_payloads;
+mod finite_state_arrivals;
 mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;
 mod guarded_scalar_returns;

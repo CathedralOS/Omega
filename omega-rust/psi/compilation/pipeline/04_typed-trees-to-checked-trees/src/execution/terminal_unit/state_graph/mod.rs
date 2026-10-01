@@ -226,6 +226,9 @@ pub(super) fn build_traced(
                 } => crate::values::lower_state_interval_predicate(
                     program, state, parameter, minimum, maximum,
                 ),
+                validation::StateScalarContractRow::Finite { parameter } => {
+                    validation::state_finite_predicate(program, state, parameter)
+                }
             };
             let Some(predicate) = predicate else {
                 trace.phase("state graph: state signature: predicate lowering failed");

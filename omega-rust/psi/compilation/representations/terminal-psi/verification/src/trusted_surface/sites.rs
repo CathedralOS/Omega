@@ -1269,7 +1269,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar/block_invariants.rs",
-        sha256: Some("bc7a4c34a57f24787b04b96b3857074279539ad3e1c1212f84f453dd7bfc8cba"),
+        sha256: Some("a003fb543f552699bec02462106722a1141934bca28c3deb513194ba253ae744"),
         inventory_machinery: false,
     },
     ImplementationSite {
