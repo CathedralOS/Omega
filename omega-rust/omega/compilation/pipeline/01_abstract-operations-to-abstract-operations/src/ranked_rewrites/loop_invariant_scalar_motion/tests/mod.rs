@@ -226,6 +226,78 @@ pub(crate) fn lowered_unit(source: &str, label: &str) -> VerifiedPsiOptimization
     lowered_unit_entry_with_module_edit(source, label, "Root::scan", |_| {})
 }
 
+/// Psi snapshots each copyable owned operand with a whole-root
+/// `StructuralLeafCopy` at its evaluation point (1ed429ce993 for call
+/// operands, 0c97e66393f for local copies), and this pass relocates no copy.
+/// Respell the one owned whole call argument or record-field root each
+/// snapshot feeds as naming the copied root directly, and drop the copy: the
+/// Terminal shape those operands lowered to before, which Terminal still
+/// admits. The verified artifact admission after the edit replays every
+/// certificate and rejects any respelling that changes custody.
+pub(super) fn pass_snapshot_roots_directly(module: &mut terminal_psi::TerminalModule) {
+    use terminal_psi::{OperationKind, RecordFieldValue, StructuralAccess};
+    for machine in &mut module.machines {
+        let snapshots = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(
+                |operation| match (&operation.kind, operation.result.structural()) {
+                    (OperationKind::StructuralLeafCopy { source, path }, Some(result))
+                        if path.is_empty() =>
+                    {
+                        Some((operation.id, result.place, *source))
+                    }
+                    _ => None,
+                },
+            )
+            .collect::<Vec<_>>();
+        // A local copy's snapshot can itself be copied again as a record
+        // field operand; respell the later snapshot first so its use then
+        // names the earlier one.
+        for (copy, snapshot, root) in snapshots.into_iter().rev() {
+            let mut uses = 0;
+            for operation in machine
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+            {
+                let arguments: Vec<&mut terminal_psi::StructuralArgument> =
+                    match &mut operation.kind {
+                        OperationKind::CallStructuralScalar {
+                            structural_arguments,
+                            ..
+                        } => structural_arguments
+                            .iter_mut()
+                            .filter(|argument| argument.access == StructuralAccess::Owned)
+                            .collect(),
+                        OperationKind::EstablishRecord { fields } => fields
+                            .iter_mut()
+                            .filter_map(|field| match &mut field.value {
+                                RecordFieldValue::Structural(argument) => Some(argument),
+                                RecordFieldValue::Scalar { .. } => None,
+                            })
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                for argument in arguments {
+                    if argument.place == snapshot && argument.path.is_empty() {
+                        argument.place = root;
+                        uses += 1;
+                    }
+                }
+            }
+            assert_eq!(uses, 1, "each snapshot feeds exactly one respelled use");
+            for block in &mut machine.blocks {
+                block.operations.retain(|operation| operation.id != copy);
+            }
+            machine
+                .structural_places
+                .retain(|place| place.id != snapshot);
+        }
+    }
+}
+
 pub(super) fn lowered_session_entry_with_module_edit(
     source: &str,
     label: &str,

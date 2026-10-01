@@ -111,7 +111,19 @@ fn carried_field_record_establishments_stay_inside() {
 
 #[test]
 fn forged_record_field_copy_root_is_rejected_by_the_freeze_fence() {
-    let session = lowered_session(MEMBER_RECORD_SOURCE, "member record loop");
+    // Respelling the snapshots removes their copy operations, whose leaf
+    // facts precede the countdown's Exact subtraction in the reconstructed
+    // axiom roster its certificate indexes. Wrapping counters keep the same
+    // cycle without that obligation.
+    let source = MEMBER_RECORD_SOURCE
+        .replace("pending: u32 [0..=5]", "pending: u32 in Wrapping")
+        .replace("remaining: u32 [0..=5]", "remaining: u32 in Wrapping");
+    let session = lowered_session_entry_with_module_edit(
+        &source,
+        "member record loop",
+        "Root::scan",
+        super::pass_snapshot_roots_directly,
+    );
     let [component] = session.cycle_components().components() else {
         panic!("one cyclic component")
     };
