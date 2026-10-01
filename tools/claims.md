@@ -12,6 +12,20 @@ coordinator can partition explicitly. `--allow-overlap` records an informed
 exception in the result; contested merges still happen and remain the owners'
 problem. Publication stays with `tools/landing.py`; claims never touch `main`.
 
+Each command has a 15-second total coordination budget, including Git and
+contention retries. Exit 3 reports `state: unavailable`, not success or an empty
+registry. A timed-out claim saves its ticket and intended scope in
+`build/claims-pending/<ticket>.json`. Report the outage and continue development
+in an isolated worktree; do not repeatedly wait for registration. Known live
+conflicts still require coordination or owner permission, and publication still
+uses the landing queue. A timed-out push may have landed: inspect status before
+retrying, retaining the same ticket. `--timeout-seconds` before the subcommand
+can explicitly change the budget (maximum 300 seconds).
+
+This is compatible with running clients: the version-1 registry, active tickets,
+leases, and evidence notes are unchanged. Pending records are local reminders,
+not automatically replayed writes or successful claims.
+
 The helper uses **Python 3 and Git** like `landing.py`; `python` below means
 your Python 3 executable (`python3` on macOS/Linux). Every command prints one
 JSON object. Use `--repository <path>` for another worktree and `--remote
@@ -43,6 +57,12 @@ marker; omit it for work not on a board. `--path` repeats, and each value may
 also be a comma-joined list (`--path a/b,c/d`); empty segments are rejected.
 Paths are normalized to repository-relative form (Windows-style separators
 accepted). The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
+
+Omit `--ticket` for new work. Internally generated UUIDs need no historical
+message search. Explicitly supplied tickets retain the legacy retired-ticket
+check; a live ticket remains idempotent for its owner. Within one invocation,
+retries check ancestry of its own attempted writes so a claim accepted and then
+removed by another client cannot be resurrected.
 
 Task-list files are shared, never exclusively owned. Claim an individual item
 with `--board` and `--item`, not the board with `--path`. The helper rejects

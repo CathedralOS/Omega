@@ -249,7 +249,12 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   worktree and delete the candidate branch — a landed lane is dead
   bookkeeping, not a record.
 - Before editing shared paths, check `python tools/claims.py status` for
-  live session assignments and claim the work ([tools/claims](tools/claims.md)).
+  live session assignments and attempt to claim the work ([tools/claims](tools/claims.md)).
+  Claims are advisory, not permission to develop. If coordination is unavailable
+  or times out, report it and continue in an isolated worktree with the intended
+  scope recorded locally. Do not wait repeatedly, treat an outage as a known
+  conflict, or claim registration succeeded. Known live overlaps still require
+  coordination or owner permission. Publication still uses the landing queue.
 - Keep sample coverage out of the shipped CLI.
 
 ## Design references

@@ -33,6 +33,11 @@ report `blocked` with the named owner and reason; do not retry with
 `python3 tools/claims.py renew --ticket <ticket>`. Release with
 `release --ticket <ticket>` when you finish for any reason.
 
+Exit 3 means coordination timed out, not a live conflict. Keep the pending
+claim record, report the outage, and continue the assigned work in isolation.
+Do not repeatedly wait for registration. If a write timed out, inspect status
+before retrying; its outcome may be uncertain. Landing remains mandatory.
+
 ## Collision rules
 
 Never edit board or coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,

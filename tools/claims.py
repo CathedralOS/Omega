@@ -33,6 +33,7 @@ CLAIMS_REF = "refs/coordination/omega-claims/main"
 PROTOCOL = "omega-claims-v1"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 DEFAULT_LEASE_MINUTES = 480
+DEFAULT_TIMEOUT_SECONDS = 15
 MIN_LEASE_MINUTES = 15
 MAX_LEASE_MINUTES = 1440
 NOTE_TEXT_LIMIT = 2000
@@ -76,13 +77,6 @@ object_id = coordination.object_id
 now = coordination.now
 utc = coordination.utc
 emit = coordination.emit
-
-
-def pause(attempt, base, cap):
-    """Jittered exponential backoff: the ceiling doubles per attempt, the
-    sleep lands in its upper half, and `cap` bounds the wait."""
-    delay = min(cap, base * 2 ** (attempt - 1))
-    time.sleep(random.uniform(delay / 2, delay))
 
 
 def ticket_id(value):
@@ -234,19 +228,22 @@ def pending_notes(record):
 
 
 class Claims:
-    def __init__(self, repository, remote):
+    def __init__(self, repository, remote, timeout_seconds=DEFAULT_TIMEOUT_SECONDS):
         self.repository = Path(repository).resolve()
+        self.deadline = time.monotonic() + timeout_seconds
+        self.attempted_claims = []
         os.environ.setdefault("GIT_HTTP_LOW_SPEED_LIMIT", TRANSPORT_LOW_SPEED_LIMIT)
         os.environ.setdefault("GIT_HTTP_LOW_SPEED_TIME", TRANSPORT_STALL_SECONDS)
         os.environ.setdefault("GIT_SSH_COMMAND", SSH_TRANSPORT_BOUND)
-        self.push_url = coordination.push_url(self.repository, remote)
+        self.push_url = coordination.push_url(self.repository, remote, deadline=self.deadline)
 
     def git(self, *arguments, input_text="", allow_failure=False):
         return coordination.git(self.repository, *arguments, input_text=input_text,
-                                allow_failure=allow_failure)
+                                allow_failure=allow_failure, deadline=self.deadline)
 
     def snapshot(self):
-        references = coordination.remote_refs(self.repository, self.push_url, CLAIMS_REF)
+        references = coordination.remote_refs(self.repository, self.push_url, CLAIMS_REF,
+                                              deadline=self.deadline)
         version = references.get(CLAIMS_REF, "")
         record = {"protocol": PROTOCOL, "claims": [], "notes": []}
         if version:
@@ -276,8 +273,13 @@ class Claims:
         the same chained history. Verified with cat-file so a silently
         incomplete fetch does not surface as a parse failure.
         """
+        if not self.git("cat-file", "-e", version, allow_failure=True).returncode:
+            return
         try:
-            coordination.fetch_object(self.repository, self.push_url, version)
+            coordination.fetch_object(self.repository, self.push_url, version,
+                                      deadline=self.deadline)
+        except coordination.CoordinationTimeout:
+            raise
         except ClaimsError:
             pass
         else:
@@ -301,8 +303,10 @@ class Claims:
         while True:
             try:
                 references = coordination.remote_refs(
-                    self.repository, self.push_url, CLAIMS_REF)
+                    self.repository, self.push_url, CLAIMS_REF, deadline=self.deadline)
                 return references.get(CLAIMS_REF, "")
+            except coordination.CoordinationTimeout:
+                raise
             except ClaimsError as error:
                 attempts += 1
                 if attempts >= PROBE_ATTEMPTS:
@@ -310,7 +314,7 @@ class Claims:
                         "Cannot read the claims ref to confirm a push "
                         "outcome; the result is uncertain. Inspect status "
                         "before retrying.") from error
-                time.sleep(PROBE_BACKOFF_SECONDS)
+                self.pause(1, PROBE_BACKOFF_SECONDS, PROBE_BACKOFF_SECONDS)
 
     def publish(self, expected, updated):
         """Push `updated` onto CLAIMS_REF leased on `expected`.
@@ -326,7 +330,7 @@ class Claims:
         while True:
             mutation = coordination.push_atomic(
                 self.repository, self.push_url, [f"{updated}:{CLAIMS_REF}"],
-                lease=(CLAIMS_REF, expected))
+                lease=(CLAIMS_REF, expected), deadline=self.deadline)
             if not mutation.returncode:
                 return True
             after = self.remote_version()
@@ -340,8 +344,14 @@ class Claims:
                     "Update failed repeatedly while the remote ref stayed "
                     "unchanged; outcome uncertain. Inspect status before "
                     f"retrying. {mutation.stderr} {mutation.stdout}")
-            pause(failures, PUSH_FAILURE_BACKOFF_BASE,
+            self.pause(failures, PUSH_FAILURE_BACKOFF_BASE,
                   PUSH_FAILURE_BACKOFF_CAP)
+
+    def pause(self, attempt, base, cap):
+        remaining = coordination.remaining_seconds(self.deadline)
+        ceiling = min(cap, base * 2 ** (attempt - 1))
+        time.sleep(min(random.uniform(ceiling / 2, ceiling), remaining))
+        coordination.remaining_seconds(self.deadline)
 
     def back_off_after_collision(self, collisions):
         """Bounded patience for lost push races, then an honest stop."""
@@ -349,7 +359,7 @@ class Claims:
             raise ClaimsError(
                 "Update kept losing push races to concurrent writers; "
                 "inspect status before retrying.")
-        pause(collisions, COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP)
+        self.pause(collisions, COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP)
 
     def maintenance(self, snapshot):
         """Reap expired claims separately, before interpreting an action.
@@ -362,7 +372,8 @@ class Claims:
             return None
         record = snapshot["record"]
         record["claims"] = live_claims(record)
-        updated = coordination.commit_record(self.repository, record, snapshot["version"])
+        updated = coordination.commit_record(self.repository, record, snapshot["version"],
+                                             deadline=self.deadline)
         return self.publish(snapshot["version"], updated)
 
     def conflicts(self, record, item, paths):
@@ -389,11 +400,13 @@ class Claims:
         while True:
             try:
                 snapshot = self.snapshot()
+            except coordination.CoordinationTimeout:
+                raise
             except ClaimsError:
                 snapshot_failures += 1
                 if snapshot_failures >= SNAPSHOT_ATTEMPTS:
                     raise
-                pause(snapshot_failures, PROBE_BACKOFF_SECONDS, 1.0)
+                self.pause(snapshot_failures, PROBE_BACKOFF_SECONDS, 1.0)
                 continue
             snapshot_failures = 0
             record = snapshot["record"]
@@ -473,7 +486,9 @@ class Claims:
                     record["claims"].append(claim)
 
             updated = coordination.commit_record(self.repository, record,
-                                                 snapshot["version"])
+                                                 snapshot["version"], deadline=self.deadline)
+            if options.command == "claim":
+                self.attempted_claims.append(updated)
             if self.publish(snapshot["version"], updated):
                 emit(result)
                 return 0
@@ -492,7 +507,23 @@ class Claims:
                                "item": existing["item"],
                                "expires_utc": existing["expires_utc"],
                                "idempotent": True}}
-        if snapshot["version"] and self.git(
+        # A new UUID generated by this invocation has no prior lifecycle to
+        # search. If an earlier push had an uncertain outcome, check only our
+        # attempted commits: an accepted-then-removed claim must not resurrect.
+        for candidate in self.attempted_claims:
+            if not snapshot["version"]:
+                continue
+            ancestry = self.git(
+                    "merge-base", "--is-ancestor", candidate, snapshot["version"],
+                    allow_failure=True)
+            if ancestry.returncode not in (0, 1):
+                raise ClaimsError("Cannot establish whether an earlier claim landed; inspect status before retrying.")
+            if ancestry.returncode == 0:
+                raise ClaimsError("This claim landed and was subsequently removed. Claim with a new ticket.")
+        # Preserve existing callers supplying fixed/retry tickets. Only this
+        # legacy interface needs the historical replay check, within the same
+        # wall-clock budget. Ordinary registration never scans commit messages.
+        if not getattr(options, "fresh_ticket", False) and snapshot["version"] and self.git(
                 "log", "-1", "--format=%H", "--fixed-strings",
                 f"--grep={options.ticket}", snapshot["version"]).stdout:
             raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
@@ -527,7 +558,7 @@ class Claims:
         worktree = Path(options.worktree).resolve()
         changed = set()
         status = coordination.git(self.repository, "-C", str(worktree),
-                                  "status", "--porcelain").stdout
+                                  "status", "--porcelain", deadline=self.deadline).stdout
         for line in status.splitlines():
             if line.startswith("??"):
                 continue
@@ -536,11 +567,11 @@ class Claims:
                 changed.add(path)
         others = coordination.git(self.repository, "-C", str(worktree),
                                   "ls-files", "--others",
-                                  "--exclude-standard").stdout
+                                  "--exclude-standard", deadline=self.deadline).stdout
         changed.update(line for line in others.splitlines() if line)
         diff = coordination.git(self.repository, "-C", str(worktree), "diff",
                                 "--name-only", f"{options.base}...HEAD",
-                                allow_failure=True).stdout
+                                allow_failure=True, deadline=self.deadline).stdout
         changed.update(line for line in diff.splitlines() if line)
         own = [path for claim in live if claim["owner"] == options.owner
                for path in claim["paths"]]
@@ -635,6 +666,8 @@ def main(argv=None):
     parser = Parser(description=__doc__)
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
+    parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS,
+                        help="total coordination deadline (default: 15 seconds)")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("status")
     claim = subparsers.add_parser("claim")
@@ -685,6 +718,8 @@ def main(argv=None):
     audit.add_argument("--base", default="origin/main")
     try:
         options = parser.parse_args(argv)
+        if not 0 < options.timeout_seconds <= 300:
+            raise ClaimsError("--timeout-seconds must be greater than zero and at most 300.")
         if options.command in ("claim", "renew"):
             lease = options.lease_minutes or DEFAULT_LEASE_MINUTES
             if not MIN_LEASE_MINUTES <= lease <= MAX_LEASE_MINUTES:
@@ -694,6 +729,7 @@ def main(argv=None):
         if options.command == "claim":
             if not options.owner.strip() or len(options.owner) > 200:
                 raise ClaimsError("Supply a short, recognizable --owner.")
+            options.fresh_ticket = options.ticket is None
             options.ticket = options.ticket or uuid.uuid4().hex
             ticket_id(options.ticket)
             options.paths = [normalize_path(piece)
@@ -726,8 +762,26 @@ def main(argv=None):
             if len(options.text) > NOTE_TEXT_LIMIT:
                 raise ClaimsError(f"Note text must be at most {NOTE_TEXT_LIMIT} characters.")
         if options.command == "audit":
-            return Claims(options.repository, options.remote).audit(options)
-        return Claims(options.repository, options.remote).coordinate(options)
+            return Claims(options.repository, options.remote, options.timeout_seconds).audit(options)
+        return Claims(options.repository, options.remote, options.timeout_seconds).coordinate(options)
+    except coordination.CoordinationTimeout as error:
+        report = {"state": "unavailable", "error": str(error),
+                  "command": options.command, "may_have_published": options.command not in
+                  ("status", "available", "notes", "audit")}
+        if options.command == "claim":
+            report.update(ticket=options.ticket, item=options.item, owner=options.owner,
+                          paths=options.paths)
+            pending = Path(options.repository).resolve() / "build" / "claims-pending" / (options.ticket + ".json")
+            try:
+                pending.parent.mkdir(parents=True, exist_ok=True)
+                pending.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+                report["pending_file"] = str(pending)
+            except OSError as recording_error:
+                report["recording_error"] = str(recording_error)
+        emit(report)
+        print("claims: coordination unavailable; continue isolated work, report the pending claim, "
+              "and inspect status before retrying. This is not a successful registration.", file=sys.stderr)
+        return 3
     except (ClaimsError, OSError) as error:
         print(f"claims: {error}", file=sys.stderr)
         return 1
