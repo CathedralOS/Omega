@@ -187,7 +187,7 @@ pub(in crate::validation) fn validate_structural_argument(
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
                             || (matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
                                 && source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals))
-                            && argument.path.is_empty()
+                            && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
                             && matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
                             && crate::validation::scalar::array::plain_return_source(module, caller, argument.place) =>
                     {
@@ -485,27 +485,21 @@ pub(in crate::validation) fn validate_structural_argument(
     // owns, reconstructed with every other runtime index of the operation
     // (`runtime_indexes`). Only the projection's type is resolved here.
     let root_type = actual_type;
-    // A completed plain array keeps owned backing across a call-scoped loan.
+    // A plain array payload keeps owned backing across a call-scoped loan.
     // Availability is checked by scalar-array replay and exclusive overlap by
     // argument-pair validation; neither is implied by matching the carrier.
-    let array_result_loan = argument.path.is_empty()
-        && matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && actual_access == StructuralAccess::Owned
-        && caller.structural_places.iter().any(|place| {
-            place.id == argument.place
-                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
-        })
+    let array_payload_loan = matches!(
+        argument.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && actual_access == StructuralAccess::Owned
         && crate::validation::scalar::array::plain_return_source(module, caller, argument.place);
     if crate::validation::scalar::array::owned_payload_source(module, caller, argument.place)
         && (expected.multiplicity != StructuralMultiplicity::Unrestricted
             // A shared or exclusive result loan views the established payload
-            // without transferring it. The source lookup admits only whole
-            // plain array results for this borrowed pairing.
+            // without transferring it. Projection replay below determines the
+            // exact lent leaf; the source remains the complete owned array.
             || !(expected.access == StructuralAccess::Owned
-                || (array_result_loan && expected.access == argument.access)
+                || (array_payload_loan && expected.access == argument.access)
                 || (expected.access == StructuralAccess::SharedBorrow
                     && argument.access == StructuralAccess::SharedBorrow))
             || !expected.qualifications.is_empty()
@@ -595,7 +589,7 @@ pub(in crate::validation) fn validate_structural_argument(
                         .iter()
                         .any(|claim| claim.input.root == argument.place)
             })
-        || (array_result_loan && {
+        || (array_payload_loan && {
             // Present the validated owned home through this loan for geometry
             // checking. Its actual owned access remains unchanged below.
             let backing = StructuralParameterDeclaration {

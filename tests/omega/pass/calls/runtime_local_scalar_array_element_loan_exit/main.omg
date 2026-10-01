@@ -1,0 +1,22 @@
+// A call borrows one element of initialized local array storage. Its write
+// remains visible to the caller without changing the neighboring element.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine write_marker(value: &mut u32) {
+    value = 70;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let values: [u32; 2] = [10, 20];
+    let position: u64 = 1;
+    write_marker(&mut values[position]);
+    transition values[0] == 10 && values[1] == 70 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

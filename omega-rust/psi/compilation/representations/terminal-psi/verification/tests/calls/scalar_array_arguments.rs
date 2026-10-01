@@ -152,6 +152,159 @@ fn repeated_owned_arrays_and_nonfirst_parameter_returns_are_verified() {
     }
 }
 
+fn array_element_loan(access: StructuralAccess) -> TerminalModule {
+    let mut module = array_call(&[2, 2]);
+    for machine in &mut module.machines {
+        machine.result = TerminalMachineResult::Unit;
+        machine.structural_places.retain(|place| {
+            !matches!(place.kind, StructuralPlaceKind::Result)
+                && place.id != place_id(2)
+                && place.id != place_id(4)
+        });
+        machine.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: edge_id(machine.id.get()),
+            trivial_affine_discards: Vec::new(),
+        };
+    }
+    let call = &mut module.machines[0].blocks[0].operations[2];
+    call.result = OperationResult::Unit;
+    call.kind = OperationKind::CallUnit {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        callee: machine_id(2),
+        arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: place_id(1),
+            path: vec![terminal_psi::StructuralPathSegment::FixedIndex(1); 2],
+            access,
+        }],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let callee = &mut module.machines[1];
+    callee.structural_parameters.truncate(1);
+    callee.structural_parameters[0].structural_type = structural_type_id(3);
+    callee.structural_parameters[0].access = access;
+    module
+}
+
+#[test]
+fn initialized_array_element_loans_preserve_projection_access_and_availability() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let valid = array_element_loan(access);
+        verify_module(
+            &valid,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("a checked nested element loan keeps its initialized backing");
+
+        let mut early = valid.clone();
+        early.machines[0].blocks[0].operations.swap(1, 2);
+        assert!(
+            validate_module(&early).is_err(),
+            "a future producer is not backing"
+        );
+
+        let mut wrong_type = valid.clone();
+        wrong_type.machines[1].structural_parameters[0].structural_type = structural_type_id(2);
+        assert!(
+            validate_module(&wrong_type).is_err(),
+            "the formal must name the selected leaf"
+        );
+
+        let mut outside = valid.clone();
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut outside.machines[0].blocks[0].operations[2].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].path[0] = terminal_psi::StructuralPathSegment::FixedIndex(2);
+        assert!(
+            validate_module(&outside).is_err(),
+            "the projection stays inside the array"
+        );
+
+        let mut owned_projection = valid.clone();
+        owned_projection.machines[1].structural_parameters[0].access = StructuralAccess::Owned;
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut owned_projection.machines[0].blocks[0].operations[2].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].access = StructuralAccess::Owned;
+        assert!(
+            validate_module(&owned_projection).is_err(),
+            "loans do not admit projected owned transfers"
+        );
+
+        let mut overlap = valid.clone();
+        let mut parameter = overlap.machines[1].structural_parameters[0].clone();
+        parameter.place = place_id(4);
+        parameter.position = 1;
+        overlap.machines[1].structural_parameters.push(parameter);
+        overlap.machines[1]
+            .structural_places
+            .push(StructuralPlaceDeclaration {
+                id: place_id(4),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            });
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut overlap.machines[0].blocks[0].operations[2].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments.push(structural_arguments[0].clone());
+        if access == StructuralAccess::MutableBorrow {
+            assert!(matches!(
+                validate_module(&overlap),
+                Err(ModuleError::OverlappingExclusiveStructuralArguments { .. })
+            ));
+        } else {
+            validate_module(&overlap).expect("shared loans may observe the same element");
+        }
+
+        let mut parameter_backing = valid;
+        let caller = &mut parameter_backing.machines[0];
+        caller.blocks[0].operations.remove(1);
+        caller.structural_places[0].kind = StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        };
+        caller
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: place_id(1),
+                position: 0,
+                is_self: false,
+                structural_type: structural_type_id(1),
+                access: StructuralAccess::Owned,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        verify_module(
+            &parameter_backing,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("an owned parameter lends initialized storage by the same rule");
+    }
+}
+
 /// A record that stores a plain array owns a copy, so the ownership
 /// frontier does not track the array. The record still may not consume it
 /// before the array's establishment has run.

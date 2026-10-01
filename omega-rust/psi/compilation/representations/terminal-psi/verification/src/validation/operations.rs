@@ -54,22 +54,18 @@ pub(super) fn validate_operation_operands(
         // Borrowing uses initialized payload in place rather than substituting
         // opaque metadata. Exact formal access, presentation and exclusive
         // overlap remain structural-argument obligations for either call kind.
-        let result_loan = matches!(
+        let payload_loan = matches!(
             argument.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) && machine.structural_places.iter().any(|place| {
-            place.id == argument.place
-                && matches!(
-                    place.kind,
-                    super::StructuralPlaceKind::OperationResult { .. }
-                )
-        });
-        let payload_admitted = argument.path.is_empty()
-            && super::scalar::array::plain_return_source(module, machine, argument.place)
-            && (argument.access == StructuralAccess::Owned
-                || result_loan
-                || (!matches!(operation.kind, OperationKind::BoundaryCall { .. })
-                    && argument.access == StructuralAccess::SharedBorrow));
+        );
+        // An owned transfer moves the complete payload. A loan instead names
+        // initialized storage within it, whether a parameter or completed
+        // producer owns that storage. Structural argument replay independently
+        // checks the projection's type, bounds, access and overlapping loans.
+        let payload_admitted =
+            super::scalar::array::plain_return_source(module, machine, argument.place)
+                && ((argument.access == StructuralAccess::Owned && argument.path.is_empty())
+                    || payload_loan);
         if super::scalar::array::owned_payload_source(module, machine, argument.place)
             && !payload_admitted
         {

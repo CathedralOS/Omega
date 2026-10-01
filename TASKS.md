@@ -1754,8 +1754,13 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `pass/calls/caller_structural_result_indexed_borrow_exit` lends
   `&mut rooms[i]` of the local home as its bare element, and
   `pass/calls/runtime_mutable_local_parameter_write_exit` reads
-  `rooms[0].exit_count` back through the selector and member. A `[u32; 1]`
-  local's `&mut rooms[i]` still fails Terminal `UnknownStructuralArgument`.
+  `rooms[0].exit_count` back through the selector and member. Primitive-array
+  elements now use the same exact-subtree loan rule: on macOS ARM64,
+  `pass/calls/runtime_local_scalar_array_element_loan_exit` exits 70 after a
+  helper mutates `values[position]` and the caller observes both the changed
+  value and the untouched neighbor. Terminal verification and canonical
+  encoding retain parameter/producer backing and the original projection;
+  access, availability, bounds and overlap remain independently checked.
 
   `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively and on
   the checked interpreter on macOS ARM64 at `03e30df59d33` plus this repair:
@@ -1772,20 +1777,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
   in stage 04 `control/statement_sequence/local_data.rs`, which currently
   refuses mutable bindings, and whole-array computation-argument loans.
 
-  Borrowed views are another field producer, not owned array storage:
-  `borrowed_slice_view_place` currently requires the expression to be the
-  entire immutable local initializer, so `BlobSample { bytes: self.source[0..2] }`
-  (`pass/wire/runtime_wire_encode_byte_slice_exit`) stops at stage 04
-  `local data: structural call binding`. A field-site view must
-  reuse the loan borrow checking recorded for that field, stage 05 must mint
-  the view as the field's value, and the unit catalog
-  (`unit/attached_unit/catalog.rs` `collect_value_roots`) must register the
-  field's byte-view carrier and `u8` element rows; a name bound to a view
-  earlier keeps the copied-leaf route. `&[i32]` ranges
-  (`runtime_wire_encode_borrowed_scalar_slice_exit`) additionally need an
-  element subslice at a record-field site, since `FixedByteRange` is
-  byte-only. Compose constructor operands with exact stored-loan origins and
-  lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals.
+  Borrowed views are another field producer, not owned array storage.
+  On macOS ARM64 at `57c4ef5e087`, native corpus checks of
+  `wire/runtime_wire_decode_byte_slice_exit`,
+  `wire/runtime_wire_encode_byte_slice_exit` and
+  `wire/runtime_wire_encode_borrowed_scalar_slice_exit` get through field-site
+  construction but reject at stage 04 `call operation: structural arguments:
+  caller structural result`. `computations/slice_view.rs` already constructs
+  field-site views; `calls/result_arguments/mod.rs` still fences the resulting
+  record with stored borrowed-view fields. Compose that ordinary record loan
+  with its exact stored-loan origins and lifetimes; the reference-result
+  receiver assignment owns that module. **REFERENCE-LOCAL-BINDING-ROUTES**
+  owns reference locals. These three wire programs remain required native runs,
+  not successes merely because their rejection matches an old golden.
 
   The wire customers construct their records and call the checked codec
   machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`

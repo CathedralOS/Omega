@@ -753,11 +753,12 @@ fn validate_structural_arguments(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             });
-            // A completed plain result lends the same established backing at
-            // either call kind. Independent verification checks availability
-            // and exclusive overlap; canonicalization preserves the loan.
-            let result_loan = result.is_some()
-                && argument.access == expected.access
+            // A plain parameter or completed producer lends its established
+            // backing at either call kind. Preserve the root and projection;
+            // the shared path resolver below checks the exact lent type.
+            // Independent verification checks availability, runtime bounds
+            // and exclusive overlap; canonicalization establishes none of them.
+            let payload_loan = argument.access == expected.access
                 && matches!(
                     argument.access,
                     terminal_psi::StructuralAccess::SharedBorrow
@@ -769,18 +770,10 @@ fn validate_structural_arguments(
                     terminal_psi::StructuralAccess::Owned,
                     terminal_psi::StructuralAccess::Owned
                 )
-            ) || result_loan
-                || (matches!(presentation, StructuralArgumentPresentation::Ordinary)
-                    && matches!(
-                        (argument.access, expected.access),
-                        (
-                            terminal_psi::StructuralAccess::SharedBorrow,
-                            terminal_psi::StructuralAccess::SharedBorrow
-                        )
-                    ));
+            ) || payload_loan;
             if !plain_source
                 || !admitted_access
-                || !argument.path.is_empty()
+                || (!payload_loan && !argument.path.is_empty())
                 || expected.multiplicity != StructuralMultiplicity::Unrestricted
                 || !expected.qualifications.is_empty()
                 || !expected.projected_qualifications.is_empty()
@@ -794,10 +787,10 @@ fn validate_structural_arguments(
                     .any(|claim| claim.input.root == argument.place)
             {
                 return malformed(
-                    "primitive-array argument requires whole plain array call custody",
+                    "primitive-array argument requires plain array transfer or loan custody",
                 );
             }
-            if result_loan {
+            if payload_loan {
                 let backing = StructuralParameterDeclaration {
                     place: argument.place,
                     position: expected.position,

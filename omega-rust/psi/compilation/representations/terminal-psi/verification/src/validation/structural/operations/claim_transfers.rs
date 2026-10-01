@@ -40,17 +40,22 @@ pub(crate) fn is_record_loan(
         && crate::validation::record::completed_source(module, caller, argument.place)
             .map(|result| result.structural_type)
             .or_else(|| {
-                // An element view produced earlier in the body is also a
-                // completed source — `completed_source` only names
-                // plain-record producers. A runtime-indexed path then
-                // resolves one exact element the loan presents.
+                // Views and initialized scalar-array payloads also retain
+                // backing. Their loans use the same exact-subtree signature
+                // as records, regardless of the callee's result kind. Array
+                // producer validation is independent of path geometry, and
+                // availability replay still checks the source at this call.
                 crate::validation::structural::result_contracts::source_signature(
                     caller,
                     argument.place,
                 )
                 .map(|signature| signature.structural_type)
                 .filter(|root_type| {
-                    module.structural_types.iter().any(|declaration| {
+                    crate::validation::scalar::array::plain_return_source(
+                        module,
+                        caller,
+                        argument.place,
+                    ) || module.structural_types.iter().any(|declaration| {
                         declaration.id == *root_type
                             && matches!(
                                 declaration.shape,
