@@ -1,4 +1,7 @@
 //! Rejoin the complete authored body before emitting its ordered effects.
+#[cfg(test)]
+mod tests;
+
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, terminal_scalar_type, unsupported,

@@ -38,6 +38,32 @@ impl Builder<'_, '_> {
         role: CheckedScalarExpressionRole,
         expression: ExpressionHandle,
     ) -> bool {
+        // A transition arm owns its return through the exit computation,
+        // including a whole boundary application. Only a final expression
+        // statement has a separate statement-level result operation. Treating
+        // the Return role alone as ownership would omit the arm's only call.
+        if matches!(
+            role,
+            CheckedScalarExpressionRole::Return | CheckedScalarExpressionRole::ContinuationReturn
+        ) {
+            return crate::semantic::calls::find_state_in_machine(
+                self.program,
+                self.machine,
+                self.state,
+            )
+            .and_then(|state| {
+                self.program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(self.statement_index)
+            })
+            .is_some_and(|statement| {
+                matches!(
+                    statement,
+                    typed_trees::statement::StatementNode::Expression(_)
+                )
+            }) && self.is_bodyless_boundary_call(expression);
+        }
         // Whole primitive stores use the same computation owner as calls nested
         // inside their RHS. Field stores retain their statement result operation;
         // confusing these owners either drops the call or evaluates it twice.
@@ -64,8 +90,6 @@ impl Builder<'_, '_> {
             role,
             CheckedScalarExpressionRole::LocalInitializer { .. }
                 | CheckedScalarExpressionRole::AssignmentValue
-                | CheckedScalarExpressionRole::Return
-                | CheckedScalarExpressionRole::ContinuationReturn
         ) && self.is_bodyless_boundary_call(expression)
     }
 
