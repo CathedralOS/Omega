@@ -11,15 +11,15 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 64]::Utf8
+    valid_utf8(bytes);
+domain [u8; 64]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
+    valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 data Main {
     console: Binding<Console>;
     row: [u8; 64] in Utf8;

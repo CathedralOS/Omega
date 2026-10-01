@@ -11,9 +11,9 @@ use omega_language_std::console;
 use omega_language_std::macos_gui;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
-domain [u8; 12]::Utf8
+domain [u8; 12]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 pub boundary trait Clock2 {
     machine sleep(&mut self, milliseconds: u32) invokes DarwinClock;
     machine tick_count(&mut self) -> u64 invokes DarwinClock;

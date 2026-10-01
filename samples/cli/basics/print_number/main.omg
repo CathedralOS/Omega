@@ -15,12 +15,12 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 4]::Utf8
+    valid_utf8(bytes);
+domain [u8; 4]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 data Main {
     console: Binding<Console>;
     // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,
@@ -73,7 +73,7 @@ machine Main::main(&mut self) reaches Console {
     // `u8` carrying no range facts: `digit` is `in Wrapping`, which is a
     // write-side admission obligation and supplies no interval, and the trapping
     // narrowing yields all of `0..=255`. Writing such a byte into a carrier whose
-    // domain `requires valid_utf8(self)` cannot re-establish that domain, so each
+    // domain `requires valid_utf8(bytes)` cannot re-establish that domain, so each
     // write is dominated by a guard proving the byte is ASCII. A literal write
     // (`self.out[0] = 49`) needs no guard -- the literal proves itself.
     state render(&mut self) {

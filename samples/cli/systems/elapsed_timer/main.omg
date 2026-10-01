@@ -21,12 +21,12 @@ use omega::language::core::binding;
 
 // Text carriers are byte arrays in the Utf8 domain (declared per storage
 // type; encodings are library, not intrinsics).
-domain [u8; 27]::Utf8
+domain [u8; 27]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 10]::Utf8
+    valid_utf8(bytes);
+domain [u8; 10]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 data Main {
     console: Binding<Console>;
     time: Time;

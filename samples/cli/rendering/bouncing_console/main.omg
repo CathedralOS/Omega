@@ -11,15 +11,15 @@ use omega_language_std::macos_gui;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 40]::Utf8
+    valid_utf8(bytes);
+domain [u8; 40]::Utf8(bytes)
 requires
-    valid_utf8(self);
-domain [u8; 1]::Utf8
+    valid_utf8(bytes);
+domain [u8; 1]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
 
 // Declared-host Clock wiring, the pattern `samples/gui/window_app` carries: a
