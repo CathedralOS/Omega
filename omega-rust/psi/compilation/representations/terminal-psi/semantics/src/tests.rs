@@ -76,6 +76,22 @@ fn operation_inventory_is_exact_unique_and_closed() {
         concatenation.identity,
         "schema:operation:establish-byte-sequence-concatenation",
     );
+    // The post-call float result policy may crash, so it has a leaf
+    // denotation but no goal-free scalar schema.
+    let float_policy = exact_operation_semantic_row_in(
+        OperationSemanticTag::FloatResultPolicy,
+        &OperationSemanticRow::ALL,
+    )
+    .unwrap();
+    assert_eq!(
+        float_policy.custody,
+        OperationSemanticCustody::LeafDenotation
+    );
+    assert_eq!(float_policy.goal_free_scalar_leaf, None);
+    assert_eq!(
+        float_policy.identity,
+        "schema:operation:float-result-policy"
+    );
 }
 
 #[test]
