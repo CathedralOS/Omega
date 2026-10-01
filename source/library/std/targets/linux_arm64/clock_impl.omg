@@ -1,19 +1,42 @@
-// linux_arm64 `Clock` provider closure over the kernel `nanosleep` leaf
-// (linux_arm64 `nanosleep` is 101). This leg does not sleep yet, for two
-// reasons. Provider admission retains the authored syscall and its exact ABI,
-// but target lowering and emission remain unimplemented and reject with
-// `UnsupportedSystemCallRealization`. And normalized syscall
-// plans place each leaf parameter straight into a syscall register
-// (`evaluate_syscall` in `calling-conventions/src/plans/call_plan_evaluation.rs`),
-// so the millisecond count would reach `nanosleep` as its `timespec*` request
-// pointer. The darwin leg's shape, a checked adapter over a std-private wait
-// requirement that reaches `Clock`, does not carry over: linux_arm64 has no
-// `poll` syscall, and `ppoll` and `nanosleep` both take a `timespec*`, while
-// syscall plans admit only integer-class values.
+// Linux ARM64 nanosleep consumes a borrowed __kernel_timespec, not the
+// millisecond count itself. Keep the request in ordinary checked local
+// storage: its reference carries the address through the native call ABI.
+// Both kernel fields are signed 64-bit integers, in seconds/nanoseconds order.
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/time_types.h
+use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
+
+pub data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
+
+data LinuxArmClockWait { }
+
+boundary requirement LinuxArmClockWait::nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
+reaches
+    Clock;
+
+data LinuxArmClockNanosleep { }
+
+linux_arm64 machine LinuxArmClockNanosleep::nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
+    satisfies LinuxArmClockWait::nanosleep
+    via ForeignBinding::Syscall(101);
+
+// Splitting before widening preserves every u32 duration and keeps the
+// fractional field below one billion. A null remainder asks the kernel not
+// to write back interrupted time; signals may interrupt this wait, as on
+// the other POSIX Clock providers.
 linux_arm64 machine ClockNativeProvider::sleep(milliseconds: u32)
     satisfies Clock::sleep
-    via ForeignBinding::Syscall(101);
+reaches
+    Clock
+{
+    let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
+        seconds: widen_u32_to_i64(milliseconds / 1000),
+        nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
+    };
+    LinuxArmClockWait::nanosleep(&request, 0);
+}
 
 linux_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     defaults.select_provider<Clock, ClockNativeProvider>();
+    defaults.select_provider<LinuxArmClockWait::nanosleep, LinuxArmClockNanosleep>();
 }

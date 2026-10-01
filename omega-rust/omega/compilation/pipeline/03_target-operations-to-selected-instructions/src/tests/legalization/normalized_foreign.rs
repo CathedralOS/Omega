@@ -308,6 +308,171 @@ fn flat_record_fixture() -> (AbstractOperationPlan, Execution) {
     (source, Execution { plan_report: 0xA1 })
 }
 
+#[test]
+fn local_record_foreign_loans_replay_exact_establishment_and_projection() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for (projected, copied) in [(false, false), (true, false), (false, true)] {
+            let (mut source, execution) = flat_record_fixture();
+            let function = &mut source.functions[0];
+            let place = function.structural_parameters[0].place;
+            let root_type = if projected {
+                StructuralTypeId::new(1).unwrap()
+            } else {
+                StructuralTypeId::new(2).unwrap()
+            };
+            function.attachment = None;
+            function.structural_parameters.clear();
+            if !projected {
+                let AbstractOperation::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } = &mut function.operations[0]
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path.clear();
+            }
+            function.operations.insert(
+                0,
+                AbstractOperation::EstablishZeroedStructural {
+                    psi_operation: OperationId::new(6).unwrap(),
+                    result: terminal_psi::StructuralOperationResult {
+                        place,
+                        structural_type: root_type,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+            );
+            let AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } = function.operations.last_mut().unwrap()
+            else {
+                unreachable!()
+            };
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                place,
+            ));
+            if copied {
+                let copied_place = PlaceId::new(2).unwrap();
+                let AbstractOperation::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } = &mut function.operations[1]
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].place = copied_place;
+                function.operations.insert(
+                    1,
+                    AbstractOperation::StructuralLeafCopy {
+                        psi_operation: OperationId::new(8).unwrap(),
+                        source: place,
+                        path: abstract_operations::StructuralCopyPath::Ordinary(Vec::new()),
+                        result: terminal_psi::StructuralOperationResult {
+                            place: copied_place,
+                            structural_type: root_type,
+                            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            qualification_establishments: Vec::new(),
+                            claims: Vec::new(),
+                        },
+                    },
+                );
+            }
+            let binding = binding(
+                native,
+                calling_conventions::CallSignature {
+                    parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+                    result: Some(calling_conventions::ValueShape::integer(4, 4)),
+                },
+            );
+            let target = lower(&source, native, &execution, binding);
+            let unit = seed(&source);
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = crate::select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+
+            for mutation in 0..4 {
+                let mut changed = target.clone();
+                let TargetUnitOperation::NormalizedForeignCall {
+                    structural_arguments,
+                    ..
+                } = changed.functions[0].graph.blocks[0]
+                    .operations
+                    .iter_mut()
+                    .find(|row| matches!(row, TargetUnitOperation::NormalizedForeignCall { .. }))
+                    .unwrap()
+                else {
+                    unreachable!()
+                };
+                let argument = &mut structural_arguments[0];
+                match mutation {
+                    0 => {
+                        argument.source =
+                            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                                psi_operation: OperationId::new(7).unwrap(),
+                            }
+                    }
+                    1 => argument.source_byte_offset += 1,
+                    2 => argument.root_structural_type = StructuralTypeId::new(999).unwrap(),
+                    _ => argument.place = PlaceId::new(999).unwrap(),
+                }
+                assert!(abstract_operations_to_target_operations::validate_abstract_to_target_translation(&source, native, &changed).is_err(), "target mutation {mutation}: {native:?}, projected={projected}");
+                assert!(
+                    legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "legalization mutation {mutation}: {native:?}, projected={projected}"
+                );
+            }
+            let mut changed = legal.plan().clone();
+            normalized_foreign_call_mut(&mut changed).structural_arguments[0].source_byte_offset +=
+                1;
+            assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+            let mut changed = selected.plan().clone();
+            changed.functions[0].normalized_foreign_calls[0]
+                .call
+                .structural_arguments[0]
+                .source_byte_offset += 1;
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
 /// The libobjc/libSystem `const char*` lane: `Foreign::leaf(&u8) -> u64`.
 /// Unforwarded, `main(&self)` over `Words { bytes: [u8; 6] }` lends
 /// `&self.bytes[2]`; forwarded, `main(text: &u8)` lends its own loan whole.

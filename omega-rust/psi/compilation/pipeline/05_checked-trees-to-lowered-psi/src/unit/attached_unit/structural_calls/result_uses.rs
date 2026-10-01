@@ -18,23 +18,26 @@ fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&Che
         .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
 }
 
-/// Whether an ordinary call's result can retain no loan of its operands:
+/// Whether a call's result can retain no loan of its operands:
 /// nothing, a scalar, or a structural result that mints no reference loan
 /// or returned claim and whose callee declares contents holding no
 /// reference, slice or cleanup owner. The declared return type is read from
 /// the callee itself rather than from the checked plan's result shape, so a
 /// loan lent into such a call provably ends with it.
-fn loan_free_ordinary_call(
-    checked: &CheckedTrees,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> bool {
-    let Some(call) = operation.call().filter(|call| !call.is_boundary()) else {
+fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperationPlan) -> bool {
+    let Some(call) = operation.call() else {
         return false;
     };
     let binding = match call.result() {
         CheckedUnitCallResult::Unit | CheckedUnitCallResult::Scalar(_) => return true,
         CheckedUnitCallResult::Structural { binding, .. } => binding,
     };
+    // A Unit/scalar boundary result cannot retain a loan any more than an
+    // ordinary result can. Structural foreign retention still requires its
+    // dedicated custody protocol, not the ordinary callee inspection below.
+    if call.is_boundary() {
+        return false;
+    }
     call.structural_custody().is_some_and(|custody| {
         !custody.reference_loan.is_valid() && custody.returned_claim_transfers.is_empty()
     }) && crate::expression_preparation::source_custody::authored_state(checked, call.target.state)
@@ -1564,7 +1567,7 @@ pub(crate) fn validate_consumer(
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index)
-                || (!boundary_shared_view && !loan_free_ordinary_call(checked, operation))
+                || (!boundary_shared_view && !loan_free_call(checked, operation))
             {
                 return unsupported("bounded owner loan changes the target custody");
             }
@@ -1578,7 +1581,7 @@ pub(crate) fn validate_consumer(
         // borrowed formal carries no claims. A whole-place shared loan keeps
         // the general check below. The callee's result retains no loan, so
         // no result custody can carry the loan past the call.
-        let value_free_ordinary_call = loan_free_ordinary_call(checked, operation);
+        let loan_ends_at_call = loan_free_call(checked, operation);
         let lent_access = match argument.access {
             checked_trees::CheckedStructuralAccess::MutableBorrow
             | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => true,
@@ -1588,7 +1591,7 @@ pub(crate) fn validate_consumer(
         let scalar_leaf_borrow = matches!(
             result.multiplicity,
             Multiplicity::Affine | Multiplicity::Unrestricted
-        ) && value_free_ordinary_call
+        ) && loan_ends_at_call
             && argument.path.iter().all(|segment| {
                 matches!(
                     segment,

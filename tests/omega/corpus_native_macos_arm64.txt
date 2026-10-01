@@ -819,6 +819,7 @@ pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
+pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_forwarding_exit built 1591ms exit:70 @48008365d839

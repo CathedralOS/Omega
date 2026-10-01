@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("local_record_foreign_borrow_exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+}

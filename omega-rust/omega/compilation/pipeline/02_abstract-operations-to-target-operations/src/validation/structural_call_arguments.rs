@@ -35,9 +35,8 @@ use target_operations::{
     TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
     TargetDynamicDescriptorParameterAbi, TargetDynamicDispatch, TargetFunction,
     TargetNativeCallbackArgument, TargetReferenceResult, TargetStructuralArgument,
-    TargetStructuralArgumentSource, TargetStructuralHomeLayout, TargetStructuralHomeRequirement,
-    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement,
+    TargetStructuralArgumentSource, TargetStructuralHomeRequirement, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
@@ -201,6 +200,7 @@ struct Replay<'a> {
 /// live-graph lowering, never the parameter-roster one.
 struct RootDeclaration {
     structural_type: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
     access: StructuralAccess,
     whole_loan: bool,
     graph_home: bool,
@@ -1386,126 +1386,43 @@ impl Replay<'_> {
             {
                 return Err(psi_operation);
             }
-            // Source custody replays exactly: a caller structural parameter
-            // contributes its declared placement and requires the formal's
-            // unrestricted contract; a dominating call's consumed-once
-            // result answers through its structural home under the affine
-            // contract.
-            let (source_byte_size, expected_multiplicity) = match &actual.source {
-                TargetStructuralArgumentSource::Placement(placement) => {
-                    let parameter = self
-                        .target
-                        .graph
-                        .parameters
-                        .iter()
-                        .find(|parameter| parameter.place == semantic.place)
-                        .ok_or(psi_operation)?;
-                    if parameter.structural_type != root.structural_type
-                        || *placement != parameter.placement
-                    {
-                        return Err(psi_operation);
-                    }
-                    (
-                        parameter.shape.byte_size,
-                        terminal_psi::StructuralMultiplicity::Unrestricted,
-                    )
+            // Reconstruct geometry and multiplicity from source declarations,
+            // not the producer's retained home. The common
+            // structural_argument_sources replay separately binds the exact
+            // parameter, block arrival or establishing operation. Neither
+            // check needs to rediscover a call-result-only source pattern.
+            // Ordinary projected calls may borrow a result ABI placement;
+            // foreign calls transport the durable home instead. A placement
+            // here must therefore be an actual incoming parameter, never a
+            // transient return register with the same bytes.
+            if let TargetStructuralArgumentSource::Placement(placement) = &actual.source {
+                let parameter = self
+                    .target
+                    .graph
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.place == semantic.place)
+                    .ok_or(psi_operation)?;
+                if parameter.structural_type != root.structural_type
+                    || parameter.placement != *placement
+                {
+                    return Err(psi_operation);
                 }
-                TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: producer,
-                } => {
-                    // The producing call must dominate the argument inside
-                    // the same block, as the materialization's block-local
-                    // scan requires.
-                    let home_block = self
-                        .target
-                        .graph
-                        .blocks
-                        .iter()
-                        .find(|block| {
-                            block.operations.iter().any(|operation| {
-                                matches!(
-                                    operation,
-                                    TargetUnitOperation::NormalizedForeignCall {
-                                        psi_operation: candidate,
-                                        ..
-                                    } if *candidate == psi_operation
-                                )
-                            })
-                        })
-                        .ok_or(psi_operation)?;
-                    let consuming_index = home_block
-                        .operations
-                        .iter()
-                        .position(|operation| {
-                            matches!(
-                                operation,
-                                TargetUnitOperation::NormalizedForeignCall {
-                                    psi_operation: candidate,
-                                    ..
-                                } if *candidate == psi_operation
-                            )
-                        })
-                        .ok_or(psi_operation)?;
-                    let mut homes =
-                        home_block.operations[..consuming_index]
-                            .iter()
-                            .filter_map(|operation| {
-                                let TargetUnitOperation::Call {
-                                    psi_operation: candidate,
-                                    result:
-                                        target_operations::TargetCallResult::Structural {
-                                            result,
-                                            result_home: Some(home),
-                                            ..
-                                        },
-                                    call_plan,
-                                    ..
-                                } = operation
-                                else {
-                                    return None;
-                                };
-                                let TargetStructuralHomeLayout::Aggregate(home_shape) = home.layout
-                                else {
-                                    return None;
-                                };
-                                let placement = call_plan.result.as_ref()?;
-                                (result.place == semantic.place
-                                    && home.operation_result() == Some((*candidate, result))
-                                    && *candidate == *producer
-                                    && home_shape == placement.shape
-                                    && register_fragment_stores(placement)
-                                    && result.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Affine
-                                    && result.qualifications.is_empty()
-                                    && result.projected_qualifications.is_empty()
-                                    && result.claims.is_empty())
-                                .then_some(home_shape)
-                            });
-                    let home_shape = homes.next().ok_or(psi_operation)?;
-                    if homes.next().is_some() || *producer == psi_operation {
-                        return Err(psi_operation);
-                    }
-                    (
-                        home_shape.byte_size,
-                        terminal_psi::StructuralMultiplicity::Affine,
-                    )
-                }
-                _ => return Err(psi_operation),
+            }
+            let source_byte_size =
+                structural_shapes::reconstruct(root.structural_type, self.declarations)
+                    .map_err(|_| psi_operation)?
+                    .byte_size;
+            let expected_multiplicity = if semantic.access == StructuralAccess::Owned {
+                root.multiplicity
+            } else {
+                terminal_psi::StructuralMultiplicity::Unrestricted
             };
             if declaration_parameter.multiplicity != expected_multiplicity {
                 return Err(psi_operation);
             }
             let descriptor_formal = self.declarations.iter().any(|entry| {
                 entry.id == declaration_parameter.structural_type
-                    && matches!(
-                        entry.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
-            });
-            let borrowed_view_root = self.declarations.iter().any(|entry| {
-                entry.id == root.structural_type
                     && matches!(
                         entry.shape,
                         StructuralTypeShape::ByteSequence(
@@ -1531,19 +1448,7 @@ impl Replay<'_> {
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow => {
                     if semantic.path.is_empty() {
-                        // A whole-place borrow is either a stored descriptor
-                        // view, whose root carries `ByteSequence(BorrowedView)`
-                        // storage, or a caller parameter forwarding the loan
-                        // it received, whose placement already holds the
-                        // referent pointer word.
-                        if !borrowed_view_root
-                            && !matches!(
-                                actual.source,
-                                TargetStructuralArgumentSource::Placement(_)
-                            )
-                        {
-                            return Err(psi_operation);
-                        }
+                        // A whole loan names the exact root at offset zero.
                         (
                             root.structural_type,
                             structural_shapes::reconstruct(root.structural_type, self.declarations)
@@ -3437,33 +3342,6 @@ fn matches_projected_carrier(
         && actual.element_stride == Some(1)
 }
 
-/// A structural-home result reaches the boundary through the placement its
-/// own call plan stored: contiguous register fragments of one to eight bytes
-/// covering the whole shape, exactly as the materialization's store-fragment
-/// projection requires.
-fn register_fragment_stores(placement: &ValuePlacement) -> bool {
-    placement.shape.class == ValueClass::Integer
-        && placement.shape.byte_size != 0
-        && placement
-            .locations
-            .iter()
-            .try_fold(0_u32, |cursor, location| {
-                let ValueLocation::Register {
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                } = location
-                else {
-                    return None;
-                };
-                if *value_byte_offset != cursor || !matches!(byte_size, 1..=8) {
-                    return None;
-                }
-                cursor.checked_add(*byte_size)
-            })
-            == Some(placement.shape.byte_size)
-}
-
 /// A bounded inline byte field has no projected carrier identity of its own.
 /// The argument still names the field's storage: its live length word and bytes
 /// stay in place and the callee sees only the borrowed view. Reconstruct the
@@ -3901,7 +3779,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
         };
-        let (place, structural_type, whole_loan, graph_home) = match operation {
+        let (place, structural_type, multiplicity, whole_loan, graph_home) = match operation {
             AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
@@ -3911,33 +3789,35 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             | AbstractOperation::BoundaryCall {
                 result: AbstractBoundaryResult::Structural(result),
                 ..
-            } => (result.place, result.structural_type, plain_loan(result), true),
+            } => (result.place, result.structural_type, result.multiplicity, plain_loan(result), true),
             AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::StructuralLeafCopy { result, .. }
             // Extraction transfers the field into a distinct owned root;
             // its later call operand is not the borrowed source root.
             | AbstractOperation::MoveStructuralField { result, .. } => {
-                (result.place, result.structural_type, false, true)
+                (result.place, result.structural_type, result.multiplicity, false, true)
             }
             // Primitive storage and byte views stay roster-eligible.
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. } => {
-                (result.place, result.structural_type, false, false)
+                (result.place, result.structural_type, result.multiplicity, false, false)
             }
             AbstractOperation::EstablishByteSequenceLiteral {
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id, false, false),
+            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Unrestricted, false, false),
             AbstractOperation::EstablishTrivialAffineLocal {
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id, false, true),
+            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Affine, false, true),
             _ => continue,
         };
         roots.entry(place).or_insert(RootDeclaration {
             structural_type,
+            multiplicity,
             access: StructuralAccess::Owned,
             whole_loan,
             graph_home,
@@ -3950,6 +3830,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
         for parameter in &entry.structural_parameters {
             roots.entry(parameter.place).or_insert(RootDeclaration {
                 structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
                 access: parameter.access,
                 whole_loan: false,
                 graph_home: false,
@@ -3959,6 +3840,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
     for parameter in &source.structural_parameters {
         roots.entry(parameter.place).or_insert(RootDeclaration {
             structural_type: parameter.structural_type,
+            multiplicity: parameter.multiplicity,
             access: parameter.access,
             whole_loan: false,
             graph_home: false,

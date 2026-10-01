@@ -24,12 +24,11 @@
 //   over a std-private `poll` requirement that reaches `Clock`, realized by
 //   the libSystem `poll` import (see its `clock_impl.omg`).
 // * `linux_x86_64` uses a checked adapter over the integer-only kernel poll
-//   wait. Its authored syscall leaf settles, but native lowering and emission
-//   remain unimplemented.
-// * `linux_arm64` still binds kernel nanosleep directly and does not sleep:
-//   the millisecond parameter cannot supply nanosleep's timespec pointer,
-//   and authored syscall leaves still need native lowering. See the target
-//   `clock_impl.omg` files for these separate remaining dependencies.
+//   wait, preserving the full u32 duration by splitting signed-safe waits.
+// * `linux_arm64` constructs a checked seconds/nanoseconds request and lends
+//   its storage to kernel nanosleep, rather than passing milliseconds as an
+//   address. Both Linux adapters build through native artifact admission;
+//   waiting behavior still requires validation on a Linux runner.
 //
 // `macos_x86_64` is bundled but unadmitted (console's family has no
 // implementation for it either), and freestanding `uefi_x86_64` has no hosted

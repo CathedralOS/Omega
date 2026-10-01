@@ -1937,6 +1937,7 @@ pass/providers/external_boundary_requirement_via_exit checked 8941ms @5ce9755c44
 pass/providers/external_leaf_dllimport_compile checked 808ms @2d8ed253669f
 pass/providers/kernel_import_result_chain_exit checked 654ms @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms @2d8ed253669f
+pass/providers/local_record_foreign_borrow_exit checked 2194ms @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms @2d8ed253669f
 pass/providers/runtime_boundary_array_forwarding_exit checked 1567ms @2d8ed253669f

@@ -627,6 +627,10 @@ rows! {
     // The record's field declarations retain byte predicates; root/projected
     // qualifications, result establishments and claims cannot be invented by
     // the call. Both structural call encodings replay the exact callee result.
+    // Completed local storage may also lend whole or projected call-scoped
+    // loans to a boundary. The same source, access, qualification, dominance
+    // and overlapping-argument checks apply; this grants neither owned
+    // boundary transfer nor retention after return.
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
         SharedFormation,
