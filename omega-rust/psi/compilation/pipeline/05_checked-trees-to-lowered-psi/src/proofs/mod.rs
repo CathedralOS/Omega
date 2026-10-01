@@ -274,6 +274,16 @@ pub(crate) mod proof_timing {
         }
     }
 
+    /// The candidate pool left after one discovery producer, with the
+    /// candidates it leaves proposed.
+    pub(crate) fn discovery(producer: &str, round: usize, remaining: usize, candidates: usize) {
+        if enabled() {
+            eprintln!(
+                "[roster-discovery] round={round} producer={producer} remaining={remaining} candidates={candidates}"
+            );
+        }
+    }
+
     /// A stable digest of a search key for joining per-site and per-search lines.
     pub(crate) fn key_digest(key: &impl std::hash::Hash) -> u64 {
         use std::hash::Hasher;

@@ -54,12 +54,13 @@ pub(super) fn candidates(
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
     declines: &mut crate::proofs::ProofSearchDeclines,
-    // A site's transport output is a pure function of its reconstructed
-    // question; the roster discovery loop re-queries the module every round
-    // while only new or changed questions can add candidates. The caller
-    // shares this set so each unchanged question is queried at most once
-    // across every round (`super::QueriedSite`).
-    queried: &mut BTreeSet<super::QueriedSite>,
+    // A site's transport output is a pure function of the parts of its
+    // question transport reads; the roster discovery loop re-queries the
+    // module every round while only new or changed equations can add
+    // candidates. The caller shares this set so each question is transported
+    // at most once across every round for one set of equations
+    // (`super::JoinQuery`).
+    queried: &mut BTreeSet<super::JoinQuery>,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let Ok(validated) = terminal_verifier::validate_module(module) else {
@@ -142,7 +143,7 @@ pub(super) fn candidates(
                 } => owner == machine.id,
                 _ => false,
             };
-            if demanded && queried.insert(super::queried_site(site)) {
+            if demanded && queried.insert(super::join_query(site)) {
                 site_equations.push((
                     site,
                     ArrivalEquations::new(&site.semantic_axioms, remaining),
