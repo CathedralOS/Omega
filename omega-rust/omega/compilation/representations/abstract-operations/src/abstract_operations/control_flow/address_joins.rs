@@ -16,9 +16,9 @@
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Whether this block parameter is carried as the address of its referent.
@@ -225,8 +225,28 @@ fn plain_fields<'a>(
             | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::IeeeFloat(_) => true,
             StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),
-            StructuralFieldType::ByteSequence(_)
-            | StructuralFieldType::PredicateByteSequence { .. }
+            // A bounded owned byte field is payload at a fixed offset inside
+            // the referent, so transporting the referent's address transports
+            // it the way it transports a scalar leaf. It is neither a loan nor
+            // a descriptor, which is what this classification excludes, and
+            // the join still copies nothing. Terminal verification admits the
+            // same field in a mutable record loan.
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            | StructuralFieldType::PredicateByteSequence {
+                carrier: ByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            } => true,
+            // A borrowed or bounded VIEW is a referent pointer the join would
+            // have to relocate rather than payload it addresses through, and an
+            // erased field has no runtime carrier to project at all.
+            StructuralFieldType::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+            )
+            | StructuralFieldType::PredicateByteSequence {
+                carrier:
+                    ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+                ..
+            }
             | StructuralFieldType::Erased { .. } => false,
         }
     })

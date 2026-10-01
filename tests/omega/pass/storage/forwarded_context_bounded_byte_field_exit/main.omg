@@ -1,0 +1,59 @@
+// A machine that forwards its attached data to its states may carry a
+// domain-qualified byte container among that data.
+//
+// `main.text` is never read, written, or lent; declaring it used to be enough
+// to break the build. Two admissions were stricter than the plain-leaf rule
+// they extend, and the module could not be formed, let alone realized:
+//
+//   Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter {
+//     block: BlockId(2), place: PlaceId(2) }))
+//
+// Two one-line variants bound it. Spell the same field `text: [u8; 5]`,
+// without the `in Utf8` domain, and the program compiled. Keep the domain and
+// give every state `&mut self` instead of `main: &mut Main`, and it compiled.
+// Neither the domain nor the forwarding was the fault on its own.
+//
+// This is the whole-transport case: the field's presence, not its use. Reading
+// or storing a byte field through such a loan is validated separately and
+// still refuses (`InvalidStructuralByteSequenceFieldAccess`,
+// `InvalidStructuralByteSequenceFieldStore`), which is what keeps this fixture
+// about carrying the shape rather than operating on it.
+//
+// Expected exit: 0.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 5]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+data Main {
+    console: Binding<Console>;
+    text: [u8; 5] in Utf8;
+    i: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.i = 0;
+
+    transition {
+        _ -> step(&mut self)
+    }
+
+    state step(main: &mut Main) {
+        transition main.i < 5 {
+            true -> advance(main)
+            _ -> done(main)
+        }
+    }
+
+    state advance(main: &mut Main) {
+        main.i = main.i + 1;
+        transition {
+            _ -> step(main)
+        }
+    }
+
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+}

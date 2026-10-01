@@ -78,6 +78,28 @@ pub(super) fn borrowed_carrier_type(
                     }
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
+                        // A bounded owned byte field is an ordinary plain leaf:
+                        // `record::plain_type` already classifies it as one, and this
+                        // walk exists to accept plain leaves PLUS service markers, so
+                        // refusing one here made the classifier stricter than the
+                        // predicate it extends. A record whose only unplain member is a
+                        // service binding was loanable while the same record with a
+                        // `[u8; N] in Utf8` field beside it was not. The loan carries
+                        // the owner itself, live length included; its predicates stay
+                        // the field declaration's, and every write through the window
+                        // is checked against them where writes are checked.
+                        //
+                        // A BORROWED view stays out, exactly as it does for
+                        // `plain_type`: that is a relocated descriptor, and lending a
+                        // record must not hand on a loan whose source this
+                        // classification never saw.
+                        terminal_psi::StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                        )
+                        | terminal_psi::StructuralFieldType::PredicateByteSequence {
+                            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                            ..
+                        } => {}
                         _ if field.field_type.scalar_type().is_some() => {}
                         _ => return false,
                     }
