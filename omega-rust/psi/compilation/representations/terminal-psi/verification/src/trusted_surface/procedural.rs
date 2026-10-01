@@ -288,6 +288,10 @@ rows! {
     );
 
     // -- Call composition --
+    // A completed local array's validated byte window has no owned-field
+    // spelling either. Like a parameter window, its binder may be omitted
+    // only when no requires, ensures, outcome or crash predicate observes it.
+    // This omission imports no proposition about the window or its backing.
     COMP_CALL_INSTANTIATION => (
         "composition:call-instantiation",
         CallComposition,
@@ -599,6 +603,10 @@ rows! {
         &["formation:operation-validation"],
         &[tv!( "validation/primitive_storage.rs"), ts!( "primitive_place.rs"), ts!( "static_path.rs")]
     );
+    // A completed array producer may also lend a fixed byte window: the
+    // existing window relation checks the exact element, field path, extent,
+    // access and qualifications. This does not grant a new owned-parameter
+    // presentation; completed-result provenance remains required on this route.
     FORM_SCALAR_ARRAY => (
         "formation:scalar-array",
         SharedFormation,

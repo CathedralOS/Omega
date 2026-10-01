@@ -793,7 +793,7 @@ fn structural_contract_substitutions(
             .any(|proposition| {
                 crate::validation::proposition_observes_places(proposition, &[parameter.place])
             });
-        let fixed_window = caller.structural_parameters.iter().any(|actual| {
+        let borrowed_presentation = caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::fixed_byte_array_window(
                 module.structural_types.iter(),
                 actual,
@@ -801,7 +801,14 @@ fn structural_contract_substitutions(
                 parameter,
             )
             .is_some()
-        });
+        })
+            || crate::validation::structural::operations::is_record_loan(
+                module, caller, parameter, argument,
+            );
+        // Completed local backing has the same lent presentation as a
+        // parameter. Reuse call validation's geometry rather than inventing
+        // an owned-field prefix for a window. An observed binder still fails
+        // below: omission cannot discharge a callee's place contract.
         // A runtime-indexed borrow likewise has no canonical owned-field
         // prefix: it lends the dynamically selected element, and an unobserved
         // binder is omitted rather than substituted with the whole backing.
@@ -835,7 +842,7 @@ fn structural_contract_substitutions(
             });
         if observed
             || (!crate::validation::is_reference_projection(module, caller, argument)
-                && !fixed_window
+                && !borrowed_presentation
                 && !runtime_indexed_borrow
                 && !element_view_borrow
                 && !stored_view_field)

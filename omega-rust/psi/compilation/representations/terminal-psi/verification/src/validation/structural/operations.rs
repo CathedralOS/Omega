@@ -23,7 +23,9 @@ mod structural_arguments;
 mod structural_paths;
 mod unit_operation;
 
-pub(crate) use claim_transfers::{validate_service_reach, validate_unit_call_claim_transfers};
+pub(crate) use claim_transfers::{
+    is_record_loan, validate_service_reach, validate_unit_call_claim_transfers,
+};
 pub(crate) use contract_places::validate_unit_call_contract_places;
 pub(crate) use crash_continuations::{
     caller_structural_root_type, validate_unit_call_crash_continuations,

@@ -159,6 +159,7 @@ impl StateGraphEmission<'_, '_> {
             checked,
             state,
             &evaluation.structural_parameters,
+            &evaluation.primitive_storage,
             &self.catalogs.structural_types,
             &evaluation.byte_record_loans,
             &mut values,

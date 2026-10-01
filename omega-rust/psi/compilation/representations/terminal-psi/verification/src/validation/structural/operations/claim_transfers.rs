@@ -86,6 +86,41 @@ pub(crate) fn is_record_loan(
                     .map(|source| source.structural_type)
             })
             .is_some_and(|root_type| {
+                // A byte window presents the same initialized backing through
+                // a view rather than its subtree type. Reuse the argument
+                // check's exact geometry; availability and paired-loan checks
+                // still establish that this source is live and may be lent.
+                let backing = StructuralParameterDeclaration {
+                    place: argument.place,
+                    position: parameter.position,
+                    is_self: false,
+                    structural_type: root_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: argument.access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                };
+                let completed_result = caller
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .any(|operation| {
+                        operation
+                            .result
+                            .structural()
+                            .is_some_and(|result| result.place == argument.place)
+                    });
+                if completed_result
+                    && terminal_semantics::fixed_byte_array_window(
+                        module.structural_types.iter(),
+                        &backing,
+                        argument,
+                        parameter,
+                    )
+                    .is_some()
+                {
+                    return true;
+                }
                 // A runtime-indexed loan of the record's exact element is the
                 // same subtree signature the static resolver mints for a
                 // literal index; the runtime resolver alone accepts the
