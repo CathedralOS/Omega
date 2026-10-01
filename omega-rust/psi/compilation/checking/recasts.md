@@ -31,9 +31,11 @@ descent cannot erase more shells into layout authority.
 
 Complete-source and proved interior unsized slices use exact tiling and
 compiler-derived element stride, including padding. Runtime multi-byte
-offsets need proved congruence. Source recasts are currently validated as direct
-reference-typed `let` initializers restating the target type. Other positions
-remain fenced; a mismatched bare borrow cannot bypass the recast judgment.
+offsets need proved congruence. Source recasts are validated in direct
+reference-typed `let` initializers and statement-reachable guards, call
+arguments and nested operands. Inline casts use their stated target type;
+contract-only positions remain fenced because they establish no runtime
+borrow. A mismatched bare borrow cannot bypass the recast judgment.
 
 Every recast-path diagnostic attaches the authored source span of the
 offending `as` expression (the stray cast itself for the positional sweep, the

@@ -1,8 +1,8 @@
 //! Rejoin every retained state, call, and edge before admitting the graph.
 use super::super::super::super::{CheckedComposedUnitControlTerminatorPlan, PrimitiveType};
 use super::super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
-    CheckedScalarExpressionRole, Multiplicity, ScalarType, unsupported,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
+    Multiplicity, ScalarType, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{
