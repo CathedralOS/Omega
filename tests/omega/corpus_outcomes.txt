@@ -1619,8 +1619,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed2536
 pass/float/builtin_extrema_field_store_exit checked 5149ms @2d8ed253669f
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
-pass/float/finite_core_domain_range_discharge rejected 1146ms @a7a8cec34dad+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 4)
+pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
 pass/float/float_saturating_arithmetic_exit rejected 396ms @2d8ed253669f
 	cannot prove assignment value `subtract(0.0, self.maximum) as f32 ` satisfies `finite` for bounded target `self.negative_maximum` in `Main::main.main`
 pass/float/float_to_int_exact_proofs_exit rejected 2540ms @2d8ed253669f

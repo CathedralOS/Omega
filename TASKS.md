@@ -1755,24 +1755,25 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Boolean or IEEE fact is one row as spelled; a collection predicate
   contributes each element's checked interval through static element leaves.
   The store gate (`structural_scalar_store/destination.rs`) admits a
-  declaration only when its rows imply every fact. `game_of_life` and
+  declaration only when its rows imply every fact. An internal state's
+  `Finite` IEEE parameter carries its domain as a scalar block invariant
+  `-largest <= value <= largest` that every arrival proves. `game_of_life`,
+  `pass/float/finite_core_domain_range_discharge` (exit **77**, native and
+  interpreted) and
   `pass/dependent/{collection_predicate_terminal_rows_exit,data_where_relational_callee_restored_exit,data_where_invariant_window_restored_exit}`
-  run natively with exit 70. A callee restores a ranged IEEE row from its
-  last store by value-equality transport, and a state edge narrows a named
-  `&mut` parameter to a `&` state view as it already did the receiver.
-  `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
-  now passes both and stops in stage 05 at "scalar qualification requires
-  non-vacuous or unsupported evidence": the state parameter
-  `value: f32 in Finite` carries the compiler-known `Finite` value domain,
-  which the closed scalar qualification catalog cannot hold because it has a
-  predicate. A machine whose named states loop drops its exclusive rows,
+  run natively. A machine whose named states loop drops its exclusive rows,
   because Terminal's unranked cycles admit no requirement observing a `&mut`
   loan, and an acyclic caller of such a machine keeps its entry rows but
   restores none; state-arrival rows over the loop are the missing consumer
-  that would carry the facts through it. Coordinate the
+  that would carry the facts through it. A machine entry parameter, result or
+  local in `Finite` still refuses in the scalar qualification catalog: only
+  arrivals carry it. The three recast customers still spell bracketed float
+  ranges on fields and locals (`f32 [0..=1]`), as do the pending
+  `float/float_range_attached_field` and
+  `generics/ranged_const_parameter_attached_shape`, so their migration under
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** comes first. Coordinate the
   state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
-  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
-  exit 77 and the three recast customers remain open.
+  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`.
 
   The const-container customer is now a native control (macOS ARM64,
   2026-09-30): `omega run --both

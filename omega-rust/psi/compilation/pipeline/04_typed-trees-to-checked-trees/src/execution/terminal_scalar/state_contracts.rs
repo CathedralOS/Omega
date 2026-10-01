@@ -42,6 +42,9 @@ pub(super) fn lower(
                 } => crate::values::lower_state_interval_predicate(
                     program, state, parameter, minimum, maximum,
                 )?,
+                validation::StateScalarContractRow::Finite { parameter } => {
+                    validation::state_finite_predicate(program, state, parameter)?
+                }
             };
             Some(Some(ClosedScalarContractValue::Predicate(predicate)))
         })

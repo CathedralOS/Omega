@@ -473,6 +473,7 @@ pass/float/finite_core_domain_range_discharge rejected 1489ms
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
 pass/float/finite_core_domain_range_discharge rejected 1206ms @a7a8cec34dad+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 4)
+pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee+wt
 pass/float/float_saturating_arithmetic_exit rejected 195ms
 	store in machine `Main::main` state `subtract` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `right` for state `Float::subtract::subtract` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target

@@ -44,6 +44,12 @@ pub enum StateScalarContractRow {
         minimum: numerics::bignum::BigInt,
         maximum: numerics::bignum::BigInt,
     },
+    /// An internal state's IEEE parameter declared in the compiler-known
+    /// `Finite` value domain: `-largest <= parameter <= largest` in its exact
+    /// format (`state_finite_predicate`). The closed scalar qualification
+    /// catalog holds no predicate-bearing domain, so every arrival proves the
+    /// row instead. A machine's entry parameter keeps no such row.
+    Finite { parameter: SymbolHandle },
 }
 
 /// Whether one `requires` fact only restates a structural parameter's declared
@@ -116,6 +122,11 @@ pub fn structural_state_contract_scalar_predicates(
         // allowing the body's arithmetic to use the bounds. Never recover the
         // range from a particular body expression or a successful source check.
         retain_declared_integer_ranges(program, parameter, &mut predicates)?;
+        if finite_arrival_parameter(program, state, parameter) {
+            predicates.push(StateScalarContractRow::Finite {
+                parameter: parameter.symbol,
+            });
+        }
         let mut reference = parameter.type_reference;
         if let TypeReferenceNode::Reference { referee, .. } =
             program.type_reference_table.type_reference(reference)
@@ -213,6 +224,123 @@ pub fn structural_state_contract_scalar_predicates(
     expected.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     actual.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     (actual == expected).then_some(predicates)
+}
+
+/// Whether `parameter` of `state` carries its `Finite` value domain as an
+/// arrival row: a relevant IEEE scalar of a state other than its machine's
+/// entry, declared in `Finite`.
+pub fn finite_arrival_parameter(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    use typed_trees::types::PrimitiveType;
+    if parameter.is_self
+        || parameter.is_const
+        || parameter.relevance.is_erased()
+        || !matches!(
+            program.primitive_type_reference(parameter.type_reference),
+            Some(PrimitiveType::F32 | PrimitiveType::F64)
+        )
+        || !program.machines().iter().any(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .skip(1)
+                .any(|internal| internal.symbol == state.symbol)
+        })
+    {
+        return false;
+    }
+    let mut reference = parameter.type_reference;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        if program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| {
+                matches!(
+                    constraint,
+                    TypeConstraintNode::Domain(domain)
+                        if domain.subject
+                            == typed_trees::types::DomainConstraintSubject::Value(
+                                language_semantics::value_domain::ValueDomain::Finite,
+                            )
+                )
+            })
+        {
+            return true;
+        }
+        reference = *base_type;
+    }
+    false
+}
+
+/// The arrival predicate of a `Finite` row: `-largest <= parameter` and
+/// `parameter <= largest` as IEEE comparisons in the parameter's exact
+/// format, over its dense scalar position. NaN fails both ordered
+/// comparisons and each infinity fails one, so the conjunction holds exactly
+/// for finite values, both signed zeros included.
+pub fn state_finite_predicate(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: SymbolHandle,
+) -> Option<checked_trees::CheckedBooleanExpression> {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedScalarExpression,
+    };
+    use semantic_vocabulary::IeeeFloatValue;
+    use typed_trees::types::PrimitiveType;
+    let parameters = program.state_parameters(state);
+    let index = parameters
+        .iter()
+        .position(|candidate| candidate.symbol == parameter)?;
+    if !finite_arrival_parameter(program, state, &parameters[index]) {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(parameters[index].type_reference)?;
+    let position = parameters[..index]
+        .iter()
+        .filter(|parameter| {
+            !parameter.relevance.is_erased()
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+        })
+        .count();
+    let (lowest, largest) = match primitive_type {
+        PrimitiveType::F32 => (
+            IeeeFloatValue::Binary32((-f32::MAX).to_bits()),
+            IeeeFloatValue::Binary32(f32::MAX.to_bits()),
+        ),
+        PrimitiveType::F64 => (
+            IeeeFloatValue::Binary64((-f64::MAX).to_bits()),
+            IeeeFloatValue::Binary64(f64::MAX.to_bits()),
+        ),
+        _ => return None,
+    };
+    let subject = || {
+        Box::new(CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        })
+    };
+    Some(CheckedBooleanExpression::And {
+        left: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            kind: CheckedIeeeFloatComparisonKind::LessOrEqual,
+            left: Box::new(CheckedScalarExpression::IeeeFloatLiteral { value: lowest }),
+            right: subject(),
+        }),
+        right: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            kind: CheckedIeeeFloatComparisonKind::LessOrEqual,
+            left: subject(),
+            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral { value: largest }),
+        }),
+    })
 }
 
 /// Read every constrained shell without narrowing endpoints to the host's i64
