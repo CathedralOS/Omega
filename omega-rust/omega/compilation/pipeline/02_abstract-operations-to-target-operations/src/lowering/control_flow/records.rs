@@ -99,8 +99,40 @@ pub(super) fn establish(
                 }
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {
-                let StructuralFieldType::Structural(nested) = declaration.field_type else {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                let byte_carrier =
+                    declaration
+                        .field_type
+                        .byte_sequence_carrier()
+                        .filter(|carrier| {
+                            matches!(
+                                carrier,
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        });
+                let nested = match declaration.field_type {
+                    StructuralFieldType::Structural(nested) => nested,
+                    _ if byte_carrier.is_some() => {
+                        let nested = live
+                            .structural_homes
+                            .get(&argument.place)
+                            .map(|home| home.structural_type())
+                            .or_else(|| {
+                                function
+                                    .structural_parameters
+                                    .iter()
+                                    .find(|parameter| parameter.place == argument.place)
+                                    .map(|parameter| parameter.structural_type)
+                            })
+                            .ok_or_else(invalid)?;
+                        if !types.get(&nested).is_some_and(|declaration| {
+                            Some(&declaration.shape)
+                                == byte_carrier.map(StructuralTypeShape::ByteSequence).as_ref()
+                        }) {
+                            return Err(invalid());
+                        }
+                        nested
+                    }
+                    _ => return Err(invalid()),
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
                 // Reference relocation currently describes record field paths;
@@ -118,7 +150,8 @@ pub(super) fn establish(
                             | StructuralTypeShape::Mixed { .. }
                             | StructuralTypeShape::FixedArray { .. }
                     )
-                ) && !reference_bearing
+                ) && byte_carrier.is_none()
+                    && !reference_bearing
                     && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)
                         .is_none()
                 {
@@ -142,7 +175,7 @@ pub(super) fn establish(
                 } else if let Some(home) = live.structural_homes.get(&argument.place) {
                     if home.structural_type() != nested
                         || home.has_claims()
-                        || !home.qualifications().is_empty()
+                        || (byte_carrier.is_none() && !home.qualifications().is_empty())
                         || !home.projected_qualifications().is_empty()
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -159,7 +192,7 @@ pub(super) fn establish(
                     if parameters.next().is_some()
                         || parameter.structural_type != nested
                         || parameter.access != StructuralAccess::Owned
-                        || !parameter.qualifications.is_empty()
+                        || (byte_carrier.is_none() && !parameter.qualifications.is_empty())
                         || !parameter.projected_qualifications.is_empty()
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -169,6 +202,8 @@ pub(super) fn establish(
                 if argument.access != StructuralAccess::Owned
                     || !argument.path.is_empty()
                     || multiplicity == StructuralMultiplicity::Linear
+                    || (byte_carrier.is_some()
+                        && multiplicity != StructuralMultiplicity::Unrestricted)
                     || (multiplicity == StructuralMultiplicity::Affine
                         && !consumed.insert(argument.place))
                 {

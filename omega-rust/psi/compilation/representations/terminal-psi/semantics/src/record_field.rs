@@ -12,9 +12,8 @@ pub struct RecordFieldCarrier {
 }
 
 /// Resolve record-field scalar observation carriers; the final scalar field is
-/// deliberately separate. One literal fixed-array index may end the carrier
-/// when the element is itself a record (`maps[1]` for a `maps[1].value`
-/// observation), matching the checked-unit bounded projection grammar.
+/// deliberately separate. Record fields and literal fixed-array indices
+/// compose in declaration order, including fields below indexed records.
 /// The carrier may also be a mixed shape, whose common fields sit directly on
 /// it beside the tag like a record's and whatever case is active: its
 /// payload fields instead need `case_payload_carrier`'s final `Case` step.
@@ -113,8 +112,8 @@ pub fn observed_field_declaration<'types>(
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
 }
 
-/// Walk declaration-local record fields from `root`, allowing one literal
-/// fixed-array index to end the walk. Returns the reached type and its
+/// Walk declaration-local record fields and literal array indices from `root`.
+/// Returns the reached type and its
 /// runtime path; the caller decides which shape it must have.
 fn walk_record_fields<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -125,12 +124,9 @@ fn walk_record_fields<'types>(
     let mut runtime_path = Vec::with_capacity(path.len());
     for (index, segment) in path.iter().enumerate() {
         if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
-            // The index may only end the walk; the caller's shape check then
-            // confirms the element owns the observed field. An element view
-            // carries no literal extent — its live length is the bound.
-            if index + 1 != path.len() {
-                return None;
-            }
+            // Fixed arrays retain every element identity through nested fields.
+            // Views keep their existing terminal-index route: their bound is
+            // a live length, not the declaration-owned extent checked here.
             let declaration = types
                 .clone()
                 .find(|declaration| declaration.id == structural_type)?;
@@ -141,7 +137,7 @@ fn walk_record_fields<'types>(
                     }
                     *element
                 }
-                StructuralTypeShape::ElementView { element } => *element,
+                StructuralTypeShape::ElementView { element } if index + 1 == path.len() => *element,
                 _ => return None,
             };
             runtime_path.push(StructuralPathSegment::FixedIndex(*element_index));

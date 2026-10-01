@@ -365,7 +365,14 @@ pub(super) fn validate_establish_record(
             }
             (
                 terminal_psi::RecordFieldValue::Structural(argument),
-                StructuralFieldType::Structural(_),
+                StructuralFieldType::Structural(_)
+                | StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                },
             ) if argument.access == terminal_psi::StructuralAccess::Owned
                 && argument.path.is_empty() => {}
             // A borrowed-view member is an owned descriptor the record keeps:

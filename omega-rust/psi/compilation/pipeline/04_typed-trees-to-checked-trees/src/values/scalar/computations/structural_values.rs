@@ -1185,32 +1185,20 @@ impl Builder<'_, '_> {
         let facts::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
-        let source = if let Some((index, parameter)) = self
+        // Value planning precedes the final structural parameter roster. Its
+        // dense positions change when a borrowed receiver is retained, so an
+        // authored leaf must keep its symbol until binding resolves that roster.
+        // StructuralLocal already represents both live locals and named formals;
+        // independent source replay still checks the exact authored root.
+        let symbol = self
             .authored_parameters
             .iter()
-            .filter(|parameter| {
-                crate::execution::terminal_unit::structural_parameter_candidate(
-                    self.program,
-                    parameter,
-                )
+            .find(|parameter| {
+                parameter.is_self && (parameter.symbol == symbol || self.machine == symbol)
             })
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == symbol)
-        {
-            if parameter.is_self {
-                // The authored `self` name retains the durable machine symbol;
-                // binding resolves that normalized root to the is_self slot.
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol: self.machine,
-                }
-            } else {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(index).ok()?,
-                }
-            }
-        } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-        };
+            .map_or(symbol, |parameter| parameter.symbol);
+        let source =
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
         // The borrowed lane admits a runtime `Index` segment: the selector
         // resolves to a checked `RuntimeIndex` coordinate and terminal
         // verification re-proves `0 <= index < extent` against the enclosing

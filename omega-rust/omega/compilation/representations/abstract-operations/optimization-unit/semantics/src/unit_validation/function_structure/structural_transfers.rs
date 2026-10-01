@@ -1,5 +1,6 @@
-//! Exact whole shared-view (qualified or not), shared bounded-owner,
-//! address-join and plain owned telescopes; ownership replays separately.
+//! Exact whole shared-view (qualified or not), bounded-owner loan, qualified
+//! owned bounded-byte, address-join and plain owned telescopes; ownership
+//! replays separately.
 //!
 //! A descriptor view or owned arrival binds a whole root of exactly its own
 //! contract. An address join (`abstract_operations::control_flow::address_joins`)
@@ -37,6 +38,7 @@ pub(super) fn validate(
                 || !places.insert(parameter.place)
                 || (!plain(parameter)
                     && !owner_loan(parameter, types)
+                    && !qualified_owned_bytes(parameter, types)
                     && !qualified_shared_view(parameter, types))
                 || !types
                     .get(&parameter.structural_type)
@@ -93,11 +95,11 @@ pub(super) fn validate(
                 let source = source_contract(function, binding.argument.place);
                 let exact_source = if qualified_shared_view(parameter, types) {
                     qualified_shared_view_source(function, &binding.argument, parameter)
-                } else if owner_loan(parameter, types) {
-                    // A bounded owner's shared loan is forwarded whole from a
-                    // signature or block parameter with the identical
-                    // declaration, qualifications included: the frozen
-                    // referent already carries them.
+                } else if owner_loan(parameter, types) || qualified_owned_bytes(parameter, types) {
+                    // A bounded owner or its shared loan is forwarded whole
+                    // from an identically declared signature or block
+                    // parameter. Owned transfer moves the value and roster;
+                    // the loan instead retains its frozen referent.
                     binding.argument.path.is_empty()
                         && function
                             .structural_parameters
@@ -195,6 +197,17 @@ fn owner_loan(
     )
 }
 
+fn qualified_owned_bytes(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    !parameter.qualifications.is_empty()
+        && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+            parameter,
+            |identity| types.get(&identity).copied(),
+        )
+}
+
 /// A shared borrowed byte view keeping its declared domains (`&[u8] in Utf8`).
 /// Terminal verification replayed those predicates at every arrival; the
 /// frozen descriptor needs no other transport.
@@ -263,10 +276,8 @@ fn qualified_shared_view_source(
     forwarded || literal()
 }
 
-/// Block parameters carry no qualification roster, so a structural join merges
-/// nothing a boundary requirement could consume: the joined value's roster is
-/// the empty intersection, and a qualified operand must reach its consumer
-/// through the dominating source contract rather than through the join.
+/// Plain block parameters carry no qualification roster. Qualified bounded
+/// owners use the exact whole-value route above rather than this fallback.
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
     !parameter.is_self
         && match parameter.access {

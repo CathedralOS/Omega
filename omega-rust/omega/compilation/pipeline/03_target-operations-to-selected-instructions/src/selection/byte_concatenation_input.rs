@@ -107,8 +107,8 @@ pub(super) fn shared_view_argument(
 
 /// The structural type of a place whose bytes use the owner layout (length
 /// word at offset 0, bytes from offset 8): an owned concatenation result in
-/// this activation, or a shared bounded owner loan whose signature or block
-/// parameter pointer is the owner's address.
+/// this activation, a whole owned parameter arrival, or a shared bounded owner
+/// loan whose signature or block parameter pointer is the owner's address.
 pub(super) fn owner_layout_type(
     function: &LegalizedScalarFunction,
     place: PlaceId,
@@ -131,10 +131,9 @@ pub(super) fn owner_layout_type(
                     parameter,
                     &signature.structural_types,
                 )
-                    || (signature.parameters.iter().any(|declared| declared.semantic.place == place)
-                        && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-                            parameter, &signature.structural_types,
-                        ))
+                    || abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                        parameter, &signature.structural_types,
+                    )
             })
             .map(|parameter| parameter.structural_type)
     })

@@ -46,8 +46,35 @@ pub(in crate::validation) fn validate(
                     }
                 )
         });
+    let whole_bytes = path.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        });
+    let exact_byte_copy = whole_bytes
+        && crate::validation::structural::result_contracts::source_signature(machine, source)
+            .is_some_and(|signature| {
+                signature.structural_type == result.structural_type
+                    && signature.multiplicity == StructuralMultiplicity::Unrestricted
+                    && signature.qualifications == result.qualifications
+                    && signature.projected_qualifications.is_empty()
+                    && terminal_semantics::byte_qualification_predicates_in(
+                        module.structural_domains.iter(),
+                        result.structural_type,
+                        &result.qualifications,
+                    )
+                    .is_some()
+            })
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty();
     if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_borrow_relocation)
-        || !result.qualifications.is_empty()
+        || (whole_bytes && !exact_byte_copy)
+        || (!whole_bytes && !result.qualifications.is_empty())
         || !result.claims.is_empty()
     {
         return Err(invalid());

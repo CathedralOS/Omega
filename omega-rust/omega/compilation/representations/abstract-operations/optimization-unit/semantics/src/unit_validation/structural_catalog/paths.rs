@@ -35,8 +35,39 @@ pub(crate) fn structural_projected_qualifications_match(
 
 pub(crate) fn resolve_structural_path(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_path(
+        types,
+        structural_type,
+        path,
+        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// An explicit leaf copy can snapshot byte storage without making that field
+/// a borrowable structural child or a projected-qualification subject.
+pub(crate) fn resolve_leaf_copy_path(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_path(
+        types,
+        structural_type,
+        path,
+        terminal_psi::StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+fn resolve_path(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
+    field_shape: fn(
+        &terminal_psi::StructuralFieldType,
+    ) -> Option<terminal_psi::StructuralTypeShape>,
 ) -> Option<StructuralTypeId> {
     types.get(&structural_type)?;
     for segment in path {
@@ -52,7 +83,7 @@ pub(crate) fn resolve_structural_path(
                 match &field.field_type {
                     terminal_psi::StructuralFieldType::Structural(next) => *next,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
+                        let shape = field_shape(leaf)?;
                         *types
                             .iter()
                             .find(|(_, declaration)| declaration.shape == shape)

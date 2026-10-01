@@ -44,8 +44,10 @@ pub(super) fn owned_parameter_uses_local_home(
 
 /// Owned aggregate inputs only need addressable storage when an operation observes a
 /// field or byte contents, observes a projected case, lends the original value,
-/// or a case dispatch reads its tag and payloads. Pure whole-value transport keeps its ABI
-/// fragments; a materialized home becomes the value's storage for later uses.
+/// or a case dispatch reads its tag and payloads. State-edge transport copies
+/// from an address into the successor's owned home, so even an otherwise
+/// unobserved incoming value must be materialized for that edge. Direct call
+/// and return transport can retain ABI fragments.
 pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     let Some(signature) = &source.structural else {
         return false;
@@ -69,6 +71,21 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     }) {
         return false;
     }
+    let binds = |successor: &legalized_operations::LegalizedScalarSuccessor| {
+        successor
+            .structural_bindings
+            .iter()
+            .any(|binding| binding.argument.place == place)
+    };
+    let forwarded = source.blocks.iter().any(|block| match &block.terminator {
+        legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => binds(successor),
+        legalized_operations::LegalizedScalarTerminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => binds(when_true) || binds(when_false),
+        _ => false,
+    });
     let dispatched = source.blocks.iter().any(|block| {
         matches!(
             &block.terminator,
@@ -78,7 +95,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             } if declaration.place == place
         )
     });
-    dispatched || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
+    forwarded || dispatched || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
@@ -771,30 +788,38 @@ pub(super) fn block_parameter_shape(
     source: &LegalizedScalarFunction,
     parameter: &terminal_psi::StructuralParameterDeclaration,
 ) -> Option<calling_conventions::ValueShape> {
+    let signature = source.structural.as_ref()?;
+    let owned_bounded_bytes =
+        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+            parameter,
+            &signature.structural_types,
+        );
     if parameter.access != terminal_psi::StructuralAccess::Owned
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
+        || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
         || !parameter.projected_qualifications.is_empty()
     {
         return None;
     }
-    let declaration = source
-        .structural
-        .as_ref()?
+    let declaration = signature
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)?;
-    if !matches!(
-        declaration.shape,
-        terminal_psi::StructuralTypeShape::Record { .. }
-            | terminal_psi::StructuralTypeShape::Sum { .. }
-    ) {
+    if !owned_bounded_bytes
+        && !matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::Record { .. }
+                | terminal_psi::StructuralTypeShape::Sum { .. }
+        )
+    {
         return None;
     }
-    // A successor carries the complete owned payload, including nested cases.
+    // A successor carries the complete owned payload: nested aggregate fields,
+    // or a bounded owner's live length word and inline byte backing. Predicate
+    // qualifications change no geometry and remain in the semantic contract.
     crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
         parameter.structural_type,
-        &source.structural.as_ref()?.structural_types,
+        &signature.structural_types,
     )
 }
 
@@ -873,10 +898,11 @@ pub(super) fn home(
     if selected.next().is_some()
         || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
-        // Byte predicates retain the same owned layout. Its exact concat
-        // producer replays that layout; semantic validation owns the predicates.
+        // Byte predicates retain the same owned layout. Concatenation checks
+        // its producer; a whole copy must retain its exact source contract.
         || (!result.qualifications.is_empty()
-            && crate::selection::byte_concatenation_input::capacity(source, row).is_none())
+            && crate::selection::byte_concatenation_input::capacity(source, row).is_none()
+            && !whole_byte_copy_contract(source, row))
         || !result.projected_qualifications.is_empty()
         || !source
             .structural
@@ -916,6 +942,89 @@ pub(super) fn home(
     Some((operation, result))
 }
 
+/// Shape replay has no domain catalog: qualified copies preserve the source's
+/// exact roster instead of interpreting domain identities as predicate proof.
+/// Dominance and source/result provenance are checked by legalization; this
+/// comparison never recursively follows homes or invents one for a parameter.
+fn whole_byte_copy_contract(
+    function: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+) -> bool {
+    let LegalizedScalarInstructionKind::StructuralLeafCopy {
+        result,
+        source,
+        path,
+        ..
+    } = &row.kind
+    else {
+        return false;
+    };
+    let Some(signature) = &function.structural else {
+        return false;
+    };
+    if !matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.qualification_establishments.is_empty()
+        || !signature.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    {
+        return false;
+    }
+    if let Some(parameter) = signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *source)
+    {
+        return parameter.access != StructuralAccess::WriteOnlyBorrow
+            && parameter.structural_type == result.structural_type
+            && parameter.multiplicity == result.multiplicity
+            && parameter.qualifications == result.qualifications
+            && parameter.projected_qualifications.is_empty();
+    }
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .any(|producer| {
+            let previous = match &producer.kind {
+                LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
+                | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                    result,
+                    ..
+                } => result,
+                LegalizedScalarInstructionKind::Call(call) => {
+                    let Some(result) = &call.structural_result else {
+                        return false;
+                    };
+                    result
+                }
+                _ => return false,
+            };
+            producer.operation != row.operation
+                && previous.place == *source
+                && previous.structural_type == result.structural_type
+                && previous.multiplicity == result.multiplicity
+                && previous.qualifications == result.qualifications
+                && previous.projected_qualifications.is_empty()
+                && previous.qualification_establishments.is_empty()
+                && previous.claims.is_empty()
+        })
+}
+
 /// A selected aggregate lives in the join's own home. Reconstruct its declaration
 /// and exact place coordinate; source replay separately checks availability.
 pub(super) fn block_home(
@@ -934,10 +1043,15 @@ pub(super) fn block_home(
     });
     let (block, parameter) = matching.next()?;
     let signature = source.structural.as_ref()?;
+    let owned_bounded_bytes =
+        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+            parameter,
+            &signature.structural_types,
+        );
     if matching.next().is_some()
         || parameter.access != StructuralAccess::Owned
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
+        || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
         || !parameter.projected_qualifications.is_empty()
         || !signature.structural_places.iter().any(|declaration| {
             declaration.id == place

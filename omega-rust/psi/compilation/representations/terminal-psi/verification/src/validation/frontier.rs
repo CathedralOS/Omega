@@ -415,6 +415,7 @@ fn validate_owned_reads(
             let unrestricted_parameter = source.multiplicity
                 == StructuralMultiplicity::Unrestricted
                 && (super::record::completed_source(module, machine, argument.place).is_some()
+                    || super::record::owned_byte_source(module, machine, argument.place)
                     || (super::scalar::case::plain_return_source(module, machine, argument.place)
                         || super::structural::case::plain_return_source(
                             module,

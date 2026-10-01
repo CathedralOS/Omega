@@ -378,11 +378,29 @@ fn structural_field_shape(
 }
 
 pub(super) fn resolve_structural_field_path(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    field_path(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn field_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
@@ -435,8 +453,7 @@ pub(super) fn resolve_structural_field_path(
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf
-                            .canonical_leaf_shape()
+                        let shape = leaf_shape(leaf)
                             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                         *declarations
                             .iter()
@@ -685,11 +702,29 @@ pub(super) fn case_projection(
 }
 
 pub(super) fn resolve_structural_projection_path(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    projection_path(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn projection_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
@@ -703,12 +738,13 @@ pub(super) fn resolve_structural_projection_path(
                     structural_type,
                 ));
             }
-            StructuralPathSegment::Field(_) => resolve_structural_field_path(
+            StructuralPathSegment::Field(_) => field_path(
                 structural_type,
                 std::slice::from_ref(segment),
                 declarations,
                 cache,
                 active,
+                leaf_shape,
             )?,
             StructuralPathSegment::FixedIndex(index) => {
                 let declaration = declarations
@@ -749,6 +785,13 @@ pub(super) fn resolve_structural_projection_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
+type RuntimeProjection = (
+    StructuralTypeId,
+    ValueShape,
+    u32,
+    Vec<(semantic_vocabulary::ValueId, u32)>,
+);
+
 /// Resolve a projection that may traverse `RuntimeIndex` segments at any
 /// depth — a leaf copy's extent, a primitive leaf, or a field store's
 /// carrier. Static segments before, between, and after the dynamic segments
@@ -772,6 +815,44 @@ pub(super) fn runtime_projection(
     ),
     LoweringError,
 > {
+    runtime_projection_with_leaf_shape(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// A snapshot may copy a declared byte field without making that field an
+/// ordinary borrow or call projection. Qualification custody stays with the
+/// copy operation's independent source replay.
+pub(super) fn runtime_leaf_copy_projection(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<RuntimeProjection, LoweringError> {
+    runtime_projection_with_leaf_shape(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+fn runtime_projection_with_leaf_shape(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Result<RuntimeProjection, LoweringError> {
     let mut structural_type = structural_type;
     let mut byte_offset = 0u32;
     let mut indices = Vec::new();
@@ -781,12 +862,13 @@ pub(super) fn runtime_projection(
             continue;
         };
         if position > segment_start {
-            let (container, _shape, run_offset) = resolve_structural_projection_path(
+            let (container, _shape, run_offset) = projection_path(
                 structural_type,
                 &path[segment_start..position],
                 declarations,
                 cache,
                 active,
+                leaf_shape,
             )?;
             structural_type = container;
             byte_offset = byte_offset
@@ -820,12 +902,13 @@ pub(super) fn runtime_projection(
         let shape = structural_shape(structural_type, declarations, cache, active)?;
         (structural_type, shape, 0)
     } else {
-        resolve_structural_projection_path(
+        projection_path(
             structural_type,
             &path[segment_start..],
             declarations,
             cache,
             active,
+            leaf_shape,
         )?
     };
     let byte_offset = byte_offset

@@ -5,7 +5,7 @@ use crate::terminal_identities::obligation_id;
 use checked_trees::CheckedScalarComputationKind;
 use checked_trees::types::PrimitiveType;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use terminal_psi::{OperationKind, StructuralTypeShape};
+use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape, Terminator};
 
 const SOURCE: &str = "
     data Record { prefix: u8; payload: u64; }
@@ -23,6 +23,184 @@ const SOURCE: &str = "
         retained.payload
     }
 ";
+
+#[test]
+fn qualified_record_element_construction_retains_state_parameter_custody() {
+    let checked = crate::front_end::checked_program(
+        "domain [u8; 8]::Utf8 requires valid_utf8(self);
+         data Direction [copy] { case None; case East; }
+         data Cell [copy] { value: u64; }
+         data Exit [copy] {
+             command: [u8; 8] in Utf8; direction: Direction; destination: Cell;
+         }
+         data Room { exits: [Exit; 2]; }
+         machine Room::install(&mut self, command: [u8; 8] in Utf8,
+                               direction: Direction, coordinate: u64) {
+             transition { _ -> write(command, direction, coordinate) }
+             state write(&mut self, command: [u8; 8] in Utf8,
+                         direction: Direction, coordinate: u64) {
+                 self.exits[1] = Exit { command: command, direction: direction,
+                     destination: Cell { value: coordinate } };
+             }
+         }
+         machine Room::coordinate(&self) -> u64 {
+             self.exits[1].destination.value
+         }",
+    );
+    let selection = TerminalMachineSelection::Name("Room::install");
+    let lowered = lower_machine(&checked, selection)
+        .expect("qualified byte fields compose with ordinary indexed record replacement");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent source-free replay retains byte predicates and state arrivals");
+    let observation = lower_machine(&checked, TerminalMachineSelection::Name("Room::coordinate"))
+        .expect("nested fields retain their declaration path after a fixed index");
+    terminal_verifier::verify_module(
+        &observation.semantic_module,
+        &observation.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay checks the complete indexed field path");
+    let mut outside_extent = observation.semantic_module.clone();
+    let index = outside_extent
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::IntegerStructuralField { path, .. } => {
+                path.iter_mut().find_map(|segment| match segment {
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
+                        Some(index)
+                    }
+                    _ => None,
+                })
+            }
+            _ => None,
+        })
+        .expect("the nested observation retains its exact fixed index");
+    *index = 2;
+    assert!(
+        terminal_verifier::validate_module(&outside_extent).is_err(),
+        "a nested field cannot hide an out-of-bounds carrier index"
+    );
+    let (machine_position, target, parameter_position, source) = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .enumerate()
+        .find_map(|(machine_position, machine)| {
+            machine.blocks.iter().find_map(|block| {
+                let parameter_position =
+                    block.structural_parameters.iter().position(|parameter| {
+                        parameter.access == StructuralAccess::Owned
+                            && !parameter.qualifications.is_empty()
+                    })?;
+                let source = machine.blocks.iter().find_map(|predecessor| {
+                    let arguments = match &predecessor.terminator {
+                        Terminator::Jump {
+                            target,
+                            structural_arguments,
+                            ..
+                        } if *target == block.id => Some(structural_arguments),
+                        Terminator::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => [when_true, when_false]
+                            .into_iter()
+                            .find(|successor| successor.target == block.id)
+                            .map(|successor| &successor.structural_arguments),
+                        _ => None,
+                    }?;
+                    arguments.get(parameter_position).cloned()
+                })?;
+                Some((machine_position, block.id, parameter_position, source))
+            })
+        })
+        .expect("qualified owned byte state arrival");
+    let mut missing_predicate = lowered.semantic_module.clone();
+    let machine = &mut missing_predicate.machines[machine_position];
+    let source_parameter = machine
+        .structural_parameters
+        .iter_mut()
+        .chain(
+            machine
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == source.place)
+        .expect("incoming state source declaration");
+    source_parameter.qualifications.clear();
+    assert!(
+        terminal_verifier::validate_module(&missing_predicate).is_err(),
+        "an unqualified owned source cannot satisfy a qualified byte state arrival"
+    );
+    let mut mutable_retag = lowered.semantic_module.clone();
+    let machine = &mut mutable_retag.machines[machine_position];
+    machine
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == target)
+        .unwrap()
+        .structural_parameters[parameter_position]
+        .access = StructuralAccess::MutableBorrow;
+    for predecessor in &mut machine.blocks {
+        let arguments = match &mut predecessor.terminator {
+            Terminator::Jump {
+                target: successor,
+                structural_arguments,
+                ..
+            } if *successor == target => Some(structural_arguments),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.target == target)
+                .map(|successor| &mut successor.structural_arguments),
+            _ => None,
+        };
+        if let Some(arguments) = arguments {
+            arguments[parameter_position].access = StructuralAccess::MutableBorrow;
+        }
+    }
+    assert!(
+        terminal_verifier::validate_module(&mutable_retag).is_err(),
+        "an owned state payload cannot be widened into a mutable loan descriptor"
+    );
+    let mut changed = checked.clone();
+    let plan = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .find(|plan| {
+            plan.states.iter().any(|state| {
+                state
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| !parameter.qualifications.is_empty())
+            })
+        })
+        .expect("qualified state plan");
+    let parameter = plan.states[1]
+        .structural_parameters
+        .iter_mut()
+        .find(|parameter| !parameter.qualifications.is_empty())
+        .expect("byte state parameter");
+    parameter.qualifications.clear();
+    assert!(
+        lower_machine(&changed, TerminalMachineSelection::Name("Room::install")).is_err(),
+        "a checked plan cannot erase the authored incoming byte qualification"
+    );
+}
 
 #[test]
 fn local_float_record_reads_use_checked_primitive_paths() {

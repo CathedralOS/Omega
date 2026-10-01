@@ -100,7 +100,9 @@ pub(crate) fn operation_structural_call_contract_matches(
             scalar_array_establishment_matches(caller, operation, types)
         }
         O::EstablishCase { .. } => case_establishment_matches(caller, operation, types),
-        O::EstablishRecord { .. } => record_establishment_matches(caller, operation, types),
+        O::EstablishRecord { .. } => {
+            record_establishment_matches(caller, operation, types, domains)
+        }
         O::EstablishZeroedStructural { .. } => {
             zeroed_establishment_matches(caller, operation, types)
         }
@@ -116,6 +118,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         } => functions.get(callee).is_some_and(|callee| {
             structural_arguments_match(
                 caller,
+                operation.psi_operation(),
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
@@ -139,6 +142,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         } => functions.get(callee).is_some_and(|callee| {
             structural_arguments_match(
                 caller,
+                operation.psi_operation(),
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
@@ -158,6 +162,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 .is_some_and(|callee| {
                     structural_arguments_match(
                         caller,
+                        operation.psi_operation(),
                         std::slice::from_ref(&dynamic_dispatch.initial.source),
                         &callee.structural_parameters,
                         types,
@@ -166,6 +171,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                         false,
                     ) && structural_arguments_match(
                         caller,
+                        operation.psi_operation(),
                         std::slice::from_ref(&dynamic_dispatch.rebound.source),
                         &callee.structural_parameters,
                         types,
@@ -179,6 +185,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 .is_some_and(|callee| {
                     structural_arguments_match(
                         caller,
+                        operation.psi_operation(),
                         std::slice::from_ref(&dynamic_dispatch.stored.selection.source),
                         &callee.structural_parameters,
                         types,
@@ -221,6 +228,7 @@ pub(crate) fn operation_structural_call_contract_matches(
             }
             structural_arguments_match(
                 caller,
+                operation.psi_operation(),
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
@@ -262,6 +270,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         } => boundary_machines.get(boundary).is_some_and(|boundary| {
             structural_arguments_match(
                 caller,
+                operation.psi_operation(),
                 structural_arguments,
                 &boundary.structural_parameters,
                 types,
@@ -413,6 +422,7 @@ fn reference_call_matches(
             "args_match",
             structural_arguments_match(
                 caller,
+                operation.psi_operation(),
                 structural_arguments,
                 &callee.structural_parameters,
                 types,

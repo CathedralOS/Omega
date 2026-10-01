@@ -423,10 +423,15 @@ pub(in crate::legalization) fn block_home_layout(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+    let owned_bounded_bytes =
+        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+            parameter,
+            &plan.structural_types,
+        );
     if !(!parameter.is_self
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
-        && parameter.qualifications.is_empty()
+        && (parameter.qualifications.is_empty() || owned_bounded_bytes)
         && parameter.projected_qualifications.is_empty()
         && plan.structural_types.iter().any(|declaration| {
             declaration.id == parameter.structural_type
@@ -435,6 +440,9 @@ pub(in crate::legalization) fn block_home_layout(
                     StructuralTypeShape::Sum { .. }
                         | StructuralTypeShape::Mixed { .. }
                         | StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
                 )
         }))
     {
@@ -724,7 +732,31 @@ pub(super) fn result_home(
     place: PlaceId,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
-    let (origin, layout) = match super::structural_case::source_owner(function, place)? {
+    let source = super::structural_case::source_owner(function, place).or_else(|_| {
+        let mut matching = function.blocks.iter().flat_map(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .filter(move |parameter| parameter.place == place)
+                .map(move |parameter| (block.id, parameter))
+        });
+        let (block, declaration) = matching.next().ok_or(LegalizationError::custody())?;
+        if matching.next().is_some()
+            || !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                declaration,
+                &plan.structural_types,
+            )
+        {
+            return Err(LegalizationError::custody());
+        }
+        Ok(
+            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                block,
+                declaration: declaration.clone(),
+            },
+        )
+    })?;
+    let (origin, layout) = match source {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,

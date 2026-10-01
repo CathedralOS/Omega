@@ -6,6 +6,192 @@ use crate::unit_validation::operation_contracts::structural_access::{
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 
 #[test]
+fn copied_byte_field_call_replays_declaration_and_excludes_only_its_consumer() {
+    use abstract_operations::AbstractOperation as Operation;
+    use semantic_vocabulary::{OperationId, StructuralDomainId, StructuralPlaceKind};
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess as Access, StructuralMultiplicity as Multiplicity,
+        StructuralPathSegment as Path, StructuralTypeShape as Shape,
+    };
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
+    let carrier = unit.structural_types[1].id;
+    let domain = StructuralDomainId::new(901).unwrap();
+    let copied = PlaceId::new(902).unwrap();
+    let producer = OperationId::new(903).unwrap();
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    unit.structural_types.make_mut()[1].shape =
+        Shape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
+    let Shape::Record { fields } = &mut unit.structural_types.make_mut()[0].shape else {
+        panic!("record");
+    };
+    fields[0].field_type = terminal_psi::StructuralFieldType::PredicateByteSequence {
+        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        predicates,
+    };
+    unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: semantic_vocabulary::DomainSemanticId::new(901).unwrap(),
+        identity: "copied-field-Utf8".into(),
+        carrier,
+        byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+        content_projection: None,
+        establishment_routes: Vec::new(),
+    }]
+    .into();
+    let caller = &mut unit.functions[0];
+    let backing = caller.structural_parameters[0].place;
+    let mut parameter = caller.structural_parameters[0].clone();
+    parameter.structural_type = carrier;
+    parameter.access = Access::Owned;
+    parameter.qualifications = vec![domain];
+    let argument = terminal_psi::StructuralArgument {
+        place: copied,
+        access: Access::Owned,
+        path: Vec::new(),
+    };
+    let mut copy = caller.blocks[0].nodes[0].clone();
+    let consumer = copy.operation.psi_operation().unwrap();
+    let Operation::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].nodes[0].operation
+    else {
+        panic!("call");
+    };
+    *structural_arguments = vec![argument.clone()];
+    copy.operation = Operation::StructuralLeafCopy {
+        psi_operation: producer,
+        source: backing,
+        path: vec![Path::Field("carrier".into())].into(),
+        result: terminal_psi::StructuralOperationResult {
+            place: copied,
+            structural_type: carrier,
+            multiplicity: Multiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        },
+    };
+    caller
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: copied,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: carrier,
+            },
+        });
+    caller.blocks[0].nodes.insert(0, copy);
+    // Test this call contract directly; complete graph metadata/dominance is
+    // independently checked by the unit validator and end-to-end fixture.
+    let matches = |unit: &optimization_unit::PsiOptimizationUnit| {
+        let types = unit
+            .structural_types
+            .iter()
+            .map(|row| (row.id, row))
+            .collect();
+        let domains = unit
+            .structural_domains
+            .iter()
+            .map(|row| (row.id, row))
+            .collect();
+        structural_arguments_match(
+            &unit.functions[0],
+            Some(consumer),
+            std::slice::from_ref(&argument),
+            std::slice::from_ref(&parameter),
+            &types,
+            &domains,
+            StructuralProjectionPolicy::Unit,
+            false,
+        )
+    };
+    assert!(matches(&unit));
+    for corruption in 0..8 {
+        let mut changed = unit.clone();
+        let caller = &mut changed.functions[0];
+        match corruption {
+            0 => {
+                changed.structural_types.make_mut()[1].shape =
+                    Shape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 9 })
+            }
+            1 => {
+                let Shape::Record { fields } = &mut changed.structural_types.make_mut()[0].shape
+                else {
+                    panic!("record");
+                };
+                fields[0].field_type = terminal_psi::StructuralFieldType::ByteSequence(
+                    ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                );
+            }
+            2 => caller.structural_parameters[0].access = Access::WriteOnlyBorrow,
+            3 => {
+                caller
+                    .structural_places
+                    .iter_mut()
+                    .find(|place| place.id == copied)
+                    .unwrap()
+                    .kind = StructuralPlaceKind::OperationResult {
+                    producer: consumer,
+                    structural_type: carrier,
+                }
+            }
+            4 => {
+                let Operation::StructuralLeafCopy { path, .. } =
+                    &mut caller.blocks[0].nodes[0].operation
+                else {
+                    panic!("copy");
+                };
+                *path = vec![Path::Referent, Path::Field("carrier".into())].into();
+            }
+            5 => {
+                let mut write = caller.blocks[0].nodes[1].clone();
+                let Operation::CallStructural {
+                    psi_operation,
+                    structural_arguments,
+                    ..
+                } = &mut write.operation
+                else {
+                    panic!("call");
+                };
+                *psi_operation = OperationId::new(904).unwrap();
+                structural_arguments[0].access = Access::MutableBorrow;
+                caller.blocks[0].nodes.push(write);
+            }
+            6 => {
+                let mut escape = caller.blocks[0].nodes[1].clone();
+                escape.operation = Operation::ReturnStructural {
+                    psi_edge: semantic_vocabulary::EdgeId::new(905).unwrap(),
+                    source: copied,
+                    returned_claims: Vec::new(),
+                    trivial_affine_locals: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                };
+                caller.blocks[0].nodes.push(escape);
+            }
+            7 => {
+                let Operation::CallStructural {
+                    structural_arguments,
+                    ..
+                } = &mut caller.blocks[0].nodes[1].operation
+                else {
+                    panic!("call");
+                };
+                structural_arguments[0].access = Access::SharedBorrow;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches(&changed),
+            "copied byte call corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
     use terminal_psi::{
         BindingRelevance, StructuralAccess as Access, StructuralFieldDeclaration,
@@ -94,6 +280,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
             assert_eq!(
                 structural_arguments_match(
                     caller,
+                    None,
                     std::slice::from_ref(&argument),
                     std::slice::from_ref(&parameter),
                     &types,
@@ -131,6 +318,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
         argument.path = malformed;
         assert!(!structural_arguments_match(
             caller,
+            None,
             std::slice::from_ref(&argument),
             std::slice::from_ref(&parameter),
             &types,
@@ -144,6 +332,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
         caller.structural_parameters[0].multiplicity = multiplicity;
         assert!(!structural_arguments_match(
             caller,
+            None,
             std::slice::from_ref(&argument),
             std::slice::from_ref(&parameter),
             &types,
@@ -179,6 +368,7 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
                    parameter: &terminal_psi::StructuralParameterDeclaration| {
         structural_arguments_match(
             caller,
+            None,
             std::slice::from_ref(argument),
             std::slice::from_ref(parameter),
             &types,
@@ -279,6 +469,7 @@ fn bounded_owner_call_rechecks_predicate_preservation_after_rewriting() {
                    expected: &terminal_psi::StructuralParameterDeclaration| {
         structural_arguments_match(
             caller,
+            None,
             std::slice::from_ref(argument),
             std::slice::from_ref(expected),
             &types,

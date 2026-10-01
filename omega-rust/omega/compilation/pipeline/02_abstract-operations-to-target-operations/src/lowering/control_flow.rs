@@ -235,6 +235,10 @@ pub(super) fn lower(
                         structural_types,
                     )
                     && !transfers::is_address_join(parameter, structural_types)
+                    && !super::scalar::byte_views::is_owned_byte_parameter(
+                        parameter,
+                        structural_types,
+                    )
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {

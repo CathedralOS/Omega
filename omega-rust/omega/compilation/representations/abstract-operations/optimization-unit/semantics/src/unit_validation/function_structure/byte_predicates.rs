@@ -329,6 +329,149 @@ pub(crate) fn whole_source_predicates<'t, 'd>(
     )
 }
 
+/// Declaration predicates captured by one byte-field snapshot at an owned
+/// ordinary call. Only that consumer is excluded from the conservative write
+/// scan; this is not a timeless initializer fact or a permission to borrow the
+/// field. Current-graph custody independently checks availability and dominance.
+pub(crate) fn copied_field_predicates_at_call<'t>(
+    types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+    consumer: semantic_vocabulary::OperationId,
+) -> Option<ByteSequencePredicateSet> {
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let node = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| node.operation.psi_operation() == Some(producer))?;
+    let Operation::StructuralLeafCopy {
+        source: backing,
+        path: abstract_operations::StructuralCopyPath::Ordinary(path),
+        result,
+        ..
+    } = &node.operation
+    else {
+        return None;
+    };
+    if result.place != source
+        || result.structural_type != structural_type
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+    {
+        return None;
+    }
+    let carrier = types
+        .clone()
+        .find_map(|declaration| match declaration.shape {
+            StructuralTypeShape::ByteSequence(
+                carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ) if declaration.id == structural_type => Some(carrier),
+            _ => None,
+        })?;
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *backing)?;
+    if !matches!(
+        parameter.access,
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
+    else {
+        return None;
+    };
+    if parent_path.iter().any(|segment| {
+        !matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return None;
+    }
+    let parent = terminal_semantics::runtime_structural_path_tip(
+        types,
+        parameter.structural_type,
+        parent_path,
+    )?;
+    let StructuralTypeShape::Record { fields } = &parent.shape else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    if field.field_type.byte_sequence_carrier()? != carrier {
+        return None;
+    }
+    let consuming = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| node.operation.psi_operation() == Some(consumer))?;
+    let Operation::CallStructural {
+        structural_arguments,
+        ..
+    } = &consuming.operation
+    else {
+        return None;
+    };
+    if !structural_arguments.iter().any(|argument| {
+        argument.place == source
+            && argument.path.is_empty()
+            && argument.access == StructuralAccess::Owned
+    }) || structural_arguments.iter().any(|argument| {
+        argument.place == source
+            && (!argument.path.is_empty() || argument.access != StructuralAccess::Owned)
+    }) {
+        return None;
+    }
+    let carries = |bindings: &[abstract_operations::AbstractStructuralBinding]| {
+        bindings
+            .iter()
+            .any(|binding| binding.argument.place == source)
+    };
+    if function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+        let operation = &node.operation;
+        // An edge can rename the snapshot; a place-only clobber scan must not
+        // infer that such an alias stays pristine. Backing-field writes are
+        // independent because this operation already captured its own bytes.
+        let escapes = match operation {
+            Operation::Jump { structural_bindings, .. } => carries(structural_bindings),
+            Operation::Conditional { when_true, when_false, .. } => carries(&when_true.structural_bindings) || carries(&when_false.structural_bindings),
+            Operation::ReturnStructural { source: returned, .. } => *returned == source,
+            _ => false,
+        };
+        escapes || (operation.psi_operation() != Some(consumer)
+            && (may_change_owned_source(operation, source)
+                || matches!(operation, Operation::EstablishReference { source: argument, .. } | Operation::EstablishElementView { source: argument, .. } if argument.place == source)
+                || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if *viewed == source)
+                || matches!(operation, Operation::CallDynamic { .. })))
+    }) { return None; }
+    Some(field.field_type.byte_predicates())
+}
+
 /// The type and domain catalogs a predicate replay reads.
 struct Catalogs<Types, Domains> {
     types: Types,

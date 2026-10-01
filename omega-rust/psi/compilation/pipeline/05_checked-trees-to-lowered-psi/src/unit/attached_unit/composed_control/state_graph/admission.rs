@@ -57,7 +57,7 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                             && (parameter.qualifications.is_empty()
                                 || parameter.multiplicity == Multiplicity::Linear
                                 || (index == 0 && qualified_invocation)
-                                || forwards_qualified_loan(checked, plan, &live, index, parameter_index))
+                                || forwards_qualified_parameter(checked, plan, &live, index, parameter_index))
                     })
                 })
                 && claim_transport_supported(checked, plan, &live)
@@ -309,7 +309,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             if qualifications != parameter.qualifications
                 || (!qualifications.is_empty()
                     && !(state_index == 0 && qualified_invocation)
-                    && !forwards_qualified_loan(checked, plan, &live, state_index, parameter_index))
+                    && !forwards_qualified_parameter(
+                        checked,
+                        plan,
+                        &live,
+                        state_index,
+                        parameter_index,
+                    ))
             {
                 return unsupported(
                     "Unit graph borrowed parameter qualifications differ from invocation custody",
@@ -1339,7 +1345,7 @@ fn validate_guard(
 /// byte-predicate domain without establishment routes, which Terminal
 /// verification decides from the literal's octets. The entry keeps its
 /// invocation rule.
-fn forwards_qualified_loan(
+fn forwards_qualified_parameter(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     live: &[bool],
@@ -1355,8 +1361,11 @@ fn forwards_qualified_loan(
     if target_index == 0
         || parameter.is_self
         || !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-            || (parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                && parameter.projected_qualifications.is_empty()
+            || (matches!(
+                parameter.access,
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | checked_trees::CheckedStructuralAccess::Owned
+            ) && parameter.projected_qualifications.is_empty()
                 && checked
                     .facts
                     .flow

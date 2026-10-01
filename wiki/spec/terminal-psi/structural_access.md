@@ -307,10 +307,11 @@ forgets the whole destination root.
 place, an ordered canonical carrier path, and the final declaration-local field
 ID. The carrier path excludes the final field; an empty path is a direct read.
 Each record step selects a relevant structural field of a record by its exact
-parent-local ID. One literal fixed index may end the carrier when its element
-record owns the field. A runtime-selected element's field is read by
+parent-local ID. Literal fixed-array indices compose with record fields in
+declaration order, including fields nested below an indexed record; each index
+must be below its array's declared extent. A runtime-selected element's field is read by
 `PrimitiveScalarRead` instead (see the store vocabulary above). One `Case` step may end the carrier when the preceding
-record steps reach a sum. The final field is then a relevant scalar payload
+carrier steps reach a sum. The final field is then a relevant scalar payload
 field of that exact declared case. A case payload is overlaid at the sum's own
 place, so the carrier's shape is no evidence that the overlay is live. Each
 `Case` step must hold as a `StructuralCaseMembership` fact for the same root and

@@ -1,8 +1,9 @@
 //! Admit whole shared or exclusive byte views, address joins over plain
 //! referents or shared bounded byte owners, and plain owned structural
-//! arrivals. Only an owner loan's join or a shared byte view carries
-//! qualifications: its frozen referent keeps its declared plain byte
-//! predicates, which Terminal verification already replayed at every arrival.
+//! arrivals. An owner loan, a shared byte view, or a whole owned bounded-byte
+//! value may carry qualifications. Borrowed carriers keep their frozen
+//! referent; an owned arrival moves its complete `{length, bytes}` payload and
+//! exact predicate roster, which Terminal verification replayed at every edge.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
@@ -41,6 +42,7 @@ pub(super) fn validate_structural_block_bindings(
                                 parameter,
                                 &module.structural_types,
                             )
+                            && !qualified_owned_bounded_bytes(module, parameter)
                             && !abstract_operations::control_flow::owner_loans::is_shared_byte_view_in(
                                 parameter,
                                 &module.structural_types,
@@ -134,6 +136,18 @@ pub(super) fn validate_structural_block_bindings(
         }
     }
     Ok(())
+}
+
+fn qualified_owned_bounded_bytes(
+    module: &TerminalModule,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+) -> bool {
+    !parameter.qualifications.is_empty()
+        && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+            parameter,
+            &module.structural_types,
+        )
+        && terminal_semantics::byte_parameter_predicates(module, parameter).is_some()
 }
 
 fn unsupported_argument(

@@ -12,7 +12,7 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
-fn owned_snapshots_retain_bounded_byte_predicates_without_granting_construction() {
+fn owned_snapshots_and_constructor_storage_retain_bounded_byte_predicates() {
     for carrier in ["Bytes", "[Bytes; 2]", "Holder<Holder<Bytes>>"] {
         let program = crate::front_end::typed_program(&format!(
             "domain [u8; 16]::Text requires valid_utf8(self);
@@ -28,7 +28,7 @@ fn owned_snapshots_retain_bounded_byte_predicates_without_granting_construction(
         assert!(!super::has_plain_owned_contents_with_numeric_constraints(
             &program, reference
         ));
-        assert!(!super::has_structural_construction_contents(
+        assert!(super::has_structural_construction_contents(
             &program, reference
         ));
     }
