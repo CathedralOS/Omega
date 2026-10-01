@@ -80,7 +80,8 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
-pass/borrows/transition_shared_borrow_result built 915ms exit:181 @48008365d839
+pass/borrows/transition_shared_borrow_result rejected 1252ms @4b33596b9ee1+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "operation accesses suspended referent or treats reference carrier as owned data" }))
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/writeonly_record_field_store built 683ms exit:181 @48008365d839
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
@@ -227,7 +228,7 @@ pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/calls/value_tail_call_to_machine_exit built 1212ms exit:70 @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit built 4714ms exit:70 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
-pass/capabilities/acquires_through_helper_return built 301ms
+pass/capabilities/acquires_through_helper_return built 522ms @4b33596b9ee1+wt
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
 pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
@@ -914,7 +915,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit built 683ms exit:7
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85 @fb2178def922
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 967ms exit:70
-pass/structs/affine_result_constructor built 1026ms exit:70 @5b34dbe4df3d+wt
+pass/structs/affine_result_constructor built 1095ms exit:70 @4b33596b9ee1+wt
 pass/structs/case_field_type_store_shapes built 31396ms exit:70 @8a4d4e552420+wt
 pass/structs/copied_array_field_shared_record built 642ms exit:70
 pass/structs/deep_nested_write_paths_exit built 1883ms exit:70 @fb2178def922

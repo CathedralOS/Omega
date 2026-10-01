@@ -222,17 +222,20 @@ fn referent(
     }
 }
 
-/// The sole aggregate bare-reference carrier native lowering realizes. Its
-/// mutable record referent is ordinary storage rather than a nested loan
-/// roster; shared, write-only and reference-bearing record referents remain
-/// outside this ABI.
-fn mutable_plain_record_referent(
+/// The aggregate bare-reference carrier native lowering realizes: a shared,
+/// mutable or write-only borrow of a plain record. Its referent is ordinary
+/// storage rather than a nested loan roster; reference-bearing record
+/// referents remain outside this ABI.
+fn plain_record_referent(
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     let StructuralTypeShape::Reference {
         referent,
-        access: StructuralAccess::MutableBorrow,
+        access:
+            StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow,
     } = &lookup(declarations, structural_type)?.shape
     else {
         return None;
@@ -250,7 +253,7 @@ fn bare_referent(
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     referent(declarations, structural_type)
-        .or_else(|| mutable_plain_record_referent(declarations, structural_type))
+        .or_else(|| plain_record_referent(declarations, structural_type))
 }
 
 /// The structural type a field-only path names beneath `root`: record and

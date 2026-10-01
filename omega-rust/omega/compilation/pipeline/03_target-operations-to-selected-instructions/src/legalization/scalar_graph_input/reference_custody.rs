@@ -453,16 +453,19 @@ fn referent(
     }
 }
 
-/// The sole aggregate bare-reference carrier currently realized by native
-/// lowering. Its record referent contains storage, not another loan roster;
-/// shared and write-only aggregate carriers remain outside this ABI.
-fn mutable_plain_record_referent(
+/// The aggregate bare-reference carrier native lowering realizes: a shared,
+/// mutable or write-only borrow of a plain record. Its referent contains
+/// storage, not another loan roster, and the carrier owns no record home.
+fn plain_record_referent(
     types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     let StructuralTypeShape::Reference {
         referent,
-        access: StructuralAccess::MutableBorrow,
+        access:
+            StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow,
     } = &types
         .iter()
         .find(|declaration| declaration.id == structural_type)?
@@ -500,7 +503,7 @@ fn leaf_referent(
         .find(|declaration| declaration.id == leaf)?
         .shape
     {
-        StructuralTypeShape::Reference { .. } => mutable_plain_record_referent(types, leaf),
+        StructuralTypeShape::Reference { .. } => plain_record_referent(types, leaf),
         _ => Some(leaf),
     }
 }
@@ -1139,7 +1142,7 @@ pub(in crate::legalization) fn apply(
             source,
         } => {
             let referent = referent(types, result.structural_type)
-                .or_else(|| mutable_plain_record_referent(types, result.structural_type))
+                .or_else(|| plain_record_referent(types, result.structural_type))
                 .ok_or_else(|| invalid())?;
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
