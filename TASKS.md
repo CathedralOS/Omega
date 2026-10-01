@@ -141,35 +141,31 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **FORWARDED-CONTEXT-BLOCK-PARAMETER-MODULE.** (split-of:STATIC-MACHINE-MIGRATION)
-  Admit a domain-qualified byte container among the attached data a machine
-  forwards to its states. `print_number`, `run_length_encode` and
-  `caesar_cipher` check and then stop at `terminal-artifact production failed:
-  Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
-  BlockId(2), place: PlaceId(2) }))`.
-  The reduction is committed as
-  [tests/omega/pending/storage/forwarded_context_bounded_byte_field](tests/omega/pending/storage/forwarded_context_bounded_byte_field/main.omg),
-  which the corpus runner does not walk: one unread `text: [u8; 5] in Utf8`
-  field beside a forwarded `main: &mut Main`. Spelling the field `[u8; 5]`
-  without the domain compiles; keeping the domain and giving every state
-  `&mut self` compiles. Neither half is the fault alone.
-  Frontier: the refusing clause is the structural-type admission in
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/block_views.rs`
-  — instrumented, `type_ok` is the only false conjunct for a `MutableBorrow`
-  parameter of the lent record. For that access it admits only what
-  `block_views/mutable_records.rs`'s `parameter_type` accepts, and its
-  `borrowed_carrier_type` walks the lent record's fields and returns false at
-  any child that is neither `FusedServiceBinding`, `Record`, nor
-  `record::plain_type`. A bounded byte owner is a `ByteSequence`, so the walk
-  refuses it; a plain `[u8; N]` is `plain_type` and the walk passes it.
-  Whether a `&mut` record loan may carry a bounded byte owner — the state
-  writes it through the root window and the caller observes, and the owner's
-  live length travels with it — is a verifier trust decision, and
-  `mutable_records.rs` plus its trusted-surface digest row are live
-  ARRAY-STATE-LOAN work, so this stops at that boundary rather than editing it.
-  Acceptance: the pending fixture moves to `pass/storage/` with an authored
-  exit and a golden row, and the three samples meet their documented oracle
-  under `tools/sample_native_gate.py` on a matching host.
+- **FORWARDED-CONTEXT-BYTE-FIELD-ACCESS.** (split-of:STATIC-MACHINE-MIGRATION)
+  Read and store a domain-qualified byte field through a forwarded attached
+  data loan. Carrying the field is done:
+  [pass/storage/forwarded_context_bounded_byte_field_exit](tests/omega/pass/storage/forwarded_context_bounded_byte_field_exit/main.omg)
+  builds and runs with a `[u8; 5] in Utf8` field beside a forwarded
+  `main: &mut Main`. Touching it is not, and the three samples now stop at
+  three distinct later refusals rather than one module-validity refusal:
+  `caesar_cipher` at
+  `InvalidTerminalModule(InvalidStructuralByteSequenceFieldAccess(OperationId(25)))`
+  reading `main.text[main.i]`, `print_number` at
+  `InvalidTerminalModule(InvalidStructuralByteSequenceFieldStore(OperationId(34)))`
+  storing into its digit buffer, and `run_length_encode` at
+  `Lowering(OperationProofUnavailable(ObligationId(23)))`, which is a missing
+  proof rather than an invalid module and so is the nearest of the three.
+  Frontier: these are the byte-field access and store validators, which are
+  what keep the carrying admission honest — a loan of the record grants its
+  byte field nothing, as `formation:machine-validation` now states — so each
+  needs its own reason for refusing a forwarded root, not a relaxation.
+  Owners are the byte-sequence validation under
+  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence.rs`
+  and the store and access producers in
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/`.
+  Acceptance: `print_number`, `run_length_encode` and `caesar_cipher` meet
+  their documented oracle under `tools/sample_native_gate.py` on a matching
+  host, each with a corpus fixture pinning the operation it needed.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and

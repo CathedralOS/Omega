@@ -2044,6 +2044,7 @@ pass/slices/subslice_folded_bound_facts_compile checked 288ms @2d8ed253669f
 pass/slices/subslice_literal_bounds_compile checked 312ms @2d8ed253669f
 pass/slices/termination_slice_length_compile checked 301ms @2d8ed253669f
 pass/slices/window_shrink_min_length_tail_index_compile checked 306ms @2d8ed253669f
+pass/storage/forwarded_context_bounded_byte_field_exit checked 798ms @de74b73e1452+wt
 pass/storage/runtime_alias_field_binary checked 293ms @2d8ed253669f
 pass/storage/runtime_alias_integer_write checked 298ms @2d8ed253669f
 pass/storage/runtime_local_slice_forward_exit rejected 752ms @2d8ed253669f
