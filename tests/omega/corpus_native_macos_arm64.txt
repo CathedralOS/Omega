@@ -52,8 +52,7 @@ pass/blockexec/blocking_executor_custody_claims_compile built 335ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 209ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 209ms
 pass/borrow/runtime_exclusive_loan_local_write_exit built 629ms exit:70
-pass/borrow/runtime_method_view_write_after_last_use_exit rejected 820ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "invalid reference-bearing operation result" }))
+pass/borrow/runtime_method_view_write_after_last_use_exit built 3567ms exit:70 @8b265e4e6ad8+wt
 pass/borrow/write_only_constrained_record_field checked 188ms
 pass/borrow/write_only_whole_scalar_replace checked 204ms
 pass/borrows/borrow_domain_window_write_and_call checked 169ms
@@ -187,8 +186,7 @@ pass/calls/runtime_option_value_call_exit built 950ms exit:70
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 741ms exit:70
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
-pass/calls/runtime_reference_returned_slice_element_write_exit rejected 789ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(2), reason: "invalid reference-bearing operation result" }))
+pass/calls/runtime_reference_returned_slice_element_write_exit built 3300ms exit:181 @8b265e4e6ad8+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1776ms exit:70 @48008365d839
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 725ms exit:70
 pass/calls/runtime_shared_ref_param_member_exit built 2091ms exit:42 @fb2178def922
