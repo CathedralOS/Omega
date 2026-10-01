@@ -1,0 +1,33 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Main { console: Binding<Console>; count: u64; }
+
+// The count loan ends at writeback. Forwarding unrelated backing must not
+// extend that loan into a state which mutates its former referent.
+machine Main::update(&mut self, bytes: &[u8]) {
+    transition { _ -> snapshot(&self.count, bytes) }
+    state snapshot(&mut self, count: &u64, bytes: &[u8]) {
+        let saved: u64 = count;
+        transition { _ -> writeback(saved, bytes) }
+    }
+    state writeback(&mut self, saved: u64, bytes: &[u8]) {
+        self.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let bytes: [u8; 3];
+    self.count = 67;
+    self.update(&bytes[..]);
+    transition self.count == 70 {
+        true -> matched()
+        false -> mismatched()
+    }
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+    state mismatched(&mut self) {
+        self.console.exit_process(71);
+    }
+}
