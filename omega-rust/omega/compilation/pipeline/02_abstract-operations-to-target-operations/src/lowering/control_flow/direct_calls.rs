@@ -579,8 +579,10 @@ fn live_graph_contract(
 }
 
 /// A structural result admits its durable home layout before anything else,
-/// then requires the callee's exact unqualified declared result, no claims on
-/// either side, no outcome-specific evidence and no forwarded descriptors.
+/// then requires the callee's exact declared result, no claims on either
+/// side, no outcome-specific evidence and no forwarded descriptors. Only a
+/// bounded owned byte result may carry declared qualifications. The caller's
+/// roster may add only domains this call's own establishment rows mint.
 fn structural_result_contract(
     call: &DirectCall<'_>,
     callee_function: &AbstractFunction,
@@ -601,12 +603,11 @@ fn structural_result_contract(
     let result_home = super::aggregate_results::home(call.psi_operation, result, types)?;
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
-        || callee_result.qualifications != result.qualifications
+        || !result_qualifications_match(callee_result, result)
         || callee_result.projected_qualifications != result.projected_qualifications
         || !callee_result.projected_qualifications.is_empty()
         || (!callee_result.qualifications.is_empty()
             && !bounded_owned_byte_result(result.structural_type, types))
-        || !result.qualification_establishments.is_empty()
         || !callee_function.entry_claims.is_empty()
         || !call.claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
@@ -621,6 +622,35 @@ fn structural_result_contract(
         prepare_function_signature(callee_function, target, types)?,
         result_home,
     ))
+}
+
+/// The caller-visible roster is the callee's declared roster plus the domains
+/// minted by this call's establishment rows (an `established by` route such
+/// as a selected provider realizing its requirement). Terminal verification
+/// replays each row against its route. A minted domain is discharged proof
+/// evidence with no storage, so the result home and ABI stay those of the
+/// callee's declared result. Any other caller domain is a qualification the
+/// callee never returned and still refuses.
+fn result_qualifications_match(
+    callee_result: &terminal_psi::StructuralResultDeclaration,
+    result: &terminal_psi::StructuralOperationResult,
+) -> bool {
+    let minted = result
+        .qualification_establishments
+        .iter()
+        .map(|establishment| establishment.domain);
+    let expected = callee_result
+        .qualifications
+        .iter()
+        .copied()
+        .chain(minted)
+        .collect::<BTreeSet<_>>();
+    let actual = result
+        .qualifications
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    actual.len() == result.qualifications.len() && actual == expected
 }
 
 fn bounded_owned_byte_result(
