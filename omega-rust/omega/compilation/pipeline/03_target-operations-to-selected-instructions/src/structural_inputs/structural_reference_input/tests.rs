@@ -13,7 +13,7 @@ use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
 #[test]
-fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
+fn owned_aggregate_geometry_preserves_bounded_byte_siblings() {
     use terminal_psi::{BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration};
 
     let root = StructuralTypeId::new(1).unwrap();
@@ -118,7 +118,81 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
             ),
             None,
         );
-        assert_eq!(owned_aggregate_shape(root, &declarations), None);
+        assert_eq!(
+            owned_aggregate_shape(root, &declarations),
+            expected.map(|(size, _)| ValueShape::integer(size, 8)),
+        );
+    }
+}
+
+#[test]
+fn owned_transport_keeps_byte_predicates_and_rejects_view_descriptors() {
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet,
+        StructuralAccess, StructuralFieldDeclaration,
+    };
+
+    let root = StructuralTypeId::new(1).unwrap();
+    let nested = StructuralTypeId::new(2).unwrap();
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    for carrier in [
+        ByteSequenceCarrier::BoundedOwned { capacity: 9 },
+        ByteSequenceCarrier::BoundedView {
+            access: Some(StructuralAccess::SharedBorrow),
+            capacity: 9,
+        },
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+    ] {
+        for qualified in [false, true] {
+            let field_type = if qualified {
+                StructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                }
+            } else {
+                StructuralFieldType::ByteSequence(carrier)
+            };
+            let mut declarations = vec![
+                StructuralTypeDeclaration {
+                    id: root,
+                    identity: "Container".into(),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: nested,
+                        length: 2,
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: nested,
+                    identity: "Label".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "text".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type,
+                        }],
+                    },
+                },
+            ];
+            assert_eq!(
+                owned_aggregate_shape(root, &declarations),
+                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
+                    .then_some(ValueShape::integer(48, 8)),
+                "carrier {carrier:?}, qualified {qualified}",
+            );
+            // A declared byte leaf has the same transport restriction. A byte
+            // root still goes through its dedicated owner, not this ABI route.
+            declarations[1].shape = StructuralTypeShape::ByteSequence(carrier);
+            assert_eq!(
+                owned_aggregate_shape(root, &declarations),
+                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
+                    .then_some(ValueShape::integer(48, 8)),
+            );
+            assert_eq!(owned_aggregate_shape(nested, &declarations), None);
+        }
     }
 }
 
@@ -263,7 +337,10 @@ fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
     // Payload ids are a separate namespace: no common field 2 exists, and a
     // mismatched scalar type selects nothing.
     let absent = StructuralFieldId::new(2).unwrap();
-    assert_eq!(store(root, &into_mixed, absent, scalar, &declarations), None);
+    assert_eq!(
+        store(root, &into_mixed, absent, scalar, &declarations),
+        None
+    );
     assert_eq!(
         store(root, &into_mixed, flag, ScalarType::Boolean, &declarations),
         None

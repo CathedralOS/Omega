@@ -7,6 +7,9 @@
 //! Closed primitive arrays select their scalar-array producer at the value
 //! boundary, independent of whether a record, case, or other value consumes it.
 //! The array occurrence owns its row-major leaf roots and independent replay.
+//! Copy permission belongs to the selected leaf, not its root: a readable
+//! owned or borrowed root may supply an unrestricted child without moving it.
+//! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
     Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
@@ -582,11 +585,10 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
         .any(|data| data.symbol == *symbol)
 }
 
-/// `self.scan_compare_type`-shape admission: a member/fixed-index projection
-/// rooted at shared-borrowed storage whose leaf is a copyable `Unrestricted`
-/// named type or fixed primitive array. Same root/path contract as
-/// `is_scalar_case_place_value`, but
-/// for leaves whose contents cannot be reconstructed by case fan-out. A bare
+/// A member/index projection rooted at readable owned or borrowed storage
+/// whose leaf is a copyable `Unrestricted` named type or fixed primitive array.
+/// It shares the scalar-case read's root/path contract, but retains contents
+/// that cannot be reconstructed by case fan-out. A bare
 /// whole-root name is the degenerate path: an owned root's `Unrestricted`
 /// contents copy out whole, no loan involved.
 fn is_copied_place_operand(
@@ -640,17 +642,17 @@ fn is_copied_place_operand(
         {
             return false;
         }
-    } else if !matches!(
-        program.type_reference_table.type_reference(root),
-        TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Shared
-                | language_semantics::ReferenceAccess::Mutable,
-            ..
-        }
-    ) {
-        // Copying an `Unrestricted` leaf only reads it, which any readable
-        // loan permits: the copy lends shared from a `&` or `&mut` root and
-        // leaves the source intact. A write-only loan grants no read.
+    } else if let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(root)
+        && !matches!(
+            access,
+            language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable
+        )
+    {
+        // A readable owned root can supply its copyable child just as a
+        // readable loan can. Neither consumes the root, even when it is
+        // affine; a write-only loan still grants no observation authority.
         return false;
     }
     crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
@@ -1143,10 +1145,8 @@ impl Builder<'_, '_> {
         (!reads.is_empty()).then_some(CheckedStructuralValueKind::ViewElementCopy { reads })
     }
 
-    /// One `Unrestricted` leaf copied out of shared-borrowed storage:
-    /// `self.scan_compare_type` reads the borrowed record's current contents
-    /// and copies the leaf into a fresh owned place, never moving a child
-    /// out of the loan.
+    /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
+    /// place. The source root and its ownership or loan remain unchanged.
     fn copied_place(
         &mut self,
         expression: ExpressionHandle,

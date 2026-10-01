@@ -379,6 +379,9 @@ pub(crate) fn plain_record_shape(
 
 /// Whole owned records, arrays, and sums share payload geometry. This checks
 /// carrier contents, not authority to construct, borrow or dispose the value.
+/// Established inline byte fields travel with their capacity and length word;
+/// their predicates remain in the exact type checked by the caller. Geometry
+/// cannot establish those predicates or turn a borrowed descriptor into ownership.
 pub(crate) fn owned_aggregate_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
@@ -426,6 +429,9 @@ fn plain_aggregate(
         StructuralTypeShape::FixedArray { element, .. } => {
             plain_aggregate(*element, declarations, active)
         }
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            ..
+        }) => true,
         StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
             case.fields.iter().all(|field| {
                 !field.relevance.is_erased()
@@ -449,8 +455,14 @@ fn plain_aggregate(
                         StructuralFieldType::IeeeFloat(format) => {
                             scalar_shape(ScalarType::IeeeFloat(format)).is_some()
                         }
+                        StructuralFieldType::ByteSequence(carrier)
+                        | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
+                            matches!(
+                                carrier,
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        }
                         StructuralFieldType::Erased { .. } => true,
-                        _ => false,
                     }
             })
         }),
@@ -479,8 +491,14 @@ fn plain_aggregate(
                         StructuralFieldType::IeeeFloat(format) => {
                             scalar_shape(ScalarType::IeeeFloat(format)).is_some()
                         }
+                        StructuralFieldType::ByteSequence(carrier)
+                        | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
+                            matches!(
+                                carrier,
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        }
                         StructuralFieldType::Erased { .. } => true,
-                        _ => false,
                     }
             }),
         StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
@@ -505,8 +523,14 @@ fn plain_aggregate(
                     StructuralFieldType::IeeeFloat(format) => {
                         scalar_shape(ScalarType::IeeeFloat(format)).is_some()
                     }
+                    StructuralFieldType::ByteSequence(carrier)
+                    | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
+                        matches!(
+                            carrier,
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    }
                     StructuralFieldType::Erased { .. } => true,
-                    _ => false,
                 }
         }),
         _ => false,

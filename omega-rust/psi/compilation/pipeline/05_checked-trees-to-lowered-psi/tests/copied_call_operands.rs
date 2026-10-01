@@ -1,5 +1,5 @@
-//! Copy-valued fields are evaluated into owned call operands without moving
-//! their borrowed backing storage.
+//! Copy-valued fields become owned operands without moving their backing
+//! storage, whether the source root is owned or borrowed.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_production::{
@@ -456,6 +456,80 @@ fn copied_operand_rejects_a_substituted_source_path() {
         TerminalMachineSelection::Name("Main::main"),
     )
     .expect_err("independent source replay rejects an exchanged copy path");
+}
+
+#[test]
+fn owned_nested_copy_rejects_a_same_typed_sibling_source() {
+    let mut checked = crate::front_end::checked_program(
+        "domain [u8; 8]::Text requires valid_utf8(self);
+         data Leaf [copy] { name: [u8; 8] in Text; value: u64; }
+         data Event { chosen: Leaf; sibling: Leaf; }
+         data Room { event: Event; }
+         machine copy_room(source: Room, destination: &mut Room) {
+             destination.event.chosen = source.event.chosen;
+             destination.event.sibling = source.event.sibling;
+             destination.event.chosen.value = source.event.chosen.value;
+         }",
+    );
+    let artifact =
+        TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("copy_room"))
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("an affine owned root permits copying its unrestricted nested leaves")
+            .into_artifact();
+    terminal_verifier::verify_module(
+        &terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode module"),
+        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("decode proof"),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("nested qualified leaves preserve copy custody and source readability");
+
+    let copies = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .filter_map(|(handle, node)| match &node.kind {
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+                Some((handle, source.clone()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        copies.len(),
+        2,
+        "each field assignment snapshots its source"
+    );
+    let [(selected, chosen), (_, sibling)] = copies.as_slice() else {
+        unreachable!();
+    };
+    assert_eq!(chosen.source, sibling.source, "both fields share one owner");
+    assert_eq!(chosen.type_identity, sibling.type_identity);
+    assert_eq!(chosen.path.len(), 2);
+    assert_eq!(sibling.path.len(), 2);
+    assert_eq!(chosen.path[0], sibling.path[0]);
+    assert_ne!(chosen.path[1], sibling.path[1]);
+
+    let checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } =
+        &mut checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get_mut(*selected)
+            .kind
+    else {
+        unreachable!();
+    };
+    source.path[1] = sibling.path[1].clone();
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("copy_room"),
+    )
+    .expect_err("a valid same-typed sibling cannot replace the authored copy source");
 }
 
 /// A whole `[copy]` case local passed to an unrestricted scalar call is
