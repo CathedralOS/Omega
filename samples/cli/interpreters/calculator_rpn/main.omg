@@ -166,35 +166,35 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify the result is 70.
     transition self.stack.result == 70 {
-        true -> check_sp()
-        _ -> bad_result()
+        true -> check_sp(&mut self)
+        _ -> bad_result(&mut self)
     }
 
-    state check_sp(&mut self) {
-        transition self.stack.sp == 0 {
-            true -> good()
-            _ -> bad_sp()
+    state check_sp(main: &mut Main) {
+        transition main.stack.sp == 0 {
+            true -> good(main)
+            _ -> bad_sp(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_result(&mut self) {
-        self.console.write_line("FAIL: RPN result != 70 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_result(main: &mut Main) {
+        main.console.write_line("FAIL: RPN result != 70 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_sp(&mut self) {
-        self.console.write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_sp(main: &mut Main) {
+        main.console.write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }

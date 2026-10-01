@@ -101,68 +101,68 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify idx0 == 0.
     transition idx0 == 0 {
-        true -> check_idx2(idx2, v0, v2, v1)
-        _ -> bad_idx0()
+        true -> check_idx2(&mut self, idx2, v0, v2, v1)
+        _ -> bad_idx0(&mut self)
     }
 
-    state bad_idx0(&mut self) {
-        self.console.write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_idx0(main: &mut Main) {
+        main.console.write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_idx2(&mut self, idx2: i32, v0: i32, v2: i32, v1: i32) {
+    state check_idx2(main: &mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
         transition idx2 == 4 {
-            true -> check_v0(v0, v2, v1)
-            _ -> bad_idx2()
+            true -> check_v0(main, v0, v2, v1)
+            _ -> bad_idx2(main)
         }
     }
 
-    state bad_idx2(&mut self) {
-        self.console.write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_idx2(main: &mut Main) {
+        main.console.write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state check_v0(&mut self, v0: i32, v2: i32, v1: i32) {
+    state check_v0(main: &mut Main, v0: i32, v2: i32, v1: i32) {
         transition v0 == 3 {
-            true -> compute_result(v0, v2, v1)
-            _ -> bad_v0()
+            true -> compute_result(main, v0, v2, v1)
+            _ -> bad_v0(main)
         }
     }
 
-    state bad_v0(&mut self) {
-        self.console.write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_v0(main: &mut Main) {
+        main.console.write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state compute_result(&mut self, v0: i32, v2: i32, v1: i32) {
+    state compute_result(main: &mut Main, v0: i32, v2: i32, v1: i32) {
         // result = v2 + v1 - v0 - 1 = 60 + 14 - 3 - 1 = 70.
         // i64 operands: call results carry no range facts, so exact i32
         // arithmetic cannot be proven against overflow; widened operands
         // keep every intermediate result inside i64.
         let result: i64 = (v2 as i64) + (v1 as i64) - (v0 as i64) - 1;
         transition result == 70 {
-            true -> good()
-            _ -> bad_result()
+            true -> good(main)
+            _ -> bad_result(main)
         }
     }
 
-    state bad_result(&mut self) {
-        self.console.write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad_result(main: &mut Main) {
+        main.console.write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

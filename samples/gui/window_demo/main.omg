@@ -327,88 +327,88 @@ machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClo
     // not a naked popup. The outer size is padded (+16, +39)
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
     self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 200, 200, 272, 295);
-    transition self.hwnd > 0 { true -> dc() _ -> bad() }
-    state dc(&mut self) {
-        self.hdc = self.gui.get_dc(self.hwnd);
-        self.frame = 0;
-        transition self.hdc > 0 { true -> frame_loop() _ -> bad() }
+    transition self.hwnd > 0 { true -> dc(&mut self) _ -> bad(&mut self) }
+    state dc(main: &mut Main) {
+        main.hdc = main.gui.get_dc(main.hwnd);
+        main.frame = 0;
+        transition main.hdc > 0 { true -> frame_loop(main) _ -> bad(main) }
     }
-    state frame_loop(&mut self) {
-        transition self.frame < 60 { true -> fill_init() _ -> finish() }
+    state frame_loop(main: &mut Main) {
+        transition main.frame < 60 { true -> fill_init(main) _ -> finish(main) }
     }
     // --- fill the framebuffer: one linear pass, an animated diagonal wash ---
-    state fill_init(&mut self) {
-        self.i = 0;
-        transition { _ -> fill_loop() }
+    state fill_init(main: &mut Main) {
+        main.i = 0;
+        transition { _ -> fill_loop(main) }
     }
-    state fill_loop(&mut self) {
-        transition self.i >= 0 && self.i < 4096 { true -> fill_cell() _ -> present() }
+    state fill_loop(main: &mut Main) {
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main) _ -> present(main) }
     }
-    state fill_cell(&mut self) {
+    state fill_cell(main: &mut Main) {
         // row + col + phase, folded through % 256: i/64 <= 64, i%64 <= 63,
         // frame*4 <= 240 -- every step provably bounded, no domain needed.
-        self.c = (self.i / 64) + (self.i % 64);
-        self.c = self.c + self.frame * 4;
-        self.c = self.c % 256;
+        main.c = (main.i / 64) + (main.i % 64);
+        main.c = main.c + main.frame * 4;
+        main.c = main.c % 256;
         // red ramps up the diagonal while blue ramps down: a scrolling wash.
-        self.px = self.c * 65536;
-        self.px = self.px + (255 - self.c) * 256;
-        self.px = self.px + 64;
-        transition self.i >= 0 && self.i < 4096 { true -> fill_put() _ -> bad() }
+        main.px = main.c * 65536;
+        main.px = main.px + (255 - main.c) * 256;
+        main.px = main.px + 64;
+        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main) _ -> bad(main) }
     }
-    state fill_put(&mut self) {
-        self.pixels[self.i] = self.px;
-        self.i = self.i + 1;
-        transition { _ -> fill_loop() }
+    state fill_put(main: &mut Main) {
+        main.pixels[main.i] = main.px;
+        main.i = main.i + 1;
+        transition { _ -> fill_loop(main) }
     }
     // --- present: stretch the 64x64 buffer into the 256x256 client area ---
-    state present(&mut self) {
-        self.copied = self.gui.blit(self.hdc, 256, 256, 64, 64, self.pixels, self.info);
-        transition self.copied == 64 { true -> pace() _ -> bad() }
+    state present(main: &mut Main) {
+        main.copied = main.gui.blit(main.hdc, 256, 256, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main) _ -> bad(main) }
     }
-    state pace(&mut self) {
-        self.clock.sleep(25);
-        transition { _ -> pump_init() }
+    state pace(main: &mut Main) {
+        main.clock.sleep(25);
+        transition { _ -> pump_init(main) }
     }
     // --- pump: drain queued messages so the titlebar responds (drag, X) ---
-    state pump_init(&mut self) {
-        self.pumped = 0;
-        transition { _ -> pump_loop() }
+    state pump_init(main: &mut Main) {
+        main.pumped = 0;
+        transition { _ -> pump_loop(main) }
     }
-    state pump_loop(&mut self) {
-        self.have = self.gui.msg_peek(self.message);
-        transition self.have > 0 { true -> pump_handle() _ -> liveness() }
+    state pump_loop(main: &mut Main) {
+        main.have = main.gui.msg_peek(main.message);
+        transition main.have > 0 { true -> pump_handle(main) _ -> liveness(main) }
     }
-    state pump_handle(&mut self) {
-        self.translated = self.gui.msg_translate(self.message);
-        self.dispatched = self.gui.msg_dispatch(self.message);
-        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    state pump_handle(main: &mut Main) {
+        main.translated = main.gui.msg_translate(main.message);
+        main.dispatched = main.gui.msg_dispatch(main.message);
+        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
     }
-    state pump_next(&mut self) {
-        self.pumped = self.pumped + 1;
-        transition { _ -> pump_loop() }
+    state pump_next(main: &mut Main) {
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump_loop(main) }
     }
     // --- liveness: if the window is destroyed, stop blitting into it ---
-    state liveness(&mut self) {
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> next_frame() _ -> finish() }
+    state liveness(main: &mut Main) {
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> next_frame(main) _ -> finish(main) }
     }
-    state next_frame(&mut self) {
+    state next_frame(main: &mut Main) {
         // re-guard so the increment's edge carries the frame bound (the
         // keystone reads the DIRECT incoming edge; frame_loop's guard is
         // several states upstream by now).
-        transition self.frame < 60 { true -> advance() _ -> finish() }
+        transition main.frame < 60 { true -> advance(main) _ -> finish(main) }
     }
-    state advance(&mut self) {
-        self.frame = self.frame + 1;
-        transition { _ -> frame_loop() }
+    state advance(main: &mut Main) {
+        main.frame = main.frame + 1;
+        transition { _ -> frame_loop(main) }
     }
-    state finish(&mut self) {
-        self.console.write_line("PASS: 60 frames blitted (exit 0)");
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: 60 frames blitted (exit 0)");
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: window/DC creation or a blit assertion failed (exit 1)");
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: window/DC creation or a blit assertion failed (exit 1)");
+        main.console.exit_process(1);
     }
 }

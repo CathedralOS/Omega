@@ -37,35 +37,35 @@ machine Main::main(&mut self) reaches Console {
     self.fib.i = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.fib.i == 13 {
-            true -> ratio_calc()
-            _ -> advance()
+    state step(main: &mut Main) {
+        transition main.fib.i == 13 {
+            true -> ratio_calc(main)
+            _ -> advance(main)
         }
     }
 
-    state advance(&mut self) {
-        self.fib.tmp = self.fib.a + self.fib.b;
-        self.fib.a = self.fib.b;
-        self.fib.b = self.fib.tmp;
-        self.fib.i = self.fib.i + 1;
+    state advance(main: &mut Main) {
+        main.fib.tmp = main.fib.a + main.fib.b;
+        main.fib.a = main.fib.b;
+        main.fib.b = main.fib.tmp;
+        main.fib.i = main.fib.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state ratio_calc(&mut self) {
-        self.fa = F64::from_i32(self.fib.a as i32);
-        self.fb = F64::from_i32(self.fib.b as i32);
-        self.ratio = self.fb / self.fa;
-        self.ratio = self.ratio * 100.0;
-        self.result = I32::from_f64(self.ratio);
-        self.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result as i32);
+    state ratio_calc(main: &mut Main) {
+        main.fa = F64::from_i32(main.fib.a as i32);
+        main.fb = F64::from_i32(main.fib.b as i32);
+        main.ratio = main.fb / main.fa;
+        main.ratio = main.ratio * 100.0;
+        main.result = I32::from_f64(main.ratio);
+        main.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result as i32);
     }
 }

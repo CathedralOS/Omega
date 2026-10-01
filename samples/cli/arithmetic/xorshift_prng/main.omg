@@ -39,12 +39,12 @@ machine Main::main(&mut self) reaches Console {
     // Reduce the 32-bit draw to a process exit code via its low byte.
     self.output = (self.state & 255) as i32;
 
-    transition { _ -> emit() }
+    transition { _ -> emit(&mut self) }
 
-    state emit(&mut self) {
-        self.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.output);
+    state emit(main: &mut Main) {
+        main.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.output);
     }
 }

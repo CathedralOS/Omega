@@ -91,21 +91,21 @@ machine Main::main(&mut self) reaches Console {
     Main::run_task(&mut self, Task::Compute { value: 25 });
 
     transition self.runner.score == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: the task script left the score at 70 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: the task script left the score at 70 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.write_line("FAIL: the final score was not 70 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: the final score was not 70 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

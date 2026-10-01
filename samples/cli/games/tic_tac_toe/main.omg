@@ -51,60 +51,60 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify move count is 5.
     transition self.board.move_count == 5 {
-        true -> check_winner()
-        _ -> bad_count()
+        true -> check_winner(&mut self)
+        _ -> bad_count(&mut self)
     }
 
-    state check_winner(&mut self) {
+    state check_winner(main: &mut Main) {
         // Check top row: cells 0, 1, 2 all == 1 means X won.
-        transition self.board.cells[0] == 1 {
-            true -> check_row_mid()
-            _ -> bad_winner()
+        transition main.board.cells[0] == 1 {
+            true -> check_row_mid(main)
+            _ -> bad_winner(main)
         }
     }
 
-    state check_row_mid(&mut self) {
-        transition self.board.cells[1] == 1 {
-            true -> check_row_right()
-            _ -> bad_winner()
+    state check_row_mid(main: &mut Main) {
+        transition main.board.cells[1] == 1 {
+            true -> check_row_right(main)
+            _ -> bad_winner(main)
         }
     }
 
-    state check_row_right(&mut self) {
-        transition self.board.cells[2] == 1 {
-            true -> check_o_did_not_win()
-            _ -> bad_winner()
+    state check_row_right(main: &mut Main) {
+        transition main.board.cells[2] == 1 {
+            true -> check_o_did_not_win(main)
+            _ -> bad_winner(main)
         }
     }
 
-    state check_o_did_not_win(&mut self) {
+    state check_o_did_not_win(main: &mut Main) {
         // Verify O did not somehow win: board[3] and board[4] are O's but
         // board[5] is empty (0), so O's middle row is incomplete.
-        transition self.board.cells[5] == 0 {
-            true -> good()
-            _ -> bad_winner()
+        transition main.board.cells[5] == 0 {
+            true -> good(main)
+            _ -> bad_winner(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: X owns the top row after 5 moves (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: X owns the top row after 5 moves (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_count(&mut self) {
-        self.console.write_line("FAIL: move count was not 5 after the script (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_count(main: &mut Main) {
+        main.console.write_line("FAIL: move count was not 5 after the script (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_winner(&mut self) {
-        self.console.write_line("FAIL: the board did not show X winning the top row (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_winner(main: &mut Main) {
+        main.console.write_line("FAIL: the board did not show X winning the top row (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }
 

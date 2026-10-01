@@ -39,87 +39,87 @@ machine Main::main(&mut self) reaches Console {
     self.i = 0;
 
     transition {
-        _ -> outer()
+        _ -> outer(&mut self)
     }
 
     // Outer pass: N passes settle every element into place.
-    state outer(&mut self) {
-        transition self.i < 5 {
-            true -> inner_init()
-            _ -> done()
+    state outer(main: &mut Main) {
+        transition main.i < 5 {
+            true -> inner_init(main)
+            _ -> done(main)
         }
     }
 
-    state inner_init(&mut self) {
-        self.j = 0;
+    state inner_init(main: &mut Main) {
+        main.j = 0;
         transition {
-            _ -> inner()
+            _ -> inner(main)
         }
     }
 
     // Inner loop head: compare adjacent pairs up to N-1.
-    state inner(&mut self) {
-        transition self.j < 4 {
-            true -> compare()
-            _ -> outer_next()
+    state inner(main: &mut Main) {
+        transition main.j < 4 {
+            true -> compare(main)
+            _ -> outer_next(main)
         }
     }
 
-    state compare(&mut self) {
-        self.jp = self.j + 1;
-        self.a = self.nums[self.j];
-        self.b = self.nums[self.jp];
-        transition self.a > self.b {
-            true -> swap()
-            _ -> advance()
+    state compare(main: &mut Main) {
+        main.jp = main.j + 1;
+        main.a = main.nums[main.j];
+        main.b = main.nums[main.jp];
+        transition main.a > main.b {
+            true -> swap(main)
+            _ -> advance(main)
         }
     }
 
     // Reached only via `a > b`; the inner bound `j < 4` carries here
     // transitively, so both indexed writes prove in bounds.
-    state swap(&mut self) {
-        self.jp = self.j + 1;
-        self.nums[self.j] = self.b;
-        self.nums[self.jp] = self.a;
+    state swap(main: &mut Main) {
+        main.jp = main.j + 1;
+        main.nums[main.j] = main.b;
+        main.nums[main.jp] = main.a;
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
 
     // Re-guard before each increment: the bound on the DIRECT edge proves the
     // `+ 1` cannot overflow -- fully Exact, no domain.
-    state advance(&mut self) {
-        transition self.j < 4 {
-            true -> j_bump()
-            _ -> inner()
+    state advance(main: &mut Main) {
+        transition main.j < 4 {
+            true -> j_bump(main)
+            _ -> inner(main)
         }
     }
 
-    state j_bump(&mut self) {
-        self.j = self.j + 1;
+    state j_bump(main: &mut Main) {
+        main.j = main.j + 1;
         transition {
-            _ -> inner()
+            _ -> inner(main)
         }
     }
 
-    state outer_next(&mut self) {
-        transition self.i < 5 {
-            true -> i_bump()
-            _ -> outer()
+    state outer_next(main: &mut Main) {
+        transition main.i < 5 {
+            true -> i_bump(main)
+            _ -> outer(main)
         }
     }
 
-    state i_bump(&mut self) {
-        self.i = self.i + 1;
+    state i_bump(main: &mut Main) {
+        main.i = main.i + 1;
         transition {
-            _ -> outer()
+            _ -> outer(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.nums[0]);
+    state done(main: &mut Main) {
+        main.console.write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.nums[0]);
     }
 }

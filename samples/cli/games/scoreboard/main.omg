@@ -35,12 +35,12 @@ machine Main::main(&mut self) reaches Console {
 
     self.total = self.players[0].score + self.players[1].score + self.players[2].score;
 
-    transition { _ -> done() }
+    transition { _ -> done(&mut self) }
 
-    state done(&mut self) {
-        self.console.write_line("PASS: scores 30+25+15 total 70 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.total);
+    state done(main: &mut Main) {
+        main.console.write_line("PASS: scores 30+25+15 total 70 (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.total);
     }
 }

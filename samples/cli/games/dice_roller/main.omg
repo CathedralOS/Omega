@@ -63,36 +63,36 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify: state chain ended at 24079.
     transition self.roller.rng_state == 24079 {
-        true -> check_total()
-        _ -> bad_state()
+        true -> check_total(&mut self)
+        _ -> bad_state(&mut self)
     }
 
-    state check_total(&mut self) {
+    state check_total(main: &mut Main) {
         // r1=4, r2=1, r3=4, r4=1, r5=2 -> total=12
-        transition self.roller.total == 12 {
-            true -> good()
-            _ -> bad_total()
+        transition main.roller.total == 12 {
+            true -> good(main)
+            _ -> bad_total(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_state(&mut self) {
-        self.console.write_line("FAIL: final LCG state != 24079 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_state(main: &mut Main) {
+        main.console.write_line("FAIL: final LCG state != 24079 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_total(&mut self) {
-        self.console.write_line("FAIL: roll total != 12 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_total(main: &mut Main) {
+        main.console.write_line("FAIL: roll total != 12 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }

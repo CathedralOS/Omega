@@ -76,145 +76,145 @@ machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
     self.home[2] = 72;
     self.line = "                        ";
     self.k = 0;
-    transition { _ -> clear() }
+    transition { _ -> clear(&mut self) }
 
-    state clear(&mut self) {
-        transition self.k >= 0 && self.k < 288 { true -> clear_cell() _ -> begin() }
+    state clear(main: &mut Main) {
+        transition main.k >= 0 && main.k < 288 { true -> clear_cell(main) _ -> begin(main) }
     }
-    state clear_cell(&mut self) {
-        self.grid[self.k] = 0;
-        self.k = self.k + 1;
-        transition { _ -> clear() }
+    state clear_cell(main: &mut Main) {
+        main.grid[main.k] = 0;
+        main.k = main.k + 1;
+        transition { _ -> clear(main) }
     }
-    state begin(&mut self) {
-        self.flat = self.py * 24 + self.px;
-        self.gen = 0;
-        transition self.flat >= 0 && self.flat < 288 { true -> begin_mark() _ -> bad() }
+    state begin(main: &mut Main) {
+        main.flat = main.py * 24 + main.px;
+        main.gen = 0;
+        transition main.flat >= 0 && main.flat < 288 { true -> begin_mark(main) _ -> bad(main) }
     }
-    state begin_mark(&mut self) {
-        self.grid[self.flat] = 1;
-        transition { _ -> show() }
+    state begin_mark(main: &mut Main) {
+        main.grid[main.flat] = 1;
+        transition { _ -> show(main) }
     }
 
     // --- render trail + walker in place ---
-    state show(&mut self) {
-        self.console.write(self.home);
-        self.ry = 0;
-        transition { _ -> show_row() }
+    state show(main: &mut Main) {
+        main.console.write(main.home);
+        main.ry = 0;
+        transition { _ -> show_row(main) }
     }
-    state show_row(&mut self) {
-        transition self.ry >= 0 && self.ry < 12 { true -> show_col_init() _ -> show_done() }
+    state show_row(main: &mut Main) {
+        transition main.ry >= 0 && main.ry < 12 { true -> show_col_init(main) _ -> show_done(main) }
     }
-    state show_col_init(&mut self) {
-        self.cx = 0;
-        transition { _ -> show_col() }
+    state show_col_init(main: &mut Main) {
+        main.cx = 0;
+        transition { _ -> show_col(main) }
     }
-    state show_col(&mut self) {
-        transition self.cx >= 0 && self.cx < 24 { true -> show_cell() _ -> emit_row() }
+    state show_col(main: &mut Main) {
+        transition main.cx >= 0 && main.cx < 24 { true -> show_cell(main) _ -> emit_row(main) }
     }
-    state show_cell(&mut self) {
-        transition self.ry == self.py && self.cx == self.px { true -> put_at() _ -> put_trail() }
+    state show_cell(main: &mut Main) {
+        transition main.ry == main.py && main.cx == main.px { true -> put_at(main) _ -> put_trail(main) }
     }
-    state put_at(&mut self) {
-        self.line[self.cx] = 64; // '@'
-        self.cx = self.cx + 1;
-        transition { _ -> show_col() }
+    state put_at(main: &mut Main) {
+        main.line[main.cx] = 64; // '@'
+        main.cx = main.cx + 1;
+        transition { _ -> show_col(main) }
     }
-    state put_trail(&mut self) {
-        self.flat = self.ry * 24 + self.cx;
-        transition self.flat >= 0 && self.flat < 288 { true -> put_trail_w() _ -> bad() }
+    state put_trail(main: &mut Main) {
+        main.flat = main.ry * 24 + main.cx;
+        transition main.flat >= 0 && main.flat < 288 { true -> put_trail_w(main) _ -> bad(main) }
     }
-    state put_trail_w(&mut self) {
-        self.v = self.grid[self.flat];
-        transition self.v >= 0 && self.v < 2 { true -> put_trail_g() _ -> bad() }
+    state put_trail_w(main: &mut Main) {
+        main.v = main.grid[main.flat];
+        transition main.v >= 0 && main.v < 2 { true -> put_trail_g(main) _ -> bad(main) }
     }
-    state put_trail_g(&mut self) {
-        self.glyph = self.chars[self.v];
-        self.line[self.cx] = self.glyph;
-        self.cx = self.cx + 1;
-        transition { _ -> show_col() }
+    state put_trail_g(main: &mut Main) {
+        main.glyph = main.chars[main.v];
+        main.line[main.cx] = main.glyph;
+        main.cx = main.cx + 1;
+        transition { _ -> show_col(main) }
     }
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        self.ry = self.ry + 1;
-        transition { _ -> show_row() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.ry = main.ry + 1;
+        transition { _ -> show_row(main) }
     }
-    state show_done(&mut self) {
-        self.clock.sleep(90);
-        transition { _ -> step() }
+    state show_done(main: &mut Main) {
+        main.clock.sleep(90);
+        transition { _ -> step(main) }
     }
 
     // --- advance the walk one random step ---
-    state step(&mut self) {
-        transition self.gen < 70 { true -> advance() _ -> finish() }
+    state step(main: &mut Main) {
+        transition main.gen < 70 { true -> advance(main) _ -> finish(main) }
     }
-    state advance(&mut self) {
-        self.sc = self.st << 13;
-        self.st = self.st ^ self.sc;
-        self.sc = self.st >> 17;
-        self.st = self.st ^ self.sc;
-        self.sc = self.st << 5;
-        self.st = self.st ^ self.sc;
-        self.dir = self.st % 4;
-        transition { _ -> move() }
+    state advance(main: &mut Main) {
+        main.sc = main.st << 13;
+        main.st = main.st ^ main.sc;
+        main.sc = main.st >> 17;
+        main.st = main.st ^ main.sc;
+        main.sc = main.st << 5;
+        main.st = main.st ^ main.sc;
+        main.dir = main.st % 4;
+        transition { _ -> move(main) }
     }
-    state move(&mut self) {
-        transition self.dir == 0 { true -> go_up() _ -> move1() }
+    state move(main: &mut Main) {
+        transition main.dir == 0 { true -> go_up(main) _ -> move1(main) }
     }
-    state move1(&mut self) {
-        transition self.dir == 1 { true -> go_down() _ -> move2() }
+    state move1(main: &mut Main) {
+        transition main.dir == 1 { true -> go_down(main) _ -> move2(main) }
     }
-    state move2(&mut self) {
-        transition self.dir == 2 { true -> go_left() _ -> go_right() }
+    state move2(main: &mut Main) {
+        transition main.dir == 2 { true -> go_left(main) _ -> go_right(main) }
     }
-    state go_up(&mut self) {
-        transition self.py > 0 { true -> up_w() _ -> mark() }
+    state go_up(main: &mut Main) {
+        transition main.py > 0 { true -> up_w(main) _ -> mark(main) }
     }
-    state up_w(&mut self) {
-        self.py = self.py - 1;
-        transition { _ -> mark() }
+    state up_w(main: &mut Main) {
+        main.py = main.py - 1;
+        transition { _ -> mark(main) }
     }
-    state go_down(&mut self) {
-        transition self.py < 11 { true -> down_w() _ -> mark() }
+    state go_down(main: &mut Main) {
+        transition main.py < 11 { true -> down_w(main) _ -> mark(main) }
     }
-    state down_w(&mut self) {
-        self.py = self.py + 1;
-        transition { _ -> mark() }
+    state down_w(main: &mut Main) {
+        main.py = main.py + 1;
+        transition { _ -> mark(main) }
     }
-    state go_left(&mut self) {
-        transition self.px > 0 { true -> left_w() _ -> mark() }
+    state go_left(main: &mut Main) {
+        transition main.px > 0 { true -> left_w(main) _ -> mark(main) }
     }
-    state left_w(&mut self) {
-        self.px = self.px - 1;
-        transition { _ -> mark() }
+    state left_w(main: &mut Main) {
+        main.px = main.px - 1;
+        transition { _ -> mark(main) }
     }
-    state go_right(&mut self) {
-        transition self.px < 23 { true -> right_w() _ -> mark() }
+    state go_right(main: &mut Main) {
+        transition main.px < 23 { true -> right_w(main) _ -> mark(main) }
     }
-    state right_w(&mut self) {
-        self.px = self.px + 1;
-        transition { _ -> mark() }
+    state right_w(main: &mut Main) {
+        main.px = main.px + 1;
+        transition { _ -> mark(main) }
     }
-    state mark(&mut self) {
-        self.flat = self.py * 24 + self.px;
-        self.gen = self.gen + 1;
-        transition self.flat >= 0 && self.flat < 288 { true -> mark_w() _ -> bad() }
+    state mark(main: &mut Main) {
+        main.flat = main.py * 24 + main.px;
+        main.gen = main.gen + 1;
+        transition main.flat >= 0 && main.flat < 288 { true -> mark_w(main) _ -> bad(main) }
     }
-    state mark_w(&mut self) {
-        self.grid[self.flat] = 1;
-        transition { _ -> show() }
+    state mark_w(main: &mut Main) {
+        main.grid[main.flat] = 1;
+        transition { _ -> show(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("PASS: 70 random steps walked and rendered (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: 70 random steps walked and rendered (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: grid index out of bounds guard tripped (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: grid index out of bounds guard tripped (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

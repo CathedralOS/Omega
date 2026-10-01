@@ -22,20 +22,20 @@ machine Main::main(&mut self) reaches Console {
     self.year = 2024;
 
     transition self.year % 4 == 0 && self.year % 100 != 0 || self.year % 400 == 0 {
-        true -> leap()
-        _ -> common()
+        true -> leap(&mut self)
+        _ -> common(&mut self)
     }
 
-    state leap(&mut self) {
-        self.console.write_line("PASS: 2024 is a leap year (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state leap(main: &mut Main) {
+        main.console.write_line("PASS: 2024 is a leap year (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
-    state common(&mut self) {
-        self.console.write_line("FAIL: 2024 misclassified as a common year (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state common(main: &mut Main) {
+        main.console.write_line("FAIL: 2024 misclassified as a common year (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

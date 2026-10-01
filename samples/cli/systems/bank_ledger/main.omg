@@ -56,36 +56,36 @@ machine Main::main(&mut self) reaches Console {
     self.ledger.balance = sum;
 
     transition self.ledger.balance == 70 {
-        true -> check_count()
-        _ -> bad_balance()
+        true -> check_count(&mut self)
+        _ -> bad_balance(&mut self)
     }
 
-    state check_count(&mut self) {
-        transition self.ledger.count == 6 {
-            true -> good()
-            _ -> bad_count()
+    state check_count(main: &mut Main) {
+        transition main.ledger.count == 6 {
+            true -> good(main)
+            _ -> bad_count(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_balance(&mut self) {
-        self.console.write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_balance(main: &mut Main) {
+        main.console.write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_count(&mut self) {
-        self.console.write_line("FAIL: transaction count != 6 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_count(main: &mut Main) {
+        main.console.write_line("FAIL: transaction count != 6 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }
 

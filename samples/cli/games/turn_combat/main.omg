@@ -31,34 +31,34 @@ machine Main::main(&mut self) reaches Console {
     self.monster.hp = 25;
     self.monster.attack = 5;
 
-    transition { _ -> hero_attacks() }
+    transition { _ -> hero_attacks(&mut self) }
 
-    state hero_attacks(&mut self) {
-        self.monster.hp = (self.monster.hp - self.hero.attack) % 101;
-        transition self.monster.hp <= 0 {
-            true -> hero_wins()
-            _ -> monster_attacks()
+    state hero_attacks(main: &mut Main) {
+        main.monster.hp = (main.monster.hp - main.hero.attack) % 101;
+        transition main.monster.hp <= 0 {
+            true -> hero_wins(main)
+            _ -> monster_attacks(main)
         }
     }
 
-    state monster_attacks(&mut self) {
-        self.hero.hp = (self.hero.hp - self.monster.attack) % 101;
-        transition self.hero.hp <= 0 {
-            true -> monster_wins()
-            _ -> hero_attacks()
+    state monster_attacks(main: &mut Main) {
+        main.hero.hp = (main.hero.hp - main.monster.attack) % 101;
+        transition main.hero.hp <= 0 {
+            true -> monster_wins(main)
+            _ -> hero_attacks(main)
         }
     }
 
-    state hero_wins(&mut self) {
-        self.console.write_line("PASS: the hero out-damaged the monster and won (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state hero_wins(main: &mut Main) {
+        main.console.write_line("PASS: the hero out-damaged the monster and won (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
-    state monster_wins(&mut self) {
-        self.console.write_line("result: the monster won this fight (exit 2)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(2);
+    state monster_wins(main: &mut Main) {
+        main.console.write_line("result: the monster won this fight (exit 2)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(2);
     }
 }

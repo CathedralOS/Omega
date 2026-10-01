@@ -44,20 +44,20 @@ machine Main::main(&mut self) reaches Console {
     self.buffer[1] = self.ones_byte;
 
     transition self.buffer == "25" {
-        true -> ok()
-        _ -> bad()
+        true -> ok(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state ok(&mut self) {
-        self.console.write_line("PASS: buffer matches '25' (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: buffer matches '25' (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: formatted text mismatch (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: formatted text mismatch (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

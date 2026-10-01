@@ -25,49 +25,49 @@ machine Main::main(&mut self) reaches Console {
     self.vals[2] = 7;
     self.bits = 0;
     self.i = 0;
-    transition { _ -> ins_step() }
+    transition { _ -> ins_step(&mut self) }
 
     // Insert each value: bits |= 1 << vals[i].
-    state ins_step(&mut self) {
-        transition self.i < 3 {
-            true -> insert()
-            _ -> check5()
+    state ins_step(main: &mut Main) {
+        transition main.i < 3 {
+            true -> insert(main)
+            _ -> check5(main)
         }
     }
-    state insert(&mut self) {
-        self.mask = 1;
-        self.mask = self.mask << self.vals[self.i];
-        self.bits = self.bits | self.mask;
-        self.i = self.i + 1;
-        transition { _ -> ins_step() }
+    state insert(main: &mut Main) {
+        main.mask = 1;
+        main.mask = main.mask << main.vals[main.i];
+        main.bits = main.bits | main.mask;
+        main.i = main.i + 1;
+        transition { _ -> ins_step(main) }
     }
 
     // Membership: (bits >> k) & 1.
-    state check5(&mut self) {
-        self.test = self.bits >> 5;
-        self.test = self.test & 1;
-        transition self.test == 1 { true -> check4() _ -> bad() }
+    state check5(main: &mut Main) {
+        main.test = main.bits >> 5;
+        main.test = main.test & 1;
+        transition main.test == 1 { true -> check4(main) _ -> bad(main) }
     }
-    state check4(&mut self) {
-        self.test = self.bits >> 4;
-        self.test = self.test & 1;
-        transition self.test == 0 { true -> check7() _ -> bad() }
+    state check4(main: &mut Main) {
+        main.test = main.bits >> 4;
+        main.test = main.test & 1;
+        transition main.test == 0 { true -> check7(main) _ -> bad(main) }
     }
-    state check7(&mut self) {
-        self.test = self.bits >> 7;
-        self.test = self.test & 1;
-        transition self.test == 1 { true -> ok() _ -> bad() }
+    state check7(main: &mut Main) {
+        main.test = main.bits >> 7;
+        main.test = main.test & 1;
+        transition main.test == 1 { true -> ok(main) _ -> bad(main) }
     }
-    state ok(&mut self) {
-        self.console.write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a membership test gave the wrong bit (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a membership test gave the wrong bit (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

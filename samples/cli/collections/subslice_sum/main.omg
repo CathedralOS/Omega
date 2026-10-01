@@ -8,7 +8,7 @@
 //
 // Dataset: [3, 7, 12, 18, 5, 25] (6 elements), sum = 70.
 //
-// The static helper machine walk shrinks the slice on each call:
+// The helper machine Adder::walk shrinks the slice on each call:
 //   walk(s, acc) loops until s is empty, accumulating acc + s[0] each time.
 //
 // MISCOMPILE FOUND AND FIXED (2026-06-14). Now exits 70.
@@ -22,8 +22,13 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+data Adder {}
+
 data Main {
     console: Binding<Console>;
+    arr: [i32 in Wrapping; 6];
+    adder: Adder;
+    pause: [u8; 256];
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
@@ -36,32 +41,36 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
-    let values: [i32 in Wrapping; 6] = [3, 7, 12, 18, 5, 25];
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
+    // Initialize the array.
+    self.arr[0] = 3;
+    self.arr[1] = 7;
+    self.arr[2] = 12;
+    self.arr[3] = 18;
+    self.arr[4] = 5;
+    self.arr[5] = 25;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
-    let slice: &[i32 in Wrapping] = values.as_slice();
-    let total: i32 = walk(slice, 0);
+    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let t: i32 = walk(s, 0);
 
-    transition total == 70 {
-        true -> good(context)
-        _ -> bad(context)
+    transition t == 70 {
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(context: &mut Main) {
-        context.console.write_line("PASS: the six elements summed to 70 (exit 70)");
-        context.console.write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: the six elements summed to 70 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad(context: &mut Main) {
-        context.console.write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
-        context.console.write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

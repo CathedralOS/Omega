@@ -81,229 +81,229 @@ machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
     self.home[2] = 72;
     self.line = "                        ";
     self.c = 0;
-    transition { _ -> zero_loop() }
+    transition { _ -> zero_loop(&mut self) }
 
     // --- clear the padded grid, then seed a glider ---
-    state zero_loop(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> zero_cell() _ -> seed() }
+    state zero_loop(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> zero_cell(main) _ -> seed(main) }
     }
-    state zero_cell(&mut self) {
-        self.grid[self.c] = 0;
-        self.c = self.c + 1;
-        transition { _ -> zero_loop() }
+    state zero_cell(main: &mut Main) {
+        main.grid[main.c] = 0;
+        main.c = main.c + 1;
+        transition { _ -> zero_loop(main) }
     }
-    state seed(&mut self) {
+    state seed(main: &mut Main) {
         // glider:  .#.  /  ..#  /  ###   at real rows 1..3, cols 1..3 (padded width 26)
-        self.grid[28] = 1;  // (1,2)
-        self.grid[55] = 1;  // (2,3)
-        self.grid[79] = 1;  // (3,1)
-        self.grid[80] = 1;  // (3,2)
-        self.grid[81] = 1;  // (3,3)
-        self.gen = 0;
-        transition { _ -> gen_loop() }
+        main.grid[28] = 1;  // (1,2)
+        main.grid[55] = 1;  // (2,3)
+        main.grid[79] = 1;  // (3,1)
+        main.grid[80] = 1;  // (3,2)
+        main.grid[81] = 1;  // (3,3)
+        main.gen = 0;
+        transition { _ -> gen_loop(main) }
     }
 
-    state gen_loop(&mut self) {
-        transition self.gen < 40 { true -> render_start() _ -> finish() }
+    state gen_loop(main: &mut Main) {
+        transition main.gen < 40 { true -> render_start(main) _ -> finish(main) }
     }
 
     // --- render the visible 24x12 window in place ---
-    state render_start(&mut self) {
-        self.console.write(self.home);
-        self.ry = 1;
-        transition { _ -> render_row() }
+    state render_start(main: &mut Main) {
+        main.console.write(main.home);
+        main.ry = 1;
+        transition { _ -> render_row(main) }
     }
-    state render_row(&mut self) {
-        transition self.ry >= 1 && self.ry <= 12 { true -> render_col_init() _ -> after_render() }
+    state render_row(main: &mut Main) {
+        transition main.ry >= 1 && main.ry <= 12 { true -> render_col_init(main) _ -> after_render(main) }
     }
-    state render_col_init(&mut self) {
-        self.vx = 0;
-        transition { _ -> render_col() }
+    state render_col_init(main: &mut Main) {
+        main.vx = 0;
+        transition { _ -> render_col(main) }
     }
-    state render_col(&mut self) {
-        transition self.vx >= 0 && self.vx < 24 { true -> render_cell() _ -> emit_row() }
+    state render_col(main: &mut Main) {
+        transition main.vx >= 0 && main.vx < 24 { true -> render_cell(main) _ -> emit_row(main) }
     }
     // Re-assert the row bound: render_row's guard sits behind the render_col
     // join, so the flat-index arithmetic needs `ry` bounded on its own edge.
-    state render_cell(&mut self) {
-        transition self.ry >= 1 && self.ry <= 12 { true -> render_index() _ -> bad() }
+    state render_cell(main: &mut Main) {
+        transition main.ry >= 1 && main.ry <= 12 { true -> render_index(main) _ -> bad(main) }
     }
-    state render_index(&mut self) {
-        self.rf = self.ry * 26 + (self.vx + 1); // skip the left border column
-        transition self.rf >= 0 && self.rf < 364 { true -> render_read() _ -> bad() }
+    state render_index(main: &mut Main) {
+        main.rf = main.ry * 26 + (main.vx + 1); // skip the left border column
+        transition main.rf >= 0 && main.rf < 364 { true -> render_read(main) _ -> bad(main) }
     }
-    state render_read(&mut self) {
-        self.v = self.grid[self.rf];
-        transition self.v >= 0 && self.v < 2 { true -> render_put() _ -> bad() }
+    state render_read(main: &mut Main) {
+        main.v = main.grid[main.rf];
+        transition main.v >= 0 && main.v < 2 { true -> render_put(main) _ -> bad(main) }
     }
     // Re-guard so the increment's direct edge proves `vx + 1` lands in
     // [1..=24] (the edge into render_put carries only the v guard).
-    state render_put(&mut self) {
-        self.glyph = self.chars[self.v];
-        self.line[self.vx] = self.glyph;
-        transition self.vx >= 0 && self.vx < 24 { true -> col_advance() _ -> emit_row() }
+    state render_put(main: &mut Main) {
+        main.glyph = main.chars[main.v];
+        main.line[main.vx] = main.glyph;
+        transition main.vx >= 0 && main.vx < 24 { true -> col_advance(main) _ -> emit_row(main) }
     }
-    state col_advance(&mut self) {
-        self.vx = self.vx + 1;
-        transition { _ -> render_col() }
+    state col_advance(main: &mut Main) {
+        main.vx = main.vx + 1;
+        transition { _ -> render_col(main) }
     }
     // Re-guard so the increment's direct edge proves `ry + 1` lands in
     // [1..=13] (the write_line call severs the render_row guard anyway).
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        transition self.ry >= 0 && self.ry <= 12 { true -> row_advance() _ -> after_render() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        transition main.ry >= 0 && main.ry <= 12 { true -> row_advance(main) _ -> after_render(main) }
     }
-    state row_advance(&mut self) {
-        self.ry = self.ry + 1;
-        transition { _ -> render_row() }
+    state row_advance(main: &mut Main) {
+        main.ry = main.ry + 1;
+        transition { _ -> render_row(main) }
     }
-    state after_render(&mut self) {
-        self.clock.sleep(90);
-        transition { _ -> compute_start() }
+    state after_render(main: &mut Main) {
+        main.clock.sleep(90);
+        transition { _ -> compute_start(main) }
     }
 
     // --- compute the next generation ---
-    state compute_start(&mut self) {
-        self.c = 0;
-        transition { _ -> cell_loop() }
+    state compute_start(main: &mut Main) {
+        main.c = 0;
+        transition { _ -> cell_loop(main) }
     }
-    state cell_loop(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> cell_xy() _ -> copy_start() }
+    state cell_loop(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> cell_xy(main) _ -> copy_start(main) }
     }
     // Division/modulo results feed no RANGE fact yet (only the overflow fold
     // understands them), so the (row, col) go through plain temps and a guard:
     // the guarded edge decides whether c is a real cell or border.
-    state cell_xy(&mut self) {
-        self.y = self.c / 26;
-        self.x = self.c % 26;
-        transition self.y >= 1 && self.y <= 12 && self.x >= 1 && self.x <= 24 {
-            true -> count_init()
-            _ -> border_guard()
+    state cell_xy(main: &mut Main) {
+        main.y = main.c / 26;
+        main.x = main.c % 26;
+        transition main.y >= 1 && main.y <= 12 && main.x >= 1 && main.x <= 24 {
+            true -> count_init(main)
+            _ -> border_guard(main)
         }
     }
     // Re-guard c so the border write + increment sit on a direct `c < 364` edge
     // (the y/x guard on the edge above carries no c fact).
-    state border_guard(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> border_cell() _ -> bad() }
+    state border_guard(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> border_cell(main) _ -> bad(main) }
     }
-    state border_cell(&mut self) {
-        self.next[self.c] = 0;
-        self.c = self.c + 1;
-        transition { _ -> cell_loop() }
+    state border_cell(main: &mut Main) {
+        main.next[main.c] = 0;
+        main.c = main.c + 1;
+        transition { _ -> cell_loop(main) }
     }
 
     // count the eight neighbours
-    state count_init(&mut self) {
-        self.count = 0;
-        self.noff = 0;
-        transition { _ -> nb_loop() }
+    state count_init(main: &mut Main) {
+        main.count = 0;
+        main.noff = 0;
+        transition { _ -> nb_loop(main) }
     }
-    state nb_loop(&mut self) {
-        transition self.noff >= 0 && self.noff < 9 { true -> nb_center() _ -> apply_rules() }
+    state nb_loop(main: &mut Main) {
+        transition main.noff >= 0 && main.noff < 9 { true -> nb_center(main) _ -> apply_rules(main) }
     }
-    state nb_center(&mut self) {
-        transition self.noff == 4 { true -> nb_advance() _ -> nb_bounds() }
+    state nb_center(main: &mut Main) {
+        transition main.noff == 4 { true -> nb_advance(main) _ -> nb_bounds(main) }
     }
     // Re-guard c: the neighbour loop's join blocks the cell_loop bound from
     // carrying here, and the flat-index fold below needs it.
-    state nb_bounds(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> nb_compute() _ -> bad() }
+    state nb_bounds(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> nb_compute(main) _ -> bad(main) }
     }
-    state nb_compute(&mut self) {
+    state nb_compute(main: &mut Main) {
         // Since c == y*26 + x by construction, the neighbour's flat index is
         // c + (noff/3 - 1)*26 + (noff%3 - 1) -- computed from the re-guarded c
         // so the overflow fold bounds it (y/x carry no facts past the join; c
         // does), and the transition below runtime-guards it as an index.
-        self.nf = self.c + (self.noff / 3 - 1) * 26 + (self.noff % 3 - 1);
-        transition self.nf >= 0 && self.nf < 364 { true -> nb_read() _ -> nb_advance() }
+        main.nf = main.c + (main.noff / 3 - 1) * 26 + (main.noff % 3 - 1);
+        transition main.nf >= 0 && main.nf < 364 { true -> nb_read(main) _ -> nb_advance(main) }
     }
-    state nb_read(&mut self) {
-        self.v = self.grid[self.nf];
-        transition self.v == 1 { true -> nb_inc() _ -> nb_advance() }
+    state nb_read(main: &mut Main) {
+        main.v = main.grid[main.nf];
+        transition main.v == 1 { true -> nb_inc(main) _ -> nb_advance(main) }
     }
     // The modular-counter idiom: reducing the tally `% 9` before the `+ 1`
     // bounds the operand, and the outer `% 9` keeps it below 9 (a cell has at
     // most 8 neighbours, so the wrap never fires).
-    state nb_inc(&mut self) {
-        self.count = (self.count % 9 + 1) % 9;
-        transition { _ -> nb_advance() }
+    state nb_inc(main: &mut Main) {
+        main.count = (main.count % 9 + 1) % 9;
+        transition { _ -> nb_advance(main) }
     }
     // Re-guard so the increment's direct edge proves `noff + 1` lands in
     // [1..=9] -- always true here (nb_loop only admits noff < 9).
-    state nb_advance(&mut self) {
-        transition self.noff >= 0 && self.noff < 9 { true -> nb_bump() _ -> apply_rules() }
+    state nb_advance(main: &mut Main) {
+        transition main.noff >= 0 && main.noff < 9 { true -> nb_bump(main) _ -> apply_rules(main) }
     }
-    state nb_bump(&mut self) {
-        self.noff = self.noff + 1;
-        transition { _ -> nb_loop() }
+    state nb_bump(main: &mut Main) {
+        main.noff = main.noff + 1;
+        transition { _ -> nb_loop(main) }
     }
 
     // apply the rules to cell c (re-guard c: the neighbour loop's join blocks the
     // cell_loop bound from carrying here)
-    state apply_rules(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> apply_read() _ -> bad() }
+    state apply_rules(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> apply_read(main) _ -> bad(main) }
     }
-    state apply_read(&mut self) {
-        self.alive = self.grid[self.c];
-        transition self.alive == 1 { true -> live_rule() _ -> dead_rule() }
+    state apply_read(main: &mut Main) {
+        main.alive = main.grid[main.c];
+        transition main.alive == 1 { true -> live_rule(main) _ -> dead_rule(main) }
     }
-    state live_rule(&mut self) {
-        transition self.count == 2 || self.count == 3 { true -> born() _ -> dies() }
+    state live_rule(main: &mut Main) {
+        transition main.count == 2 || main.count == 3 { true -> born(main) _ -> dies(main) }
     }
-    state dead_rule(&mut self) {
-        transition self.count == 3 { true -> born() _ -> dies() }
+    state dead_rule(main: &mut Main) {
+        transition main.count == 3 { true -> born(main) _ -> dies(main) }
     }
-    state born(&mut self) {
-        self.nv = 1;
-        transition { _ -> write_next() }
+    state born(main: &mut Main) {
+        main.nv = 1;
+        transition { _ -> write_next(main) }
     }
-    state dies(&mut self) {
-        self.nv = 0;
-        transition { _ -> write_next() }
+    state dies(main: &mut Main) {
+        main.nv = 0;
+        transition { _ -> write_next(main) }
     }
-    state write_next(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> do_write_next() _ -> bad() }
+    state write_next(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> do_write_next(main) _ -> bad(main) }
     }
-    state do_write_next(&mut self) {
-        self.next[self.c] = self.nv;
-        self.c = self.c + 1;
-        transition { _ -> cell_loop() }
+    state do_write_next(main: &mut Main) {
+        main.next[main.c] = main.nv;
+        main.c = main.c + 1;
+        transition { _ -> cell_loop(main) }
     }
 
     // --- copy next -> grid via a field temp ---
-    state copy_start(&mut self) {
-        self.c = 0;
-        transition { _ -> copy_loop() }
+    state copy_start(main: &mut Main) {
+        main.c = 0;
+        transition { _ -> copy_loop(main) }
     }
-    state copy_loop(&mut self) {
-        transition self.c >= 0 && self.c < 364 { true -> copy_cell() _ -> gen_next() }
+    state copy_loop(main: &mut Main) {
+        transition main.c >= 0 && main.c < 364 { true -> copy_cell(main) _ -> gen_next(main) }
     }
-    state copy_cell(&mut self) {
-        self.v = self.next[self.c];
-        self.grid[self.c] = self.v;
-        self.c = self.c + 1;
-        transition { _ -> copy_loop() }
+    state copy_cell(main: &mut Main) {
+        main.v = main.next[main.c];
+        main.grid[main.c] = main.v;
+        main.c = main.c + 1;
+        transition { _ -> copy_loop(main) }
     }
     // Re-guard so the increment's direct edge proves `gen + 1` lands in
     // [1..=40] (the copy loop's exit edge carries only a c fact).
-    state gen_next(&mut self) {
-        transition self.gen >= 0 && self.gen < 40 { true -> gen_bump() _ -> finish() }
+    state gen_next(main: &mut Main) {
+        transition main.gen >= 0 && main.gen < 40 { true -> gen_bump(main) _ -> finish(main) }
     }
-    state gen_bump(&mut self) {
-        self.gen = self.gen + 1;
-        transition { _ -> gen_loop() }
+    state gen_bump(main: &mut Main) {
+        main.gen = main.gen + 1;
+        transition { _ -> gen_loop(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("PASS: 40 generations rendered (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: 40 generations rendered (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

@@ -37,41 +37,41 @@ machine Main::main(&mut self) reaches Console {
     self.buf[32] = 5;
     self.buf[40] = 30;
     self.descriptor_size = 16;
-    transition { _ -> walk(0) }
+    transition { _ -> walk(&mut self, 0) }
 
     // The view is taken once per entry, here: this state's incoming edges are
     // the literal 0 and the `next <= 32` back-edge guard, which is what the
     // recast footprint check accepts (it does not read the requires clause).
-    state walk(&mut self, off: u32) requires off <= 32 {
-        let d: &Desc = &self.buf[off] as &Desc;
+    state walk(main: &mut Main, off: u32) requires off <= 32 {
+        let d: &Desc = &main.buf[off] as &Desc;
         let pages: u64 = d.pages;
         transition d.kind >= 4 {
-            true -> tally(off, pages)
-            _ -> step(off)
+            true -> tally(main, off, pages)
+            _ -> step(main, off)
         }
     }
-    state tally(&mut self, off: u32, pages: u64) requires off <= 32 {
+    state tally(main: &mut Main, off: u32, pages: u64) requires off <= 32 {
         let counted: u32 in Wrapping =
             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
-        self.total = self.total + counted;
-        transition { _ -> step(off) }
+        main.total = main.total + counted;
+        transition { _ -> step(main, off) }
     }
-    state step(&mut self, off: u32) requires off <= 32 {
-        let stride: u32 = self.descriptor_size;
+    state step(main: &mut Main, off: u32) requires off <= 32 {
+        let stride: u32 = main.descriptor_size;
         transition stride > 0 && stride <= 16 {
-            true -> advance(off, stride)
-            _ -> done()
+            true -> advance(main, off, stride)
+            _ -> done(main)
         }
     }
-    state advance(&mut self, off: u32, stride: u32) requires off <= 32 requires stride <= 16 {
+    state advance(main: &mut Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 {
         let next: u32 = off + stride;
         transition next <= 32 {
-            true -> walk(next)
-            _ -> done()
+            true -> walk(main, next)
+            _ -> done(main)
         }
     }
-    state done(&mut self) {
-        let code: i32 = narrow_u32_to_i32_trapping(self.total as u32);
-        self.console.exit_process(code);
+    state done(main: &mut Main) {
+        let code: i32 = narrow_u32_to_i32_trapping(main.total as u32);
+        main.console.exit_process(code);
     }
 }

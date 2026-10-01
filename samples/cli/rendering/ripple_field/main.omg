@@ -77,118 +77,118 @@ machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
     self.home[1] = 91; // [
     self.home[2] = 72; // H
     self.frame = 0;
-    transition { _ -> frame_loop() }
+    transition { _ -> frame_loop(&mut self) }
 
-    state frame_loop(&mut self) {
-        transition self.frame < 60 { true -> frame_start() _ -> finish() }
+    state frame_loop(main: &mut Main) {
+        transition main.frame < 60 { true -> frame_start(main) _ -> finish(main) }
     }
-    state frame_start(&mut self) {
-        self.console.write(self.home);
-        self.y = 0;
-        transition { _ -> row_loop() }
+    state frame_start(main: &mut Main) {
+        main.console.write(main.home);
+        main.y = 0;
+        transition { _ -> row_loop(main) }
     }
 
     // --- redraw the 30x16 grid one cell at a time, one row per write_line ---
-    state row_loop(&mut self) {
-        transition self.y >= 0 && self.y < 16 { true -> col_init() _ -> after_frame() }
+    state row_loop(main: &mut Main) {
+        transition main.y >= 0 && main.y < 16 { true -> col_init(main) _ -> after_frame(main) }
     }
-    state col_init(&mut self) {
-        self.x = 0;
-        transition { _ -> col_loop() }
+    state col_init(main: &mut Main) {
+        main.x = 0;
+        transition { _ -> col_loop(main) }
     }
-    state col_loop(&mut self) {
-        transition self.x >= 0 && self.x < 30 { true -> cell() _ -> emit_row() }
+    state col_loop(main: &mut Main) {
+        transition main.x >= 0 && main.x < 30 { true -> cell(main) _ -> emit_row(main) }
     }
     // Re-assert the row bound: the row_loop guard sits behind the col_loop
     // join, so the offset arithmetic needs `y` bounded on its own edge.
-    state cell(&mut self) {
-        transition self.y >= 0 && self.y < 16 { true -> offsets() _ -> bad() }
+    state cell(main: &mut Main) {
+        transition main.y >= 0 && main.y < 16 { true -> offsets(main) _ -> bad(main) }
     }
-    state offsets(&mut self) {
-        self.dx = self.x - 15; // offset from centre column
-        self.dy = self.y - 8;  // offset from centre row
-        transition { _ -> abs_dx() }
+    state offsets(main: &mut Main) {
+        main.dx = main.x - 15; // offset from centre column
+        main.dy = main.y - 8;  // offset from centre row
+        transition { _ -> abs_dx(main) }
     }
     // Each abs step's guard also carries the offset's lower bound (always true:
     // dx >= -15, dy >= -8) so the negation is exact.
-    state abs_dx(&mut self) {
-        transition self.dx < 0 && self.dx >= -15 { true -> neg_dx() _ -> chk_dy() }
+    state abs_dx(main: &mut Main) {
+        transition main.dx < 0 && main.dx >= -15 { true -> neg_dx(main) _ -> chk_dy(main) }
     }
-    state neg_dx(&mut self) {
-        self.dx = 0 - self.dx;
-        transition { _ -> chk_dy() }
+    state neg_dx(main: &mut Main) {
+        main.dx = 0 - main.dx;
+        transition { _ -> chk_dy(main) }
     }
-    state chk_dy(&mut self) {
-        transition self.dy < 0 && self.dy >= -8 { true -> neg_dy() _ -> level_bounds() }
+    state chk_dy(main: &mut Main) {
+        transition main.dy < 0 && main.dy >= -8 { true -> neg_dy(main) _ -> level_bounds(main) }
     }
-    state neg_dy(&mut self) {
-        self.dy = 0 - self.dy;
-        transition { _ -> level_bounds() }
+    state neg_dy(main: &mut Main) {
+        main.dy = 0 - main.dy;
+        transition { _ -> level_bounds(main) }
     }
     // The two abs arms join here, so re-assert the folded magnitudes and the
     // frame counter on the direct edge into level_calc (always true: |dx| <= 15,
     // |dy| <= 8, 0 <= frame < 60).
-    state level_bounds(&mut self) {
-        transition self.dx >= 0 && self.dx <= 15 && self.dy >= 0 && self.dy <= 8
-                && self.frame >= 0 && self.frame < 60 {
-            true -> level_calc()
-            _ -> bad()
+    state level_bounds(main: &mut Main) {
+        transition main.dx >= 0 && main.dx <= 15 && main.dy >= 0 && main.dy <= 8
+                && main.frame >= 0 && main.frame < 60 {
+            true -> level_calc(main)
+            _ -> bad(main)
         }
     }
-    state level_calc(&mut self) {
+    state level_calc(main: &mut Main) {
         // Manhattan distance to centre (LINEAR in radius -> evenly spaced rings),
         // scrolled by time, mod the ramp length -> concentric diamonds pulsing out.
-        self.dist = self.dx + self.dy;
-        self.level = (self.dist + self.frame) % 8;
-        transition { _ -> bounds() }
+        main.dist = main.dx + main.dy;
+        main.level = (main.dist + main.frame) % 8;
+        transition { _ -> bounds(main) }
     }
-    state bounds(&mut self) {
+    state bounds(main: &mut Main) {
         // Re-assert both indices right before the write so the prover carries them the
         // single hop into write_cell (the col_loop guard is too many states back).
-        transition self.x >= 0 && self.x < 30 && self.level >= 0 && self.level < 8 {
-            true -> write_cell()
-            _ -> bad()
+        transition main.x >= 0 && main.x < 30 && main.level >= 0 && main.level < 8 {
+            true -> write_cell(main)
+            _ -> bad(main)
         }
     }
-    state write_cell(&mut self) {
-        self.c = self.ramp[self.level]; // runtime-indexed READ into a scalar
-        self.line[self.x] = self.c;     // runtime-indexed WRITE from that scalar
-        self.x = self.x + 1;
-        transition { _ -> col_loop() }
+    state write_cell(main: &mut Main) {
+        main.c = main.ramp[main.level]; // runtime-indexed READ into a scalar
+        main.line[main.x] = main.c;     // runtime-indexed WRITE from that scalar
+        main.x = main.x + 1;
+        transition { _ -> col_loop(main) }
     }
     // write_line is a CALL, so re-guard `y < 16` afterwards: the direct edge into
     // y_bump is what proves the increment (y < 16 always holds inside the row
     // loop, so the else arm is unreachable).
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        transition self.y < 16 { true -> y_bump() _ -> bad() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        transition main.y < 16 { true -> y_bump(main) _ -> bad(main) }
     }
-    state y_bump(&mut self) {
-        self.y = self.y + 1;
-        transition { _ -> row_loop() }
+    state y_bump(main: &mut Main) {
+        main.y = main.y + 1;
+        transition { _ -> row_loop(main) }
     }
 
-    state after_frame(&mut self) {
-        self.clock.sleep(40);
+    state after_frame(main: &mut Main) {
+        main.clock.sleep(40);
         // re-guard so the increment's edge carries the frame bound (the keystone
         // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
-        transition self.frame < 60 { true -> advance() _ -> finish() }
+        transition main.frame < 60 { true -> advance(main) _ -> finish(main) }
     }
-    state advance(&mut self) {
-        self.frame = self.frame + 1;
-        transition { _ -> frame_loop() }
+    state advance(main: &mut Main) {
+        main.frame = main.frame + 1;
+        transition { _ -> frame_loop(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("PASS: 60 ripple frames rendered (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: 60 ripple frames rendered (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: cell index bounds guard tripped (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: cell index bounds guard tripped (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

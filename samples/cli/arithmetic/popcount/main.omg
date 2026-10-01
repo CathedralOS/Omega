@@ -31,32 +31,32 @@ machine Main::main(&mut self) reaches Console {
     self.count = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
     // Loop head: stop once every bit has been shifted out.
-    state step(&mut self) {
-        transition self.x == 0 {
-            true -> done()
-            _ -> count_bit()
+    state step(main: &mut Main) {
+        transition main.x == 0 {
+            true -> done(main)
+            _ -> count_bit(main)
         }
     }
 
     // Loop body: accumulate the low bit, then shift it away.
-    state count_bit(&mut self) {
-        self.bit = self.x & 1;
-        self.count = self.count + self.bit;
-        self.x = self.x >> 1;
+    state count_bit(main: &mut Main) {
+        main.bit = main.x & 1;
+        main.count = main.count + main.bit;
+        main.x = main.x >> 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state done(&mut self) {
-        self.result = narrow_u32_to_i32_trapping(self.count as u32);
-        self.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result);
+    state done(main: &mut Main) {
+        main.result = narrow_u32_to_i32_trapping(main.count as u32);
+        main.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result);
     }
 }

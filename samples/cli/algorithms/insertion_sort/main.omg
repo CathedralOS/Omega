@@ -187,96 +187,96 @@ machine Main::main(&mut self) reaches Console {
     // Verify sorted order: [1, 2, 3, 5, 7, 8].
     let v0: i32 = self.s.arr[0];
     transition v0 == 1 {
-        true -> check1()
-        _ -> bad0()
+        true -> check1(&mut self)
+        _ -> bad0(&mut self)
     }
 
-    state bad0(&mut self) {
-        self.console.write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad0(main: &mut Main) {
+        main.console.write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check1(&mut self) {
-        let v1: i32 = self.s.arr[1];
+    state check1(main: &mut Main) {
+        let v1: i32 = main.s.arr[1];
         transition v1 == 2 {
-            true -> check2()
-            _ -> bad1()
+            true -> check2(main)
+            _ -> bad1(main)
         }
     }
 
-    state bad1(&mut self) {
-        self.console.write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad1(main: &mut Main) {
+        main.console.write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state check2(&mut self) {
-        let v2: i32 = self.s.arr[2];
+    state check2(main: &mut Main) {
+        let v2: i32 = main.s.arr[2];
         transition v2 == 3 {
-            true -> check3()
-            _ -> bad2()
+            true -> check3(main)
+            _ -> bad2(main)
         }
     }
 
-    state bad2(&mut self) {
-        self.console.write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad2(main: &mut Main) {
+        main.console.write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state check3(&mut self) {
-        let v3: i32 = self.s.arr[3];
+    state check3(main: &mut Main) {
+        let v3: i32 = main.s.arr[3];
         transition v3 == 5 {
-            true -> check4()
-            _ -> bad3()
+            true -> check4(main)
+            _ -> bad3(main)
         }
     }
 
-    state bad3(&mut self) {
-        self.console.write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad3(main: &mut Main) {
+        main.console.write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
-    state check4(&mut self) {
-        let v4: i32 = self.s.arr[4];
+    state check4(main: &mut Main) {
+        let v4: i32 = main.s.arr[4];
         transition v4 == 7 {
-            true -> check5()
-            _ -> bad4()
+            true -> check5(main)
+            _ -> bad4(main)
         }
     }
 
-    state bad4(&mut self) {
-        self.console.write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(75);
+    state bad4(main: &mut Main) {
+        main.console.write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(75);
     }
 
-    state check5(&mut self) {
-        let v5: i32 = self.s.arr[5];
+    state check5(main: &mut Main) {
+        let v5: i32 = main.s.arr[5];
         transition v5 == 8 {
-            true -> good()
-            _ -> bad5()
+            true -> good(main)
+            _ -> bad5(main)
         }
     }
 
-    state bad5(&mut self) {
-        self.console.write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(76);
+    state bad5(main: &mut Main) {
+        main.console.write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(76);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

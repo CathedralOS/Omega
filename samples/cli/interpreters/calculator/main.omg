@@ -53,26 +53,26 @@ machine Main::main(&mut self) reaches Console {
 
     // Dispatch on the operator byte text[2].
     transition self.text[2] == 43 {
-        true -> do_add()
-        _ -> check_sub()
+        true -> do_add(&mut self)
+        _ -> check_sub(&mut self)
     }
 
-    state check_sub(&mut self) {
-        transition self.text[2] == 45 { true -> do_sub() _ -> unknown() }
+    state check_sub(main: &mut Main) {
+        transition main.text[2] == 45 { true -> do_sub(main) _ -> unknown(main) }
     }
 
-    state do_add(&mut self) { self.result = self.a + self.b; transition { _ -> emit() } }
-    state do_sub(&mut self) { self.result = self.a - self.b; transition { _ -> emit() } }
-    state unknown(&mut self) {
-        self.console.write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state do_add(main: &mut Main) { main.result = main.a + main.b; transition { _ -> emit(main) } }
+    state do_sub(main: &mut Main) { main.result = main.a - main.b; transition { _ -> emit(main) } }
+    state unknown(main: &mut Main) {
+        main.console.write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state emit(&mut self) {
-        self.console.write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result as i32);
+    state emit(main: &mut Main) {
+        main.console.write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result as i32);
     }
 }

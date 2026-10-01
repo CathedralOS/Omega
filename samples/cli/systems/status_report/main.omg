@@ -38,32 +38,32 @@ machine Main::main(&mut self) reaches Console {
     self.reading = 95;
 
     transition self.reading > 90 {
-        true -> high()
-        _ -> normal()
+        true -> high(&mut self)
+        _ -> normal(&mut self)
     }
 
-    state high(&mut self) {
-        self.message = "ALERT " + self.label;
-        self.console.write_line(self.message);
-        transition self.message == "ALERT temp" { true -> ok() _ -> bad() }
+    state high(main: &mut Main) {
+        main.message = "ALERT " + main.label;
+        main.console.write_line(main.message);
+        transition main.message == "ALERT temp" { true -> ok(main) _ -> bad(main) }
     }
 
-    state normal(&mut self) {
-        self.message = "ok " + self.label;
-        self.console.write_line(self.message);
-        transition self.message == "ok temp" { true -> ok() _ -> bad() }
+    state normal(main: &mut Main) {
+        main.message = "ok " + main.label;
+        main.console.write_line(main.message);
+        transition main.message == "ok temp" { true -> ok(main) _ -> bad(main) }
     }
 
-    state ok(&mut self) {
-        self.console.write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: the concatenated message did not match (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: the concatenated message did not match (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }
