@@ -32,7 +32,8 @@ pub(crate) enum CheckedIntegerEndpointStep {
     /// because reduction modulo the width can only lower the result; a lower
     /// mapped bound is sound only when the same definition carries the
     /// checked no-wrap conjunct `operand <= maximum - literal`. A negative
-    /// literal on a signed carrier mirrors both sides with
+    /// literal (a signed addend, or a wrapping subtraction of a literal on
+    /// either carrier sign) mirrors both sides with
     /// `minimum - literal <= operand`.
     WrappingAdd {
         operand: ScalarTerm,
@@ -304,7 +305,10 @@ pub fn check_integer_affine_witness(
     if witness.target.scalar_type() != ScalarType::Integer(integer_type) {
         return Err(IntegerAffineWitnessError::TargetTypeMismatch);
     }
-    if witness.definition_axioms.is_empty() {
+    if witness.definition_axioms.is_empty()
+        && apply_wrapping_expression_target(&witness.target, &witness.root, integer_type, 1, 0)
+            .is_none()
+    {
         return Err(IntegerAffineWitnessError::EmptyDefinitionChain);
     }
     if witness.literal_axioms.len() != witness.definition_axioms.len() {
@@ -438,7 +442,21 @@ pub fn check_integer_affine_witness(
         endpoint_steps.push(endpoint_step);
     }
     if current != witness.target {
-        return Err(IntegerAffineWitnessError::TargetMismatch);
+        // The target may itself be one wrapping step over the chain's last
+        // value, spelled in place rather than defined by an SSA row: a
+        // guarantee naming `self.length - 1`. The term is its own
+        // definition, so the step is read from it and cites no axiom.
+        let (next_coefficient, next_offset, endpoint_step) = apply_wrapping_expression_target(
+            &witness.target,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+        )
+        .ok_or(IntegerAffineWitnessError::TargetMismatch)??;
+        coefficient = next_coefficient;
+        offset = next_offset;
+        endpoint_steps.push(endpoint_step);
     }
     Ok(CheckedIntegerAffineForm {
         root: witness.root.clone(),
@@ -448,6 +466,59 @@ pub fn check_integer_affine_witness(
         offset,
         endpoint_steps,
     })
+}
+
+/// Read `target` as one wrapping sum or difference of `current` and a direct
+/// literal of the chain's carrier: the same `WrappingAdd` step a defining
+/// row of that shape takes, with a subtracted literal negated. No landed
+/// sibling participates because no row is cited.
+fn apply_wrapping_expression_target(
+    target: &ScalarTerm,
+    current: &ScalarTerm,
+    integer_type: IntegerType,
+    coefficient: i128,
+    offset: i128,
+) -> Option<Result<(i128, i128, CheckedIntegerEndpointStep), IntegerAffineWitnessError>> {
+    let (operand, literal) = match target {
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            (left, signed_literal(right, integer_type, None)?.0)
+        }
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && right.as_ref() == current => {
+            (right, signed_literal(left, integer_type, None)?.0)
+        }
+        ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            let (literal, _) = signed_literal(right, integer_type, None)?;
+            (left, literal.checked_neg()?)
+        }
+        _ => return None,
+    };
+    Some(
+        offset
+            .checked_add(literal)
+            .map(|offset| {
+                (
+                    coefficient,
+                    offset,
+                    CheckedIntegerEndpointStep::WrappingAdd {
+                        operand: operand.as_ref().clone(),
+                        literal,
+                    },
+                )
+            })
+            .ok_or(IntegerAffineWitnessError::CoefficientOverflow),
+    )
 }
 
 fn check_correlated_add_witness(
@@ -980,6 +1051,26 @@ fn apply_definition(
                 CheckedIntegerEndpointStep::WrappingAdd {
                     operand: right.as_ref().clone(),
                     literal,
+                },
+            )
+        }
+        // Subtracting `c` modulo the width is adding `-c` modulo the width,
+        // on either carrier sign, so the step is the wrapping sum with the
+        // negated literal: the side the difference faces still demands the
+        // checked no-wrap evidence (`c <= operand` on an unsigned carrier).
+        ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            (
+                Some(coefficient),
+                offset.checked_sub(literal),
+                used_landing,
+                CheckedIntegerEndpointStep::WrappingAdd {
+                    operand: left.as_ref().clone(),
+                    literal: literal.checked_neg()?,
                 },
             )
         }

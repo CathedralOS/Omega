@@ -3,6 +3,7 @@
 mod bound_mapping;
 mod witness_checking;
 mod wrapping_bounds;
+mod wrapping_subtraction;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::ScalarTerm;

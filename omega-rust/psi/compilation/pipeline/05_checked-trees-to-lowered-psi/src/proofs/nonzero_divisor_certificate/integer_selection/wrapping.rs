@@ -1,15 +1,18 @@
 //! Canonical bound transport through wrapping definitions.
 //!
-//! `WrappingIntegerAdd`/`WrappingIntegerDivide` rows are affine in shape but
-//! modular in semantics. Unsigned wrapping division maps bounds exactly;
-//! wrapping addition maps the bound on the side its addend cannot cross
-//! unconditionally, while the other side is sound only when the same
-//! definition supplies the checked no-wrap conjunct (`operand <= maximum -
-//! addend` for a positive addend, `minimum - addend <= operand` for a
-//! negative one on a signed carrier). Traversed toward its operand the
-//! equation inverts those directions. The proof kernel independently
-//! reconstructs every requirement at admission, so this leg only assembles
-//! the candidate root-bound conjunction from cited facts.
+//! `WrappingIntegerAdd`/`WrappingIntegerSubtract`/`WrappingIntegerDivide`
+//! rows are affine in shape but modular in semantics. Unsigned wrapping
+//! division maps bounds exactly; wrapping addition maps the bound on the side
+//! its addend cannot cross unconditionally, while the other side is sound
+//! only when the same definition supplies the checked no-wrap conjunct
+//! (`operand <= maximum - addend` for a positive addend, `minimum - addend <=
+//! operand` for a negative one). Subtracting a literal is adding its negation,
+//! so an unsigned `operand - c` needs `c <= operand` for its upper side.
+//! Traversed toward its operand the equation inverts those directions. A
+//! guarantee may also spell the last step in place (`self.length - 1`); the
+//! kernel reads that step from the target term itself. The proof kernel
+//! independently reconstructs every requirement at admission, so this leg
+//! only assembles the candidate root-bound conjunction from cited facts.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -18,10 +21,10 @@ use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 
 use super::super::affine_custody::{self, CheckedWord, DefinitionIndex};
-use super::super::integer_evidence::{projected_facts, relax};
+use super::super::integer_evidence::{integer_carrier_bound, projected_facts, relax};
 use super::super::scope_identity::{self, ScopeDerived};
 use super::{bound, exact, range};
 
@@ -189,7 +192,7 @@ fn prove_uncached(
             }
         }
     }
-    None
+    prove_expression_goal(context, goal, assumptions, semantic_axioms, definitions)
 }
 
 fn prove_value_goal(
@@ -237,6 +240,336 @@ fn prove_value_goal(
                 ) {
                     return Some(proof);
                 }
+            }
+        }
+    }
+    // A wrapping sum's bound on the side its addend faces needs a root bound
+    // on that same side, and an operand's carrier interval (`0 <= x` for an
+    // unsigned counter) is one no fact cites. Seed it only from the values
+    // the target's own defining rows read, so the search stays inside the
+    // question being asked.
+    for target in [goal_left, goal_right] {
+        if !matches!(target, ScalarTerm::Value { .. }) {
+            continue;
+        }
+        for bound in carrier_roots(context, semantic_axioms, target) {
+            let words = affine_custody::definition_words_to_target(
+                context,
+                semantic_axioms,
+                definitions,
+                &bound.root,
+                target,
+            );
+            for word in words.iter() {
+                if let Some(proof) = prove_word(
+                    context,
+                    goal,
+                    assumptions,
+                    semantic_axioms,
+                    definitions,
+                    &bound,
+                    target,
+                    word,
+                ) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Most values a carrier-root walk visits below one goal endpoint.
+const MAX_CARRIER_ROOTS: usize = 16;
+
+/// Carrier bounds on the values `target`'s defining rows read, transitively:
+/// `minimum <= x` and `x <= maximum` for each such fixed-integer value. The
+/// kernel decides each bound as a primitive carrier judgment; the walk only
+/// chooses which roots the transport may start from.
+fn carrier_roots(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    target: &ScalarTerm,
+) -> Vec<RootedBound> {
+    let mut values: Vec<ScalarTerm> = Vec::new();
+    let mut pending = vec![target.clone()];
+    while let Some(value) = pending.pop() {
+        for axiom in semantic_axioms {
+            let Proposition::Equal(left, right) = axiom else {
+                continue;
+            };
+            for (defined, expression) in [(left, right), (right, left)] {
+                if *defined != value {
+                    continue;
+                }
+                for input in defining_inputs(expression) {
+                    if values.len() >= MAX_CARRIER_ROOTS {
+                        break;
+                    }
+                    if input != target && !values.contains(input) {
+                        values.push(input.clone());
+                        pending.push(input.clone());
+                    }
+                }
+            }
+        }
+    }
+    let mut bounds = Vec::new();
+    for value in values {
+        let ScalarType::Integer(integer_type) = value.scalar_type() else {
+            continue;
+        };
+        for (literal, lower) in [
+            (integer_type.minimum_value(), true),
+            (integer_type.maximum_value(), false),
+        ] {
+            let Ok(literal) = ScalarTerm::integer(integer_type, literal) else {
+                continue;
+            };
+            let proposition = if lower {
+                Proposition::LessOrEqual(literal, value.clone())
+            } else {
+                Proposition::LessOrEqual(value.clone(), literal)
+            };
+            if let Some(proof) = integer_carrier_bound(context, &proposition) {
+                bounds.push(RootedBound {
+                    proposition,
+                    proof,
+                    root: value.clone(),
+                });
+            }
+        }
+    }
+    bounds
+}
+
+/// The value operands a definition chain can resume from, as the frontier
+/// traverses them: every affine operand, and the minuend or dividend of a
+/// subtraction or division.
+fn defining_inputs(expression: &ScalarTerm) -> impl Iterator<Item = &ScalarTerm> {
+    let inputs = match expression {
+        ScalarTerm::ExactIntegerAdd { left, right, .. }
+        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+        | ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            [Some(left.as_ref()), Some(right.as_ref())]
+        }
+        ScalarTerm::ExactIntegerSubtract { left, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, .. }
+        | ScalarTerm::ExactIntegerDivide { left, .. }
+        | ScalarTerm::WrappingIntegerDivide { left, .. } => [Some(left.as_ref()), None],
+        _ => [None, None],
+    };
+    inputs
+        .into_iter()
+        .flatten()
+        .filter(|input| matches!(input, ScalarTerm::Value { .. }))
+}
+
+/// A guarantee can name wrapping arithmetic over storage in place
+/// (`self.length - 1 <= 3`) rather than through an SSA value. Stand the
+/// expression's operand on a value (itself, or a value a cited equality
+/// aliases it to), then map a root bound through the word to that value
+/// and the expression's own step, which the kernel reads from the target
+/// term. A storage operand rejoins the goal through the same cited
+/// equality by value transport.
+fn prove_expression_goal(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    let (goal_left, goal_right, strict) = match goal {
+        Proposition::LessThan(left, right) => (left, right, true),
+        Proposition::LessOrEqual(left, right) => (left, right, false),
+        _ => return None,
+    };
+    let session = exact::session(context, assumptions, semantic_axioms);
+    for (position, endpoint) in [(0usize, goal_left), (1, goal_right)] {
+        let Some(operand) = wrapping_expression_operand(endpoint) else {
+            continue;
+        };
+        let mut stands = Vec::new();
+        if matches!(operand, ScalarTerm::Value { .. }) {
+            stands.push((operand.clone(), None));
+        } else {
+            stands.extend(
+                session
+                    .value_aliases(operand)
+                    .into_iter()
+                    .map(|(alias, equality)| (alias, Some(equality))),
+            );
+        }
+        for (value, equality) in stands {
+            let target = with_expression_operand(endpoint, &value);
+            let (left, right) = if position == 0 {
+                (target.clone(), goal_right.clone())
+            } else {
+                (goal_left.clone(), target.clone())
+            };
+            let rewritten = if strict {
+                Proposition::LessThan(left, right)
+            } else {
+                Proposition::LessOrEqual(left, right)
+            };
+            let Some(relation) = prove_expression_target(
+                context,
+                &rewritten,
+                assumptions,
+                semantic_axioms,
+                definitions,
+                &value,
+                &target,
+            ) else {
+                continue;
+            };
+            let proof = match equality {
+                None => relation,
+                Some(equality) => ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::ValueEqualityTransport {
+                        premise: Box::new(relation),
+                        equalities: vec![equality],
+                    },
+                },
+            };
+            if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
+                return Some(proof);
+            }
+        }
+    }
+    None
+}
+
+/// The operand of a wrapping sum or difference with one literal side.
+fn wrapping_expression_operand(term: &ScalarTerm) -> Option<&ScalarTerm> {
+    match term {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            if right.integer_value().is_some() {
+                Some(left)
+            } else if left.integer_value().is_some() {
+                Some(right)
+            } else {
+                None
+            }
+        }
+        ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
+            right.integer_value().is_some().then_some(left.as_ref())
+        }
+        _ => None,
+    }
+}
+
+/// `term` with its non-literal operand replaced by `value`.
+fn with_expression_operand(term: &ScalarTerm, value: &ScalarTerm) -> ScalarTerm {
+    let mut rewritten = term.clone();
+    match &mut rewritten {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            if right.integer_value().is_some() {
+                **left = value.clone();
+            } else {
+                **right = value.clone();
+            }
+        }
+        ScalarTerm::WrappingIntegerSubtract { left, .. } => **left = value.clone(),
+        _ => {}
+    }
+    rewritten
+}
+
+/// Prove a goal on `target`, one wrapping step over `value`, from any root
+/// bound whose word reaches `value`: a cited or synthesized root, the
+/// carrier interval of a value the chain reads, or a bound on `value`
+/// itself with the empty word.
+fn prove_expression_target(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    value: &ScalarTerm,
+    target: &ScalarTerm,
+) -> Option<ProofNode> {
+    let rooted = shared_rooted_bounds(context, assumptions, semantic_axioms);
+    let synthesized = shared_synthesized_operand_bounds(context, semantic_axioms);
+    let carriers = carrier_roots(context, semantic_axioms, value);
+    for bound in rooted
+        .iter()
+        .chain(synthesized.iter())
+        .chain(carriers.iter())
+    {
+        let words: Rc<[Vec<usize>]> = if bound.root == *value {
+            Rc::from([Vec::new()])
+        } else {
+            affine_custody::definition_words_to_target(
+                context,
+                semantic_axioms,
+                definitions,
+                &bound.root,
+                value,
+            )
+        };
+        for word in words.iter() {
+            let Some(literal_axioms) = affine_custody::literal_axioms(
+                context,
+                semantic_axioms,
+                definitions,
+                &bound.root,
+                word,
+                value,
+            ) else {
+                continue;
+            };
+            let witness = IntegerAffineWitness {
+                root: bound.root.clone(),
+                target: target.clone(),
+                literal_axioms,
+                definition_axioms: word.clone(),
+            };
+            let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+                continue;
+            };
+            let Ok(evidence) = integer_affine_wrapping_evidence(&form, &bound.proposition) else {
+                continue;
+            };
+            let checked = CheckedWord {
+                form,
+                evidence,
+                literal_axioms: witness.literal_axioms,
+            };
+            // The step's own no-wrap evidence (`1 <= x` before `x - 1`) is a
+            // bound on a wrapping sum in turn, so it may need this leg too.
+            let Some(proof) = map_checked_word_with(
+                context,
+                assumptions,
+                semantic_axioms,
+                definitions,
+                bound,
+                &checked,
+                target,
+                word,
+                |context, required, assumptions, semantic_axioms, definitions| {
+                    bound::prove_candidate_endpoint(
+                        context,
+                        required,
+                        assumptions,
+                        semantic_axioms,
+                        definitions,
+                    )
+                    .or_else(|| prove(context, required, assumptions, semantic_axioms, definitions))
+                },
+            ) else {
+                continue;
+            };
+            let Some(proof) = (if proof.conclusion == *goal {
+                Some(proof)
+            } else {
+                relax(goal, proof)
+            }) else {
+                continue;
+            };
+            if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
+                return Some(proof);
             }
         }
     }
@@ -484,6 +817,39 @@ fn map_checked_word(
     target: &ScalarTerm,
     definition_axioms: &[usize],
 ) -> Option<ProofNode> {
+    map_checked_word_with(
+        context,
+        assumptions,
+        semantic_axioms,
+        definitions,
+        bound,
+        checked,
+        target,
+        definition_axioms,
+        bound::prove_candidate_endpoint,
+    )
+}
+
+/// `map_checked_word` with the caller's producer for each no-wrap evidence
+/// conjunct; the kernel rechecks every conjunct either way.
+#[allow(clippy::too_many_arguments)]
+fn map_checked_word_with(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    bound: &RootedBound,
+    checked: &CheckedWord,
+    target: &ScalarTerm,
+    definition_axioms: &[usize],
+    mut prove_evidence: impl FnMut(
+        &PropositionContext,
+        &Proposition,
+        &[Proposition],
+        &[Proposition],
+        &mut DefinitionIndex,
+    ) -> Option<ProofNode>,
+) -> Option<ProofNode> {
     let witness = IntegerAffineWitness {
         root: bound.root.clone(),
         target: target.clone(),
@@ -493,7 +859,7 @@ fn map_checked_word(
     let mut children = Vec::with_capacity(checked.evidence.len() + 1);
     children.push(bound.proof.clone());
     for required in &checked.evidence {
-        children.push(bound::prove_candidate_endpoint(
+        children.push(prove_evidence(
             context,
             required,
             assumptions,

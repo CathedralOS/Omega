@@ -390,11 +390,14 @@ fn forward_sibling<'a>(
         ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
+        // A wrapping difference resumes at its minuend; the kernel reads it
+        // as the wrapping sum with the negated literal.
         ScalarTerm::ExactIntegerDivide { left, right, .. }
         | ScalarTerm::WrappingIntegerDivide { left, right, .. }
         | ScalarTerm::ExactIntegerRemainder { left, right, .. }
         | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
+        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
             (left.as_ref(), right.as_ref(), true)
         }
         _ => return None,
