@@ -202,6 +202,51 @@ fn a_jump_releases_one_loan_while_forwarding_an_unrelated_view() {
 }
 
 #[test]
+fn a_cycle_reacquires_and_releases_a_receiver_field_loan() {
+    assert_accepted(
+        "data Main { count: u64; }
+        machine Main::run(&mut self) {
+            transition { _ -> snapshot(&mut self.count) }
+            state snapshot(&mut self, count: &mut u64) {
+                let saved: u64 = count;
+                transition { _ -> writeback(saved) }
+            }
+            state writeback(&mut self, saved: u64) {
+                self.count = ((saved as u64 in Wrapping) + 1) as u64;
+                transition self.count < 70 {
+                    true -> snapshot(&mut self.count)
+                    false -> done()
+                }
+            }
+            state done(&mut self) {}
+        }",
+    );
+}
+
+#[test]
+fn a_finite_cycle_still_rejects_a_write_while_its_field_is_lent() {
+    assert_rejected(
+        "data Main { count: u64; }
+        machine Main::run(&mut self) {
+            transition { _ -> snapshot(&mut self.count) }
+            state snapshot(&mut self, count: &mut u64) {
+                self.count = 70;
+                let saved: u64 = count;
+                transition { _ -> again(saved) }
+            }
+            state again(&mut self, saved: u64) {
+                transition saved < 70 {
+                    true -> snapshot(&mut self.count)
+                    false -> done()
+                }
+            }
+            state done(&mut self) {}
+        }",
+        "state `snapshot` receives `self.count` as mutable while its mutable receiver writes `self.count`",
+    );
+}
+
+#[test]
 fn a_jump_releases_an_exclusive_loan_before_reading_its_backing() {
     assert_accepted(
         "data Main { count: u64; }

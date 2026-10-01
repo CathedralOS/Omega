@@ -37,7 +37,7 @@ use crate::machine_calls::calls::write_frames::parameter_relative_origins::param
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::single_parameter_relative_origin;
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
-    push_unique_origin, same_place_origin, single_place_origin, split_place_root,
+    push_unique_origin, same_place_origin, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
@@ -162,23 +162,6 @@ pub(crate) fn transparent_call_result_origins(
         }
     }
     (!origins.is_empty()).then_some(origins)
-}
-
-/// Recover a transparent returned-place origin without imposing a caller
-/// namespace. This is used while instantiating a callee frame through a nested
-/// statement-call argument: direct places keep their existing spelling, while
-/// the compiler-owned `as_mut_slice` view preserves its receiver and a
-/// structurally transparent helper selects and composes one of its actual
-/// mutable-reference origins. Opaque or recursive helpers fail closed.
-pub(crate) fn transparent_place_expression_origin(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<FramePlaceOrigin> {
-    single_place_origin(transparent_place_expression_origins(
-        program, expression, symbols, inference,
-    )?)
 }
 
 /// Every proven place the expression may name, in caller spelling. Direct

@@ -9,7 +9,7 @@
 //! state write prefixes, `alias_origins.rs` propagates stable alias origins,
 //! `transparent_results.rs` follows transparent call results,
 //! `parameter_relative_origins.rs` resolves parameter-relative origins and
-//! `permuted_cycle_frames.rs` solves transition-cycle frame equations and
+//! `cycle_frames.rs` solves transition-cycle frame equations and
 //! `wire_codecs.rs` frames synthesized wire codec calls from their argument
 //! access; the remaining files carry the demand, alias, path and topology
 //! vocabulary.
@@ -21,6 +21,8 @@ mod boundary_calls;
 mod call_targets;
 mod call_trees;
 mod caller_aliases;
+mod cycle_frames;
+mod cycle_substitutions;
 mod demand;
 mod inference;
 mod isolated_initializers;
@@ -29,7 +31,6 @@ mod local_aliases;
 mod parameter_aliases;
 mod parameter_relative_origins;
 mod path_instantiation;
-mod permuted_cycle_frames;
 mod place_paths;
 mod reference_origins;
 mod reference_subjects;

@@ -1,0 +1,33 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Main { console: Binding<Console>; count: u64; }
+
+// The storage root stays the same across the loop, while the loan exists
+// only in snapshot. Writeback must see the count after that loan ends.
+machine Main::update(&mut self) {
+    transition { _ -> snapshot(&mut self.count) }
+    state snapshot(&mut self, count: &mut u64) {
+        let saved: u64 = count;
+        transition { _ -> writeback(saved) }
+    }
+    state writeback(&mut self, saved: u64) {
+        self.count = ((saved as u64 in Wrapping) + 1) as u64;
+        transition self.count < 70 {
+            true -> snapshot(&mut self.count)
+            false -> done()
+        }
+    }
+    state done(&mut self) {}
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.count = 67;
+    self.update();
+    transition self.count == 70 {
+        true -> matched()
+        false -> mismatched()
+    }
+    state matched(&mut self) { self.console.exit_process(70); }
+    state mismatched(&mut self) { self.console.exit_process(71); }
+}

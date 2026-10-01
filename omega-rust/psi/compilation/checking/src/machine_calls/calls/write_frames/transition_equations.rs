@@ -1,7 +1,7 @@
 //! Transition-equation carriers and read-only topology operations.
 //!
 //! This leaf records named transition edges and answers reachability over an
-//! already-built equation set. Equation construction, permutation validation,
+//! already-built equation set. Equation construction, substitution validation,
 //! and fixed-point solving remain in the parent.
 
 use super::place_paths::FramePlaceOrigin;
@@ -13,27 +13,27 @@ use typed_trees::state::State;
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 #[derive(Debug, Clone)]
-pub(super) struct PermutedCycleFrameEdge {
+pub(super) struct CycleFrameEdge {
     pub(super) target: SymbolHandle,
     pub(super) arguments: Vec<ExpressionHandle>,
 }
 
 #[derive(Debug)]
-pub(super) struct PermutedCycleFrameEquation<'program> {
+pub(super) struct CycleFrameEquation<'program> {
     pub(super) state: &'program State,
     pub(super) locals: Vec<String>,
     pub(super) local_alias_origins: Vec<(String, FramePlaceOrigin)>,
     pub(super) stored: Vec<super::StoredLocalOrigins>,
     pub(super) direct_writes: Vec<String>,
-    pub(super) edges: Vec<PermutedCycleFrameEdge>,
+    pub(super) edges: Vec<CycleFrameEdge>,
 }
 
-pub(super) fn append_permuted_cycle_frame_edge(
+pub(super) fn append_cycle_frame_edge(
     program: &TypedTrees,
     machine: &Machine,
     source: &State,
     target: TransitionTargetHandle,
-    edges: &mut Vec<PermutedCycleFrameEdge>,
+    edges: &mut Vec<CycleFrameEdge>,
 ) -> Option<()> {
     if !target.is_valid() {
         return Some(());
@@ -53,7 +53,7 @@ pub(super) fn append_permuted_cycle_frame_edge(
                     let members = program.statement_table.name_path_members(path.members);
                     matches!(members, [member] if member.is_self_receiver()).then_some(source)
                 })?;
-            edges.push(PermutedCycleFrameEdge {
+            edges.push(CycleFrameEdge {
                 target: target.symbol,
                 arguments: program
                     .statement_table
@@ -66,7 +66,7 @@ pub(super) fn append_permuted_cycle_frame_edge(
 }
 
 pub(super) fn transition_state_reaches(
-    equations: &[PermutedCycleFrameEquation<'_>],
+    equations: &[CycleFrameEquation<'_>],
     start: SymbolHandle,
     sought: SymbolHandle,
 ) -> bool {
