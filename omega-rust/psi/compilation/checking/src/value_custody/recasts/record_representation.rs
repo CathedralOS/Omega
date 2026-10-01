@@ -163,10 +163,13 @@ pub enum RecastLeafSegment {
     Element(usize),
 }
 
-/// The source leaf a typed record recast view's direct field observes.
+/// The source leaf a typed record recast view's direct field observes, and
+/// the carriers on both sides: an admitted view keeps the leaf's width but
+/// may name an integer of the other sign.
 pub struct RecastRecordSourceLeaf {
     pub path: Vec<RecastLeafSegment>,
     pub primitive: typed_trees::types::PrimitiveType,
+    pub view_primitive: typed_trees::types::PrimitiveType,
 }
 
 /// Rejoin a typed record view's direct scalar field to the source leaf it
@@ -211,6 +214,7 @@ pub fn recast_record_source_leaf(
             })
             .collect(),
         primitive: source_leaf.primitive,
+        view_primitive: target_leaf.primitive,
     })
 }
 

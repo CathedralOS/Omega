@@ -136,19 +136,23 @@ fn shared_record_view_reads_rejoin_source_leaves_and_verify() {
     .expect("record view reads lower as source leaf reads and verify");
 }
 
-/// A view leaf whose carrier differs from its source leaf (`i16` seen as
-/// `u16`) needs a representation re-view the record read does not perform,
-/// so it refuses rather than retagging the source field.
+/// A view field over an equal-width integer leaf of the other sign reads the
+/// leaf at its declared carrier and takes the modular image, and a mutable
+/// view stores the image of the view's value back into that leaf.
 #[test]
-fn record_view_leaf_with_another_carrier_refuses() {
-    let error = produce(
+fn record_view_integer_leaves_of_the_other_sign_read_and_store_their_image() {
+    produce(
         r#"
-        data Signed where value >= 0 && value <= 100, { value: i16; }
-        data Unsigned where value >= 0 && value <= 100, { value: u16; }
+        data Signed where value >= 0 && value <= 100, { value: i16; flag: bool; }
+        data Unsigned where value >= 0 && value <= 100, { value: u16; active: bool; }
         data Main { signed: Signed; }
         machine Main::main(&mut self) {
-            let view: &Unsigned = &self.signed as &Unsigned;
-            transition view.value == 7 {
+            self.signed.value = 7;
+            let view: &mut Unsigned = &mut self.signed as &mut Unsigned;
+            view.value = 99;
+            view.active = true;
+            let seen: u16 = view.value;
+            transition seen == 99 && self.signed.value == 99 && self.signed.flag {
                 true -> good()
                 _ -> bad()
             }
@@ -157,7 +161,31 @@ fn record_view_leaf_with_another_carrier_refuses() {
         }
         "#,
     )
-    .expect_err("a carrier-changing record view leaf has no read form yet");
+    .expect("sign-changing record view leaves lower through the modular image and verify");
+}
+
+/// A record view field whose leaf has a different kind of carrier (an `f32`
+/// seen as `u32`) needs the Terminal bit re-view the record read does not
+/// perform, so it refuses rather than retagging the source field.
+#[test]
+fn record_view_leaf_with_another_carrier_kind_refuses() {
+    let error = produce(
+        r#"
+        data Reading { value: f32; }
+        data Bits { value: u32; }
+        data Main { reading: Reading; }
+        machine Main::main(&mut self) {
+            let view: &Bits = &self.reading as &Bits;
+            transition view.value == 0 {
+                true -> good()
+                _ -> bad()
+            }
+            state good(&mut self) {}
+            state bad(&mut self) {}
+        }
+        "#,
+    )
+    .expect_err("a float leaf viewed as integer bits has no record read form yet");
     assert!(
         error.contains("record view leaf changes its scalar carrier"),
         "{error}"

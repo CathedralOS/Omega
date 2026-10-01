@@ -55,11 +55,16 @@ Boolean view targets still retag their guard leaf until that form exists.
 Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
 like shared loan locals do.
 
-A shared record-as-record view erases at Terminal: stage 05 reads each view
-field as the source leaf at the same offset under the source's declaration
+A record-as-record view erases at Terminal: stage 05 reads each view field
+as the source leaf at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes
-exact. A leaf whose carrier differs (`i16` seen as `u16`) and mutable record
-views do not lower yet.
+exact. A mutable view's direct field store rejoins the same leaf in stage 04
+(`structural_scalar_store/destination.rs`); both store replays recompute it
+(`representation_view_store::record_view_leaf_destination`). An equal-width
+integer leaf of the other sign (`i16` seen as `u16`) reads its declared
+carrier and takes the modular image, and a store writes the image of the
+view's value. A leaf of another carrier kind (`f32` seen as `u32`) and nested
+view paths do not lower yet.
 
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence

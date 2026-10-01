@@ -128,7 +128,7 @@ pub(super) fn resolve<'a>(
     ) else {
         return None;
     };
-    let (place, recast_view) = rejoin_loan_local(program, state, ordinal, place)?;
+    let (place, recast_view) = rejoin_loan_local(program, machine, state, ordinal, place)?;
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -708,6 +708,7 @@ pub(super) fn exact_relevant_field<'a>(
 /// A place that is not rooted at such a local is returned unchanged.
 fn rejoin_loan_local(
     program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     ordinal: usize,
     place: crate::flow::CanonicalPlace,
@@ -777,11 +778,24 @@ fn rejoin_loan_local(
         {
             TypeReferenceNode::Reference { referee, .. } => {
                 match program.primitive_type_reference(*referee) {
-                    // A record referee's fields belong to the view's own
-                    // structure, not to the loaned place's segments, so the
-                    // rejoin keeps the local as root: the exclusive borrowed
-                    // view arm resolves its home through the loan ledger.
-                    None => return Some((place, None)),
+                    // A store to a record view's direct scalar field writes the
+                    // source leaf the recast judgment matched at the same
+                    // offset and width. It rejoins that leaf below the loaned
+                    // place; an equal-width integer leaf of the other sign
+                    // keeps the view's carrier as the stored value's.
+                    None => {
+                        if let Some((leaf_place, view)) = record_view_leaf(
+                            program, machine, state, ordinal, target, *referee, &place,
+                        ) {
+                            return Some((leaf_place, view));
+                        }
+                        // Any other record view's fields belong to the view's
+                        // own structure, not to the loaned place's segments,
+                        // so the rejoin keeps the local as root: the exclusive
+                        // borrowed view arm resolves its home through the loan
+                        // ledger.
+                        return Some((place, None));
+                    }
                     primitive => primitive,
                 }
             }
@@ -798,6 +812,44 @@ fn rejoin_loan_local(
     )?;
     loaned.segments.extend(place.segments);
     Some((loaned, recast_view))
+}
+
+/// The source leaf a store through a typed record view writes: the loaned
+/// place followed by the leaf's own segments, and the view's carrier when it
+/// differs from the leaf's. Only a direct field of the view rejoins.
+fn record_view_leaf(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    ordinal: usize,
+    target: typed_trees::expression::ExpressionHandle,
+    referee: typed_trees::types::TypeReferenceHandle,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(
+    crate::flow::CanonicalPlace,
+    Option<typed_trees::types::PrimitiveType>,
+)> {
+    let [facts::PlaceSegment::Field { symbol: field }] = place.segments.as_slice() else {
+        return None;
+    };
+    let source = validation::declared_place_type_raw(program, machine, Some(state), target)?;
+    let leaf = validation::recast_record_source_leaf(program, source, referee, *field)?;
+    let mut loaned = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        ordinal,
+        target,
+    )?;
+    for segment in leaf.path {
+        loaned.segments.push(match segment {
+            validation::RecastLeafSegment::Field(symbol) => facts::PlaceSegment::Field { symbol },
+            validation::RecastLeafSegment::Element(index) => {
+                facts::PlaceSegment::FixedIndex { index }
+            }
+        });
+    }
+    let view = (leaf.view_primitive != leaf.primitive).then_some(leaf.view_primitive);
+    Some((loaned, view))
 }
 
 /// An exclusive borrowed view is a root of its own: `let cell: &mut Cell =

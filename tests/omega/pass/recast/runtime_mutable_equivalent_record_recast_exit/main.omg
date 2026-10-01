@@ -3,23 +3,35 @@ use omega::language::core::float_operations;
 // RUN CANARY (exit 70) + interpreter differential. A mutable alias between
 // established typed records may retain facts when both layouts have identical
 // geometry and each corresponding leaf admits the same stored bit patterns.
-// The field names deliberately differ: representation, not nominal spelling,
-// owns the judgment.
+// Each record bounds its fields with data `where` facts: `0..=100` and
+// `0..=2` store the same bits in `i16` and `u16`, and both ratios share the
+// `f32` carrier and interval. The field names deliberately differ:
+// representation, not nominal spelling, owns the judgment.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data SignedRecord {
-    signed_value: i16 [0..=100];
-    signed_tag: i16 [0..=2];
+data SignedRecord
+where
+    signed_value >= 0 && signed_value <= 100,
+    signed_tag >= 0 && signed_tag <= 2,
+    signed_ratio >= 0.0 && signed_ratio <= 1.0,
+{
+    signed_value: i16;
+    signed_tag: i16;
     enabled: bool;
-    signed_ratio: f32 [0..=1];
+    signed_ratio: f32;
 }
 
-data UnsignedRecord {
-    unsigned_value: u16 [0..=100];
-    unsigned_tag: u16 [0..=2];
+data UnsignedRecord
+where
+    unsigned_value >= 0 && unsigned_value <= 100,
+    unsigned_tag >= 0 && unsigned_tag <= 2,
+    unsigned_ratio >= 0.0 && unsigned_ratio <= 1.0,
+{
+    unsigned_value: u16;
+    unsigned_tag: u16;
     active: bool;
-    unsigned_ratio: f32 [0..=1];
+    unsigned_ratio: f32;
 }
 
 data Main {
@@ -27,39 +39,35 @@ data Main {
     source: SignedRecord;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.signed_value = 7;
-    self.source.signed_tag = 2;
+machine Main::main(context: &mut Main) reaches Console {
+    context.source.signed_value = 7;
+    context.source.signed_tag = 2;
     let view: &mut UnsignedRecord =
-        &mut self.source as &mut UnsignedRecord;
+        &mut context.source as &mut UnsignedRecord;
     view.unsigned_value = 99;
     view.active = true;
-    // `view` holds an EXCLUSIVE loan of `self.source`, and exclusivity
+    // `view` holds an EXCLUSIVE loan of `context.source`, and exclusivity
     // prevents reading the original while that loan is live (ownership:
     // "&mut T | Exclusive observation and mutation" and "Exclusivity
-    // prevents reading old contents through a second alias"). Reading both
-    // spellings inside one guard did that, and only compiled because a plain
-    // operand read bypassed the check that a call argument enforces -- so the
-    // guard stopped compiling the moment `f32 ==` became a call to
-    // `Float::equal`. Observing through the view FIRST ends the loan at its
-    // last use, and the original is then read on its own authority. The
-    // subject is unchanged: values written through the recast view are the
-    // values the original reports.
+    // prevents reading old contents through a second alias"). Observing
+    // through the view FIRST ends the loan at its last use, and the original
+    // is then read on its own authority. Values written through the recast
+    // view are the values the original reports.
     let seen_value: u16 = view.unsigned_value;
     let seen_tag: u16 = view.unsigned_tag;
     let seen_active: bool = view.active;
     let seen_ratio: f32 = view.unsigned_ratio;
-    transition self.source.signed_value == 99
+    transition context.source.signed_value == 99
         && seen_value == 99
-        && self.source.signed_tag == 2
+        && context.source.signed_tag == 2
         && seen_tag == 2
-        && self.source.enabled
+        && context.source.enabled
         && seen_active
-        && seen_ratio == self.source.signed_ratio {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        && seen_ratio == context.source.signed_ratio {
+        true -> good(context)
+        _ -> bad(context)
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
 }
