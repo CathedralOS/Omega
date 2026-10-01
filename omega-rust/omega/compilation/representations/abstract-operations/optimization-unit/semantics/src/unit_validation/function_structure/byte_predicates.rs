@@ -600,11 +600,10 @@ mod tests {
 
     // This raw graph exercises predicate traversal only. Forty doubling nodes
     // describe exponentially many paths while retaining forty-one source places.
+    // Each concatenation result is an owned byte result, so the unit's catalog
+    // declares its bounded owner type.
     fn shared_concatenations() -> PsiOptimizationUnit {
         let mut unit = crate::tests::fixtures::scalar_units::unit();
-        let function = &mut unit.functions[0];
-        let template = function.blocks[0].nodes[0].clone();
-        function.blocks[0].nodes.clear();
         let structural_type = StructuralTypeId::new(1).unwrap();
         let declaration = terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
@@ -613,6 +612,11 @@ mod tests {
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 1 << 40 },
             ),
         };
+        assert!(unit.structural_types.is_empty());
+        unit.structural_types = vec![declaration.clone()].into();
+        let function = &mut unit.functions[0];
+        let template = function.blocks[0].nodes[0].clone();
+        function.blocks[0].nodes.clear();
         let literal = terminal_psi::StructuralPlaceDeclaration {
             id: PlaceId::new(1).unwrap(),
             kind: StructuralPlaceKind::ByteSequenceLiteral {
