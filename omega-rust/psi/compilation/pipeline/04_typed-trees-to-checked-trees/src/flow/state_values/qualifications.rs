@@ -1,7 +1,8 @@
-//! Finite live memberships carried by exact named-state argument values.
+//! Finite live predicates carried by exact state-argument values. Domain
+//! memberships and normalized IEEE observations use the same custody path.
 //!
 //! Origins alone supply no row. Every row is captured from an available fact;
-//! incoming joins can only remove claims, and root entry is never narrowed.
+//! incoming joins can only weaken claims, and root entry is never narrowed.
 use super::TransitionTargetNode;
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
@@ -19,19 +20,77 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(in crate::flow) struct QualifiedInput {
     parameter: SymbolHandle,
     segments: Vec<facts::PlaceSegment>,
-    domain: HandleSpan<Identifier>,
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+    predicate: CarriedPredicate,
     evidence: QualificationEvidence,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CarriedPredicate {
+    Domain {
+        domain: HandleSpan<Identifier>,
+        domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+    },
+    Float(facts::FloatPredicate),
+}
+
+impl CarriedPredicate {
+    fn implies(self, other: Self) -> bool {
+        match (self, other) {
+            (
+                Self::Domain {
+                    domain_symbol,
+                    semantic_domain,
+                    ..
+                },
+                Self::Domain {
+                    domain_symbol: other_symbol,
+                    semantic_domain: other_domain,
+                    ..
+                },
+            ) => domain_symbol == other_symbol && semantic_domain == other_domain,
+            (Self::Float(left), Self::Float(right)) => left.implies(right),
+            _ => false,
+        }
+    }
+
+    fn common_consequence(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Float(left), Self::Float(right)) => {
+                left.common_consequence(right).map(Self::Float)
+            }
+            _ => self.implies(other).then_some(self),
+        }
+    }
+
+    fn payload(self) -> FactPayload {
+        match self {
+            Self::Domain {
+                domain,
+                domain_symbol,
+                semantic_domain,
+            } => FactPayload::DomainMembership {
+                value: ExpressionHandle::invalid(),
+                domain,
+                domain_symbol,
+                semantic_domain,
+            },
+            Self::Float(predicate) => FactPayload::FloatPredicate { predicate },
+        }
+    }
+}
+
 impl QualifiedInput {
-    fn same_claim(&self, other: &Self) -> bool {
+    fn same_subject(&self, other: &Self) -> bool {
         self.parameter == other.parameter
             && self.segments == other.segments
-            && self.domain_symbol == other.domain_symbol
-            && self.semantic_domain == other.semantic_domain
             && self.evidence == other.evidence
+    }
+
+    fn same_claim(&self, other: &Self) -> bool {
+        self.same_subject(other)
+            && self.predicate.implies(other.predicate)
+            && other.predicate.implies(self.predicate)
     }
 }
 
@@ -52,8 +111,42 @@ impl CapturedQualification {
 
 pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInput]) -> bool {
     let before = previous.len();
-    previous.retain(|claim| incoming.iter().any(|next| claim.same_claim(next)));
-    previous.len() != before
+    let mut changed = false;
+    previous.retain_mut(|claim| {
+        let mut common: Option<CarriedPredicate> = None;
+        for next in incoming.iter().filter(|next| claim.same_subject(next)) {
+            let Some(candidate) = claim.predicate.common_consequence(next.predicate) else {
+                continue;
+            };
+            if common.is_none_or(|retained| candidate.implies(retained)) {
+                common = Some(candidate);
+            }
+        }
+        let Some(common) = common else {
+            return false;
+        };
+        changed |= !claim.predicate.implies(common) || !common.implies(claim.predicate);
+        claim.predicate = common;
+        true
+    });
+    changed || previous.len() != before
+}
+
+/// A membership can only disappear. A float predicate can additionally
+/// weaken among the five positive comparisons at authored endpoints, then
+/// non-NaN, then absence. Joins never manufacture new numeric endpoints.
+pub(super) fn height(program: &typed_trees::TypedTrees, inputs: &[QualifiedInput]) -> usize {
+    let float_height = program
+        .expression_table
+        .expression_count()
+        .saturating_mul(5)
+        .saturating_add(2);
+    inputs.iter().fold(0usize, |height, input| {
+        height.saturating_add(match input.predicate {
+            CarriedPredicate::Domain { .. } => 1,
+            CarriedPredicate::Float(_) => float_height,
+        })
+    })
 }
 
 fn unconstrained(
@@ -92,14 +185,22 @@ fn owned_projection(
         else {
             return false;
         };
+        // An implicit receiver's referee names its machine, whereas ordinary
+        // record arguments name the data declaration. Resolve that semantic
+        // attachment before checking the field's owner; spelling is irrelevant.
+        let owner = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == *owner)
+            .map_or(*owner, |machine| machine.attached_data_symbol);
         let Some(data) = program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == *owner)
+            .find(|data| owner.is_valid() && data.symbol == owner)
         else {
             return false;
         };
-        if !symbol.is_valid() || program.symbols.get(*symbol).parent != *owner {
+        if !symbol.is_valid() || program.symbols.get(*symbol).parent != owner {
             return false;
         }
         let Some(field) = program
@@ -119,7 +220,7 @@ fn owned_projection(
     frames.proof_value_is_caller_isolated(reference)
 }
 
-/// Capture live membership facts whose place is the argument's own denoted
+/// Capture live predicates whose place is the argument's own denoted
 /// place or a projection below it. `source_segments` names the argument value
 /// itself, so a fact deeper in the same place describes a selected field of
 /// the value the state parameter will carry; the captured claim republishes
@@ -139,6 +240,7 @@ fn capture_place(
         return Vec::new();
     };
     let isolated = frames.proof_value_is_caller_isolated(source_type);
+    let source_root = crate::flow::normalized_event_place_root(program, source_root);
     let mut captured = Vec::new();
     for context in flow_context
         .contexts
@@ -152,7 +254,7 @@ fn capture_place(
             if matches!(fact.origin, FactOrigin::CallRequires) {
                 continue;
             }
-            let (domain, domain_symbol, semantic_domain) = match fact.payload {
+            let predicate = match fact.payload {
                 FactPayload::DomainMembership {
                     domain,
                     domain_symbol,
@@ -164,7 +266,12 @@ fn capture_place(
                     domain_symbol,
                     semantic_domain,
                     ..
-                } => (domain, domain_symbol, semantic_domain),
+                } if domain_symbol.is_valid() => CarriedPredicate::Domain {
+                    domain,
+                    domain_symbol,
+                    semantic_domain,
+                },
+                FactPayload::FloatPredicate { predicate } => CarriedPredicate::Float(predicate),
                 _ => continue,
             };
             let FactPlace::Place(place) = fact.place else {
@@ -177,8 +284,7 @@ fn capture_place(
             ) else {
                 continue;
             };
-            if !domain_symbol.is_valid()
-                || place.root != source_root
+            if crate::flow::normalized_event_place_root(program, place.root) != source_root
                 || !place.segments.starts_with(source_segments)
             {
                 continue;
@@ -191,9 +297,7 @@ fn capture_place(
                 input: QualifiedInput {
                     parameter: destination,
                     segments: segments.to_vec(),
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
+                    predicate,
                     evidence: fact.evidence,
                 },
                 context: context.context,
@@ -224,7 +328,7 @@ fn capture_parameter(
     )
 }
 
-/// Capture the memberships carried by one transition argument into its
+/// Capture the predicates carried by one transition argument into its
 /// destination parameter. The argument is read at its authored evaluation
 /// point, so every denoted place counts — a renamed state parameter, a staged
 /// local, a selected field, or an evaluated call result — rather than only a
@@ -268,13 +372,6 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    // A `self`-rooted argument moves through the transition's receiver path,
-    // not through ordinary parameter evidence.
-    if program.state_parameters(state).iter().any(|candidate| {
-        candidate.is_self && source.root == facts::PlaceRoot::Symbol(candidate.symbol)
-    }) {
-        return Vec::new();
-    }
     let Some(source_type) =
         flow_context.expression_result_type_at(program, machine, state, argument)
     else {
@@ -342,6 +439,44 @@ pub(super) fn capture_self(
     finish(flow_context, contexts, captured, true)
 }
 
+/// An implicit receiver carries its live storage at the edge, not a detached
+/// scalar argument read earlier. Explicit arguments continue to use their
+/// operand-time captures and the existing reference-liveness fence.
+pub(super) fn capture_receiver(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    flow_context: &FlowBuildContext,
+    source: &typed_trees::state::State,
+    destination: &typed_trees::state::State,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+) -> Vec<QualifiedInput> {
+    let Some(source) = program
+        .state_parameters(source)
+        .iter()
+        .find(|parameter| parameter.is_self)
+    else {
+        return Vec::new();
+    };
+    let Some(destination) = program
+        .state_parameters(destination)
+        .iter()
+        .find(|parameter| parameter.is_self)
+    else {
+        return Vec::new();
+    };
+    let captured = capture_place(
+        program,
+        semantic,
+        flow_context,
+        facts::PlaceRoot::Symbol(source.symbol),
+        &[],
+        source.type_reference,
+        destination.symbol,
+        contexts,
+    );
+    finish(flow_context, contexts, captured, true)
+}
+
 pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: ProgramPoint) {
     for input in inputs {
         let place = semantic.append_symbol_place(input.parameter);
@@ -353,12 +488,7 @@ pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: 
             point,
             origin: FactOrigin::StatementTransfer,
             evidence: input.evidence,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain: input.domain,
-                domain_symbol: input.domain_symbol,
-                semantic_domain: input.semantic_domain,
-            },
+            payload: input.predicate.payload(),
         });
         let mut references = HandleSpan::empty();
         semantic.append_ref(&mut references, fact);

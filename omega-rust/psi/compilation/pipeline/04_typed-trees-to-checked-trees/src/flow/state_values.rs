@@ -131,7 +131,9 @@ fn join(
     } else {
         changed = true;
         build.new_state_field_input_height += fields::height(&incoming.fields, thresholds.len());
-        build.new_state_field_input_height += incoming.qualifications.len();
+        build.new_state_field_input_height = build
+            .new_state_field_input_height
+            .saturating_add(qualifications::height(program, &incoming.qualifications));
         build.new_state_field_input_height = incoming
             .bounds
             .iter()
@@ -307,11 +309,19 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let qualifications = if arguments.is_some() {
+    let mut qualifications = if arguments.is_some() {
         argument_qualifications
     } else {
         qualifications::capture_self(program, semantic, build, state, contexts)
     };
+    qualifications.extend(qualifications::capture_receiver(
+        program,
+        semantic,
+        build,
+        state,
+        destination,
+        contexts,
+    ));
     join(
         program,
         build,

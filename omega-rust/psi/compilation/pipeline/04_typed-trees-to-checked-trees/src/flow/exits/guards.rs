@@ -111,6 +111,30 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     else {
         return;
     };
+    let mut float_predicates = Vec::new();
+    crate::values::float_predicates::collect_true(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        &mut float_predicates,
+    );
+    for (subject, predicate) in float_predicates {
+        append_observation_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            statement_index,
+            &[subject],
+            FactPayload::FloatPredicate { predicate },
+            point,
+            origin,
+            active_contexts,
+            active_constraints,
+        );
+    }
     let mut conjuncts = Vec::new();
     // Arm tests arrive as `<guard> == true`; peel that wrapper off before
     // reading conjuncts, then split `&&` as the arm's own test would.
@@ -541,6 +565,7 @@ pub(in crate::flow) fn append_predicate_context(
         occurrences.as_slice(),
         FactPayload::BooleanValue { expression, value },
         point,
+        FactOrigin::TransitionGuard,
         active_contexts,
         active_constraints,
     );
@@ -603,6 +628,7 @@ pub(in crate::flow) fn append_match_pattern_context(
         &occurrences,
         payload,
         point,
+        FactOrigin::TransitionGuard,
         active_contexts,
         active_constraints,
     );
@@ -655,6 +681,7 @@ fn append_observation_context(
     occurrences: &[ExpressionHandle],
     payload: FactPayload,
     point: ProgramPoint,
+    origin: FactOrigin,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -683,7 +710,7 @@ fn append_observation_context(
         let fact = semantic.append_fact(Fact {
             place,
             point,
-            origin: FactOrigin::TransitionGuard,
+            origin,
             evidence: QualificationEvidence::default(),
             payload,
         });

@@ -5,32 +5,23 @@
 //! InvocationContexts selects its captured value's facts before this query:
 //! current storage facts must never replace a detached operand's snapshot.
 
-use super::{
-    InvocationContexts, closed_exact_float, closed_operators_are_builtin, closed_scalar_value,
-    operand_for_parameter,
-};
+use super::{InvocationContexts, closed_operators_are_builtin, operand_for_parameter};
 use checked_trees::CheckedOperatorFacts;
-use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
-use numerics::bignum::ExactFloat;
+use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
 use numerics::literals::FloatFormat;
-use std::cmp::Ordering;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use crate::flow::{CanonicalPlace, canonical_place_from_expression};
+use crate::values::float_predicates::{comparison, has_ieee_meaning, literal, reverse};
 
 struct RequiredComparison {
     place: CanonicalPlace,
     reference: TypeReferenceHandle,
-    format: FloatFormat,
-    operator: BinaryOperator,
-    // Absent only for IEEE self-equality, which requires non-NaN evidence.
-    bound: Option<ExactFloat>,
+    predicate: FloatPredicate,
 }
 
 pub(super) fn contexts_prove_comparison(
@@ -75,12 +66,23 @@ pub(super) fn contexts_prove_comparison(
                         expression,
                         &required,
                     ),
+                    FactPayload::FloatPredicate { predicate }
+                        if fact_has_place(program, semantic, fact.place, &required.place) =>
+                    {
+                        predicate.implies(required.predicate)
+                    }
                     FactPayload::AssignedValue { value }
                         if fact_has_place(program, semantic, fact.place, &required.place) =>
                     {
-                        literal(program, value, required.format).is_some_and(|bound| {
-                            bound_implies(&required, BinaryOperator::Equal, &bound)
-                        })
+                        literal(program, value, required.predicate.format())
+                            .and_then(|bound| {
+                                FloatPredicate::comparison(
+                                    required.predicate.format(),
+                                    BinaryOperator::Equal,
+                                    &bound,
+                                )
+                            })
+                            .is_some_and(|observed| observed.implies(required.predicate))
                     }
                     _ => false,
                 })
@@ -126,20 +128,18 @@ fn required_comparison(
         }
         let operand = operand_for_parameter(program, parameters, operands, path)?;
         let place = canonical_place_from_expression(program, operand)?;
-        let bound = if operator == BinaryOperator::Equal
+        let predicate = if operator == BinaryOperator::Equal
             && canonical_place_from_expression(program, subject)
                 == canonical_place_from_expression(program, other)
         {
-            None
+            FloatPredicate::non_nan(format)
         } else {
-            Some(literal(program, other, format)?)
+            FloatPredicate::comparison(format, operator, &literal(program, other, format)?)?
         };
         return Some(RequiredComparison {
             place,
             reference: parameter.type_reference,
-            format,
-            operator,
-            bound,
+            predicate,
         });
     }
     None
@@ -185,7 +185,8 @@ fn expression_proves_comparison(
     let left_is_subject = expression_has_place(program, binary.left, &required.place);
     let right_is_subject = expression_has_place(program, binary.right, &required.place);
     if left_is_subject && right_is_subject {
-        return required.bound.is_none() && binary.operator == BinaryOperator::Equal;
+        return binary.operator == BinaryOperator::Equal
+            && FloatPredicate::non_nan(required.predicate.format()).implies(required.predicate);
     }
     let (operator, bound) = if left_is_subject {
         (binary.operator, binary.right)
@@ -194,114 +195,9 @@ fn expression_proves_comparison(
     } else {
         return false;
     };
-    literal(program, bound, required.format)
-        .is_some_and(|bound| bound_implies(required, operator, &bound))
-}
-
-/// Ordered positive facts exclude NaN; `!=` does not. Strictness belongs to
-/// the relation, not a host-float epsilon (which would lose f32 landing).
-fn bound_implies(
-    required: &RequiredComparison,
-    observed: BinaryOperator,
-    bound: &ExactFloat,
-) -> bool {
-    use BinaryOperator::{Equal, Greater, GreaterOrEqual, Less, LessOrEqual};
-    if !matches!(
-        observed,
-        Equal | Greater | GreaterOrEqual | Less | LessOrEqual
-    ) || bound.partial_cmp_value(bound).is_none()
-    {
-        return false;
-    }
-    let Some(required_bound) = &required.bound else {
-        return true;
-    };
-    let Some(ordering) = bound.partial_cmp_value(required_bound) else {
-        return false;
-    };
-    match required.operator {
-        Equal => observed == Equal && ordering == Ordering::Equal,
-        Greater | GreaterOrEqual if matches!(observed, Equal | Greater | GreaterOrEqual) => {
-            ordering == Ordering::Greater
-                || (ordering == Ordering::Equal
-                    && (required.operator == GreaterOrEqual || observed == Greater))
-        }
-        Less | LessOrEqual if matches!(observed, Equal | Less | LessOrEqual) => {
-            ordering == Ordering::Less
-                || (ordering == Ordering::Equal
-                    && (required.operator == LessOrEqual || observed == Less))
-        }
-        _ => false,
-    }
-}
-
-fn literal(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    format: FloatFormat,
-) -> Option<ExactFloat> {
-    closed_exact_float(&closed_scalar_value(program, &[], &[], expression)?, format)
-}
-
-fn has_ieee_meaning(
-    program: &TypedTrees,
-    owner: SymbolHandle,
-    expression: ExpressionHandle,
-    operator: BinaryOperator,
-    reference: TypeReferenceHandle,
-) -> bool {
-    owner.is_valid()
-        && validation::has_builtin_or_sealed_float_comparison_meaning(
-            program,
-            owner,
-            expression,
-            operator,
-            &[Some(reference), Some(reference)],
-        )
-}
-
-/// Token lowering may represent a comparison as the selected declaration's
-/// entry call. Reading its operation does not authorize a law: every consumer
-/// still checks exact sealed source and selection with `has_ieee_meaning`.
-fn comparison(program: &TypedTrees, expression: ExpressionHandle) -> Option<TableBinaryExpression> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Binary(binary) => Some(*binary),
-        ExpressionNode::Call(call)
-            if !call.receiver.is_valid()
-                && !call.static_machine_parameter.is_valid()
-                && call.static_requirement_dispatch.is_none()
-                && call.machine_arguments.is_empty()
-                && call.evidence_arguments.is_empty() =>
-        {
-            let (machine, _) =
-                crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
-            let binding = program
-                .machine_token_bindings()
-                .iter()
-                .find(|binding| binding.symbol == machine.symbol)?;
-            let (operator, _) =
-                typed_trees::operator::primitive_float_binary_semantics(program, binding)?;
-            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
-                return None;
-            };
-            Some(TableBinaryExpression {
-                operator,
-                left: *left,
-                right: *right,
-            })
-        }
-        _ => None,
-    }
-}
-
-fn reverse(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Less => BinaryOperator::Greater,
-        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::Greater => BinaryOperator::Less,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-        other => other,
-    }
+    literal(program, bound, required.predicate.format())
+        .and_then(|bound| FloatPredicate::comparison(required.predicate.format(), operator, &bound))
+        .is_some_and(|observed| observed.implies(required.predicate))
 }
 
 fn expression_has_place(
