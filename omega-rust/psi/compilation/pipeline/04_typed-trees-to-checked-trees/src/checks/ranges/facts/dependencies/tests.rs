@@ -135,3 +135,129 @@ fn identical_labels_cannot_choose_between_different_typed_reads() {
             .is_empty()
     );
 }
+
+/// The per-label collision table must reproduce the per-row scans it
+/// replaced: an expression row collides when any same-label expression row
+/// differs in machine, state or reads, or any same-label binding differs from
+/// it through its single place; a binding row collides when any same-label
+/// binding names another exact place, or any same-label expression row
+/// differs from its place. Incomplete reads and unresolved segments agree
+/// with nothing, themselves included, so the table cannot assume reflexivity.
+#[test]
+fn label_collision_table_matches_every_row_scan() {
+    let program = typed_program(
+        "machine first(left: i64, right: i64) {
+        let cut: i64 = left - right;
+    }
+    machine second(left: i64, right: i64) {
+        let cut: i64 = left - right;
+    }",
+    );
+    let first = &program.machines()[0];
+    let second = &program.machines()[1];
+    let first_state = &program.machine_states(first)[0];
+    let second_state = &program.machine_states(second)[0];
+    let left = parameter_place(&program, first_state, "left");
+    let right = parameter_place(&program, first_state, "right");
+    let unresolved = CanonicalPlace {
+        root: left.root,
+        segments: vec![facts::PlaceSegment::Field {
+            symbol: SymbolHandle::invalid(),
+        }],
+    };
+    let owners = [
+        (first.symbol, first_state.symbol),
+        (second.symbol, second_state.symbol),
+    ];
+    let read_sets = [
+        Some(vec![left.clone()]),
+        Some(vec![right.clone()]),
+        Some(vec![left.clone(), right.clone()]),
+        Some(vec![unresolved.clone()]),
+        None,
+    ];
+    let places = [left.clone(), right.clone(), unresolved.clone()];
+    let labels = ["a", "b"];
+    let scanned_expression = |facts: &RangeFacts, row: &super::ExpressionDependencies| {
+        facts.expression_dependencies.iter().any(|other| {
+            other.label == row.label
+                && (other.machine != row.machine
+                    || other.state != row.state
+                    || !super::same_reads(&program, other.reads.as_deref(), row.reads.as_deref()))
+        }) || facts.scalar_binding_dependencies.iter().any(|binding| {
+            binding.label == row.label
+                && (binding.machine != row.machine
+                    || binding.state != row.state
+                    || !super::same_reads(
+                        &program,
+                        row.reads.as_deref(),
+                        Some(std::slice::from_ref(&binding.place)),
+                    ))
+        })
+    };
+    let scanned_binding = |facts: &RangeFacts, row: &super::ScalarBindingDependency| {
+        facts.scalar_binding_dependencies.iter().any(|other| {
+            other.label == row.label
+                && (other.machine != row.machine
+                    || other.state != row.state
+                    || other.place != row.place)
+        }) || facts.expression_dependencies.iter().any(|other| {
+            other.label == row.label
+                && (other.machine != row.machine
+                    || other.state != row.state
+                    || !super::same_reads(
+                        &program,
+                        other.reads.as_deref(),
+                        Some(std::slice::from_ref(&row.place)),
+                    ))
+        })
+    };
+    // A fixed linear congruential walk keeps the table set deterministic.
+    let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = |bound: usize| {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) as usize % bound
+    };
+    let expression = initializer(&program, first_state);
+    for _ in 0..2_000 {
+        let mut facts = RangeFacts::new(&[]);
+        for _ in 0..next(5) {
+            let (machine, state) = owners[next(owners.len())];
+            facts
+                .expression_dependencies
+                .push(super::ExpressionDependencies {
+                    expression,
+                    label: labels[next(labels.len())].to_owned(),
+                    machine,
+                    state,
+                    reads: read_sets[next(read_sets.len())].clone(),
+                });
+        }
+        for _ in 0..next(4) {
+            let (machine, state) = owners[next(owners.len())];
+            facts
+                .scalar_binding_dependencies
+                .push(super::ScalarBindingDependency {
+                    label: labels[next(labels.len())].to_owned(),
+                    machine,
+                    state,
+                    place: places[next(places.len())].clone(),
+                });
+        }
+        let collisions = facts.label_collisions(&program);
+        for row in &facts.expression_dependencies {
+            assert_eq!(
+                collisions.expression_labels.contains(row.label.as_str()),
+                scanned_expression(&facts, row),
+            );
+        }
+        for row in &facts.scalar_binding_dependencies {
+            assert_eq!(
+                collisions.binding_labels.contains(row.label.as_str()),
+                scanned_binding(&facts, row),
+            );
+        }
+    }
+}

@@ -8,6 +8,8 @@ mod tests;
 
 use reads::collect_reads;
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use symbols::SymbolHandle;
@@ -39,6 +41,25 @@ pub(super) struct ScalarBindingDependency {
     machine: SymbolHandle,
     state: SymbolHandle,
     place: CanonicalPlace,
+}
+
+/// One row's typed meaning for label-collision judgment: machine, state and
+/// read set, `None` when the read set is incomplete.
+type RowMeaning<'table> = (SymbolHandle, SymbolHandle, Option<&'table [CanonicalPlace]>);
+
+/// Every row of one display label, both tables.
+#[derive(Default)]
+struct LabelRows<'table> {
+    expressions: Vec<&'table ExpressionDependencies>,
+    bindings: Vec<&'table ScalarBindingDependency>,
+}
+
+/// Labels whose expression rows, or whose scalar-binding rows, carry no
+/// single typed meaning; see `RangeFacts::label_collisions`.
+#[derive(Default)]
+struct LabelCollisions<'table> {
+    expression_labels: BTreeSet<&'table str>,
+    binding_labels: BTreeSet<&'table str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -445,6 +466,70 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
+    /// The display labels whose rows cannot select one typed meaning, judged
+    /// over the whole table once per query instead of once per row.
+    ///
+    /// Two rows agree when they share machine and state and their read sets
+    /// match (`same_reads`). That relation is symmetric and transitive but not
+    /// reflexive: an incomplete read set, or a place with an unresolved
+    /// segment, agrees with nothing, itself included. For such a relation the
+    /// label's first row decides the whole label: when every row agrees with
+    /// it, all rows agree pairwise; otherwise every row disagrees with some
+    /// row. A row's own label therefore collides exactly when the per-row
+    /// scan over every same-label row would find a disagreement. A scalar
+    /// binding enters that comparison as its single place, and bindings
+    /// sharing a label must also name one exact place among themselves.
+    fn label_collisions(&self, program: &TypedTrees) -> LabelCollisions<'_> {
+        let mut groups = BTreeMap::<&str, LabelRows<'_>>::new();
+        for row in &self.expression_dependencies {
+            groups
+                .entry(row.label.as_str())
+                .or_default()
+                .expressions
+                .push(row);
+        }
+        for row in &self.scalar_binding_dependencies {
+            groups
+                .entry(row.label.as_str())
+                .or_default()
+                .bindings
+                .push(row);
+        }
+        let mut collisions = LabelCollisions::default();
+        for (label, rows) in groups {
+            let mut meanings = rows
+                .expressions
+                .iter()
+                .map(|row| (row.machine, row.state, row.reads.as_deref()))
+                .chain(rows.bindings.iter().map(|row| {
+                    (
+                        row.machine,
+                        row.state,
+                        Some(std::slice::from_ref(&row.place)),
+                    )
+                }));
+            let first = meanings.next().expect("a label group holds one row");
+            let agree = |left: RowMeaning<'_>, right: RowMeaning<'_>| {
+                left.0 == right.0 && left.1 == right.1 && same_reads(program, left.2, right.2)
+            };
+            let meanings_agree = agree(first, first) && meanings.all(|other| agree(first, other));
+            if !meanings_agree && !rows.expressions.is_empty() {
+                collisions.expression_labels.insert(label);
+            }
+            let bindings_identical = rows.bindings.split_first().is_none_or(|(first, rest)| {
+                rest.iter().all(|other| {
+                    other.machine == first.machine
+                        && other.state == first.state
+                        && other.place == first.place
+                })
+            });
+            if !bindings_identical || (!meanings_agree && !rows.expressions.is_empty()) {
+                collisions.binding_labels.insert(label);
+            }
+        }
+        collisions
+    }
+
     pub(super) fn preserved_expression_labels(
         &self,
         program: &TypedTrees,
@@ -468,6 +553,7 @@ impl<'field> RangeFacts<'field> {
                 return Vec::new();
             }
         }
+        let collisions = self.label_collisions(program);
         let mut preserved = Vec::new();
         for row in &self.expression_dependencies {
             if !row.reads.as_ref().is_some_and(|reads| {
@@ -484,24 +570,7 @@ impl<'field> RangeFacts<'field> {
             }
             // Equal display text is only a lookup key for the old fact tables.
             // It cannot select one of several incompatible typed meanings.
-            if self.expression_dependencies.iter().any(|other| {
-                other.label == row.label
-                    && (other.machine != row.machine
-                        || other.state != row.state
-                        || !same_reads(program, other.reads.as_deref(), row.reads.as_deref()))
-            }) {
-                continue;
-            }
-            if self.scalar_binding_dependencies.iter().any(|binding| {
-                binding.label == row.label
-                    && (binding.machine != row.machine
-                        || binding.state != row.state
-                        || !same_reads(
-                            program,
-                            row.reads.as_deref(),
-                            Some(std::slice::from_ref(&binding.place)),
-                        ))
-            }) {
+            if collisions.expression_labels.contains(row.label.as_str()) {
                 continue;
             }
             if !preserved.contains(&row.label) {
@@ -514,22 +583,7 @@ impl<'field> RangeFacts<'field> {
                 || writes
                     .iter()
                     .any(|write| places_overlap(program, &row.place, write))
-                || self.scalar_binding_dependencies.iter().any(|other| {
-                    other.label == row.label
-                        && (other.machine != row.machine
-                            || other.state != row.state
-                            || other.place != row.place)
-                })
-                || self.expression_dependencies.iter().any(|other| {
-                    other.label == row.label
-                        && (other.machine != row.machine
-                            || other.state != row.state
-                            || !same_reads(
-                                program,
-                                other.reads.as_deref(),
-                                Some(std::slice::from_ref(&row.place)),
-                            ))
-                })
+                || collisions.binding_labels.contains(row.label.as_str())
             {
                 continue;
             }
@@ -560,14 +614,14 @@ impl<'field> RangeFacts<'field> {
         preserved
     }
 
+    /// The labels this machine state's rows carry outside `preserved`, the
+    /// caller's `preserved_expression_labels` answer for the same writes.
     pub(super) fn affected_expression_labels(
         &self,
-        program: &TypedTrees,
         machine: &Machine,
         state: &State,
-        writes: Option<&[CanonicalPlace]>,
+        preserved: &[String],
     ) -> Vec<String> {
-        let preserved = self.preserved_expression_labels(program, machine, state, writes);
         self.expression_dependencies
             .iter()
             .filter(|row| {

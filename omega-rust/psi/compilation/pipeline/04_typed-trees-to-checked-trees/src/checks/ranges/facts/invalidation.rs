@@ -45,7 +45,7 @@ impl RangeFacts<'_> {
         .flatten();
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
-        let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
+        let affected = self.affected_expression_labels(machine, state, &preserved);
         let statement_index = self.statement_index;
         let string_fallback = |name: &str| {
             !preserved.iter().any(|label| label == name) && write_affects_bound(name, &target)
@@ -195,7 +195,7 @@ impl RangeFacts<'_> {
         });
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
-        let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
+        let affected = self.affected_expression_labels(machine, state, &preserved);
         let statement_index = self.statement_index;
         let string_fallback = |name: &str| {
             !preserved.iter().any(|label| label == name)
