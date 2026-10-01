@@ -119,26 +119,36 @@ fn a_successor_loan_cannot_drop_or_change_its_qualifications() {
     );
 }
 
+/// The local declares `in Utf8`, so its owned backing must establish that
+/// predicate from its operands before any loan of it reaches the formal. A
+/// same-length replacement keeps every length fact intact: valid UTF-8 still
+/// verifies, and invalid UTF-8 rejects at the owner's establishment.
 #[test]
 fn an_owned_local_must_establish_every_predicate_its_formal_requires() {
-    let mut lowered = lower();
-    let literal = lowered
-        .semantic_module
-        .machines
-        .iter_mut()
-        .flat_map(|machine| machine.blocks.iter_mut())
-        .flat_map(|block| block.operations.iter_mut())
-        .find_map(|operation| match &mut operation.kind {
-            OperationKind::EstablishByteSequenceLiteral { bytes, .. } if bytes == b"150" => {
-                Some(bytes)
-            }
-            _ => None,
-        })
-        .expect("the local's literal operand");
-    *literal = vec![0x80];
-    let error = verify(&lowered).expect_err("invalid UTF-8 cannot present a Utf8 owner loan");
-    assert!(
-        error.contains("InvalidStructuralArgumentPath"),
-        "the owner presentation rejects: {error}"
-    );
+    for (replacement, valid) in [(b"151".to_vec(), true), (vec![0x80, b'5', b'0'], false)] {
+        let mut lowered = lower();
+        let literal = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| machine.blocks.iter_mut())
+            .flat_map(|block| block.operations.iter_mut())
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::EstablishByteSequenceLiteral { bytes, .. } if bytes == b"150" => {
+                    Some(bytes)
+                }
+                _ => None,
+            })
+            .expect("the local's literal operand");
+        *literal = replacement;
+        if valid {
+            verify(&lowered).expect("another valid UTF-8 literal establishes the owner");
+            continue;
+        }
+        let error = verify(&lowered).expect_err("invalid UTF-8 cannot establish a Utf8 owner");
+        assert!(
+            error.contains("InvalidByteSequenceConcatenation"),
+            "the owner establishment rejects: {error}"
+        );
+    }
 }
