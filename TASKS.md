@@ -2844,14 +2844,12 @@ completion syntax or other terminal service is a prerequisite.
   `collections/runtime_parameter_nested_literal_index_read_exit` exits **70**:
   helper machines borrow a caller's `[[i32; 4]; 3]` and `[Row; 3]` locals,
   store through literal and runtime selectors, and read `grid[1][2]`,
-  `rows[2].data[1]` and `rows[2].tag` back. `runtime_double_indexed_rmw_exit`
-  makes the same accesses through state parameters. Its `prepare_rows` state
-  lends its own locals into a later-state loan chain, which now reaches
-  Terminal verification's `InvalidBlockStructuralParameter`: a mutable block
-  parameter is admitted only over a record or service carrier. `&mut [T; N]`
-  state parameters need the same Terminal decision as
-  **COMPOSITE-TRANSITION-ARGUMENT**'s owned array block parameter; execute the
-  authored native exit **1** after it.
+  `rows[2].data[1]` and `rows[2].tag` back. Preserve
+  `runtime_double_indexed_rmw_exit` at native exit **1** on macOS ARM64:
+  plain array loans now follow the same exclusive state-name and address
+  transfer as record loans, including backing created in a non-entry state.
+  This borrows original storage; it does not implement
+  **COMPOSITE-TRANSITION-ARGUMENT**'s owned array block transfer.
   Source checking does not establish native store correctness. The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;

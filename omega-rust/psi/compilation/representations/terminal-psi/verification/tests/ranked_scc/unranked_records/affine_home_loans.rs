@@ -324,3 +324,289 @@ fn affine_home_cannot_lend_shared_and_mutable_names_on_the_same_edge() {
         "two differently typed names cannot duplicate exclusive custody"
     );
 }
+
+/// Repeat the record beneath a fixed-array root without changing its loan
+/// lifecycle. Zero initialization establishes the affine backing once; every
+/// state observes and mutates the selected element through its current name.
+fn array_module() -> TerminalModule {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
+
+    let mut module = module();
+    let array = id(2, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: array,
+        identity: "test::Pairs".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: id(1, StructuralTypeId::new),
+            length: 3,
+        },
+    });
+    let machine = &mut module.machines[0];
+    let StructuralPlaceKind::OperationResult {
+        structural_type, ..
+    } = &mut machine.structural_places[0].kind
+    else {
+        panic!("backing home");
+    };
+    *structural_type = array;
+    let constructor = &mut machine.blocks[0].operations[0];
+    constructor.kind = OperationKind::EstablishZeroedStructural {};
+    let OperationResult::Structural(result) = &mut constructor.result else {
+        panic!("owned array result");
+    };
+    result.structural_type = array;
+    for block in &mut machine.blocks[1..] {
+        block.structural_parameters[0].structural_type = array;
+        for operation in &mut block.operations {
+            operation.kind = match &operation.kind {
+                OperationKind::IntegerStructuralField { source, field, .. } => {
+                    OperationKind::IntegerStructuralField {
+                        source: *source,
+                        path: vec![CanonicalStructuralPathSegment::FixedIndex(2)],
+                        field: *field,
+                    }
+                }
+                OperationKind::StructuralScalarFieldStore {
+                    destination,
+                    field,
+                    value,
+                    ..
+                } => OperationKind::StructuralScalarFieldStore {
+                    destination: *destination,
+                    path: vec![StructuralPathSegment::FixedIndex(2)],
+                    field: *field,
+                    value: *value,
+                    range_obligation: None,
+                },
+                _ => continue,
+            };
+        }
+    }
+    module
+}
+
+#[test]
+fn array_home_survives_mutable_loop_with_exact_element_access() {
+    verify_module_for_optimization(
+        &array_module(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("array backing follows the same independently checked loan lifecycle as a record");
+}
+
+#[test]
+fn initialized_scalar_array_uses_the_same_state_loan_lifecycle() {
+    use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+
+    let mut module = array_module();
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+    ));
+    let machine = &mut module.machines[0];
+    let constructor = &mut machine.blocks[0].operations[0];
+    constructor.kind = OperationKind::EstablishScalarArray {
+        elements: vec![id(20, ValueId::new); 3],
+    };
+    let OperationResult::Structural(result) = &mut constructor.result else {
+        panic!("array constructor");
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    for block in &mut machine.blocks[1..] {
+        for operation in &mut block.operations {
+            operation.kind = match &operation.kind {
+                OperationKind::IntegerStructuralField { source, .. } => {
+                    OperationKind::PrimitiveScalarRead {
+                        source: *source,
+                        path: vec![StructuralPathSegment::FixedIndex(2)],
+                    }
+                }
+                OperationKind::StructuralScalarFieldStore {
+                    destination, value, ..
+                } => OperationKind::WriteOnlyPrimitiveStore {
+                    destination: *destination,
+                    path: vec![StructuralPathSegment::FixedIndex(2)],
+                    value: *value,
+                },
+                _ => continue,
+            };
+        }
+    }
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[2].terminator
+    else {
+        panic!("normal return");
+    };
+    trivial_affine_discards.clear();
+    verify_module_for_optimization(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("an initialized array is the same owned backing, not a different loan kind");
+}
+
+#[test]
+fn array_home_is_unavailable_through_old_owner_while_state_loan_is_live() {
+    for write in [false, true] {
+        let mut module = array_module();
+        let operation = &mut module.machines[0].blocks[1].operations[usize::from(write)];
+        match &mut operation.kind {
+            OperationKind::IntegerStructuralField { source, .. } => *source = id(5, PlaceId::new),
+            OperationKind::StructuralScalarFieldStore { destination, .. } => {
+                *destination = id(5, PlaceId::new);
+            }
+            _ => panic!("array element access"),
+        }
+        let expected = operation.id;
+        assert!(matches!(
+            validate_module(&module),
+            Err(super::ModuleError::OwnedStructuralPlaceNotLiveAtOperation { operation, place })
+                if operation == expected && place == id(5, PlaceId::new)
+        ));
+    }
+}
+
+#[test]
+fn array_loan_rejects_same_layout_type_substitution_and_early_disposal() {
+    let mut module = array_module();
+    let mut duplicate = module.structural_types[1].clone();
+    duplicate.id = id(3, StructuralTypeId::new);
+    duplicate.identity = "test::OtherPairs".into();
+    module.structural_types.push(duplicate);
+    module.machines[0].blocks[1].structural_parameters[0].structural_type =
+        id(3, StructuralTypeId::new);
+    assert!(matches!(
+        validate_module(&module),
+        Err(super::ModuleError::InvalidStructuralSuccessorArgument { .. })
+    ));
+
+    let mut module = array_module();
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        panic!("loan onset");
+    };
+    trivial_affine_discards.push(id(5, PlaceId::new));
+    let error = validate_module(&module).expect_err("backing cannot die on its loan edge");
+    assert!(
+        matches!(error,
+            super::ModuleError::OwnedStructuralPlaceNotLiveAtOperation { operation, place }
+                if operation == id(21, OperationId::new) && place == id(6, PlaceId::new)
+        ),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn array_loan_cannot_duplicate_exclusive_arrival() {
+    for second_access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut module = array_module();
+        let machine = &mut module.machines[0];
+        let mut extra = state_parameter(8, id(2, StructuralTypeId::new));
+        extra.position = 1;
+        extra.access = second_access;
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: extra.place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: id(1, BlockId::new),
+                position: 1,
+            },
+        });
+        machine.blocks[1].structural_parameters.push(extra);
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            panic!("loan onset");
+        };
+        structural_arguments.push(argument(5, second_access));
+        let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
+            panic!("loop backedge");
+        };
+        when_true
+            .structural_arguments
+            .push(argument(6, second_access));
+        assert!(matches!(
+            validate_module(&module),
+            Err(super::ModuleError::InvalidStructuralSuccessorArgument { .. })
+        ));
+    }
+}
+
+#[test]
+fn array_state_loan_rejects_permission_carriers_and_shared_to_mutable_transfer() {
+    // Unlike arrays of Reference, a record with a borrowed view passes type
+    // formation. The state-loan classifier itself must exclude that carrier.
+    let mut module = array_module();
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut module.structural_types[0].shape
+    else {
+        panic!("array element record");
+    };
+    fields[1].field_type = terminal_psi::StructuralFieldType::ByteSequence(
+        terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+    );
+    let error = validate_module(&module).expect_err("array loans require plain element storage");
+    assert!(
+        matches!(
+            error,
+            super::ModuleError::InvalidBlockStructuralParameter { .. }
+        ),
+        "{error:?}"
+    );
+
+    let mut module = array_module();
+    module.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+        element: id(3, StructuralTypeId::new),
+        length: 3,
+    };
+    module
+        .structural_types
+        .push(terminal_psi::StructuralTypeDeclaration {
+            id: id(3, StructuralTypeId::new),
+            identity: "test::BorrowedPair".into(),
+            shape: terminal_psi::StructuralTypeShape::Reference {
+                referent: id(1, StructuralTypeId::new),
+                access: StructuralAccess::SharedBorrow,
+            },
+        });
+    let error = validate_module(&module).expect_err("a plain array cannot hide a permission");
+    assert!(
+        matches!(
+            error,
+            super::ModuleError::InvalidStructuralTypeIdentity(structural_type)
+                if structural_type == id(2, StructuralTypeId::new)
+        ),
+        "{error:?}"
+    );
+
+    let mut module = array_module();
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        panic!("loan onset");
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    let error = validate_module(&module).expect_err("shared access cannot grant a mutable name");
+    assert!(
+        matches!(
+            error,
+            super::ModuleError::InvalidStructuralSuccessorArgument { .. }
+        ),
+        "{error:?}"
+    );
+}

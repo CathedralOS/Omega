@@ -1404,8 +1404,7 @@ pass/collections/runtime_case_array_element_write_exit checked 2347ms @2d8ed2536
 pass/collections/runtime_computed_index_direct_exit checked 1505ms @2d8ed253669f
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
-pass/collections/runtime_double_indexed_rmw_exit rejected 880ms @59d57ace39f0+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(2), place: PlaceId(3) }))
+pass/collections/runtime_double_indexed_rmw_exit checked 980ms @adebde5085aa+wt
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1573ms @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms @2d8ed253669f

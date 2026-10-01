@@ -1,10 +1,14 @@
-//! Exclusive record, plain sum and service state loans keep the caller's
+//! Exclusive aggregate and service state loans keep the caller's
 //! storage identity.
 //!
 //! The ordinary mutable-parameter fixed point transfers the usable name on
 //! each edge. This replay also follows borrowed block aliases so an earlier
 //! shared name cannot observe a record after its exclusive successor took
 //! custody. Calls reborrow the current name; they do not transfer it.
+//! Fixed arrays use the same storage-loan rule as records: repeating a plain
+//! element does not change permission, and forwarding a loan never copies its
+//! referent. Recursive plain-type validation still excludes nested permission
+//! carriers; the edge and frontier checks retain exact type and live custody.
 
 use super::super::borrowed_windows::window_aliases;
 use super::super::{
@@ -38,7 +42,9 @@ pub(super) fn borrowed_carrier_type(
                 StructuralTypeShape::FusedServiceBinding | StructuralTypeShape::Record { .. } => {
                     true
                 }
-                StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
+                StructuralTypeShape::Sum { .. }
+                | StructuralTypeShape::Mixed { .. }
+                | StructuralTypeShape::FixedArray { .. } => {
                     super::super::record::plain_type(module, root)
                 }
                 _ => false,
@@ -90,7 +96,15 @@ pub(crate) fn owned_home<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    let result = super::super::record::result(machine, place)?;
+    // The defining operation validates construction; this rule checks whether
+    // its owned result can back a loan. Do not redispatch on constructor kind:
+    // an initialized scalar array and a zeroed array own the same storage.
+    let result = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| operation.result.structural())
+        .find(|result| result.place == place)?;
     (matches!(
         result.multiplicity,
         super::super::StructuralMultiplicity::Affine
@@ -100,7 +114,10 @@ pub(crate) fn owned_home<'a>(
         && result.claims.is_empty()
         && module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                )
         })
         && super::super::record::plain_type(module, result.structural_type))
     .then_some(result)
