@@ -124,6 +124,34 @@ pub(crate) fn checked_constructed_result_type(
     structural_result_type(program, shapes, result_type, binders, true)
 }
 
+/// An independently replayed copy preserves the established leaf's complete
+/// represented contents, including bounded byte predicates and live lengths.
+/// Literal admission cannot grant that authority: a fresh initializer still
+/// owes its member proofs. This binding only classifies storage; the copied
+/// value plan must separately rejoin its readable source and exact leaf type.
+pub(crate) fn checked_copied_result_type(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    if let Some(result) = checked_constructed_result_type(program, shapes, result_type, binders) {
+        return Some(result);
+    }
+    if crate::checks::type_multiplicity(program, result_type) != Multiplicity::Unrestricted
+        || !validation::has_plain_owned_contents_with_represented_constraints(program, result_type)
+        || !parameter_qualifications(program, shapes, result_type, binders)?.is_empty()
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralResultBindingPlan {
+        statement_index: 0,
+        binding_ordinal: 0,
+        type_identity: shapes.add_type(result_type, binders, &[])?,
+        multiplicity: Multiplicity::Unrestricted,
+    })
+}
+
 fn structural_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,

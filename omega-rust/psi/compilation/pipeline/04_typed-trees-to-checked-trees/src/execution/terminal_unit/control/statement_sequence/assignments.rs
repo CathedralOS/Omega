@@ -8,6 +8,7 @@
 //! call this statement performs: its result binding and the store that
 //! consumes it go back to the sequence, which plans the call first.
 use super::super::super::borrowed_windows::{FieldReplacement, OpenWindows};
+use super::super::call_results::checked_copied_result_type;
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
@@ -149,6 +150,7 @@ pub(super) fn plan(
                 elements,
             );
         }
+        assignment_phase("statement sequence: assignment: structural operand calls");
         let calls = structural_operands::value_calls(
             program,
             facts,
@@ -165,6 +167,7 @@ pub(super) fn plan(
             root.root,
             trace,
         )?;
+        assignment_phase("statement sequence: assignment: structural source custody");
         if facts
             .flow
             .ownership
@@ -184,10 +187,18 @@ pub(super) fn plan(
         for call in &calls {
             consume_results(&mut *operations, call.operation())?;
         }
-        let mut produced =
-            checked_constructed_result_type(program, shapes, root.type_reference, binders)?;
+        assignment_phase("statement sequence: assignment: structural result type");
+        let mut produced = if matches!(
+            facts.values.structural_values.nodes.get(root.root).kind,
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+        ) {
+            checked_copied_result_type(program, shapes, root.type_reference, binders)?
+        } else {
+            checked_constructed_result_type(program, shapes, root.type_reference, binders)?
+        };
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        assignment_phase("statement sequence: assignment: structural destination window");
         let replacement = windows.replace(
             program,
             facts,
@@ -219,6 +230,7 @@ pub(super) fn plan(
         operations.extend(replacement.move_out);
         // The store consumes the whole constructed value, retiring
         // the establishment's own disposal debt.
+        assignment_phase("statement sequence: assignment: structural result consumption");
         consume_results(&mut *operations, &replacement.store)?;
         operations.push(replacement.store);
         if let Some(discard) = replacement.displaced_discard {
