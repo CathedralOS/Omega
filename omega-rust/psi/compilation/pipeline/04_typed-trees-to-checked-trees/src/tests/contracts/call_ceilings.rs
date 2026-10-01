@@ -236,3 +236,62 @@ fn write_through_two_candidate_alias_keeps_both_candidates_domains() {
         );
     }
 }
+
+/// Candidates in different fields stay a divergent binding rather than one
+/// coarse origin. A write through that binding, or through a reborrow of it,
+/// may land on either field, so each candidate's coverage is retired; an
+/// unrelated byte field keeps its own.
+#[test]
+fn write_through_two_field_alias_retires_both_candidates_and_nothing_else() {
+    let definitions = r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        data Slot { bytes: [u8; 3] in Utf8; count: u64; }
+        data Record { first: Slot; second: Slot; third: Slot; }
+        machine Record::pick(&mut self, first: bool) -> &mut Slot {
+            transition first {
+                true -> &mut self.first
+                false -> &mut self.second
+            }
+        }
+    "#;
+    let preserved = format!(
+        r#"{definitions}
+        machine label() -> [u8; 3] in Utf8 {{ "abc" }}
+        machine carve(spare: &mut Record, first: bool) {{
+            let chosen: &mut Slot = spare.pick(first);
+            chosen.count = 3;
+            chosen.bytes = label();
+        }}
+    "#
+    );
+    lower_typed_trees(parse_typed_trees(&preserved), &CheckingRequest::settled())
+        .expect("a proven write through either field keeps both domains");
+    let corrupted = format!(
+        r#"{definitions}
+        machine carve(spare: &mut Record, first: bool) {{
+            let chosen: &mut Slot = spare.pick(first);
+            let raw: &mut [u8; 3] = &mut chosen.bytes;
+            raw[0] = 255;
+        }}
+    "#
+    );
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(&corrupted), &CheckingRequest::settled())
+    else {
+        panic!("a corrupting write through either field must not be handed back");
+    };
+    let retired = |candidate: &str| {
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(&format!(
+                "for return from carve at statement 3: {candidate} requires"
+            ))
+        })
+    };
+    for candidate in ["spare.first.bytes", "spare.second.bytes"] {
+        assert!(
+            retired(candidate),
+            "{candidate} must be retired: {diagnostics:#?}"
+        );
+    }
+    assert!(!retired("spare.third.bytes"), "{diagnostics:#?}");
+}

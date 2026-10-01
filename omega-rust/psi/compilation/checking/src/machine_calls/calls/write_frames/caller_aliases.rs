@@ -290,48 +290,58 @@ pub(super) fn local_write_origins_before_statement(
             source_segments: leaf.origin.source.segments,
         })
         .collect::<Vec<_>>();
-    if evidence.aliases.is_empty() {
+    if evidence.aliases.is_empty() && evidence.divergent.is_empty() {
         return Some(origins);
     }
     let CallerPrefixSite::Tracked { state, index, .. } = site else {
         return None;
     };
     let preceding = &program.statement_table.statements(state.statement_nodes)[..index];
-    let aliases = evidence
-        .aliases
-        .into_iter()
-        .map(|(name, origin)| {
-            let local_symbol = preceding
-                .iter()
-                .find_map(|candidate| match candidate {
-                    StatementNode::LocalData(local) if local.name.as_str() == name => {
-                        Some(local.symbol)
-                    }
-                    _ => None,
-                })
-                .filter(|symbol| {
-                    symbol.is_valid()
-                        && program.symbols.get(*symbol).parent == state.symbol
-                        && matches!(
-                            program.symbols.get(*symbol).kind,
-                            symbols::SymbolKind::Local
-                        )
-                })?;
-            Some(LocalWriteOrigin {
-                local_symbol,
-                local_segments: Vec::new(),
-                source_path: origin.path,
-                collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
-                source_root: if origin.source.builtin_coordinates {
-                    origin.source.root
-                } else {
-                    SymbolHandle::invalid()
-                },
-                source_segments: origin.source.segments,
+    let local_symbol = |name: &str| {
+        preceding
+            .iter()
+            .find_map(|candidate| match candidate {
+                StatementNode::LocalData(local) if local.name.as_str() == name => {
+                    Some(local.symbol)
+                }
+                _ => None,
             })
-        })
-        .collect::<Option<Vec<_>>>()?;
-    origins.extend(aliases);
+            .filter(|symbol| {
+                symbol.is_valid()
+                    && program.symbols.get(*symbol).parent == state.symbol
+                    && matches!(
+                        program.symbols.get(*symbol).kind,
+                        symbols::SymbolKind::Local
+                    )
+            })
+    };
+    let alias_origin = |local_symbol, origin: FramePlaceOrigin| LocalWriteOrigin {
+        local_symbol,
+        local_segments: Vec::new(),
+        source_path: origin.path,
+        collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
+        source_root: if origin.source.builtin_coordinates {
+            origin.source.root
+        } else {
+            SymbolHandle::invalid()
+        },
+        source_segments: origin.source.segments,
+    };
+    for (name, origin) in evidence.aliases {
+        origins.push(alias_origin(local_symbol(&name)?, origin));
+    }
+    // A divergent binding names one of several proven referents. A write
+    // through it may land on any of them, so each candidate is its own origin
+    // of the same local; omitting the binding would let consumers treat the
+    // write as private to the local.
+    for (name, candidates) in evidence.divergent {
+        let local_symbol = local_symbol(&name)?;
+        origins.extend(
+            candidates
+                .into_iter()
+                .map(|origin| alias_origin(local_symbol, origin)),
+        );
+    }
     Some(origins)
 }
 
