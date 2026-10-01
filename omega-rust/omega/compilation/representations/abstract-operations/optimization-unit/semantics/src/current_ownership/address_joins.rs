@@ -18,9 +18,12 @@
 //!
 //! A mutable join over a local home additionally suspends observations and
 //! copies of that original owner (including stale descriptor aliases). The
-//! owner remains on the affine frontier across the loan and is disposed only
-//! by the ordinary exact cleanup at true return, after the returned copy has
-//! been evaluated. Transfers between mutable names retain the same backing.
+//! owner remains on the affine frontier across the loan. It is disposed by the
+//! ordinary exact cleanup at true return, after the returned copy has been
+//! evaluated, or on an edge where a later state's loan chain ends: the shared
+//! pin's rule admits that discard only when no block at or below the edge's
+//! target still names the home or a join carrying it. Transfers between
+//! mutable names retain the same backing.
 
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
@@ -310,6 +313,14 @@ impl AddressJoinPins {
             let inputs = match operation {
                 O::ReturnStructural { source, .. } => vec![*source],
                 O::Return { .. } | O::ReturnUnit { .. } => Vec::new(),
+                // An edge's discards are judged by `check_edge`.
+                O::Jump {
+                    structural_bindings,
+                    ..
+                } => structural_bindings
+                    .iter()
+                    .map(|binding| binding.argument.place)
+                    .collect(),
                 _ => crate::unit_validation::function_structure::operation_place_inputs(operation),
             };
             if let Some(place) = inputs.into_iter().find(|place| pinned.contains(place)) {
@@ -415,12 +426,39 @@ impl AddressJoinPins {
                 );
             }
         }
+        // A later state's loan chain ends on an edge: discarding the
+        // suspended home there is sound once nothing at or below the target
+        // names the home or a join carrying it (the shared pin's rule).
+        let exclusive_read_after = |place: &PlaceId| {
+            let mut names = BTreeSet::from([*place]);
+            for (name, roots) in &self.origins {
+                if roots.contains(place) {
+                    names.insert(*name);
+                }
+            }
+            names.iter().any(|name| {
+                self.readers.get(name).is_some_and(|blocks| {
+                    blocks.iter().any(|reader| {
+                        *reader == edge.target
+                            || self
+                                .dominators
+                                .get(reader)
+                                .is_some_and(|dominating| dominating.contains(&edge.target))
+                    })
+                })
+            })
+        };
         if let Some(pinned) = self.exclusive.get(&block)
             && let Some(place) = edge
                 .structural_bindings
                 .iter()
                 .map(|binding| binding.argument.place)
-                .chain(edge.trivial_affine_discards.iter().copied())
+                .chain(
+                    edge.trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| exclusive_read_after(place)),
+                )
                 .chain(
                     edge.residual_affine_discards
                         .iter()

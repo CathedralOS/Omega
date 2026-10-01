@@ -2817,15 +2817,13 @@ completion syntax or other terminal service is a prerequisite.
   helper machines borrow a caller's `[[i32; 4]; 3]` and `[Row; 3]` locals,
   store through literal and runtime selectors, and read `grid[1][2]`,
   `rows[2].data[1]` and `rows[2].tag` back. `runtime_double_indexed_rmw_exit`
-  makes the same accesses through state parameters and still stops in stage 05
-  at `Unit graph local loan requires an activation entry home`: its
-  `prepare_rows` state lends its own local, and a home established in a
-  non-entry state is missing on the paths that return without visiting it.
-  Declaring both locals in the entry state instead reaches Terminal
-  verification's `InvalidBlockStructuralParameter`, which admits a mutable
-  block parameter only over a record or service carrier. `&mut [T; N]` state
-  parameters need the same Terminal decision as **COMPOSITE-TRANSITION-ARGUMENT**'s
-  owned array block parameter; execute the authored native exit **1** after both.
+  makes the same accesses through state parameters. Its `prepare_rows` state
+  lends its own locals into a later-state loan chain, which now reaches
+  Terminal verification's `InvalidBlockStructuralParameter`: a mutable block
+  parameter is admitted only over a record or service carrier. `&mut [T; N]`
+  state parameters need the same Terminal decision as
+  **COMPOSITE-TRANSITION-ARGUMENT**'s owned array block parameter; execute the
+  authored native exit **1** after it.
   Source checking does not establish native store correctness. The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;
@@ -3670,6 +3668,22 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   create, widen, duplicate or extend authority. Preserve `certificates/`,
   `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
+
+- **STATE-LOAN-CHAIN-NATIVE.** (new-scope) Realize the transferred-storage form
+  of later-state loan chains natively. Stage 05's
+  `composed_control/state_graph/emission/loan_chains.rs` lowers a chain whose
+  member is reached from several lenders, or whose member lends a fresh local
+  while holding the chain, as owned block parameters that each arrival moves
+  its home into. `control_flow/runtime_nonentry_state_local_loans_shared_successor_exit`
+  (two states lend their own locals to one successor) verifies in Terminal and
+  exits 70 on the interpreter, but Omega stage 00 stops at
+  `InvalidStructuralScalarFieldStore`: `structural_scalar_fields.rs` stores
+  only through exclusive parameters and owned operation results, not through
+  owned block parameters. Admit the owned block parameter as a store
+  destination there and in the later stages that replay it, with the same
+  frontier custody the entry home keeps. Acceptance: the fixture exits 70
+  natively on macOS ARM64, its negative control exits 72, and the corpus is
+  otherwise unchanged.
 
 - **RECEIVER-ACCESS-UNDER-LIVE-LOANS.** (new-scope) Two receiver accesses are
   still accepted and unsound under [ownership](wiki/spec/language/ownership.md).

@@ -156,3 +156,65 @@ fn address_join_origins_stay_pinned_while_the_join_is_in_scope() {
             if place == origin
     ));
 }
+
+/// A later state lends its own local `&mut` into a successor, which ends the
+/// loan chain on its outgoing edges.
+const LATER_STATE_LOAN_SOURCE: &str =
+    "data Score { value: u64 in Wrapping; bonus: u64 in Wrapping; }
+    machine run(start: u64) -> u64 {
+        transition start > 2 {
+            true -> prepare(start)
+            _ -> finish(71)
+        }
+        state prepare(start: u64) -> u64 {
+            let mut score: Score;
+            score.value = start as u64 in Wrapping;
+            transition { _ -> bump(&mut score) }
+        }
+        state bump(score: &mut Score) -> u64 {
+            score.bonus = score.value + 67;
+            transition score.bonus == 70 {
+                true -> finish(70)
+                _ -> finish(72)
+            }
+        }
+        state finish(code: u64) -> u64 {
+            transition { _ -> (code) }
+        }
+    }";
+
+#[test]
+fn an_exclusive_home_is_discarded_only_where_its_loan_chain_ends() {
+    let candidate = source_machine_unit(LATER_STATE_LOAN_SOURCE, "run", true);
+    let function = &candidate.functions[0];
+    let (lend_block, lend_node) = join_edges(&candidate)[0];
+    let home = function.blocks[lend_block].nodes[lend_node].successors[0].structural_bindings[0]
+        .argument
+        .place;
+    // The chain ends on the borrowing state's own edges, which discard the
+    // lender's home there rather than at a return.
+    assert!(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .flat_map(|node| &node.successors)
+            .any(|edge| edge.trivial_affine_discards.contains(&home)),
+        "the chain end discards the lent home on an edge"
+    );
+    validate_psi_optimization_unit(&candidate).unwrap();
+
+    // Discarding the home on the edge that hands the loan to its reader ends
+    // the storage while the exclusive view is still live downstream.
+    let mut premature = candidate.clone();
+    let AbstractOperation::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut premature.functions[0].blocks[lend_block].nodes[lend_node].operation
+    else {
+        panic!("the lending state jumps to its successor")
+    };
+    trivial_affine_discards.push(home);
+    refresh_node_derivatives(&mut premature, 0, lend_block, lend_node);
+    assert!(validate_psi_optimization_unit(&premature).is_err());
+}
