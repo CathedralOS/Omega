@@ -42,6 +42,7 @@ mod entry_ranges;
 mod field_bounds;
 mod joins;
 mod lockstep;
+mod selections;
 use super::retained_evidence;
 
 /// One reconstructed question as the discovery producers read it. A roster
@@ -321,6 +322,7 @@ fn retain_provable_roster_bounded(
     let mut join_queried = BTreeSet::new();
     let mut arrival_queried = BTreeSet::new();
     let mut candidates = entry_ranges::candidates(module);
+    candidates.extend(selections::candidates(module, original));
     candidates.extend(field_bounds::candidates(
         module,
         original,
