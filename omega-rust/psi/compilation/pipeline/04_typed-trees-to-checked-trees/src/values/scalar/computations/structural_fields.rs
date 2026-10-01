@@ -41,11 +41,7 @@ impl Builder<'_, '_> {
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol: field.local,
                     },
-                    path: field
-                        .path
-                        .into_iter()
-                        .map(checked_trees::CheckedUnitStructuralPathSegment::Field)
-                        .collect(),
+                    path: field.path,
                     type_identity: self
                         .program
                         .normalized_type_identity(field.carrier_type_reference)

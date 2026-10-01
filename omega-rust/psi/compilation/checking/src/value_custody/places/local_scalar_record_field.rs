@@ -24,8 +24,9 @@ pub struct LocalScalarRecordField {
     pub type_reference: TypeReferenceHandle,
     /// Record containing the final scalar field.
     pub carrier_type_reference: TypeReferenceHandle,
-    /// Declared carrier-field identities, excluding the final scalar field.
-    pub path: Vec<String>,
+    /// Declared carrier-field identities and literal fixed-array element
+    /// selections in authored order, excluding the final scalar field.
+    pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub field: SymbolHandle,
     pub primitive_type: PrimitiveType,
     /// Governs subsequent arithmetic; observing storage does not erase policy.
@@ -48,18 +49,30 @@ pub fn local_scalar_record_field(
     statement_ordinal: u32,
     expression: ExpressionHandle,
 ) -> Option<LocalScalarRecordField> {
-    let mut members = Vec::new();
+    let mut steps = Vec::new();
     let mut receiver = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(receiver) {
-        if members.len() >= program.expression_table.expression_count()
-            || member.case_variant.is_some()
-        {
+    loop {
+        if steps.len() >= program.expression_table.expression_count() {
             return None;
         }
-        members.push(member);
-        receiver = member.receiver;
+        match program.expression_table.expression(receiver) {
+            ExpressionNode::Member(member) => {
+                if member.case_variant.is_some() {
+                    return None;
+                }
+                steps.push(Step::Member(member));
+                receiver = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                steps.push(Step::Element(indexed.index));
+                receiver = indexed.collection;
+            }
+            _ => break,
+        }
     }
-    let leaf = *members.first()?;
+    let Some(Step::Member(leaf)) = steps.first().copied() else {
+        return None;
+    };
     let local = local_plain_record(
         program,
         machine,
@@ -68,11 +81,44 @@ pub fn local_scalar_record_field(
         expression,
         receiver,
     )?;
+    // A literal element selection is a coordinate only when `[]` keeps its
+    // builtin meaning along the whole place spine.
+    if steps.iter().any(|step| matches!(step, Step::Element(_)))
+        && !builtin_place_coordinates(program, machine, state, expression)
+    {
+        return None;
+    }
     let mut carrier = local.type_reference;
     let mut path = Vec::new();
     // Every step is resolved under its own declaration. Reusing only the final
     // field spelling would confuse identically shaped children of this root.
-    for member in members.iter().rev().take(members.len() - 1) {
+    for step in steps.iter().rev().take(steps.len() - 1) {
+        let member = match step {
+            Step::Member(member) => member,
+            // The checker's place facts fold a constant selector to its
+            // element; a runtime selector is not a field path.
+            Step::Element(index) => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return None;
+                };
+                let index = program
+                    .expression_table
+                    .constant_integer_value(*index)
+                    .and_then(|index| u64::try_from(index).ok())?;
+                if usize::try_from(index).ok()? >= *length {
+                    return None;
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    index,
+                ));
+                carrier = *element_type;
+                continue;
+            }
+        };
         let record = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
             program.type_reference_symbol(carrier),
@@ -92,7 +138,9 @@ pub fn local_scalar_record_field(
         {
             return None;
         }
-        path.push(field.path_identity());
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            field.path_identity(),
+        ));
         carrier = field.type_reference;
     }
     let record = crate::program_scope::data_definitions::data_definition_by_symbol(
@@ -140,6 +188,38 @@ pub fn local_scalar_record_field(
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(field.type_reference),
     })
+}
+
+/// One projection between the local root and the observed scalar field.
+#[derive(Clone, Copy)]
+enum Step<'a> {
+    Member(&'a typed_trees::expression::TableMemberExpression),
+    Element(ExpressionHandle),
+}
+
+/// The exact authored machine and state, when each symbol names exactly one,
+/// asked whether the place spine keeps builtin coordinates.
+fn builtin_place_coordinates(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|owner| owner.symbol == machine);
+    let (Some(machine), None) = (machines.next(), machines.next()) else {
+        return false;
+    };
+    let mut states = program
+        .machine_states(machine)
+        .iter()
+        .filter(|owner| owner.symbol == state);
+    let (Some(state), None) = (states.next(), states.next()) else {
+        return false;
+    };
+    super::place_has_builtin_coordinates(program, machine, Some(state), expression)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

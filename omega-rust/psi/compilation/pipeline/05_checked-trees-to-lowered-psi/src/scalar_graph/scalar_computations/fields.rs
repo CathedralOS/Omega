@@ -664,10 +664,50 @@ pub(crate) fn prepare(
                 } else {
                     Vec::new()
                 };
+            // Terminal's scalar field read names record fields followed by at
+            // most one literal element selection; a deeper element path
+            // (`rows[1].cells[2].value`) has no read form yet.
+            if subject.path.iter().enumerate().any(|(position, segment)| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                ) && position + 1 != subject.path.len()
+            }) {
+                return unsupported("record read selects an element below a trailing element");
+            }
             for segment in &subject.path {
-                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
-                else {
-                    return unsupported("record read requires declared record field projections");
+                let identity = match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => identity,
+                    // A literal element of a fixed array of records selects
+                    // that element's record as the next carrier.
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                        let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                        else {
+                            return unsupported("record read element left its array namespace");
+                        };
+                        if *index >= length {
+                            return unsupported("record read element is outside its array");
+                        }
+                        path.push(
+                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index),
+                        );
+                        if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                            primitive_path
+                                .push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
+                        }
+                        declaration = types
+                            .iter()
+                            .find(|declaration| declaration.id == element)
+                            .ok_or(LoweringError::Unsupported(
+                                "record read element type is absent",
+                            ))?;
+                        continue;
+                    }
+                    _ => {
+                        return unsupported(
+                            "record read requires declared record field projections",
+                        );
+                    }
                 };
                 let StructuralTypeShape::Record { fields } = &declaration.shape else {
                     return unsupported("record read carrier path left its record namespace");
