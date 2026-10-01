@@ -1,0 +1,52 @@
+// The hosted entry lends its whole `&mut Main` through three states. `Main`
+// carries a borrowed text view, so no Terminal block parameter can hold it:
+// each state's `main` forwards the entry's own loan unchanged and names the
+// invocation's storage, as an implicit `self` would. `count` and `confirm`
+// add the view's length to the stored total, and `finish` reads it back.
+//
+//   label = "omega" (5 bytes): total = 5 + 5 = 10
+//
+// exits: 70 = both states saw the stored view and total; 71 = a wrong
+// total; 72 = the view's length changed.
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    label: &[u8] in Utf8;
+    total: u64 in Wrapping;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.label = "omega";
+    context.total = 0;
+    transition { _ -> count(context) }
+
+    state count(main: &mut Main) {
+        main.total = main.total + main.label.len;
+        transition { _ -> confirm(main) }
+    }
+
+    state confirm(main: &mut Main) {
+        main.total = main.total + main.label.len;
+        transition main.label.len == 5 {
+            true -> finish(main)
+            _ -> refused(main, 72)
+        }
+    }
+
+    state finish(main: &mut Main) {
+        transition main.total == 10 {
+            true -> refused(main, 70)
+            _ -> refused(main, 71)
+        }
+    }
+
+    state refused(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
+    }
+}

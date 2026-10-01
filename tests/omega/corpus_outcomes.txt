@@ -1495,6 +1495,7 @@ pass/control_flow/runtime_branching_helper_string rejected 396ms @2d8ed253669f
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms @2d8ed253669f
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 1328ms @2d8ed253669f
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1563ms @15f38e49aac2+wt
+pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 5968ms @13e508d146a3+wt
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656ms @e7c13a0f55b2+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f

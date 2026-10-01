@@ -6,7 +6,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{
-    CheckedComposedUnitControlMachinePlan, claims, edges, exclusive_handoffs, receiver_aliases,
+    CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
     scalars, topology,
 };
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
@@ -1028,9 +1028,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // parameter's place; resolve replays each edge's checked Transfer event
     // before emission trusts that alias.
     let mut claim_transport = claims::resolve(checked, plan, &live)?;
-    // A state parameter that only ever receives the entry's whole receiver
-    // keeps the invocation place, as a state's implicit `self` does.
-    receiver_aliases::alias_entry_receiver_loans(plan, &live, &mut claim_transport.aliased)?;
+    // A state parameter that only ever receives the entry's whole receiver,
+    // or a whole entry loan whose referent holds a borrowed view, keeps the
+    // invocation place, as a state's implicit `self` does.
+    entry_aliases::alias_entry_parameter_loans(checked, plan, &live, &mut claim_transport.aliased)?;
     // A shared parameter that only ever receives its source's whole
     // exclusive loan holds that loan; Terminal edges transfer mutable names.
     let exclusive_handoffs = exclusive_handoffs::promote_shared_handoffs(

@@ -358,6 +358,7 @@ pass/control_flow/runtime_branching_helper_string rejected 309ms @48008365d839
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1592ms exit:70 @15f38e49aac2
+pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit built 1704ms exit:70 @13e508d146a3+wt
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit built 782ms exit:70 @e7c13a0f55b2+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit built 833ms exit:70 @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 1009ms exit:2 @48008365d839

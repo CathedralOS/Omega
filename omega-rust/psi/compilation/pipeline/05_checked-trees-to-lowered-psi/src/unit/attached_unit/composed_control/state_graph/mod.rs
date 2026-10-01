@@ -93,12 +93,12 @@ mod admission;
 mod emission;
 
 // Whole-graph records: reachable states, claim transport across edges,
-// forwarded whole-receiver aliases, shared parameters that hold a forwarded
+// forwarded whole entry-parameter aliases, shared parameters that hold a forwarded
 // exclusive loan, and state ranks with their edge comparisons.
 mod claims;
+mod entry_aliases;
 mod exclusive_handoffs;
 mod ranking;
-mod receiver_aliases;
 mod topology;
 
 // Within one state: the persistent receiver, the body statements, and the

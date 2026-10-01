@@ -37,8 +37,9 @@ pub(super) struct ClaimTransport {
     pub(super) aliases: Vec<(PermissionClaimIdentity, PermissionClaimIdentity)>,
     /// One map per plan state; a present entry binds that successor
     /// structural parameter to `states[0].structural_parameters[root]`.
-    /// `receiver_aliases` adds the parameters that only ever receive the
-    /// entry's whole receiver, bound to the receiver's position.
+    /// `entry_aliases` adds the parameters that only ever receive the entry's
+    /// whole receiver or a whole entry loan whose referent holds a borrowed
+    /// view, bound to that entry parameter's position.
     pub(super) aliased: Vec<BTreeMap<u32, u32>>,
 }
 
