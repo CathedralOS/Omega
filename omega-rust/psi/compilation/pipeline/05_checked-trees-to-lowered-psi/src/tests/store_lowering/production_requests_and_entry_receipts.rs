@@ -431,7 +431,16 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
         .iter()
         .find(|domain| domain.id == *image_domain)
         .expect("Granted domain declaration remains in the canonical artifact");
-    assert_eq!(domain.identity, "Extent::Granted");
+    // The ProgramStorage wrapper joins this row to its `Extent::Granted`
+    // claim on the `named(name(Extent))` carrier through the same identity.
+    assert_eq!(domain.identity, "Extent::Granted@named(name(Extent))");
+    assert_eq!(
+        domain.identity,
+        terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(
+            "Extent::Granted",
+            "named(name(Extent))",
+        )
+    );
     assert_eq!(domain.carrier, image.structural_type);
     let carrier = decoded
         .structural_types

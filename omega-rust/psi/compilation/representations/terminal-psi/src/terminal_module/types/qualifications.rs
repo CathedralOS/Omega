@@ -30,6 +30,20 @@ pub struct StructuralDomainDeclaration {
     pub establishment_routes: Vec<StructuralEstablishmentRoute>,
 }
 
+impl StructuralDomainDeclaration {
+    /// The `identity` of a semantic-domain family declared on one exact
+    /// carrier: the family's normalized identity qualified by the carrier's
+    /// normalized type identity, such as
+    /// `Extent::Granted@named(name(Extent))`. A family can be instantiated
+    /// on several carriers in one module, so the identity is always
+    /// qualified and pruning one instantiation cannot rename another.
+    /// Consumers that join a module's domain row to a family and carrier
+    /// named elsewhere rebuild the identity here instead of spelling it.
+    pub fn carrier_qualified_identity(family: &str, carrier_identity: &str) -> String {
+        format!("{family}@{carrier_identity}")
+    }
+}
+
 /// One route authorized by a domain declaration to establish its
 /// qualification. The retained identity is the replay authority: naming a
 /// machine is neither trait sealing nor an implicit grant to other machines

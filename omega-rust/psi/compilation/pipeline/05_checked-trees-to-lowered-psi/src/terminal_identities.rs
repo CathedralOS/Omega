@@ -82,7 +82,7 @@ pub(crate) struct StructuralDomainBinding {
 /// Diagnostic identity includes the authored carrier, never its allocation ID.
 /// Always qualify it so pruning another instantiation cannot rename this one.
 pub(crate) fn structural_domain_identity(family: &str, carrier_identity: &str) -> String {
-    format!("{family}@{carrier_identity}")
+    terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(family, carrier_identity)
 }
 
 pub(crate) fn lookup_domain_id(
