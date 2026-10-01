@@ -412,6 +412,10 @@ pub(super) fn check_statement_borrows<'p>(
 /// discharge that conflict when no argument carries a loan into the successor.
 /// Guard/argument calls, carried references and reborrow lineages keep their
 /// existing checks; a syntactic jump alone is not release evidence.
+///
+/// The same live loans bound what a returning whole `&mut` receiver call
+/// reads through `self`: a live exclusive loan suspends its storage for the
+/// callee as well (`check_receiver_reads_against_live_loans`).
 fn check_call_mutation_borrows<'p>(
     program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -441,7 +445,19 @@ fn check_call_mutation_borrows<'p>(
             .span_or_empty(borrow_call.accesses)
             .iter()
             .any(|argument| argument.kind.is_exclusive() && argument.end_before_access.is_none());
-        if mutated_places.is_empty() && !retains_exclusive_argument {
+        // Or storage a live exclusive loan suspends.
+        let reads_through_receiver =
+            super::calls::returns_through_mutable_receiver(program, borrow_call);
+        let live_loans = if mutated_places.is_empty() && !reads_through_receiver {
+            Vec::new()
+        } else {
+            loans_live_at_call(program, facts, state_flow, borrow_call)
+        };
+        let reads_under_exclusive_loan = reads_through_receiver
+            && live_loans
+                .iter()
+                .any(|loan| facts.borrow.loans.get(*loan).kind.is_exclusive());
+        if mutated_places.is_empty() && !retains_exclusive_argument && !reads_under_exclusive_loan {
             continue;
         }
         let mut available_premises = stated_premises.to_vec();
@@ -472,36 +488,13 @@ fn check_call_mutation_borrows<'p>(
             diagnostics,
             bound_lookup,
         );
-        if mutated_places.is_empty() {
-            continue;
-        }
 
-        let exiting_source =
-            source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
-
-        // The loans live *at* the call are the entry constraints of the flow
-        // statement the call belongs to.
-        let Some(statement) = facts
-            .flow
-            .control
-            .statements
-            .span_or_empty(state_flow.statements)
-            .iter()
-            .find(|statement| statement.statement_index == borrow_call.statement_index)
-        else {
-            continue;
-        };
-
-        for loan_handle in facts
-            .flow
-            .borrow_loan_constraints(statement.entry_constraints)
-        {
+        // One diagnostic per (call, loan) is enough: a loan the callee's
+        // writes already conflict with is not judged again for its reads.
+        let mut unreported_loans = Vec::with_capacity(live_loans.len());
+        for &loan_handle in &live_loans {
             let loan = facts.borrow.loans.get(loan_handle);
-            if exiting_source.is_some_and(|state| {
-                local_loan_ends_before_successor(program, facts, state_flow, state, loan_handle)
-            }) {
-                continue;
-            }
+            let mut reported = false;
             for mutated_place in &mutated_places {
                 if canonical_place_loan_compatibility(
                     program,
@@ -528,11 +521,62 @@ fn check_call_mutation_borrows<'p>(
                     )
                     .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
                 )));
-                // One diagnostic per (call, loan) is enough.
+                reported = true;
                 break;
             }
+            if !reported {
+                unreported_loans.push(loan_handle);
+            }
         }
+        super::calls::check_receiver_reads_against_live_loans(
+            program,
+            facts,
+            state_flow,
+            borrow_call,
+            &unreported_loans,
+            stated_premises,
+            receiver_reads,
+            diagnostics,
+            bound_lookup,
+        );
     }
+}
+
+/// The loans live *at* a call: the entry constraints of the flow statement the
+/// call belongs to, less the local observations a named jump's source-state
+/// exit closes before its successor runs.
+fn loans_live_at_call(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    borrow_call: &checked_trees::BorrowCallFact,
+) -> Vec<arena::Handle<checked_trees::BorrowLoanFact>> {
+    let Some(statement) = facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(state_flow.statements)
+        .iter()
+        .find(|statement| statement.statement_index == borrow_call.statement_index)
+    else {
+        return Vec::new();
+    };
+    let mut loans = facts
+        .flow
+        .borrow_loan_constraints(statement.entry_constraints)
+        .peekable();
+    if loans.peek().is_none() {
+        return Vec::new();
+    }
+    let exiting_source =
+        source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
+    loans
+        .filter(|loan_handle| {
+            !exiting_source.is_some_and(|state| {
+                local_loan_ends_before_successor(program, facts, state_flow, state, *loan_handle)
+            })
+        })
+        .collect()
 }
 
 /// A named jump to a sibling state: the transition target names a state of the

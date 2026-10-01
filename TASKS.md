@@ -3721,20 +3721,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   macOS ARM64, `writeonly_record_field_store` keeps exit 181, and the corpus is
   otherwise unchanged.
 
-- **RECEIVER-ACCESS-UNDER-LIVE-LOANS.** (new-scope) Two receiver accesses are
-  still accepted and unsound under [ownership](wiki/spec/language/ownership.md).
-  A whole `&mut` receiver call reads storage that a live local exclusive loan
-  holds when that loan is not one of the call's operands (`let view: &mut u64 =
-  &mut self.count; let seen: u64 = self.peek_count(); view = 3;` with
-  `peek_count(&mut self)`): `check_call_mutation_borrows` compares only callee
-  writes with live loans. A `&self` machine entry jumps into a `&mut self`
-  state that writes `self` (`machine Main::run(&self)` into `state next(&mut
-  self)`): `check_receiver_conflicts` skips source writability for jumps,
-  because a `&self` state of a `&mut self` machine may enter a `&mut self`
-  sibling, so the successor needs judging against the machine's entry
-  receiver authority instead. Acceptance: both reject with fail fixtures; the
-  corpus check leg and every sample's `--check` stay otherwise unchanged.
-
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi
   production and Omega's `callback_settlement` already validate requirement
