@@ -19,16 +19,32 @@ use super::roster::{
 };
 use super::{Complete, Request};
 
-pub(super) fn retained_bound(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn retained_bound(request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
     cited_bounds(request).find_map(|(citation, fact, left, right)| {
-        value_endpoints(left, right).find_map(|root| complete(root, citation.proof(fact)))
+        value_endpoints(left, right).find_map(|root| {
+            if !complete.admits(root) {
+                return None;
+            }
+            complete.complete(root, citation.proof(fact))
+        })
     })
 }
 
-pub(super) fn two_citation_chain(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn two_citation_chain(
+    request: Request,
+    complete: &mut dyn Complete,
+) -> Option<ProofNode> {
     TwoCitationChains::new(request).find(|left, right, left_proof, right_proof| {
+        if !value_endpoints(left, right).any(|root| complete.admits(root)) {
+            return None;
+        }
         let root_bound = transitive(left, right, left_proof, right_proof);
-        value_endpoints(left, right).find_map(|root| complete(root, root_bound.clone()))
+        value_endpoints(left, right).find_map(|root| {
+            if !complete.admits(root) {
+                return None;
+            }
+            complete.complete(root, root_bound.clone())
+        })
     })
 }
 
@@ -36,12 +52,15 @@ pub(super) fn two_citation_chain(request: Request, complete: &mut Complete) -> O
 /// one cited equality `root == alias`.
 pub(super) fn two_citation_chain_through_alias(
     request: Request,
-    complete: &mut Complete,
+    complete: &mut dyn Complete,
 ) -> Option<ProofNode> {
     let chains = TwoCitationChains::new(request);
     value_aliases(request).find_map(|(equality_citation, equality, root, alias)| {
         // The substitution renames the alias at one chain endpoint, so only
         // the chains that name it at either end can complete.
+        if !chains.touches(alias) || !complete.admits(root) {
+            return None;
+        }
         chains.find_touching(alias, |left, right, left_proof, right_proof| {
             let (endpoint, bound) = if alias == left {
                 (0, right)
@@ -56,7 +75,7 @@ pub(super) fn two_citation_chain_through_alias(
                 endpoint,
                 [(root, equality_citation.proof(equality))],
             );
-            complete(root, root_bound)
+            complete.complete(root, root_bound)
         })
     })
 }
@@ -131,6 +150,11 @@ impl<'a> TwoCitationChains<'a> {
                 &mut complete,
             )
         })
+    }
+
+    /// Whether some chain names `endpoint` as an outer endpoint.
+    fn touches(&self, endpoint: &ScalarTerm) -> bool {
+        !self.by_outer_endpoint().candidates(endpoint).is_empty()
     }
 
     /// [`Self::find`] over only the chains that name `endpoint` as an outer

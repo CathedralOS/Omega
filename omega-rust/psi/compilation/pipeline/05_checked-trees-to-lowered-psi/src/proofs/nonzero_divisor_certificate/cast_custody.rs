@@ -54,6 +54,24 @@ pub(super) fn prove_from_root(
         })
 }
 
+/// Whether an exact cast chain runs from `root` to a value goal endpoint:
+/// exactly the roots [`prove_from_root`] can complete, since its chain
+/// replay refuses every other root before reading the bound.
+pub(super) fn reaches_goal(
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+) -> bool {
+    let (goal_left, goal_right) = match goal {
+        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
+        _ => return false,
+    };
+    [goal_left, goal_right]
+        .into_iter()
+        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
+        .any(|target| cast_spine(target, Some(root), semantic_axioms).is_some())
+}
+
 /// Restate an integer literal exactly in another integer carrier.
 pub(super) fn remap_integer_literal(
     literal: &ScalarTerm,

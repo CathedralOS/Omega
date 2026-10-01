@@ -61,6 +61,26 @@ pub(super) fn prove_from_root(
     })
 }
 
+/// Whether the goal has a value endpoint, the only place a word can end.
+pub(super) fn has_value_target(goal: &Proposition) -> bool {
+    goal_targets(goal).next().is_some()
+}
+
+/// Whether some definition word runs from `root` to a value goal endpoint:
+/// exactly the roots [`prove_from_root`] can complete, since it offers no
+/// witness on any other root.
+pub(super) fn reaches_goal(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    root: &ScalarTerm,
+) -> bool {
+    goal_targets(goal).any(|target| {
+        !definition_words_to_target(context, semantic_axioms, definitions, root, target).is_empty()
+    })
+}
+
 /// Complete `root_bound` to the goal only through words whose every
 /// definition and literal row lies strictly after `minimum_axiom`.
 #[allow(clippy::too_many_arguments)]

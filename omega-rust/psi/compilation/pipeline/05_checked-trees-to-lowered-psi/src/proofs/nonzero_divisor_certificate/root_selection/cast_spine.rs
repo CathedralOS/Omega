@@ -23,7 +23,7 @@ use super::{Complete, Request};
 /// original comparison and later storage reads must first rejoin through
 /// retained equalities; the cast witness then moves just that endpoint. No
 /// guessed length or source-shape bound substitutes for the original guard.
-pub(super) fn relational_guard(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn relational_guard(request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
     let (strict, left, right) = match request.goal {
         Proposition::LessThan(left, right) => (true, left, right),
         Proposition::LessOrEqual(left, right) => (false, left, right),
@@ -51,7 +51,7 @@ pub(super) fn relational_guard(request: Request, complete: &mut Complete) -> Opt
         let Some(root_bound) = rejoin_guard(request, &root_goal) else {
             continue;
         };
-        if let Some(proof) = complete(&root, root_bound) {
+        if let Some(proof) = complete.complete(&root, root_bound) {
             return Some(proof);
         }
     }
@@ -145,7 +145,7 @@ fn scalar_value(term: &IntegerMathTerm) -> Option<ScalarTerm> {
 
 /// The cast chain's own carrier bound: `Truth` at the non-cast source of each
 /// value goal endpoint, left first.
-pub(super) fn cast_truth(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn cast_truth(request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
     let Proposition::LessOrEqual(left, right) = request.goal else {
         return None;
     };
@@ -158,14 +158,17 @@ pub(super) fn cast_truth(request: Request, complete: &mut Complete) -> Option<Pr
                 conclusion: Proposition::Truth,
                 rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
             };
-            complete(&root, truth)
+            complete.complete(&root, truth)
         })
 }
 
 /// The goal's literal bound proved on the non-cast source of each value goal
 /// endpoint, right first, by the full integer selection restricted to the
 /// semantic axioms before the spine's first cast.
-pub(super) fn source_side_bound(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn source_side_bound(
+    request: Request,
+    complete: &mut dyn Complete,
+) -> Option<ProofNode> {
     let Proposition::LessOrEqual(left, right) = request.goal else {
         return None;
     };
@@ -183,7 +186,7 @@ pub(super) fn source_side_bound(request: Request, complete: &mut Complete) -> Op
                 request.assumptions,
                 &request.semantic_axioms[..first_cast],
             )?;
-            complete(&source, root_bound)
+            complete.complete(&source, root_bound)
         })
 }
 

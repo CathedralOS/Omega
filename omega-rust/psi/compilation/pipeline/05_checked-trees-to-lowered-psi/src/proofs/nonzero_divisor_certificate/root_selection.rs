@@ -17,6 +17,8 @@
 //! completion checks each certificate before returning it, and the kernel
 //! re-checks it again at admission.
 
+use std::collections::BTreeMap;
+
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
@@ -51,6 +53,25 @@ enum Completion<'a> {
 }
 
 impl Completion<'_> {
+    /// Whether this completion can accept any bound on `root`: an affine
+    /// word, or an exact cast chain, from `root` to a value goal endpoint.
+    /// The completions below refuse every bound on any other root before
+    /// reading it, so the answer is exact.
+    fn reaches_goal(&mut self, request: Request, root: &ScalarTerm) -> bool {
+        match self {
+            Self::CastCustody => {
+                cast_custody::reaches_goal(request.goal, request.semantic_axioms, root)
+            }
+            Self::AffineCustody(definitions) => affine_custody::reaches_goal(
+                request.context,
+                request.goal,
+                request.semantic_axioms,
+                definitions,
+                root,
+            ),
+        }
+    }
+
     fn complete(
         &mut self,
         request: Request,
@@ -85,9 +106,44 @@ impl Completion<'_> {
     }
 }
 
-/// Carries one proposed `(root, root bound)` candidate to the goal; `None`
-/// rejects the candidate and lets the source propose its next one.
-type Complete<'a> = dyn FnMut(&ScalarTerm, ProofNode) -> Option<ProofNode> + 'a;
+/// Carries proposed `(root, root bound)` candidates to the goal.
+///
+/// A source asks [`Complete::admits`] before it builds the first candidate on
+/// a root. A `false` answer is exact — the completion would reject every
+/// bound on that root — so skipping the root's candidates changes no answer
+/// and keeps every admitted candidate in its source order. Without it a
+/// refused goal paid for building and rejecting every alias and citation
+/// chain in the scope, whatever its root.
+trait Complete {
+    /// Whether any bound on `root` can complete the goal.
+    fn admits(&mut self, root: &ScalarTerm) -> bool;
+    /// Carry one proposed root bound to the goal; `None` rejects the
+    /// candidate and lets the source propose its next one.
+    fn complete(&mut self, root: &ScalarTerm, root_bound: ProofNode) -> Option<ProofNode>;
+}
+
+/// One selection's completion over one request, remembering each root's
+/// admission answer: sources revisit a root once per equality naming it.
+struct Selection<'request, 'completion> {
+    request: Request<'request>,
+    completion: Completion<'completion>,
+    admitted: BTreeMap<ScalarTerm, bool>,
+}
+
+impl Complete for Selection<'_, '_> {
+    fn admits(&mut self, root: &ScalarTerm) -> bool {
+        if let Some(&admitted) = self.admitted.get(root) {
+            return admitted;
+        }
+        let admitted = self.completion.reaches_goal(self.request, root);
+        self.admitted.insert(root.clone(), admitted);
+        admitted
+    }
+
+    fn complete(&mut self, root: &ScalarTerm, root_bound: ProofNode) -> Option<ProofNode> {
+        self.completion.complete(self.request, root, root_bound)
+    }
+}
 
 /// Where a proposed root bound comes from. Each source enumerates cited facts
 /// in source order (assumptions, then semantic axioms) and proposes every
@@ -137,7 +193,7 @@ enum RootSource {
 }
 
 impl RootSource {
-    fn find(self, request: Request, complete: &mut Complete) -> Option<ProofNode> {
+    fn find(self, request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
         match self {
             Self::RetainedBound => retained::retained_bound(request, complete),
             Self::ClosedLandedLiteral => literal::closed_landed_literal(request, complete),
@@ -188,16 +244,22 @@ const AFFINE_CUSTODY_SOURCES: [RootSource; 7] = [
 
 /// Try `sources` in order, carrying each proposed root bound through
 /// `completion`, and return the first completed certificate.
-fn select(
-    request: Request,
-    sources: &[RootSource],
-    mut completion: Completion,
-) -> Option<ProofNode> {
-    sources.iter().find_map(|source| {
-        source.find(request, &mut |root, root_bound| {
-            completion.complete(request, root, root_bound)
-        })
-    })
+fn select(request: Request, sources: &[RootSource], completion: Completion) -> Option<ProofNode> {
+    // Affine custody completes only through a word ending at a value goal
+    // endpoint; a goal without one refuses every candidate of every source.
+    if matches!(completion, Completion::AffineCustody(_))
+        && !affine_custody::has_value_target(request.goal)
+    {
+        return None;
+    }
+    let mut selection = Selection {
+        request,
+        completion,
+        admitted: BTreeMap::new(),
+    };
+    sources
+        .iter()
+        .find_map(|source| source.find(request, &mut selection))
 }
 
 /// Prove `a <= b` through the exact cast chain from a proposed root bound.

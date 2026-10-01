@@ -17,7 +17,7 @@ use super::{Complete, Request};
 
 /// A cited bound on `alias` renamed to `root` through one cited equality
 /// `root == alias`.
-pub(super) fn one_alias(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn one_alias(request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
     let bounds_by_endpoint = EndpointBounds::new(request);
     for (equality_citation, equality) in cited_facts(request.assumptions, request.semantic_axioms) {
         let Proposition::Equal(left, right) = equality else {
@@ -27,16 +27,18 @@ pub(super) fn one_alias(request: Request, complete: &mut Complete) -> Option<Pro
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            for (relation_citation, relation, bound, endpoint) in
-                bounds_by_endpoint.value_candidates(alias)
-            {
+            let mut candidates = bounds_by_endpoint.value_candidates(alias).peekable();
+            if candidates.peek().is_none() || !complete.admits(root) {
+                continue;
+            }
+            for (relation_citation, relation, bound, endpoint) in candidates {
                 let root_bound = substitute_subject(
                     relation_citation.proof(relation),
                     bound,
                     endpoint,
                     [(root, equality_citation.proof(equality))],
                 );
-                if let Some(proof) = complete(root, root_bound) {
+                if let Some(proof) = complete.complete(root, root_bound) {
                     return Some(proof);
                 }
             }
@@ -48,7 +50,7 @@ pub(super) fn one_alias(request: Request, complete: &mut Complete) -> Option<Pro
 /// A cited bound on `bound_alias` renamed to `middle_alias` and then to `root`
 /// through two distinct cited equalities `middle_alias == bound_alias` and
 /// `root == middle_alias`.
-pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn two_alias(request: Request, complete: &mut dyn Complete) -> Option<ProofNode> {
     let bounds_by_endpoint = EndpointBounds::new(request);
     let aliases_by_endpoint = EndpointEqualities::new(request);
     for (outer_citation, outer_equality) in
@@ -57,10 +59,13 @@ pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<Pro
         let Proposition::Equal(outer_left, outer_right) = outer_equality else {
             continue;
         };
-        for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+        'root: for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
             if !distinct_same_carrier_subjects(root, middle_alias) {
                 continue;
             }
+            // Asked at this root's first candidate, so a root no chain
+            // reaches never pays for its admission.
+            let mut admitted = None;
             for (inner_citation, inner_equality, bound_alias) in
                 aliases_by_endpoint.candidates(middle_alias)
             {
@@ -74,6 +79,9 @@ pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<Pro
                 for (relation_citation, relation, bound, endpoint) in
                     bounds_by_endpoint.value_candidates(bound_alias)
                 {
+                    if !*admitted.get_or_insert_with(|| complete.admits(root)) {
+                        continue 'root;
+                    }
                     let root_bound = substitute_subject(
                         relation_citation.proof(relation),
                         bound,
@@ -83,7 +91,7 @@ pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<Pro
                             (root, outer_citation.proof(outer_equality)),
                         ],
                     );
-                    if let Some(proof) = complete(root, root_bound) {
+                    if let Some(proof) = complete.complete(root, root_bound) {
                         return Some(proof);
                     }
                 }
@@ -96,19 +104,23 @@ pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<Pro
 /// A cited `alias` bound whose literal is at least as strong as the goal's
 /// literal side, closed against it and renamed to `root` through one cited
 /// equality `root == alias`.
-pub(super) fn stronger_alias_bound(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+pub(super) fn stronger_alias_bound(
+    request: Request,
+    complete: &mut dyn Complete,
+) -> Option<ProofNode> {
     let relations_by_endpoint = EndpointBounds::new(request);
     for (equality_citation, equality) in cited_facts(request.assumptions, request.semantic_axioms) {
         let Proposition::Equal(equality_left, equality_right) = equality else {
             continue;
         };
-        for (root, alias) in [
+        'root: for (root, alias) in [
             (equality_left, equality_right),
             (equality_right, equality_left),
         ] {
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
+            let mut admitted = None;
             for (bound_citation, bound_fact, retained_literal, endpoint) in
                 relations_by_endpoint.candidates(alias)
             {
@@ -126,6 +138,9 @@ pub(super) fn stronger_alias_bound(request: Request, complete: &mut Complete) ->
                 else {
                     continue;
                 };
+                if !*admitted.get_or_insert_with(|| complete.admits(root)) {
+                    continue 'root;
+                }
                 let retained_bound = bound_citation.proof(bound_fact);
                 let (left_less_or_equal_middle, middle_less_or_equal_right) = if endpoint == 1 {
                     (closed_bridge, retained_bound)
@@ -145,7 +160,7 @@ pub(super) fn stronger_alias_bound(request: Request, complete: &mut Complete) ->
                     endpoint,
                     [(root, equality_citation.proof(equality))],
                 );
-                if let Some(proof) = complete(root, root_bound) {
+                if let Some(proof) = complete.complete(root, root_bound) {
                     return Some(proof);
                 }
             }
