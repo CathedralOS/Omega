@@ -933,6 +933,13 @@ fn scan_operation(
             field,
             source,
             ..
+        }
+        | O::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            source,
+            ..
         } => {
             let mut view = runtime_prefix(path);
             with_field(&mut view, *field);

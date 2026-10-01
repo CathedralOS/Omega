@@ -1153,6 +1153,21 @@ fn validate_receiver_fields(
                     carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                     predicates,
                 } if predicates.holds_for(&[]) => {}
+                // A zero shared-view descriptor is the empty view: its zero
+                // extent never dereferences the zero pointer, and it borrows
+                // nothing. A declared predicate must hold for empty bytes.
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
+                ) => {}
+                StructuralFieldType::PredicateByteSequence {
+                    carrier:
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
+                    predicates,
+                } if predicates.holds_for(&[]) => {}
                 StructuralFieldType::Structural(structural_type) => {
                     if visiting.contains(&structural_type) {
                         return Err(invalid());
@@ -1288,6 +1303,17 @@ fn zero_valid_field(
             StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
             StructuralFieldType::PredicateByteSequence {
                 carrier: ByteSequenceCarrier::BoundedOwned { .. },
+                predicates,
+            } => predicates.holds_for(&[]),
+            // A zero shared-view descriptor is the empty view.
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StructuralFieldType::PredicateByteSequence {
+                carrier:
+                    ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 predicates,
             } => predicates.holds_for(&[]),
             StructuralFieldType::Structural(child) => {

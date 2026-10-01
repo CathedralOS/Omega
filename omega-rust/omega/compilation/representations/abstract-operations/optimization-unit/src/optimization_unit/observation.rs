@@ -405,6 +405,7 @@ fn operation_observations(
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
         // Atomic events observe or publish atomic memory and carry

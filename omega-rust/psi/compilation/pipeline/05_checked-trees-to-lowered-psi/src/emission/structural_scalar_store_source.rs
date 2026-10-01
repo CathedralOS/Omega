@@ -206,6 +206,64 @@ pub(crate) fn validate(
         } else if !indexed_stores.is_empty() {
             return unsupported("indexed assignment has duplicate byte-store custody");
         }
+        // A record literal with shared view members decomposes into scalar
+        // and descriptor stores; its whole roster is one record custody.
+        let view_members = byte_stores
+            .iter()
+            .copied()
+            .filter(|store| {
+                matches!(
+                    store.destination,
+                    checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        if !view_members.is_empty()
+            && matches!(
+                checked.expression_table.expression(assignment.value),
+                ExpressionNode::StructLiteral(_)
+            )
+        {
+            if view_members.len() != byte_stores.len()
+                || has_other_store(&statement_stores, |operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    )
+                })
+            {
+                return unsupported("record view assignment has conflicting store custody");
+            }
+            for store in &view_members {
+                crate::emission::structural_byte_sequence_store::validate_assignment(
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    assignment,
+                    store,
+                )?;
+            }
+            let scalar_members = statement_stores
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                        Some(store)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            validate_assignment_stores(
+                checked,
+                plan.machine,
+                plan.state,
+                statement_index,
+                assignment,
+                &scalar_members,
+                &view_members,
+            )?;
+            continue;
+        }
         if let [store] = byte_stores.as_slice() {
             if has_other_store(&statement_stores, |operation| {
                 matches!(
@@ -302,6 +360,7 @@ pub(crate) fn validate(
             statement_index,
             assignment,
             &matching,
+            &[],
         )?;
     }
     crate::emission::primitive_store::validate_element_rosters(
@@ -605,11 +664,12 @@ pub(crate) fn validate_assignment_stores(
     statement_index: u32,
     assignment: &checked_trees::statement::TableAssignment,
     stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
+    view_stores: &[&checked_trees::CheckedByteSequenceStorePlan],
 ) -> Result<(), LoweringError> {
     // The authored value, not the emitted store count, determines custody.
     // A one-field record still assigns the whole record place and selects a
     // RecordField computation; a direct scalar assignment selects its leaf.
-    if !stores.is_empty()
+    if (!stores.is_empty() || !view_stores.is_empty())
         && matches!(
             checked.expression_table.expression(assignment.value),
             ExpressionNode::StructLiteral(_)
@@ -622,6 +682,7 @@ pub(crate) fn validate_assignment_stores(
             statement_index,
             assignment,
             stores,
+            view_stores,
         );
     }
     match stores {
@@ -782,6 +843,7 @@ fn validate_record_stores(
     statement_index: u32,
     assignment: &checked_trees::statement::TableAssignment,
     stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
+    view_stores: &[&checked_trees::CheckedByteSequenceStorePlan],
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -833,15 +895,41 @@ fn validate_record_stores(
         return unsupported("record store has no authored literal");
     };
     let authored = checked.expression_table.struct_fields(literal.fields);
-    if fields.len() != authored.len() || fields.len() != stores.len() {
+    // A shared view member is replaced by its own descriptor store, which
+    // `structural_byte_sequence_store::validate_assignment` rejoins to this
+    // member; every other member keeps one scalar store, in authored order.
+    let view_member = |field: &checked_trees::CheckedStructuralRecordField| {
+        let identity = member_identity(checked, field.field);
+        view_stores
+            .iter()
+            .filter(|store| {
+                store.statement_index == statement_index
+                    && matches!(&store.destination,
+                        checked_trees::CheckedByteSequenceStoreDestination::ViewField {
+                            field_identity, ..
+                        } if Some(field_identity) == identity.as_ref())
+            })
+            .count()
+    };
+    let view_members = fields.iter().map(view_member).collect::<Vec<_>>();
+    if fields.len() != authored.len()
+        || view_members.iter().any(|count| *count > 1)
+        || view_members.iter().filter(|count| **count == 1).count() != view_stores.len()
+        || fields.len() != stores.len() + view_stores.len()
+    {
         return unsupported("record store changed its complete field roster");
     }
-    for (ordinal, ((field, initializer), store)) in fields
-        .iter()
-        .zip(authored.iter())
-        .zip(stores.iter())
-        .enumerate()
-    {
+    let mut scalar_stores = stores.iter();
+    for (ordinal, (field, initializer)) in fields.iter().zip(authored.iter()).enumerate() {
+        if view_members[ordinal] == 1 {
+            if field.field != initializer.field_symbol || field.expression != initializer.value {
+                return unsupported("record store reordered or substituted a field");
+            }
+            continue;
+        }
+        let Some(store) = scalar_stores.next() else {
+            return unsupported("record store changed its complete field roster");
+        };
         if field.field != initializer.field_symbol
             || field.expression != initializer.value
             || store.statement_index != statement_index
@@ -1133,4 +1221,25 @@ pub(crate) fn computation_root(
         source.expression,
     )?;
     Ok(Some((handle, root.role)))
+}
+
+/// The declaration-path identity of the record member a literal initializer
+/// names, the identity a store's destination field carries.
+pub(crate) fn member_identity(
+    checked: &CheckedTrees,
+    field_symbol: symbols::SymbolHandle,
+) -> Option<String> {
+    checked.data_definitions().iter().find_map(|data| {
+        checked
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                checked_trees::data::DataMember::Field(declaration)
+                    if declaration.symbol == field_symbol =>
+                {
+                    Some(declaration.path_identity())
+                }
+                _ => None,
+            })
+    })
 }

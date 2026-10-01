@@ -591,6 +591,33 @@ pub(super) fn validate(
                     assignment,
                     store,
                 )?;
+                // A record literal made only of view members has no scalar
+                // store to own its roster; its first member store does.
+                let view_members = record_view_members(state, store.statement_index);
+                let has_scalar_members = state.operations.iter().any(|operation| {
+                    matches!(operation,
+                        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(other)
+                            if other.statement_index == store.statement_index)
+                });
+                if !has_scalar_members
+                    && view_members
+                        .first()
+                        .is_some_and(|first| std::ptr::eq(*first, store))
+                    && matches!(
+                        checked.expression_table.expression(assignment.value),
+                        checked_trees::expression::ExpressionNode::StructLiteral(_)
+                    )
+                {
+                    crate::emission::structural_scalar_store_source::validate_assignment_stores(
+                        checked,
+                        machine,
+                        state.state,
+                        store.statement_index,
+                        assignment,
+                        &[],
+                        &view_members,
+                    )?;
+                }
             }
             (
                 CheckedUnitEffectOperationPlan::RepresentationViewStore(store),
@@ -712,6 +739,7 @@ pub(super) fn validate(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
+                let view_members = record_view_members(state, store.statement_index);
                 if statement_stores
                     .first()
                     .is_some_and(|first| std::ptr::eq(*first, store))
@@ -723,6 +751,7 @@ pub(super) fn validate(
                         store.statement_index,
                         assignment,
                         &statement_stores,
+                        &view_members,
                     )?;
                 }
             }
@@ -1780,4 +1809,28 @@ fn validate_displaced_field_replacement(
         return unsupported("Unit graph field replacement drifted from its authored place");
     }
     Ok(())
+}
+
+/// The descriptor stores one record literal assignment planned for its shared
+/// view members, in plan order.
+fn record_view_members(
+    state: &CheckedComposedUnitControlStatePlan,
+    statement_index: u32,
+) -> Vec<&checked_trees::CheckedByteSequenceStorePlan> {
+    state
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+                if store.statement_index == statement_index
+                    && matches!(
+                        store.destination,
+                        checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+                    ) =>
+            {
+                Some(store)
+            }
+            _ => None,
+        })
+        .collect()
 }

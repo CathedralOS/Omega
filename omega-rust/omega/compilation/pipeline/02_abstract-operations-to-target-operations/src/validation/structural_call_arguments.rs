@@ -2989,7 +2989,9 @@ impl Replay<'_> {
                     }
                 }
                 Err(_) => {
-                    if !matches_bounded_byte_field(actual, root, self.declarations) {
+                    if !matches_bounded_byte_field(actual, root, self.declarations)
+                        && !matches_stored_view_field(actual, root, self.declarations)
+                    {
                         return Err(psi_operation);
                     }
                 }
@@ -3525,6 +3527,61 @@ fn matches_bounded_byte_field(
                 }
         })
         && actual.source_byte_offset == field_offset
+        && actual.fixed_array_length.is_none()
+        && actual.element_stride.is_none()
+}
+
+/// A stored shared view field lends its own two-word descriptor to a shared
+/// view formal: the argument addresses the field inside its original root.
+fn matches_stored_view_field(
+    actual: &TargetStructuralArgument,
+    root: &RootDeclaration,
+    declarations: &[StructuralTypeDeclaration],
+) -> bool {
+    let Some((StructuralPathSegment::Field(identity), prefix)) = actual.path.split_last() else {
+        return false;
+    };
+    let shared_field = terminal_semantics::runtime_structural_path_tip(
+        declarations.iter(),
+        root.structural_type,
+        prefix,
+    )
+    .is_some_and(|parent| match &parent.shape {
+        StructuralTypeShape::Record { fields } => fields.iter().any(|field| {
+            field.identity == *identity
+                && !field.relevance.is_erased()
+                && field.field_type.byte_sequence_carrier()
+                    == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    })
+        }),
+        _ => false,
+    });
+    let shared_formal = declarations.iter().any(|declaration| {
+        declaration.id == actual.structural_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    }
+                )
+            )
+    });
+    shared_field
+        && shared_formal
+        && actual.access == StructuralAccess::SharedBorrow
+        && matches!(
+            root.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+        && structural_shapes::borrowed_view_field_offset(
+            root.structural_type,
+            &actual.path,
+            declarations,
+        )
+        .ok()
+            == Some(actual.source_byte_offset)
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()
 }

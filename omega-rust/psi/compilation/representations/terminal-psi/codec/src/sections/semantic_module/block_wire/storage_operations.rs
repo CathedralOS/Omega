@@ -531,6 +531,32 @@ pub(super) fn decode_structural_byte_sequence_field_store(
     })
 }
 
+pub(super) fn encode_structural_byte_view_field_store(
+    writer: &mut Writer,
+    destination: PlaceId,
+    path: Vec<StructuralPathSegment>,
+    field: StructuralFieldId,
+    source: PlaceId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE);
+    writer.id(destination);
+    encode_structural_path(writer, "structural byte view field store path", &path)?;
+    writer.id(field);
+    writer.id(source);
+    Ok(())
+}
+
+pub(super) fn decode_structural_byte_view_field_store(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::StructuralByteViewFieldStore {
+        destination: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+        field: reader.id("StructuralFieldId")?,
+        source: reader.id("PlaceId")?,
+    })
+}
+
 pub(super) fn encode_structural_byte_sequence_field_length(
     writer: &mut Writer,
     source: PlaceId,

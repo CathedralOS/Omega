@@ -316,6 +316,7 @@ fn operation_effect(
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
         // A restoration window extracts and reseats storage beneath a

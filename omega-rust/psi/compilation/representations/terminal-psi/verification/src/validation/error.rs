@@ -136,6 +136,7 @@ pub enum ModuleError {
     },
     InvalidByteSequenceWrite(OperationId),
     InvalidStructuralByteSequenceFieldStore(OperationId),
+    InvalidStructuralByteViewFieldStore(OperationId),
     InvalidStructuralByteSequenceFieldAccess(OperationId),
     InvalidByteSequenceSubslice(OperationId),
     InvalidByteSequenceConcatenation(OperationId),

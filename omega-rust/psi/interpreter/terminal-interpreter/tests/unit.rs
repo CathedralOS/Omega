@@ -30,6 +30,8 @@ mod byte_sequence_scalar_calls;
 mod byte_sequence_scalar_view_transfers;
 #[path = "unit/byte_sequence_subslice.rs"]
 mod byte_sequence_subslice;
+#[path = "unit/byte_view_field_store.rs"]
+mod byte_view_field_store;
 #[path = "unit/call_modules.rs"]
 mod call_modules;
 #[path = "unit/case_membership.rs"]

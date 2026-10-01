@@ -152,20 +152,47 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
     {
         return true;
     }
-    matches!(
-        (
-            byte_sequence_carrier(program, projected_type, &[]),
-            byte_sequence_carrier(
-                program,
-                substituted_formal_type(program, parameter_type, substitutions),
-                substitutions,
-            ),
-        ),
+    let formal = substituted_formal_type(program, parameter_type, substitutions);
+    match (
+        byte_sequence_carrier(program, projected_type, &[]),
+        byte_sequence_carrier(program, formal, substitutions),
+    ) {
         (
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
             Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
-        )
-    )
+        ) => true,
+        // A stored shared view field presents its own descriptor at a shared
+        // view formal: the callee reborrows the stored view's backing for the
+        // call, not the record. An exclusive view on either side would
+        // duplicate or widen a loan, so both must be shared.
+        (
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
+        ) => {
+            shared_view_reference(program, projected_type)
+                && crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                    program, formal,
+                ) == Some(checked_trees::CheckedStructuralAccess::SharedBorrow)
+        }
+        _ => false,
+    }
+}
+
+/// Whether a declared field type is a shared `&[u8]` view, through any
+/// domain constraint shells.
+fn shared_view_reference(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { access, .. } => {
+                return *access == language_core::ReferenceAccess::Shared;
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// A fixed array lends its initialized extent as the borrowed element view a

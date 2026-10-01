@@ -236,6 +236,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::StoreScalarField
                 | StructuralEffectAction::StoreByteSequence
                 | StructuralEffectAction::StoreByteSequenceField
+                | StructuralEffectAction::StoreByteViewField
                 | StructuralEffectAction::StoreByteSequenceFieldByte
                 | StructuralEffectAction::WriteByteSequence
                 | StructuralEffectAction::WriteElementView => ReachingEffect::Unknown,

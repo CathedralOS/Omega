@@ -196,6 +196,11 @@ impl OperationKind {
                 destination,
                 source,
                 ..
+            }
+            | Self::StructuralByteViewFieldStore {
+                destination,
+                source,
+                ..
             } => {
                 *destination = map(*destination);
                 *source = map(*source);
@@ -356,6 +361,9 @@ impl OperationKind {
             | Self::StructuralByteSequenceFieldStore {
                 destination, path, ..
             }
+            | Self::StructuralByteViewFieldStore {
+                destination, path, ..
+            }
             | Self::StructuralScalarFieldStore {
                 destination, path, ..
             } => projections.push(OperationProjection {
@@ -497,6 +505,7 @@ impl OperationKind {
             | Self::MoveStructuralField { path, .. }
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
+            | Self::StructuralByteViewFieldStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. } => paths.push(path),
             Self::StoreStructuralField { path, value, .. } => {
                 paths.push(path);

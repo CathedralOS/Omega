@@ -258,6 +258,16 @@ pub enum TargetUnitOperation {
         length: TargetUnitScalarArgumentSource,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Replace one shared borrowed-view field's two-word descriptor with an
+    /// established literal view's. No bytes move; the field then denotes the
+    /// literal's backing, which lowering keeps in a frame that outlives the
+    /// destination root.
+    StructuralByteViewFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralArgument,
+        field: StructuralFieldId,
+        source: PlaceId,
+    },
     /// Mutate one inline byte under the exact current field-length observation.
     StructuralByteSequenceFieldByteStore {
         psi_operation: OperationId,

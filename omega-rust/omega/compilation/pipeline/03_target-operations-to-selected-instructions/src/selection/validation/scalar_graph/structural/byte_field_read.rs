@@ -49,17 +49,28 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(replay.invalid());
     }
-    let (metadata_offset, _) =
-        crate::structural_inputs::structural_reference_input::byte_field_storage(
-            parameter.semantic.structural_type,
-            &source.path,
-            *field,
-            &signature.structural_types,
-        )
-        .ok_or_else(|| replay.invalid())?;
-    let payload_offset = metadata_offset
-        .checked_add(8)
-        .ok_or_else(|| replay.invalid())?;
+    let geometry = match crate::structural_inputs::structural_reference_input::byte_field_storage(
+        parameter.semantic.structural_type,
+        &source.path,
+        *field,
+        &signature.structural_types,
+    ) {
+        Some((metadata_offset, _)) => crate::selection::field_bytes::FieldBytes::Inline(
+            metadata_offset
+                .checked_add(8)
+                .ok_or_else(|| replay.invalid())?,
+        ),
+        None => crate::selection::field_bytes::FieldBytes::Descriptor(
+            crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+                parameter.semantic.structural_type,
+                &source.path,
+                *field,
+                &signature.structural_types,
+            )
+            .ok_or_else(|| replay.invalid())?,
+        ),
+    };
+    let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) =
         replay.resolve(*index).ok_or_else(|| replay.invalid())?;
     let (_, _, _, length_type) = replay.resolve(*length).ok_or_else(|| replay.invalid())?;
@@ -83,18 +94,42 @@ pub(in crate::selection) fn read_byte(
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| replay.invalid())?;
     let payload = result(replay, source.place, payload_offset)?;
-    replay.check_instruction(
-        SelectedInstructionKind::AddressOffset {
-            byte_offset: payload_offset,
-        },
-        replay
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(|| replay.invalid())?,
-        &[root, payload],
-        &provenance(row),
-    )?;
+    match geometry {
+        crate::selection::field_bytes::FieldBytes::Inline(_) => replay.check_instruction(
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: payload_offset,
+            },
+            replay
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| replay.invalid())?,
+            &[root, payload],
+            &provenance(row),
+        )?,
+        crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
+            memory(
+                replay,
+                row,
+                source.place,
+                payload_offset,
+                8,
+                SelectedMemoryAccessRole::ReadPlace,
+            )?;
+            replay.check_instruction(
+                SelectedInstructionKind::Load64 {
+                    byte_offset: payload_offset,
+                },
+                replay
+                    .constraints
+                    .keys
+                    .load64
+                    .ok_or_else(|| replay.invalid())?,
+                &[root, payload],
+                &provenance(row),
+            )?
+        }
+    }
     let output = replay.result_register(
         definition.value,
         definition.definition_site,

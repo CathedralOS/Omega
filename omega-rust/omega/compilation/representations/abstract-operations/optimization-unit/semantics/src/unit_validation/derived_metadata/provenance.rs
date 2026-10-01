@@ -65,6 +65,7 @@ pub(crate) fn expected_provenance(
         | O::ByteSequenceWrite { psi_operation, .. }
         | O::ByteSequenceStore { psi_operation, .. }
         | O::StructuralByteSequenceFieldStore { psi_operation, .. }
+        | O::StructuralByteViewFieldStore { psi_operation, .. }
         | O::StructuralByteSequenceFieldByteStore { psi_operation, .. }
         | O::ByteSequenceSubslice { psi_operation, .. }
         | O::ByteSequenceLength { psi_operation, .. }

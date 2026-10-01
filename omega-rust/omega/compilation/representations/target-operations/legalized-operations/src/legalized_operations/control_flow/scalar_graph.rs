@@ -174,6 +174,7 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+            | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishReference { .. }
@@ -387,6 +388,13 @@ pub enum LegalizedScalarInstructionKind {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// One shared view field's descriptor, replaced by an established
+    /// literal view's pointer and extent; the original root stays authoritative.
+    StructuralByteViewFieldStore {
+        destination: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+        source: semantic_vocabulary::PlaceId,
     },
     /// One inline field byte; current length and original root remain authoritative.
     StructuralByteSequenceFieldByteStore {

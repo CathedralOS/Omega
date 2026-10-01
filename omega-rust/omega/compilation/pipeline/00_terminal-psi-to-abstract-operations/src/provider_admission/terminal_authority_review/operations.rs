@@ -61,6 +61,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
         | AbstractOperation::ByteSequenceStore { .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { .. }
+        | AbstractOperation::StructuralByteViewFieldStore { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }

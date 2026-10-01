@@ -200,3 +200,6 @@ pub(super) const ESTABLISH_MUTABLE_ELEMENT_VIEW: u8 = 98;
 
 /// `OperationKind::FloatResultPolicy`, followed by its policy and payload IDs.
 pub(super) const FLOAT_RESULT_POLICY: u8 = 99;
+
+/// `OperationKind::StructuralByteViewFieldStore`.
+pub(super) const STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 100;

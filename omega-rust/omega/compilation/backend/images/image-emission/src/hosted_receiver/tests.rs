@@ -79,7 +79,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     assert_eq!(used.services, 0);
 }
 #[test]
-fn zero_filled_receiver_byte_fields_require_owned_backing() {
+fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use terminal_psi::{
         BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
@@ -117,7 +117,15 @@ fn zero_filled_receiver_byte_fields_require_owned_backing() {
                 },
             },
         ];
-        let expected = matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. });
+        // Zero owned storage has live length zero; a zero shared descriptor
+        // is the empty view, which borrows nothing.
+        let expected = matches!(
+            carrier,
+            ByteSequenceCarrier::BoundedOwned { .. }
+                | ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                }
+        );
         for selected in [root, child] {
             assert_eq!(
                 zero_valid_record_storage(&declarations, selected, &mut Vec::new()),
@@ -275,9 +283,10 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             )
             .unwrap(),
         ))],
+        // An exclusive view would alias storage provisioning cannot supply.
         vec![field(StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                access: Some(terminal_psi::StructuralAccess::MutableBorrow),
             },
         ))],
         vec![StructuralFieldDeclaration {

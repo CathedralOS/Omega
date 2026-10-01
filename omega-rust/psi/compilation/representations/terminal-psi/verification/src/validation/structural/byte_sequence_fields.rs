@@ -318,6 +318,16 @@ fn field_path(
                     )
                 )
         }
+        // A qualified shared view field is read like its plain carrier; its
+        // descriptor changes only through `StructuralByteViewFieldStore`,
+        // whose source predicates imply the declaration.
+        StructuralFieldType::PredicateByteSequence {
+            carrier:
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
+            ..
+        } => !writing,
         StructuralFieldType::Structural(view) if extent_observation => {
             module.structural_types.iter().any(|declaration| {
                 declaration.id == view

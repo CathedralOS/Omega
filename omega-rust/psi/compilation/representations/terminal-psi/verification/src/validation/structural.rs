@@ -3,6 +3,7 @@
 
 pub(crate) mod byte_sequence_fields;
 pub(crate) mod byte_sequence_store;
+pub(crate) mod byte_view_field_store;
 pub(crate) mod case;
 pub(crate) mod case_membership;
 pub(crate) mod leaf_copy;

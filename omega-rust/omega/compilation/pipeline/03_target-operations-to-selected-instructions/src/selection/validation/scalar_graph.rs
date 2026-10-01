@@ -440,6 +440,7 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     | LegalizedScalarInstructionKind::ByteSequenceStore { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
+                    | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_)

@@ -60,6 +60,52 @@ pub fn shared_boundary_buffer_capacity<'types>(
     )
 }
 
+/// Resolve a stored shared view field presented at a shared byte-view
+/// formal: the call reborrows the field's own descriptor, so the callee
+/// observes the stored view's backing for the call. The result is the field's
+/// declared byte predicates, which hold at every point because every write
+/// preserves them. Callers must still check that these imply the formal's,
+/// and validate root access, availability, aliasing and custody.
+pub fn stored_view_field_presentation<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<terminal_psi::ByteSequencePredicateSet> {
+    if argument.access != StructuralAccess::SharedBorrow
+        || expected.access != StructuralAccess::SharedBorrow
+        || expected.is_self
+        || !expected.projected_qualifications.is_empty()
+        || !types.clone().any(|declaration| {
+            declaration.id == expected.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    })
+                )
+        })
+    {
+        return None;
+    }
+    let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
+        return None;
+    };
+    let StructuralTypeShape::Record { fields } =
+        &runtime_structural_path_tip(types, root_type, prefix)?.shape
+    else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    (field.field_type.byte_sequence_carrier()?
+        == ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        })
+    .then(|| field.field_type.byte_predicates())
+}
+
 fn inline_byte_field_capacity<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root_type: StructuralTypeId,

@@ -266,6 +266,7 @@ unit, charged before execution.
 | `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
+| `StructuralByteViewFieldStore` | Destination parameter, carrier path, final shared borrowed-view field, and the whole established byte literal whose descriptor replaces the field's. No length, capacity or bytes are retained: the field takes the source's backing and extent. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte local, exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. It needs no synthetic record or field identity. |
@@ -422,12 +423,47 @@ Immutable source backing may be shared only while writes cannot mutate it or its
 aliases. The store costs one logical operation unit, invalidates destination
 observations, and creates no new ownership frontier entry.
 
+`StructuralByteViewFieldStore` replaces the descriptor of one shared
+borrowed-view field (`BorrowedView { access: SharedBorrow }`, plain or
+`PredicateByteSequence`) below the same exclusive destination custody as the
+bounded byte-field store, including its leading `Referent` crossing. The field
+then denotes the source's exact backing and extent: no byte is copied, the
+displaced descriptor's backing is neither read nor released, and sibling fields
+are untouched. A stored view must not outlive its backing
+([lifetimes](../language/lifetimes.md)), so the source's backing must outlive
+the destination root. A quoted literal's view denotes immutable image storage,
+never a state-local owner ([quoted bytes](../language/data_and_literals.md#quoted-bytes)),
+so an established byte literal satisfies this for every root; it is the only
+admitted source. A parameter or block-parameter view, subslice, leaf copy or
+owned concatenation carries no lifetime relation to the destination root here
+and rejects, even when its contents equal a literal's. Source predicates replay
+from the literal's exact octets and must imply every declared field predicate,
+as for the owned store; an establishment qualification roster is neither
+required nor a substitute for the octets. A record literal assigned through an
+exclusive root decomposes into one store per member: shared view members take
+this store, the rest scalar field stores. The store costs one logical operation
+unit, invalidates every observation of the replaced field, and creates no
+ownership frontier entry. Copy permission on an enclosing `[copy]` record
+neither establishes the field's predicates nor extends the source's loan.
+
+A shared view field is observed like its plain carrier: `StructuralByteSequenceFieldLength`
+reads the stored descriptor's extent and `StructuralByteSequenceFieldRead` the
+byte its pointer denotes, under the same current-length and index obligations as a
+bounded owner. A declared predicate holds at every point because every write
+preserves it, so a qualified field is read exactly like a plain one. An ordinary
+or boundary call may also lend the stored descriptor itself to a shared view formal:
+the argument keeps its owning root and field path, borrows the stored view's
+backing for the call rather than the record, and its declared predicates must imply
+every predicate the formal's qualifications name. Neither side may be exclusive.
+Zero-initialized storage holds the empty shared view, which borrows nothing.
+
 A `PredicateByteSequence` field retains a nonempty set of primitive byte
 predicates alongside its bounded-owned carrier or immutable shared byte view.
 Equality contracts observe either carrier without discharging or erasing those
 predicates. Qualified shared-view declarations do not grant record construction,
 owned-return, or byte-mutation authority; those operations retain their separate
-custody and predicate checks. Qualified mutable, write-only, and access-unspecified
+custody and predicate checks. Descriptor replacement is the
+`StructuralByteViewFieldStore` above. Qualified mutable, write-only, and access-unspecified
 view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
 invariants independently of source checking and repeats the check after

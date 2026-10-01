@@ -820,11 +820,25 @@ fn structural_contract_substitutions(
             && argument.access != terminal_psi::StructuralAccess::Owned
             && crate::validation::is_static_borrow_path(&argument.path)
             && crate::validation::element_view::view_loan_result(caller, argument.place).is_some();
+        // A stored shared view field lends its own descriptor: like a
+        // window, it has no owned-field spelling, so an unobserved binder is
+        // omitted. Its declared predicates already cover the formal's.
+        let stored_view_field =
+            caller_place_root_type(caller, argument.place).is_some_and(|root| {
+                terminal_semantics::stored_view_field_presentation(
+                    module.structural_types.iter(),
+                    root,
+                    argument,
+                    parameter,
+                )
+                .is_some()
+            });
         if observed
             || (!crate::validation::is_reference_projection(module, caller, argument)
                 && !fixed_window
                 && !runtime_indexed_borrow
-                && !element_view_borrow)
+                && !element_view_borrow
+                && !stored_view_field)
         {
             return Err(ModuleError::InvalidReferenceCustody {
                 machine: caller.id,

@@ -17,6 +17,7 @@ mod structural_borrows;
 mod support;
 mod unit_ieee_stores;
 mod unit_scalar_calls;
+mod view_field_store_lifetime;
 
 use prelude::*;
 pub(super) use support::identity;

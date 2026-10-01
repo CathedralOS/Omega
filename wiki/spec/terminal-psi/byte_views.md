@@ -19,7 +19,10 @@ Opaque identity without contents cannot execute a byte-consuming operation.
 
 Each literal declaration has one exact establishment operation. Establishment
 may occur at its authored position rather than an entry prefix; every use needs
-that operation to dominate it. Reentering the same producer through a backedge
+that operation to dominate it. An established literal is also the one source
+that may replace a shared view field's stored descriptor
+([`StructuralByteViewFieldStore`](structural_access.md#store-vocabulary)): its
+image backing outlives every root the field can belong to. Reentering the same producer through a backedge
 retains the identical immutable value and charges the operation again. A value
 left by an earlier iteration does not authorize a use before its producer.
 
@@ -73,6 +76,8 @@ Ordinary helpers with Unit or scalar results and bodyless boundaries can receive
 whole views through the structural lane. The result kind does not restrict an
 argument to a machine parameter: established literals, dominating subslices,
 and available block parameters retain the same shared access and source custody.
+A stored shared view field lends its own descriptor through its owning root and
+field path; the callee borrows the stored view's backing, not the record.
 Invocation storage preserves nested/repeated calls and their independent contents.
 Descriptors may share immutable backing; deriving a view does not require copying
 its bytes.

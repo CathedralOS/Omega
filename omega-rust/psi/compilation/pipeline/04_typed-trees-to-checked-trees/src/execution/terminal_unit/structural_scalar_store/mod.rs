@@ -45,6 +45,7 @@ mod selectors;
 #[cfg(test)]
 mod tests;
 mod value;
+mod view_field_store;
 mod view_stores;
 
 /// The scalar-graph lane's field store into one of its own record locals.
@@ -464,10 +465,26 @@ fn plan_assignment(
         )
         .map(|store| vec![store]);
     }
-    // A borrowed view is a reference: storing one into a field would
-    // introduce a stored loan, and no store operation relates the field to
-    // the view's lifetime (structural_access.md, Store vocabulary: reference
-    // crossings reject).
+    // A shared view field holds a relocatable descriptor. Replacing it
+    // installs a stored loan, so the value must outlive the destination
+    // root: a quoted literal's image storage does (structural_access.md,
+    // `StructuralByteViewFieldStore`). Other views decline below.
+    if static_carrier && is_shared_view_field(program, field.type_reference) {
+        return view_field_store::literal_store(
+            program,
+            &destination,
+            carrier.path,
+            field,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|store| vec![store]);
+    }
+    // Any other borrowed view is a reference whose lifetime no store
+    // operation relates to the field (structural_access.md, Store
+    // vocabulary: reference crossings reject).
     trace.phase("structural field store: borrowed view field");
     if destination::crosses_reference(program, field.type_reference) {
         return None;
@@ -748,6 +765,19 @@ fn record_literal_stores(
     let mut stores = Vec::with_capacity(fields.len());
     for (ordinal, field) in fields.iter().enumerate() {
         let declaration = exact_relevant_field(program, carrier.owner, field.field)?;
+        // A shared view member takes the descriptor replacement a whole view
+        // field store would; its literal must grant the member's domains.
+        if is_shared_view_field(program, declaration.type_reference) {
+            stores.push(view_field_store::member_store(
+                program,
+                destination,
+                carrier.path.clone(),
+                declaration,
+                statement_index,
+                field.expression,
+            )?);
+            continue;
+        }
         // A member refined only by exact-interval domains is the bounded
         // integer range the literal's RecordField computation already proved
         // at construction: its domain membership and its byte width are the
@@ -1099,4 +1129,16 @@ fn bound_structural_parameter(
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
     })
+}
+
+/// Whether a declared field type is a shared `&[u8]` view, through any domain
+/// constraint shells: the field stores a relocatable descriptor.
+fn is_shared_view_field(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    matches!(
+        byte_sequence_carrier(program, type_reference, &[]),
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+    ) && !byte_stores::field_view_is_mutable(program, type_reference)
 }

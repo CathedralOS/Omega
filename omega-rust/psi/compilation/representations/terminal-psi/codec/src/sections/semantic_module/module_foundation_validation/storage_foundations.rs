@@ -175,6 +175,77 @@ pub(super) fn validate_release_reference(
     Ok(())
 }
 
+/// Canonical shape only: a Unit store of a shared borrowed-view field below an
+/// exclusive parameter or a mutable-record Referent crossing, sourced from a
+/// declared literal place. Lifetime authority, the literal's single
+/// establishment and predicate implication remain verifier judgments.
+pub(super) fn validate_structural_byte_view_field_store(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::StructuralByteViewFieldStore {
+        destination,
+        path,
+        field,
+        source,
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_structural_byte_view_field_store")
+    };
+    if operation.result != OperationResult::Unit || destination == source {
+        return malformed("byte view field store requires Unit and a distinct source");
+    }
+    let (destination_type, carrier_path) =
+        if let Some(reference) = reference_store_carrier(module, machine, *destination, path) {
+            reference
+        } else {
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *destination)
+            else {
+                return malformed("byte view field store destination is not a parameter");
+            };
+            if !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) {
+                return malformed("byte view field store has invalid destination custody");
+            }
+            (parameter.structural_type, path.as_slice())
+        };
+    if !is_bounded_structural_scalar_store_path(carrier_path) {
+        return malformed("byte view field store has an invalid carrier path");
+    }
+    let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
+    let view_field = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parent_type)
+        .is_some_and(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
+                candidate.id == *field
+                    && !candidate.relevance.is_erased()
+                    && candidate.field_type.byte_sequence_carrier()
+                        == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        })
+            }),
+            _ => false,
+        });
+    if !view_field {
+        return malformed("byte view field store does not select a shared view field");
+    }
+    if !machine.structural_places.iter().any(|place| {
+        place.id == *source && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+    }) {
+        return malformed("byte view field store source is not a literal place");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_byte_sequence_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

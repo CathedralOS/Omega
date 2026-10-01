@@ -94,6 +94,15 @@ pub(super) fn argument(
             destination.structural_type,
             types,
         );
+    // A stored shared view field lends the descriptor it already holds; the
+    // pointer addresses that field and no descriptor is synthesized.
+    let stored_view =
+        crate::structural_inputs::structural_reference_input::stored_view_field_argument(
+            source,
+            semantic,
+            destination.structural_type,
+            types,
+        );
     // A bounded inline byte field has no projected carrier identity; its own
     // record walk supplies the field offset and the destination supplies the
     // borrowed-view type the descriptor presents. The same holds for a fixed
@@ -109,6 +118,10 @@ pub(super) fn argument(
             }
             (Some((projected, offset)), None, None, None, None) => (projected, offset),
             (None, Some((offset, _)), None, None, None) => (destination.structural_type, offset),
+            (None, None, None, None, None) => (
+                destination.structural_type,
+                stored_view.ok_or(LegalizationError::custody())?,
+            ),
             _ => return Err(LegalizationError::custody()),
         };
     let referent =
@@ -137,7 +150,7 @@ pub(super) fn argument(
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
-        || (byte_owner.is_none() && !destination.qualifications.is_empty())
+        || (byte_owner.is_none() && stored_view.is_none() && !destination.qualifications.is_empty())
         || !destination.projected_qualifications.is_empty()
         || (structural_type != destination.structural_type && !descriptor)
         || parameter.place != source.place

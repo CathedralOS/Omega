@@ -199,6 +199,21 @@ pub(in crate::validation) fn validate_call_unit(
                     )
                     .is_some()
                 })
+                // A stored shared view field's declared predicates hold at
+                // every point; implying the formal's, they are its evidence.
+                && !machine.structural_parameters.iter().any(|actual| {
+                    actual.place == argument.place
+                        && terminal_semantics::stored_view_field_presentation(
+                            module.structural_types.iter(),
+                            actual.structural_type,
+                            argument,
+                            expected,
+                        )
+                        .is_some_and(|declared| {
+                            terminal_semantics::byte_parameter_predicates(module, expected)
+                                .is_some_and(|required| declared.implies(required))
+                        })
+                })
                 && (!expected.qualifications.is_empty()
                     || machine
                         .structural_parameters

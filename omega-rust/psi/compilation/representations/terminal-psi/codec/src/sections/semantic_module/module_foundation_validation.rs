@@ -378,6 +378,11 @@ fn validate_operation_foundation(
                 module, machine, operation,
             )?
         }
+        OperationKind::StructuralByteViewFieldStore { .. } => {
+            storage_foundations::validate_structural_byte_view_field_store(
+                module, machine, operation,
+            )?
+        }
         OperationKind::StructuralByteSequenceFieldLength { .. } => {
             storage_foundations::validate_structural_byte_sequence_field_length(operation)?
         }
@@ -925,6 +930,20 @@ fn validate_structural_arguments(
                 }
             };
         if shared_byte_field_loan {
+            continue;
+        }
+        // A stored shared view field lends its own descriptor: the leaf has
+        // no standalone structural type, so the field's carrier and the
+        // formal's shared view shape are the whole canonical check. Predicate
+        // implication and custody stay with module validation.
+        if terminal_semantics::stored_view_field_presentation(
+            module.structural_types.iter(),
+            actual_type,
+            argument,
+            expected,
+        )
+        .is_some()
+        {
             continue;
         }
         // The descriptor is a call presentation, not a replacement storage

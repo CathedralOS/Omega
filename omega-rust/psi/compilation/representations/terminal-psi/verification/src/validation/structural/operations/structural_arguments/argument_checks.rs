@@ -532,6 +532,20 @@ pub(in crate::validation) fn validate_structural_argument(
             expected,
         )
         .is_some();
+    // A stored shared view field lends its own descriptor to a shared view
+    // formal. Its declared predicates hold at every point, so they are the
+    // qualification evidence; they must imply every predicate the formal's
+    // qualifications name.
+    let view_field_presentation = terminal_semantics::stored_view_field_presentation(
+        module.structural_types.iter(),
+        root_type,
+        argument,
+        expected,
+    )
+    .is_some_and(|declared| {
+        terminal_semantics::byte_parameter_predicates(module, expected)
+            .is_some_and(|required| declared.implies(required))
+    });
     // A boundary lends the same exact initialized fixed-array range as an
     // ordinary call. Keep the array's real type and path: presentation
     // is not a type substitution, storage grant, or permission to resize.
@@ -675,6 +689,7 @@ pub(in crate::validation) fn validate_structural_argument(
         && !shared_buffer_presentation
         && !fixed_array_presentation
         && !bounded_owner_presentation
+        && !view_field_presentation
     {
         let Some(actual_type) = crate::validation::foundation::resolve_runtime_projection(
             module,
@@ -765,6 +780,7 @@ pub(in crate::validation) fn validate_structural_argument(
             || unrestricted_mutable_field_subloan
             || element_view_loan
             || shared_buffer_presentation
+            || view_field_presentation
             || bounded_owner_presentation
             || (buffer_presentation
                 && actual_access == StructuralAccess::MutableBorrow
@@ -790,6 +806,7 @@ pub(in crate::validation) fn validate_structural_argument(
     for qualification in &expected.qualifications {
         if (!bounded_owner_presentation || copied_field_predicates.is_some())
             && !copied_field_qualifications
+            && !view_field_presentation
             && !structural_occurrence_carries_qualification(
                 actual_qualifications,
                 actual_projected_qualifications,

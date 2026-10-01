@@ -84,20 +84,32 @@ fn owned_aggregate_geometry_preserves_bounded_byte_siblings() {
             byte_field_length(root, &[], scalar_field, length_type, &declarations),
             None
         );
-        for unrelated_carrier in [
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            }),
-            StructuralFieldType::Scalar(length_type),
+        // A shared view field's extent is the word after its backing
+        // pointer, independent of any owner capacity; an exclusive view or a
+        // scalar carries no observable length.
+        for (carrier, length) in [
+            (
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                }),
+                Some((8, 8)),
+            ),
+            (
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::MutableBorrow),
+                }),
+                None,
+            ),
+            (StructuralFieldType::Scalar(length_type), None),
         ] {
             let mut changed = declarations.clone();
             let StructuralTypeShape::Record { fields } = &mut changed[0].shape else {
                 panic!("record");
             };
-            fields[0].field_type = unrelated_carrier;
+            fields[0].field_type = carrier;
             assert_eq!(
                 byte_field_length(root, &[], byte_field, length_type, &changed),
-                None
+                length
             );
         }
         assert_eq!(

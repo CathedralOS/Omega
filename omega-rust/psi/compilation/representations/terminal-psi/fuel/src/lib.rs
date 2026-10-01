@@ -78,6 +78,7 @@ impl TerminalFuelSchedule {
             | OperationKind::StructuralByteSequenceFieldLength { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::StructuralByteSequenceFieldRead { .. }
+            | OperationKind::StructuralByteViewFieldStore { .. }
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }

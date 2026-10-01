@@ -28,8 +28,7 @@ impl TerminalExecution {
         if result.scalar_type != ScalarType::Integer(count_type) {
             return Err(invalid());
         }
-        let (source_field, capacity) =
-            self.resolve_structural_byte_sequence_field(*source, path, *field, false)?;
+        let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
         let bytes = self
             .structural_byte_sequence_fields
             .get(&source_field)
@@ -37,7 +36,7 @@ impl TerminalExecution {
                 *source,
             ))?;
         let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
-        if length > capacity {
+        if capacity.is_some_and(|capacity| length > capacity) {
             return Err(invalid());
         }
         self.values.insert(
@@ -122,9 +121,8 @@ impl TerminalExecution {
     }
 
     /// Read one byte of the field's live extent. Every operand and the
-    /// observed length are checked before the indexed read. A borrowed-view
-    /// field has no runtime backing in this interpreter, so resolution
-    /// rejects it through the same boundary as the byte store.
+    /// observed length are checked before the indexed read. A shared view
+    /// field reads the bytes its stored descriptor denotes.
     pub(crate) fn execute_structural_byte_sequence_field_read(
         &mut self,
         operation: &Operation,
@@ -148,8 +146,7 @@ impl TerminalExecution {
         if result.scalar_type != ScalarType::Integer(byte_type) {
             return Err(invalid());
         }
-        let (source_field, capacity) =
-            self.resolve_structural_byte_sequence_field(*source, path, *field, false)?;
+        let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
         let count = |operand| {
             let TerminalScalarValue::Integer {
@@ -169,7 +166,7 @@ impl TerminalExecution {
         };
         let byte_index = count(*index)?;
         let live_length = count(*length)?;
-        if live_length > capacity || byte_index >= live_length {
+        if capacity.is_some_and(|capacity| live_length > capacity) || byte_index >= live_length {
             return Err(invalid());
         }
         let bytes = self
@@ -191,5 +188,32 @@ impl TerminalExecution {
             },
         );
         Ok(())
+    }
+
+    /// A readable byte field: a bounded owner with its capacity, or a shared
+    /// view field whose descriptor bounds nothing beyond its own extent.
+    fn readable_byte_field(
+        &self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<
+        (
+            crate::values::StructuralByteSequenceRuntimeField,
+            Option<u64>,
+        ),
+        TerminalInterpretError,
+    > {
+        let (cell, carrier) =
+            self.resolve_structural_byte_field_carrier(root, path, field, false)?;
+        match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                Ok((cell, Some(capacity)))
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            } => Ok((cell, None)),
+            _ => Err(TerminalInterpretError::VerifiedOperationMalformed),
+        }
     }
 }

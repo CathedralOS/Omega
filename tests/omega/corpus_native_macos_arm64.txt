@@ -353,8 +353,7 @@ pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejec
 	native artifact native artifact lowering failed: Lowering(InvalidStructuralScalarFieldStore(OperationId(17)))
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit built 1401ms exit:70 @59d57ace39f0+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1032ms exit:70 @48008365d839
-pass/control_flow/runtime_string_literal_dispatch_exit rejected 1153ms @569fd648944c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/control_flow/runtime_string_literal_dispatch_exit built 1008ms exit:11 @1c0bb7bc95d0
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit built 1023ms exit:70 @48008365d839
 pass/control_flow/runtime_tuple_case_destructure_exit built 1901ms exit:70 @48008365d839
 pass/control_flow/runtime_tuple_transition_exit built 1035ms exit:22 @350be0d2a211+wt
@@ -454,11 +453,11 @@ pass/domains/unit_membership_postcondition_exit built 5301ms exit:70 @45c8d6b8b1
 pass/domains/user_authored_predicate_machine checked 185ms
 pass/domains/utf8_equals_literal_exit built 1931ms exit:70 @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit built 792ms exit:71 @54a65e21a512+wt
-pass/domains/utf8_field_read_carries_domain_exit rejected 1209ms @569fd648944c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
+pass/domains/utf8_field_read_carries_domain_exit built 926ms exit:70 @1c0bb7bc95d0
 pass/domains/utf8_field_write_from_param rejected 359ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
 pass/domains/vacuous_domain_qualification checked 203ms
+pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/drops/cleanup_machine_drop_shape checked 196ms
 pass/drops/core_drop_explicit_consume checked 197ms
 pass/drops/core_drop_owner_hook checked 202ms
@@ -1042,8 +1041,8 @@ pass/text/runtime_bounded_carrier_normal_status_exit built 1644ms exit:70 stdout
 pass/text/runtime_bounded_carrier_write_read_exit built 638ms exit:70
 pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
-pass/text/runtime_local_struct_string_field_concat_exit rejected 1089ms @569fd648944c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/text/runtime_local_struct_string_field_concat_exit rejected 518ms @1c0bb7bc95d0
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
 pass/text/runtime_number_to_decimal_exit built 1061ms exit:70
@@ -1057,8 +1056,8 @@ pass/text/runtime_stdin_command_branch_exit rejected 1219ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
-pass/text/runtime_string_stored_suffix_exit rejected 1087ms @569fd648944c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/text/runtime_string_stored_suffix_exit rejected 512ms @1c0bb7bc95d0
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 1)
 pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70

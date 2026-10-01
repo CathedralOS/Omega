@@ -2,8 +2,9 @@
 //! roster, earlier call results, dominating local homes and established views.
 
 use super::super::structural_layout::{
-    bounded_byte_field_geometry, checked_align_up_u32, resolve_structural_field_path,
-    resolve_structural_projection_path, structural_parameter_shape, structural_shape,
+    borrowed_view_field_offset, bounded_byte_field_geometry, checked_align_up_u32,
+    resolve_structural_field_path, resolve_structural_projection_path, structural_parameter_shape,
+    structural_shape,
 };
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -113,7 +114,22 @@ pub(in crate::lowering) fn lower_structural_argument(
         local_homes,
         structural_types,
     );
+    // A stored shared view field carries its predicates in its field
+    // declaration; optimized admission checked they imply the formal's.
+    let projected_stored_view = match parameters_by_place.get(&argument.place) {
+        Some(source) => stored_shared_view_field(
+            source.structural_type,
+            &argument.path,
+            callee_parameter,
+            structural_types,
+            shape_cache,
+            active,
+        )?
+        .is_some(),
+        None => false,
+    };
     if !projected_byte_owner
+        && !projected_stored_view
         && owner_home.is_none()
         && source_qualifications != callee_parameter.qualifications.as_slice()
     {
@@ -391,35 +407,61 @@ pub(in crate::lowering) fn lower_structural_argument(
                         (field_type, field_shape, offset, None, None)
                     }
                     Err(_) => {
-                        // An inline bounded byte field has no structural type
-                        // identity of its own; its record still supplies exact
-                        // offset and capacity for a borrowed-view presentation.
-                        let Some((field_offset, capacity)) = bounded_byte_field_geometry(
+                        // A stored shared view field already holds the
+                        // descriptor a shared view formal borrows: the
+                        // argument addresses that field like a projected
+                        // child of the formal's own view type.
+                        if let Some(field_offset) = stored_shared_view_field(
                             source_structural_type,
                             path,
+                            callee_parameter,
                             structural_types,
                             shape_cache,
                             active,
-                        )?
-                        else {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee,
-                                place: argument.place,
-                            });
-                        };
-                        byte_field_capacity = Some(capacity);
-                        (
-                            callee_parameter.structural_type,
-                            structural_shape(
+                        )? {
+                            (
                                 callee_parameter.structural_type,
+                                structural_shape(
+                                    callee_parameter.structural_type,
+                                    structural_types,
+                                    shape_cache,
+                                    active,
+                                )?,
+                                field_offset,
+                                None,
+                                None,
+                            )
+                        } else {
+                            // An inline bounded byte field has no structural type
+                            // identity of its own; its record still supplies exact
+                            // offset and capacity for a borrowed-view presentation.
+                            let Some((field_offset, capacity)) = bounded_byte_field_geometry(
+                                source_structural_type,
+                                path,
                                 structural_types,
                                 shape_cache,
                                 active,
-                            )?,
-                            field_offset,
-                            None,
-                            None,
-                        )
+                            )?
+                            else {
+                                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                                    callee,
+                                    place: argument.place,
+                                });
+                            };
+                            byte_field_capacity = Some(capacity);
+                            (
+                                callee_parameter.structural_type,
+                                structural_shape(
+                                    callee_parameter.structural_type,
+                                    structural_types,
+                                    shape_cache,
+                                    active,
+                                )?,
+                                field_offset,
+                                None,
+                                None,
+                            )
+                        }
                     }
                 }
             }
@@ -832,4 +874,56 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         source,
         destination: destination.clone(),
     }))
+}
+
+/// The descriptor offset of a stored shared view field lent whole to a
+/// shared view formal. Neither side may be exclusive: a mutable view would
+/// duplicate or widen the stored loan.
+fn stored_shared_view_field(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<u32>, LoweringError> {
+    let shared_formal = callee_parameter.access == StructuralAccess::SharedBorrow
+        && structural_types
+            .get(&callee_parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+            });
+    let Some((leaf, prefix)) = path.split_last() else {
+        return Ok(None);
+    };
+    let StructuralPathSegment::Field(identity) = leaf else {
+        return Ok(None);
+    };
+    let shared_field = terminal_semantics::runtime_structural_path_tip(
+        structural_types.values().copied(),
+        root,
+        prefix,
+    )
+    .is_some_and(|parent| match &parent.shape {
+        StructuralTypeShape::Record { fields } => fields.iter().any(|field| {
+            field.identity == *identity
+                && !field.relevance.is_erased()
+                && field.field_type.byte_sequence_carrier()
+                    == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    })
+        }),
+        _ => false,
+    });
+    if !shared_formal || !shared_field {
+        return Ok(None);
+    }
+    borrowed_view_field_offset(root, path, structural_types, shape_cache, active)
 }

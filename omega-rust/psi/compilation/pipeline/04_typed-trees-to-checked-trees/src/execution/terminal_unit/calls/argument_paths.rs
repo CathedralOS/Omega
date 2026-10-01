@@ -1378,17 +1378,26 @@ pub(crate) fn target_contract_mentions_projected_parameter(
 
 /// A declared byte qualification also appears as a source requires fact. Its
 /// exact domain is already carried by the formal and independently checked by
-/// bounded-owner loan admission; it does not need a second projected-contract
-/// representation. Other memberships and all exit contracts still need theirs.
+/// bounded-owner loan admission, or for a shared view formal by the stored
+/// view field's declared predicates; it does not need a second
+/// projected-contract representation. Other memberships and all exit
+/// contracts still need theirs.
 fn byte_parameter_qualification_carries_membership(
     program: &TypedTrees,
     parameter: &StateParameter,
     membership: &typed_trees::domain::ProofMembershipFact,
 ) -> bool {
-    if !matches!(
-        byte_sequence_carrier(program, parameter.type_reference, &[]),
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-    ) || !membership.semantic_domain.is_valid()
+    let carrier_carries_domain = match byte_sequence_carrier(program, parameter.type_reference, &[])
+    {
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) => true,
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }) => {
+            structural_access_for_type_reference(program, parameter.type_reference)
+                == Some(CheckedStructuralAccess::SharedBorrow)
+        }
+        _ => false,
+    };
+    if !carrier_carries_domain
+        || !membership.semantic_domain.is_valid()
         || !membership.domain_arguments.is_empty()
         || !program.domain_definitions().iter().any(|definition| {
             definition.symbol == membership.domain_symbol

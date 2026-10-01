@@ -106,6 +106,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteViewFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ElementViewWrite { .. }

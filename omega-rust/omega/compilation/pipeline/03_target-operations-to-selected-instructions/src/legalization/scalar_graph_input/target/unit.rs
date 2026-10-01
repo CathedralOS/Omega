@@ -429,6 +429,29 @@ pub(super) fn validate_operation(
                 .iter()
                 .any(|(value, actual)| value == expected_length && actual == length) => {}
         (
+            TargetUnitOperation::StructuralByteViewFieldStore {
+                psi_operation,
+                destination,
+                field,
+                source,
+            },
+            AbstractOperation::StructuralByteViewFieldStore {
+                psi_operation: expected_operation,
+                field: expected_field,
+                source: expected_source,
+                ..
+            },
+        ) if psi_operation == expected_operation
+            && field == expected_field
+            && source == expected_source
+            && Some(destination.clone())
+                == super::super::structural_fields::view_replacement(
+                    optimized,
+                    abstracted,
+                    &plan.structural_types,
+                    custody,
+                ) => {}
+        (
             TargetUnitOperation::StructuralByteSequenceFieldStore {
                 psi_operation,
                 destination,

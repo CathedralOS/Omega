@@ -68,6 +68,7 @@ const VAL_BORROWED_WINDOWS: &str = "omega-rust/psi/compilation/representations/t
 const VAL_STRUCTURAL_SCALAR: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs";
 const VAL_STRUCTURAL_BYTES: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs";
 const VAL_STRUCTURAL_BYTES_STORE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_store.rs";
+const VAL_STRUCTURAL_BYTE_VIEW_STORE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_view_field_store.rs";
 const VAL_BYTES_LENGTH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/length.rs";
 const VAL_BYTES_READ: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/read.rs";
 const VAL_BYTES_WRITE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/write.rs";
@@ -394,6 +395,26 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_STRUCTURAL_BYTES_STORE,
+    ],
+);
+static OP_STRUCTURAL_BYTE_VIEW_FIELD_STORE: TrustedSurfaceEntry = entry(
+    "operation:structural-byte-view-field-store",
+    "a validated descriptor replacement of a shared borrowed-view field whose source is the one establishment of a byte literal, below an exclusive parameter or an explicit mutable-record Referent crossing",
+    "propositions observing the replaced field are invalidated; the field then denotes the literal's image backing, whose lifetime outlives every root, and literal octets replay predicates implying the field's declared restrictions",
+    &[
+        "fact:structural-effect-observation",
+        "invalidation:structural-field-store",
+        "owner:operation",
+        "formation:operation-validation",
+        "formation:structural-byte-sequence-fields",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_STRUCTURAL_BYTE_VIEW_STORE,
     ],
 );
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH: TrustedSurfaceEntry = entry(
@@ -1261,6 +1282,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STORE_STRUCTURAL_FIELD,
     OP_BYTE_SEQUENCE_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
+    OP_STRUCTURAL_BYTE_VIEW_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ,
@@ -1353,6 +1375,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::StructuralByteSequenceFieldStore => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE
         }
+        OperationSemanticTag::StructuralByteViewFieldStore => &OP_STRUCTURAL_BYTE_VIEW_FIELD_STORE,
         OperationSemanticTag::StructuralByteSequenceFieldLength => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH
         }

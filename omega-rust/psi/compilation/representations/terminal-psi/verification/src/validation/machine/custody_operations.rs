@@ -250,6 +250,7 @@ pub(super) fn register_custody_operation(
             | OperationKind::StoreStructuralField { .. }
             | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
+            | OperationKind::StructuralByteViewFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::ByteSequenceWrite { .. }
             | OperationKind::ElementViewWrite { .. }

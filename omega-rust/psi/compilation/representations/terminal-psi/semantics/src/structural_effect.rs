@@ -74,6 +74,7 @@ pub enum StructuralEffectAction {
     StorePrimitive,
     StoreScalarField,
     StoreByteSequenceField,
+    StoreByteViewField,
     StoreByteSequence,
     ReadByteSequenceFieldLength,
     StoreByteSequenceFieldByte,
@@ -232,7 +233,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 31] = [
+    pub const ALL: [Self; 32] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -329,6 +330,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectResultShape::Unit,
                 StructuralEffectCustody::ExactStructuralByteSequenceField,
                 StructuralEffectAction::StoreByteSequenceField,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::StructuralByteViewFieldStore,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Unit,
+                StructuralEffectCustody::ExactStructuralByteSequenceField,
+                StructuralEffectAction::StoreByteViewField,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
             ),
@@ -565,6 +576,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::WriteOnlyPrimitiveStore
             | OperationSemanticTag::StructuralScalarFieldStore
             | OperationSemanticTag::StructuralByteSequenceFieldStore
+            | OperationSemanticTag::StructuralByteViewFieldStore
             | OperationSemanticTag::ByteSequenceStore
             | OperationSemanticTag::StructuralByteSequenceFieldLength
             | OperationSemanticTag::StructuralByteSequenceFieldByteStore
@@ -637,6 +649,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::WriteOnlyPrimitiveStore,
         OperationSemanticTag::StructuralScalarFieldStore,
         OperationSemanticTag::StructuralByteSequenceFieldStore,
+        OperationSemanticTag::StructuralByteViewFieldStore,
         OperationSemanticTag::ByteSequenceStore,
         OperationSemanticTag::StructuralByteSequenceFieldLength,
         OperationSemanticTag::StructuralByteSequenceFieldByteStore,
@@ -740,6 +753,14 @@ pub enum StructuralEffectObservation {
         source: PlaceId,
         length: ValueId,
         obligation: ObligationId,
+    },
+    /// Replace one shared view field's descriptor with the source view. The
+    /// field's extent becomes the source's; no bytes move and no goal arises.
+    ByteViewFieldStored {
+        destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: StructuralFieldId,
+        source: PlaceId,
     },
     /// Store one primitive leaf. A runtime-selected element in `path` names
     /// no single leaf, so the store forgets the facts beneath its root.
@@ -962,6 +983,7 @@ impl StructuralEffectObservation {
             | Self::ByteSequenceFieldByteStored { .. }
             | Self::ByteSequenceFieldByteRead { .. }
             | Self::ByteSequenceFieldStored { .. }
+            | Self::ByteViewFieldStored { .. }
             | Self::ByteSequenceStored { .. }
             | Self::ScalarFieldStored { .. }
             | Self::ByteSequencePlaceEstablished { .. }
@@ -1006,6 +1028,9 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::StoreByteSequence => OperationSemanticTag::ByteSequenceStore,
         StructuralEffectAction::StoreByteSequenceField => {
             OperationSemanticTag::StructuralByteSequenceFieldStore
+        }
+        StructuralEffectAction::StoreByteViewField => {
+            OperationSemanticTag::StructuralByteViewFieldStore
         }
         StructuralEffectAction::EstablishByteSequenceSubslice => {
             OperationSemanticTag::ByteSequenceSubslice
@@ -1131,7 +1156,8 @@ fn validate_structural_effect_schema(
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
                 }
-                StructuralEffectAction::StoreByteSequenceField => {
+                StructuralEffectAction::StoreByteSequenceField
+                | StructuralEffectAction::StoreByteViewField => {
                     schema.result == StructuralEffectResultShape::Unit
                         && schema.custody
                             == StructuralEffectCustody::ExactStructuralByteSequenceField
@@ -1627,6 +1653,20 @@ pub fn structural_effect_leaf_observation_in(
             source: *source,
             length: *length,
             obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::StoreByteViewField,
+            OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field,
+                source,
+            },
+        ) => StructuralEffectObservation::ByteViewFieldStored {
+            destination: *destination,
+            path: path.clone(),
+            field: *field,
+            source: *source,
         },
         (
             StructuralEffectAction::StoreScalarField,
@@ -2234,7 +2274,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 31);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 32);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2250,6 +2290,7 @@ mod tests {
                 OperationSemanticTag::StructuralByteSequenceFieldRead,
                 OperationSemanticTag::StructuralByteSequenceFieldByteStore,
                 OperationSemanticTag::StructuralByteSequenceFieldStore,
+                OperationSemanticTag::StructuralByteViewFieldStore,
                 OperationSemanticTag::ByteSequenceStore,
                 OperationSemanticTag::ByteSequenceSubslice,
                 OperationSemanticTag::ByteSequenceRead,

@@ -101,6 +101,7 @@ impl AbstractToTargetFunctionRosterReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
     UnsupportedIeeeFloatFmaRealization(OperationId),
+    UnsupportedViewFieldStoreLifetime(OperationId),
     StructuralSignatureMismatch {
         machine: MachineId,
     },

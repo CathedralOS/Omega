@@ -102,12 +102,66 @@ pub(crate) fn validate_assignment(
         Destination::Field {
             carrier_path,
             field_identity,
+        }
+        | Destination::ViewField {
+            carrier_path,
+            field_identity,
         } => {
             path.extend_from_slice(carrier_path);
             path.push(CheckedUnitStructuralPathSegment::Field(
                 field_identity.clone(),
             ));
         }
+    }
+    // A descriptor replacement installs a stored loan: only a literal's
+    // image storage outlives every destination root.
+    if matches!(store.destination, Destination::ViewField { .. })
+        && !matches!(
+            store.value.nodes.get(store.value.root),
+            ByteValue::Literal(_)
+        )
+    {
+        return unsupported("view-field store source is not a literal");
+    }
+    // A record literal decomposes into one store per member: a shared view
+    // member's store writes the authored place's own member field, and its
+    // literal is that member's authored initializer.
+    if let (
+        Destination::ViewField { field_identity, .. },
+        checked_trees::expression::ExpressionNode::StructLiteral(literal),
+    ) = (
+        &store.destination,
+        checked.expression_table.expression(assignment.value),
+    ) {
+        let mut member_path = source.path.clone();
+        member_path.push(CheckedUnitStructuralPathSegment::Field(
+            field_identity.clone(),
+        ));
+        let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
+            return unsupported("record view member store source is not a literal");
+        };
+        let member = checked
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .filter(|initializer| {
+                crate::emission::structural_scalar_store_source::member_identity(
+                    checked,
+                    initializer.field_symbol,
+                )
+                .as_deref()
+                    == Some(field_identity.as_str())
+            })
+            .map(|initializer| checked.expression_table.expression(initializer.value))
+            .collect::<Vec<_>>();
+        let [checked_trees::expression::ExpressionNode::String(authored)] = member.as_slice()
+        else {
+            return unsupported("record view member store has no authored literal member");
+        };
+        if source.root != root || member_path != path || authored.as_ref() != bytes.as_slice() {
+            return unsupported("record view member store differs from its authored member");
+        }
+        return Ok(());
     }
     if source.root != root || source.path != path {
         return unsupported("byte-field store destination differs from its authored place");
@@ -568,6 +622,22 @@ pub(crate) fn emit(
         StoreRoot::Parameter(parameter) => parameter.place,
         StoreRoot::Reference { place, .. } | StoreRoot::Owned { place, .. } => *place,
     };
+    if let Destination::ViewField {
+        carrier_path,
+        field_identity,
+    } = &store.destination
+    {
+        return emit_view_field_store(
+            store,
+            &root,
+            carrier_path,
+            field_identity,
+            structural_types,
+            literal_places,
+            next_place,
+            operations,
+        );
+    }
     let field_destination = match &store.destination {
         Destination::Whole => {
             let StoreRoot::Parameter(parameter) = &root else {
@@ -685,6 +755,9 @@ pub(crate) fn emit(
             }
             Some((path, field.id))
         }
+        Destination::ViewField { .. } => {
+            return unsupported("view-field store reached the owned byte emitter");
+        }
     };
     let mut emitter = ValueEmitter {
         plan: &store.value,
@@ -734,6 +807,108 @@ pub(crate) fn emit(
             })
         }
     }
+}
+
+/// Replace one shared borrowed-view field's descriptor with a literal's view
+/// of image storage. The literal is established at the store, without a
+/// qualification roster: Terminal replays the field's predicates from the
+/// octets. No bytes are copied, so no length observation or capacity
+/// obligation accompanies the store.
+#[allow(clippy::too_many_arguments)]
+fn emit_view_field_store(
+    store: &checked_trees::CheckedByteSequenceStorePlan,
+    root: &StoreRoot<'_>,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    structural_types: &[StructuralTypeDeclaration],
+    literal_places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<OperationKind, LoweringError> {
+    let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
+        return unsupported("view-field store source is not a literal");
+    };
+    let (destination, (path, field)) = match root {
+        StoreRoot::Parameter(parameter) => (
+            parameter.place,
+            crate::emission::structural_scalar_store::lower_structural_field_place(
+                store.statement_index,
+                store.statement_index,
+                parameter.position,
+                carrier_path,
+                field_identity,
+                parameter,
+                structural_types,
+                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+            )?,
+        ),
+        StoreRoot::Reference {
+            place,
+            structural_type,
+        } => {
+            if !structural_types.iter().any(|declaration| {
+                declaration.id == *structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference {
+                            access: terminal_psi::StructuralAccess::MutableBorrow,
+                            ..
+                        }
+                    )
+            }) {
+                return unsupported("view-field local destination lost mutable reference custody");
+            }
+            (
+                *place,
+                crate::emission::structural_scalar_store::lower_structural_field_path(
+                    *structural_type,
+                    carrier_path,
+                    field_identity,
+                    structural_types,
+                )?,
+            )
+        }
+        // An owned local root has no exclusive loan whose referent the
+        // literal's image backing is checked to outlive, so the store stays
+        // parameter- and reference-rooted.
+        StoreRoot::Owned { .. } => {
+            return unsupported("view-field store into an owned local root");
+        }
+    };
+    if field.field_type.byte_sequence_carrier()
+        != Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        })
+    {
+        return unsupported("view-field store destination is not a shared view field");
+    }
+    let source = place_id(allocate_dense(next_place)?);
+    literal_places.push(StructuralPlaceDeclaration {
+        id: source,
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: super::next_byte_sequence_literal_ordinal(literal_places)?,
+            structural_type: existing_literal_view_type(structural_types)?,
+        },
+    });
+    let id = operations.allocate();
+    operations.push(Operation {
+        id,
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishByteSequenceLiteral {
+            destination: source,
+            bytes: bytes.clone(),
+            qualifications: Vec::new(),
+        },
+    });
+    operations.invalidate_field_lengths_under(destination, &path);
+    Ok(OperationKind::StructuralByteViewFieldStore {
+        destination,
+        path,
+        field: field.id,
+        source,
+    })
 }
 
 /// Establish an owned bounded byte local from a quoted literal.
