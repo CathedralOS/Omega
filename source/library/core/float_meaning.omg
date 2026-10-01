@@ -19,9 +19,9 @@ pub data Sign [copy] {
 // The finite case is domain-qualified so rational zero cannot overlap either
 // signed Zero case. A caller may establish this body from an ordinary checked
 // fact; no compiler-known float or rational predicate is involved.
-pub domain Rat::NonZero
+pub domain Rat::NonZero(value)
 requires
-    self.num.pos != self.num.neg;
+    value.num.pos != value.num.neg;
 
 pub data FloatMeaning {
     case FiniteNonZero(value: Rat in NonZero);
