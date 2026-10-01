@@ -85,15 +85,9 @@ pub(super) fn field_path(
     path: &[StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<Vec<StructuralPathSegment>> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
-    let carrier = super::super::structural_catalog::resolve_structural_path(
-        types,
-        parameter.structural_type,
-        path,
-    )?;
+    let (structural_type, _) = byte_field_root(function, root)?;
+    let carrier =
+        super::super::structural_catalog::resolve_structural_path(types, structural_type, path)?;
     let StructuralTypeShape::Record { fields } = &types.get(&carrier)?.shape else {
         return None;
     };
@@ -105,8 +99,159 @@ pub(super) fn field_path(
     Some(exact)
 }
 
+/// Recover declaration custody, not availability or permission to read contents.
+/// The catalog validates producer identity; the CFG ownership walk separately
+/// requires a live, complete owner and rejects suspended loans at each use.
+pub(super) fn byte_field_root(
+    function: &PsiOptimizationFunction,
+    root: PlaceId,
+) -> Option<(StructuralTypeId, StructuralAccess)> {
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::StructuralMultiplicity;
+
+    let place = function
+        .structural_places
+        .iter()
+        .find(|place| place.id == root)?;
+    if !matches!(
+        place.kind,
+        StructuralPlaceKind::Parameter { .. }
+            | StructuralPlaceKind::BlockParameter { .. }
+            | StructuralPlaceKind::OperationResult { .. }
+    ) || function
+        .entry_claim_declarations
+        .iter()
+        .any(|claim| claim.input == root)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == root)
+    {
+        return None;
+    }
+    let source = crate::unit_validation::operation_contracts::structural_source_contract(
+        function, root, false,
+    )?;
+    (source.is_unqualified()
+        && !source.has_result_evidence()
+        && matches!(
+            source.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ))
+    .then_some((source.structural_type, source.access))
+}
+
 pub(super) fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
     left.starts_with(right) || right.starts_with(left)
+}
+
+/// View names retain their backing's identity across calls. Unknown offsets
+/// or aliases cannot certify that an earlier field observation is current.
+fn call_argument_changes(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root: PlaceId,
+    observed: &[StructuralPathSegment],
+    argument: &terminal_psi::StructuralArgument,
+) -> bool {
+    use semantic_vocabulary::StructuralPlaceKind;
+
+    let mut place = argument.place;
+    let mut region = argument.path.clone();
+    let mut visited = BTreeSet::new();
+    loop {
+        if region
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+        {
+            return true;
+        }
+        if place == root {
+            return terminal_semantics::structural_paths_may_overlap(observed, &region);
+        }
+        if !visited.insert(place)
+            || function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .any(|parameter| parameter.place == place || parameter.place == root)
+        {
+            return true;
+        }
+        let Some(declaration) = function
+            .structural_places
+            .iter()
+            .find(|row| row.id == place)
+        else {
+            return true;
+        };
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = declaration.kind
+        else {
+            return false;
+        };
+        let Some(operation) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .map(|node| &node.operation)
+            .find(|operation| operation.psi_operation() == Some(producer))
+        else {
+            return true;
+        };
+        let Some(contract) =
+            crate::unit_validation::operation_contracts::structural_source_contract(
+                function, place, false,
+            )
+            .filter(|contract| contract.structural_type == structural_type)
+        else {
+            return true;
+        };
+        match operation {
+            O::EstablishElementView {
+                source,
+                result,
+                destination,
+                ..
+            } if result.place == place
+                && *destination == place
+                && result.structural_type == contract.structural_type =>
+            {
+                let mut backing = source.path.clone();
+                if let Some(range) = backing.iter().position(|segment| {
+                    matches!(segment, StructuralPathSegment::FixedByteRange { .. })
+                }) {
+                    // A view-relative index cannot supply an absolute range offset.
+                    backing.truncate(range);
+                } else {
+                    backing.extend(region);
+                }
+                region = backing;
+                place = source.place;
+            }
+            O::ElementViewSubslice { source, result, .. }
+            | O::ByteSequenceSubslice { source, result, .. }
+                if result.place == place && result.structural_type == contract.structural_type =>
+            {
+                region.clear();
+                place = *source;
+            }
+            _ => {
+                return types.get(&structural_type).is_none_or(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference { .. }
+                            | StructuralTypeShape::ElementView { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                    )
+                });
+            }
+        }
+    }
 }
 
 pub(super) fn changes_length(
@@ -151,14 +296,12 @@ pub(super) fn changes_length(
             structural_arguments,
             ..
         } => structural_arguments.iter().any(|argument| {
-            argument.place == root
-                && overlaps(path, &argument.path)
-                && matches!(
-                    argument.access,
-                    StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                        | StructuralAccess::Owned
-                )
+            matches!(
+                argument.access,
+                StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+                    | StructuralAccess::Owned
+            ) && call_argument_changes(function, types, root, path, argument)
         }),
         // These operations cannot alter this bounded field's live length.
         // Scalar stores target a separately validated primitive leaf, and byte

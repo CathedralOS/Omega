@@ -33,6 +33,12 @@ impl StructuralSourceContract<'_> {
         self.qualifications.is_empty() && self.projected_qualifications.is_empty()
     }
 
+    pub(crate) fn has_result_evidence(&self) -> bool {
+        self.operation_result.is_some_and(|result| {
+            !result.claims.is_empty() || !result.qualification_establishments.is_empty()
+        })
+    }
+
     pub(crate) fn carries_qualification(
         &self,
         path: &[terminal_psi::StructuralPathSegment],

@@ -567,6 +567,16 @@ pub(super) fn apply_operation(
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
         }
+        O::StructuralByteSequenceFieldLength { source, .. }
+        | O::StructuralByteSequenceFieldRead { source, .. } => {
+            check_root_access(function, block, node, live, *source)?;
+        }
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            // These operands name byte storage, not reference carriers whose
+            // own loan could authorize an observation through a referent.
+            check_root_access(function, block, node, live, left.source())?;
+            check_root_access(function, block, node, live, right.source())?;
+        }
         O::WriteOnlyPrimitiveStore { destination, .. } => {
             check_root_access(function, block, node, live, destination.place())?
         }
