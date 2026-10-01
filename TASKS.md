@@ -1719,9 +1719,8 @@ crash and native exit behavior. Use affected check/native corpus slices under
   as integer bounds. Separately, `terminal_unit/types/mod.rs` requires an exact
   attached generic application; the old shared phase label does not establish
   that float predicates and const constraints need the same repair.
-  Migrate `tests/omega/pending/float/float_range_attached_field` and
-  `tests/omega/pass/generics/ranged_const_parameter_attached_shape`, then
-  exercise their currently unused fields. Keep bare integer/float, integer
+  Migrate `tests/omega/pass/generics/ranged_const_parameter_attached_shape`,
+  then exercise its currently unused fields. Keep bare integer/float, integer
   `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
   Required customers under `tests/omega/pass/`:
 
@@ -1767,9 +1766,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   restores none; state-arrival rows over the loop are the missing consumer
   that would carry the facts through it. A machine entry parameter, result or
   local in `Finite` still refuses in the scalar qualification catalog: only
-  arrivals carry it. The three recast customers still spell bracketed float
-  ranges on fields and locals (`f32 [0..=1]`), as do the pending
-  `float/float_range_attached_field` and
+  arrivals carry it. The former pending `float/float_range_attached_field`
+  is migrated to `pass/float/data_where_float_field_restored_exit`: its
+  field's data `where` row crosses a callee's invariant window and the
+  program exits 70 natively. The three recast customers still spell
+  bracketed float ranges on fields and locals (`f32 [0..=1]`), as does
   `generics/ranged_const_parameter_attached_shape`, so their migration under
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** comes first. Coordinate the
   state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,

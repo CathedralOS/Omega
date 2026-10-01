@@ -1617,6 +1617,7 @@ pass/float/build_runtime_semantics_twins_windows_x64 rejected 5403ms @2d8ed25366
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "x86_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`x86_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/builtin_extrema_field_store_exit checked 5149ms @2d8ed253669f
+pass/float/data_where_float_field_restored_exit checked 2202ms @8cb8c462809d+wt
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
