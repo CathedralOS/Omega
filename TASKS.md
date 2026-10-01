@@ -2865,6 +2865,19 @@ completion syntax or other terminal service is a prerequisite.
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
+  Nested fixed-array stores through byte-backed record loans now share the
+  field-store backing resolver and normalized layout projection (checkpoint
+  on `96733e5eade2`). On macOS ARM64, `python3 tools/corpus_gate.py --both
+  --filter runtime_plan_laid_nested_fixed_array_mutable_write_exit` observes
+  interpreter exit 70; native production stops at `a view local is observed
+  whole, never through a projection`. Finish reusable captured-loan read
+  descriptors through stage 05's `Evaluation` and `ScalarBindings`, retaining
+  backing identity and normalized geometry rather than enumerating source
+  reads. Full value replay also needs the same local-root projection semantics
+  in `source_custody/value_correspondence/mod.rs` (currently requires a
+  parameter root for nested element suffixes). Coordinate that path with the
+  live static-text owner; native exit 70 on the unchanged fixture is acceptance.
+
   With this change on base `e416dc26b7e`, `python3 tools/corpus_gate.py --native
   --filter recast/` on macOS ARM64 builds and exits 70 for
   `runtime_shared_domain_weakening_recast_exit`,

@@ -482,6 +482,134 @@ fn representation<'list>(
 }
 
 #[test]
+fn scalar_path_projection_preserves_nested_array_geometry_and_exact_leaves() {
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+
+    let mut program = crate::front_end::typed_program(
+        "data Matrix { values: [[u16; 2]; 2]; marker: u32; }
+         data Other { marker: u32; }",
+    );
+    let matrix = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Matrix")
+        .expect("matrix declaration");
+    let matrix_symbol = matrix.symbol;
+    let fields = program
+        .data_members(matrix)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some((field.symbol, field.path_identity())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let other = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Other")
+        .expect("other declaration");
+    let other_marker = program
+        .data_members(other)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) => Some(field.symbol),
+            _ => None,
+        })
+        .expect("other marker");
+    let matrix_type = named_type(&mut program, matrix_symbol, "Matrix");
+    // Supply the normalized geometry this consumer receives after plan
+    // validation. Projection must retain both the displaced aggregate and
+    // the marker's physical width instead of recomputing a native layout.
+    program.plan_laid_layouts.push(typed_trees::PlanLaidLayout {
+        data_name: "Matrix".to_owned(),
+        data_symbol: matrix_symbol,
+        field_symbols: fields.iter().map(|(symbol, _)| *symbol).collect(),
+        schema_symbol: matrix_symbol,
+        schema_field_symbols: fields.iter().map(|(symbol, _)| *symbol).collect(),
+        policy_symbol: symbols::SymbolHandle::invalid(),
+        policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
+        validated_layout: layout_plans::LayoutPlanReport {
+            schema_report_fingerprint: 0,
+            entries: vec![
+                layout_plans::LayoutFieldEntryReport {
+                    field: "values".to_owned(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 8 },
+                },
+                layout_plans::LayoutFieldEntryReport {
+                    field: "marker".to_owned(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::IntegerAt {
+                        offset: 24,
+                        stored_width: 16,
+                        interpretation: IntegerInterpretation::Unsigned,
+                    },
+                },
+            ],
+            offsets: None,
+            size: Some(32),
+            align: 8,
+        },
+        private_callback_demands: Vec::new(),
+        offsets: vec![8, 24],
+        bit_fields: Vec::new(),
+        integer_fields: vec![typed_trees::PlanLaidIntegerField {
+            field_index: 1,
+            stored_width_bits: 16,
+            interpretation: IntegerInterpretation::Unsigned,
+            write_is_total: false,
+        }],
+        repeated_fields: Vec::new(),
+        size: 32,
+        align: 8,
+    });
+    let path = [
+        Segment::Field(fields[0].1.clone()),
+        Segment::FixedIndex(1),
+        Segment::FixedIndex(1),
+    ];
+    let projection = super::recast_scalar_path_projection(&program, matrix_type, &path)
+        .expect("nested array endpoint");
+    assert_eq!(projection.offset, 14);
+    assert_eq!(projection.footprint, 32);
+    assert_eq!(projection.primitive, typed_trees::types::PrimitiveType::U16);
+    assert!(projection.stored_integer.is_none());
+
+    let mut invalid = path.clone();
+    invalid[0] = Segment::Field("absent".to_owned());
+    assert!(super::recast_scalar_path_projection(&program, matrix_type, &invalid).is_none());
+    for position in [1, 2] {
+        let mut invalid = path.clone();
+        invalid[position] = Segment::FixedIndex(2);
+        assert!(super::recast_scalar_path_projection(&program, matrix_type, &invalid).is_none());
+    }
+    let mut runtime = path.clone();
+    runtime[2] =
+        Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::Parameter { position: 0 });
+    assert!(super::recast_scalar_path_projection(&program, matrix_type, &runtime).is_none());
+    assert!(super::recast_scalar_path_projection(&program, matrix_type, &path[..2]).is_none());
+
+    let marker = super::recast_scalar_projection(&program, matrix_type, &[], fields[1].0)
+        .expect("exact marker field");
+    let marker_path = super::recast_scalar_path_projection(
+        &program,
+        matrix_type,
+        &[Segment::Field(fields[1].1.clone())],
+    )
+    .expect("same marker as full path");
+    assert_eq!(marker.offset, 24);
+    assert_eq!(marker_path.offset, marker.offset);
+    assert_eq!(
+        marker_path.primitive,
+        typed_trees::types::PrimitiveType::U32
+    );
+    assert_eq!(marker_path.stored_integer, marker.stored_integer);
+    assert_eq!(marker.stored_integer.expect("stored integer").bits(), 16);
+    assert!(super::recast_scalar_projection(&program, matrix_type, &[], other_marker).is_none());
+}
+
+#[test]
 fn interval_where_facts_narrow_float_leaves_for_shared_weakening() {
     let (program, representations) = where_record_representations(
         "data Narrow where value >= 0.0 && value <= 1.0 { value: f32; }

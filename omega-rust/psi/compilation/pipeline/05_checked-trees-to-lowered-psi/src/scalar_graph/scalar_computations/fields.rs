@@ -93,6 +93,7 @@ pub(crate) struct Binding {
 #[derive(Clone)]
 pub(crate) struct ByteOverlayField {
     pub offset: u64,
+    pub scalar_type: ScalarType,
     pub stored_type: ScalarType,
 }
 
@@ -125,6 +126,29 @@ impl ByteOverlaySource {
                     "record byte overlay lost its checked projection geometry",
                 ),
             )?;
+        self.projection(projection, scalar_type)
+    }
+
+    fn scalar_path(
+        &self,
+        checked: &CheckedTrees,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ByteOverlayField, LoweringError> {
+        let projection =
+            validation::recast_scalar_path_projection(&checked.typed, self.referee, path).ok_or(
+                LoweringError::Unsupported(
+                    "record byte overlay lost its checked projection geometry",
+                ),
+            )?;
+        self.projection(projection, scalar_type)
+    }
+
+    fn projection(
+        &self,
+        projection: validation::RecastScalarProjection,
+        scalar_type: ScalarType,
+    ) -> Result<ByteOverlayField, LoweringError> {
         if terminal_scalar_type(projection.primitive)? != scalar_type
             || self.remaining_bytes.is_some_and(|remaining| {
                 u64::try_from(projection.footprint).map_or(true, |footprint| footprint > remaining)
@@ -136,6 +160,7 @@ impl ByteOverlaySource {
             offset: u64::try_from(projection.offset).map_err(|_| {
                 LoweringError::Unsupported("record byte overlay offset exceeds u64")
             })?,
+            scalar_type,
             stored_type: projection
                 .stored_integer
                 .map(ScalarType::Integer)
@@ -667,25 +692,7 @@ pub(crate) fn loaned_store(
         loan.terminal,
         types,
     )?;
-    let mut path = Vec::new();
-    for segment in &loan.carrier_path {
-        path.push(checked_path_segment(segment)?);
-    }
-    if let Some(selector) = loan.runtime_index {
-        // A field observation here would reload the index, not recover the
-        // loan's captured coordinate. Such loans need a retained snapshot.
-        if !matches!(
-            selector,
-            checked_trees::CheckedRuntimeIndex::Parameter { .. }
-                | checked_trees::CheckedRuntimeIndex::Local { .. }
-        ) {
-            return unsupported("record store requires an immutable captured selector");
-        }
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector));
-    }
-    for segment in &loan.element_suffix {
-        path.push(checked_path_segment(segment)?);
-    }
+    let mut path = captured_store_path(&loan)?;
     let byte_overlay = if let Some(overlay) = loan.byte_overlay {
         // Byte-region admission requires a recursively fact-free referee.
         // The encoding-fit proof is not a semantic field-range proof: if that
@@ -735,6 +742,63 @@ pub(crate) fn loaned_store(
         path,
         byte_overlay,
     }))
+}
+
+/// Primitive array elements and record fields use the same captured backing.
+/// The full leaf path is geometry only; source replay separately rejoins the
+/// authored assignment, and emission still proves each stored byte's bound.
+pub(crate) fn loaned_primitive_store(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    destination: &checked_trees::CheckedStoreRoot,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<Option<LoanedStore>, LoweringError> {
+    let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
+        return Ok(None);
+    };
+    let Some(loan) = record_loan_subject(checked, machine, state, *symbol, types)? else {
+        return Ok(None);
+    };
+    let Some(overlay) = &loan.byte_overlay else {
+        return Ok(None);
+    };
+    if loan.access != language_core::ReferenceAccess::Mutable {
+        return unsupported("record store requires a mutable captured loan");
+    }
+    let (_, scalar_type) =
+        crate::emission::primitive_store::lower_destination_path(loan.terminal, path, types)?;
+    Ok(Some(LoanedStore {
+        source: loan.source,
+        path: captured_store_path(&loan)?,
+        byte_overlay: Some(overlay.scalar_path(checked, path, scalar_type)?),
+    }))
+}
+
+fn captured_store_path(
+    loan: &RecordLoanSubject,
+) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, LoweringError> {
+    let mut path = Vec::new();
+    for segment in &loan.carrier_path {
+        path.push(checked_path_segment(segment)?);
+    }
+    if let Some(selector) = &loan.runtime_index {
+        // Reloading a mutable field would not recover the loan's captured
+        // coordinate. Such loans need a retained formation-time snapshot.
+        if !matches!(
+            selector,
+            checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                | checked_trees::CheckedRuntimeIndex::Local { .. }
+        ) {
+            return unsupported("record store requires an immutable captured selector");
+        }
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector.clone()));
+    }
+    for segment in &loan.element_suffix {
+        path.push(checked_path_segment(segment)?);
+    }
+    Ok(path)
 }
 
 fn checked_path_segment(
@@ -1124,7 +1188,7 @@ pub(crate) fn field_path_identity(
 }
 
 /// A projected loan's referee can be owned by no signature, result or
-/// operation. Catalog it from actual field reads and stores; neither a later
+/// operation. Catalog it from actual field reads and projected stores; neither a later
 /// read nor an unrelated reference declaration should decide write admission.
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
@@ -1150,18 +1214,31 @@ pub(crate) fn type_roots(
                 let StatementNode::Assignment(assignment) = statement else {
                     continue;
                 };
-                let Some(source) = validation::local_scalar_record_field(
-                    &checked.typed,
-                    machine,
-                    state.symbol,
-                    ordinal as u32,
-                    assignment.target,
-                ) else {
+                let Some((root, _)) = captured_subject_path(checked, assignment.target) else {
                     continue;
                 };
-                let identity = checked
-                    .normalized_type_identity(source.type_reference)
-                    .into_string();
+                // A store's endpoint may be an array element rather than a
+                // named field. Catalog the declared root independently of
+                // its leaf shape; this supplies geometry, not admission.
+                let Some(local) = checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .take(ordinal)
+                    .find_map(|statement| match statement {
+                        StatementNode::LocalData(local) if local.symbol == root => Some(local),
+                        _ => None,
+                    })
+                else {
+                    continue;
+                };
+                let TypeReferenceNode::Reference { referee, .. } = checked
+                    .type_reference_table
+                    .type_reference(local.type_reference)
+                else {
+                    continue;
+                };
+                let identity = checked.normalized_type_identity(*referee).into_string();
                 if !types.contains(&identity) {
                     types.push(identity);
                 }
@@ -1486,6 +1563,89 @@ mod tests {
             view.second.value = 513;
         }
     ";
+
+    #[test]
+    fn nested_array_overlay_store_retains_backing_and_rejects_substitution() {
+        let source = "data Matrix { cells: [[u16; 2]; 2]; }
+             data Main { bytes: [u8; 8]; }
+             machine Main::main(&mut self) {
+                 let view: &mut Matrix = &mut self.bytes[0] as &mut Matrix;
+                 view.cells[1][0] = 513;
+             }";
+        let checked = crate::front_end::checked_program(source);
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("an array endpoint writes the recast loan's original bytes");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("byte stores independently retain their bounds and permission");
+        let paths = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. } => {
+                    Some(path.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            paths,
+            vec![
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("bytes".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(4)
+                ],
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("bytes".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(5)
+                ],
+            ]
+        );
+        let mut changed = checked;
+        let path = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|plan| &mut plan.operations)
+            .find_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    path,
+                    ..
+                } => Some(path),
+                _ => None,
+            })
+            .expect("one authored element store");
+        path[1] = checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
+        assert!(
+            crate::lower_machine(
+                &changed,
+                crate::TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
+            "a valid sibling element cannot replace the authored destination"
+        );
+        let shared = crate::front_end::checked_program(
+            &source
+                .replace("&mut Matrix", "&Matrix")
+                .replace("&mut self.bytes", "&self.bytes"),
+        );
+        assert!(
+            crate::lower_machine(&shared, crate::TerminalMachineSelection::Name("Main::main"))
+                .is_err(),
+            "projection geometry cannot promote a shared loan to write authority"
+        );
+    }
 
     #[test]
     fn nested_byte_overlay_store_without_read_keeps_backing_and_offset() {

@@ -728,6 +728,65 @@ impl OperationFrame<'_, '_> {
         path: &[checked_trees::CheckedUnitStructuralPathSegment],
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
+        if let Some(loan) =
+            crate::scalar_graph::scalar_computations::fields::loaned_primitive_store(
+                self.checked,
+                self.machine,
+                self.state,
+                destination,
+                path,
+                self.structural_types.declarations(),
+            )?
+        {
+            let projection = loan
+                .byte_overlay
+                .as_ref()
+                .ok_or(LoweringError::Unsupported(
+                    "primitive recast store lost its byte projection",
+                ))?;
+            // Capture the destination before evaluating the RHS, just as for
+            // field stores. A recast loan never invents another owned home.
+            let destination = self.prepare_loaned_byte_store(statement_index, &loan)?;
+            // Source custody expands the loan to its captured prefix before
+            // matching the assignment's value role, independently of layout.
+            let mut authored_path = loan.path.clone();
+            authored_path.extend_from_slice(path);
+            let role = crate::emission::primitive_store::value_role(
+                self.checked,
+                self.state,
+                statement_index,
+                &authored_path,
+            )?;
+            let value = self.evaluation.source_value(
+                self.checked,
+                self.machine,
+                self.state,
+                statement_index,
+                role,
+                value,
+                self.source_value_count,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+                self.calls,
+            )?;
+            if value.scalar_type != projection.scalar_type || !value.qualifications.is_empty() {
+                return unsupported("primitive store RHS differs from its destination carrier");
+            }
+            for kind in destination.emit(
+                value,
+                projection.stored_type,
+                projection.offset,
+                self.next_value,
+                self.operations,
+                self.calls,
+            )? {
+                self.push_unit(kind);
+            }
+            return Ok(());
+        }
         let destination = match destination {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 // The root names the authored parameter position;
@@ -1075,6 +1134,54 @@ impl OperationFrame<'_, '_> {
         })
     }
 
+    /// Field and element stores both retain a recast loan's original backing.
+    /// This prepares selectors only; callers evaluate their ordinary RHS next.
+    fn prepare_loaned_byte_store(
+        &mut self,
+        statement_index: u32,
+        loan: &crate::scalar_graph::scalar_computations::fields::LoanedStore,
+    ) -> Result<crate::emission::representation_view_store::ByteStoreDestination, LoweringError>
+    {
+        use crate::scalar_graph::scalar_computations::fields::LoanedSource;
+        let (place, root_type) = match loan.source {
+            LoanedSource::Parameter(position) => {
+                let (_, parameter) = self
+                    .evaluation
+                    .structural_parameters
+                    .get(position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "record store lost its backing parameter",
+                    ))?;
+                crate::emission::structural_scalar_store::validate_root_access(
+                    parameter,
+                    crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                )?;
+                (parameter.place, parameter.structural_type)
+            }
+            LoanedSource::Local(symbol) => {
+                self.local_store_root(symbol, &LocalStoreRoot::SCALAR_FIELD_STORE)?
+            }
+        };
+        crate::emission::representation_view_store::prepare_byte_destination(
+            place,
+            root_type,
+            &loan.path,
+            self.checked,
+            self.machine,
+            self.state,
+            statement_index,
+            self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            self.structural_types.declarations(),
+        )
+    }
+
     fn structural_scalar_field_store(
         &mut self,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
@@ -1104,46 +1211,8 @@ impl OperationFrame<'_, '_> {
                 }
                 LoanedSource::Local(symbol) => checked_trees::CheckedStoreRoot::Local { symbol },
             };
-            if let Some(projection) = loan.byte_overlay {
-                let (place, root_type) = match destination {
-                    checked_trees::CheckedStoreRoot::Parameter { position } => {
-                        let (_, parameter) = self
-                            .evaluation
-                            .structural_parameters
-                            .iter()
-                            .find(|(authored, _)| *authored == position)
-                            .ok_or(LoweringError::Unsupported(
-                                "record store lost its backing parameter",
-                            ))?;
-                        crate::emission::structural_scalar_store::validate_root_access(
-                            parameter,
-                            crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-                        )?;
-                        (parameter.place, parameter.structural_type)
-                    }
-                    checked_trees::CheckedStoreRoot::Local { symbol } => {
-                        self.local_store_root(symbol, &LocalStoreRoot::SCALAR_FIELD_STORE)?
-                    }
-                };
-                let destination =
-                    crate::emission::representation_view_store::prepare_byte_destination(
-                        place,
-                        root_type,
-                        &loan.path,
-                        self.checked,
-                        self.machine,
-                        self.state,
-                        store.statement_index,
-                        self.evaluation,
-                        self.source_value_count,
-                        self.values,
-                        self.next_value,
-                        self.next_block,
-                        self.next_edge,
-                        self.operations,
-                        self.calls,
-                        self.structural_types.declarations(),
-                    )?;
+            if let Some(projection) = &loan.byte_overlay {
+                let destination = self.prepare_loaned_byte_store(store.statement_index, &loan)?;
                 let value = self.scalar_field_store_value(store)?;
                 for kind in destination.emit(
                     value,
