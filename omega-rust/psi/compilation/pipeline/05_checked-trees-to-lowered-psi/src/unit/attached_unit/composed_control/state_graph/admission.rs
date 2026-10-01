@@ -879,38 +879,19 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             // The same revalidation the fallback's return arm
                             // gets: the plan's arm ordinal and the roster row
                             // both answer this authored transition exactly.
-                            let arm_ordinal = match &return_plan.return_arm {
-                                checked_trees::CheckedConditionalReturnArm::Structural(
-                                    checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                        result,
-                                        ..
-                                    },
-                                ) => result.statement_index,
-                                checked_trees::CheckedConditionalReturnArm::Scalar {
-                                    statement_ordinal: arm_ordinal,
-                                    primitive_type,
-                                } if plan.result
-                                    == checked_trees::CheckedControlResultPlan::Scalar {
-                                        primitive_type: *primitive_type,
-                                    } =>
-                                {
-                                    *arm_ordinal
-                                }
-                                _ => {
-                                    return unsupported(
-                                        "guarded jump return arm is neither a structural value producer nor the scalar result",
-                                    );
-                                }
-                            };
+                            let arm_ordinal = validate_guarded_return(
+                                checked,
+                                plan,
+                                source,
+                                state,
+                                transition,
+                                &return_plan.return_arm,
+                            )?;
                             if *retained_ordinal != statement_ordinal
                                 || *is_continuation
                                 || arm_ordinal != statement_ordinal
                                 || return_plan.statement_ordinal != statement_ordinal
                                 || exit.guard_statement_ordinal != statement_ordinal
-                                || !matches!(
-                                    checked.statement_table.transition_target(transition.target),
-                                    checked_trees::statement::TransitionTargetNode::Value(_)
-                                )
                             {
                                 return unsupported(
                                     "guarded jump return arm drifted from its authored ordinals",
@@ -973,32 +954,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             is_continuation,
                         }),
                     ) => {
-                        let arm_ordinal = match return_arm {
-                            checked_trees::CheckedConditionalReturnArm::Structural(
-                                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                    result, ..
-                                },
-                            ) => result.statement_index,
-                            checked_trees::CheckedConditionalReturnArm::Scalar {
-                                statement_ordinal: arm_ordinal,
-                                primitive_type,
-                            } if plan.result
-                                == checked_trees::CheckedControlResultPlan::Scalar {
-                                    primitive_type: *primitive_type,
-                                } => *arm_ordinal,
-                            _ => {
-                                return unsupported(
-                                    "guarded jump return arm is neither a structural value producer nor the scalar result",
-                                );
-                            }
-                        };
+                        let arm_ordinal = validate_guarded_return(
+                            checked, plan, source, state, transition, return_arm,
+                        )?;
                         if *retained_ordinal != statement_ordinal
                             || *is_continuation
                             || arm_ordinal != statement_ordinal
-                            || !matches!(
-                                checked.statement_table.transition_target(transition.target),
-                                checked_trees::statement::TransitionTargetNode::Value(_)
-                            )
                         {
                             return unsupported(
                                 "guarded jump return arm drifted from its authored ordinals",
@@ -1173,6 +1134,56 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         claim_transport,
         boundaries,
     })
+}
+
+/// Ordered return arms and the fallback obey the same completion contract.
+/// A Unit completion has no value producer, but still owes ordinary cleanup;
+/// neither a named jump nor a crash acquires that authority by being relabeled.
+fn validate_guarded_return(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    transition: &checked_trees::statement::TableTransition,
+    arm: &checked_trees::CheckedConditionalReturnArm,
+) -> Result<u32, LoweringError> {
+    use checked_trees::statement::TransitionTargetNode;
+    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        return unsupported("guarded return is not an ordinary completion");
+    }
+    let target = checked.statement_table.transition_target(transition.target);
+    match (arm, target) {
+        (
+            checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal },
+            TransitionTargetNode::Terminal,
+        ) if plan.result == checked_trees::CheckedControlResultPlan::Unit => {
+            edges::return_discards(checked, plan.machine, source, state)?;
+            Ok(*statement_ordinal)
+        }
+        (
+            checked_trees::CheckedConditionalReturnArm::Structural(
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    ..
+                },
+            ),
+            TransitionTargetNode::Value(_),
+        ) => Ok(result.statement_index),
+        (
+            checked_trees::CheckedConditionalReturnArm::Scalar {
+                statement_ordinal,
+                primitive_type,
+            },
+            TransitionTargetNode::Value(_),
+        ) if plan.result
+            == checked_trees::CheckedControlResultPlan::Scalar {
+                primitive_type: *primitive_type,
+            } =>
+        {
+            Ok(*statement_ordinal)
+        }
+        _ => unsupported("guarded return disagrees with its authored completion or result"),
+    }
 }
 
 /// A graph guard names exactly the value its `Guard` coordinate retains: the

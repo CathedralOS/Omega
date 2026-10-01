@@ -496,9 +496,9 @@ pub(super) fn build(
                         return None;
                     };
                     let arm_ordinal = ordinal.checked_add(u32::try_from(index).ok()?)?;
-                    // A mid-chain arm either transfers to its named state or
-                    // returns its authored `(expression)` value under the
-                    // guard — the same completion the closing arm records.
+                    // A mid-chain arm transfers to its named state or completes
+                    // with its authored Unit/value result under the guard, just
+                    // like the closing fallback.
                     let jump_target = match &exit.destination {
                         checked_trees::CheckedScalarBranchDestination::Jump(selected) => {
                             if exit.guard_statement_ordinal != arm_ordinal
@@ -552,11 +552,6 @@ pub(super) fn build(
                             successor,
                         })
                     } else {
-                        let TransitionTargetNode::Value(expression) =
-                            program.statement_table.transition_target(transition.target)
-                        else {
-                            return None;
-                        };
                         let return_arm = guarded_return_arm(
                             program,
                             facts,
@@ -569,7 +564,7 @@ pub(super) fn build(
                             &result,
                             operations,
                             arm_ordinal,
-                            *expression,
+                            transition,
                             trace,
                         )?;
                         checked_trees::CheckedGuardedJumpArmPlan::Return(
@@ -629,19 +624,8 @@ pub(super) fn build(
                         if *statement_ordinal != fallback_ordinal || *is_continuation {
                             return None;
                         }
-                        let TransitionTargetNode::Value(expression) = program
-                            .statement_table
-                            .transition_target(fallback_transition.target)
-                        else {
-                            return None;
-                        };
-                        if fallback_transition.exit != TransitionExit::Ordinary
-                            || fallback_transition.continuation.is_valid()
-                        {
-                            return None;
-                        }
                         trace.phase(
-                            "state graph: terminator: guarded jump successors: return arm value",
+                            "state graph: terminator: guarded jump successors: return completion",
                         );
                         trace.statement(Some(fallback_ordinal));
                         checked_trees::CheckedGuardedJumpFallbackPlan::Return(guarded_return_arm(
@@ -656,7 +640,7 @@ pub(super) fn build(
                             &result,
                             operations,
                             fallback_ordinal,
-                            *expression,
+                            fallback_transition,
                             trace,
                         )?)
                     }
@@ -716,8 +700,9 @@ pub(super) fn build(
     Some(terminator)
 }
 
-/// The `(expression)` value an ordered-chain arm returns: the shared mint a
-/// mid-chain arm and the closing fallback both use. A scalar arm rejoins the
+/// The completion an ordered-chain arm selects: a mid-chain arm and the closing
+/// fallback use this same join. Unit exits preserve ordinary return cleanup,
+/// without manufacturing a value. A scalar arm rejoins the
 /// `Return`-role value checking retained at its exact statement coordinate; a
 /// structural arm mints the `EstablishStructuralValue` producer (its operand
 /// calls join the state's operations; the producer itself stays inside the
@@ -735,9 +720,24 @@ fn guarded_return_arm(
     result: &checked_trees::CheckedControlResultPlan,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
+    transition: &typed_trees::statement::TableTransition,
     trace: &control::LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
+    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        return None;
+    }
+    let expression = match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Terminal
+            if *result == checked_trees::CheckedControlResultPlan::Unit =>
+        {
+            return_cleanup_is_whole(
+                program, facts, machine, state, structural, operations, shapes,
+            )?;
+            return Some(checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal });
+        }
+        TransitionTargetNode::Value(expression) => *expression,
+        _ => return None,
+    };
     if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result {
         let role = CheckedScalarExpressionRole::Return;
         let retained = facts
