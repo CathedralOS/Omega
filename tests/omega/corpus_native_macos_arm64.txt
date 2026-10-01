@@ -253,6 +253,7 @@ pass/collections/case_array_literal_callee_store_exit built 617ms exit:7 @480083
 pass/collections/case_array_literal_field_store_exit built 796ms exit:42 @48008365d839
 pass/collections/case_array_literal_nested_store_exit built 670ms exit:9 @48008365d839
 pass/collections/case_array_literal_row_store_exit built 728ms exit:3 @48008365d839
+pass/collections/cyclic_shared_plain_array_parameter_exit built 54111ms exit:42 @93913f8a1223
 pass/collections/element_policy_array_literal_store built 1426ms exit:0 @bed5f45e9185+wt
 pass/collections/element_view_borrow_local built 710ms exit:181 @48008365d839
 pass/collections/element_view_edge_loan built 779ms exit:70 @48008365d839

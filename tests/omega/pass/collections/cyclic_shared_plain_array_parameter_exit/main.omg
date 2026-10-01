@@ -1,0 +1,53 @@
+// A cyclic machine may take a SHARED borrow of a plain fixed array.
+//
+// `scan`'s states form a cycle (`step` -> `body` -> `step`) and nothing proves
+// it terminates, so its parameters go through the unranked-cycle eligibility
+// gate. That gate admitted an exclusive
+// `&mut [i32; 3]` and refused the shared `&[i32; 3]` here, which is backwards:
+// a shared loan freezes its referent, so every arrival observes the same
+// storage, and it cannot need more than the exclusive loan of the same
+// carrier. The refusal was `InvalidTerminalModule(ControlCycleIneligible {
+// reason: Parameter { index: 0 } })`.
+//
+// The fold is `max`, not a sum, so the loop owes no arithmetic range proof and
+// the fixture stays about the parameter. `body`'s own `index < 3` requirement
+// is what makes `index + 1` exact, so no re-guard states are needed. Over
+// [4, 42, 23] the maximum is 42, the exit code, and it is not the last element.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine scan(numbers: &[i32; 3]) -> i32 {
+    transition {
+        _ -> step(numbers, 0, 0)
+    }
+
+    state step(numbers: &[i32; 3], index: i32, best: i32) -> i32
+    requires index >= 0 {
+        transition index < 3 {
+            true -> body(numbers, index, best)
+            _ -> done(best)
+        }
+    }
+
+    state body(numbers: &[i32; 3], index: i32, best: i32) -> i32
+    requires index >= 0
+    requires index < 3 {
+        transition {
+            _ -> step(numbers, index + 1, max(best, numbers[index]))
+        }
+    }
+
+    state done(best: i32) -> i32 {
+        (best)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let numbers: [i32; 3] = [4, 42, 23];
+    let best: i32 = scan(&numbers);
+    context.console.exit_process(best);
+}

@@ -93,12 +93,16 @@ pub(super) fn ineligibility(
                 || !parameter.projected_qualifications.is_empty()
                 || !(persistent_receiver(module, parameter)
                     || block_views::mutable_records::parameter_type(module, parameter)
+                    // A shared loan freezes its referent, so it cannot admit
+                    // less than an exclusive loan of the same carrier: this
+                    // asks the same classifier the mutable arm above asks.
+                    // Spelling a narrower root list here refused a shared
+                    // `&[i32; 6]` in a cycle while `&mut [i32; 6]` passed, and
+                    // `record::plain_type` -- the safety conjunct either way --
+                    // is defined for a fixed array exactly as for a record,
+                    // "its element leaf repeated".
                     || (parameter.access == StructuralAccess::SharedBorrow
-                        && module.structural_types.iter().any(|declaration| {
-                            declaration.id == parameter.structural_type
-                                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-                        })
-                        && crate::validation::record::plain_type(
+                        && block_views::mutable_records::borrowed_carrier_type(
                             module,
                             parameter.structural_type,
                         ))
