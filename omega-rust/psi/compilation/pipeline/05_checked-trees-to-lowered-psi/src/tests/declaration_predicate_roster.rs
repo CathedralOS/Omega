@@ -239,3 +239,48 @@ fn an_ieee_range_row_keeps_its_format_through_calls() {
         assert_eq!(machine.contract.ensures.len(), 1);
     }
 }
+
+/// A callee restores an IEEE range row from its last store: the transient
+/// 2.0 is an invariant window the 0.5 store closes, and Terminal proves the
+/// returned row by following the level to the stored bits.
+const GAUGE_STORES: &str = "
+    data Gauge where level >= 0.0 && level <= 1.0 { level: f32; }
+    data Main { gauge: Gauge; }
+    machine Main::fill(context: &mut Main) {
+        context.gauge.level = 2.0;
+        context.gauge.level = 0.5;
+    }
+    machine Main::main(context: &mut Main) { Main::fill(context); }
+";
+
+fn ieee(value: f32) -> OperationKind {
+    OperationKind::IeeeFloatConstant {
+        value: semantic_vocabulary::IeeeFloatValue::Binary32(value.to_bits()),
+    }
+}
+
+#[test]
+fn an_ieee_range_row_is_restored_from_the_final_store() {
+    let checked = crate::front_end::checked_program(GAUGE_STORES);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("a stored IEEE range row is proved from the stored bits");
+    assert!(verify(&lowered.semantic_module, &lowered));
+    let mut broken = lowered.semantic_module.clone();
+    let mut changed = 0;
+    for operation in broken
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if operation.kind == ieee(0.5) {
+            operation.kind = ieee(2.0);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1, "only the restoring store writes 0.5");
+    assert!(
+        !verify(&broken, &lowered),
+        "a final 2.0 cannot establish the returned `level <= 1.0` row"
+    );
+}
