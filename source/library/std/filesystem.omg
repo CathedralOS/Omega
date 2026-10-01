@@ -895,14 +895,15 @@ invokes
     // Capture the target-normalized code immediately after the stat result. Libc
     // targets read errno here; Linux decodes the explicit negative syscall result.
     filesystem.stat_rc = filesystem.host.read_metadata(path, &mut filesystem.stat_buf);
-    filesystem.stat_errno = Filesystem::native_error_code_i32(filesystem, filesystem.stat_rc);
+    let metadata_rc: i32 = filesystem.stat_rc;
+    filesystem.stat_errno = Filesystem::native_error_code_i32(filesystem, metadata_rc);
     transition filesystem.stat_rc == 0 { true -> present(filesystem) _ -> absent(filesystem) }
     state present(filesystem: &mut Filesystem) -> ExistsResult { ExistsResult::Yes }
     state absent(filesystem: &mut Filesystem) -> ExistsResult {
         transition filesystem.stat_errno == 2 { true -> no(filesystem) _ -> other(filesystem) }
     }
     state no(filesystem: &mut Filesystem) -> ExistsResult { ExistsResult::No }
-    state other(filesystem: &mut Filesystem) -> ExistsResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, filesystem.stat_rc); ExistsResult::Error { kind: kind } }
+    state other(filesystem: &mut Filesystem) -> ExistsResult { let metadata_rc: i32 = filesystem.stat_rc; let kind: ErrorKind = Filesystem::last_error_i32(filesystem, metadata_rc); ExistsResult::Error { kind: kind } }
 }
 
 // SHARED stat->Metadata decode (metadata_path / metadata / symlink_metadata all
