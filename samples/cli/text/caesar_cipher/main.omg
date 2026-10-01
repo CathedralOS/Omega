@@ -39,44 +39,44 @@ machine Main::main(&mut self) reaches Console {
     self.i = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.i < 5 {
-            true -> shift()
-            _ -> show()
+    state step(main: &mut Main) {
+        transition main.i >= 0 && main.i < 5 {
+            true -> shift(main)
+            _ -> show(main)
         }
     }
 
-    state shift(&mut self) {
-        self.ch = self.text[self.i] as u8 in Wrapping + 3;
-        self.out[self.i] = self.ch as u8;
-        self.i = self.i + 1;
+    state shift(main: &mut Main) {
+        main.ch = main.text[main.i] as u8 in Wrapping + 3;
+        main.out[main.i] = main.ch as u8;
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state show(&mut self) {
-        self.console.write_line(self.out);
-        transition self.out[0] == 75 {
-            true -> ok()
-            _ -> wrong()
+    state show(main: &mut Main) {
+        main.console.write_line(main.out);
+        transition main.out[0] == 75 {
+            true -> ok(main)
+            _ -> wrong(main)
         }
     }
 
-    state ok(&mut self) {
-        self.console.write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 
-    state wrong(&mut self) {
-        self.console.write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state wrong(main: &mut Main) {
+        main.console.write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

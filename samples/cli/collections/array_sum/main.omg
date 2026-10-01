@@ -31,44 +31,44 @@ machine Main::main(&mut self) reaches Console {
     self.sum = 0;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.i < 2 {
-            true -> add()
-            _ -> done()
+    state step(main: &mut Main) {
+        transition main.i >= 0 && main.i < 2 {
+            true -> add(main)
+            _ -> done(main)
         }
     }
 
-    state add(&mut self) {
-        self.sum =
-            self.sum
-            + (widen_i32_to_i64(self.nums[self.i]) as i64 in Wrapping);
-        self.i = self.i + 1;
+    state add(main: &mut Main) {
+        main.sum =
+            main.sum
+            + (widen_i32_to_i64(main.nums[main.i]) as i64 in Wrapping);
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state done(&mut self) {
-        transition self.sum == 2200000000 {
-            true -> good()
-            _ -> bad()
+    state done(main: &mut Main) {
+        transition main.sum == 2200000000 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

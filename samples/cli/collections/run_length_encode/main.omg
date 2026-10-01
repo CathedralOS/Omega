@@ -40,64 +40,64 @@ machine Main::main(&mut self) reaches Console {
     self.i = 1;
     self.runs = 0;
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
-    state step(&mut self) {
-        transition self.i < 20 {
-            true -> read()
-            _ -> done()
+    state step(main: &mut Main) {
+        transition main.i >= 0 && main.i < 20 {
+            true -> read(main)
+            _ -> done(main)
         }
     }
 
-    state read(&mut self) {
-        self.b = self.data[self.i];
-        transition self.b == self.prev {
-            true -> bump()
-            _ -> emit_mid()
+    state read(main: &mut Main) {
+        main.b = main.data[main.i];
+        transition main.b == main.prev {
+            true -> bump(main)
+            _ -> emit_mid(main)
         }
     }
 
-    state bump(&mut self) {
-        self.count = self.count + 1;
-        self.i = self.i + 1;
+    state bump(main: &mut Main) {
+        main.count = main.count + 1;
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state emit_mid(&mut self) {
-        self.console.write("run: ");
-        self.console.write_byte(self.prev as i32);
-        self.console.write(" x");
-        self.chi = narrow_u32_to_i32_trapping((self.count + 48) as u32);
-        self.console.write_byte(self.chi);
-        self.console.write_line("");
-        self.runs = self.runs + 1;
-        self.prev = self.b;
-        self.count = 1;
-        self.i = self.i + 1;
+    state emit_mid(main: &mut Main) {
+        main.console.write("run: ");
+        main.console.write_byte(main.prev as i32);
+        main.console.write(" x");
+        main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        main.console.write_byte(main.chi);
+        main.console.write_line("");
+        main.runs = main.runs + 1;
+        main.prev = main.b;
+        main.count = 1;
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.write("run: ");
-        self.console.write_byte(self.prev as i32);
-        self.console.write(" x");
-        self.chi = narrow_u32_to_i32_trapping((self.count + 48) as u32);
-        self.console.write_byte(self.chi);
-        self.console.write_line("");
-        self.runs = self.runs + 1;
+    state done(main: &mut Main) {
+        main.console.write("run: ");
+        main.console.write_byte(main.prev as i32);
+        main.console.write(" x");
+        main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        main.console.write_byte(main.chi);
+        main.console.write_line("");
+        main.runs = main.runs + 1;
         transition {
-            _ -> finish()
+            _ -> finish(main)
         }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.runs as i32);
+    state finish(main: &mut Main) {
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.runs as i32);
     }
 }

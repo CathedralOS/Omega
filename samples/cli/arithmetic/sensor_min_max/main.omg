@@ -49,56 +49,56 @@ machine Main::main(&mut self) reaches Console {
     self.i = 1;
 
     transition {
-        _ -> step()
+        _ -> step(&mut self)
     }
 
     // Loop head: fold readings until every element has been visited.
-    state step(&mut self) {
-        transition self.i < 6 {
-            true -> body()
-            _ -> done()
+    state step(main: &mut Main) {
+        transition main.i >= 0 && main.i < 6 {
+            true -> body(main)
+            _ -> done(main)
         }
     }
 
     // The extremes update unconditionally: `min`/`max` ARE the branch, applied
     // straight to floats (the minsd/maxsd path, not an abs/clamp desugar).
-    state body(&mut self) {
-        self.cur = self.nums[self.i];
-        self.lo = min(self.lo, self.cur);
-        self.hi = max(self.hi, self.cur);
+    state body(main: &mut Main) {
+        main.cur = main.nums[main.i];
+        main.lo = min(main.lo, main.cur);
+        main.hi = max(main.hi, main.cur);
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
 
     // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
     // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
-    state advance(&mut self) {
-        transition self.i < 6 {
-            true -> bump()
-            _ -> step()
+    state advance(main: &mut Main) {
+        transition main.i < 6 {
+            true -> bump(main)
+            _ -> step(main)
         }
     }
 
-    state bump(&mut self) {
-        self.i = self.i + 1;
+    state bump(main: &mut Main) {
+        main.i = main.i + 1;
         transition {
-            _ -> step()
+            _ -> step(main)
         }
     }
 
-    state done(&mut self) {
+    state done(main: &mut Main) {
         // range = hi - lo = 26 - 18 = 8.
-        self.range = self.hi - self.lo;
+        main.range = main.hi - main.lo;
         // A float clamp with float bounds: clamp(26, 0, 25) = 25 (clamps down).
-        self.banded = clamp(self.hi, 0.0, 25.0);
+        main.banded = clamp(main.hi, 0.0, 25.0);
         // Sum both so the exit reflects the min/max fold AND the float clamp.
-        self.total = self.range + self.banded;
-        self.result = (self.total as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
+        main.total = main.range + main.banded;
+        main.result = (main.total as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
 
-        self.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result);
+        main.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result);
     }
 }
