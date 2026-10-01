@@ -1,4 +1,13 @@
 //! Walking state write prefixes to summarize the paths a state writes.
+//!
+//! One transfer serves whole-state effects and incoming statement contexts.
+//! Prefix-only demand stops at its last boundary instead of solving effects
+//! after it; those effects belong to the complete-summary query. Keeping that
+//! distinction explicit avoids traversing successor graphs for local alias
+//! queries without publishing truncated effects as complete evidence.
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 use super::PREFIX_WALKS;
@@ -192,6 +201,10 @@ pub(crate) enum StateWriteQuery<'statement> {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
     ReferenceResult,
+    /// Only incoming statement boundaries, not the enclosing state's effects.
+    StatementPrefixes {
+        include_shared: bool,
+    },
     /// Stop at one assignment and return its target; see
     /// `StateWritePrefix::assignment`.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -278,11 +291,7 @@ pub(crate) fn collect_state_write_prefixes(
                     symbols,
                     inference,
                     complete_state_summaries,
-                    if include_shared {
-                        Some(StateWriteQuery::ReferenceResult)
-                    } else {
-                        None
-                    },
+                    Some(StateWriteQuery::StatementPrefixes { include_shared }),
                     Some(&mut prefixes),
                     None,
                 )
@@ -384,7 +393,15 @@ fn walk_state_write_prefix_inner(
     // write through such a binding lands on one of its candidates, so the
     // frame unions every route, including through nested call substitution.
     let mut divergent_alias_origins = Vec::<(String, Vec<FramePlaceOrigin>)>::new();
-    let include_shared = matches!(query, Some(StateWriteQuery::ReferenceResult));
+    let include_shared = matches!(
+        query,
+        Some(
+            StateWriteQuery::ReferenceResult
+                | StateWriteQuery::StatementPrefixes {
+                    include_shared: true
+                }
+        )
+    );
     let mut stored = if include_shared {
         parameters
             .iter()
@@ -423,6 +440,16 @@ fn walk_state_write_prefix_inner(
                 divergent: divergent_alias_origins.clone(),
                 stored: stored.clone(),
             }));
+        }
+        if matches!(query, Some(StateWriteQuery::StatementPrefixes { .. }))
+            && statement_index + 1 == statements.len()
+        {
+            // The last incoming boundary is already captured. Its statement's
+            // effects cannot change any requested prefix; following its calls
+            // or transitions would solve a different, potentially large query.
+            // Return no whole-state result: this prefix must never be cached as
+            // a complete summary. Full-body and assignment queries still walk it.
+            return None;
         }
         let mut queried_assignment = matches!(query,
             Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement))
