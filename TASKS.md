@@ -1248,23 +1248,30 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `e20f8316b6`
-  on macOS ARM64, the closed-stdin command exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `856f6dbfe2`
+  plus the returned-reference store change on macOS ARM64, the closed-stdin
+  command exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::carve_room` stops at
-  `structural field store: byte sequence carrier`.
+  `call operation: structural arguments: caller structural result`.
   Owned bounded-byte completions now retain predicates and live length through
   calls, ordinary parameter-rooted field replacement and native aggregate
   returns: `text/owned_byte_call_result_field_exit` executes 70, including a
-  longer-to-shorter replacement and sibling preservation. The remaining
-  `room.label` and `room.description` stores write through the returned
-  `&mut Room` local from `level.room_mut(cell)`. Stage 04
-  `structural_scalar_store/byte_stores.rs::field_store` and Stage 05
-  `emission/structural_byte_sequence_store.rs` still require parameter roots.
-  Compose the existing store with the local's authenticated reference lineage;
-  extend the matching Terminal destination-authority and native pointer replay.
-  Preserve capacity, predicates, producer availability, access and loan release.
-  A borrowed record referent is not an owned record or descriptor storage.
+  longer-to-shorter replacement and sibling preservation.
+  `borrows/returned_record_byte_field_store_exit` also executes 70: an explicit
+  borrowed member actual returns a reference to one fixed array element, byte
+  and scalar stores mutate its original record, and transition reads observe
+  the parent after release without changing its neighbor. Canonical publication,
+  optimizer validation and native replay retain the exact static origin; no
+  copied record home or descriptor stands in for a reference. The current
+  caller-result argument frontier belongs to Stage 04
+  `calls/structural_arguments.rs`; compose projected calls through the returned
+  `room` reference with their real loan and referent path. `Level::room_mut`
+  additionally returns different array elements across its 16 branches, beyond
+  the now-executable single-static-origin result contract. Retain the selected
+  result address and independently verified origin alternatives rather than
+  choosing one arm's path. Preserve capacity, predicates, producer availability,
+  access, disjointness and exact release boundaries through both dependencies.
   `clear_level` now admits its mutable
   view element calls; projected loans and independent slice replay preserve
   represented field constraints without applying owned-move restrictions.

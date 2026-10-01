@@ -51,19 +51,16 @@ pub(super) fn signature_matches(
             // A borrowed `&[T]` view result names the peeled slice carrier in
             // its identity — the contents live in the caller's frame, so the
             // owned-contents custody clause does not apply.
-            // A `&mut` view result names its referee's carrier identity for
-            // view/named referees and keeps the `ref-mut` shell for the
-            // primitives — the `&mut` peel of `add_view_type` — and carries
-            // the affine view-loan multiplicity.
+            // Slice views use their element-view carrier. Named records and
+            // primitive referents retain the reference shell and its affine
+            // permission; neither becomes owned referent storage.
             if validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
                 source.return_type,
             )
             .is_some()
             {
-                // The result identity follows the `&mut` peel of `add_view_type`:
-                // view/named referees join the view or record carrier while
-                // primitive referees keep the `ref-mut` borrow shell.
+                // Only a slice view has a peeled carrier here.
                 let identity = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
                     checked,
                     source.return_type,

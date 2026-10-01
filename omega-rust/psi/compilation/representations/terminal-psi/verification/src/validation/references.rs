@@ -330,7 +330,9 @@ fn source_authority(
         .find(|parameter| parameter.place == source.place)
         .map_or(StructuralAccess::Owned, |parameter| parameter.access);
     let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() else {
-        return source.path.is_empty().then_some(carrier);
+        return (source.path.is_empty()
+            || projected_parameter_type(module, machine, source).is_some())
+        .then_some(carrier);
     };
     let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
     // A reference leaf grants its own referent access; the storage a
@@ -386,9 +388,7 @@ pub(super) fn referent(
             StructuralTypeShape::Reference {
                 referent,
                 access: StructuralAccess::MutableBorrow,
-            } if super::primitive_storage::scalar_type(module, referent).is_some() => {
-                Some(referent)
-            }
+            } if mutable_referent(module, referent) => Some(referent),
             // A `&'a V` shared view loans a named referent the same way a
             // `&mut` primitive loans its scalar: the referent is the leaf the
             // result's reference_sources project to.
@@ -399,6 +399,45 @@ pub(super) fn referent(
             _ => None,
         }
     })
+}
+
+fn mutable_referent(module: &TerminalModule, referent: StructuralTypeId) -> bool {
+    super::primitive_storage::scalar_type(module, referent).is_some()
+        || (module.structural_types.iter().any(|declaration| {
+            declaration.id == referent
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        }) && super::structural::result_contracts::has_plain_owned_shape(module, referent))
+}
+
+/// Geometry is available only through an exact, unqualified mutable permission
+/// carrier. The frontier separately requires that carrier and its lineage live.
+pub(super) fn mutable_record_field_destination<'path>(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: PlaceId,
+    path: &'path [StructuralPathSegment],
+) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
+    let (StructuralPathSegment::Referent, path) = path.split_first()? else {
+        return None;
+    };
+    let signature = super::structural::result_contracts::source_signature(machine, destination)?;
+    if signature.multiplicity != StructuralMultiplicity::Affine
+        || !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
+        || reference_access(module, signature.structural_type)
+            != Some(StructuralAccess::MutableBorrow)
+    {
+        return None;
+    }
+    let referent = referent(module, signature.structural_type)?;
+    module
+        .structural_types
+        .iter()
+        .any(|declaration| {
+            declaration.id == referent
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        })
+        .then_some((referent, path))
 }
 
 pub(super) fn carrier_type(
@@ -647,6 +686,22 @@ fn formal_origin(
         )
     {
         Some(ReferenceOrigin::Primitive(source.place))
+    } else if !source.path.is_empty()
+        && source.path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+        })
+        && matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+    {
+        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: source.path.clone(),
+        }))
     } else if let Some((StructuralPathSegment::Referent, path)) = source.path.split_last()
         && matches!(
             parameter.access,
@@ -715,7 +770,8 @@ pub(super) fn source_type(
         return None;
     }
     if !source.path.is_empty() {
-        return projected_carrier_type(module, machine, source);
+        return projected_carrier_type(module, machine, source)
+            .or_else(|| projected_parameter_type(module, machine, source));
     }
     if let Some(parameter) = machine
         .structural_parameters
@@ -741,14 +797,49 @@ pub(super) fn source_type(
         }
         // A `&mut` parameter's referent is the loaned primitive itself; a
         // `&'a` shared parameter's is its whole named storage.
-        if parameter.access == StructuralAccess::MutableBorrow {
-            super::primitive_storage::scalar_type(module, parameter.structural_type)?;
+        if parameter.access == StructuralAccess::MutableBorrow
+            && !mutable_referent(module, parameter.structural_type)
+        {
+            return None;
         }
         return Some(parameter.structural_type);
     }
     let result = super::primitive_storage::local_result(machine, source.place)?;
     super::primitive_storage::scalar_type(module, result.structural_type)?;
     Some(result.structural_type)
+}
+
+/// A static projected ingress retains its complete field/index coordinate.
+/// This is borrowed original storage, never an owned copy or a view descriptor.
+fn projected_parameter_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &StructuralArgument,
+) -> Option<StructuralTypeId> {
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source.place)?;
+    if source.path.is_empty()
+        || !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == source.place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source.place)
+    {
+        return None;
+    }
+    leaf_reference_type(module, parameter.structural_type, &source.path)
 }
 
 pub(super) fn validate_establishment(
@@ -787,6 +878,24 @@ pub(super) fn validate_uses(
     operation: &terminal_psi::Operation,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::StructuralScalarFieldStore {
+        destination, path, ..
+    }
+    | OperationKind::StructuralByteSequenceFieldStore {
+        destination, path, ..
+    } = &operation.kind
+        && path.first() == Some(&StructuralPathSegment::Referent)
+        && !machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == *destination)
+        && !available.contains(destination)
+    {
+        return Err(invalid(
+            machine,
+            "field destination reference has not been established on every arrival",
+        ));
+    }
     if let OperationKind::EstablishReference { source } = &operation.kind {
         let parameter = machine
             .structural_parameters
@@ -961,6 +1070,16 @@ fn normalized_source(
         if reference_access(module, leaf).is_some() {
             return Err(invalid(machine, "reference carrier is no longer live"));
         }
+        if mutable_referent(module, leaf)
+            && live
+                .iter()
+                .any(|reference| origin_root(&reference.root) == source.place)
+        {
+            return Err(invalid(
+                machine,
+                "projected ingress remains suspended by a live reference",
+            ));
+        }
         let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
             path: carrier_path.to_vec(),
@@ -969,7 +1088,7 @@ fn normalized_source(
     } else if source.path.is_empty() {
         if live
             .iter()
-            .any(|reference| reference.root == ReferenceOrigin::Primitive(source.place))
+            .any(|reference| origin_root(&reference.root) == source.place)
         {
             return Err(invalid(
                 machine,
@@ -978,11 +1097,33 @@ fn normalized_source(
         }
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
+    } else if projected_parameter_type(module, machine, source).is_some() {
+        if live
+            .iter()
+            .any(|reference| origin_root(&reference.root) == source.place)
+        {
+            return Err(invalid(
+                machine,
+                "projected ingress remains suspended by a live reference",
+            ));
+        }
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: source.path.clone(),
+        });
+        Ok((root.clone(), ReferenceParent::Root(root)))
     } else {
         Err(invalid(
             machine,
             "projected reference custody is not yet supported",
         ))
+    }
+}
+
+fn origin_root(origin: &ReferenceOrigin) -> PlaceId {
+    match origin {
+        ReferenceOrigin::Primitive(place) => *place,
+        ReferenceOrigin::IngressLeaf(identity) => identity.place,
     }
 }
 
@@ -1275,9 +1416,10 @@ pub(super) fn check_root_access(
     live: &[LiveReference],
     place: PlaceId,
 ) -> Result<(), ModuleError> {
-    if live.iter().any(|reference| {
-        reference.root == ReferenceOrigin::Primitive(place) || reference.carrier == place
-    }) {
+    if live
+        .iter()
+        .any(|reference| origin_root(&reference.root) == place || reference.carrier == place)
+    {
         return Err(invalid(
             machine,
             "operation accesses suspended referent or treats reference carrier as owned data",
@@ -1302,11 +1444,42 @@ pub(super) fn apply_operation(
             return establish_structural_case(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::StructuralCaseMembership { source, .. } => {
+        | OperationKind::StructuralCaseMembership { source, .. }
+        | OperationKind::IntegerStructuralField { source, .. }
+        | OperationKind::BooleanStructuralField { source, .. }
+        | OperationKind::StructuralByteSequenceFieldLength { source, .. }
+        | OperationKind::StructuralByteSequenceFieldRead { source, .. } => {
             check_root_access(machine, live, *source)?
         }
+        OperationKind::StructuralScalarFieldStore {
+            destination, path, ..
+        }
+        | OperationKind::StructuralByteSequenceFieldStore {
+            destination, path, ..
+        } => {
+            if mutable_record_field_destination(module, machine, *destination, path).is_some() {
+                let reference = live
+                    .iter()
+                    .find(|reference| {
+                        reference.carrier == *destination && reference.carrier_path.is_empty()
+                    })
+                    .ok_or_else(|| {
+                        invalid(machine, "field destination reference is no longer live")
+                    })?;
+                if live.iter().any(|child| {
+                    matches!(&child.parent,
+                    ReferenceParent::Reference(identity) if *identity == reference.identity)
+                }) {
+                    return Err(invalid(
+                        machine,
+                        "field destination reference remains suspended by a live child",
+                    ));
+                }
+            } else {
+                check_root_access(machine, live, *destination)?;
+            }
+        }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::AtomicAccess {
             place: destination, ..
         } => check_root_access(machine, live, *destination)?,
@@ -1449,7 +1622,7 @@ pub(super) fn apply_operation(
             .is_some_and(|source| contains_reference(module, source.structural_type))
             || live
                 .iter()
-                .any(|reference| reference.root == ReferenceOrigin::Primitive(argument.place))
+                .any(|reference| origin_root(&reference.root) == argument.place)
         {
             if !is_reference_projection(module, machine, argument) {
                 return Err(invalid(

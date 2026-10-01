@@ -209,21 +209,6 @@ pub(super) fn emit_call_operations(
     // blocks argument evaluation splits off in between rejoin with the one
     // frontier this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
-    // A release whose expiry boundary names one of the state's transition
-    // statements disposes on each outgoing edge: the successor discard
-    // rosters already carry its place. Emitting an op for it here would
-    // consume that place before the terminator's own reads mint.
-    let authored_statements = checked
-        .machines()
-        .iter()
-        .find(|source_machine| source_machine.symbol == machine)
-        .and_then(|source_machine| {
-            checked
-                .machine_states(source_machine)
-                .iter()
-                .find(|source| source.symbol == state.state)
-        })
-        .map(|source| checked.statement_table.statements(source.statement_nodes));
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // The mutable primitive locals this sequence establishes. Their places
     // live in the shared private roster; this roster keys later stores to
@@ -238,17 +223,7 @@ pub(super) fn emit_call_operations(
     };
     for operation in planned_operations {
         if let CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. } = operation
-            && let Some(boundary) = validation::reference_result_custody::release_statement(
-                &checked.facts,
-                machine,
-                state.state,
-                *loan,
-            )
-            && authored_statements.is_some_and(|statements| {
-                statements.get(boundary as usize).is_some_and(|node| {
-                    matches!(node, checked_trees::statement::StatementNode::Transition(_))
-                })
-            })
+            && reference_release_is_deferred(checked, machine, state.state, *loan)?
         {
             continue;
         }
@@ -349,4 +324,49 @@ pub(super) fn emit_call_operations(
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
     }
     windows.require_closed()
+}
+
+/// Transition reads run after this state's body. A loan last used by those
+/// reads dies on the selected edge; a loan expiring before the transition
+/// must end in the body so the transition can observe its original referent.
+pub(super) fn reference_release_is_deferred(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> Result<bool, LoweringError> {
+    let boundary = validation::reference_result_custody::release_statement(
+        &checked.facts,
+        machine,
+        state,
+        loan,
+    )
+    .and_then(|boundary| boundary.checked_sub(1))
+    .ok_or(LoweringError::Unsupported(
+        "reference release has no exact last-use boundary",
+    ))?;
+    let source = checked
+        .machines()
+        .iter()
+        .find(|source| source.symbol == machine)
+        .and_then(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .find(|source| source.symbol == state)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "reference release source state missing",
+        ))?;
+    let last_use = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(boundary as usize)
+        .ok_or(LoweringError::Unsupported(
+            "reference release last use is outside its state",
+        ))?;
+    Ok(matches!(
+        last_use,
+        checked_trees::statement::StatementNode::Transition(_)
+    ))
 }

@@ -48,12 +48,25 @@ does not end its loan. `ReleaseReference` ends it only after its descendants
 have ended; same-block restoration therefore precedes any renewed parent use.
 Formation, release, and successful return commit only after their fuel charge.
 
-The current executable slice retains whole mutable primitive references and
-record-contained reference leaves through ordinary calls and returns.
+The current executable slice retains whole mutable primitive references,
+mutable references to plain records, and record-contained reference leaves
+through ordinary calls and returns. A plain record referent contains no nested
+permission carriers. A projected formal origin retains its complete static
+field/fixed-index path. Every returning arm must identify the same origin;
+runtime-selected origins require separate result-address transport, not choosing
+one arm's storage. Returning a permission does not transfer or consume the
+temporary slice descriptor used to select that referent.
+Native byte/scalar field stores through a returned mutable record reference
+rejoin its one exact static ingress root/path; the result carries permission
+metadata without a physical result home. Lowering, receiving validation and
+publication independently retain that identity. The authored
+`borrows/returned_record_byte_field_store_exit` fixture observes both writes
+and untouched neighboring storage after release on macOS ARM64.
 Reference-valued entry parameters or host-entry results, reference projections
-into host-boundary calls, shared/write-only carriers, and native realization remain explicit
-implementation limits. Ordinary calls may temporarily attenuate a mutable
-carrier to shared or write-only access without creating such a carrier. None
+into host-boundary calls, shared/write-only record carriers and runtime-selected
+result origins remain explicit implementation limits. Ordinary calls may
+temporarily attenuate a mutable carrier to shared or write-only access without
+creating such a carrier. None
 of the unsupported forms gains authority merely because its shape or source
 lifetime resembles an admitted reference.
 
@@ -379,7 +392,14 @@ which retains its exact-length rule.
 
 `StructuralByteSequenceFieldStore` retains a static carrier path below an
 unqualified, claim-free mutable or write-only parameter with unrestricted or
-affine multiplicity. `ByteSequenceStore` instead replaces a whole `BoundedOwned`
+affine multiplicity. It also admits a leading `Referent` crossing through an
+unqualified affine mutable reference to a plain record. The carrier must be
+live and unsuspended by any child loan; the destination remains the original
+captured storage. Scalar field stores use the same permission check. Receiving
+validation reconstructs field geometry, source predicates and capacity through
+that crossing; a reference carrier is neither owned referent storage nor a
+slice descriptor. Parent use requires reference release first.
+`ByteSequenceStore` instead replaces a whole `BoundedOwned`
 formal with mutable or write-only access and unrestricted multiplicity. That
 formal may carry exact primitive byte qualifications; projected qualifications
 and claims remain unsupported. Both stores require a distinct immutable source,

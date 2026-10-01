@@ -1,8 +1,46 @@
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
+
+pub(in crate::legalization) fn scalar_store_destination(
+    function: &PsiOptimizationFunction,
+    destination: &abstract_operations::StructuralScalarStoreDestination,
+    path: &[terminal_psi::StructuralPathSegment],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    custody: &super::reference_custody::Custody,
+) -> Option<(
+    abstract_operations::StructuralScalarStoreDestination,
+    Vec<terminal_psi::StructuralPathSegment>,
+)> {
+    let abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } =
+        destination
+    else {
+        return Some((destination.clone(), path.to_vec()));
+    };
+    if !matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        return Some((destination.clone(), path.to_vec()));
+    }
+    let resolved = super::reference_custody::writable_referent_destination(
+        custody,
+        function,
+        types,
+        result.place,
+        path,
+    )?;
+    (resolved.producer == *producer && resolved.result == *result).then(|| {
+        (
+            abstract_operations::StructuralScalarStoreDestination::Parameter(resolved.parameter),
+            resolved.path,
+        )
+    })
+}
+
 pub(in crate::legalization) fn replacement(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    custody: &super::reference_custody::Custody,
 ) -> Option<terminal_psi::StructuralArgument> {
     if let AbstractOperation::ByteSequenceStore {
         destination,
@@ -65,10 +103,22 @@ pub(in crate::legalization) fn replacement(
         } => (destination, path, field, None),
         _ => return None,
     };
-    let parameter = function
+    let (parameter, path) = if let Some(parameter) = function
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == *destination)?;
+        .find(|parameter| parameter.place == *destination)
+    {
+        (parameter.clone(), path.clone())
+    } else {
+        let resolved = super::reference_custody::writable_referent_destination(
+            custody,
+            function,
+            types,
+            *destination,
+            path,
+        )?;
+        (resolved.parameter, resolved.path)
+    };
     if !matches!(
         parameter.access,
         terminal_psi::StructuralAccess::MutableBorrow
@@ -80,11 +130,11 @@ pub(in crate::legalization) fn replacement(
         || function
             .entry_claim_declarations
             .iter()
-            .any(|claim| claim.input == *destination || Some(claim.input) == source)
+            .any(|claim| claim.input == parameter.place || Some(claim.input) == source)
         || function
             .content_entry_claims
             .iter()
-            .any(|claim| claim.input.root == *destination || Some(claim.input.root) == source)
+            .any(|claim| claim.input.root == parameter.place || Some(claim.input.root) == source)
         || source.is_some_and(|source| {
             !super::byte_views::contains_readable_bytes(function, source, types)
         })
@@ -93,14 +143,14 @@ pub(in crate::legalization) fn replacement(
     }
     crate::structural_inputs::structural_reference_input::byte_field_storage(
         parameter.structural_type,
-        path,
+        &path,
         *field,
         types,
     )?;
     Some(terminal_psi::StructuralArgument {
-        place: *destination,
+        place: parameter.place,
         access: parameter.access,
-        path: path.clone(),
+        path,
     })
 }
 

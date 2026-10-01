@@ -251,11 +251,10 @@ pub(super) fn field_store(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    // Byte fields and their elements have no local-rooted lowering: only an
-    // exclusive borrowed parameter roots one.
-    let store_root = checked_trees::CheckedStoreRoot::Parameter {
-        position: destination.root.parameter_position()?,
-    };
+    // Destination resolution already authenticated the local's mutable loan.
+    // Retain that identity: a returned reference is not a new owned record or
+    // a synthetic formal parameter.
+    let store_root = destination.root.destination();
     let plain_domain = |symbol, literal_grant: bool| {
         program
             .domain_definitions()
@@ -275,6 +274,8 @@ pub(super) fn field_store(
     let domains =
         crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference);
     if let Some(index) = destination.dynamic_index {
+        // Indexed byte mutation retains its separate parameter-only contract.
+        destination.root.parameter_position()?;
         if !domains
             .into_iter()
             .all(|symbol| plain_domain(symbol, false))

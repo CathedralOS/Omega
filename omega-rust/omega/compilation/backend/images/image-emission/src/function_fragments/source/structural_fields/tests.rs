@@ -724,6 +724,246 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
 }
 
 #[test]
+fn returned_reference_byte_store_rejoins_only_its_exact_root() {
+    use semantic_vocabulary::ObligationId;
+    use target_operations::{
+        TargetCallResult, TargetReferenceResult, TargetStructuralHomeLayout,
+        TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+        TargetUnitScalarArgumentSource,
+    };
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralOperationResult, StructuralReferenceResultSource, StructuralResultDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let (mut function, mut target) = field_fixture(count_type);
+    let root = function.structural_parameters[0].place;
+    let root_type = StructuralTypeId::new(1).unwrap();
+    let reference_type = StructuralTypeId::new(2).unwrap();
+    let holder_type = StructuralTypeId::new(3).unwrap();
+    let carrier = PlaceId::new(2).unwrap();
+    let source = PlaceId::new(3).unwrap();
+    let call_operation = OperationId::new(1).unwrap();
+    let store_operation = OperationId::new(2).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    let length = ValueId::new(1).unwrap();
+    let obligation = ObligationId::new(1).unwrap();
+    let holder_path = vec![StructuralPathSegment::Field("holder".into())];
+    let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: carrier,
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    function.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    function.structural_parameters[0].structural_type = root_type;
+    function.operations = vec![
+        AbstractOperation::CallStructural {
+            psi_operation: call_operation,
+            callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: AbstractStructuralCallResult::Structural {
+                result: result.clone(),
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::StructuralByteSequenceFieldStore {
+            psi_operation: store_operation,
+            destination: carrier,
+            path: vec![StructuralPathSegment::Referent],
+            field,
+            source,
+            length,
+            obligation,
+        },
+    ];
+    target.graph.parameters[0].access = StructuralAccess::MutableBorrow;
+    target.graph.parameters[0].structural_type = root_type;
+    target.graph.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: root_type,
+            identity: "test::Root".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(2).unwrap(),
+                    identity: "holder".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(holder_type),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: reference_type,
+            identity: "test::HolderReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: holder_type,
+                access: StructuralAccess::MutableBorrow,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: holder_type,
+            identity: "test::Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "text".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BoundedOwned { capacity: 16 },
+                    ),
+                }],
+            },
+        },
+    ]
+    .into();
+    let call_plan = target.graph.call_plan.clone();
+    let declaration = StructuralResultDeclaration {
+        place: PlaceId::new(20).unwrap(),
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: vec![StructuralReferenceResultSource {
+            path: Vec::new(),
+            source: StructuralArgument {
+                place: PlaceId::new(21).unwrap(),
+                access: StructuralAccess::MutableBorrow,
+                path: Vec::new(),
+            },
+        }],
+    };
+    target.graph.blocks[0].operations = vec![
+        TargetUnitOperation::Call {
+            origin: target_operations::NativeCallOrigin::Authored,
+            psi_operation: call_operation,
+            callee: MachineId::new(2).unwrap(),
+            call_plan,
+            result: TargetCallResult::Structural {
+                result: result.clone(),
+                callee_result: declaration,
+                result_home: None,
+                reference_results: vec![TargetReferenceResult {
+                    path: Vec::new(),
+                    root,
+                    root_path: holder_path.clone(),
+                }],
+                returned_claim_transfers: Vec::new(),
+            },
+            scalar_arguments: Vec::new(),
+            arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        TargetUnitOperation::StructuralByteSequenceFieldStore {
+            psi_operation: store_operation,
+            destination: StructuralArgument {
+                place: root,
+                access: StructuralAccess::MutableBorrow,
+                path: holder_path,
+            },
+            field,
+            source,
+            length: TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value: length,
+                scalar_type: count_type,
+            },
+            obligation,
+        },
+    ];
+    assert!(replacement_retained(
+        &function,
+        &function.operations[1],
+        &target
+    ));
+
+    for corruption in 0..5 {
+        let mut changed_function = function.clone();
+        let mut changed_target = target.clone();
+        match corruption {
+            0 => {
+                let TargetUnitOperation::Call {
+                    result:
+                        TargetCallResult::Structural {
+                            reference_results, ..
+                        },
+                    ..
+                } = &mut changed_target.graph.blocks[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                reference_results[0].root = PlaceId::new(9).unwrap();
+            }
+            1 => {
+                let TargetUnitOperation::Call {
+                    result:
+                        TargetCallResult::Structural {
+                            reference_results, ..
+                        },
+                    ..
+                } = &mut changed_target.graph.blocks[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                reference_results[0].root_path.clear();
+            }
+            2 => {
+                let StructuralTypeShape::Reference { access, .. } =
+                    &mut changed_target.graph.structural_types.make_mut()[1].shape
+                else {
+                    unreachable!()
+                };
+                *access = StructuralAccess::SharedBorrow;
+            }
+            3 => {
+                let AbstractOperation::StructuralByteSequenceFieldStore { path, .. } =
+                    &mut changed_function.operations[1]
+                else {
+                    unreachable!()
+                };
+                path.clear();
+            }
+            _ => {
+                let TargetUnitOperation::Call {
+                    result: TargetCallResult::Structural { result_home, .. },
+                    ..
+                } = &mut changed_target.graph.blocks[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                *result_home = Some(TargetStructuralHomeRequirement {
+                    origin: TargetStructuralHomeOrigin::OperationResult {
+                        operation: call_operation,
+                        result: result.clone(),
+                    },
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(8, 8)),
+                });
+            }
+        }
+        assert!(
+            !replacement_retained(
+                &changed_function,
+                &changed_function.operations[1],
+                &changed_target,
+            ),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     use selected_instructions::{
         SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
@@ -824,6 +1064,7 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(replacement_footprints_retained(
         &function,
         &function.operations[1],
+        None,
         &accesses,
         &structural_types,
     ));
@@ -833,6 +1074,7 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(!replacement_footprints_retained(
         &function,
         &function.operations[1],
+        None,
         &descriptor_offset,
         &structural_types,
     ));
@@ -846,6 +1088,7 @@ fn returned_bounded_owner_publication_uses_inline_payload_offset() {
     assert!(!replacement_footprints_retained(
         &function,
         &function.operations[1],
+        None,
         &accesses,
         &borrowed,
     ));

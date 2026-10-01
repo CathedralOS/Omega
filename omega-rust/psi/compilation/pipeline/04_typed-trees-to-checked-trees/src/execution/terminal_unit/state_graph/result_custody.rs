@@ -14,6 +14,89 @@ use super::{
 };
 use checked_trees::CheckedUnitStructuralParameterPlan;
 
+/// A whole reference is one permission leaf, even when its value is emitted
+/// on a guarded return edge. Publish its captured source instead of silently
+/// dropping the roster for a named referent. The current interface names one
+/// exact origin: differing arm origins require result-address transport, not
+/// selecting an arbitrary arm's storage.
+pub(super) fn reference_sources(
+    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    use checked_trees::{
+        CheckedClosedSumCaseOutcomePlan, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
+        CheckedReferenceResultSourcePlan,
+    };
+    let mut common = None;
+    let mut retain = |sources: Vec<CheckedReferenceResultSourcePlan>| {
+        if sources.len() != 1 {
+            return None;
+        }
+        match &common {
+            Some(previous) if *previous != sources => None,
+            Some(_) => Some(()),
+            None => {
+                common = Some(sources);
+                Some(())
+            }
+        }
+    };
+    for state in states {
+        let returned: Vec<_> = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
+                retain(result.reference_sources.clone())?;
+                continue;
+            }
+            CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
+                return_values.iter().collect()
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
+                return_arm.operation().into_iter().collect()
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => when_true
+                .operation()
+                .into_iter()
+                .chain(when_false.operation())
+                .collect(),
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                let mut returned: Vec<_> = arms
+                    .iter()
+                    .filter_map(|arm| match arm {
+                        CheckedGuardedJumpArmPlan::Return(plan) => plan.return_arm.operation(),
+                        _ => None,
+                    })
+                    .collect();
+                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
+                    returned.extend(arm.operation());
+                }
+                returned
+            }
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
+                .iter()
+                .filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Return(arm) => arm.operation(),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        for operation in returned {
+            let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
+            else {
+                return None;
+            };
+            retain(vec![CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source: source.clone(),
+            }])?;
+        }
+    }
+    common
+}
+
 pub(super) fn account(
     program: &TypedTrees,
     facts: &CheckFacts,

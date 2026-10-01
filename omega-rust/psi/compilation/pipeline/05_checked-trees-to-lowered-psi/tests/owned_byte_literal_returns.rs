@@ -4,6 +4,114 @@ use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectO
 use checked_trees_to_lowered_psi::{TerminalMachineSelection, lower_machine};
 
 #[test]
+fn returned_record_reference_field_stores_preserve_the_borrowed_destination() {
+    let checked = crate::front_end::checked_program(
+        "domain [u8; 16]::Utf8 requires valid_utf8(self);
+         data Holder { text: [u8; 16] in Utf8; sibling: u64; }
+         data Bag { holders: [Holder; 2]; }
+         data Context { bag: Bag; }
+         machine pick(bag: &mut Bag) -> &mut Holder {
+             let holders: &mut [Holder] = bag.holders.as_mut_slice();
+             transition { _ -> &mut holders[1] }
+         }
+         machine label(short: bool) -> [u8; 16] in Utf8 {
+             transition short { true -> \"Gate\" false -> \"Branch Room\" }
+         }
+         machine fill(bag: &mut Bag) {
+             let selected: &mut Holder = pick(bag);
+             selected.text = label(false);
+             selected.text = label(true);
+             selected.sibling = 29;
+             transition { _ -> finish() }
+             state finish() {}
+         }
+         machine Context::fill(&mut self) {
+             let selected: &mut Holder = pick(&mut self.bag);
+             selected.text = label(false);
+             selected.text = label(true);
+             selected.sibling = 29;
+             transition self.bag.holders[1].text == \"Gate\"
+                 && self.bag.holders[1].sibling == 29 {
+                 true -> finish(70)
+                 false -> finish(1)
+             }
+             state finish(code: u64) {}
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("fill"))
+        .unwrap_or_else(|error| panic!("returned record store lowering: {error:?}"));
+    let paths = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::StructuralByteSequenceFieldStore { path, .. } => {
+                Some(path)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 2);
+    assert!(
+        paths
+            .iter()
+            .all(|path| path.first() == Some(&terminal_psi::StructuralPathSegment::Referent))
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("returned reference stores retain exact origin and release");
+
+    let projected = lower_machine(&checked, TerminalMachineSelection::Name("Context::fill"))
+        .unwrap_or_else(|error| panic!("explicit projected argument lowering: {error:?}"));
+    terminal_verifier::verify_module(
+        &projected.semantic_module,
+        &projected.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("an explicitly borrowed member keeps its exact returned-reference loan");
+    let _artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Context::fill"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("reference field stores survive optimization and canonical publication")
+    .into_artifact();
+
+    let mut changed = checked.clone();
+    let store = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.states)
+        .flat_map(|state| &mut state.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+                if matches!(store.root, checked_trees::CheckedStoreRoot::Local { .. }) =>
+            {
+                Some(store)
+            }
+            _ => None,
+        })
+        .expect("local destination stays distinct from a parameter");
+    store.root = checked_trees::CheckedStoreRoot::Parameter { position: 0 };
+    assert!(
+        lower_machine(&changed, TerminalMachineSelection::Name("fill")).is_err(),
+        "the original bag parameter cannot replace the returned holder identity"
+    );
+}
+
+#[test]
 fn owned_byte_literal_returns_keep_exact_source_and_result_custody() {
     for guarded in [false, true] {
         let body = if guarded {

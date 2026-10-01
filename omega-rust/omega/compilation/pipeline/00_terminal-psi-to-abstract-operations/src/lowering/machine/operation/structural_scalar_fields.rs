@@ -101,6 +101,39 @@ fn lower_store(
         .ok_or_else(invalid)?;
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
+    // A returned reference is a permission carrier, not a new record home.
+    // Peel only the explicit dereference for geometry; preserve the shell and
+    // full path below for independent ownership and native custody replay.
+    let (storage_type, storage_path) =
+        if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
+            let StructuralScalarStoreDestination::OwnedResult { result, .. } = &destination else {
+                return Err(invalid());
+            };
+            let Some(StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::MutableBorrow,
+            }) = structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+                .map(|declaration| &declaration.shape)
+            else {
+                return Err(invalid());
+            };
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !matches!(
+                    structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == *referent)
+                        .map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::Record { .. })
+                )
+            {
+                return Err(invalid());
+            }
+            (*referent, suffix)
+        } else {
+            (destination.structural_type(), path)
+        };
     if operation.result != OperationResult::Unit
         || !matches!(
             destination.multiplicity(),
@@ -112,7 +145,7 @@ fn lower_store(
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || !has_empty_structural_custody(machine, parameter.place)
         })
-        || !terminal_psi::is_structural_scalar_store_path(path)
+        || !terminal_psi::is_structural_scalar_store_path(storage_path)
         || !path
             .iter()
             .filter_map(StructuralPathSegment::runtime_index)
@@ -127,9 +160,8 @@ fn lower_store(
     {
         return Err(invalid());
     }
-    let parent_type =
-        resolve_structural_path(structural_types, destination.structural_type(), path)
-            .ok_or_else(invalid)?;
+    let parent_type = resolve_structural_path(structural_types, storage_type, storage_path)
+        .ok_or_else(invalid)?;
     let declaration = structural_types
         .iter()
         .find(|candidate| candidate.id == parent_type)

@@ -594,7 +594,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. },
             AbstractOperation::StructuralScalarFieldStore { .. },
         ) => storage_instructions::validate_structural_scalar_field_store(
-            actual, node, optimized, unit, operation,
+            actual, node, optimized, unit, operation, custody,
         )?,
         (
             LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
@@ -684,7 +684,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. },
             AbstractOperation::StructuralByteSequenceFieldByteStore { .. },
         ) => storage_instructions::validate_structural_byte_sequence_field_byte_store(
-            actual, node, optimized, plan, unit, operation,
+            actual, node, optimized, plan, unit, operation, custody,
         )?,
         (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { .. },
@@ -702,13 +702,13 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::ByteSequenceStore { .. },
             AbstractOperation::ByteSequenceStore { .. },
         ) => storage_instructions::validate_byte_sequence_store(
-            actual, node, optimized, plan, unit, operation,
+            actual, node, optimized, plan, unit, operation, custody,
         )?,
         (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. },
             AbstractOperation::StructuralByteSequenceFieldStore { .. },
         ) => storage_instructions::validate_structural_byte_sequence_field_store(
-            actual, node, optimized, plan, unit, operation,
+            actual, node, optimized, plan, unit, operation, custody,
         )?,
         (
             LegalizedScalarInstructionKind::ElementViewWrite { .. },

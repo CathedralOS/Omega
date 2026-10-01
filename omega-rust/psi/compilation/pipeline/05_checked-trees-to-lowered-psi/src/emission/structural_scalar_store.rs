@@ -297,6 +297,14 @@ pub(crate) fn lower_structural_field_steps<'a>(
         _ => declaration,
     };
     let mut steps = Vec::with_capacity(carrier_path.len());
+    // A record reference carries a pointer and its loan, not inline fields.
+    // Make that crossing explicit so downstream geometry cannot mistake the
+    // carrier's own home for the caller's record storage.
+    if matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+        && matches!(field_owner.shape, StructuralTypeShape::Record { .. })
+    {
+        steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
+    }
     for segment in carrier_path {
         let nested = match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {

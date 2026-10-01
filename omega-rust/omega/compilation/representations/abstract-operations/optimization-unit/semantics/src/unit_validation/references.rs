@@ -178,7 +178,7 @@ pub(crate) fn leaf_paths(
 }
 
 /// A whole-carrier result admits one borrow permission over a primitive
-/// scalar referent; that is the complete established shape this layer replays.
+/// scalar or a plain owned record referent, never ownership of that storage.
 /// Shared, mutable and write-only carriers share the same loan structure; the
 /// access stored on the carrier, not the referent identity, separates them.
 pub(crate) fn referent(
@@ -196,12 +196,126 @@ pub(crate) fn referent(
         } if matches!(
             types.get(&referent).map(|declaration| &declaration.shape),
             Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
-        ) =>
+        ) || (access_is_mutable_record(types, structural_type, referent)) =>
         {
             Some(referent)
         }
         _ => None,
     }
+}
+
+fn access_is_mutable_record(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    carrier: StructuralTypeId,
+    referent: StructuralTypeId,
+) -> bool {
+    reference_access(types, carrier) == Some(terminal_psi::StructuralAccess::MutableBorrow)
+        && matches!(
+            types.get(&referent).map(|row| &row.shape),
+            Some(terminal_psi::StructuralTypeShape::Record { .. })
+        )
+        && plain_referent_storage(types, referent)
+}
+
+/// The Terminal plain-owned referent rule, independently reconstructed from
+/// declarations. Byte predicates constrain owned bytes; views and references
+/// instead carry separate permissions and cannot be absorbed into this rule.
+fn plain_referent_storage(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeShape};
+    let mut pending = vec![(root, false)];
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    while let Some((current, exiting)) = pending.pop() {
+        if exiting {
+            active.remove(&current);
+            complete.insert(current);
+            continue;
+        }
+        if complete.contains(&current) {
+            continue;
+        }
+        if !active.insert(current) {
+            return false;
+        }
+        let Some(declaration) = types.get(&current) else {
+            return false;
+        };
+        pending.push((current, true));
+        let fields: Vec<_> = match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+                continue;
+            }
+            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| &case.fields).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .collect(),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                pending.push((*element, false));
+                continue;
+            }
+            _ => return false,
+        };
+        for field in fields {
+            if field.relevance.is_erased() {
+                return false;
+            }
+            match &field.field_type {
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::IeeeFloat(_) => {}
+                StructuralFieldType::Structural(child) => pending.push((*child, false)),
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => {}
+                _ => return false,
+            }
+        }
+    }
+    true
+}
+
+/// Recover geometry only. The live-reference ledger independently validates
+/// the carrier's active loan and rejects suspended or released permissions.
+pub(crate) fn mutable_record_field_destination<'path>(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    destination: PlaceId,
+    path: &'path [terminal_psi::StructuralPathSegment],
+) -> Option<(
+    StructuralTypeId,
+    &'path [terminal_psi::StructuralPathSegment],
+)> {
+    let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
+        return None;
+    };
+    let source = structural_source_contract(function, destination, false)?;
+    if source.access != terminal_psi::StructuralAccess::Owned
+        || source.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !source.is_unqualified()
+        || source.has_result_evidence()
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == destination)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == destination)
+    {
+        return None;
+    }
+    let referent = referent(types, source.structural_type)?;
+    access_is_mutable_record(types, source.structural_type, referent).then_some((referent, suffix))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent.
@@ -368,8 +482,8 @@ pub(crate) fn is_reference_projection(
         && source.access != terminal_psi::StructuralAccess::Owned
 }
 
-/// The primitive referent type an establishment or projection may name. Empty
-/// paths name whole primitive places; nonempty paths must end in `Referent`.
+/// The referent type an establishment or projection may name. Direct entry
+/// loans retain exact static projections; carrier projections end in `Referent`.
 pub(crate) fn reference_source_type(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -383,6 +497,18 @@ pub(crate) fn reference_source_type(
     ) {
         return None;
     }
+    if !source.path.is_empty()
+        && source.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        let parameter = direct_reference_parameter(function, source)?;
+        return leaf_type(types, parameter.structural_type, &source.path);
+    }
     if !source.path.is_empty() {
         return projected_carrier_type(function, types, source);
     }
@@ -391,25 +517,44 @@ pub(crate) fn reference_source_type(
         .iter()
         .find(|parameter| parameter.place == source.place)
     {
-        if parameter.access != terminal_psi::StructuralAccess::MutableBorrow
-            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == source.place)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == source.place)
-        {
-            return None;
-        }
-        return primitive_scalar_type(types, parameter.structural_type);
+        direct_reference_parameter(function, source)?;
+        return primitive_scalar_type(types, parameter.structural_type).or_else(|| {
+            (matches!(
+                types.get(&parameter.structural_type).map(|row| &row.shape),
+                Some(terminal_psi::StructuralTypeShape::Record { .. })
+            ) && plain_referent_storage(types, parameter.structural_type))
+            .then_some(parameter.structural_type)
+        });
     }
     let result = primitive_local_result(function, source.place)?;
     primitive_scalar_type(types, result.structural_type)
+}
+
+fn direct_reference_parameter<'a>(
+    function: &'a PsiOptimizationFunction,
+    source: &terminal_psi::StructuralArgument,
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source.place)?;
+    (matches!(
+        parameter.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::SharedBorrow
+    ) && access_covers(parameter.access, source.access)
+        && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && function
+            .entry_claim_declarations
+            .iter()
+            .all(|claim| claim.input != source.place)
+        && function
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != source.place))
+    .then_some(parameter)
 }
 
 fn primitive_scalar_type(
@@ -479,6 +624,20 @@ pub(crate) fn formal_origin(
         Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
             path: path.to_vec(),
+        }))
+    } else if !source.path.is_empty()
+        && direct_reference_parameter(function, source).is_some()
+        && source.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: source.path.clone(),
         }))
     } else {
         None
@@ -647,7 +806,7 @@ pub(crate) fn validate_function_references(
         result.structural_type,
         result.reference_sources.len(),
     )
-    .unwrap_or_else(|| std::process::exit(1));
+    .ok_or_else(invalid)?;
     // Result sources are a canonical map, not a lifecycle schedule. Constructors
     // and cleanup keep declaration order; only this interface comparison sorts.
     paths.sort();

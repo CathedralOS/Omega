@@ -721,7 +721,22 @@ pub(super) fn build_traced(
     // the only leaf: each returning state's own completion already spells
     // the parameter its borrow loans — in machine parameter positions — so
     // the machine publishes them when every return spells the same source.
-    if matches!(
+    let whole_reference = match &result {
+        checked_trees::CheckedControlResultPlan::Structural(result) => shapes
+            .types
+            .get(&result.type_identity)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    checked_trees::CheckedUnitStructuralTypeShape::Reference { .. }
+                )
+            }),
+        _ => false,
+    };
+    if whole_reference {
+        trace.phase("state graph: reference result origins");
+        plan.result_reference_sources = result_custody::reference_sources(&plan.states)?;
+    } else if matches!(
         result,
         checked_trees::CheckedControlResultPlan::Structural(_)
     ) && super::reference_results::is_reference_record(program, states[0].return_type)

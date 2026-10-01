@@ -267,7 +267,9 @@ pub(super) fn project(
             storage_instructions::project_write_only_primitive_store(node, optimized, unit)?
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
-            storage_instructions::project_structural_scalar_field_store(node, optimized, unit)?
+            storage_instructions::project_structural_scalar_field_store(
+                node, optimized, unit, custody,
+            )?
         }
         AbstractOperation::EstablishByteSequenceLiteral {
             place,
@@ -294,7 +296,7 @@ pub(super) fn project(
         } => call_instructions::project_dynamic_parameter_call(node, optimized, native)?,
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_byte_store(
-                node, optimized, unit,
+                node, optimized, unit, custody,
             )?
         }
         AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
@@ -306,11 +308,11 @@ pub(super) fn project(
             storage_instructions::project_byte_sequence_concatenation(node, optimized, unit)?
         }
         AbstractOperation::ByteSequenceStore { .. } => {
-            storage_instructions::project_byte_sequence_store(node, optimized, unit)?
+            storage_instructions::project_byte_sequence_store(node, optimized, unit, custody)?
         }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_store(
-                node, optimized, unit,
+                node, optimized, unit, custody,
             )?
         }
         AbstractOperation::ByteSequenceWrite { .. } => {
