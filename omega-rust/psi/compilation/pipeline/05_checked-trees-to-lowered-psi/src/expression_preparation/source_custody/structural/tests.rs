@@ -62,6 +62,69 @@ fn checked() -> CheckedTrees {
 }
 
 #[test]
+fn qualified_collection_views_replay_exact_source_type_path_and_access() {
+    for mutable in [false, true] {
+        let method = if mutable { "as_mut_slice" } else { "as_slice" };
+        let access = if mutable { "mut " } else { "" };
+        let checked = crate::front_end::checked_program(&format!(
+            "domain [u8; 8]::Utf8 requires valid_utf8(self);
+             data Cell [copy] {{ label: [u8; 8] in Utf8; }}
+             data Storage {{ cells: [Cell; 2]; }}
+             machine run(storage: &mut Storage) {{
+                 let view: &{access}[Cell] = storage.cells.{method}();
+             }}"
+        ));
+        let values = &checked.facts.values.structural_values;
+        let (root, argument) = values
+            .roots
+            .iter()
+            .find_map(|(_, root)| match &values.nodes.get(root.root).kind {
+                CheckedStructuralValueKind::BorrowedSliceView { source }
+                | CheckedStructuralValueKind::MutableSliceView { source } => Some((root, source)),
+                _ => None,
+            })
+            .expect("retained collection view");
+        let (machine, state) = super::super::authored_state(&checked, root.state).unwrap();
+        let loan = if mutable {
+            crate::expression_preparation::bindings::LoanAccess::Mutable
+        } else {
+            crate::expression_preparation::bindings::LoanAccess::Shared
+        };
+        let replay = |argument| {
+            super::slice_view::validate(
+                &checked,
+                machine,
+                state,
+                root.statement_ordinal,
+                root.expression,
+                argument,
+                loan,
+            )
+        };
+        replay(argument).expect("qualified storage can be lent without constructing its fields");
+        let mut changed = argument.clone();
+        changed.path.clear();
+        assert!(
+            replay(&changed).is_err(),
+            "the array field cannot become the whole root"
+        );
+        let mut changed = argument.clone();
+        changed.type_identity.push_str("::Other");
+        assert!(
+            replay(&changed).is_err(),
+            "the collection type must remain exact"
+        );
+        let mut changed = argument.clone();
+        changed.access = if mutable {
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        } else {
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        };
+        assert!(replay(&changed).is_err(), "the loan access cannot change");
+    }
+}
+
+#[test]
 fn projected_array_reads_require_their_dominating_case_selection() {
     let checked = crate::front_end::checked_program(
         "data Packet { case Empty; case Samples(values: [[i32; 2]; 2]); }

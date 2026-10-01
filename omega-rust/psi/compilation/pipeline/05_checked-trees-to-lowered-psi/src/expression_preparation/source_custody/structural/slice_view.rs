@@ -166,10 +166,17 @@ pub(super) fn validate(
     // The lent place is the projected collection, not the root's whole record:
     // an attached receiver may legitimately hold members (services, loans) the
     // pipeline cannot carry while the projected array keeps plain storage.
-    if !validation::has_linear_owned_contents(
-        &checked.typed,
-        validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf),
-    ) {
+    let collection = validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf);
+    // Lending an established collection preserves its represented field
+    // predicates in place; it neither constructs nor transfers its elements.
+    // The exact qualified collection identity and loan access were rejoined
+    // above, so inline byte predicates need no new construction authority.
+    if !validation::has_linear_owned_contents(&checked.typed, collection)
+        && !validation::has_plain_owned_contents_with_represented_constraints(
+            &checked.typed,
+            collection,
+        )
+    {
         return unsupported(refusal!(
             loan,
             "root is not a structural place the pipeline can carry"

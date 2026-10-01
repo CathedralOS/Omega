@@ -1,0 +1,30 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+data Tag [copy] { case First; case Second; }
+data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
+data Main { console: Binding<Console>; cells: [Cell; 2]; }
+
+machine fill(cell: &mut Cell, tag: Tag, value: u64) {
+    cell.tag = tag;
+    cell.value = value;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.cells[0].label = "first";
+    self.cells[1].label = "second";
+    let view: &mut [Cell] = self.cells.as_mut_slice();
+    fill(&mut view[0], Tag::First, 31);
+    fill(&mut view[1], Tag::Second, 39);
+    transition self.cells[0].value == 31
+        && self.cells[1].value == 39
+        && self.cells[0].label == "first"
+        && self.cells[1].label == "second"
+        && self.cells[0].tag == Tag::First
+        && self.cells[1].tag == Tag::Second {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}
