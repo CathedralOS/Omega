@@ -4,6 +4,7 @@ mod case_analysis;
 mod derived_endpoint_bounds;
 mod division_affine_transport;
 mod division_citation_composition;
+mod recomputed_guard;
 mod signed_and_division_goals;
 mod subtract_and_multiply_goals;
 

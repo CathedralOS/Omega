@@ -6,12 +6,14 @@
 //! the spine's last cast, so cast custody first carries a cited bound onto the
 //! cast root and affine custody then finishes from there.
 
+use std::collections::BTreeSet;
+
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, lift_fixed_integer_relation};
 use semantic_vocabulary::{IntegerMathTerm, IntegerType, Proposition, ScalarTerm, ScalarType};
 
 use super::super::affine_custody::{self, DefinitionIndex};
 use super::super::integer_evidence::projected_facts;
-use super::super::{cast_custody, integer_selection};
+use super::super::{cast_custody, integer_selection, value_transport};
 use super::literal::goal_literal_at;
 use super::roster::{is_value, ordered_at};
 use super::{Complete, Request};
@@ -165,6 +167,13 @@ pub(super) fn cast_truth(request: Request, complete: &mut dyn Complete) -> Optio
 /// The goal's literal bound proved on the non-cast source of each value goal
 /// endpoint, right first, by the full integer selection restricted to the
 /// semantic axioms before the spine's first cast.
+///
+/// A source recomputed from the same observations as a guarded value meets
+/// that guard only through its definition equations: selection cites
+/// relations among values, so it cannot see that `row * 20 + column` read
+/// again equals the guarded `row * 20 + column`. Value transport rejoins the
+/// two computations through their cited equations, under the same
+/// restricted roster, only after selection refuses the bound.
 pub(super) fn source_side_bound(
     request: Request,
     complete: &mut dyn Complete,
@@ -180,12 +189,23 @@ pub(super) fn source_side_bound(
             }
             let (source, first_cast) = cast_custody::source_root(target, request.semantic_axioms)?;
             let goal_literal = goal_literal_at(request.goal, &source, endpoint)?;
+            let source_goal = ordered_at(&source, &goal_literal, endpoint);
+            let semantic_axioms = &request.semantic_axioms[..first_cast];
             let root_bound = integer_selection::build(
                 request.context,
-                &ordered_at(&source, &goal_literal, endpoint),
+                &source_goal,
                 request.assumptions,
-                &request.semantic_axioms[..first_cast],
-            )?;
+                semantic_axioms,
+            )
+            .or_else(|| {
+                value_transport::prove(
+                    request.context,
+                    &source_goal,
+                    request.assumptions,
+                    semantic_axioms,
+                    &BTreeSet::new(),
+                )
+            })?;
             complete.complete(&source, root_bound)
         })
 }
