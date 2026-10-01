@@ -711,8 +711,8 @@ fail/operators/operand_requires_invalidated rejected 601ms expected @2d8ed253669
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 244ms expected @2d8ed253669f
 	duplicate operator declaration `Slice::index`
-fail/operators/selected_crash_invocation rejected 535ms unexpected @2d8ed253669f
-	selected operator crash invocation requires exact selected meaning and ordered operand capture
+fail/operators/selected_crash_invocation rejected 195ms expected @3a0c3ba44cd8+wt
+	selected operator `Float::equal` in `compare` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/ownership/assign_immutable_parameter rejected 252ms expected @2d8ed253669f
 	machine `Main::main` state `overwrite` assignment cannot write `input_value` because it is not mutable in this state (if `input_value` is undeclared -- a typo -- no such field or local exists)
 fail/ownership/borrowed_storage_boundary_call rejected 577ms expected @2d8ed253669f
@@ -1209,7 +1209,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms @ca8c127c90
 pass/calls/cyclic_projected_borrow_call_exit checked 1488ms @2d8ed253669f
 pass/calls/cyclic_scalar_query_reborrow_exit checked 1429ms @2d8ed253669f
 pass/calls/field_path_byte_subslice_exit checked 1321ms @2d8ed253669f
-pass/calls/guard_call_scalar_argument_exit checked 295ms @2d8ed253669f
+pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
