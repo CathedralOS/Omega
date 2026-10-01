@@ -56,6 +56,85 @@ pub(super) struct StoredLocalOrigins {
     pub symbolic: bool,
 }
 
+/// An exclusive call can replace a private value's cases without introducing
+/// caller-visible references. Its old case and move snapshots cannot survive
+/// that call. Retain an empty row and append the same inference snapshot so a
+/// later projection cannot recover the overwritten initializer's evidence.
+/// Retiring before call traversal is conservative: it supplies no new origin,
+/// and the ordinary exposure fence and complete call frame are still required.
+pub(super) fn retire_private_call_argument_cases(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    call: &typed_trees::statement::TableCall,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &mut [StoredLocalOrigins],
+    inference: &mut FrameInference,
+) {
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::StatementNode;
+
+    for argument in program.statement_table.expression_handles(call.arguments) {
+        let ExpressionNode::Borrow(borrow) = program.expression_table.expression(*argument) else {
+            continue;
+        };
+        if !borrow.access.is_exclusive() {
+            continue;
+        }
+        let ExpressionNode::Name(name) = program.expression_table.expression(borrow.target) else {
+            continue;
+        };
+        let Some(source) = frozen_bindings::binding_source(program, borrow.target, aliases) else {
+            continue;
+        };
+        if !source.root.is_valid()
+            || source.root != name.symbol
+            || !source.segments.is_empty()
+            || program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+        {
+            continue;
+        }
+        let declaration = program.symbols.get(source.root);
+        if declaration.kind != symbols::SymbolKind::Local || declaration.parent != state.symbol {
+            continue;
+        }
+        let Some(local) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == source.root => Some(local),
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        if !super::type_is_caller_isolated_local(program, local.type_reference)
+            || super::type_may_carry_write(program, local.type_reference)
+        {
+            continue;
+        }
+        let Some(established) = stored
+            .iter_mut()
+            .find(|local| local.local_symbol == source.root)
+        else {
+            continue;
+        };
+        if !established.references.is_empty()
+            || (established.cases.is_empty() && established.moves.is_empty())
+        {
+            continue;
+        }
+        established.cases.clear();
+        established.moves.clear();
+        established.symbolic = false;
+        inference.record_local(established);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct StoredWriteOrigin {
     pub local_symbol: SymbolHandle,
