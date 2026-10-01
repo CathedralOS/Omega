@@ -91,7 +91,8 @@ pub(super) fn parameter_type(
     let parameter = machine
         .structural_parameters
         .iter()
-        .find(|entry| entry.place == place)?;
+        .find(|entry| entry.place == place)
+        .or_else(|| super::block_views::parameter(machine, place))?;
     let allowed = if writing {
         matches!(
             parameter.access,
@@ -115,11 +116,12 @@ pub(super) fn parameter_type(
             .content_entry_claims
             .iter()
             .all(|claim| claim.input.root != place)
-        && machine.structural_places.iter().any(|entry| {
-            entry.id == place
-                && matches!(entry.kind, StructuralPlaceKind::Parameter { position, is_self }
+        && (super::block_views::parameter(machine, place) == Some(parameter)
+            || machine.structural_places.iter().any(|entry| {
+                entry.id == place
+                    && matches!(entry.kind, StructuralPlaceKind::Parameter { position, is_self }
                 if position == parameter.position && is_self == parameter.is_self)
-        }))
+            })))
     .then_some(parameter.structural_type)
 }
 
@@ -157,15 +159,6 @@ pub(super) fn read_type(
         return projected_type(module, machine, place, path, false).ok_or_else(invalid);
     }
     let structural_type = parameter_type(machine, place, false)
-        .or_else(|| {
-            super::block_views::parameter(machine, place).and_then(|parameter| {
-                matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                .then_some(parameter.structural_type)
-            })
-        })
         .or_else(|| local_result(machine, place).map(|result| result.structural_type))
         .ok_or_else(invalid)?;
     scalar_type(module, structural_type).ok_or_else(invalid)

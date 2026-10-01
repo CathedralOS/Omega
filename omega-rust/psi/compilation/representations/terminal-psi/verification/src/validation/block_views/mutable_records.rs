@@ -1,12 +1,12 @@
-//! Exclusive aggregate and service state loans keep the caller's
+//! Exclusive plain-storage and service state loans keep the caller's
 //! storage identity.
 //!
 //! The ordinary mutable-parameter fixed point transfers the usable name on
 //! each edge. This replay also follows borrowed block aliases so an earlier
 //! shared name cannot observe a record after its exclusive successor took
 //! custody. Calls reborrow the current name; they do not transfer it.
-//! Fixed arrays use the same storage-loan rule as records: repeating a plain
-//! element does not change permission, and forwarding a loan never copies its
+//! Scalar leaves, records and fixed arrays use the same storage-loan rule:
+//! aggregating plain storage does not change permission, and a loan never copies its
 //! referent. Recursive plain-type validation still excludes nested permission
 //! carriers; the edge and frontier checks retain exact type and live custody.
 
@@ -33,25 +33,9 @@ pub(crate) fn borrowed_carrier_type(
     module: &TerminalModule,
     root: super::StructuralTypeId,
 ) -> bool {
-    // A plain sum loan carries its referent's address exactly as a record's
-    // does: the state may replace the whole referent through its root window
-    // or write a common field, and the caller observes those writes.
-    if !module.structural_types.iter().any(|declaration| {
-        declaration.id == root
-            && match declaration.shape {
-                StructuralTypeShape::FusedServiceBinding | StructuralTypeShape::Record { .. } => {
-                    true
-                }
-                StructuralTypeShape::Sum { .. }
-                | StructuralTypeShape::Mixed { .. }
-                | StructuralTypeShape::FixedArray { .. } => {
-                    super::super::record::plain_type(module, root)
-                }
-                _ => false,
-            }
-    }) {
-        return false;
-    }
+    // The referent's recursively checked storage determines eligibility.
+    // Do not impose an additional aggregate-only gate at its root: a scalar
+    // leaf borrows the same way alone as it does inside a record or array.
     let mut pending = vec![root];
     let mut visited = BTreeSet::new();
     while let Some(current) = pending.pop() {

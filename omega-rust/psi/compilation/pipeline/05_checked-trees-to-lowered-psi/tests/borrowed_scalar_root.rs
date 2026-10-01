@@ -23,6 +23,68 @@ machine enter(before: u64, slot: &mut u64, after: u64) -> u64 {
 "#;
 
 #[test]
+fn mutable_primitive_state_loans_store_and_forward_with_exact_access() {
+    let source = r#"
+        data Owner { value: u64; }
+        machine Owner::enter(&mut self) {
+            transition { _ -> first(&mut self.value) }
+            state first(&mut self, value: &mut u64) {
+                value = ((value as u64 in Wrapping) + 1) as u64;
+                transition { _ -> second(value) }
+            }
+            state second(&mut self, value: &mut u64) {
+                value = ((value as u64 in Wrapping) + 1) as u64;
+                transition value < 70 {
+                    true -> first(value)
+                    false -> done()
+                }
+            }
+            state done(&mut self) {}
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Owner::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("primitive state loans retain their mutable storage")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile)
+        .expect("decoded mutable loans independently verify");
+
+    // Neither an invocation nor a block may lend authority it does not hold.
+    for invocation in [true, false] {
+        let mut changed = module.clone();
+        let parameter = if invocation {
+            changed
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.structural_parameters)
+                .find(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+        } else {
+            changed
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.structural_parameters)
+                .find(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+        }
+        .unwrap_or_else(|| panic!("source retains loan declaration (invocation={invocation})"));
+        parameter.access = StructuralAccess::SharedBorrow;
+        assert!(
+            terminal_verifier::verify_module(&changed, &proof, &profile).is_err(),
+            "shared storage cannot be written or forwarded exclusively"
+        );
+    }
+}
+
+#[test]
 fn state_prefix_reads_primitive_loans_and_local_windows_keep_custody() {
     let source = r#"
         boundary trait Output { machine count(value: u64) reaches Output; }
