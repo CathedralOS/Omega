@@ -1800,8 +1800,7 @@ pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
-pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 907ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 1)
+pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 1291ms @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 2289ms @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 975ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)

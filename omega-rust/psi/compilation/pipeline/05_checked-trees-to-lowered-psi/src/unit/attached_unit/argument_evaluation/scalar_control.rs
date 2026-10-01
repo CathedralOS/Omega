@@ -481,6 +481,7 @@ impl Evaluation {
             .with_element_views(&self.element_views)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
+            .with_byte_record_loans(&self.byte_record_loans)
             // A case arm may read a payload its own membership test selects;
             // the arm's dispatch binds or refuses each read.
             .with_deferred_case_payloads();

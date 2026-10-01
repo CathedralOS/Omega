@@ -1,7 +1,7 @@
 //! Resolve checked-local storage against its current SSA value or primitive place.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
+    LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, terminal_scalar_type, unsupported,
 };
@@ -11,6 +11,7 @@ use crate::expression_preparation::source_custody;
 
 #[cfg(test)]
 mod case_observation_tests;
+pub(crate) mod recast_records;
 pub(crate) mod structural_cases;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
@@ -75,6 +76,8 @@ pub(crate) struct ScalarBindings {
     element_views: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     /// Established immutable view locals an observation may root at.
     view_locals: Vec<view_locals::ViewLocalBinding>,
+    byte_record_loans:
+        std::sync::Arc<[crate::expression_preparation::bindings::recast_records::ByteRecordLoan]>,
 }
 
 impl ScalarBindings {
@@ -624,6 +627,7 @@ impl ScalarBindings {
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             view_locals: Vec::new(),
+            byte_record_loans: std::sync::Arc::from([]),
         }
     }
 
@@ -660,6 +664,87 @@ impl ScalarBindings {
     pub(crate) fn with_view_locals(mut self, locals: &[view_locals::ViewLocalBinding]) -> Self {
         self.view_locals = locals.to_vec();
         self
+    }
+
+    pub(crate) fn with_byte_record_loans(
+        mut self,
+        loans: &std::sync::Arc<
+            [crate::expression_preparation::bindings::recast_records::ByteRecordLoan],
+        >,
+    ) -> Self {
+        self.byte_record_loans = loans.clone();
+        self
+    }
+
+    /// Resolve the backing at the observation, without establishing a second
+    /// place for a recast marker or granting a read through write-only custody.
+    pub(crate) fn byte_record_backing(
+        &self,
+        source: crate::expression_preparation::bindings::recast_records::LoanedSource,
+    ) -> Result<PlaceId, LoweringError> {
+        use crate::expression_preparation::bindings::recast_records::LoanedSource;
+        match source {
+            LoanedSource::Parameter(position) => {
+                let (_, parameter) = self.structural_parameters.get(position as usize).ok_or(
+                    LoweringError::Unsupported(
+                        "record byte observation lost its backing parameter",
+                    ),
+                )?;
+                if !matches!(
+                    parameter.access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                ) || !parameter.projected_qualifications.is_empty()
+                {
+                    return unsupported("record byte observation changed its parameter custody");
+                }
+                Ok(parameter.place)
+            }
+            LoanedSource::Local(symbol) => {
+                let mut candidates = self
+                    .structural_locals
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == symbol);
+                let Some((_, argument)) = candidates.next() else {
+                    return unsupported("record byte observation lost its live local backing");
+                };
+                if candidates.next().is_some()
+                    || !symbol.is_valid()
+                    || !argument.path.is_empty()
+                    || !matches!(
+                        argument.access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                    )
+                {
+                    return unsupported("record byte observation changed its local custody");
+                }
+                Ok(argument.place)
+            }
+        }
+    }
+
+    pub(crate) fn byte_record_observation(
+        &self,
+        symbol: symbols::SymbolHandle,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        index: &CheckedScalarExpression,
+        inner_indexes: &[CheckedScalarExpression],
+        element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        primitive: PrimitiveType,
+    ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
+        crate::expression_preparation::bindings::recast_records::byte_record_observation(
+            &self.byte_record_loans,
+            self,
+            symbol,
+            path,
+            index,
+            inner_indexes,
+            element_path,
+            primitive,
+        )
     }
 
     /// Resolve an independently replayed immutable view to the activation's

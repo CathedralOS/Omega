@@ -476,6 +476,9 @@ pub(super) fn view_local_root(
         && (crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
             local.type_reference,
+        ) || crate::execution::terminal_unit::types::borrowed_named_view(
+            program,
+            local.type_reference,
         ) || crate::execution::terminal_unit::types::element_view_shell(
             program,
             local.type_reference,

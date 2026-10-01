@@ -51,6 +51,13 @@ impl StateGraphEmission<'_, '_> {
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             local_cases: Vec::new(),
+            byte_record_loans:
+                crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    &self.catalogs.structural_types,
+                )?,
             record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
                 checked,
                 plan.machine,
@@ -153,6 +160,7 @@ impl StateGraphEmission<'_, '_> {
             state,
             &evaluation.structural_parameters,
             &self.catalogs.structural_types,
+            &evaluation.byte_record_loans,
             &mut values,
             &mut next_value,
             &mut operations,

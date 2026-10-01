@@ -62,6 +62,13 @@ pub(crate) fn emit_call_leaf(
         view_locals: Vec::new(),
         element_views: std::collections::BTreeMap::new(),
         local_cases: Vec::new(),
+        byte_record_loans:
+            crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+                checked,
+                machine,
+                state.state,
+                &catalogs.structural_types,
+            )?,
         record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
             checked,
             machine,

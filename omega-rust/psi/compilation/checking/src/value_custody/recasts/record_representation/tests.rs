@@ -569,8 +569,11 @@ fn scalar_path_projection_preserves_nested_array_geometry_and_exact_leaves() {
         Segment::FixedIndex(1),
         Segment::FixedIndex(1),
     ];
+    let prepared =
+        super::recast_scalar_layout(&program, matrix_type).expect("one normalized referee layout");
     let projection = super::recast_scalar_path_projection(&program, matrix_type, &path)
         .expect("nested array endpoint");
+    assert_eq!(prepared.scalar_path_projection(&path), Some(projection));
     assert_eq!(projection.offset, 14);
     assert_eq!(projection.footprint, 32);
     assert_eq!(projection.primitive, typed_trees::types::PrimitiveType::U16);
@@ -579,16 +582,20 @@ fn scalar_path_projection_preserves_nested_array_geometry_and_exact_leaves() {
     let mut invalid = path.clone();
     invalid[0] = Segment::Field("absent".to_owned());
     assert!(super::recast_scalar_path_projection(&program, matrix_type, &invalid).is_none());
+    assert!(prepared.scalar_path_projection(&invalid).is_none());
     for position in [1, 2] {
         let mut invalid = path.clone();
         invalid[position] = Segment::FixedIndex(2);
         assert!(super::recast_scalar_path_projection(&program, matrix_type, &invalid).is_none());
+        assert!(prepared.scalar_path_projection(&invalid).is_none());
     }
     let mut runtime = path.clone();
     runtime[2] =
         Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::Parameter { position: 0 });
     assert!(super::recast_scalar_path_projection(&program, matrix_type, &runtime).is_none());
+    assert!(prepared.scalar_path_projection(&runtime).is_none());
     assert!(super::recast_scalar_path_projection(&program, matrix_type, &path[..2]).is_none());
+    assert!(prepared.scalar_path_projection(&path[..2]).is_none());
 
     let marker = super::recast_scalar_projection(&program, matrix_type, &[], fields[1].0)
         .expect("exact marker field");
@@ -607,6 +614,14 @@ fn scalar_path_projection_preserves_nested_array_geometry_and_exact_leaves() {
     assert_eq!(marker_path.stored_integer, marker.stored_integer);
     assert_eq!(marker.stored_integer.expect("stored integer").bits(), 16);
     assert!(super::recast_scalar_projection(&program, matrix_type, &[], other_marker).is_none());
+    assert_eq!(
+        prepared.scalar_path_projection(&[Segment::Field(fields[1].1.clone())]),
+        Some(marker)
+    );
+    let shared = prepared.clone();
+    assert!(std::sync::Arc::ptr_eq(&prepared.leaves, &shared.leaves));
+    drop(program);
+    assert_eq!(shared.scalar_path_projection(&path), Some(projection));
 }
 
 #[test]

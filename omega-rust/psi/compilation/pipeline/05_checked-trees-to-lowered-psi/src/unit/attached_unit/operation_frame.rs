@@ -964,6 +964,7 @@ impl OperationFrame<'_, '_> {
         ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_primitive_storage(&self.evaluation.primitive_storage)
             .with_view_locals(&self.evaluation.view_locals)
+            .with_byte_record_loans(&self.evaluation.byte_record_loans)
             .with_element_views(&self.evaluation.element_views)
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals)
@@ -989,7 +990,8 @@ impl OperationFrame<'_, '_> {
                 dense = bindings
                     .clone()
                     .with_structural_locals(&self.evaluation.structural_locals)
-                    .with_view_locals(&self.evaluation.view_locals);
+                    .with_view_locals(&self.evaluation.view_locals)
+                    .with_byte_record_loans(&self.evaluation.byte_record_loans);
                 &dense
             }
             None => {
@@ -2355,7 +2357,8 @@ impl OperationFrame<'_, '_> {
                     .with_structural_observations(self.structural_types.declarations())
             })
             .with_structural_locals(&self.evaluation.structural_locals)
-            .with_view_locals(&self.evaluation.view_locals);
+            .with_view_locals(&self.evaluation.view_locals)
+            .with_byte_record_loans(&self.evaluation.byte_record_loans);
         let destination = place_id(allocate_dense(self.next_place)?);
         let site = ViewRangeSite {
             state: self.state,
