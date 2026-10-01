@@ -634,7 +634,12 @@ pub(crate) fn borrowed_nominal_argument(
                         .all(&borrowed_field)
             }
             CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&borrowed_field),
+            // A `FusedServiceBacked` field registers its binding carrier as
+            // its own payload-free member type. The structural root check
+            // above excludes it as the borrowed referent, so it enters this
+            // closure only through a field `borrowed_field` already admits.
             CheckedUnitStructuralTypeShape::FixedArray { .. }
+            | CheckedUnitStructuralTypeShape::FusedServiceBinding
             | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => true,
             _ => false,
         });

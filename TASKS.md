@@ -1677,9 +1677,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   byte-only. Compose constructor operands with exact stored-loan origins and
   lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals.
 
-  The wire customers now construct their records and stop at the generated
-  codec call, `statement sequence: call: flow call`, as does the array-free
-  `pass/wire/runtime_wire_decode_rejects_wrong_era_exit`. `Schema::encode` and
+  The wire customers now construct their records and reach their generated
+  codec bodies: `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`
+  and the array-free `pass/wire/runtime_wire_decode_rejects_wrong_era_exit`
+  stop inside `RoomPacket::decode` / `CounterMessage::decode` at
+  `structural field store: record literal source`. `Schema::encode` and
   `Schema::decode` are stage 04 intrinsics (`authored_selections/intrinsic_calls.rs`,
   `WireEncode`/`WireDecode`) with no body, Terminal operation or Omega
   realization; only the checked interpreter executes them.

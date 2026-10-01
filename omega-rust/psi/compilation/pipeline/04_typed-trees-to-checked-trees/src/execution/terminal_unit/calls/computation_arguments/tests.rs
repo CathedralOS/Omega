@@ -751,3 +751,92 @@ fn erased_formals_occupy_no_structural_slot_in_forwarded_computation_arguments()
         argument.source
     );
 }
+
+/// A context record that holds a `Binding<R>` lends itself to a scalar call
+/// nested in a constructor operand exactly as one without it. The binding
+/// field's carrier is collected as its own payload-free `FusedServiceBinding`
+/// member type, never as an empty record; that member must not decline the
+/// loan of the enclosing record, or the ordinary effect body loses the store.
+#[test]
+fn binding_holding_context_lends_itself_to_a_nested_scalar_call() {
+    let mut typed = crate::tests::front_end::typed_program_with_core_service(
+        r#"
+pub boundary trait Host { machine mark(value: i32); }
+pub data Packet { samples: [i32; 2]; stamp: i32; }
+pub data Context { host: Binding<Host>; packet: Packet; samples: [i32; 2]; }
+machine stamp(context: &mut Context) -> i32 { context.samples[0] = 90; 7 }
+machine snapshot(context: &mut Context) reaches Host {
+    context.packet = Packet { samples: context.samples, stamp: stamp(context) };
+    context.host.mark(1);
+}
+"#,
+    );
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let snapshot = machine(&checked.typed, "snapshot");
+    let callee = machine(&checked.typed, "stamp");
+    let effects = &checked.facts.flow.terminal_unit_effects;
+    effects.for_machine(snapshot.symbol).unwrap_or_else(|| {
+        panic!(
+            "the snapshot store keeps its ordinary effect body: {:?}",
+            effects.omission_for_machine(snapshot.symbol)
+        )
+    });
+    let plans = &checked.facts.values.scalar_computations;
+    let structural_arguments = plans
+        .nodes
+        .iter()
+        .find_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call {
+                target_machine,
+                structural_arguments,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            (target_machine == callee.symbol).then_some(structural_arguments)
+        })
+        .expect("the constructor operand keeps its scalar call");
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap()
+    else {
+        panic!("one forwarded context loan");
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(argument.path.is_empty(), "the whole context is lent");
+    assert!(matches!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    ));
+    // The binding stays a nonconstructible carrier beside the context record.
+    let shape = |identity: &str| {
+        effects
+            .structural_types
+            .iter()
+            .find(|plan| plan.identity == identity)
+            .map(|plan| &plan.shape)
+    };
+    let Some(checked_trees::CheckedUnitStructuralTypeShape::Record { fields }) =
+        shape(&argument.type_identity)
+    else {
+        panic!("the lent context is a record");
+    };
+    let binding = fields
+        .iter()
+        .find_map(|field| match &field.field_type {
+            checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
+                provider_type_identity,
+                ..
+            } => Some(provider_type_identity.as_str()),
+            _ => None,
+        })
+        .expect("the host field keeps its fused service receipt");
+    assert_eq!(
+        shape(binding),
+        Some(&checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding)
+    );
+}
