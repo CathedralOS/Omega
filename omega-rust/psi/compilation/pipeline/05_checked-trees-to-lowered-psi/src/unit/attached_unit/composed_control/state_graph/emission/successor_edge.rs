@@ -757,6 +757,16 @@ impl StateGraphEmission<'_, '_> {
                         {
                             StructuralAccess::Owned
                         }
+                        // A shared parameter that holds its source's whole
+                        // exclusive loan receives that loan's mutable name.
+                        _ if self
+                            .admitted
+                            .exclusive_handoffs
+                            .get(target)
+                            .is_some_and(|promoted| promoted.contains(&(target_index as u32))) =>
+                        {
+                            StructuralAccess::MutableBorrow
+                        }
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::MutableBorrow => {
                             StructuralAccess::MutableBorrow
