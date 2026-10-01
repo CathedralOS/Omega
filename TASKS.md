@@ -867,19 +867,29 @@ the complete product bar; focused successes below do not establish that baseline
   eight/seven-result oracle; it remains unpublished. Its retained local lock
   records the previously reviewed 17-package acceptance with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`. On macOS ARM64, compiler
-  `bd5db53b6d` and the bounded statement-prefix query repair rebased onto
-  `1777ad706f` both reach the same
-  failure with unchanged source: `omega run --target linux_x86_64
-  samples/apps/squalr/squalr-tests/main.omg` exits 200 at
-  `SqualrEngine::init`, statement 1, `statement sequence: assignment:
-  structural call result field store`. Prefix collection now stops at its last
-  incoming statement boundary; complete write summaries still follow successor
-  effects. This removes unnecessary checking work, not the missing result shape.
+  `69b64648f5e` plus the saved-dispatch-payload repair runs `omega run --target
+  linux_x86_64 samples/apps/squalr/squalr-tests/main.omg` to fresh package review,
+  exiting 200 with 14 borrow diagnostics. The three false conflicts in the
+  unsigned-greater-than-zero rule's `greater` states are gone: a copied payload
+  reads the dispatch's saved call result rather than re-evaluating its receiver.
+  `pass/borrow/runtime_dispatch_call_payload_snapshot_exit` exits 70 natively,
+  preserving one subject evaluation, copied payload value, and later mutation;
+  its return cleanup accounts for the case edge's prior subject disposal.
+
+  The current first refusal is `pick_previous`: `current_elements` is forwarded
+  mutably before `current_elements[0]` is read as a later argument;
+  `make_driver` does the same with `previous_elements[0]`. Other mutable/read
+  conflicts name `build_results`, `seal_store`, `copy_loop`, `inner`, and
+  `fill_order`. Preserve language argument order and scan behavior; where a
+  later read conflicts with an earlier loan, snapshot the value before lending.
+  `next_virtual_page` and `host_open_at` also report receiver/write-frame
+  conflicts; trace their actual mutations before changing admission.
   The separately retained application checkout `8bc13d5` stops earlier at an
   unsupported `omega.lock` version; preserve its pins and obtain ordinary fresh
   package review rather than transplanting the older accepted lock.
 
-  The result-store diagnostic isolates stage 04's
+  The earlier result-store frontier, not reached by this current review,
+  isolates stage 04's
   `control/call_results.rs` result-shape classification: `EnginePrivilegedState`
   nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
   need no fabricated binding, but transporting the aggregate must preserve
@@ -887,12 +897,11 @@ the complete product bar; focused successes below do not establish that baseline
   native reproduction still needs the routed-owned classifier and
   ordinary result consumers revalidated against the
   current Binding representation; their old `InvalidErasedStructuralField`
-  diagnostic is not evidence of the current next failure. Coordinate the shared
-  `checking/src/value_custody/storage_contents.rs` with
-  `DUNGEON-OWNED-COPY-CONTENTS` before editing it.
+  diagnostic is not evidence of the current next failure. Check current claims
+  on shared `checking/src/value_custody/storage_contents.rs` before editing it.
 
-  Restore owned-result transport, then rerun the unchanged application
-  to identify its next dependency. Complete
+  Resolve the current borrow refusals, rerun the complete application, and
+  revalidate owned-result transport if it becomes the first failure again. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current

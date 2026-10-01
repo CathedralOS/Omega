@@ -117,7 +117,13 @@ pub(super) fn collect_read_accesses(
             collect_read_accesses(collection, indexed.index);
         }
         ExpressionNode::Member(member) => {
-            if !append_read_access(collection, expression) {
+            if !append_read_access(collection, expression)
+                && !(member.case_variant.is_some() && collection.reads_extracted_copy(expression))
+            {
+                // A copied dispatch payload reads its saved subject, not a
+                // fresh invocation of the expression that produced it. Place
+                // subjects retain their completed observation row above;
+                // computed subjects have no additional caller-storage read.
                 collect_read_accesses(collection, member.receiver);
             }
         }

@@ -4,26 +4,27 @@
 //! that saved subject (`wiki/spec/language/patterns.md`). The parser rewrites
 //! each destructured payload binding into a case-qualified projection of the
 //! subject (`TableMemberExpression::case_variant`), and the arm's guard tests
-//! the same subject place for that case. A plain-copy payload is therefore
+//! the same subject expression for that case. A plain-copy payload is therefore
 //! copied when the arm is selected, before the target evaluates any argument:
 //! its row ends before access 0 instead of observing the subject alongside a
 //! later loan of the subject's root.
+//! Computed subjects have no source place: their payload reads must not replay
+//! the subject's calls or operand loans as part of the selected arm.
 //!
 //! Only the arm target's own roster carries these selections. Authored
 //! projections have no case qualifier, and loans of a payload or non-copy
 //! payloads keep their ordinary accesses. Nested calls' own rosters, which
 //! stage 05 replays independently, keep their argument-order ends.
 
-use super::BorrowAccessPlace;
 use super::collection::BorrowAccessCollection;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use symbols::SymbolHandle;
 
-/// The subject places and cases a transition arm's guard selected.
+/// The saved subject expressions and cases a transition arm's guard selected.
 #[derive(Default)]
 pub(super) struct DispatchExtraction {
-    selected_cases: Vec<(BorrowAccessPlace, SymbolHandle)>,
+    selected_cases: Vec<(ExpressionHandle, SymbolHandle)>,
 }
 
 impl DispatchExtraction {
@@ -32,7 +33,6 @@ impl DispatchExtraction {
         program: &typed_trees::TypedTrees,
         state_symbol: SymbolHandle,
         statement_index: usize,
-        machine_symbol: SymbolHandle,
     ) -> Self {
         let mut extraction = Self::default();
         let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
@@ -67,15 +67,7 @@ impl DispatchExtraction {
                     if validation::exact_case_reference_owner(program, binary.right).is_none() {
                         continue;
                     }
-                    if let Some(subject) = super::borrow_access_place(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.left,
-                        machine_symbol,
-                    ) {
-                        extraction.selected_cases.push((subject, case.symbol));
-                    }
+                    extraction.selected_cases.push((binary.left, case.symbol));
                 }
                 _ => {}
             }
@@ -94,38 +86,29 @@ impl DispatchExtraction {
             return false;
         }
         let program = collection.program;
-        let (payload, receiver) = loop {
+        let (payload, member) = loop {
             match program.expression_table.expression(expression) {
                 ExpressionNode::Member(member) if member.case_variant.is_some() => {
-                    break (expression, member.receiver);
+                    break (expression, member);
                 }
                 ExpressionNode::Member(member) => expression = member.receiver,
                 ExpressionNode::Indexed(indexed) => expression = indexed.collection,
                 _ => return false,
             }
         };
-        let (Some(subject), Some(payload_place)) = (
-            collection.borrow_access_place(receiver),
-            collection.borrow_access_place(payload),
-        ) else {
+        let field = crate::flow::effective_member_symbol(program, member.receiver, member);
+        let Some(variant) = facts::payload_variant_for_field(program, field) else {
             return false;
         };
-        let Some(
-            [
-                facts::PlaceSegment::Case { variant },
-                facts::PlaceSegment::Field { .. },
-            ],
-        ) = payload_place
-            .segments
-            .strip_prefix(subject.segments.as_slice())
-        else {
-            return false;
-        };
-        payload_place.root_symbol == subject.root_symbol
-            && self
-                .selected_cases
-                .iter()
-                .any(|(selected, case)| case == variant && *selected == subject)
-            && collection.is_plain_copy(payload)
+        // A subject need not denote storage: a completed call or literal also
+        // produces a saved value. The case-qualified projection is parser-
+        // generated and must rejoin that exact selected subject, not merely a
+        // call returning the same type. Lowering may clone its expression tree.
+        self.selected_cases.iter().any(|(selected, case)| {
+            *case == variant
+                && program
+                    .expression_table
+                    .expressions_structurally_equal(*selected, member.receiver)
+        }) && collection.is_plain_copy(payload)
     }
 }

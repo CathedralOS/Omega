@@ -463,6 +463,7 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     arm_namespace,
+                    &[],
                     return_arm,
                     &mut evaluation,
                     &mut next_value,
@@ -491,6 +492,7 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     true_namespace,
+                    &[],
                     when_true,
                     &mut evaluation,
                     &mut next_value,
@@ -502,6 +504,7 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     values.clone(),
+                    &[],
                     when_false,
                     &mut evaluation,
                     &mut next_value,
@@ -518,6 +521,11 @@ impl StateGraphEmission<'_, '_> {
         // return arm's, before the successor-edge closure borrows this
         // state's emission slots. The case edge carries the subject's
         // consumption into the return block.
+        let case_subject_discards = prepared_cases
+            .as_ref()
+            .filter(|prepared| prepared.discard_subject)
+            .map(|prepared| vec![prepared.source])
+            .unwrap_or_default();
         let closed_return_edges = if let Some(prepared) = &prepared_cases {
             prepared
                 .cases
@@ -528,6 +536,7 @@ impl StateGraphEmission<'_, '_> {
                             position,
                             &state_parameters,
                             values.clone(),
+                            &case_subject_discards,
                             return_arm,
                             &mut evaluation,
                             &mut next_value,
@@ -565,6 +574,7 @@ impl StateGraphEmission<'_, '_> {
                                 position,
                                 &state_parameters,
                                 namespace,
+                                &[],
                                 &plan.return_arm,
                                 &mut evaluation,
                                 &mut next_value,
@@ -593,6 +603,7 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     values.clone(),
+                    &[],
                     return_arm,
                     &mut evaluation,
                     &mut next_value,
@@ -1063,11 +1074,7 @@ impl StateGraphEmission<'_, '_> {
                             target: edge.target,
                             case: case.identity,
                             payload_fields: case.fields.clone(),
-                            trivial_affine_discards: if prepared.discard_subject {
-                                vec![prepared.source]
-                            } else {
-                                Vec::new()
-                            },
+                            trivial_affine_discards: case_subject_discards.clone(),
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;

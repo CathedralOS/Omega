@@ -19,6 +19,7 @@ impl StateGraphEmission<'_, '_> {
         position: usize,
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
+        predecessor_discards: &[semantic_vocabulary::PlaceId],
         return_arm: &checked_trees::CheckedConditionalReturnArm,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
@@ -35,7 +36,7 @@ impl StateGraphEmission<'_, '_> {
         let mut arm_values = arm_namespace;
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
-        let terminator = match return_arm {
+        let mut terminator = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
                 trivial_affine_discards: super::state::return_root_discards(
@@ -181,6 +182,34 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
         };
+        // Return cleanup starts at the arriving frontier, not the dispatch's
+        // pre-edge frontier. A case edge already disposed its saved subject
+        // after extracting payloads. Retain the other roots in their original
+        // order; Terminal independently replays the edge and exact remainder.
+        match &mut terminator {
+            Terminator::Return {
+                cleanup_actions, ..
+            } => {
+                cleanup_actions.retain(|action| {
+                    !matches!(
+                        action,
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                            if predecessor_discards.contains(place)
+                    )
+                });
+            }
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            }
+            | Terminator::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            } => {
+                trivial_affine_discards.retain(|place| !predecessor_discards.contains(place));
+            }
+            _ => return unsupported("return arm did not produce a completion terminator"),
+        }
         arm_evaluation.remap_transported_call_operands(operations);
         arm_evaluation.blocks.push(Block {
             id: arm_evaluation.current,

@@ -2,6 +2,105 @@ use super::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan, CheckedTrees,
     admission,
 };
+
+#[test]
+fn computed_case_return_replays_predecessor_disposal_once() {
+    use terminal_psi::{TerminalAffineCleanupAction, Terminator};
+
+    let checked = crate::front_end::checked_program(
+        "data Message { case Captured(value: i32); case Empty; }
+         data Counter { value: i32; }
+         machine snapshot(counter: &mut Counter) -> Message {
+             Message::Captured { value: counter.value }
+         }
+         machine route(counter: &mut Counter) -> i32 {
+             transition snapshot(counter) {
+                 Message::Captured { value } -> consume(counter, value)
+                 _ -> (72)
+             }
+             state consume(counter: &mut Counter, value: i32) -> i32 {
+                 counter.value = value;
+                 value
+             }
+         }",
+    );
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("route"))
+        .expect("case consumption precedes the private scalar return");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay sees the predecessor's disposal");
+
+    let (machine_position, return_block, subject) = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .enumerate()
+        .find_map(|(position, machine)| {
+            machine.blocks.iter().find_map(|block| {
+                let Terminator::StructuralCase { source, cases } = &block.terminator else {
+                    return None;
+                };
+                cases.iter().find_map(|case| {
+                    let target = machine
+                        .blocks
+                        .iter()
+                        .find(|block| block.id == case.target)?;
+                    let Terminator::Return {
+                        cleanup_actions, ..
+                    } = &target.terminator
+                    else {
+                        return None;
+                    };
+                    assert!(
+                        !cleanup_actions
+                            .contains(&TerminalAffineCleanupAction::DiscardRoot(*source))
+                    );
+                    Some((position, target.id, *source))
+                })
+            })
+        })
+        .expect("a closed-case edge reaches its private scalar return");
+    for duplicate_subject in [false, true] {
+        let mut forged = lowered.semantic_module.clone();
+        if duplicate_subject {
+            let block = forged.machines[machine_position]
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == return_block)
+                .unwrap();
+            let Terminator::Return {
+                cleanup_actions, ..
+            } = &mut block.terminator
+            else {
+                unreachable!();
+            };
+            cleanup_actions.insert(0, TerminalAffineCleanupAction::DiscardRoot(subject));
+        } else {
+            for block in &mut forged.machines[machine_position].blocks {
+                if let Terminator::StructuralCase { cases, .. } = &mut block.terminator {
+                    for case in cases.iter_mut().filter(|case| case.target == return_block) {
+                        case.trivial_affine_discards.clear();
+                    }
+                }
+            }
+        }
+        assert!(
+            matches!(
+                terminal_verifier::verify_module(
+                    &forged,
+                    &lowered.proof_bundle,
+                    &proof_admission::AdmissionProfile::default(),
+                ),
+                Err(terminal_verifier::VerificationError::Module(_))
+            ),
+            "neither duplicate disposal nor omission of predecessor disposal is legal"
+        );
+    }
+}
+
 fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
     let source = r#"
         data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
