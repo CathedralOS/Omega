@@ -484,4 +484,4 @@ pub machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
 // every store unheld. The empty handle itself has no runtime residue, so
 // the consumer is a contract the checker enforces, not a runtime action —
 // the same shape `vec_duplicate_cleanup` exercises.
-pub boundary requirement Vec::close(self);
+pub boundary requirement Vec::close(vec: Vec);
