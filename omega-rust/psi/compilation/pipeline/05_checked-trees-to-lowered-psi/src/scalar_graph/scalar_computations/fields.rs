@@ -14,6 +14,12 @@
 //! normalization supplies nested field offsets and physical integer widths;
 //! an `IntegerAt` read decodes that width before widening to its semantic
 //! carrier. Recomputing a flat scalar layout here loses both relationships.
+//! A shared record-as-record recast (`&place as &View`) erases the same way:
+//! the checked judgment proved identical geometry, so a view field reads the
+//! source leaf at its offset under the source's own declaration
+//! (`validation::recast_record_source_leaf`). Terminal then verifies an
+//! ordinary read of a field the source declares, with the source's stronger
+//! facts. A leaf whose carrier differs needs a re-view and refuses here.
 use super::super::{
     PrimitiveType, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, terminal_scalar_type,
@@ -84,6 +90,16 @@ struct ByteOverlayField {
 struct ByteOverlaySource {
     referee: typed_trees::types::TypeReferenceHandle,
     remaining_bytes: Option<u64>,
+}
+
+/// A shared recast view of an established record as another record type.
+/// The checked recast judgment proved identical geometry, so each of the
+/// view's fields names the source leaf at the same offset and width; the read
+/// resolves that source leaf under the source's own declaration instead of
+/// projecting a field the source does not declare.
+struct TypedRecordOverlay {
+    source: typed_trees::types::TypeReferenceHandle,
+    referee: typed_trees::types::TypeReferenceHandle,
 }
 
 /// One authored segment of a shared loan's captured place: a declared record
@@ -168,6 +184,7 @@ struct RecordLoanSubject {
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     terminal: StructuralTypeId,
     byte_overlay: Option<ByteOverlaySource>,
+    typed_overlay: Option<TypedRecordOverlay>,
     /// The checked coordinate of the loan's non-literal index, when the
     /// captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
@@ -235,9 +252,13 @@ fn record_loan_subject(
         return Ok(None);
     }
     let mut initializer = local.initial_value;
+    let mut recast = false;
     let target = loop {
         match checked.expression_table.expression(initializer) {
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer = cast.value,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                recast = true;
+                initializer = cast.value;
+            }
             ExpressionNode::Borrow(borrow) if borrow.access == *access => break borrow.target,
             _ => return Ok(None),
         }
@@ -512,6 +533,42 @@ fn record_loan_subject(
             remaining_bytes: tail.and_then(|(index, length)| length.checked_sub(index)),
         });
     }
+    // A shared record-as-record recast keeps the source declaration as the
+    // namespace; each read rejoins its view field to the source leaf.
+    // The recast may wrap the borrow or sit inside its target
+    // (`&place as &View` parses as a borrow of the recast place).
+    let recast = recast
+        || matches!(
+            checked.expression_table.expression(target),
+            ExpressionNode::Cast(cast) if cast.form.is_recast()
+        );
+    let mut typed_overlay = None;
+    if recast
+        && byte_overlay.is_none()
+        && *access == language_core::ReferenceAccess::Shared
+        && declaration.identity != referee_identity
+        && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+    {
+        let mut place = target;
+        while let ExpressionNode::Cast(cast) = checked.expression_table.expression(place)
+            && cast.form.is_recast()
+        {
+            place = cast.value;
+        }
+        let source = validation::declared_place_type_raw(
+            &checked.typed,
+            source_machine,
+            Some(source_state),
+            place,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "record view lost its source place type",
+        ))?;
+        typed_overlay = Some(TypedRecordOverlay {
+            source,
+            referee: *referee,
+        });
+    }
     // Segments below the runtime index walk inside the selected element;
     // they leave both path vocabularies so the emitted read can splice the
     // selector in where the canonical spelling has no runtime segment.
@@ -525,6 +582,7 @@ fn record_loan_subject(
         carrier_path,
         terminal,
         byte_overlay,
+        typed_overlay,
         runtime_index,
         selector_primitive,
         view_container,
@@ -604,6 +662,7 @@ pub(crate) fn prepare(
             let (
                 loan_source,
                 byte_overlay,
+                typed_overlay,
                 carrier_path,
                 mut path,
                 mut declaration,
@@ -617,6 +676,7 @@ pub(crate) fn prepare(
                 Some(subject) => (
                     Some(subject.source),
                     subject.byte_overlay,
+                    subject.typed_overlay,
                     subject.carrier_path,
                     subject.path,
                     types
@@ -646,6 +706,7 @@ pub(crate) fn prepare(
                     (
                         None,
                         None,
+                        None,
                         Vec::new(),
                         Vec::new(),
                         declaration,
@@ -664,18 +725,35 @@ pub(crate) fn prepare(
                 } else {
                     Vec::new()
                 };
+            let (walk, identity, expected_type) = match &typed_overlay {
+                Some(overlay) => {
+                    let (walk, identity) = record_view_source_walk(
+                        checked,
+                        overlay,
+                        subject,
+                        *field,
+                        node.primitive_type,
+                    )?;
+                    (walk, identity, None)
+                }
+                None => (
+                    subject.path.clone(),
+                    identity,
+                    Some(subject.type_identity.as_str()),
+                ),
+            };
             // Terminal's scalar field read names record fields followed by at
             // most one literal element selection; a deeper element path
             // (`rows[1].cells[2].value`) has no read form yet.
-            if subject.path.iter().enumerate().any(|(position, segment)| {
+            if walk.iter().enumerate().any(|(position, segment)| {
                 matches!(
                     segment,
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                ) && position + 1 != subject.path.len()
+                ) && position + 1 != walk.len()
             }) {
                 return unsupported("record read selects an element below a trailing element");
             }
-            for segment in &subject.path {
+            for segment in &walk {
                 let identity = match segment {
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => identity,
                     // A literal element of a fixed array of records selects
@@ -737,7 +815,7 @@ pub(crate) fn prepare(
                         "record read carrier type is absent",
                     ))?;
             }
-            if declaration.identity != subject.type_identity {
+            if expected_type.is_some_and(|expected| declaration.identity != expected) {
                 return unsupported("record read carrier path changed its declared type");
             }
             let StructuralTypeShape::Record { fields } = &declaration.shape else {
@@ -824,6 +902,82 @@ pub(crate) fn prepare(
         }
     }
     Ok(bindings)
+}
+
+/// The source-side walk for a read through a typed record view: the canonical
+/// path segments from the source record to the leaf's declaring record, and
+/// the leaf's own field identity. Only a direct scalar field of the view with
+/// the source leaf's exact carrier is admitted here; a nested view path or a
+/// leaf whose carrier differs (a signed field viewed as unsigned) needs a
+/// representation re-view this read does not perform.
+fn record_view_source_walk(
+    checked: &CheckedTrees,
+    overlay: &TypedRecordOverlay,
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+) -> Result<(Vec<checked_trees::CheckedUnitStructuralPathSegment>, String), LoweringError> {
+    if !subject.path.is_empty() {
+        return unsupported("record view read selects below a direct view field");
+    }
+    let leaf = validation::recast_record_source_leaf(
+        &checked.typed,
+        overlay.source,
+        overlay.referee,
+        field,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "record view field has no single source leaf",
+    ))?;
+    if leaf.primitive != primitive {
+        return unsupported("record view leaf changes its scalar carrier");
+    }
+    let (last, prefix) = leaf.path.split_last().ok_or(LoweringError::Unsupported(
+        "record view source leaf has an empty path",
+    ))?;
+    let mut walk = Vec::new();
+    for segment in prefix {
+        walk.push(match segment {
+            validation::RecastLeafSegment::Field(symbol) => {
+                checked_trees::CheckedUnitStructuralPathSegment::Field(field_path_identity(
+                    checked, *symbol,
+                )?)
+            }
+            validation::RecastLeafSegment::Element(index) => {
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).map_err(|_| {
+                        LoweringError::Unsupported("record view source element exceeds u64")
+                    })?,
+                )
+            }
+        });
+    }
+    let validation::RecastLeafSegment::Field(last) = last else {
+        return unsupported("record view source leaf is not a field");
+    };
+    Ok((walk, field_path_identity(checked, *last)?))
+}
+
+/// The canonical path identity of one declared record field symbol.
+fn field_path_identity(
+    checked: &CheckedTrees,
+    field: symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let owner_symbol = checked.symbols.get(field).parent;
+    checked
+        .data_definitions()
+        .iter()
+        .filter(|owner| owner.symbol == owner_symbol)
+        .flat_map(|owner| checked.data_members(owner))
+        .find_map(|member| match member {
+            DataMember::Field(candidate) if candidate.symbol == field => {
+                Some(candidate.path_identity())
+            }
+            _ => None,
+        })
+        .ok_or(LoweringError::Unsupported(
+            "record view source field has no declaration",
+        ))
 }
 
 /// A member read's referee record can be owned by no signature, parameter,

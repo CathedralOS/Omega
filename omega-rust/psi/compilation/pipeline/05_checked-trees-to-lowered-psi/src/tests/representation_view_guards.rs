@@ -109,3 +109,57 @@ fn boolean_and_float_recast_reads_name_the_missing_terminal_re_view() {
         assert!(error.contains("no Terminal Psi vocabulary"), "{error}");
     }
 }
+
+/// A shared record-as-record view erases at Terminal: each view field reads
+/// the source leaf at the same offset under the source's own declaration, so
+/// the verifier checks an ordinary field read of storage the source declares.
+/// The unread `f32` leaves keep the geometry comparison honest; float
+/// comparison needs the library operator this front end does not load.
+#[test]
+fn shared_record_view_reads_rejoin_source_leaves_and_verify() {
+    produce(
+        r#"
+        data Narrow where count >= 0 && count <= 10, { count: i32; ratio: f32; }
+        data Wide where total >= 0 && total <= 20, { total: i32; scale: f32; }
+        data Main { narrow: Narrow; }
+        machine Main::main(&mut self) {
+            let view: &Wide = &self.narrow as &Wide;
+            transition view.total == self.narrow.count {
+                true -> good()
+                _ -> bad()
+            }
+            state good(&mut self) {}
+            state bad(&mut self) {}
+        }
+        "#,
+    )
+    .expect("record view reads lower as source leaf reads and verify");
+}
+
+/// A view leaf whose carrier differs from its source leaf (`i16` seen as
+/// `u16`) needs a representation re-view the record read does not perform,
+/// so it refuses rather than retagging the source field.
+#[test]
+fn record_view_leaf_with_another_carrier_refuses() {
+    let error = produce(
+        r#"
+        data Signed where value >= 0 && value <= 100, { value: i16; }
+        data Unsigned where value >= 0 && value <= 100, { value: u16; }
+        data Main { signed: Signed; }
+        machine Main::main(&mut self) {
+            let view: &Unsigned = &self.signed as &Unsigned;
+            transition view.value == 7 {
+                true -> good()
+                _ -> bad()
+            }
+            state good(&mut self) {}
+            state bad(&mut self) {}
+        }
+        "#,
+    )
+    .expect_err("a carrier-changing record view leaf has no read form yet");
+    assert!(
+        error.contains("record view leaf changes its scalar carrier"),
+        "{error}"
+    );
+}

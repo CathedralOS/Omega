@@ -1986,8 +1986,7 @@ pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1265ms @ca8c12
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 767ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1205ms @2d8ed253669f
-pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2074ms @b5d2bc92c85f
-	terminal-artifact production failed: Lowering(Unsupported("record read carrier path changed its declared type"))
+pass/recast/runtime_shared_record_float_range_weakening_exit checked 2665ms @f3aa5908ce43
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
 pass/relevance/erased_case_payload_field_exit checked 747ms @ca8c127c90c5
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 1314ms @2d8ed253669f

@@ -155,6 +155,65 @@ pub fn recast_scalar_projection(
     })
 }
 
+/// One step from a record root to a normalized leaf: a field by its exact
+/// symbol, or a literal element of a fixed array.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecastLeafSegment {
+    Field(symbols::SymbolHandle),
+    Element(usize),
+}
+
+/// The source leaf a typed record recast view's direct field observes.
+pub struct RecastRecordSourceLeaf {
+    pub path: Vec<RecastLeafSegment>,
+    pub primitive: typed_trees::types::PrimitiveType,
+}
+
+/// Rejoin a typed record view's direct scalar field to the source leaf it
+/// re-views. An admitted record recast has identical geometry on both sides
+/// (the judgment above compares leaves at equal offsets and widths), so the
+/// one source leaf at the target leaf's offset and width is the storage the
+/// view's field names. `None` when either side has no normalized
+/// representation, the field is not a direct scalar leaf of the target, or no
+/// single source leaf matches; the caller then keeps its refusal.
+pub fn recast_record_source_leaf(
+    program: &TypedTrees,
+    source: TypeReferenceHandle,
+    target: TypeReferenceHandle,
+    target_field: symbols::SymbolHandle,
+) -> Option<RecastRecordSourceLeaf> {
+    let source_representation = shared_projection_type_representation(program, source)?;
+    let target_representation = shared_projection_type_representation(program, target)?;
+    if source_representation.size != target_representation.size
+        || source_representation.leaves.len() != target_representation.leaves.len()
+    {
+        return None;
+    }
+    let target_leaf = target_representation
+        .leaves
+        .iter()
+        .find(|leaf| leaf.path == [RepresentationSegment::Field(target_field)])?;
+    let mut matching = source_representation
+        .leaves
+        .iter()
+        .filter(|leaf| leaf.offset == target_leaf.offset && leaf.size == target_leaf.size);
+    let source_leaf = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    Some(RecastRecordSourceLeaf {
+        path: source_leaf
+            .path
+            .iter()
+            .map(|segment| match segment {
+                RepresentationSegment::Field(symbol) => RecastLeafSegment::Field(*symbol),
+                RepresentationSegment::Element(index) => RecastLeafSegment::Element(*index),
+            })
+            .collect(),
+        primitive: source_leaf.primitive,
+    })
+}
+
 pub(super) fn mutable_type_representation(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
