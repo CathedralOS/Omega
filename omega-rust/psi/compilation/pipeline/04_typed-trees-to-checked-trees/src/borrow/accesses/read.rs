@@ -1,6 +1,32 @@
 use crate::borrow::accesses::BorrowAccessCollection;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
+/// Evaluate a loan's place without inventing a copied read of its referent.
+/// Selectors and computed receivers still perform their ordinary accesses
+/// before the loan is retained for invocation.
+pub(super) fn collect_place_evaluation_reads(
+    collection: &mut BorrowAccessCollection<'_>,
+    expression: ExpressionHandle,
+) {
+    match collection.program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {}
+        ExpressionNode::Member(member) => {
+            collect_place_evaluation_reads(collection, member.receiver);
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_place_evaluation_reads(collection, indexed.collection);
+            collect_read_accesses(collection, indexed.index);
+        }
+        ExpressionNode::Borrow(borrow) => {
+            collect_place_evaluation_reads(collection, borrow.target);
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_place_evaluation_reads(collection, cast.value);
+        }
+        _ => collect_read_accesses(collection, expression),
+    }
+}
+
 pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,

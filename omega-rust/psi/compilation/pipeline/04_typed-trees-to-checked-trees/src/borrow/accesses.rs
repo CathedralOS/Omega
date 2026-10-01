@@ -62,9 +62,9 @@ pub(crate) fn collect_call_argument_accesses(
             // invocation just like an authored borrow. The selected formal
             // can attenuate a mutable reference to shared observation.
             let forwarded_access = parameter.and_then(|parameter| {
-                if !matches!(
+                if matches!(
                     program.expression_table.expression(*argument),
-                    ExpressionNode::Name(_)
+                    ExpressionNode::Borrow(_)
                 ) {
                     return None;
                 }
@@ -74,33 +74,18 @@ pub(crate) fn collect_call_argument_accesses(
                     statement_index,
                     *argument,
                 )?;
-                if !matches!(
-                    program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
-                ) {
-                    return None;
-                }
-                match program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                {
-                    typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
-                        Some(match access {
-                            language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
-                            language_semantics::ReferenceAccess::Mutable => {
-                                BorrowAccessKind::Mutable
-                            }
-                            language_semantics::ReferenceAccess::WriteOnly => {
-                                BorrowAccessKind::WriteOnly
-                            }
-                        })
-                    }
-                    _ => None,
-                }
+                validation::reference_shell(program, reference)?;
+                let formal = validation::reference_shell(program, parameter.type_reference)?;
+                Some(match formal.access {
+                    language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+                    language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+                    language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+                })
             });
             if let Some(kind) = forwarded_access
                 && let Some(place) = collection.borrow_access_place(*argument)
             {
+                read::collect_place_evaluation_reads(&mut collection, *argument);
                 collection.append_argument_access(place, kind);
                 continue;
             }
@@ -117,6 +102,7 @@ fn collect_argument_accesses(
 ) {
     match collection.program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner_expression) => {
+            read::collect_place_evaluation_reads(collection, inner_expression.target);
             if let Some(access_place) = collection.borrow_access_place(inner_expression.target) {
                 collection.append_argument_access(
                     access_place,

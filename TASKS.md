@@ -2716,9 +2716,10 @@ completion syntax or other terminal service is a prerequisite.
 - **PLACED-ACCESS-NATIVE-OPS.** Close source-to-native indexed access under
   [structural access](wiki/spec/terminal-psi/structural_access.md), preserving
   original caller storage. `collections/runtime_indexed_struct_field_rmw_exit`
-  exits 1 as authored on macOS ARM64; `runtime_double_indexed_rmw_exit` stops at
-  `statement sequence: local data: scalar local: pure initializer` (state 1,
-  statement 4). The macOS native
+  exits 1 as authored on macOS ARM64. `runtime_double_indexed_rmw_exit` now
+  checks with invocation-local arrays and explicit borrowed state parameters;
+  execute its authored native exit **1** to close the remaining acceptance.
+  Source checking does not establish native store correctness. The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;
   Windows records rejection. These are recorded observations, not fresh runs.

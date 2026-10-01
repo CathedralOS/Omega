@@ -503,7 +503,8 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         };
         if access.root_symbol != parent.owner_symbol
             || !borrow.access_segments(access).is_empty()
-            || access.kind != checked_trees::BorrowAccessKind::Read
+            || access.kind != checked_trees::BorrowAccessKind::Mutable
+            || access.end_before_access.is_some()
         {
             continue;
         }

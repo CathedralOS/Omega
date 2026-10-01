@@ -505,7 +505,7 @@ fn check_call_mutation_borrows<'p>(
 /// A named jump enters another state only after the caller's local scope ends.
 /// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
 /// loans out of this judgment: their successor use needs its own correspondence.
-fn source_exiting_without_local_loan_carriers<'program>(
+pub(super) fn source_exiting_without_local_loan_carriers<'program>(
     program: &'program typed_trees::TypedTrees,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
@@ -616,7 +616,7 @@ pub(super) fn carried_authority(
     }
 }
 
-fn local_loan_ends_before_successor(
+pub(super) fn local_loan_ends_before_successor(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     flow: &FlowStateFact,

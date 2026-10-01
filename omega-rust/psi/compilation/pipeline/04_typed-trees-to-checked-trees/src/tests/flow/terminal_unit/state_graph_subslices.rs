@@ -259,6 +259,63 @@ fn forwarded_reference_arguments_allow_shared_aliases_and_disjoint_mutable_proje
 }
 
 #[test]
+fn forwarded_reference_member_arguments_reject_duplicate_mutable_loans() {
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        r#"
+        data View { body: &mut u64; }
+        machine receive(left: &mut u64, right: &mut u64) {
+            left = 1;
+            right = 2;
+        }
+        machine forward(view: View) { receive(view.body, view.body); }
+    "#,
+    )
+    .expect_err("reference members retain exclusive access through invocation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("as mutable more than once")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn indexed_borrow_arguments_retain_selector_reads_before_the_loan() {
+    let checked = checked(
+        r#"
+        machine receive(value: &mut u64) { value = 1; }
+        machine forward(values: &mut [u64; 3], index: u64) requires index < 3 {
+            receive(&mut values[index]);
+        }
+    "#,
+    );
+    let state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine_named(&checked, "forward"))
+        .expect("forward borrow facts");
+    let [call] = checked.facts.borrow.calls.span_or_empty(state.calls) else {
+        panic!("one invocation")
+    };
+    let [selector, loan] = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+    else {
+        panic!("selector evaluation and retained loan both have exact rows")
+    };
+    assert_eq!(selector.kind, checked_trees::BorrowAccessKind::Read);
+    assert_eq!(selector.end_before_access, Some(1));
+    assert_eq!(loan.kind, checked_trees::BorrowAccessKind::Mutable);
+    assert_eq!(loan.end_before_access, None);
+    assert_ne!(selector.root_symbol, loan.root_symbol);
+}
+
+#[test]
 fn borrowed_root_projection_rejects_reference_bearing_storage() {
     let checked = checked(
         r#"

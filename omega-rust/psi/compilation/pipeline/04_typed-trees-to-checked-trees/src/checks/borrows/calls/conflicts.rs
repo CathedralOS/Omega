@@ -28,9 +28,24 @@ pub(super) fn check_call_access_conflicts<'p>(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .collect();
+    let exiting_source = super::super::statements::source_exiting_without_local_loan_carriers(
+        program,
+        state_flow,
+        borrow_call,
+    );
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
+        .filter(|loan| {
+            // The same replayed scope closure applies to forwarded argument
+            // authority and to the successor's mutations. Ordinary calls,
+            // carried loans and unclosed observations remain active.
+            !exiting_source.is_some_and(|source| {
+                super::super::statements::local_loan_ends_before_successor(
+                    program, facts, state_flow, source, *loan,
+                )
+            })
+        })
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
 
