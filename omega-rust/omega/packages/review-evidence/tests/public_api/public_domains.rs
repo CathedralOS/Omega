@@ -419,7 +419,12 @@ fn public_exact_machine_issuer_routes_capture_checked_wrappers() {
         );
         let rows = review.canonical_rows().unwrap();
         let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
-            checked.custody.dependency_closure().cloned().unwrap(),
+            checked
+                .custody
+                .sources()
+                .dependency_closure()
+                .cloned()
+                .unwrap(),
             &rows,
         )
         .unwrap();
@@ -460,7 +465,12 @@ fn public_exact_machine_issuer_routes_capture_checked_wrappers() {
                 })
                 .collect::<Vec<_>>();
             let supplied = recover_ordinary_package_obligation_ledger(
-                checked.custody.dependency_closure().cloned().unwrap(),
+                checked
+                    .custody
+                    .sources()
+                    .dependency_closure()
+                    .cloned()
+                    .unwrap(),
                 &changed_rows,
             )
             .unwrap();
@@ -577,7 +587,12 @@ fn public_domain_private_machine_catalog_preserves_wrapper_and_review_identity()
     assert!(!machine.path().contains("forward"));
     let rows = review.canonical_rows().unwrap();
     let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
-        checked.custody.dependency_closure().cloned().unwrap(),
+        checked
+            .custody
+            .sources()
+            .dependency_closure()
+            .cloned()
+            .unwrap(),
         &rows,
     )
     .unwrap();
@@ -637,7 +652,12 @@ fn public_domain_private_catalogs_retain_requirement_and_attached_identities() {
         );
         let rows = review.canonical_rows().unwrap();
         let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
-            checked.custody.dependency_closure().cloned().unwrap(),
+            checked
+                .custody
+                .sources()
+                .dependency_closure()
+                .cloned()
+                .unwrap(),
             &rows,
         )
         .unwrap();

@@ -21,7 +21,7 @@ pub(crate) fn review_type_identity_with_binders(
             type_reference,
             binders,
             substitutions: &[],
-            exact_toolchain_sources: compilation.custody.exact_toolchain_sources(),
+            exact_toolchain_sources: compilation.custody.sources().exact_toolchain_sources(),
         })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
@@ -41,7 +41,7 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
             type_reference,
             binders,
             substitutions,
-            exact_toolchain_sources: compilation.custody.exact_toolchain_sources(),
+            exact_toolchain_sources: compilation.custody.sources().exact_toolchain_sources(),
         })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
@@ -96,7 +96,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
         &compilation.typed,
-        compilation.custody.exact_toolchain_sources(),
+        compilation.custody.sources().exact_toolchain_sources(),
         type_reference,
         binders,
         lifetime_binders,

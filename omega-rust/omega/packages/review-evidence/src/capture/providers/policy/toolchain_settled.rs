@@ -25,7 +25,7 @@ pub(super) fn validate(
     authored_plans: &[ProviderPlan],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut minted = Vec::new();
-    for binding in compilation.custody.resolved_semantic_bindings() {
+    for binding in compilation.custody.execution().accepted_semantic_bindings() {
         let mint = match binding.role() {
             package_compilation::AcceptedSemanticBindingRole::FilesystemHostService => {
                 provider_planning::mint_canonical_filesystem_host_plan(

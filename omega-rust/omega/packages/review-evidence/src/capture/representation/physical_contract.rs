@@ -53,7 +53,8 @@ pub(crate) fn project_representation_target(
 ) -> Result<PackageReviewRepresentationTarget, Vec<Diagnostic>> {
     let profile = compilation
         .custody
-        .selected_target_profile()
+        .execution()
+        .selected_target_profile
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "representation demand requires a selected target profile",
@@ -61,6 +62,7 @@ pub(crate) fn project_representation_target(
         })?;
     let native = compilation
         .custody
+        .execution()
         .selected_native_target()
         .ok_or_else(|| {
             vec![Diagnostic::error(

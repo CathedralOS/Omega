@@ -42,7 +42,7 @@ pub(super) fn project(
             );
             signature_type_identity(
                 typed,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
                 &binders,
                 lifetimes,

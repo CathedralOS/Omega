@@ -45,10 +45,15 @@ impl CheckedCompilation {
         production_subject: Option<crate::ProductionCompilationSubject>,
         profile: proof_admission::AdmissionProfile,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let application = self.project_native_application_metadata();
+        let execution = self.execution();
+        let source_file_count = self.sources().source_file_count();
+        let application = self.build_admission().native_application_metadata(
+            &self.build().config.settings,
+            execution.selected_target_profile,
+        );
         let report = CompileReport::from_requested_native_artifact(
             root_path,
-            self.source_file_count(),
+            source_file_count,
             artifact,
             rollback,
             production_subject,
@@ -58,9 +63,9 @@ impl CheckedCompilation {
         .map_err(diagnostics)?;
         report
             .verify_native_source_metadata(
-                self.source_file_count(),
-                self.selected_target_profile(),
-                self.selected_native_target(),
+                source_file_count,
+                execution.selected_target_profile,
+                execution.selected_native_target(),
                 &application,
             )
             .map_err(diagnostics)?;
@@ -79,11 +84,11 @@ impl CheckedCompilation {
             .validate_optimization_rollback(rollback)
             .map_err(|error| vec![error])?;
         RequestedCompileProduct::Check.admit_build_requirements(
-            self.application_artifact_only(),
+            self.build_admission().artifact_only(),
             self.build().config.settings.pcc,
             rollback,
         )?;
-        CompileReport::check_only(root_path, self.source_file_count())
+        CompileReport::check_only(root_path, self.sources().source_file_count())
             .map(|report| {
                 report
                     .with_trust_admission_settlement(trust)
@@ -112,19 +117,20 @@ impl CheckedCompilation {
             .map_err(|error| vec![error])?;
         // Preserve the checked route's refusal order: completed-file custody
         // precedes evaluated proof/rollback eligibility for producing stops.
-        let build_outputs = self.completed_build_outputs()?;
+        let build_outputs = self.build().completed_outputs()?;
+        let artifact_only = self.build_admission().artifact_only();
         requested.admit_build_requirements(
-            self.application_artifact_only(),
+            artifact_only,
             self.build().config.settings.pcc,
             rollback,
         )?;
         let timings = self.timings().phases().to_vec();
-        if self.application_artifact_only() {
+        if artifact_only {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
             return CompileReport::from_build_outputs(
                 root_path,
-                self.source_file_count(),
+                self.sources().source_file_count(),
                 outputs,
                 self.production_subject()?,
             )
@@ -152,7 +158,7 @@ impl CheckedCompilation {
                 CompileOutputKind::RetainedNativeArtifact
             },
             build_outputs,
-            build_observation: self.build_observation_identity(),
+            build_observation: self.build().observation_identity(),
             trust,
             timings,
         };

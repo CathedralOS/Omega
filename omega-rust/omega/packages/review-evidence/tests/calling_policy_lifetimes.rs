@@ -41,7 +41,8 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
         .unwrap();
     let realization = checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .find(|realization| realization.boundary_trait == owner.symbol)
         .unwrap();

@@ -51,7 +51,7 @@ impl Projection<'_> {
     ) -> Result<crate::record::PackageReviewTypeIdentity, Vec<Diagnostic>> {
         super::super::types::signature_type_identity(
             typed,
-            compilation.custody.exact_toolchain_sources(),
+            compilation.custody.sources().exact_toolchain_sources(),
             reference,
             binders,
             lifetimes,

@@ -37,6 +37,7 @@ pub fn candidate_macos_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
             package,
@@ -74,6 +75,7 @@ pub fn candidate_macos_x86_64_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::MacosX64ProgramEntry,
             package,

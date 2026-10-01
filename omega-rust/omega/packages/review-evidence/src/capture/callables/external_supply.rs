@@ -236,11 +236,15 @@ pub(super) fn external_binding_matches_provider_binding(
             .machine_trait_conformances(machine)
             .first()
             .and_then(|conformance| {
-                compilation.custody.evaluated_via_bindings().exact(
-                    machine.symbol,
-                    conformance.symbol,
-                    conformance.requirement_symbol,
-                )
+                compilation
+                    .custody
+                    .providers()
+                    .evaluated_via_bindings
+                    .exact(
+                        machine.symbol,
+                        conformance.symbol,
+                        conformance.requirement_symbol,
+                    )
             })
             .is_some_and(|row| {
                 row.evaluated().as_import() == Some(evaluated)
@@ -258,11 +262,15 @@ pub(super) fn external_binding_matches_provider_binding(
             .machine_trait_conformances(machine)
             .first()
             .and_then(|conformance| {
-                compilation.custody.evaluated_via_bindings().exact(
-                    machine.symbol,
-                    conformance.symbol,
-                    conformance.requirement_symbol,
-                )
+                compilation
+                    .custody
+                    .providers()
+                    .evaluated_via_bindings
+                    .exact(
+                        machine.symbol,
+                        conformance.symbol,
+                        conformance.requirement_symbol,
+                    )
             })
             .is_some_and(|row| {
                 row.evaluated().as_syscall().is_some_and(|evaluated| {

@@ -316,7 +316,7 @@ pub fn reconstruct_package_review<'a>(
             "ordinary package obligation result reconstruction failed to encode canonical rows: {error}"
         ))]
     })?;
-    let dependency_closure = compilation.custody.dependency_closure().cloned().ok_or_else(|| {
+    let dependency_closure = compilation.custody.sources().dependency_closure().cloned().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "ordinary package obligation result reconstruction requires package dependency closure",
         )]

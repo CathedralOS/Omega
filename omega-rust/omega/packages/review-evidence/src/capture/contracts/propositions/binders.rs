@@ -61,7 +61,7 @@ pub(crate) fn project_proposition_binder_argument(
                 let identity = compilation
                     .exact_owner_nominal_identity(
                         argument.symbol,
-                        compilation.custody.exact_toolchain_sources(),
+                        compilation.custody.sources().exact_toolchain_sources(),
                     )
                     .ok_or_else(missing_exact_toolchain_type_owner)?;
                 PackageReviewPropositionBinderValue::Type(PackageReviewTypeIdentity {

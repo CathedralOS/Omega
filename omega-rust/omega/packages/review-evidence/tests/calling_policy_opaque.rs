@@ -145,7 +145,8 @@ machine build(builder: &mut Build) {{
 fn project(checked: &ReviewFixture) -> PackagePolicyCallingPlan {
     let realization = checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .find(|realization| checked.symbols.name(realization.boundary_trait) == "TransferEntry")
         .expect("source boundary calling realization");
@@ -268,7 +269,8 @@ fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selection
         .carrier_symbol = foreign_carrier;
     let realization = changed
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .find(|realization| changed.symbols.name(realization.boundary_trait) == "TransferEntry")
         .unwrap();

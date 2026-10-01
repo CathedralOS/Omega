@@ -24,7 +24,8 @@ pub(super) fn project(
 ) -> Vec<PackagePolicyRestrictedBuildRequest> {
     compilation
         .custody
-        .restricted_build_requests()
+        .build_admission()
+        .restricted_build_requests
         .iter()
         .map(request)
         .collect()

@@ -28,11 +28,15 @@ pub(crate) fn project_contract_cast(
                 ))]
             })?;
         let identity = nominal_identity(compilation, domain.symbol)?;
-        let reviewed_package = compilation.custody.package_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "package review requires package-aware checked compilation",
-            )]
-        })?;
+        let reviewed_package = compilation
+            .custody
+            .sources()
+            .package_identity()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package review requires package-aware checked compilation",
+                )]
+            })?;
         if context.requires_public_nominals()
             && reviewed_package_owns(&identity, reviewed_package)?
             && !domain.is_public

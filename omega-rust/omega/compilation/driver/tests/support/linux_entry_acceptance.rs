@@ -37,6 +37,7 @@ pub fn candidate_linux_x86_64_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
             package,
@@ -74,6 +75,7 @@ pub fn candidate_linux_arm64_entry_binding(
         )
     })?;
     checked
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
             package,

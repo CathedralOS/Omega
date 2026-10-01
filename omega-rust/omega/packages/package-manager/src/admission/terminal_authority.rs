@@ -218,7 +218,7 @@ pub fn realize_accepted_native_report(
             // this intermediate Terminal artifact. Keep them with the pending
             // request rather than attaching an impossible context to a report.
             let pcc_context = (checked_root.build().config.settings.pcc, profile.clone());
-            let source_count = checked_root.source_file_count();
+            let source_count = checked_root.sources().source_file_count();
             let subject = checked_root.production_subject()?;
             let (retained, production_timings) =
                 compiler::retained_terminal_artifact_from_checked_package(

@@ -386,7 +386,7 @@ pub(super) fn candidate_service_bindings(
         // consumer's own entry `Service` fields cannot nominate through
         // callable reaches; the fields' requirements name the same
         // boundaries directly.
-        for requirement in checked.selected_program_entry_service_requirements() {
+        for requirement in checked.execution().program_entry_service_requirements() {
             let definitions = checked
                 .traits()
                 .iter()
@@ -421,6 +421,7 @@ pub(super) fn candidate_service_bindings(
             );
         };
         let binding = checked
+            .execution()
             .candidate_service_binding(*role, **package, path)
             .map_err(
                 |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
@@ -534,6 +535,7 @@ pub(super) fn candidate_target_entry_binding(
     }
     let path = checked.typed.symbols.display_path(definition.symbol, "::");
     let binding = checked
+        .execution()
         .candidate_service_binding(role, owner.identity(), &path)
         .map_err(
             |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {

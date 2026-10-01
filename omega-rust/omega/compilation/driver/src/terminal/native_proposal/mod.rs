@@ -51,7 +51,7 @@ fn produce_callback_thunk_artifact(
     let psi_optimizations = selections.project_psi();
     let mut production_timings = TerminalProductionTimings::default();
     let produced = terminal_production::TerminalProductionRequest {
-        checked: checked.terminal_production_trees(),
+        checked: &checked.execution().program,
         machine: terminal_production::TerminalMachineSelection::Symbol(placement.selected_machine),
         optimization_selections: psi_optimizations.selections().clone(),
     }

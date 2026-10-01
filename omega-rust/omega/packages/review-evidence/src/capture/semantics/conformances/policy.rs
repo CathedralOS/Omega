@@ -116,7 +116,7 @@ pub fn project_checked_conformance_policy<'a>(
     let project_type = |reference| {
         signature_type_identity(
             &instantiated,
-            compilation.custody.exact_toolchain_sources(),
+            compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &binders,
             lifetimes,

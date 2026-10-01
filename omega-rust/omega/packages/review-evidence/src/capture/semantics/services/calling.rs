@@ -41,7 +41,8 @@ pub(super) fn project(
     }
     let candidates = compilation
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .filter(|candidate| {
             candidate.boundary_trait == schema_symbol

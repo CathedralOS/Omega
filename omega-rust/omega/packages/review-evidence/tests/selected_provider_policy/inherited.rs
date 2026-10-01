@@ -94,7 +94,8 @@ fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
     let realization = fixture
         .checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .find(|realization| {
             fixture.checked.symbols.name(realization.boundary_trait) == "SelectedHost"

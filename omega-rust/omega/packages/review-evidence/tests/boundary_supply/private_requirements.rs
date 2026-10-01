@@ -49,8 +49,8 @@ fn private_requirement_contract_and_external_supply_remain_reviewable() {
     assert_eq!(supply.top_level_requirement(), Some(requirement.identity()));
     let policies = package_evidence::project_checked_callable_policy(
         &checked,
-        checked.custody.selected_target_profile().unwrap(),
-        checked.custody.package_identity().unwrap(),
+        checked.custody.execution().selected_target_profile.unwrap(),
+        checked.custody.sources().package_identity().unwrap(),
     )
     .expect("private contract exposure must also survive policy capture");
     let policy_requirement = policies

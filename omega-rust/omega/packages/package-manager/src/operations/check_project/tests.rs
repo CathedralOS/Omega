@@ -120,7 +120,10 @@ machine build(builder: &mut Build) {
         let compilation_products::CheckedProductReport::Complete(report) = prepared else {
             panic!("artifact-only Build must not request Terminal or native lowering");
         };
-        assert_eq!(report.source_file_count, checked.source_file_count());
+        assert_eq!(
+            report.source_file_count,
+            checked.sources().source_file_count()
+        );
         assert_eq!(report.timings(), checked.timings().phases());
         assert!(!report.timings().is_empty());
         assert!(!report.wrote_output());
@@ -131,13 +134,14 @@ machine build(builder: &mut Build) {
             assert_eq!(report.output_kind(), CompileOutputKind::BuildArtifacts);
             assert_eq!(
                 report.build_observation_identity(),
-                checked.build_observation_identity()
+                checked.build().observation_identity()
             );
             assert!(report.has_consistent_executable_publication_custody());
             assert_eq!(
                 report.build_outputs().unwrap().identity(),
                 checked
-                    .completed_build_outputs()
+                    .build()
+                    .completed_outputs()
                     .unwrap()
                     .unwrap()
                     .identity()

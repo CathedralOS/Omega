@@ -10,7 +10,7 @@ pub fn reconstruct_ordinary_package_obligation_ledger<'a>(
     input: impl Into<PackageReviewInput<'a>>,
 ) -> Result<OrdinaryPackageObligationLedger, Vec<Diagnostic>> {
     let compilation = &input.into();
-    let dependency_closure = compilation.custody.dependency_closure().cloned().ok_or_else(|| {
+    let dependency_closure = compilation.custody.sources().dependency_closure().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
             "ordinary package obligation reconstruction requires a package-aware dependency closure",
         )]

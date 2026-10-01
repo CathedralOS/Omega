@@ -25,12 +25,13 @@ impl CheckedCompilation {
     {
         // An Independent edge has no product carrier yet. Reject it before
         // checking entry custody or allowing a fused artifact to be produced.
+        let execution = self.execution();
         provider_planning::verify_selected_compositions_are_realized(
-            self.execution().selected_provider_provenance.as_slice(),
+            execution.selected_provider_provenance.as_slice(),
         )?;
         // Preserve the build operand's lexical package choice, including when
         // another package contains a machine with the same display name.
-        let entry = self.selected_program_entry().ok_or_else(|| {
+        let entry = execution.selected_program_entry.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "terminal-artifact production requires one exact selected program entry",
             )]
@@ -38,7 +39,7 @@ impl CheckedCompilation {
         selected_dispatch::validate_selected_operator_terminal_custody(self)?;
         selected_dispatch::validate_fused_service_terminal_custody(
             self,
-            self.execution().selected_provider_provenance.as_slice(),
+            execution.selected_provider_provenance.as_slice(),
         )?;
         Ok(entry)
     }
@@ -55,31 +56,33 @@ impl CheckedCompilation {
         selected_integer_comparison_occurrences: &'input [LoweredSelectedIntegerComparisonOccurrence],
         selections: &optimization_core::OptimizationSelections,
     ) -> TerminalNativeProposalRequest<'input> {
+        let execution = self.execution();
+        let providers = self.providers();
         TerminalNativeProposalRequest {
             boundaries: BoundaryApplicationSettlement {
                 checked: self,
-                selected_provider_plans: &self.execution().selected_provider_plan_facts,
-                selected_provider_provenance: self
-                    .execution()
-                    .selected_provider_provenance
-                    .as_slice(),
-                exact_toolchain_sources: self.exact_toolchain_sources(),
-                target_profile: self.selected_target_profile(),
-                console_exit_binding: self.resolved_semantic_binding(
+                selected_provider_plans: &execution.selected_provider_plan_facts,
+                selected_provider_provenance: execution.selected_provider_provenance.as_slice(),
+                exact_toolchain_sources: self.sources().exact_toolchain_sources(),
+                target_profile: execution.selected_target_profile,
+                console_exit_binding: execution.resolved_semantic_binding(
                     package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 ),
-                process_exit_binding: self.resolved_semantic_binding(
+                process_exit_binding: execution.resolved_semantic_binding(
                     package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
                 ),
-                calling_plan_realizations: self.boundary_calling_plan_realizations(),
+                calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             },
-            native_target: self.selected_native_target(),
-            program_entry: self.selected_program_entry(),
-            application: self.project_native_application_metadata(),
+            native_target: execution.selected_native_target(),
+            program_entry: execution.selected_program_entry.as_ref(),
+            application: self.build_admission().native_application_metadata(
+                &self.build().config.settings,
+                execution.selected_target_profile,
+            ),
             optimizations: selections.project_post_terminal(),
-            external_bindings: self.external_binding_rows(),
+            external_bindings: &providers.external_binding_rows,
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
-            package_terminal_authority_permissions: self.package_terminal_authority_permissions(),
+            package_terminal_authority_permissions: execution.terminal_authority_permissions(),
             callback_placements,
             callback_thunks,
             source_call_occurrences,
@@ -101,7 +104,7 @@ impl CheckedCompilation {
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         CompileReport::from_retained_terminal_artifact(
             root_path,
-            self.source_file_count(),
+            self.sources().source_file_count(),
             artifact,
             production_subject,
         )

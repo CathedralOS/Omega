@@ -87,6 +87,7 @@ impl Fixture {
         let accepted = self
             .checked
             .custody
+            .execution()
             .candidate_service_binding(
                 AcceptedSemanticBindingRole::FilesystemHostService,
                 package_identity(),

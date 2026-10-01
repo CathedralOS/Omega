@@ -60,6 +60,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
     let role = AcceptedSemanticBindingRole::UefiX64ProgramEntry;
     let binding = candidate
         .custody
+        .execution()
         .candidate_service_binding(role, standard_package, "UefiApplication")
         .unwrap();
     let definition = candidate

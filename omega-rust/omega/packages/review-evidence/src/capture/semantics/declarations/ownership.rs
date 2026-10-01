@@ -27,7 +27,7 @@ pub(crate) fn nominal_owner(
     nominal_owner_from_symbols(
         &compilation.typed.symbols,
         symbol,
-        compilation.custody.exact_toolchain_sources(),
+        compilation.custody.sources().exact_toolchain_sources(),
     )
 }
 

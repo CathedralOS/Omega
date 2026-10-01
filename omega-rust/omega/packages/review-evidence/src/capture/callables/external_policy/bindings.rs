@@ -42,7 +42,8 @@ pub(super) fn project(
         {
             let row = compilation
                 .custody
-                .evaluated_via_bindings()
+                .providers()
+                .evaluated_via_bindings
                 .exact(
                     machine.symbol,
                     conformance.symbol,

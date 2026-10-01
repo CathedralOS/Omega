@@ -10,14 +10,18 @@ impl CheckedCompilation {
     pub fn production_subject(
         &self,
     ) -> Result<Option<crate::ProductionCompilationSubject>, Vec<Diagnostic>> {
-        let Some(package) = self.package_compilation_subject() else {
+        let Some(package) = self.sources().package_subject() else {
             return Ok(None);
         };
-        let build_machine = self.selected_build_machine_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "package production requires one exact selected build-machine identity",
-            )]
-        })?;
+        let build_machine = self
+            .build_admission()
+            .selected_build_machine_identity
+            .as_deref()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "package production requires one exact selected build-machine identity",
+                )]
+            })?;
         let usage = self.build().evaluation_usage.ok_or_else(|| {
             vec![Diagnostic::error(
                 "package production requires exact build-evaluation accounting",
@@ -28,12 +32,12 @@ impl CheckedCompilation {
                 "package production requires exact build-observation custody",
             )]
         })?;
-        let profile = self.selected_target_profile().ok_or_else(|| {
+        let profile = self.execution().selected_target_profile.ok_or_else(|| {
             vec![Diagnostic::error(
                 "package production requires one selected target profile",
             )]
         })?;
-        let native = self.selected_native_target().ok_or_else(|| {
+        let native = self.execution().selected_native_target().ok_or_else(|| {
             vec![Diagnostic::error(
                 "package production requires one selected native target",
             )]

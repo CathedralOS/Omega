@@ -125,7 +125,7 @@ impl OccurrenceCompile {
 
     fn tolerated_unsettled_service_fields(&self) -> bool {
         match self {
-            Self::Checked(checked) => checked.tolerated_unsettled_service_fields(),
+            Self::Checked(checked) => checked.execution().tolerated_unsettled_service_fields(),
             Self::Cached(facts) => facts.tolerated_unsettled_service_fields,
         }
     }
@@ -1039,14 +1039,18 @@ impl ClosurePass<'_> {
                     diagnostics,
                 },
             )?;
-        let source_consumption_commitment =
-            checked.source_consumption_commitment().ok_or_else(|| {
-                CompileResolvedPackageReviewsError::SourceConsumptionMissing {
+        let source_consumption_commitment = checked
+            .sources()
+            .source_consumption_commitment()
+            .ok_or_else(
+                || CompileResolvedPackageReviewsError::SourceConsumptionMissing {
                     package: key.clone(),
-                }
-            })?;
+                },
+            )?;
         let selected_build_machine_identity = checked
-            .selected_build_machine_identity()
+            .build_admission()
+            .selected_build_machine_identity
+            .as_deref()
             .ok_or_else(|| CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
                 diagnostics: vec![Diagnostic::error(
@@ -1055,10 +1059,14 @@ impl ClosurePass<'_> {
             })?
             .to_owned();
         let build_observation_summary = checked.build().observation_summary.clone();
-        let restricted_build_requests = checked.restricted_build_requests().to_vec();
+        let restricted_build_requests = checked.build_admission().restricted_build_requests.clone();
         let build_evaluation_usage = checked.build().evaluation_usage;
 
-        let semantic_bindings = checked.resolved_semantic_bindings().cloned().collect();
+        let semantic_bindings = checked
+            .execution()
+            .accepted_semantic_bindings()
+            .cloned()
+            .collect();
         let generated_source_bundle =
             checked.package_generated_source_bundle().map_err(|error| {
                 CompileResolvedPackageReviewsError::Projection {
@@ -1189,10 +1197,10 @@ impl ClosurePass<'_> {
         // publication retry never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
         if key != closure.graph().root()
-            && !checked.tolerated_unsettled_service_fields()
+            && !checked.execution().tolerated_unsettled_service_fields()
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
-            && let Some(subject) = checked.package_compilation_subject()
+            && let Some(subject) = checked.sources().package_subject()
         {
             let component_description = super::component_publication::publish_checked_component(
                 checked.clone(),

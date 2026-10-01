@@ -31,7 +31,7 @@ pub(super) fn publish_checked_component(
     checked: CheckedCompilation,
     profile: proof_admission::AdmissionProfile,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
-    let package = checked.package_identity().ok_or_else(|| {
+    let package = checked.sources().package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "component publication requires package-aware checked custody for the dependency compiled as its own component",
         )]

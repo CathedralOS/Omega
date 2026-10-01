@@ -78,7 +78,10 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
         false,
     )
     .expect("retain the final binding pass at the requested entry");
-    let bindings = checked.resolved_semantic_bindings().collect::<Vec<_>>();
+    let bindings = checked
+        .execution()
+        .accepted_semantic_bindings()
+        .collect::<Vec<_>>();
     assert_eq!(
         bindings.len(),
         1,
@@ -88,7 +91,7 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
         bindings[0].role(),
         AcceptedSemanticBindingRole::ConsoleExitProcessI32
     );
-    assert_eq!(checked.selected_target_profile(), Some(TARGET));
+    assert_eq!(checked.execution().selected_target_profile, Some(TARGET));
     let inventory = checked
         .build()
         .observation_summary

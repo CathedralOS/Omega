@@ -32,6 +32,7 @@ pub machine caller() reaches FilesystemHost {
     .expect("an explicit empty boundary body remains executable");
     let accepted = candidate
         .custody
+        .execution()
         .candidate_service_binding(
             AcceptedSemanticBindingRole::FilesystemHostService,
             package_identity(),

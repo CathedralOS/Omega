@@ -64,7 +64,8 @@ fn realization<'a>(checked: &'a ReviewFixture, owner: &str) -> &'a BoundaryCalli
         .unwrap();
     let matches = checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .filter(|realization| realization.boundary_trait == declaration.symbol)
         .collect::<Vec<_>>();
@@ -100,7 +101,8 @@ fn equal_physical_overloads_keep_distinct_semantic_calling_policy() {
         .unwrap();
     let policies = checked
         .custody
-        .boundary_calling_plan_realizations()
+        .providers()
+        .boundary_calling_plan_realizations
         .iter()
         .filter(|realization| realization.boundary_trait == declaration.symbol)
         .map(|realization| project_checked_calling_policy(&checked, realization).unwrap())

@@ -18,9 +18,9 @@ pub fn project_checked_terminal_permission_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
     let compilation = &input.into();
-    if compilation.custody.package_identity() != Some(package)
-        || compilation.custody.selected_target_profile() != Some(target)
-        || compilation.custody.selected_native_target() != Some(target.native_target())
+    if compilation.custody.sources().package_identity() != Some(package)
+        || compilation.custody.execution().selected_target_profile != Some(target)
+        || compilation.custody.execution().selected_native_target() != Some(target.native_target())
     {
         return Err(rejected(
             "policy package or target differs from the checked root activation",

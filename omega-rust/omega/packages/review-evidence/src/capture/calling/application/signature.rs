@@ -283,7 +283,7 @@ fn project_with_binders(
             name: parameter.name.as_str().to_owned(),
             type_identity: signature_type_identity(
                 &projected,
-                compilation.custody.exact_toolchain_sources(),
+                compilation.custody.sources().exact_toolchain_sources(),
                 reference,
                 &binders,
                 &lifetime_binders,
@@ -306,7 +306,7 @@ fn project_with_binders(
         )?;
         Some(signature_type_identity(
             &projected,
-            compilation.custody.exact_toolchain_sources(),
+            compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &binders,
             &lifetime_binders,

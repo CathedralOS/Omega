@@ -126,7 +126,8 @@ fn evaluated_row<'a>(
         [] => Ok(None),
         [conformance] => compilation
             .custody
-            .evaluated_via_bindings()
+            .providers()
+            .evaluated_via_bindings
             .exact(realization, conformance.symbol, requirement)
             .map(Some)
             .ok_or_else(|| rejected("ordinary via expression has no exact evaluated row")),

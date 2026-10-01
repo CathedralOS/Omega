@@ -344,7 +344,9 @@ pub(crate) fn record_compiled_review(
         policy_bytes,
         obligation_ledger_bytes_payload,
         facts: CachedOccurrenceFacts {
-            tolerated_unsettled_service_fields: checked.tolerated_unsettled_service_fields(),
+            tolerated_unsettled_service_fields: checked
+                .execution()
+                .tolerated_unsettled_service_fields(),
             consumed_units,
             source_consumption_commitment: review.source_consumption_commitment(),
             component_description,

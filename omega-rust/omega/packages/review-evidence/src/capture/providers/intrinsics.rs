@@ -32,10 +32,10 @@ pub(crate) fn project_compiler_intrinsic_execution(
         requirement_symbol,
         realization_symbol,
         selected_target,
-        compilation.custody.resolved_semantic_binding(
+        compilation.custody.execution().resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         ),
-        compilation.custody.resolved_semantic_binding(
+        compilation.custody.execution().resolved_semantic_binding(
             package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
         ),
     )
