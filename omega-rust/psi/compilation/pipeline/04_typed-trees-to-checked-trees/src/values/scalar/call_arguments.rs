@@ -320,12 +320,14 @@ pub(crate) fn nested_structural_call_return_type(
     });
     let (return_type, ordinary) = if let Some((owner, target)) = targets.next() {
         // `self.suffix(..)` inside an `&self`/`&mut self` caller reborrows the
-        // caller's own `self` parameter for a shared `&self` callee — the
+        // caller's own `self` parameter with the callee's declared access — the
         // same runtime receiver the top-level call machinery mints through
         // `receiver_symbol`, not a free value the operand walk cannot name.
         // `self` resolves to the calling machine's own symbol, so the
         // admission is: receiver names the enclosing machine, caller and
-        // callee attach to the same data, and both carry the borrow.
+        // callee attach to the same data, and both carry the receiver.
+        // This is operand eligibility, not a purity judgment: the ordinary
+        // call still checks the receiver loan and executes before its consumer.
         let own_self_receiver = || {
             let caller_machine = program
                 .machines()
@@ -346,7 +348,16 @@ pub(crate) fn nested_structural_call_return_type(
                 && program
                     .state_parameters(target)
                     .iter()
-                    .any(|parameter| parameter.is_self && !parameter.is_mutable))
+                    .any(|parameter| {
+                        parameter.is_self
+                            && (!parameter.is_mutable
+                                || (owner.supply_mode
+                                    == language_semantics::MachineSupplyMode::CheckedBody
+                                    && target.return_type.is_valid()
+                                    && validation::has_plain_owned_contents_with_represented_constraints(
+                                        program, target.return_type,
+                                    )))
+                    }))
             .then_some(())
         };
         if targets.next().is_some()
@@ -397,6 +408,10 @@ pub(crate) fn nested_structural_call_return_type(
         }
         (signature.return_type, false)
     };
+    let represented_byte_owner = return_type.is_valid()
+        && ordinary
+        && validation::bounded_byte_buffer_capacity(program, return_type).is_some()
+        && validation::has_plain_owned_contents_with_represented_constraints(program, return_type);
     (return_type.is_valid()
         && program.primitive_type_reference(return_type).is_none()
         && !matches!(
@@ -417,6 +432,7 @@ pub(crate) fn nested_structural_call_return_type(
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
                 && (validation::has_plain_owned_contents(program, return_type)
+                    || represented_byte_owner
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;
                     // the caller's operand scheduling replays that custody

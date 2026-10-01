@@ -113,12 +113,28 @@ pub(crate) fn validate_structural(
         };
         let target =
             super::authored::target_signature(checked, caller_machine, authored.source_target)?;
+        // Primitive byte predicates are retained by the ordinary call's
+        // independently reconstructed result custody. Its place names the
+        // bounded carrier, not a second type containing those predicates.
+        let owned_bytes = !authored.boundary
+            && result.multiplicity == Multiplicity::Unrestricted
+            && validation::bounded_byte_buffer_capacity(&checked.typed, target.return_type)
+                .is_some()
+            && validation::has_plain_owned_contents_with_represented_constraints(
+                &checked.typed,
+                target.return_type,
+            );
+        let carrier = if owned_bytes {
+            crate::unit::attached_unit::structural_carrier_type(checked, target.return_type)?
+        } else {
+            target.return_type
+        };
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
             // A reference-bearing record temporary carries its custody in the
             // call's published leaf-loan roster rather than plain owned
             // contents; `validate_custody` rejoins that roster separately.
-            || !((result.multiplicity == Multiplicity::Affine
+            || !(owned_bytes || (result.multiplicity == Multiplicity::Affine
                 && (validation::has_plain_owned_contents(&checked.typed, target.return_type)
                     || validation::reference_result_custody::is_reference_record(
                         &checked.typed,
@@ -136,7 +152,7 @@ pub(crate) fn validate_structural(
                         target.return_type,
                     ))))
             || checked
-                .normalized_type_identity(target.return_type)
+                .normalized_type_identity(carrier)
                 .into_string()
                 != result.type_identity
             || checked.type_multiplicity(target.return_type) != result.multiplicity

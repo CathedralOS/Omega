@@ -106,7 +106,9 @@ pub(super) fn selection_role(
 /// result stored whole into a borrowed field's opened window moves into that
 /// field, and a construction authored as a call argument moves whole into the
 /// call that reads it. An anonymous unrestricted byte result copied into its
-/// assignment's destination has no edge disposal or authored local.
+/// assignment's destination or passed whole into its enclosing call has no
+/// edge disposal or authored local. The call consumer independently rejoins
+/// each occurrence, result contract and evaluation order before emission.
 /// Named affine locals also retire at ordinary calls when
 /// their unique whole move rejoins exact establishment and transfer evidence.
 /// Shared call admission checks each authored operand before emission.
@@ -116,7 +118,7 @@ fn retired_in_body(
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<u32>, LoweringError> {
-    let moved_into_calls = state
+    let completed_operands = state
         .operations
         .iter()
         .filter_map(|operation| match operation {
@@ -126,6 +128,13 @@ fn retired_in_body(
                     Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
                 ..
             } => Some(result.binding_ordinal),
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary() && call.coordinate.call_ordinal != 0 =>
+            {
+                call.structural_result()
+                    .filter(|result| result.multiplicity == Multiplicity::Unrestricted)
+                    .map(|result| result.binding_ordinal)
+            }
             _ => None,
         })
         .filter(|ordinal| {
@@ -181,7 +190,7 @@ fn retired_in_body(
             }
             _ => Vec::new(),
         })
-        .chain(moved_into_calls)
+        .chain(completed_operands)
         .collect::<Vec<_>>();
     // A body release already consumed this exact carrier. Only loans whose
     // last use belongs to a transition remain for the selected edge to drop.

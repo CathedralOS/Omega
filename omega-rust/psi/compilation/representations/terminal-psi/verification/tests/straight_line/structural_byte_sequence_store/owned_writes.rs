@@ -441,6 +441,191 @@ fn owned_byte_return_forwards_an_exact_ordinary_call_result() {
     validate_module(&module).expect_err("forwarding does not manufacture a qualification");
 }
 
+fn owned_byte_call_argument() -> TerminalModule {
+    let mut module = owned_byte_return(Some(ByteSequencePredicate::ValidUtf8));
+    let mut caller = unit_module().machines.remove(0);
+    caller.id = id(901);
+    caller.contract.id = id(901);
+    caller.entry = id(901);
+    caller.blocks[0].id = id(901);
+    caller.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(2),
+        trivial_affine_discards: Vec::new(),
+    };
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: id(13),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(15),
+            structural_type: id(2),
+        },
+    });
+    let mut produced = module.machines[0].blocks[0].operations[4].clone();
+    produced.id = id(15);
+    let OperationResult::Structural(result) = &mut produced.result else {
+        unreachable!()
+    };
+    result.place = id(13);
+    produced.kind = OperationKind::CallStructural {
+        callee: module.machines[0].id,
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        selected_evidence: Vec::new(),
+    };
+    caller.blocks[0].operations = vec![
+        produced,
+        operation(
+            16,
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                callee: id(902),
+                arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: id(13),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ),
+    ];
+    let mut consumer = unit_module().machines.remove(0);
+    consumer.id = id(902);
+    consumer.contract.id = id(902);
+    consumer.entry = id(902);
+    consumer.blocks[0].id = id(902);
+    consumer.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    consumer.structural_places.push(StructuralPlaceDeclaration {
+        id: id(20),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    });
+    consumer
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: id(20),
+            position: 0,
+            is_self: false,
+            structural_type: id(2),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: vec![id(1)],
+            projected_qualifications: Vec::new(),
+        });
+    module.entry = caller.id;
+    module.machines.extend([caller, consumer]);
+    module
+}
+
+#[test]
+fn owned_byte_call_argument_retains_completed_qualified_value() {
+    let module = owned_byte_call_argument();
+    validate_module(&module).expect("an ordinary call receives the completed qualified byte owner");
+    assert_eq!(reconstruct_operation_obligations(&module).unwrap().len(), 1);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect_err("argument admission does not discharge the producer's capacity obligation");
+}
+
+#[test]
+fn owned_byte_call_argument_rejects_forged_custody() {
+    for corruption in 0..9 {
+        let mut module = owned_byte_call_argument();
+        match corruption {
+            0 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[1].blocks[0].operations[0].result
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            }
+            1 => {
+                module.machines[1].structural_places[0].kind =
+                    StructuralPlaceKind::OperationResult {
+                        producer: id(16),
+                        structural_type: id(2),
+                    }
+            }
+            2 => module.machines[1].blocks[0].operations.swap(0, 1),
+            3 => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut module.machines[1].blocks[0].operations[1].kind
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].access = StructuralAccess::MutableBorrow;
+            }
+            4 => {
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: id(3),
+                    identity: "test::SmallerOwner".into(),
+                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                        capacity: 4,
+                    }),
+                });
+                let formal = &mut module.machines[2].structural_parameters[0];
+                formal.structural_type = id(3);
+                formal.qualifications.clear();
+            }
+            5 => {
+                module.structural_domains.push(StructuralDomainDeclaration {
+                    id: id(2),
+                    semantic_domain: id(2),
+                    identity: "test::NoNul".into(),
+                    carrier: id(2),
+                    byte_predicate: Some(ByteSequencePredicate::NoNul),
+                    content_projection: None,
+                    establishment_routes: Vec::new(),
+                });
+                module.machines[2].structural_parameters[0].qualifications = vec![id(2)];
+            }
+            6 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[1].blocks[0].operations[0].result
+                else {
+                    unreachable!()
+                };
+                result.structural_type = id(1);
+            }
+            7 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[1].blocks[0].operations[0].result
+                else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+            }
+            8 => {
+                let OperationKind::CallStructural { callee, .. } =
+                    &mut module.machines[1].blocks[0].operations[0].kind
+                else {
+                    unreachable!()
+                };
+                *callee = id(902);
+            }
+            _ => unreachable!(),
+        }
+        validate_module(&module).expect_err(&format!("forged byte call argument {corruption}"));
+    }
+}
+
 #[test]
 fn owned_byte_boundary_view_preserves_current_qualified_home() {
     let module = owned_byte_boundary_call();

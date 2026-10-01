@@ -1248,18 +1248,22 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `c04eb9571f`
-  on macOS ARM64, the closed-stdin
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `ad4cf8611e`
+  plus the nested-byte-operand change on macOS ARM64, the closed-stdin
   command exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect`
-  stops at `outer calls: structural operands`. The first missing operand is
-  nested `self.direction_command(direction)`: Stage 04
-  `values/scalar/call_arguments.rs::nested_structural_call_return_type` declines
-  mutable-self producers, and `control/structural_operands.rs::result` requires
-  plain-owned contents rather than retaining its `[u8; 8] in Utf8` result.
-  Compose that checked call and its qualified byte result before joining the
-  `from_room.append_exit` receiver. The scripted session cannot run yet.
+  `MazeBuilder::build` → `MazeBuilder::force_quiet_room` → `MazeBuilder::clear_event`
+  stops at `statement sequence: assignment: structural call result field store`.
+  Rejoin `event.enemy = self.empty_enemy()` and `event.reward = self.empty_reward()`
+  through Stage 04 `control/statement_sequence/assignments.rs` and ordinary
+  structural result custody; carry their field qualifications and effects
+  through publication and native storage. The scripted session cannot run yet.
+  `text/nested_mutable_receiver_byte_result_exit` now executes 70: two effectful
+  mutable-self byte-returning calls evaluate once in authored order, retain
+  independent qualified `[u8; 8]` owners and live lengths, and pass as ordinary
+  owned operands into a helper that writes their bytes into record fields.
+  Source and canonical replay retain the exact occurrences and predicates;
+  target transport preserves complete owners, never borrowed descriptors.
   Owned bounded-byte completions now retain predicates and live length through
   calls, ordinary parameter-rooted field replacement and native aggregate
   returns: `text/owned_byte_call_result_field_exit` executes 70, including a
@@ -1278,9 +1282,8 @@ the complete product bar; focused successes below do not establish that baseline
   lack a scalar observation form. Source replay rejects same-typed sibling
   substitution; Terminal checks path/access/lifetime and suspended parents;
   x64/ARM64 target replay rejects forged root, index and sibling-field rows.
-  Ninety-two focused source, verifier and native-lowering tests pass at this
-  revision. After nested operand production, Stage 04
-  `calls/receiver_calls.rs::result_receiver_argument` must retain the loan of
+  Remaining receiver work in Stage 04
+  `receiver_calls/mod.rs::result_receiver_argument` must retain the loan of
   immutable `let from_room: &mut Room`, not require a mutable owned-record
   binding; Stage 05 receiver replay must retain the same distinction.
   `Level::room_mut`

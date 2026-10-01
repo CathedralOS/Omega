@@ -311,6 +311,21 @@ pub(in crate::validation) fn validate_structural_argument(
                         Some((result.structural_type, StructuralMultiplicity::Unrestricted,
                             StructuralAccess::Owned, &[][..], &[][..]))
                     }
+                    StructuralPlaceKind::OperationResult { .. }
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::Owned
+                            && terminal_semantics::byte_owned_call_result(module, caller, argument.place).is_some() =>
+                    {
+                        // Completion carries the exact callee's qualified byte
+                        // owner. Availability is still checked at the use site;
+                        // a matching result declaration does not establish it.
+                        terminal_semantics::byte_owned_call_result(module, caller, argument.place)
+                            .map(|result| (result.structural_type, result.multiplicity,
+                                StructuralAccess::Owned, result.qualifications.as_slice(),
+                                result.projected_qualifications.as_slice()))
+                    }
                     StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type, ..
                     } if argument.path.is_empty()
@@ -841,6 +856,13 @@ fn owned_bounded_owner_presentation(
     }
     let Some(result) =
         crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
+            .or_else(|| {
+                (argument.access == StructuralAccess::Owned)
+                    .then(|| {
+                        terminal_semantics::byte_owned_call_result(module, caller, argument.place)
+                    })
+                    .flatten()
+            })
     else {
         return false;
     };

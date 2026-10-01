@@ -1,0 +1,33 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
+data Main { console: Binding<Console>; generated: u64 in Wrapping; observed: Labels; }
+
+machine Main::next_label(&mut self) -> [u8; 8] in Utf8 {
+    self.generated = self.generated + 1;
+    transition self.generated == 1 {
+        true -> "North"
+        false -> "N"
+    }
+}
+
+machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8, destination: &mut Labels) {
+    destination.first = first;
+    destination.second = second;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut labels: Labels;
+    ordered(self.next_label(), self.next_label(), &mut labels);
+    self.observed.first = labels.first;
+    self.observed.second = labels.second;
+    transition self.observed.first == "North" && self.observed.first.len == 5
+        && self.observed.second == "N" && self.observed.second.len == 1
+        && self.generated == 2 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -509,14 +509,35 @@ pub(super) fn account(
                         checked_trees::CheckedByteSequenceValue::CallResult { binding_ordinal, .. }
                             if *binding_ordinal == result.binding_ordinal)))
             });
-        let total =
-            usize::from(consumed || stored || copied_into_construction || copied_into_byte_store)
-                + call_transfers
-                + cleanup_discards
-                + construction_transfers
-                + reference_releases
-                + reference_reborrows
-                + view_releases;
+        // An unrestricted anonymous call result has no statement-local
+        // disposal owner: its statement may bind the enclosing scalar call.
+        // A later whole owned argument copies it just as a construction or
+        // byte store does. Repeated copies create no affine transfer debt;
+        // source occurrence and producer order are checked at each consumer.
+        let copied_into_call = result.multiplicity == Multiplicity::Unrestricted
+            && !call_owns_result(operation)
+            && operations[producer_index + 1..]
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
+                .any(|argument| {
+                    argument.source_structural_result_binding_ordinal()
+                        == Some(result.binding_ordinal)
+                        && argument.type_identity == result.type_identity
+                        && argument.access == CheckedStructuralAccess::Owned
+                        && argument.path.is_empty()
+                });
+        let total = usize::from(
+            consumed
+                || stored
+                || copied_into_construction
+                || copied_into_byte_store
+                || copied_into_call,
+        ) + call_transfers
+            + cleanup_discards
+            + construction_transfers
+            + reference_releases
+            + reference_reborrows
+            + view_releases;
         if total != 1 {
             return None;
         }

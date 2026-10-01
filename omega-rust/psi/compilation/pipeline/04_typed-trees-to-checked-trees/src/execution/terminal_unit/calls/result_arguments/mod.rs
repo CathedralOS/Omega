@@ -358,6 +358,33 @@ pub(super) fn argument(
         return None;
     }
     if unrestricted && !projected_borrow {
+        // A completed nested byte call owns its qualified result. Scheduling
+        // it does not establish predicates: retain the exact declared roster
+        // required by this formal, then rejoin its source/ordinal below.
+        let completed_byte_operand = access == CheckedStructuralAccess::Owned
+            && !projected
+            && place.root == facts::PlaceRoot::Expression(expression)
+            && matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Call(_)
+            )
+            && validation::bounded_byte_buffer_capacity(program, formal_type).is_some()
+            && validation::has_plain_owned_contents_with_represented_constraints(
+                program,
+                formal_type,
+            )
+            && super::super::control::structural_operands::result(
+                program,
+                facts,
+                machine,
+                expression,
+                &mut ShapeCollector::new(program),
+            )
+            .is_some_and(|completed| {
+                completed.type_identity == result.type_identity
+                    && validation::structural_result_qualifications(program, formal_type)
+                        .is_ok_and(|required| completed.qualifications == required)
+            });
         // A shared borrow views the binding's own storage: the formal's
         // referent — not its `&` shell — carries the closed/plain-content
         // obligation, and the borrow arm below proves the loan itself.
@@ -386,6 +413,7 @@ pub(super) fn argument(
         if projected
             || !storage.is_some_and(|storage| {
                 validation::is_closed_primitive_array_type(program, storage)
+                    || completed_byte_operand
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                         program, storage,
                     )
