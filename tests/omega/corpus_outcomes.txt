@@ -942,10 +942,18 @@ fail/recast/recast_mut_range_bit_sets_differ rejected 274ms expected @2d8ed25366
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
 fail/recast/recast_mut_record_fact_fenced rejected 293ms expected @2d8ed253669f
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
+fail/recast/recast_mut_record_where_bounds_differ rejected 95ms expected @b5d2bc92c85f
+	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
+fail/recast/recast_mut_record_where_write_out_of_range rejected 86ms expected @b5d2bc92c85f
+	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/recast/recast_position_fenced rejected 307ms expected @2d8ed253669f
 	a recast re-views storage at an executable position (`let v: &T = &x as &T`, a guard operand, a call argument, a nested expression); proof-only fact positions (`requires`/`ensures`) produce no runtime borrow and stay fenced
+fail/recast/recast_record_relational_where_fenced rejected 95ms expected @b5d2bc92c85f
+	machine `Main::main` state `main`: recast target `Ordered` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
 fail/recast/recast_shared_domain_strengthening_rejected rejected 307ms expected @2d8ed253669f
 	machine `Main::main` state `main`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
+fail/recast/recast_shared_record_where_strengthening_rejected rejected 242ms expected @b5d2bc92c85f
+	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `TightReading` are not representation-compatible
 fail/recast/recast_size_mismatch_rejected rejected 332ms expected @2d8ed253669f
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
 fail/recast/reference_let_pun_requires_recast rejected 285ms expected @2d8ed253669f
@@ -1971,14 +1979,14 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 763ms @2d8ed
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1259ms @2d8ed253669f
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 769ms @ca8c127c90c5
-pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2454ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 1993ms @b5d2bc92c85f
+	terminal-artifact production failed: Lowering(Unsupported("receiver alias escapes through a local initializer"))
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1265ms @ca8c127c90c5
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 767ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1205ms @2d8ed253669f
-pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2391ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2074ms @b5d2bc92c85f
+	terminal-artifact production failed: Lowering(Unsupported("record read carrier path changed its declared type"))
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
 pass/relevance/erased_case_payload_field_exit checked 747ms @ca8c127c90c5
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 1314ms @2d8ed253669f

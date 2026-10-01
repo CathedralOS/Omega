@@ -27,11 +27,12 @@ pub fn data_float_predicate(
 /// Prove the complete expression predicate of a closed record at zero.
 /// Early callers may precede literal stamping: an anonymous endpoint takes
 /// its format only from the exact opposite field operand, with the same
-/// selected comparison authority checked afterward. A fact applying a
-/// collection predicate to fields instead holds when exploring the
-/// predicate's checked body at the zeroed fields returns `true` on every
-/// path. This does not establish contained fields, memberships, cases or
-/// binding custody.
+/// selected comparison authority checked afterward. An integer fact holds
+/// when it folds true at the born-zero valuation, so one declaration may mix
+/// integer and float bounds. A fact applying a collection predicate to fields
+/// instead holds when exploring the predicate's checked body at the zeroed
+/// fields returns `true` on every path. This does not establish contained
+/// fields, memberships, cases or binding custody.
 pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinition) -> bool {
     if !definition.type_parameters.is_empty()
         || definition.where_facts.is_empty()
@@ -58,12 +59,86 @@ pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinit
                 true,
                 0,
             ) == Some(true)
+                // An integer fact folds at the born-zero valuation exactly as
+                // the resolution-stage gate folds it; a float fact elsewhere in
+                // the same declaration is what left the gate for this pass.
+                || super::symbolic_values::fold_with_valuation(
+                    program,
+                    definition,
+                    &[],
+                    &[],
+                    &[],
+                    true,
+                    *expression,
+                )
+                .is_some_and(|value| value != 0)
                 || crate::proof_contracts::collection_predicates::data_fact_holds_at_zero(
                     program,
                     definition,
                     *expression,
                 )
         })
+}
+
+/// The exact IEEE meaning of the literal in a `field <comparison> literal`
+/// conjunct of `definition`'s facts, read at the field's own format. The
+/// literal lands at that format exactly as the predicate itself does, and the
+/// comparison must select the builtin or sealed float meaning; a user-supplied
+/// comparison states no interval. `None` for any other conjunct shape.
+pub(crate) fn float_field_literal_bound_meaning(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    conjunct: ExpressionHandle,
+) -> Option<FloatMeaning> {
+    if !program.expression_table.expression_is_valid(conjunct) {
+        return None;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+        return None;
+    };
+    let field_format = |expression| {
+        let field = declared_field(program, definition, expression)?;
+        match program.primitive_type_reference(field.type_reference)? {
+            PrimitiveType::F32 => Some(numerics::literals::FloatFormat::F32),
+            PrimitiveType::F64 => Some(numerics::literals::FloatFormat::F64),
+            _ => None,
+        }
+    };
+    // Field operands supply no value here; only the literal's meaning is read.
+    let unread = |_, _| Some(FloatMeaning::Zero { negative: false });
+    let (left, left_primitive, left_type) = operand(
+        program,
+        definition,
+        binary.left,
+        &unread,
+        field_format(binary.right),
+    )?;
+    let (right, right_primitive, right_type) = operand(
+        program,
+        definition,
+        binary.right,
+        &unread,
+        field_format(binary.left),
+    )?;
+    if left_primitive != right_primitive
+        || !crate::has_builtin_or_sealed_float_comparison_meaning(
+            program,
+            definition.symbol,
+            conjunct,
+            binary.operator,
+            &[Some(left_type), Some(right_type)],
+        )
+    {
+        return None;
+    }
+    match (
+        program.expression_table.expression(binary.left),
+        program.expression_table.expression(binary.right),
+    ) {
+        (ExpressionNode::Float(_), ExpressionNode::Name(_)) => Some(left),
+        (ExpressionNode::Name(_), ExpressionNode::Float(_)) => Some(right),
+        _ => None,
+    }
 }
 
 fn predicate(

@@ -1879,10 +1879,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
   arrivals carry it. The former pending `float/float_range_attached_field`
   is migrated to `pass/float/data_where_float_field_restored_exit`: its
   field's data `where` row crosses a callee's invariant window and the
-  program exits 70 natively. The three recast customers still spell
-  bracketed float ranges on fields and locals (`f32 [0..=1]`), as does
-  `generics/ranged_const_parameter_attached_shape`, so their migration under
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** comes first. Coordinate the
+  program exits 70 natively. The two record recast customers
+  (`runtime_shared_record_float_range_weakening_exit`,
+  `runtime_mutable_equivalent_record_recast_exit`) now bound their fields with
+  data `where` facts in static form and check: interval-only `where` bounds
+  narrow recast leaves (`checking/src/value_custody/recasts/record_representation.rs`).
+  Natively both stop in stage 05, at `record read carrier path changed its
+  declared type` (shared) and `receiver alias escapes through a local
+  initializer` (mutable); a plain record view without facts stops the same way,
+  so typed-record view lowering is the next consumer. The scalar customer
+  `runtime_float_range_representation_recast_exit` still spells
+  `f32 [0..=1]`: its `&u32` view of an `f32` needs a Terminal bit re-view,
+  which Terminal does not have. `generics/ranged_const_parameter_attached_shape`
+  also still spells bracketed float ranges. Coordinate the
   state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
   guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`.
 

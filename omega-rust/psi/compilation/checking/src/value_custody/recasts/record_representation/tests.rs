@@ -445,3 +445,127 @@ fn phantom_lifetime_shell_rejects_malformed_origin_cycle_and_zero_size() {
             .is_none()
     );
 }
+
+fn where_record_representations(
+    source: &str,
+) -> (
+    TypedTrees,
+    Vec<(String, Option<super::MutableRecordRepresentation>)>,
+) {
+    let mut program = crate::front_end::typed_program(source);
+    let records = program
+        .data_definitions()
+        .iter()
+        .map(|data| (data.symbol, data.name.as_str().to_string()))
+        .collect::<Vec<_>>();
+    let representations = records
+        .into_iter()
+        .map(|(symbol, name)| {
+            let type_reference = named_type(&mut program, symbol, &name);
+            let representation = mutable_type_representation(&program, type_reference);
+            (name, representation)
+        })
+        .collect();
+    (program, representations)
+}
+
+fn representation<'list>(
+    representations: &'list [(String, Option<super::MutableRecordRepresentation>)],
+    name: &str,
+) -> Option<&'list super::MutableRecordRepresentation> {
+    representations
+        .iter()
+        .find(|(candidate, _)| candidate == name)
+        .expect("named record")
+        .1
+        .as_ref()
+}
+
+#[test]
+fn interval_where_facts_narrow_float_leaves_for_shared_weakening() {
+    let (program, representations) = where_record_representations(
+        "data Narrow where value >= 0.0 && value <= 1.0 { value: f32; }
+         data Wide where value >= 0.0 && value <= 2.0 { value: f32; }
+         data Tight where 0.0 <= value && value <= 0.5 { value: f32; }
+         data Plain { value: f32; }
+         data Wider64 where value >= 0.0 && value <= 2.0 { value: f64; }",
+    );
+    let narrow = representation(&representations, "Narrow").expect("interval facts admit");
+    let wide = representation(&representations, "Wide").expect("interval facts admit");
+    let tight = representation(&representations, "Tight").expect("mirrored bounds admit");
+    let plain = representation(&representations, "Plain").expect("plain record");
+    let implies = |source, target| super::record_representation_implies(&program, source, target);
+    assert!(
+        implies(narrow, wide),
+        "a narrower bound establishes a wider one"
+    );
+    assert!(
+        !implies(wide, narrow),
+        "a shared view cannot strengthen a bound"
+    );
+    assert!(!implies(narrow, tight), "an unproved tighter bound rejects");
+    assert!(implies(narrow, plain), "a shared view may forget the bound");
+    assert!(
+        !implies(plain, narrow),
+        "unconstrained bits include NaN and out-of-range values"
+    );
+    assert!(
+        !super::mutable_record_representations_equivalent(&program, narrow, wide),
+        "a mutable alias needs equal bounds"
+    );
+    assert!(super::mutable_record_representations_equivalent(
+        &program, narrow, narrow
+    ));
+    let wider = representation(&representations, "Wider64").expect("f64 interval admits");
+    assert!(
+        !implies(narrow, wider),
+        "float intervals never cross carriers"
+    );
+}
+
+#[test]
+fn interval_where_facts_normalize_integer_leaves_for_mutable_aliases() {
+    let (program, representations) = where_record_representations(
+        "data Signed where value >= 0 && value <= 100 { value: i16; }
+         data Unsigned where value <= 100 { value: u16; }
+         data SignedOpen where value <= 100 { value: i16; }
+         data Exact where value == 7 { value: u16; }",
+    );
+    let signed = representation(&representations, "Signed").expect("interval facts admit");
+    let unsigned = representation(&representations, "Unsigned").expect("one-sided bound admits");
+    let signed_open = representation(&representations, "SignedOpen").expect("one-sided bound");
+    let exact = representation(&representations, "Exact").expect("equality bound admits");
+    let equivalent =
+        |source, target| super::mutable_record_representations_equivalent(&program, source, target);
+    assert!(
+        equivalent(signed, unsigned),
+        "0..=100 stores the same bit patterns in i16 and u16"
+    );
+    assert!(
+        !equivalent(signed_open, unsigned),
+        "negative i16 values have bit patterns u16 0..=100 lacks"
+    );
+    assert!(super::record_representation_implies(
+        &program, exact, unsigned
+    ));
+    assert!(!super::record_representation_implies(
+        &program, unsigned, exact
+    ));
+}
+
+#[test]
+fn where_facts_that_do_not_bound_one_scalar_field_keep_the_record_fenced() {
+    let (_, representations) = where_record_representations(
+        "data Ordered where low <= high { low: i32; high: i32; }
+         data Strict where value < 1.0 { value: f32; }
+         data Empty where value >= 10 && value <= 5 { value: u8; }
+         data Inner { value: u8; }
+         data Outer where inner == 3 { inner: Inner; }",
+    );
+    for name in ["Ordered", "Strict", "Empty", "Outer"] {
+        assert!(
+            representation(&representations, name).is_none(),
+            "{name} must stay fenced"
+        );
+    }
+}
