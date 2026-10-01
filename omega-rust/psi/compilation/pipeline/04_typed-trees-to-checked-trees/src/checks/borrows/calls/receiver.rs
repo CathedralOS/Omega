@@ -1,5 +1,6 @@
 //! An implicit receiver participates in the same loan compatibility checks as
 //! explicit operands, including shared receivers beside exclusive arguments.
+//! A named jump to a sibling state passes one too (`call_passes_receiver`).
 
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -8,6 +9,9 @@ use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
+use super::super::statements::{
+    local_jump, local_loan_ends_before_successor, source_exiting_without_local_loan_carriers,
+};
 use super::evidence::CallCompatibility;
 use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
 
@@ -18,6 +22,23 @@ mod returned;
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
 };
+
+/// Whether `call` runs its target on the caller's implicit receiver.
+///
+/// An authored receiver operand records `has_receiver`. A named jump to a
+/// sibling state spells none, yet a successor declaring `self` runs on the
+/// caller's own `self` while it holds every loan the jump's arguments carry:
+/// `transition { _ -> next(&mut self.count) }` is the invocation
+/// `self.next(&mut self.count)` with the successor as callee, and the same
+/// receiver judgments apply. Each judgment still requires the target's `self`
+/// parameter, so a successor without one passes nothing.
+fn call_passes_receiver(
+    program: &TypedTrees,
+    state_flow: &FlowStateFact,
+    call: &BorrowCallFact,
+) -> bool {
+    call.has_receiver || local_jump(program, state_flow, call).is_some()
+}
 
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
@@ -163,9 +184,10 @@ pub(super) fn check_receiver_conflicts<'p>(
     recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    if !call.has_receiver {
+    if !call_passes_receiver(program, state_flow, call) {
         return;
     }
+    let named_jump = !call.has_receiver;
     let Some((receiver_access, receiver_name)) =
         crate::semantic::calls::call_target_parameters(program, call.target_symbol).and_then(
             |parameters| {
@@ -225,11 +247,12 @@ pub(super) fn check_receiver_conflicts<'p>(
         segments,
     }) = receiver
     else {
-        if receiver_access != BorrowAccessKind::WriteOnly {
+        if receiver_access != BorrowAccessKind::WriteOnly || named_jump {
             // Computed reference receivers use the existing result-origin and
             // call-frame checks, not this source-place subloan judgment. Their
             // presence is still retained in call facts. Write-only receivers
-            // require the content-independent exact place admitted here.
+            // require the content-independent exact place admitted here. A
+            // jump from a state without `self` lends no caller place.
             return;
         }
         diagnostics.push(Diagnostic::error(format!(
@@ -245,7 +268,13 @@ pub(super) fn check_receiver_conflicts<'p>(
             segments,
         },
     );
+    // Source writability judges an authored receiver operand against the
+    // source state's declared access. A jump's successor reaches `self` under
+    // its machine's receiver authority instead, which that narrower access
+    // does not bound: a `&self` state of a `&mut self` machine may hand
+    // control to a `&mut self` sibling.
     if receiver_access.is_exclusive()
+        && !named_jump
         && !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver)
     {
         diagnostics.push(Diagnostic::error(format!(
@@ -332,11 +361,21 @@ pub(super) fn check_receiver_conflicts<'p>(
             )));
         }
     }
+    // A jump's successor runs after the source state's scope exit, which
+    // closes every local observation no argument carries into it; the same
+    // release `check_call_mutation_borrows` grants the successor's writes.
+    let exiting_source = named_jump
+        .then(|| source_exiting_without_local_loan_carriers(program, state_flow, call))
+        .flatten();
     for loan_handle in facts.flow.borrow_loan_constraints(entry_constraints) {
         // The implicit child call borrows through this exact lineage. Its own
         // loan and ancestors are authority, not competing sibling operands.
         // Explicit arguments above never receive this exemption.
-        if receiver.lineage.contains(&loan_handle) {
+        if receiver.lineage.contains(&loan_handle)
+            || exiting_source.is_some_and(|source| {
+                local_loan_ends_before_successor(program, facts, state_flow, source, loan_handle)
+            })
+        {
             continue;
         }
         let loan = facts.borrow.loans.get(loan_handle);

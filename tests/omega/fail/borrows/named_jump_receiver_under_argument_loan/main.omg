@@ -1,0 +1,34 @@
+// A named jump to a sibling state hands the caller's own `self` to the
+// successor, which holds the jump's argument loans for its whole run. The
+// exclusive loan of `self.count` suspends that field, so a `&mut self`
+// successor may neither read nor write it through its receiver, and a
+// `&self` successor's shared receiver overlaps the exclusive child outright.
+
+data Main { count: u64; other: u64; }
+
+machine Main::read_form(&mut self) -> u64 {
+    transition { _ -> read_after(&mut self.count) }
+    state read_after(&mut self, counter: &mut u64) -> u64 {
+        counter = 5;
+        let seen: u64 = self.count;
+        (seen)
+    }
+}
+
+machine Main::write_form(&mut self) -> u64 {
+    transition { _ -> write_through_self(&mut self.count) }
+    state write_through_self(&mut self, counter: &mut u64) -> u64 {
+        self.count = 7;
+        counter = 5;
+        (0)
+    }
+}
+
+machine Main::shared_form(&mut self) -> u64 {
+    transition { _ -> observe(&mut self.count) }
+    state observe(&self, counter: &mut u64) -> u64 {
+        counter = 5;
+        let seen: u64 = self.count;
+        (seen)
+    }
+}

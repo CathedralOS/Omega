@@ -4,7 +4,9 @@
 // node (a shared `&` vanishes at parse time), so a SYNTACTIC mutability
 // check would false-positive here -- the enforcement resolves the name's
 // declaration instead. The callee writes through the double-hopped
-// reference and the caller observes it via the aliased field.
+// reference and the caller observes it via the aliased field once the
+// loan has ended: `step` holds `c` exclusively, so it cannot read `self.c`
+// itself, and `verify` reads it after the edge that drops `c`.
 // exit 71 = the forwarded write missed self.c.
 
 use omega_language_std::console;
@@ -21,6 +23,9 @@ machine Main::main(&mut self) reaches Console {
     }
     state step(&mut self, c: &mut Counter) {
         c.n = c.n + 59;
+        transition { _ -> verify() }
+    }
+    state verify(&mut self) {
         transition self.c.n == 59 { true -> good() _ -> bad() }
     }
 

@@ -25,6 +25,13 @@
 //! through it. A state whose own body or receiver call cannot be placed has
 //! no footprint, and its callers treat their whole receiver as read.
 //!
+//! Each state keeps two footprints (`jump_loans`). The whole run includes
+//! every state it jumps to, because a call holds its argument loans until it
+//! returns. The held run serves a jump into the state, whose argument loans
+//! end at the first further jump that does not forward them: it includes the
+//! whole run of each call, the held run of each forwarding jump, and nothing
+//! of a releasing jump.
+//!
 //! Recursive states settle by a monotone fixed point: footprints only grow.
 //! An instantiated place deeper than `MAXIMUM_PLACE_DEPTH` widens to its
 //! call's receiver place, which bounds the place set so the fixed point
@@ -32,6 +39,7 @@
 
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::jump_loans::{TargetRun, target_run};
 use crate::flow::mutation::{
     WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
     instantiate_call_relative_places,
@@ -59,13 +67,18 @@ struct StateReceiverReads {
     state_symbol: SymbolHandle,
     /// False when the body or one of its receiver calls cannot be placed.
     complete: bool,
+    /// The whole run's reads.
     reads: Vec<CanonicalPlace>,
+    /// The held run's reads, a subset of `reads`.
+    held_reads: Vec<CanonicalPlace>,
 }
 
-/// The places `borrow_call`'s target may read through its receiver, in the
-/// caller's coordinates: the target's footprint instantiated at the receiver,
-/// or the whole receiver place when no footprint is known or a read cannot be
-/// placed. Empty when the receiver itself has no place.
+/// The places `borrow_call`'s target may read through its receiver while
+/// `borrow_call`'s own argument loans are live, in the caller's coordinates:
+/// the target's whole-run footprint for a call or its held-run footprint for
+/// a jump, instantiated at the receiver, or the whole receiver place when no
+/// footprint is known or a read cannot be placed. Empty when the receiver
+/// itself has no place.
 pub(crate) fn call_receiver_read_accesses(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -96,8 +109,18 @@ pub(crate) fn call_receiver_read_accesses(
     else {
         return whole_receiver();
     };
+    let reads = match target_run(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    ) {
+        TargetRun::Whole => &footprint.reads,
+        TargetRun::Held | TargetRun::Released => &footprint.held_reads,
+    };
     let mut instantiated = Vec::new();
-    for read in &footprint.reads {
+    for read in reads {
         let Some(places) = instantiate_call_relative_places(
             program,
             caller_machine_symbol,
@@ -126,6 +149,8 @@ struct ReceiverCall<'facts> {
     receiver: CanonicalPlace,
     /// The target's footprint position; `None` for a target without one.
     target: Option<usize>,
+    /// The part of the target's run the owner's held run includes.
+    run: TargetRun,
 }
 
 /// The state a footprint belongs to, resolved once for the fixed point.
@@ -200,6 +225,7 @@ fn build_state_receiver_reads(
                     call,
                     receiver,
                     target: None,
+                    run: target_run(program, machine.symbol, state.symbol, borrow, call),
                 });
             }
         }
@@ -217,6 +243,7 @@ fn build_state_receiver_reads(
         footprints.push(StateReceiverReads {
             state_symbol: state.symbol,
             complete,
+            held_reads: reads.clone(),
             reads,
         });
         owners.push(owner);
@@ -236,7 +263,7 @@ fn build_state_receiver_reads(
     footprints
 }
 
-/// Adds each receiver call's instantiated target footprint until no
+/// Adds each receiver call's instantiated target footprints until no
 /// footprint grows. Unions are monotone, so the visiting order does not
 /// change the settled sets.
 fn settle_receiver_call_reads(
@@ -253,54 +280,50 @@ fn settle_receiver_call_reads(
                 continue;
             }
             let mut additions = Vec::new();
+            let mut held_additions = Vec::new();
             for receiver_call in &receiver_calls[index] {
-                let instantiated = receiver_call
+                let target = receiver_call
                     .target
-                    .filter(|&target| footprints[target].complete)
-                    .and_then(|target| {
-                        let mut places = Vec::new();
-                        for read in &footprints[target].reads {
-                            places.extend(instantiate_call_relative_places(
-                                program,
-                                owner.machine_symbol,
-                                owner.state.symbol,
-                                borrow,
-                                receiver_call.call,
-                                read,
-                                WritePlaceNamespace::AccessRoute,
-                                None,
-                            )?);
-                        }
-                        Some(places)
-                    });
-                let Some(places) = instantiated else {
-                    additions.push(receiver_call.receiver.clone());
-                    continue;
-                };
-                for mut place in places {
-                    owner.normalize(program, &mut place);
-                    if !owner.reaches(program, &place) {
-                        continue;
-                    }
-                    additions.push(if place.segments.len() > MAXIMUM_PLACE_DEPTH {
-                        receiver_call.receiver.clone()
-                    } else {
-                        place
-                    });
+                    .map(|target| &footprints[target])
+                    .filter(|target| target.complete);
+                let whole = owner.instantiate(
+                    program,
+                    borrow,
+                    receiver_call,
+                    target.map(|target| target.reads.as_slice()),
+                );
+                match receiver_call.run {
+                    TargetRun::Whole => held_additions.extend(whole.iter().cloned()),
+                    TargetRun::Held => held_additions.extend(owner.instantiate(
+                        program,
+                        borrow,
+                        receiver_call,
+                        target.map(|target| target.held_reads.as_slice()),
+                    )),
+                    TargetRun::Released => {}
                 }
+                additions.extend(whole);
             }
-            let reads = &mut footprints[index].reads;
-            for place in additions {
-                if !reads.contains(&place) {
-                    reads.push(place);
-                    grew = true;
-                }
-            }
+            let footprint = &mut footprints[index];
+            grew |= extend_new(&mut footprint.reads, additions);
+            grew |= extend_new(&mut footprint.held_reads, held_additions);
         }
         if !grew {
             return;
         }
     }
+}
+
+/// Appends the places `reads` lacks; whether any was new.
+fn extend_new(reads: &mut Vec<CanonicalPlace>, additions: Vec<CanonicalPlace>) -> bool {
+    let mut grew = false;
+    for place in additions {
+        if !reads.contains(&place) {
+            reads.push(place);
+            grew = true;
+        }
+    }
+    grew
 }
 
 fn target_takes_receiver(program: &typed_trees::TypedTrees, target_symbol: SymbolHandle) -> bool {
@@ -311,6 +334,51 @@ fn target_takes_receiver(program: &typed_trees::TypedTrees, target_symbol: Symbo
 impl FootprintOwner<'_> {
     fn normalize(&self, program: &typed_trees::TypedTrees, place: &mut CanonicalPlace) {
         normalize_attached_place_root(program, self.machine_symbol, self.state.symbol, place);
+    }
+
+    /// One target footprint at `receiver_call`, in this owner's coordinates.
+    /// An unknown footprint or an unplaceable read widens to the call's
+    /// receiver place; so does an instantiated place deeper than
+    /// `MAXIMUM_PLACE_DEPTH`.
+    fn instantiate(
+        &self,
+        program: &typed_trees::TypedTrees,
+        borrow: &BorrowFacts,
+        receiver_call: &ReceiverCall<'_>,
+        target_reads: Option<&[CanonicalPlace]>,
+    ) -> Vec<CanonicalPlace> {
+        let instantiated = target_reads.and_then(|reads| {
+            let mut places = Vec::new();
+            for read in reads {
+                places.extend(instantiate_call_relative_places(
+                    program,
+                    self.machine_symbol,
+                    self.state.symbol,
+                    borrow,
+                    receiver_call.call,
+                    read,
+                    WritePlaceNamespace::AccessRoute,
+                    None,
+                )?);
+            }
+            Some(places)
+        });
+        let Some(places) = instantiated else {
+            return vec![receiver_call.receiver.clone()];
+        };
+        let mut owned = Vec::new();
+        for mut place in places {
+            self.normalize(program, &mut place);
+            if !self.reaches(program, &place) {
+                continue;
+            }
+            owned.push(if place.segments.len() > MAXIMUM_PLACE_DEPTH {
+                receiver_call.receiver.clone()
+            } else {
+                place
+            });
+        }
+        owned
     }
 
     /// Whether `place` is storage this state reaches through its receiver:

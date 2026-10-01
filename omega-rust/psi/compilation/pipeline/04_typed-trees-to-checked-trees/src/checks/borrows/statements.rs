@@ -433,7 +433,15 @@ fn check_call_mutation_borrows<'p>(
             borrow_call,
             summary_cache,
         );
-        if mutated_places.is_empty() {
+        // A call that writes nothing can still read, through its receiver,
+        // storage one of its exclusive arguments suspends.
+        let retains_exclusive_argument = facts
+            .borrow
+            .argument_accesses
+            .span_or_empty(borrow_call.accesses)
+            .iter()
+            .any(|argument| argument.kind.is_exclusive() && argument.end_before_access.is_none());
+        if mutated_places.is_empty() && !retains_exclusive_argument {
             continue;
         }
         let mut available_premises = stated_premises.to_vec();
@@ -464,6 +472,9 @@ fn check_call_mutation_borrows<'p>(
             diagnostics,
             bound_lookup,
         );
+        if mutated_places.is_empty() {
+            continue;
+        }
 
         let exiting_source =
             source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
@@ -524,15 +535,19 @@ fn check_call_mutation_borrows<'p>(
     }
 }
 
-/// A named jump enters another state only after the caller's local scope ends.
-/// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
-/// loans out of this judgment: their successor use needs its own correspondence.
-pub(super) fn source_exiting_without_local_loan_carriers<'program>(
+/// A named jump to a sibling state: the transition target names a state of the
+/// caller's own machine with no receiver operand. Calls in the transition's
+/// guard or arguments are ordinary calls, not the jump.
+pub(super) struct LocalJump<'program> {
+    pub(super) target: &'program typed_trees::state::State,
+    pub(super) site: crate::semantic::calls::CallSite<'program>,
+}
+
+pub(super) fn local_jump<'program>(
     program: &'program typed_trees::TypedTrees,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
-) -> Option<&'program typed_trees::state::State> {
-    let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
+) -> Option<LocalJump<'program>> {
     let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
     let site = crate::semantic::calls::find_call_site(
         program,
@@ -546,9 +561,20 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
     };
     // A local state name has no explicit receiver; its head is the target
     // symbol, not a borrowed receiver alias.
-    if path.members.count() != 1 || path.head_symbol != target.symbol {
-        return None;
-    }
+    (path.members.count() == 1 && path.head_symbol == target.symbol)
+        .then_some(LocalJump { target, site })
+}
+
+/// A named jump enters another state only after the caller's local scope ends.
+/// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
+/// loans out of this judgment: their successor use needs its own correspondence.
+pub(super) fn source_exiting_without_local_loan_carriers<'program>(
+    program: &'program typed_trees::TypedTrees,
+    flow: &FlowStateFact,
+    call: &checked_trees::BorrowCallFact,
+) -> Option<&'program typed_trees::state::State> {
+    let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
+    let LocalJump { target, site } = local_jump(program, flow, call)?;
     let machine = crate::lookup::machine_by_symbol(program, flow.machine_symbol)?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let parameters = program.state_parameters(target);

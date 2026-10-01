@@ -64,8 +64,16 @@ machine Main::main(&mut self) reaches Console {
     transition write[0].unsigned_value == 7
         && write[0].active
         && write[1].unsigned_value == 99
-        && write[1].active
-        && self.source[0].signed_value == 7
+        && write[1].active {
+        true -> verify()
+        _ -> bad()
+    }
+    }
+
+    // `write` holds `self.source` exclusively until `write_values` ends, so
+    // the receiver observes the stores only after that edge.
+    state verify(&mut self) {
+    transition self.source[0].signed_value == 7
         && self.source[0].enabled
         && self.source[1].signed_value == 99
         && self.source[1].enabled {
