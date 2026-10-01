@@ -202,6 +202,78 @@ fn authored_projection_beside_a_forwarded_mutable_root_still_conflicts() {
 }
 
 #[test]
+fn dispatch_call_payload_uses_the_saved_subject_before_forwarding_mutable_storage() {
+    let source = "data Message { case Captured(value: i32); case Empty; }
+        data Counter { value: i32; }
+        machine snapshot(counter: &Counter) -> Message {
+            Message::Captured { value: counter.value }
+        }
+        machine run(counter: &mut Counter) {
+            transition snapshot(counter) {
+                Message::Captured { value } -> consume(counter, value)
+                _ -> done(counter)
+            }
+            state consume(counter: &mut Counter, value: i32) { counter.value = value; }
+            state done(counter: &mut Counter) {}
+        }";
+    check_program(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn dispatch_call_does_not_exempt_a_fresh_call_in_the_arm() {
+    let source = "data Message { case Captured(value: i32); case Empty; }
+        data Counter { value: i32; }
+        machine snapshot(counter: &Counter) -> Message {
+            Message::Captured { value: counter.value }
+        }
+        machine read(counter: &Counter) -> i32 { counter.value }
+        machine run(counter: &mut Counter) {
+            transition snapshot(counter) {
+                Message::Captured { value } -> consume(counter, read(counter))
+                _ -> done(counter)
+            }
+            state consume(counter: &mut Counter, value: i32) { counter.value = value; }
+            state done(counter: &mut Counter) {}
+        }";
+    let diagnostics = check_program(source).expect_err("a fresh call observes the loaned root");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn dispatch_saved_payload_keeps_new_index_evaluation_in_the_arm() {
+    let source = "data Cell [copy] { value: i32; }
+        data Message { case Captured(cells: [Cell; 2]); case Empty; }
+        data Counter { value: i32; }
+        machine snapshot(counter: &Counter) -> Message {
+            Message::Captured { cells: [Cell { value: counter.value }, Cell { value: 9 }] }
+        }
+        machine position(counter: &Counter) -> u64 { 0 }
+        machine run(counter: &mut Counter) {
+            transition snapshot(counter) {
+                Message::Captured { cells } -> consume(counter, cells[position(counter)].value)
+                _ -> done(counter)
+            }
+            state consume(counter: &mut Counter, value: i32) { counter.value = value; }
+            state done(counter: &mut Counter) {}
+        }";
+    let diagnostics =
+        check_program(source).expect_err("the selector is not part of the saved subject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+        "{diagnostics:#?}"
+    );
+    let literal_index = source.replace("cells[position(counter)]", "cells[0]");
+    check_program(&literal_index).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
 fn shared_reference_argument_is_not_a_transient_scalar_read() {
     for argument in ["&counter.count", "borrow_count(&counter.count)"] {
         let source = format!(

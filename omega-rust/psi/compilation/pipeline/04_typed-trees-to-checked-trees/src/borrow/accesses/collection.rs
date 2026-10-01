@@ -47,7 +47,6 @@ impl<'a> BorrowAccessCollection<'a> {
             self.program,
             self.state_symbol,
             self.statement_index,
-            self.machine_symbol,
         );
         self
     }
@@ -93,10 +92,7 @@ impl<'a> BorrowAccessCollection<'a> {
         // A payload the dispatch already copied ended before the call's
         // first access; any other copied read ends after its own row.
         let end_before_access = self.is_plain_copy(expression).then(|| {
-            if self
-                .dispatch_extraction
-                .reads_extracted_copy(self, expression)
-            {
+            if self.reads_extracted_copy(expression) {
                 0
             } else {
                 self.access_count() + 1
@@ -107,6 +103,11 @@ impl<'a> BorrowAccessCollection<'a> {
 
     pub(super) fn access_count(&self) -> usize {
         self.accesses.count() as usize
+    }
+
+    pub(super) fn reads_extracted_copy(&self, expression: ExpressionHandle) -> bool {
+        self.dispatch_extraction
+            .reads_extracted_copy(self, expression)
     }
 
     pub(super) fn retain_receiver_accesses(&mut self, first_access: usize) {
