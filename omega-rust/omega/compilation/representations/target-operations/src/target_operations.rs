@@ -52,7 +52,7 @@ pub use boundary::{
     HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
     IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
 };

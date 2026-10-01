@@ -236,16 +236,13 @@ pub(super) fn validate(
         || callbacks != call.callbacks.iter().collect::<Vec<_>>()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
-        || call.binding.locator.target().native_target() != native.target
-        || call
-            .binding
-            .same_stack_contribution
-            .provider_plan_report_identity()
+        || call.binding.native_target() != Some(native.target)
+        || call.binding.provider_plan_report_identity()
             != call
                 .provider_execution
                 .provider_plan_report_identity()
                 .get()
-        || call.binding.same_stack_contribution.requirement_identity() != declaration.identity
+        || call.binding.requirement_identity() != declaration.identity
         || call.binding.boundary_entry_plan.call.policy
             != CallingPolicy::native_for_target(native.target)
         || call.binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn

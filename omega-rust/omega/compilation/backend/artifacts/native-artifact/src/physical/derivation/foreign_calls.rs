@@ -964,9 +964,11 @@ pub(crate) fn derive_normalized_foreign_child(
     }
 
     let realization = NormalizedForeignCallBinding {
-        locator: foreign.locator.clone(),
         boundary_entry_plan: foreign.boundary_entry_plan.clone(),
-        same_stack_contribution: foreign.same_stack_contribution.clone(),
+        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            locator: foreign.locator.clone(),
+            same_stack_contribution: foreign.same_stack_contribution.clone(),
+        },
     };
     let role = BoundaryTraitSettlementRole::AdmittedProvider {
         execution,

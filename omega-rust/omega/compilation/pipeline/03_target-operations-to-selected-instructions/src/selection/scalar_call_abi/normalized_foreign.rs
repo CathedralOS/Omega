@@ -235,13 +235,10 @@ pub(crate) fn validate(
     let plan = &call.binding.boundary_entry_plan;
     // Target applicability, calling policy, and entry control are exact
     // coordinates; the locator's sealed target must name this environment.
-    if call.binding.locator.target().native_target() != environment.target()
+    if call.binding.native_target() != Some(environment.target())
         || plan.call.policy != CallingPolicy::native_for_target(environment.target())
         || plan.call.entry_control != EntryControl::CallReturn
-        || call
-            .binding
-            .same_stack_contribution
-            .provider_plan_report_identity()
+        || call.binding.provider_plan_report_identity()
             != call
                 .provider_execution
                 .provider_plan_report_identity()

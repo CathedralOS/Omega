@@ -18,7 +18,7 @@ pub use target_operations::{
     IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
     LinuxWriteLineRealization, MachineRegister, MetadataOnlyPortRealization,
     MixedStructuralScalarFunctionAbi, NativeCallOrigin, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation,
     TargetBooleanExpression, TargetBoundaryResult, TargetByteView, TargetCallResult,

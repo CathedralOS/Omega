@@ -19,8 +19,8 @@ use abstract_operations::{
     AbstractStoredDynamicDispatch, AbstractStructuralCallResult, CompletionClaimSource,
 };
 use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, EntryControl, NativePlace, ValueClass, ValueLocation,
-    ValuePlacement, ValueShape, evaluate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, NativePlace, ValueClass, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -947,24 +947,21 @@ impl Replay<'_> {
             return Err(psi_operation);
         }
         // Exactly one declaration may carry the retained boundary identity,
-        // and the admitted same-stack contribution must name that
-        // declaration's requirement and the exact provider plan behind the
-        // retained execution binding.
+        // and the mechanism's retained custody must name that declaration's
+        // requirement and the exact provider plan behind the execution binding.
+        // Imports carry that join in their admitted stack contribution; kernel
+        // entries carry it without inventing a user-space stack contribution.
         let mut declarations = self
             .boundary_machines
             .iter()
             .filter(|row| row.id == boundary);
         let declaration = declarations.next().ok_or(psi_operation)?;
         if declarations.next().is_some()
-            || binding.locator.target().native_target() != self.native_target
-            || binding.same_stack_contribution.requirement_identity() != declaration.identity
-            || binding
-                .same_stack_contribution
-                .provider_plan_report_identity()
+            || binding.native_target() != Some(self.native_target)
+            || binding.requirement_identity() != declaration.identity
+            || binding.provider_plan_report_identity()
                 != provider_execution.provider_plan_report_identity().get()
-            || binding.boundary_entry_plan.call.policy
-                != CallingPolicy::native_for_target(self.native_target)
-            || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
+            || !binding.has_valid_entry_mechanism()
         {
             return Err(psi_operation);
         }

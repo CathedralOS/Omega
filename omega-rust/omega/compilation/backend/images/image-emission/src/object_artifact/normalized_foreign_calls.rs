@@ -197,15 +197,17 @@ pub fn derive_normalized_foreign_call_custody(
         let controls =
             floating_control::derive(section.target, function, block, fragment, frame, record)
                 .ok_or_else(invalid)?;
+        let (locator, same_stack_contribution) =
+            record.call.binding.import().ok_or_else(invalid)?;
         custody.push(ObjectForeignCall {
             machine: call.caller,
             owner,
             operation_ordinal,
-            locator: record.call.binding.locator.clone(),
+            locator: locator.clone(),
             provider_execution: record.call.provider_execution.into(),
             boundary_entry_plan: record.call.binding.boundary_entry_plan.clone(),
             caller_live_bytes,
-            same_stack_contribution: record.call.binding.same_stack_contribution.clone(),
+            same_stack_contribution: same_stack_contribution.clone(),
             scalar_arguments,
             callback_addresses,
             scalar_result,

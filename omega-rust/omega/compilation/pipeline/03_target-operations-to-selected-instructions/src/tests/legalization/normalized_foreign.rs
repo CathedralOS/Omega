@@ -114,9 +114,11 @@ fn binding(
     )
     .expect("same-stack admission");
     NormalizedForeignCallBinding {
-        locator,
         boundary_entry_plan,
-        same_stack_contribution,
+        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution,
+        },
     }
 }
 
@@ -832,6 +834,58 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
                     .is_err()
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn system_call_transport_does_not_select_an_import_instruction() {
+    use target_operations::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
+    for profile in [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ] {
+        for argument_count in [0, 1] {
+            let (mut source, execution) = scalar_fixture();
+            if argument_count == 0 {
+                source.boundary_machines[0].scalar_parameters.clear();
+                source.boundary_machines[0].parameter_order.clear();
+                let AbstractOperation::BoundaryCall { arguments, .. } =
+                    &mut source.functions[0].operations[1]
+                else {
+                    panic!("boundary call");
+                };
+                arguments.clear();
+            }
+            let native = profile.native_target();
+            let signature = calling_conventions::CallSignature {
+                parameters: vec![calling_conventions::ValueShape::integer(4, 4); argument_count],
+                result: None,
+            };
+            let binding = NormalizedForeignCallBinding {
+                boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    calling_conventions::CallingPolicy::native_syscall_for_target(native).unwrap(),
+                    &signature,
+                )
+                .unwrap()
+                .plan()
+                .clone(),
+                mechanism: NormalizedForeignCallMechanism::SystemCall(
+                    NormalizedSystemCallBinding {
+                        target: profile,
+                        number: 211,
+                        requirement_identity: REQUIREMENT.into(),
+                        provider_plan_report_identity: execution.plan_report,
+                        provider_plan_commitment: [0x42; 32],
+                    },
+                ),
+            };
+            let target = lower(&source, native, &execution, binding);
+            assert!(
+                matches!(legalize_target_operations(&target, &source, &seed(&source)),
+                Err(crate::LegalizationError::UnsupportedSystemCallSelection { boundary }) if boundary == BoundaryMachineId::new(1).unwrap()
+                )
+            );
         }
     }
 }

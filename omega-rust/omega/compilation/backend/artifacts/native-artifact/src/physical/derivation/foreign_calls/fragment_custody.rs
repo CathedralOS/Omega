@@ -118,9 +118,12 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     ) {
         return Err("normalized foreign D41 instruction kind does not match its roster row");
     }
-    if record.call.binding.locator != foreign.locator
+    let Some((locator, same_stack_contribution)) = record.call.binding.import() else {
+        return Err("kernel entry cannot carry import relocation custody");
+    };
+    if *locator != foreign.locator
         || record.call.binding.boundary_entry_plan != foreign.boundary_entry_plan
-        || record.call.binding.same_stack_contribution != foreign.same_stack_contribution
+        || *same_stack_contribution != foreign.same_stack_contribution
         || machine_code::ProviderExecutionRecord::from(record.call.provider_execution)
             != foreign.provider_execution
         || record.call.structural_arguments.len() != structural_arguments.len()
