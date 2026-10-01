@@ -16,9 +16,11 @@ data Main {
 
 machine Main::main(&mut self) reaches Firmware {
     self.fw.get_map(&mut self.size, &mut self.cap);
-    transition { _ -> read(&mut self, self.size, self.cap) }
+    // The scalar operands copy `size` and `cap` before `&mut self` lends the
+    // whole receiver for the rest of the transition.
+    transition { _ -> read(self.size, self.cap, &mut self) }
 
-    state read(main: &mut Main, size: u32, cap: u32) {
+    state read(size: u32, cap: u32, main: &mut Main) {
         let word: &u32 = &main.buf[size] as &u32;
     }
 }

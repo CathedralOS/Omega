@@ -130,6 +130,8 @@ fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/affine_record_copy_handoff rejected 149ms expected @14f449e5e62b+wt
 	affine value `settings` was already transferred or consumed; it cannot be moved here
+fail/borrows/bare_self_mut_operand_beside_self_view rejected 197ms expected @882f6744a121+wt
+	state `take` receives `self` as both mutable and read-only
 fail/borrows/borrow_duplicate_mut rejected 674ms expected @2d8ed253669f
 	state `swap` receives `value` as mutable more than once
 fail/borrows/borrow_local_alias_active rejected 666ms expected @2d8ed253669f
@@ -1422,8 +1424,10 @@ pass/control_flow/copy_enum_cycle_edge_write_frame checked 303ms @2d8ed253669f
 pass/control_flow/explicit_state_value_frontier checked 306ms @2d8ed253669f
 pass/control_flow/field_subject_named_arm_chain checked 1463ms @2d8ed253669f
 pass/control_flow/field_view_transfer_exit checked 1421ms @2d8ed253669f
-pass/control_flow/guarded_jump_field_view_forward rejected 407ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
+pass/control_flow/guarded_jump_field_view_forward rejected 190ms @882f6744a121+wt
+	state `begin` receives `self` as mutable more than once
+	state `begin` receives `self` as both mutable and read-only
+	state `take` receives `main` as both mutable and read-only
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt

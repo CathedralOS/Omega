@@ -5,7 +5,9 @@ use omega::language::core::binding;
 // `self.control.len` resolves through the caller's attached data, not the
 // boundary target's (a trait machine has none). The forwarded `buffer`
 // parameter then re-proves the same term inside `pump`, whose incoming
-// `requires` carries the length across the second boundary.
+// `requires` carries the length across the second boundary. `pump` takes the
+// host binding rather than all of `self`, so its `buffer` is the only
+// exclusive path to `control`.
 pub boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
     requires
@@ -20,11 +22,11 @@ data Main {
 
 machine Main::main(&mut self) reaches ByteHost {
     self.n = self.host.read(0, &mut self.control, 64);
-    transition { _ -> pump(&mut self, &mut self.control) }
+    transition { _ -> pump(&mut self.host, &mut self.control) }
 
-    state pump(main: &mut Main, buffer: &mut [u8])
+    state pump(host: &mut Binding<ByteHost>, buffer: &mut [u8])
         requires 64 <= buffer.len;
     {
-        main.n = main.host.read(0, buffer, 64);
+        let count: i64 = host.read(0, buffer, 64);
     }
 }
