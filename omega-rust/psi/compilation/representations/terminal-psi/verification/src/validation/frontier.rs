@@ -423,6 +423,26 @@ fn validate_owned_reads(
                             argument.place,
                         ))
                     || super::scalar::array::plain_return_source(module, machine, argument.place)
+                    // A loan establishment publishes an unrestricted result
+                    // under its own access: a shared or mutable element view,
+                    // or a reference carrier, stays live wherever its backing
+                    // remains live — storing one into a field reads the view,
+                    // it does not move the backing's custody.
+                    || machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|candidate| {
+                            matches!(
+                                candidate.kind,
+                                OperationKind::EstablishElementView { .. }
+                                    | OperationKind::EstablishMutableElementView { .. }
+                                    | OperationKind::EstablishReference { .. }
+                            ) && candidate
+                                .result
+                                .structural()
+                                .is_some_and(|result| result.place == argument.place)
+                        })
                     || machine.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
                             && parameter.access == StructuralAccess::Owned

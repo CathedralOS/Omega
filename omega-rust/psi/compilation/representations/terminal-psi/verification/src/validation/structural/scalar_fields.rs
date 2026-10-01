@@ -320,7 +320,9 @@ pub(in crate::validation) fn validate_integer_structural_field(
         source,
         field,
     };
-    if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
+    // Member reads observe, they do not transfer: a locally constructed
+    // record carrying borrowed-view members still answers scalar reads.
+    if let Some(result) = crate::validation::record::constructed_source(module, machine, source) {
         if matches!(result_type, ScalarType::Integer(_))
             && observed_scalar_field(module, result.structural_type, path, field)
                 == Some(result_type)

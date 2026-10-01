@@ -90,6 +90,42 @@ fn collect_value_roots(
                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
+                    // A nested view's node names its backing storage, never
+                    // the view itself: `source.type_identity` is the array or
+                    // record the range reads from. The field's declared type
+                    // carries the view, so peel it to the view carrier the way
+                    // the checked identity already spells it.
+                    if matches!(
+                        checked
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(nested)
+                            .kind,
+                        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+                            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
+                    ) {
+                        let mut view = field.type_reference;
+                        while let checked_trees::types::TypeReferenceNode::Reference {
+                            referee,
+                            ..
+                        }
+                        | checked_trees::types::TypeReferenceNode::Constrained {
+                            base_type: referee,
+                            ..
+                        } = checked.type_reference_table.type_reference(view)
+                        {
+                            view = *referee;
+                        }
+                        roots.push(
+                            checked
+                                .type_identity(
+                                    typed_trees::type_identity::TypeIdentityRequest::ordinary(view),
+                                )
+                                .into_string(),
+                        );
+                    }
                     collect_value_roots(checked, nested, roots)?;
                 }
             }

@@ -97,33 +97,40 @@ pub(crate) fn case_establishment_matches(
                     structural_type,
                 } if producer == *psi_operation && structural_type == result.structural_type
             )
-    }) && matches!(result.multiplicity, terminal_psi::StructuralMultiplicity::Unrestricted | terminal_psi::StructuralMultiplicity::Affine)
-        && result.qualifications.is_empty()
+    }) && matches!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && result.qualification_establishments.is_empty()
         && super::records::plain_owned_shape(types, result.structural_type)
-        && types.get(&result.structural_type).is_some_and(|declaration| {
-            // A mixed case binds its runtime common fields in declaration
-            // order, then the selected payload, as Terminal verification did.
-            let (common, cases) = match &declaration.shape {
-                terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
-                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                    (fields.as_slice(), cases)
-                }
-                _ => return false,
-            };
-            cases.iter().any(|case| {
-                let roster = common
-                    .iter()
-                    .chain(&case.fields)
-                    .filter(|field| !field.relevance.is_erased())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                case.id == *result_case
-                    && super::records::field_initializers_match(function, result, &roster, fields)
+        && types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                // A mixed case binds its runtime common fields in declaration
+                // order, then the selected payload, as Terminal verification did.
+                let (common, cases) = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                        (fields.as_slice(), cases)
+                    }
+                    _ => return false,
+                };
+                cases.iter().any(|case| {
+                    let roster = common
+                        .iter()
+                        .chain(&case.fields)
+                        .filter(|field| !field.relevance.is_erased())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    case.id == *result_case
+                        && super::records::field_initializers_match(
+                            function, result, &roster, fields, types,
+                        )
+                })
             })
-        })
 }
 
 pub(crate) fn exact_payloadless_case_return_exits(
