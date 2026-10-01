@@ -239,6 +239,27 @@ pub fn has_owned_or_shared_view_fields(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
+    owned_or_shared_view_fields(program, reference, false)
+}
+
+/// [`has_owned_or_shared_view_fields`], where a shared view may also carry
+/// declared domains on its referee (`&[u8] in Utf8`). A whole copy of such a
+/// record duplicates each view descriptor with its source loan's lineage; the
+/// domains hold because every write into the source preserved them. Copy
+/// permission neither establishes those predicates nor extends the loan, so
+/// this answers only whether a whole copy is a value transfer.
+pub fn has_owned_or_qualified_shared_view_fields(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    owned_or_shared_view_fields(program, reference, true)
+}
+
+fn owned_or_shared_view_fields(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    admit_view_domains: bool,
+) -> bool {
     let symbol = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         // A lifetime-parameterized record is a `Generic` node whose type
@@ -268,16 +289,26 @@ pub fn has_owned_or_shared_view_fields(
         return false;
     }
     let shared_view = |field: &DataField| {
+        let TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            referee,
+            ..
+        } = program
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            return false;
+        };
+        let mut referee = *referee;
+        while admit_view_domains
+            && let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(referee)
+        {
+            referee = *base_type;
+        }
         matches!(
-            program.type_reference_table.type_reference(field.type_reference),
-            TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                referee,
-                ..
-            } if matches!(
-                program.type_reference_table.type_reference(*referee),
-                TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
-            )
+            program.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
         )
     };
     let mut has_view = false;

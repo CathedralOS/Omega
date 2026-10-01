@@ -854,14 +854,18 @@ pub(super) fn validate_bindings(
                 reference = field.type_reference;
             }
             // The copied leaf is the last field's declared type: an
-            // unrestricted plain-owned value of exactly the target's type.
+            // unrestricted value of exactly the target's type, plain owned or
+            // a record whose shared views copy with their source loans.
             let leaf_copyable = path_matches
                 && checked.normalized_type_identity(reference).as_str() == target.type_identity
                 && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
-                && validation::has_plain_owned_contents_with_numeric_constraints(
+                && (validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     reference,
-                );
+                ) || validation::has_owned_or_qualified_shared_view_fields(
+                    &checked.typed,
+                    reference,
+                ));
             if transfer.target_parameter_index as usize != position
                 || !matches!(
                     checked.expression_table.expression(tested_root),

@@ -255,3 +255,60 @@ fn indexed_composite_edge_arguments_reject_a_same_typed_selector() {
         "a same-typed selector cannot replace the authored indexed source"
     );
 }
+
+/// A `[copy]` record whose member is a shared view, copied out of the
+/// receiver into an owned successor parameter. The view keeps its source
+/// loan; copy permission establishes no predicate of the member.
+const VIEW_RECORD_SOURCE: &str = r#"
+    data Room [copy] { label: &[u8]; }
+    data Root { room: Room; }
+    machine Root::enter(&mut self) -> u64 {
+        self.room.label = "Gate";
+        transition { _ -> take(self.room) }
+        state take(&mut self, room: Room) -> u64 { (room.label.len) }
+    }
+"#;
+
+#[test]
+fn shared_view_records_cross_an_edge_as_projected_copies() {
+    let checked = crate::front_end::checked_program(VIEW_RECORD_SOURCE);
+    let original = plan(&checked);
+    admission::admit(&checked, &original).expect("a shared-view record copies whole");
+    let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+        &original.states[0].terminator
+    else {
+        panic!("the entry jumps to the copying successor");
+    };
+    // The receiver forwards as itself; the room is the one projected copy.
+    let copies = successor
+        .transfers
+        .iter()
+        .enumerate()
+        .filter(|(_, transfer)| {
+            matches!(
+                transfer.source,
+                CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. }
+            )
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let [copy] = copies.as_slice() else {
+        panic!("exactly one projected copy");
+    };
+    let mut changed = original.clone();
+    let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+        &mut changed.states[0].terminator
+    else {
+        panic!("projection edge");
+    };
+    let CheckedStructuralControlTransferSourcePlan::ProjectedCopy { subject } =
+        &mut successor.transfers[*copy].source
+    else {
+        panic!("projected copy");
+    };
+    subject.path.clear();
+    assert!(
+        admission::admit(&checked, &changed).is_err(),
+        "a copy that no longer names the authored member must not pass"
+    );
+}

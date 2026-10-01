@@ -229,4 +229,6 @@ customers. Adopt (B) when a persistent root needs a non-literal view.
 
 Native realization no longer limits literal stores: Omega places a literal's
 octets in the image's read-only literal pool and addresses them PC-relatively,
-so a stored literal view outlives every activation.
+so a stored literal view outlives every activation. A `[copy]` Room now crosses
+the state edge as a whole copy whose view keeps its source loan; both customers
+stop at `room.label = source.label`, the store this decision governs.

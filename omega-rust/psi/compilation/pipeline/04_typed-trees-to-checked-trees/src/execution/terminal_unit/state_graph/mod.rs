@@ -603,12 +603,20 @@ pub(super) fn build_traced(
                     // A parameter carries an established value, not a fresh
                     // initializer. Exact edge custody retains represented byte
                     // predicates, including those below record/array children.
+                    // A `[copy]` record of plain fields and shared byte views
+                    // arrives as a whole copy whose views keep their source
+                    // loans' lineage.
                     if parameter.multiplicity != Multiplicity::Linear
                         && !owned_sequence
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,
                             reference(),
                         )
+                        && !(parameter.multiplicity == Multiplicity::Unrestricted
+                            && validation::has_owned_or_qualified_shared_view_fields(
+                                program,
+                                reference(),
+                            ))
                     {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: owned non-linear record contents",
@@ -2344,7 +2352,15 @@ fn projected_copy_subject(
             .iter()
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
         || program.type_multiplicity(projected_type) != Multiplicity::Unrestricted
-        || !validation::has_plain_owned_contents_with_numeric_constraints(program, projected_type)
+        // A `[copy]` record of plain fields and shared views copies its view
+        // descriptors whole: each copied view keeps its source loan's lineage,
+        // and copy permission neither establishes a field's predicates nor
+        // extends the loan.
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(program, projected_type)
+            || validation::has_owned_or_qualified_shared_view_fields(
+                program,
+                projected_type,
+            ))
         || program
             .normalized_type_identity(projected_type)
             .into_string()
