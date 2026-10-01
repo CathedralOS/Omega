@@ -1181,6 +1181,7 @@ impl Replay<'_> {
         {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+                | TargetUnitOperation::ScalarRepresentationView { result_home, .. }
                 | TargetUnitOperation::FloatResultPolicy { result_home, .. }
                 | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(*result_home),

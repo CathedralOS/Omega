@@ -553,6 +553,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             left,
             right,
         } => scalar_operations::encode_ieee_float_compare(writer, comparison, left, right)?,
+        OperationKind::ScalarRepresentationView {
+            operand,
+            landing_obligation,
+        } => scalar_operations::encode_scalar_representation_view(
+            writer,
+            operand,
+            landing_obligation,
+        )?,
         OperationKind::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,
@@ -854,6 +862,12 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             value_operations::decode_ieee_float_constant(reader)?
         }
         operation_tags::IEEE_FLOAT_COMPARE => scalar_operations::decode_ieee_float_compare(reader)?,
+        operation_tags::SCALAR_REPRESENTATION_VIEW => {
+            scalar_operations::decode_scalar_representation_view(reader)?
+        }
+        operation_tags::LANDED_SCALAR_REPRESENTATION_VIEW => {
+            scalar_operations::decode_landed_scalar_representation_view(reader)?
+        }
         operation_tags::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD => {
             scalar_operations::decode_nearest_ieee_float_fused_multiply_add(reader)?
         }

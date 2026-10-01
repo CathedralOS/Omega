@@ -266,7 +266,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::BooleanNot { operand }
         | O::IntegerBitwiseNot { operand }
         | O::IntegerWiden { operand }
-        | O::IntegerExactCast { operand, .. } => values.push(*operand),
+        | O::IntegerExactCast { operand, .. }
+        | O::ScalarRepresentationView { operand, .. } => values.push(*operand),
         O::BooleanEqual { left, right }
         | O::IeeeFloatCompare { left, right, .. }
         | O::IntegerEqual { left, right }

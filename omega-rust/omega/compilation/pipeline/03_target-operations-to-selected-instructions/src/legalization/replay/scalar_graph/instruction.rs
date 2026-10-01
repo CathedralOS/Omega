@@ -790,6 +790,24 @@ pub(super) fn validate(
             },
         ) if operand == source && source_type == source_integer => {}
         (
+            LegalizedScalarInstructionKind::ScalarRepresentationView {
+                operand,
+                source_type,
+            },
+            AbstractOperation::ScalarRepresentationView {
+                operand: source,
+                source_type: source_carrier,
+                target_type,
+                ..
+            },
+        ) if operand == source
+            && source_type == source_carrier
+            && terminal_semantics::ScalarRepresentationViewPair::classify(
+                *source_type,
+                *target_type,
+            )
+            .is_some() => {}
+        (
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::IntegerConstant { value, .. },
         ) if actual == value => {}

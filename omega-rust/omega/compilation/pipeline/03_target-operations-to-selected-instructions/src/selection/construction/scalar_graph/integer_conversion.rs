@@ -1,4 +1,5 @@
-//! Select proof-bearing exact casts and infallible widening with explicit raw-width normalization.
+//! Select proof-bearing exact casts, infallible widening and scalar
+//! representation re-views with explicit raw-width normalization.
 use super::{
     Builder, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionProvenance,
     VirtualRegisterId,
@@ -15,20 +16,24 @@ pub(super) fn emit(
     let result = operation.result.as_ref().ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
     let constraints = builder.constraints;
-    let (LegalizedScalarInstructionKind::IntegerWiden {
-        operand,
-        source_type,
-    }
-    | LegalizedScalarInstructionKind::IntegerExactCast {
-        operand,
-        source_type,
-        ..
-    }) = &operation.kind
-    else {
-        return Err(invalid());
+    let (operand, source_type) = match &operation.kind {
+        LegalizedScalarInstructionKind::IntegerWiden {
+            operand,
+            source_type,
+        }
+        | LegalizedScalarInstructionKind::IntegerExactCast {
+            operand,
+            source_type,
+            ..
+        } => (operand, ScalarType::Integer(*source_type)),
+        LegalizedScalarInstructionKind::ScalarRepresentationView {
+            operand,
+            source_type,
+        } => (operand, *source_type),
+        _ => return Err(invalid()),
     };
     let (_, input, _, actual_type) = builder.resolve(*operand).ok_or_else(invalid)?;
-    if actual_type != ScalarType::Integer(*source_type) {
+    if actual_type != source_type {
         return Err(invalid());
     }
     let normalization =

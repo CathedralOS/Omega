@@ -199,6 +199,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
             | LegalizedScalarInstructionKind::BitwiseNot { operand }
             | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. }
+            | LegalizedScalarInstructionKind::ScalarRepresentationView { operand, .. }
             | LegalizedScalarInstructionKind::TrappingConvert { operand, .. } => visit(*operand),
             // A call reads each argument in position order: a scalar source
             // directly, a structural argument through its runtime selectors.
@@ -578,6 +579,14 @@ pub enum LegalizedScalarInstructionKind {
     IntegerWiden {
         operand: ValueId,
         source_type: IntegerType,
+    },
+    /// The operand's stored bits at the result's carrier of the same width
+    /// (`terminal_semantics::ScalarRepresentationViewPair`). Every scalar is
+    /// held in a general register as its stored bits, normalized to the
+    /// carrier, so selection emits only the result carrier's normalization.
+    ScalarRepresentationView {
+        operand: ValueId,
+        source_type: semantic_vocabulary::ScalarType,
     },
     IntegerExactCast {
         operand: ValueId,

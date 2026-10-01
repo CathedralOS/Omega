@@ -607,6 +607,9 @@ impl TerminalExecution {
                     OperationKind::IeeeFloatCompare { .. } => {
                         self.execute_ieee_float_compare(operation)?
                     }
+                    OperationKind::ScalarRepresentationView { .. } => {
+                        self.execute_scalar_representation_view(operation)?
+                    }
                     OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
                         self.execute_nearest_ieee_float_fused_multiply_add(operation)?
                     }

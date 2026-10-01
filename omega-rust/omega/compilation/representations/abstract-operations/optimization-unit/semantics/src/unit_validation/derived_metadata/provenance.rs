@@ -85,6 +85,7 @@ pub(crate) fn expected_provenance(
         | O::IntegerBitwiseNot { psi_operation, .. }
         | O::IntegerWiden { psi_operation, .. }
         | O::IntegerExactCast { psi_operation, .. }
+        | O::ScalarRepresentationView { psi_operation, .. }
         | O::IntegerBitwiseAnd { psi_operation, .. }
         | O::IntegerBitwiseOr { psi_operation, .. }
         | O::IntegerBitwiseXor { psi_operation, .. }

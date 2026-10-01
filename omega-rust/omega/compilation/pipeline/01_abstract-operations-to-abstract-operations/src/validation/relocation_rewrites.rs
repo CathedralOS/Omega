@@ -438,7 +438,8 @@ pub(crate) fn substitute_invariant_scalar_operands(
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. } => substitute(operand, substitution),
+        | O::IntegerExactCast { operand, .. }
+        | O::ScalarRepresentationView { operand, .. } => substitute(operand, substitution),
         O::BooleanEqual { left, right, .. }
         | O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }

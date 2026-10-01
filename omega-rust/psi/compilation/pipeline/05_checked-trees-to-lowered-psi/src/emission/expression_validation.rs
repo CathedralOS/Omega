@@ -106,6 +106,7 @@ pub(crate) fn validate_direct_parameter_types(
             validate_direct_parameter_types(operand, parameter_types)
         }
         LoweredDirectExpression::IntegerExactCast { operand, .. }
+        | LoweredDirectExpression::RepresentationView { operand, .. }
         | LoweredDirectExpression::IntegerTrappingCast { operand, .. } => {
             validate_direct_parameter_types(operand, parameter_types)
         }

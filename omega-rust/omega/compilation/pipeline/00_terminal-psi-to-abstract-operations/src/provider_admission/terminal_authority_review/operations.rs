@@ -110,6 +110,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::IntegerWiden { .. }
         | AbstractOperation::IntegerExactCast { .. }
+        | AbstractOperation::ScalarRepresentationView { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
         | AbstractOperation::IntegerBitwiseOr { .. }
         | AbstractOperation::IntegerBitwiseXor { .. }

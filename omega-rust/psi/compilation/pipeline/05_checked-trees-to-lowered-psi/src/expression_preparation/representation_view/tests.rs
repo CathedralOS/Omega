@@ -63,7 +63,7 @@ fn equal_width_integer_view_reads_the_declared_field_then_its_modular_image() {
 }
 
 #[test]
-fn identity_width_changing_and_cross_family_views_reject() {
+fn identity_width_changing_and_bitless_views_reject() {
     let signed = integer(IntegerSign::Signed, 32);
     assert!(error(replay(field_read(signed), signed)).contains("must change its carrier"));
     assert!(
@@ -74,71 +74,79 @@ fn identity_width_changing_and_cross_family_views_reject() {
         .contains("carrier width")
     );
     let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
-    assert!(
-        error(replay(
-            field_read(float),
-            integer(IntegerSign::Unsigned, 32)
-        ))
-        .contains("no Terminal Psi vocabulary")
-    );
-    // The inverse landing needs branch machinery: a Boolean source cannot
-    // re-view as an integer carrier yet.
-    assert!(
-        error(replay(
-            field_read(ScalarType::Boolean),
-            integer(IntegerSign::Unsigned, 8)
-        ))
-        .contains("no Terminal Psi vocabulary")
-    );
+    // Equal byte counts alone admit nothing: a float against the other
+    // format, a float against a Boolean and a float against a wider integer
+    // have no bit view.
+    for (source, view) in [
+        (float, ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
+        (float, ScalarType::Boolean),
+        (float, integer(IntegerSign::Unsigned, 64)),
+        (ScalarType::Boolean, integer(IntegerSign::Unsigned, 16)),
+    ] {
+        assert!(
+            error(replay(field_read(source), view)).contains("without a bit view"),
+            "{source:?} -> {view:?}"
+        );
+    }
+}
+
+/// The bits a re-view reads, its retained source observation and the
+/// Terminal view carrier.
+fn re_view(lowered: LoweredDirectExpression) -> (LoweredDirectExpression, ScalarType) {
+    let LoweredDirectExpression::RepresentationView {
+        scalar_type,
+        operand,
+    } = lowered
+    else {
+        panic!("a cross-family view is one Terminal re-view: {lowered:?}");
+    };
+    (*operand, scalar_type)
 }
 
 #[test]
-fn a_bool_view_reads_the_integer_place_as_its_nonzero_image() {
-    let unsigned = integer(IntegerSign::Unsigned, 8);
-    let lowered = replay(field_read(unsigned), ScalarType::Boolean)
-        .expect("u8 re-views as its nonzero bool image");
-    assert_eq!(lowered.scalar_type(), ScalarType::Boolean);
-    let LoweredDirectExpression::Boolean { expression } = lowered else {
-        panic!("a bool view reads through the boolean lane: {lowered:?}");
-    };
-    let crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::Not {
-        operand,
-    } = *expression
-    else {
-        panic!("the bit image negates the zero comparison: {expression:?}");
-    };
-    let crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::IntegerComparison {
-        left,
-        right,
-        ..
-    } = *operand
-    else {
-        panic!("the image compares the viewed place to zero: {operand:?}");
-    };
-    // The comparison still observes the field at its declared carrier.
-    assert!(matches!(
-        *left,
-        LoweredDirectExpression::StructuralField { scalar_type, .. } if scalar_type == unsigned
-    ));
-    assert!(matches!(
-        *right,
-        LoweredDirectExpression::IntegerLiteral {
-            value: IntegerValue::Unsigned(0),
-            ..
-        }
-    ));
+fn float_and_boolean_views_re_view_the_declared_field_read() {
+    for (source, view) in [
+        (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            integer(IntegerSign::Unsigned, 32),
+        ),
+        (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            integer(IntegerSign::Signed, 64),
+        ),
+        (
+            integer(IntegerSign::Signed, 32),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        ),
+        (ScalarType::Boolean, integer(IntegerSign::Unsigned, 8)),
+        (integer(IntegerSign::Unsigned, 8), ScalarType::Boolean),
+        (integer(IntegerSign::Signed, 8), ScalarType::Boolean),
+    ] {
+        let (operand, carrier) = re_view(replay(field_read(source), view).expect("bit view"));
+        assert_eq!(carrier, view);
+        // The field observation keeps its declared carrier beneath the view.
+        assert!(matches!(
+            operand,
+            LoweredDirectExpression::StructuralField { scalar_type, .. } if scalar_type == source
+        ));
+    }
+}
 
-    // A runtime-selected byte element re-views the same way.
+#[test]
+fn a_bool_view_of_a_runtime_selected_byte_is_one_landed_re_view() {
     let offset = LoweredDirectExpression::Local {
         position: 2,
         scalar_type: integer(IntegerSign::Unsigned, 64),
     };
-    assert_eq!(
+    let (operand, carrier) = re_view(
         replay(byte_element_read(offset), ScalarType::Boolean)
-            .expect("an indexed byte re-views as bool")
-            .scalar_type(),
-        ScalarType::Boolean
+            .expect("an indexed byte re-views as bool"),
     );
+    assert_eq!(carrier, ScalarType::Boolean);
+    assert!(matches!(
+        operand,
+        LoweredDirectExpression::IndexedPrimitiveRead { .. }
+    ));
 }
 
 #[test]

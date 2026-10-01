@@ -279,6 +279,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::BooleanConstant { .. }
         | OperationKind::IeeeFloatConstant { .. }
         | OperationKind::IeeeFloatCompare { .. }
+        | OperationKind::ScalarRepresentationView { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }

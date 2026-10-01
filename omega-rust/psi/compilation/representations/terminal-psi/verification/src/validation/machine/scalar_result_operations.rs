@@ -418,6 +418,23 @@ pub(super) fn register_scalar_result_operation(
                 return Err(ModuleError::IntegerWidenRequiresIntegerResult(operation.id));
             }
         }
+        // The pair and the landing obligation's presence are operand
+        // checks (`scalar_representation_view.rs`); only the obligation's
+        // identity is registered here, as every other scalar obligation is.
+        OperationKind::ScalarRepresentationView {
+            landing_obligation: Some(obligation),
+            ..
+        } => {
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
+        OperationKind::ScalarRepresentationView {
+            landing_obligation: None,
+            ..
+        } => {}
         OperationKind::IntegerExactCast { obligation, .. } => {
             if !matches!(
                 operation.result.expect_scalar().scalar_type,

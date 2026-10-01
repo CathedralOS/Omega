@@ -112,6 +112,14 @@ pub enum TargetUnitOperation {
         left: TargetUnitScalarArgumentSource,
         right: TargetUnitScalarArgumentSource,
     },
+    /// The operand's stored bits read at `result_home`'s carrier of the same
+    /// width (`terminal_semantics::ScalarRepresentationViewPair`). The home
+    /// names the defining Terminal operation and the target carrier; the
+    /// operand keeps its own carrier, so the pair is replayed, not trusted.
+    ScalarRepresentationView {
+        result_home: TargetUnitScalarHomeRequirement,
+        operand: TargetUnitScalarArgumentSource,
+    },
     /// One Terminal boundary call whose admitted settlement is a compiler
     /// float-arithmetic builtin, realized inline in the caller. `boundary`
     /// and `execution` keep the call's identity and the admitted catalog

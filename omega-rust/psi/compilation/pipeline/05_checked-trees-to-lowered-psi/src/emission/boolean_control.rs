@@ -1004,6 +1004,7 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
             | LoweredDirectExpression::IntegerWiden { .. }
             | LoweredDirectExpression::IntegerExactCast { .. }
+            | LoweredDirectExpression::RepresentationView { .. }
             | LoweredDirectExpression::IntegerTrappingCast { .. } => None,
         })
         .collect::<Option<Vec<_>>>();

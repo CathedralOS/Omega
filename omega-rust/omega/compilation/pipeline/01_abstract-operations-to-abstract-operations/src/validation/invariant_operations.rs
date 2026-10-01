@@ -66,6 +66,7 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
         | O::IntegerBitwiseXor { psi_operation, .. }
         | O::IntegerWiden { psi_operation, .. }
         | O::IntegerExactCast { psi_operation, .. }
+        | O::ScalarRepresentationView { psi_operation, .. }
         | O::IntegerShift { psi_operation, .. }
         | O::IntegerArithmetic { psi_operation, .. }
         | O::IeeeFloatCompare { psi_operation, .. }

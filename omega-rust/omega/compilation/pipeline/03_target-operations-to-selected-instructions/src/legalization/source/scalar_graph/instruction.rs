@@ -102,6 +102,14 @@ pub(super) fn project(
                 policy: *policy,
             }
         }
+        AbstractOperation::ScalarRepresentationView {
+            operand,
+            source_type,
+            ..
+        } => LegalizedScalarInstructionKind::ScalarRepresentationView {
+            operand: *operand,
+            source_type: *source_type,
+        },
         AbstractOperation::IeeeFloatCompare {
             comparison,
             format,

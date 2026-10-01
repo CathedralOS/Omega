@@ -53,6 +53,9 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
+        // A re-view stays until its Terminal row joins a dead-scalar family:
+        // only the producer's own partition may retire a verified operation.
+        | O::ScalarRepresentationView { .. }
         | O::FloatResultPolicy { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }

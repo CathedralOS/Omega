@@ -121,6 +121,7 @@ pub enum LoweringError {
     VerifiedSaturatingMultiplyMalformed(semantic_vocabulary::OperationId),
     VerifiedIntegerBitwiseMalformed(semantic_vocabulary::OperationId),
     VerifiedIntegerWidenMalformed(semantic_vocabulary::OperationId),
+    VerifiedScalarRepresentationViewMalformed(semantic_vocabulary::OperationId),
     VerifiedIntegerExactCastMalformed(semantic_vocabulary::OperationId),
     VerifiedWrappingShiftMalformed(semantic_vocabulary::OperationId),
     VerifiedExactShiftMalformed(semantic_vocabulary::OperationId),

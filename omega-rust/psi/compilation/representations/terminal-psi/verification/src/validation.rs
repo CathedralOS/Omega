@@ -92,6 +92,7 @@ pub use reach_applications::has_schema_application_in_call_closure;
 mod qualification_establishments;
 pub(crate) mod record;
 mod root_service_reach;
+pub(crate) mod scalar_representation_view;
 mod suspension_call_plan;
 pub(crate) mod trapping_integer;
 

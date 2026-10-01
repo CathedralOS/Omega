@@ -676,6 +676,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&operand.get().to_le_bytes());
                     encode_integer_type(bytes, *source_type);
                 }
+                LegalizedScalarInstructionKind::ScalarRepresentationView {
+                    operand,
+                    source_type,
+                } => {
+                    bytes.push(171);
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
+                    encode_scalar_type(bytes, *source_type);
+                }
                 LegalizedScalarInstructionKind::IntegerExactCast {
                     operand,
                     source_type,

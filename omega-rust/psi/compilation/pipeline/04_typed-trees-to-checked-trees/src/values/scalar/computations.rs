@@ -397,7 +397,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         let binding_ordinal = u32::try_from(
                             locals
                                 .iter()
-                                .filter(|local: &&ScalarLocal| !local.is_mutable)
+                                .filter(|local: &&ScalarLocal| local.is_value_binding())
                                 .count(),
                         );
                         if let Ok(binding_ordinal) = binding_ordinal {
@@ -429,6 +429,27 @@ pub(crate) fn build_checked_value_computation_plans(
                             arithmetic_domain: program
                                 .arithmetic_domain_for_type_reference(local.type_reference),
                             shared_loan_place: None,
+                        });
+                    } else if let Some((place, primitive_type, arithmetic_domain)) =
+                        crate::values::scalar::expression_plans::local_data::shared_loan_place(
+                            program, local,
+                        )
+                    {
+                        // A readable scalar loan local (`let view: &f32 =
+                        // &place`, a recast, or an immutable `&mut` place
+                        // loan) owns no value slot: a later read names its
+                        // captured place, re-read at the use point. Without
+                        // this row an operand such as a selected IEEE
+                        // comparison's `view == 0.0f32` could not resolve
+                        // the name, and the guard stayed unplanned. Value
+                        // binding ordinals skip it, as the expression plans do.
+                        locals.push(ScalarLocal {
+                            is_mutable: local.is_mutable,
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            primitive_type,
+                            arithmetic_domain,
+                            shared_loan_place: Some(place),
                         });
                     }
                     continue;

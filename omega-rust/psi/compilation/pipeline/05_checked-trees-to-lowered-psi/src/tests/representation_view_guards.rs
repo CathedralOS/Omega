@@ -191,3 +191,60 @@ fn record_view_leaf_with_another_carrier_kind_refuses() {
         "{error}"
     );
 }
+
+#[test]
+fn probe_float_bit_view_with_where_fact() {
+    for source in [
+        r#"
+        boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        data Main where value >= 0.0 && value <= 1.0, { value: f32; }
+        machine Main::main(context: &mut Main) {
+            transition context.value == 0.0f32 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+        r#"
+        boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        data Main where value >= 0.0 && value <= 1.0, { value: f32; }
+        machine Main::main(context: &mut Main) {
+            let wide: &f32 = &context.value;
+            transition wide == 0.0f32 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+        r#"
+        boundary operator == Float::equal(left: f32, right: f32) -> bool;
+        data Main where value >= 0.0 && value <= 1.0, { value: f32; }
+        machine Main::main(context: &mut Main) {
+            let wide: &f32 = &context.value as &f32;
+            let bits: &u32 = &context.value as &u32;
+            transition wide == 0.0f32 && bits == 0 { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+        r#"
+        data Main where byte >= 0 && byte <= 1, { flag: bool; byte: u8; }
+        machine Main::main(context: &mut Main) {
+            context.flag = true;
+            context.byte = 1;
+            let flag_bits: &u8 = &context.flag as &u8;
+            let byte_flag: &bool = &context.byte as &bool;
+            transition flag_bits == 1 && byte_flag { true -> good(context) _ -> bad(context) }
+            state good(context: &mut Main) {}
+            state bad(context: &mut Main) {}
+        }
+        "#,
+    ] {
+        let checked = crate::front_end::checked_program(source);
+        for root in checked.facts.values.scalar_computations.roots.iter() {
+            eprintln!("PROBE ROOT: {:?} ordinal={} -> {:?}", root.1.role, root.1.statement_ordinal, checked.facts.values.scalar_computations.nodes.get(root.1.root).kind);
+        }
+        for expression in checked.facts.values.scalar_expressions.expressions.iter() {
+            eprintln!("PROBE EXPR: {:?} ordinal={} -> {:?}", expression.role, expression.statement_ordinal, expression.expression);
+        }
+        eprintln!("PROBE RESULT: {:?}", produce(source).map(|_| ()));
+    }
+}

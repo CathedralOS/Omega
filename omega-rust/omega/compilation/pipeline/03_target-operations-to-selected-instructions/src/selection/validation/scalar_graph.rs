@@ -356,18 +356,24 @@ pub(in crate::selection) fn validate_with_environment(
                         }
                         continue;
                     }
-                    LegalizedScalarInstructionKind::IntegerWiden {
-                        operand,
-                        source_type,
-                    }
-                    | LegalizedScalarInstructionKind::IntegerExactCast {
-                        operand,
-                        source_type,
-                        ..
-                    } => {
+                    LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+                    | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. }
+                    | LegalizedScalarInstructionKind::ScalarRepresentationView { operand, .. } => {
+                        let source_type = match &operation.kind {
+                            LegalizedScalarInstructionKind::IntegerWiden { source_type, .. }
+                            | LegalizedScalarInstructionKind::IntegerExactCast {
+                                source_type,
+                                ..
+                            } => ScalarType::Integer(*source_type),
+                            LegalizedScalarInstructionKind::ScalarRepresentationView {
+                                source_type,
+                                ..
+                            } => *source_type,
+                            _ => return Err(invalid()),
+                        };
                         let (_, input, _, actual_type) =
                             replay.resolve(*operand).ok_or_else(invalid)?;
-                        if actual_type != ScalarType::Integer(*source_type) {
+                        if actual_type != source_type {
                             return Err(invalid());
                         }
                         let normalization = crate::selection::integer_conversion::normalization(

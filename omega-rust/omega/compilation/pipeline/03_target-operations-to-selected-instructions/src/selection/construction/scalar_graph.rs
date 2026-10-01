@@ -373,7 +373,8 @@ fn select_function(
                         continue;
                     }
                     LegalizedScalarInstructionKind::IntegerWiden { .. }
-                    | LegalizedScalarInstructionKind::IntegerExactCast { .. } => {
+                    | LegalizedScalarInstructionKind::IntegerExactCast { .. }
+                    | LegalizedScalarInstructionKind::ScalarRepresentationView { .. } => {
                         integer_conversion::emit(operation, &mut builder, function)?
                     }
                     LegalizedScalarInstructionKind::BitwiseAnd { .. }

@@ -198,6 +198,19 @@ pub(crate) fn operation_scalar_types_match(
             operand,
             ..
         } => integer(*operand, *source_type) && source_type.can_widen_to(*target_type),
+        O::ScalarRepresentationView {
+            source_type,
+            target_type,
+            operand,
+            ..
+        } => {
+            scalar(*operand) == Some(*source_type)
+                && terminal_semantics::ScalarRepresentationViewPair::classify(
+                    *source_type,
+                    *target_type,
+                )
+                .is_some()
+        }
         O::IntegerExactCast {
             source_type,
             target_type,

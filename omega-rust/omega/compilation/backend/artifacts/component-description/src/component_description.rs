@@ -745,6 +745,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::BooleanConstant { .. }
                     | OperationKind::IeeeFloatConstant { .. }
                     | OperationKind::IeeeFloatCompare { .. }
+                    | OperationKind::ScalarRepresentationView { .. }
                     | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
                     | OperationKind::BooleanStructuralField { .. }
                     | OperationKind::IntegerStructuralField { .. }

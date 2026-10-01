@@ -80,6 +80,8 @@ const VAL_DYNAMIC: &str = "omega-rust/psi/compilation/representations/terminal-p
 const VAL_TRAPPING: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/trapping_integer.rs";
 const VAL_FLOAT_POLICY: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_result_policy.rs";
 const VAL_ATOMIC: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/atomic_access.rs";
+const TS_REPRESENTATION_VIEW: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_representation_view.rs";
+const VAL_REPRESENTATION_VIEW: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar_representation_view.rs";
 const VAL_SUSPENSION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/suspension_call_plan.rs";
 
 const TRUSTED: SoundnessStatus = SoundnessStatus::ExplicitlyTrusted {
@@ -1122,6 +1124,20 @@ static OP_IEEE_FLOAT_COMPARE: TrustedSurfaceEntry = entry(
     &["formation:operation-validation", "formation:float-meaning"],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
+static OP_SCALAR_REPRESENTATION_VIEW: TrustedSurfaceEntry = entry(
+    "operation:scalar-representation-view",
+    "one validated operand whose declared carrier and the result's declared carrier form an admitted equal-width cross-family pair (IEEE float and integer, Boolean and 8-bit integer), with a landing obligation exactly when an integer lands on bool",
+    "no result equation; an integer landing on bool owes the reconstructed canonical goal 0 <= operand <= 1 against the facts before the result exists",
+    &["formation:operation-validation", "owner:operation"],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_REPRESENTATION_VIEW,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_REPRESENTATION_VIEW,
+    ],
+);
 static OP_STORE_DYNAMIC_DESCRIPTOR: TrustedSurfaceEntry = entry(
     "operation:store-dynamic-descriptor",
     "a validated dynamic-descriptor store",
@@ -1319,6 +1335,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_BOOLEAN_CONSTANT,
     OP_IEEE_FLOAT_CONSTANT,
     OP_IEEE_FLOAT_COMPARE,
+    OP_SCALAR_REPRESENTATION_VIEW,
     OP_NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD,
     OP_BOOLEAN_STRUCTURAL_FIELD,
     OP_INTEGER_STRUCTURAL_FIELD,
@@ -1423,6 +1440,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::BooleanConstant => &OP_BOOLEAN_CONSTANT,
         OperationSemanticTag::IeeeFloatConstant => &OP_IEEE_FLOAT_CONSTANT,
         OperationSemanticTag::IeeeFloatCompare => &OP_IEEE_FLOAT_COMPARE,
+        OperationSemanticTag::ScalarRepresentationView => &OP_SCALAR_REPRESENTATION_VIEW,
         OperationSemanticTag::NearestIeeeFloatFusedMultiplyAdd => {
             &OP_NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD
         }
