@@ -4,6 +4,64 @@ use terminal_psi::{OperationKind, StructuralAccess};
 use super::{LIMITS, ORDERED, support};
 
 #[test]
+fn nested_mutable_observations_replay_their_call_bounded_lifetimes() {
+    let (original, _, _, _) = support::publish(ORDERED, "enter");
+    let choose = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .expect("choose machine");
+    let target = original.machine_states(choose)[0].symbol;
+    let call = original
+        .facts
+        .borrow
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_symbol == target)
+        .expect("outer choose call")
+        .1;
+    let accesses = call.accesses;
+    let rows = original
+        .facts
+        .borrow
+        .argument_accesses
+        .span(accesses)
+        .unwrap();
+    let mutable = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| row.kind == checked_trees::BorrowAccessKind::Mutable)
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        mutable.len(),
+        2,
+        "two sequential stamp calls borrow scratch"
+    );
+    assert_eq!(rows[mutable[0]].root_symbol, rows[mutable[1]].root_symbol);
+    assert!(
+        rows[mutable[0]]
+            .end_before_access
+            .is_some_and(|end| end <= mutable[1])
+    );
+    for position in mutable {
+        for forged_end in [None, Some(position)] {
+            let mut changed = original.clone();
+            changed
+                .facts
+                .borrow
+                .argument_accesses
+                .span_mut_or_empty(accesses)[position]
+                .end_before_access = forged_end;
+            support::reject(
+                &changed,
+                "nested mutable observation changed its authored lifetime",
+            );
+        }
+    }
+}
+
+#[test]
 fn ordinary_limits_cannot_be_reclassified_as_copyable_in_checked_signature() {
     let (original, _, _, _) = support::publish(LIMITS, "enter");
     for owner in ["inspect", "enter"] {

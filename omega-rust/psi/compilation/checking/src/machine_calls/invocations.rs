@@ -248,13 +248,17 @@ fn boundary_trait_for_type(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
-    let symbol = typed_trees::service::exact_bound_service_requirement(program, type_reference)
-        .unwrap_or_else(|| {
-            program
-                .type_reference_table
-                .type_reference(type_reference)
-                .type_symbol(&program.type_reference_table)
-        });
+    let symbol =
+        typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
+            .ok()
+            .flatten()
+            .map(|parameter| parameter.carrier.requirement)
+            .unwrap_or_else(|| {
+                program
+                    .type_reference_table
+                    .type_reference(type_reference)
+                    .type_symbol(&program.type_reference_table)
+            });
     program
         .traits()
         .iter()

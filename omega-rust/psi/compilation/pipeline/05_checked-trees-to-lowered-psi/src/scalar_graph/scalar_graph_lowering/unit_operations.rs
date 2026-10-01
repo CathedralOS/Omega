@@ -271,9 +271,12 @@ pub(super) fn prepare(
             .ok_or(LoweringError::Unsupported(
                 "scalar Unit call lost its authored structural actual",
             ))?;
-        let access_position = *access_positions.get(parameter.position as usize).ok_or(
-            LoweringError::Unsupported("scalar Unit argument has no authored access position"),
-        )?;
+        let access_position = access_positions
+            .get(parameter.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "scalar Unit argument has no authored access position",
+            ))?
+            .operand_position()?;
         let actual_position =
             crate::expression_preparation::source_custody::computation_calls::primitive_arguments::validate(
                 checked,
