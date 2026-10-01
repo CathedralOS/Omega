@@ -18,7 +18,9 @@ use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, Proposition, PropositionContext, ScalarTerm, ValueId,
 };
 use std::collections::BTreeMap;
-use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
+use terminal_psi::{StructuralArgument, TerminalMachine, TerminalModule, Terminator};
+
+use crate::ModuleError;
 
 #[cfg(test)]
 mod tests;
@@ -140,19 +142,21 @@ pub(super) fn append_arrival_obligations(
     proposition_context: &PropositionContext,
     axioms: &[Proposition],
     obligations: &mut Vec<ReconstructedOperationObligation>,
-) {
+) -> Result<(), ModuleError> {
     if !module
         .scalar_block_invariants
         .iter()
         .any(|invariant| invariant.machine == machine.id)
     {
-        return;
+        return Ok(());
     }
     let mut append_edge = |edge: EdgeId,
                            target: BlockId,
                            arguments: &[ValueId],
                            erased_arguments: &[ScalarTerm],
-                           selected_axioms: &[Proposition]| {
+                           structural_arguments: &[StructuralArgument],
+                           selected_axioms: &[Proposition]|
+     -> Result<(), ModuleError> {
         for invariant in module
             .scalar_block_invariants
             .iter()
@@ -183,8 +187,38 @@ pub(super) fn append_arrival_obligations(
                     .zip(erased_arguments)
                     .map(|(formal, argument)| (formal.id, argument.clone())),
             );
-            let proposition = super::super::substitution::substitute_proposition_values(
+            // Header places, like scalar parameters, denote the values this
+            // exact edge supplies. Reconstruct their canonical projections
+            // before checking the arrival, not after admitting its hypothesis.
+            // Substitute places first so erased argument terms inserted by the
+            // scalar substitution remain entirely in predecessor scope.
+            let mut places = BTreeMap::new();
+            for (parameter, argument) in header
+                .structural_parameters
+                .iter()
+                .zip(structural_arguments)
+            {
+                if !crate::validation::proposition_observes_places(
+                    &invariant.predicate,
+                    &[parameter.place],
+                ) {
+                    continue;
+                }
+                let prefix = crate::validation::structural_argument_canonical_prefix(
+                    module, machine, argument,
+                )
+                .ok_or(ModuleError::InvalidScalarBlockInvariant {
+                    machine: machine.id,
+                    header: target,
+                })?;
+                places.insert(parameter.place, (argument.place, prefix));
+            }
+            let predicate = super::super::substitution::substitute_proposition_structural_places(
                 &invariant.predicate,
+                &places,
+            );
+            let proposition = super::super::substitution::substitute_proposition_values(
+                &predicate,
                 &substitutions,
             );
             obligations.push(ReconstructedOperationObligation {
@@ -202,6 +236,7 @@ pub(super) fn append_arrival_obligations(
                 canonical_certificate: true,
             });
         }
+        Ok(())
     };
     match terminator {
         Terminator::Jump {
@@ -209,8 +244,16 @@ pub(super) fn append_arrival_obligations(
             target,
             arguments,
             erased_arguments,
+            structural_arguments,
             ..
-        } => append_edge(*edge, *target, arguments, erased_arguments, axioms),
+        } => append_edge(
+            *edge,
+            *target,
+            arguments,
+            erased_arguments,
+            structural_arguments,
+            axioms,
+        )?,
         Terminator::Conditional {
             condition,
             when_true,
@@ -233,10 +276,12 @@ pub(super) fn append_arrival_obligations(
                     successor.target,
                     &successor.arguments,
                     &successor.erased_arguments,
+                    &successor.structural_arguments,
                     &selected_axioms,
-                );
+                )?;
             }
         }
         _ => {}
     }
+    Ok(())
 }

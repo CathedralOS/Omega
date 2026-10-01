@@ -56,7 +56,7 @@ static OWNER_SCALAR_BLOCK_INVARIANT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ObligationOwner,
     binding: owner(),
     premises: "a validated scalar block invariant declaration on a machine header block and one incoming edge",
-    conclusion: "a derivable obligation whose proposition is the declared invariant instantiated for that edge's arrival state",
+    conclusion: "a derivable obligation whose proposition is the declared invariant instantiated with that exact edge's scalar arguments and canonical structural root/projection arguments; structural substitution precedes scalar substitution so inserted erased arguments retain predecessor scope; an observed structural argument without a canonical projection rejects rather than admitting the header hypothesis",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "fact:header-invariant-members",
@@ -383,8 +383,8 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:byte-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a byte-sequence operation or structural byte-sequence field whose validated extent is known, including a dominating byte length observation of a view established from an exact fixed-u8 array whose element type and readable backing are independently validated",
-    conclusion: "the exact length equation, the declaration-derived upper bound on a bounded-owned field, whole formal, or exact completed ordinary owned-byte call result length snapshot (never equality with capacity); callee construction capacity, exact result custody and read dominance remain independently checked; and the capacity obligation for owned concatenation or structural byte-field replacement",
+    premises: "a validated byte-sequence length observation of a borrowed machine or block parameter, or a byte-sequence operation or structural field whose extent is independently known, including a view established from an exact fixed-u8 array with validated element type and readable backing",
+    conclusion: "the observation equals that exact borrowed parameter's own ViewExtent, never another descriptor's extent or an assumed capacity; independent producer/backing/arrival evidence additionally supplies exact lengths; declaration-derived upper bounds on bounded-owned fields, whole formals and exact completed ordinary owned-byte call result snapshots are never equality with capacity; callee construction capacity, result custody and dominance remain checked, as do owned concatenation and byte-field replacement capacity obligations",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
@@ -446,8 +446,8 @@ static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:element-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a validated element-view length observation: a signature view, an exact establishment or subslice result, or a block-parameter descriptor whose every arrival traces unchanged to a dominating same-family length observation or producer; mutable arrivals additionally require freshness under every intermediate name",
-    conclusion: "the length equation: the signature view's runtime extent, a preceding observation of the identical descriptor, the array's static element count, or `end - start` with the subslice's bounds left as its own obligations",
+    premises: "a validated element-view length observation of a machine or block parameter, exact establishment or subslice result; relating a block parameter to a preceding observation additionally requires every arrival to trace unchanged to that same-family descriptor or producer, with mutable freshness under every intermediate name",
+    conclusion: "the observation equals the exact parameter's own ViewExtent; independent producer or all-arrival evidence may additionally equate it to a preceding observation of the identical descriptor, the array's static element count, or `end - start` with subslice bounds left as separate obligations; byte and element units are not equated",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",

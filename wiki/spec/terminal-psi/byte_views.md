@@ -129,12 +129,19 @@ binding name and establishes its destination name simultaneously; it does not
 duplicate exclusive access or change the underlying owner. Each source must be
 available on every arrival, including backedges. Ordinary calls reborrow and
 restore the caller's binding rather than consuming that name.
+For both byte and element views, a validated length observation of a machine
+or block parameter equals that exact parameter's `ViewExtent`. This equation
+describes its current descriptor, not a fixed capacity or another view. State
+arrival requirements substitute the exact incoming structural root and canonical
+projection before substituting scalar arguments, so erased argument terms keep
+their predecessor scope. A guard on one view cannot justify another same-typed
+view's extent.
 For a borrowed block parameter, a fresh length observation may be equated to
 a dominating observation of the exact descriptor every incoming edge supplies.
 The backward replay follows intermediate bindings and rejects a different
 descriptor on any arrival. Mutable views additionally require unchanged extent
 through every intermediate name along every path. Multiple arrivals alone
-establish no equality or general parameter-extent axiom.
+establish neither equality between different descriptors nor an assumed length.
 An unranked Unit loop can instead measure its current mutable view afresh at
 the loop header, guard each write, and transfer the exact view and index to a
 single-arrival store block. Feedback resets incoming path facts; every iteration
