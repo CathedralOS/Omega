@@ -51,7 +51,10 @@ fn an_owned_argument_keeps_its_qualification_snapshot_before_later_writes() {
         }
     "#,
     )
-    .replace("pub data SchedulerHandle {}", "pub data SchedulerHandle [copy] {}")
+    .replace(
+        "pub data SchedulerHandle {}",
+        "pub data SchedulerHandle [copy] {}",
+    )
     .replace("pub data Context {", "pub data Context [copy] {");
     checked(&fixture);
     reject(
@@ -65,17 +68,27 @@ fn an_owned_argument_keeps_its_qualification_snapshot_before_later_writes() {
 
 #[test]
 fn a_reference_argument_requires_its_fact_to_survive_later_operands() {
-    for (write, preserved) in [
-        ("context.counter = 1;", true),
-        ("context.scheduler = SchedulerHandle {};", false),
+    // A forwarded reference holds its loan through the transition, so a later
+    // operand can no longer write the referent: `done(context,
+    // change(context))` is a borrow conflict, not a lost fact. The claim is
+    // still checked after every operand rather than at the argument's own
+    // evaluation. A later `&mut self` call on the carrier whose slot supplied
+    // the reference exposes that slot and retires the claim; a later write to
+    // a disjoint carrier field keeps it.
+    for (operand, preserved) in [
+        ("0", true),
+        ("bump(&mut carrier.count)", true),
+        ("carrier.touch()", false),
     ] {
         let fixture = source(&format!(
             r#"
-            machine change(context: &mut Context) -> u64 {{ {write} 0 }}
-            machine route(context: &mut Context) -> u64
-            requires context.scheduler in WeakFair
+            data Carrier {{ context: &Context; count: u64; }}
+            machine Carrier::touch(&mut self) -> u64 {{ 0 }}
+            machine bump(count: &mut u64) -> u64 {{ count = 1; 0 }}
+            machine route(mut carrier: Carrier) -> u64
+            requires carrier.context.scheduler in WeakFair
             {{
-                transition {{ _ -> done(context, change(context)) }}
+                transition {{ _ -> done(carrier.context, {operand}) }}
                 state done(selected: &Context, ignored: u64) -> u64 {{ borrowed(selected) }}
             }}
         "#
