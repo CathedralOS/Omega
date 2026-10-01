@@ -258,3 +258,115 @@ fn cyclic_literal_store_requires_establishment_before_each_iteration_read() {
         "a prior iteration cannot authorize a read before this iteration's establishment"
     );
 }
+
+/// The fixture's literal crosses one edge into a block whose shared byte-view
+/// parameter declares a UTF-8 domain over the view type; the block measures
+/// and stores the view exactly as the entry block did.
+fn qualified_literal_arrival(literal_qualified: bool) -> super::TerminalModule {
+    let (mut module, _) = fixture(StructuralAccess::MutableBorrow);
+    module
+        .structural_domains
+        .push(super::StructuralDomainDeclaration {
+            id: id(1),
+            semantic_domain: id(1),
+            identity: "test::Utf8".into(),
+            carrier: id(2),
+            byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+            content_projection: None,
+            establishment_routes: Vec::new(),
+        });
+    let machine = &mut module.machines[0];
+    let OperationKind::EstablishByteSequenceLiteral { qualifications, .. } =
+        &mut machine.blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    if literal_qualified {
+        qualifications.push(id(1));
+    }
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(3),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: id(901),
+            position: 0,
+        },
+    });
+    let mut operations = machine.blocks[0].operations.split_off(2);
+    operations[0].kind = OperationKind::ByteSequenceLength { source: id(3) };
+    let OperationKind::StructuralByteSequenceFieldStore { source, .. } = &mut operations[1].kind
+    else {
+        unreachable!()
+    };
+    *source = id(3);
+    let terminator = machine.blocks[0].terminator.clone();
+    machine.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: vec![StructuralArgument {
+            place: id(2),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        }],
+        edge: id(901),
+        target: id(901),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: id(3),
+            position: 0,
+            is_self: false,
+            structural_type: id(2),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: vec![id(1)],
+            projected_qualifications: Vec::new(),
+        }],
+        id: id(901),
+        parameters: Vec::new(),
+        operations,
+        terminator,
+    });
+    module
+}
+
+#[test]
+fn qualified_shared_view_block_parameter_accepts_an_identically_qualified_literal() {
+    let module = qualified_literal_arrival(true);
+    validate_module(&module).expect("the literal's verified UTF-8 roster is the parameter's");
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(
+        obligations[0].obligation.proposition,
+        Proposition::LessOrEqual(measured(), count(3))
+    );
+}
+
+#[test]
+fn qualified_shared_view_block_parameter_rejects_unproved_or_invalid_arrivals() {
+    assert!(
+        validate_module(&qualified_literal_arrival(false)).is_err(),
+        "an unqualified literal cannot supply a UTF-8 block parameter"
+    );
+    let mut invalid_octets = qualified_literal_arrival(true);
+    let OperationKind::EstablishByteSequenceLiteral { bytes, .. } =
+        &mut invalid_octets.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *bytes = vec![0xff, 0xfe, 0xfd];
+    assert!(
+        validate_module(&invalid_octets).is_err(),
+        "literal validation still checks the octets the edge forwards"
+    );
+    let mut non_byte_domain = qualified_literal_arrival(true);
+    non_byte_domain.structural_domains[0].byte_predicate = None;
+    assert!(
+        validate_module(&non_byte_domain).is_err(),
+        "a qualification without a byte predicate has no frozen-view meaning"
+    );
+}

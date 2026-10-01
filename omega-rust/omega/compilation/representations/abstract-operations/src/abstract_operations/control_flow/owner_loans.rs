@@ -15,7 +15,8 @@
 //! The separate owned-parameter classifier below describes the by-value
 //! `{length, bytes}` payload, never a loan or descriptor ABI. Keeping those
 //! roles distinct prevents readable owner storage from authorizing an address
-//! join or changing an owned argument into a borrowed pointer.
+//! join or changing an owned argument into a borrowed pointer. A shared
+//! borrowed byte view keeps its declared domain under the same rule.
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -39,6 +40,45 @@ pub fn is_shared_bounded_owner_loan<'a>(
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
             )
         })
+}
+
+/// Whether this parameter is a shared `&[u8]` view, with or without a declared
+/// domain such as `&[u8] in Utf8`. The domain is a declaration-owned predicate
+/// Terminal verification already replayed at every arrival; the descriptor
+/// and its frozen referent are the same either way, so a view joined at a
+/// block parameter needs no transport beyond the declaration. Writes, the
+/// receiver and projected qualifications stay outside this rule.
+pub fn is_shared_byte_view<'a>(
+    parameter: &StructuralParameterDeclaration,
+    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+) -> bool {
+    parameter.access == StructuralAccess::SharedBorrow
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && !parameter.is_self
+        && parameter.projected_qualifications.is_empty()
+        && lookup(parameter.structural_type).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+            )
+        })
+}
+
+/// [`is_shared_byte_view`] over a declaration slice whose identities are
+/// unique.
+pub fn is_shared_byte_view_in(
+    parameter: &StructuralParameterDeclaration,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    is_shared_byte_view(parameter, |identity| {
+        let mut declarations = types
+            .iter()
+            .filter(|declaration| declaration.id == identity);
+        match (declarations.next(), declarations.next()) {
+            (Some(declaration), None) => Some(declaration),
+            _ => None,
+        }
+    })
 }
 
 /// [`is_shared_bounded_owner_loan`] over a declaration slice whose identities
@@ -92,3 +132,6 @@ pub fn is_owned_bounded_byte_parameter_in(
         }
     })
 }
+
+#[cfg(test)]
+mod tests;

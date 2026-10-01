@@ -85,6 +85,9 @@ impl Checker<'_> {
                                         && parameter.projected_qualifications.is_empty())
                                         || abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
                                             parameter, self.types,
+                                        )
+                                        || abstract_operations::control_flow::owner_loans::is_shared_byte_view_in(
+                                            parameter, self.types,
                                         ))
                             })
                     })

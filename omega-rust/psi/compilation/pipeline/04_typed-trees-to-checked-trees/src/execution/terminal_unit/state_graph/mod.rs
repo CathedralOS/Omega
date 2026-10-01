@@ -777,8 +777,12 @@ pub(super) fn build_traced(
 /// Neither rule grants transport for arbitrary mutable qualified values.
 /// A successor's qualified parameter is admitted only when every live
 /// edge into its state forwards a source parameter with exactly the same
-/// carrier, access, multiplicity and qualifications. The entry state keeps
-/// its invocation rule: a re-entered entry is a separate arrival.
+/// carrier, access, multiplicity and qualifications, or, for a shared byte
+/// view, establishes an authored literal under those qualifications: each
+/// is then a byte-predicate domain without establishment routes, which
+/// Terminal verification decides from the literal's octets at the edge.
+/// The entry state keeps its invocation rule: a re-entered entry is a
+/// separate arrival.
 fn forwards_qualified_loan(
     shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
@@ -820,6 +824,28 @@ fn forwards_qualified_loan(
     {
         return false;
     }
+    let literal_establishes_qualifications = parameter.access
+        == CheckedStructuralAccess::SharedBorrow
+        && parameter.projected_qualifications.is_empty()
+        && shapes
+            .types
+            .get(&parameter.type_identity)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                        CheckedByteSequenceCarrier::BorrowedView { .. }
+                    )
+                )
+            })
+        && parameter.qualifications.iter().all(|qualification| {
+            shapes.domains.iter().any(|domain| {
+                domain.domain == *qualification
+                    && domain.carrier_type_identity == parameter.type_identity
+                    && domain.byte_predicate.is_some()
+                    && domain.establishment_routes.is_empty()
+            })
+        });
     planned
         .iter()
         .zip(live)
@@ -832,10 +858,12 @@ fn forwards_qualified_loan(
                 .all(|successor| {
                     successor.transfers.iter().any(|transfer| {
                         transfer.target_parameter_index as usize == parameter_index
-                            && matches!(
-                                transfer.source,
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index }
-                                    if source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                            && match transfer.source {
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
+                                    literal_establishes_qualifications
+                                }
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                                    source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
                                         !forwarded.is_self
                                             && forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
@@ -844,7 +872,9 @@ fn forwards_qualified_loan(
                                             && forwarded.projected_qualifications
                                                 == parameter.projected_qualifications
                                     })
-                            )
+                                }
+                                _ => false,
+                            }
                     })
                 })
         })
@@ -1240,6 +1270,7 @@ enum SuccessorGuard {
     StructuralArgument,
     ReceiverTransfer,
     SubsliceTransfer,
+    LiteralTransfer,
     ResultTransfer,
     CasePayloadTransfer,
     EstablishedArgument,
@@ -1276,6 +1307,7 @@ impl SuccessorEdge {
                     SuccessorGuard::SubsliceTransfer => {
                         guard_phase!($edge, "byte-subslice transfer")
                     }
+                    SuccessorGuard::LiteralTransfer => guard_phase!($edge, "literal transfer"),
                     SuccessorGuard::ResultTransfer => guard_phase!($edge, "result-local transfer"),
                     SuccessorGuard::CasePayloadTransfer => {
                         guard_phase!($edge, "case-payload transfer")
@@ -1628,6 +1660,45 @@ fn successor_bindings(
                 }
                 return Some(CheckedStructuralControlTransferPlan {
                     source: subslice.transfer(),
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
+            // An authored string literal supplied directly to a whole
+            // unrestricted shared byte view (`relay("yes")` into
+            // `text: &[u8] in Utf8`) has no custody root. The edge establishes
+            // its octets into immutable literal storage, exactly as a
+            // byte-literal call argument does, and the target's declared
+            // domains are the establishment's membership evidence.
+            if matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::String(_)
+            ) {
+                mark(SuccessorGuard::LiteralTransfer);
+                let target_parameter = target_parameters.get(target.position as usize)?;
+                let literal = calls::byte_sequence_literal_argument(
+                    program,
+                    target_parameter.type_reference,
+                    expression,
+                )?;
+                let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
+                    literal.source
+                else {
+                    return None;
+                };
+                if target.is_self
+                    || target.access != CheckedStructuralAccess::SharedBorrow
+                    || target.multiplicity != Multiplicity::Unrestricted
+                    || literal.access != CheckedStructuralAccess::SharedBorrow
+                    || literal.type_identity != target.type_identity
+                {
+                    return None;
+                }
+                let source =
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
+                        bytes,
+                    };
+                return Some(CheckedStructuralControlTransferPlan {
+                    source,
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
             }

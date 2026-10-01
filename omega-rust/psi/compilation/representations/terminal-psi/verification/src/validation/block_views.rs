@@ -58,7 +58,8 @@ pub(super) fn validate_declarations(
                     )
                 )
                 || (!declaration.qualifications.is_empty()
-                    && !bounded_owner_loan(module, declaration))
+                    && !bounded_owner_loan(module, declaration)
+                    && !qualified_shared_byte_view(module, declaration))
                 || !declaration.projected_qualifications.is_empty()
                 || !machine.structural_places.iter().any(|place| {
                     place.id == declaration.place
@@ -122,6 +123,77 @@ pub(super) fn shared_bounded_owner_loan(
     declaration: &StructuralParameterDeclaration,
 ) -> bool {
     declaration.access == StructuralAccess::SharedBorrow && bounded_owner_loan(module, declaration)
+}
+
+/// A shared borrowed byte view (`&[u8] in Utf8`) whose every qualification is
+/// a plain byte predicate of that exact carrier. The shared loan freezes its
+/// referent, so the predicates hold for as long as the block holds the view.
+/// Every arrival must carry the identical qualifications: a whole forwarded
+/// parameter declared the same way, or a dominating literal establishment
+/// whose octets literal validation already checked against exactly them.
+pub(super) fn qualified_shared_byte_view(
+    module: &TerminalModule,
+    declaration: &StructuralParameterDeclaration,
+) -> bool {
+    declaration.access == StructuralAccess::SharedBorrow
+        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+        && !declaration.is_self
+        && !declaration.qualifications.is_empty()
+        && declaration.projected_qualifications.is_empty()
+        && module.structural_types.iter().any(|row| {
+            row.id == declaration.structural_type
+                && matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed()
+                )
+        })
+        && terminal_semantics::byte_parameter_predicates(module, declaration).is_some()
+}
+
+/// The exact qualification roster of the one available literal establishment
+/// that names `place`, with the literal's declared carrier.
+fn established_literal_qualifications<'machine>(
+    machine: &'machine TerminalMachine,
+    place: PlaceId,
+    available: &BTreeSet<PlaceId>,
+) -> Option<(
+    StructuralTypeId,
+    &'machine [semantic_vocabulary::StructuralDomainId],
+)> {
+    if !available.contains(&place) {
+        return None;
+    }
+    let structural_type =
+        machine
+            .structural_places
+            .iter()
+            .find_map(|declaration| match declaration.kind {
+                StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type, ..
+                } if declaration.id == place => Some(structural_type),
+                _ => None,
+            })?;
+    let mut establishments = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::EstablishByteSequenceLiteral {
+                destination,
+                qualifications,
+                ..
+            } if *destination == place
+                && operation.result == terminal_psi::OperationResult::Unit =>
+            {
+                Some(qualifications.as_slice())
+            }
+            _ => None,
+        });
+    let qualifications = establishments.next()?;
+    establishments
+        .next()
+        .is_none()
+        .then_some((structural_type, qualifications))
 }
 
 /// Whole bounded loans carry only primitive byte invariants of their exact
@@ -233,6 +305,43 @@ pub(super) fn validate_successor(
                         && source.projected_qualifications.is_empty()
                 });
             if !argument.path.is_empty() || argument.access != expected.access || !forwarded {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            continue;
+        }
+        if qualified_shared_byte_view(module, expected) {
+            // A qualified shared byte view arrives whole, either forwarded
+            // from an identically declared signature or available block
+            // parameter, or from a literal whose establishment carries
+            // exactly the declared qualifications (checked against its octets
+            // by literal validation). No other source proves the predicates.
+            let forwarded = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+                .or_else(|| {
+                    parameter(machine, argument.place)
+                        .filter(|_| available.contains(&argument.place))
+                })
+                .is_some_and(|source| {
+                    source.structural_type == expected.structural_type
+                        && source.access == StructuralAccess::SharedBorrow
+                        && source.multiplicity == StructuralMultiplicity::Unrestricted
+                        && source.qualifications == expected.qualifications
+                        && source.projected_qualifications.is_empty()
+                });
+            let literal = established_literal_qualifications(machine, argument.place, available)
+                .is_some_and(|(structural_type, qualifications)| {
+                    structural_type == expected.structural_type
+                        && qualifications == expected.qualifications.as_slice()
+                });
+            if !argument.path.is_empty()
+                || argument.access != StructuralAccess::SharedBorrow
+                || !(forwarded || literal)
+            {
                 return Err(ModuleError::InvalidStructuralSuccessorArgument {
                     edge,
                     place: argument.place,

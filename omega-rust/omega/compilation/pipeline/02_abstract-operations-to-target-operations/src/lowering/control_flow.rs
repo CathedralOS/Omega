@@ -226,6 +226,10 @@ pub(super) fn lower(
             if entry.block == function.entry
                 || parameter.position as usize != position
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
+                    && !super::scalar::byte_views::is_immutable_byte_carrier_parameter(
+                        parameter,
+                        structural_types,
+                    )
                     && !super::scalar::element_views::is_element_view_parameter(
                         parameter,
                         structural_types,

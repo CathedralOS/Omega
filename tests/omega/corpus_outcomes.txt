@@ -2147,8 +2147,8 @@ pass/text/runtime_mutable_string_parameter_concat_write_line rejected 763ms @2d8
 pass/text/runtime_number_to_decimal_exit checked 2214ms @2d8ed253669f
 pass/text/runtime_owned_string_byte_view_exit rejected 749ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
-pass/text/runtime_param_domain_forward_exit rejected 740ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 0)
+pass/text/runtime_param_domain_forward_exit checked 671ms @7f80f93fd214+wt
+pass/text/runtime_param_domain_literal_read_exit checked 679ms @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit rejected 1710ms @569fd648944c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 4)
 pass/text/runtime_stdin_command_branch_exit rejected 773ms @2d8ed253669f

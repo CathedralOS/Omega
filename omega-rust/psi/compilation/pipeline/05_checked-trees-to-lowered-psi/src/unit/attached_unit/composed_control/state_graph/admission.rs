@@ -1334,7 +1334,11 @@ fn validate_guard(
 /// checks; arbitrary mutable domain transport remains unsupported. A successor's
 /// qualified parameter is admitted only when every live edge into its
 /// state forwards a source parameter with exactly the same carrier, access,
-/// multiplicity and qualifications. The entry keeps its invocation rule.
+/// multiplicity and qualifications, or, for a shared byte view, establishes
+/// an authored literal under those qualifications: each is then a
+/// byte-predicate domain without establishment routes, which Terminal
+/// verification decides from the literal's octets. The entry keeps its
+/// invocation rule.
 fn forwards_qualified_loan(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -1386,6 +1390,39 @@ fn forwards_qualified_loan(
     {
         return false;
     }
+    let byte_predicate_domains = parameter.qualifications.iter().all(|qualification| {
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_domains
+            .iter()
+            .any(|domain| {
+                domain.domain == *qualification
+                    && domain.carrier_type_identity == parameter.type_identity
+                    && domain.byte_predicate.is_some()
+                    && domain.establishment_routes.is_empty()
+            })
+    });
+    let literal_establishes_qualifications = parameter.access
+        == checked_trees::CheckedStructuralAccess::SharedBorrow
+        && parameter.projected_qualifications.is_empty()
+        && byte_predicate_domains
+        && checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .any(|declaration| {
+                declaration.identity == parameter.type_identity
+                    && matches!(
+                        declaration.shape,
+                        checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    )
+            });
     plan.states
         .iter()
         .zip(live)
@@ -1398,10 +1435,12 @@ fn forwards_qualified_loan(
                 .all(|successor| {
                     successor.transfers.iter().any(|transfer| {
                         transfer.target_parameter_index as usize == parameter_index
-                            && matches!(
-                                transfer.source,
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index }
-                                    if source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                            && match transfer.source {
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
+                                    literal_establishes_qualifications
+                                }
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                                    source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
                                         !forwarded.is_self
                                             && forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
@@ -1410,7 +1449,9 @@ fn forwards_qualified_loan(
                                             && forwarded.projected_qualifications
                                                 == parameter.projected_qualifications
                                     })
-                            )
+                                }
+                                _ => false,
+                            }
                     })
                 })
         })
