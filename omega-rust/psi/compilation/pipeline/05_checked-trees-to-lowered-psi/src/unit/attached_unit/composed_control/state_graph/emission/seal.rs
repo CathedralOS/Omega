@@ -225,8 +225,11 @@ impl StateGraphEmission<'_, '_> {
                 ))?;
             // A chain member holding moved storage is declared as that owned
             // storage now, after the body emitted against its exclusive view
-            // and before private-borrow transport would forward it.
+            // and before private-borrow transport would forward it. A shared
+            // parameter holding a forwarded exclusive loan is declared as that
+            // loan the same way, after its body emitted against the shared view.
             let loan_chains = &self.loan_chains;
+            let exclusive_handoffs = self.admitted.exclusive_handoffs.get(position);
             root.structural_parameters = std::mem::take(&mut self.state_views[position])
                 .into_iter()
                 .enumerate()
@@ -238,6 +241,10 @@ impl StateGraphEmission<'_, '_> {
                 })
                 .map(|(dense, mut parameter)| {
                     loan_chains.declare(position, dense as u32, &mut parameter);
+                    if exclusive_handoffs.is_some_and(|promoted| promoted.contains(&(dense as u32)))
+                    {
+                        parameter.access = terminal_psi::StructuralAccess::MutableBorrow;
+                    }
                     parameter
                 })
                 .collect();

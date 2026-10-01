@@ -6,7 +6,8 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{
-    CheckedComposedUnitControlMachinePlan, claims, edges, receiver_aliases, scalars, topology,
+    CheckedComposedUnitControlMachinePlan, claims, edges, exclusive_handoffs, receiver_aliases,
+    scalars, topology,
 };
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
@@ -91,6 +92,9 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     pub(super) live: Vec<bool>,
     pub(super) source_states: &'a [checked_trees::state::State],
     pub(super) claim_transport: claims::ClaimTransport,
+    /// Per plan state, the shared parameters declared as the whole exclusive
+    /// loan every arrival forwards (`exclusive_handoffs`).
+    pub(super) exclusive_handoffs: Vec<std::collections::BTreeSet<u32>>,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 }
@@ -1027,6 +1031,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // A state parameter that only ever receives the entry's whole receiver
     // keeps the invocation place, as a state's implicit `self` does.
     receiver_aliases::alias_entry_receiver_loans(plan, &live, &mut claim_transport.aliased)?;
+    // A shared parameter that only ever receives its source's whole
+    // exclusive loan holds that loan; Terminal edges transfer mutable names.
+    let exclusive_handoffs = exclusive_handoffs::promote_shared_handoffs(
+        checked,
+        plan,
+        &live,
+        &claim_transport.aliased,
+    )?;
     let states = plan
         .states
         .iter()
@@ -1176,6 +1188,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         live,
         source_states,
         claim_transport,
+        exclusive_handoffs,
         boundaries,
     })
 }
