@@ -27,10 +27,17 @@ pub(super) fn publish(
     functions: &[ObjectFunction],
     calls: &[ObjectForeignCall],
 ) -> Result<RelocationPlan, Error> {
+    let import_calls = calls
+        .iter()
+        .filter_map(|call| call.binding.import().map(|(locator, _)| (call, locator)))
+        .collect::<Vec<_>>();
     let fields = &source
         .source()
         .text_section()
         .unresolved_normalized_foreign_calls;
+    if fields.len() != import_calls.len() {
+        return Err(Error::Mismatch("fragment import field roster changed"));
+    }
     let callback_record_count = calls
         .iter()
         .flat_map(|call| call.callback_addresses.iter())
@@ -41,7 +48,8 @@ pub(super) fn publish(
         .sum::<usize>();
     let mut relocations =
         RelocationPlan::with_record_capacity(object.target, fields.len() + callback_record_count);
-    for (field, call) in fields.iter().zip(calls) {
+    for field in fields {
+        let (call, locator) = call_for_import_field(&import_calls, field)?;
         let function = functions
             .iter()
             .find(|function| function.machine == field.caller)
@@ -100,11 +108,11 @@ pub(super) fn publish(
             .layout
             .normalized_imports
             .iter()
-            .find(|import| import.locator == call.locator)
+            .find(|import| import.locator == *locator)
         {
             import.symbol
         } else {
-            let name = normalized_foreign_import_symbol_name(&call.locator);
+            let name = normalized_foreign_import_symbol_name(locator);
             if object
                 .layout
                 .symbols
@@ -123,7 +131,7 @@ pub(super) fn publish(
             });
             object.layout.normalized_imports.push(NormalizedImportPlan {
                 symbol,
-                locator: call.locator.clone(),
+                locator: locator.clone(),
             });
             symbol
         };
@@ -146,6 +154,10 @@ pub(super) fn validate(
 ) -> Result<(), Error> {
     let calls = derive_normalized_foreign_call_custody(source)
         .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
+    let import_calls = calls
+        .iter()
+        .filter_map(|call| call.binding.import().map(|(locator, _)| (call, locator)))
+        .collect::<Vec<_>>();
     let fields = &source
         .source()
         .text_section()
@@ -160,7 +172,10 @@ pub(super) fn validate(
                 CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
             })
             .sum::<usize>();
-    if artifact.foreign_calls != calls || artifact.relocations.record_count() != expected_records {
+    if artifact.foreign_calls != calls
+        || artifact.relocations.record_count() != expected_records
+        || fields.len() != import_calls.len()
+    {
         return Err(Error::Mismatch("fragment import relocation roster changed"));
     }
     let mut imports = layout.normalized_imports.iter();
@@ -170,19 +185,19 @@ pub(super) fn validate(
         .symbols
         .iter()
         .skip(artifact.functions.len() + artifact.private_functions.len());
-    for (call_index, call) in calls.iter().enumerate() {
-        if calls[..call_index]
-            .iter()
-            .any(|prior| prior.locator == call.locator)
-        {
+    let mut prior_locators = Vec::new();
+    for field in fields {
+        let (_, locator) = call_for_import_field(&import_calls, field)?;
+        if prior_locators.contains(&locator) {
             continue;
         }
+        prior_locators.push(locator);
         let (Some(import), Some((symbol_handle, symbol))) = (imports.next(), symbols.next()) else {
             return Err(Error::Mismatch("fragment import is missing"));
         };
-        if import.locator != call.locator
+        if import.locator != *locator
             || import.symbol != symbol_handle
-            || symbol.name != normalized_foreign_import_symbol_name(&call.locator)
+            || symbol.name != normalized_foreign_import_symbol_name(locator)
             || symbol.kind != SymbolKind::Import
             || symbol.section != SymbolSection::None
             || symbol.offset != 0
@@ -204,7 +219,8 @@ pub(super) fn validate(
         return Err(Error::Mismatch("fragment import roster has extra rows"));
     }
     let mut records = artifact.relocations.records();
-    for (field, call) in fields.iter().zip(&calls) {
+    for field in fields {
+        let (call, locator) = call_for_import_field(&import_calls, field)?;
         let function = artifact
             .functions
             .iter()
@@ -281,7 +297,7 @@ pub(super) fn validate(
                 }
             }
         }
-        let symbol = object_symbol_handle_by_foreign_locator(&artifact.object, &call.locator);
+        let symbol = object_symbol_handle_by_foreign_locator(&artifact.object, locator);
         let Some((_, relocation)) = records.next() else {
             return Err(Error::Mismatch("fragment import relocation roster changed"));
         };
@@ -300,6 +316,25 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// Selected roster order need not equal placed instruction order. Join by
+/// semantic owner and exact field offset, never by a positional zip.
+fn call_for_import_field<'a>(
+    calls: &[(&'a ObjectForeignCall, &'a target::NormalizedForeignLocator)],
+    field: &machine_code::PlacedNormalizedForeignCallResolution,
+) -> Result<(&'a ObjectForeignCall, &'a target::NormalizedForeignLocator), Error> {
+    let mut matches = calls.iter().copied().filter(|(call, _)| {
+        call.machine == field.caller
+            && call.owner == target_operations::CallSiteOwner::Operation(field.operation)
+            && u64::try_from(call.text_offset) == Ok(field.field_section_offset)
+    });
+    match (matches.next(), matches.next()) {
+        (Some(call), None) => Ok(call),
+        _ => Err(Error::Mismatch(
+            "fragment import field lacks unique call custody",
+        )),
+    }
 }
 
 fn relocation_kind(kind: NormalizedForeignCallResolutionKind) -> RelocationKind {

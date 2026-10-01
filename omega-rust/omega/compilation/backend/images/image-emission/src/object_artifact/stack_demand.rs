@@ -165,7 +165,12 @@ fn derive_terminal_stack_peak(
         .iter()
         .filter(|call| call.machine == machine)
     {
-        let contribution = &call.same_stack_contribution;
+        let Some((_, contribution)) = call.binding.import() else {
+            // Supervisor entry retains the caller's committed frame but does
+            // not run an opaque counterparty on the user-space stack.
+            peak = peak.max(u64::from(call.caller_live_bytes));
+            continue;
+        };
         let composed = u64::from(call.caller_live_bytes)
             .checked_add(contribution.bytes())
             .ok_or(ObjectError::TerminalStackCompositionOverflow {

@@ -598,17 +598,19 @@ pub(crate) fn installed_foreign_call_stacks(
         .foreign_calls()
         .iter()
         .filter(|call| call.machine == machine)
-        .map(|call| InstalledForeignCallStack {
-            owner: call.owner,
-            text_offset: call.text_offset,
-            caller_live_bytes: call.caller_live_bytes,
-            provider_plan_report_identity: call
-                .same_stack_contribution
-                .provider_plan_report_identity(),
-            contribution_report_identity: call.same_stack_contribution.report_identity(),
-            contribution_commitment: call.same_stack_contribution.commitment(),
-            contribution_bytes: call.same_stack_contribution.bytes(),
-            contribution_alignment: call.same_stack_contribution.alignment(),
+        .filter_map(|call| {
+            call.binding
+                .import()
+                .map(|(_, contribution)| InstalledForeignCallStack {
+                    owner: call.owner,
+                    text_offset: call.text_offset,
+                    caller_live_bytes: call.caller_live_bytes,
+                    provider_plan_report_identity: contribution.provider_plan_report_identity(),
+                    contribution_report_identity: contribution.report_identity(),
+                    contribution_commitment: contribution.commitment(),
+                    contribution_bytes: contribution.bytes(),
+                    contribution_alignment: contribution.alignment(),
+                })
         })
         .collect()
 }

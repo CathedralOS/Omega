@@ -369,7 +369,7 @@ pub struct ObjectBoundarySettlement {
 }
 
 /// Source-free custody for one normalized foreign call retained after object
-/// construction has independently replayed its instruction and relocation.
+/// construction has independently replayed its instruction and entry mechanism.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectForeignCall {
     pub machine: MachineId,
@@ -377,14 +377,11 @@ pub struct ObjectForeignCall {
     /// Ordinal of the exact normalized foreign operation owning the complete
     /// semantic-code attribution interval.
     pub operation_ordinal: usize,
-    pub locator: target::NormalizedForeignLocator,
+    pub binding: target_operations::NormalizedForeignCallBinding,
     pub provider_execution: machine_code::ProviderExecutionRecord,
-    pub boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
     /// Exact physical caller frontier independently reconstructed from emitted
     /// stack instructions before the opaque foreign leaf begins.
     pub caller_live_bytes: u32,
-    /// Sealed admitted demand for the opaque same-stack foreign leaf.
-    pub same_stack_contribution: task_plans::AdmittedSameStackContribution,
     /// Exact scalar argument materializations retained from machine emission.
     /// Every code offset is rebased to absolute object `.text`.
     pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
@@ -401,7 +398,8 @@ pub struct ObjectForeignCall {
     /// Absolute object-text intervals proving complete FPCR preservation for
     /// this returning AArch64 foreign call.
     pub aarch64_floating_control: Option<machine_code::Aarch64ForeignCallFloatingControlRecord>,
-    /// Absolute offset of the mutable relocation field in object `.text`.
+    /// Absolute object-text offset of the import relocation field, or of the
+    /// complete supervisor-entry instruction for a kernel binding.
     pub text_offset: usize,
 }
 

@@ -929,6 +929,29 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         target::TargetProfile::WindowsX64,
     )
     .expect("valid normalized Windows import");
+    let mechanism = |locator: &target::NormalizedForeignLocator, admission: [u8; 32]| {
+        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest(admission);
+        let contribution = task_plans::admit_same_stack_contribution(
+            task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: 7,
+                provider_plan_commitment: commitment,
+                requirement_identity: "Input::read".to_owned(),
+                receipt:
+                    task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(3)
+                        .unwrap(),
+                bytes: 64,
+                alignment: 16,
+            },
+            7,
+            commitment,
+            "Input::read",
+        )
+        .unwrap();
+        target_operations::NormalizedForeignCallMechanism::Import {
+            locator: locator.clone(),
+            same_stack_contribution: contribution,
+        }
+    };
     let parameter =
         |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
             place: PlaceId::new(place).unwrap(),
@@ -965,8 +988,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             NativeTarget::linux_x64(),
             execution,
             [9; 32],
-            &locator,
-            [11; 32],
+            &mechanism(&locator, [11; 32]),
             arguments,
             parameters,
         )
@@ -1039,8 +1061,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [9; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1051,8 +1072,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [9; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1063,8 +1083,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [9; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1075,8 +1094,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::windows_x64(),
                 execution,
                 [9; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1094,8 +1112,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 )
                 .unwrap(),
                 [9; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1106,8 +1123,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [10; 32],
-                &locator,
-                [11; 32],
+                &mechanism(&locator, [11; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1118,8 +1134,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [9; 32],
-                &locator,
-                [12; 32],
+                &mechanism(&locator, [12; 32]),
                 &structural_arguments,
                 &structural_parameters,
             ),
@@ -1130,20 +1145,62 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 NativeTarget::linux_x64(),
                 execution,
                 [9; 32],
-                &target::normalize_foreign_locator(
-                    target::ForeignLocatorCandidate::PeByName {
-                        library: b"kernel32.dll".to_vec(),
-                        export: b"WriteFile".to_vec(),
-                    },
-                    target::TargetProfile::WindowsX64,
-                )
-                .expect("valid normalized Windows import"),
-                [11; 32],
+                &mechanism(
+                    &target::normalize_foreign_locator(
+                        target::ForeignLocatorCandidate::PeByName {
+                            library: b"kernel32.dll".to_vec(),
+                            export: b"WriteFile".to_vec(),
+                        },
+                        target::TargetProfile::WindowsX64,
+                    )
+                    .expect("valid normalized Windows import"),
+                    [11; 32],
+                ),
                 &structural_arguments,
                 &structural_parameters,
             ),
         };
         assert_ne!(changed, expected, "binding input mutation {mutation}");
+    }
+    let kernel = target_operations::NormalizedSystemCallBinding {
+        target: target::TargetProfile::LinuxX64,
+        number: 0,
+        requirement_identity: "Input::read".into(),
+        provider_plan_report_identity: 7,
+        provider_plan_commitment: [7; 32],
+    };
+    let kernel_identity = |kernel| {
+        admitted_provider_boundary_trait_settlement_identity(
+            occurrence,
+            "Input::read",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeTarget::linux_x64(),
+            execution,
+            [9; 32],
+            &target_operations::NormalizedForeignCallMechanism::SystemCall(kernel),
+            &structural_arguments,
+            &structural_parameters,
+        )
+    };
+    let kernel_expected = kernel_identity(kernel.clone());
+    assert_ne!(
+        kernel_expected, expected,
+        "import and kernel roles are distinct"
+    );
+    for mutation in 0..5 {
+        let mut changed = kernel.clone();
+        match mutation {
+            0 => changed.target = target::TargetProfile::LinuxArm64,
+            1 => changed.number = 211,
+            2 => changed.requirement_identity = "Input::other".into(),
+            3 => changed.provider_plan_report_identity += 1,
+            _ => changed.provider_plan_commitment[0] ^= 1,
+        }
+        assert_ne!(
+            kernel_expected,
+            kernel_identity(changed),
+            "kernel mutation {mutation}"
+        );
     }
 }
 

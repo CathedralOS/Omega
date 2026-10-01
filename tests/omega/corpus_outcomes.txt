@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.17, "load1_start": 5.44, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 3.71, "load1_start": 3.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1926,6 +1926,7 @@ pass/providers/checked_fixed_operator_physical_custody checked 910ms @2d8ed25366
 pass/providers/component_owner_provider_override_compile checked 626ms @2d8ed253669f
 pass/providers/external_boundary_requirement_via_exit checked 8941ms @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms @2d8ed253669f
+pass/providers/kernel_import_result_chain_exit checked 654ms @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms @2d8ed253669f
 pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms @2d8ed253669f

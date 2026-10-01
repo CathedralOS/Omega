@@ -12,6 +12,139 @@ use effects::provider_plan::{
 };
 use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
 
+fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignCall {
+    let native = profile.native_target();
+    let signature = calling_conventions::CallSignature {
+        parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
+        result: Some(calling_conventions::ValueShape::integer(4, 4)),
+    };
+    image_emission::ObjectForeignCall {
+        machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+        owner: target_operations::CallSiteOwner::Operation(
+            semantic_vocabulary::OperationId::new(2).unwrap(),
+        ),
+        operation_ordinal: 0,
+        binding: target_operations::NormalizedForeignCallBinding {
+            boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                calling_conventions::CallingPolicy::native_syscall_for_target(native).unwrap(),
+                &signature,
+            )
+            .unwrap()
+            .plan()
+            .clone(),
+            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
+                target_operations::NormalizedSystemCallBinding {
+                    target: profile,
+                    number: 0,
+                    requirement_identity: "Input::read".into(),
+                    provider_plan_report_identity: 7,
+                    provider_plan_commitment: [23; 32],
+                },
+            ),
+        },
+        provider_execution: machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19).unwrap(),
+        caller_live_bytes: 32,
+        scalar_arguments: Vec::new(),
+        callback_addresses: Vec::new(),
+        scalar_result: None,
+        x86_floating_control: None,
+        aarch64_floating_control: None,
+        text_offset: 64,
+    }
+}
+
+#[test]
+fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() {
+    use super::provider_execution::validate_foreign_provider_binding;
+    let plans = [NativeSelectedProviderPlan::new(
+        7,
+        NativeSelectedProviderPlanDigest::from_digest([23; 32]),
+        vec!["Input::read".into()],
+    )];
+    for profile in [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ] {
+        let call = kernel_call(profile);
+        let validate = |call: &image_emission::ObjectForeignCall| {
+            validate_foreign_provider_binding("Input::read", call, &plans)
+        };
+        // Zero is a valid syscall number; no user-space stack receipt is invented.
+        assert_eq!(validate(&call), Ok(()));
+        for mutation in 0..5 {
+            let mut changed = call.clone();
+            let target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) =
+                &mut changed.binding.mechanism
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => kernel.provider_plan_commitment[0] ^= 1,
+                1 => kernel.provider_plan_report_identity += 1,
+                2 => kernel.requirement_identity = "Input::other".into(),
+                3 => kernel.number = -1,
+                _ => changed.provider_execution.provider_plan_report_identity += 1,
+            }
+            assert!(
+                validate(&changed).is_err(),
+                "{profile:?} mutation {mutation}"
+            );
+        }
+        let mut changed = call.clone();
+        changed.binding.boundary_entry_plan.call.ordinary_clobbers =
+            calling_conventions::RegisterSet::new(Vec::new());
+        assert!(validate(&changed).is_err());
+        let mut changed = call.clone();
+        changed.x86_floating_control = Some(machine_code::X86ForeignCallFloatingControlRecord {
+            target: target::NativeTarget::linux_x64(),
+            saved_slot_byte_offset: 0,
+            save_offset: 1,
+            save_byte_count: 4,
+            restore_offset: 8,
+            restore_byte_count: 4,
+        });
+        assert!(validate(&changed).is_err());
+        let mut changed = call.clone();
+        changed.aarch64_floating_control =
+            Some(machine_code::Aarch64ForeignCallFloatingControlRecord {
+                target: target::NativeTarget::linux_arm64(),
+                saved_slot_byte_offset: 0,
+                save_offset: 1,
+                save_byte_count: 4,
+                restore_offset: 8,
+                restore_byte_count: 4,
+            });
+        assert!(validate(&changed).is_err());
+    }
+}
+
+#[test]
+fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
+    use super::identity::foreign_call_custody_digest;
+    let call = kernel_call(target::TargetProfile::LinuxX64);
+    let expected = foreign_call_custody_digest(std::slice::from_ref(&call));
+    for mutation in 0..5 {
+        let mut changed = call.clone();
+        let target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) =
+            &mut changed.binding.mechanism
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => kernel.target = target::TargetProfile::LinuxArm64,
+            1 => kernel.number = 211,
+            2 => kernel.requirement_identity = "Input::other".into(),
+            3 => kernel.provider_plan_report_identity += 1,
+            _ => kernel.provider_plan_commitment[0] ^= 1,
+        }
+        assert_ne!(
+            expected,
+            foreign_call_custody_digest(&[changed]),
+            "mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
     let plans = ["Generic", "Ordinary"].map(|name| ProviderPlan {

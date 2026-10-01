@@ -224,13 +224,12 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     target: NativeTarget,
     execution: ProviderExecutionBinding,
     boundary_plan_identity: [u8; 32],
-    locator: &target::NormalizedForeignLocator,
-    same_stack_identity: [u8; 32],
+    mechanism: &target_operations::NormalizedForeignCallMechanism,
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v2\0");
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v6\0");
     digest.update(occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
@@ -254,9 +253,25 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             .boundary_contract_report_fingerprint()
             .to_le_bytes(),
     );
-    digest.update(locator.identity_digest().as_bytes());
+    match mechanism {
+        target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution,
+        } => {
+            digest.update([1]);
+            digest.update(locator.identity_digest().as_bytes());
+            digest.update(same_stack_contribution.commitment().as_bytes());
+        }
+        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+            digest.update([2]);
+            hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
+            digest.update(kernel.number.to_le_bytes());
+            digest.update(kernel.provider_plan_report_identity.to_le_bytes());
+            digest.update(kernel.provider_plan_commitment);
+            hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
+        }
+    }
     digest.update(boundary_plan_identity);
-    digest.update(same_stack_identity);
     digest.update(canonical_usize(structural_arguments.len()));
     for argument in structural_arguments {
         hash_structural_argument(&mut digest, argument);

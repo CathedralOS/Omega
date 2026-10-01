@@ -182,11 +182,15 @@ pub(super) fn emit_functions(
                 machine: function.machine,
                 owner: call.owner,
                 operation_ordinal: call.operation_ordinal,
-                locator: call.locator.clone(),
+                binding: target_operations::NormalizedForeignCallBinding {
+                    boundary_entry_plan: call.boundary_entry_plan.clone(),
+                    mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+                        locator: call.locator.clone(),
+                        same_stack_contribution: call.same_stack_contribution.clone(),
+                    },
+                },
                 provider_execution: call.provider_execution,
-                boundary_entry_plan: call.boundary_entry_plan.clone(),
                 caller_live_bytes,
-                same_stack_contribution: call.same_stack_contribution.clone(),
                 scalar_arguments,
                 callback_addresses,
                 scalar_result,

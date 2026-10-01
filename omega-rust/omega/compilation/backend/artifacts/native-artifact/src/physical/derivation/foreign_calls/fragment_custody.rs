@@ -1,5 +1,8 @@
-//! Reconstruct fragment-published import, selected-call, and scalar custody
+//! Reconstruct fragment-published external-entry, selected-call, and scalar custody
 //! before the foreign-call derivation accepts the projected physical records.
+//! Imports rejoin exact relocation fields; kernel entries instead decode the
+//! complete placed instruction against the retained number and ABI operands.
+//! Neither path can replace the shared source, argument, or result checks.
 
 use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::foreign_calls::{
@@ -9,16 +12,15 @@ use crate::physical::fragment_publication::FragmentPublicationBinding;
 use calling_conventions::ValueLocation;
 use semantic_vocabulary::ScalarType;
 
-/// The fragment-publication rejoin of one normalized-foreign D41 child: the
-/// relocation-free object plan's unresolved import field, the declared import
-/// symbol it names, and the selected-plan roster row the projected custody
-/// was bound from. The three must agree on `{caller, operation, boundary}`
-/// and the roster coordinate `{boundary, ordinal}` before physical evidence
-/// may claim the projected custody row.
+/// The selected-plan roster row for one normalized-foreign D41 child, plus
+/// its unresolved field and symbol for imports only. Kernel entries have no
+/// import: their independently decoded instruction is the physical entry.
 #[derive(Clone, Copy)]
 pub(super) struct FragmentForeignCallRejoin<'a> {
-    pub(super) field: &'a object_file::RelocationFreeObjectUnresolvedForeignCall,
-    pub(super) import: &'a object_file::RelocationFreeObjectNormalizedImport,
+    pub(super) import: Option<(
+        &'a object_file::RelocationFreeObjectUnresolvedForeignCall,
+        &'a object_file::RelocationFreeObjectNormalizedImport,
+    )>,
     pub(super) record: &'a selected_instructions::SelectedNormalizedForeignCall,
 }
 
@@ -35,95 +37,155 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
 ) -> Result<FragmentForeignCallRejoin<'a>, &'static str> {
     let plan = publication.relocation_free_object();
     let selected = publication.selected_plan();
+    let mut functions = selected
+        .functions
+        .iter()
+        .filter(|function| function.machine == occurrence.machine());
+    let (Some(function), None) = (functions.next(), functions.next()) else {
+        return Err("normalized foreign D41 child names an absent selected function");
+    };
+    let mut records = function
+        .normalized_foreign_calls
+        .iter()
+        .enumerate()
+        .filter(|(_, record)| {
+            record.operation == occurrence.operation()
+                && record.call.boundary == occurrence.boundary()
+        });
+    let (Some((ordinal, record)), None) = (records.next(), records.next()) else {
+        return Err("normalized foreign D41 child cannot rejoin one selected call");
+    };
+    let mut instructions = function.blocks.iter().flat_map(|block| {
+        block
+            .instructions
+            .iter()
+            .filter(move |instruction| instruction.id == record.instruction)
+            .map(move |instruction| (block, instruction))
+    });
+    let (Some((block, instruction)), None) = (instructions.next(), instructions.next()) else {
+        return Err("normalized foreign D41 roster row names an absent instruction");
+    };
+    if !matches!(instruction.kind,
+        selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
+            boundary, ordinal: actual,
+        } if boundary == occurrence.boundary() && usize::try_from(actual) == Ok(ordinal))
+    {
+        return Err("normalized foreign D41 instruction kind does not match its roster row");
+    }
     let mut fields = plan
         .unresolved_normalized_foreign_calls
         .iter()
         .filter(|candidate| {
             candidate.resolution.caller == occurrence.machine()
                 && candidate.resolution.operation == occurrence.operation()
-                && candidate.resolution.boundary == occurrence.boundary()
-                && candidate.resolution.state
-                    == machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
-        })
-        .collect::<Vec<_>>();
-    if fields.len() != 1 {
-        return Err("normalized foreign D41 child cannot rejoin one unresolved import field");
-    }
-    let field = fields.remove(0);
-    if usize::try_from(field.resolution.field_section_offset) != Ok(foreign.text_offset) {
-        return Err("normalized foreign D41 import field does not match its call offset");
-    }
-    let mut imports = plan
-        .normalized_imports
-        .iter()
-        .filter(|import| {
-            import.symbol == field.symbol
-                && import.boundary == field.resolution.boundary
-                && import.ordinal == field.resolution.ordinal
-        })
-        .collect::<Vec<_>>();
-    if imports.len() != 1 {
-        return Err("normalized foreign D41 child cannot rejoin one declared import symbol");
-    }
-    let import = imports.remove(0);
-    if import.name
-        != object_file::canonical_normalized_foreign_import_symbol_name(
-            import.boundary,
-            import.ordinal,
-        )
-    {
-        return Err("normalized foreign D41 import symbol drifted from its canonical name");
-    }
-    let mut functions = selected
-        .functions
-        .iter()
-        .filter(|function| function.machine == occurrence.machine())
-        .collect::<Vec<_>>();
-    if functions.len() != 1 {
-        return Err("normalized foreign D41 child names an absent selected function");
-    }
-    let function = functions.remove(0);
-    let index = usize::try_from(field.resolution.ordinal)
-        .map_err(|_| "normalized foreign D41 roster ordinal does not fit this target")?;
-    let record = function
-        .normalized_foreign_calls
-        .get(index)
-        .ok_or("normalized foreign D41 roster row is absent for its ordinal")?;
-    if record.instruction != field.resolution.instruction
-        || record.operation != field.resolution.operation
-        || record.call.boundary != field.resolution.boundary
-    {
-        return Err("normalized foreign D41 roster row lost its call target");
-    }
-    let Some(block) = function
-        .blocks
-        .iter()
-        .find(|block| block.id == field.resolution.block)
-    else {
-        return Err("normalized foreign D41 roster row names an absent instruction");
+        });
+    let import = match (record.call.binding.import(), fields.next(), fields.next()) {
+        (Some(_), Some(field), None) => {
+            let resolution = &field.resolution;
+            if resolution.boundary != occurrence.boundary()
+                || resolution.instruction != instruction.id
+                || resolution.block != block.id
+                || usize::try_from(resolution.ordinal) != Ok(ordinal)
+                || usize::try_from(resolution.field_section_offset) != Ok(foreign.text_offset)
+                || resolution.state
+                    != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+            {
+                return Err("normalized foreign D41 import field does not match its selected call");
+            }
+            let mut imports = plan.normalized_imports.iter().filter(|import| {
+                import.symbol == field.symbol
+                    && import.boundary == resolution.boundary
+                    && import.ordinal == resolution.ordinal
+            });
+            let (Some(import), None) = (imports.next(), imports.next()) else {
+                return Err(
+                    "normalized foreign D41 child cannot rejoin one declared import symbol",
+                );
+            };
+            if import.name
+                != object_file::canonical_normalized_foreign_import_symbol_name(
+                    import.boundary,
+                    import.ordinal,
+                )
+            {
+                return Err("normalized foreign D41 import symbol drifted from its canonical name");
+            }
+            Some((field, import))
+        }
+        (None, None, None) => {
+            let kernel = record
+                .call
+                .binding
+                .system_call()
+                .ok_or("normalized external entry mechanism is absent")?;
+            let section = publication.text_section();
+            let fragment = section
+                .functions
+                .iter()
+                .find(|fragment| fragment.machine == occurrence.machine())
+                .ok_or("kernel entry has no placed caller")?;
+            let span = fragment
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|span| span.instruction == instruction.id)
+                .ok_or("kernel entry has no placed instruction")?;
+            let start =
+                usize::try_from(span.section_offset).map_err(|_| "kernel entry offset overflow")?;
+            let size =
+                usize::try_from(span.byte_count).map_err(|_| "kernel entry size overflow")?;
+            let end = start.checked_add(size).ok_or("kernel entry end overflow")?;
+            let bytes = section
+                .bytes
+                .get(start..end)
+                .ok_or("kernel entry is outside placed text")?;
+            if start != foreign.text_offset {
+                return Err("kernel entry moved away from its selected instruction");
+            }
+            let views = instruction
+                .operands
+                .iter()
+                .map(|operand| operand.fixed_view)
+                .collect::<Option<Vec<_>>>()
+                .ok_or("kernel entry lacks fixed operand homes")?;
+            let accesses = instruction
+                .operands
+                .iter()
+                .map(|operand| operand.access)
+                .collect::<Vec<_>>();
+            match section.target.architecture {
+                target::Architecture::X86_64 => {
+                    isa_x86_64::validate_x86_64_selected_system_call_form(
+                        section.target,
+                        isa_x86_64::validated_x86_64_physical_register_model(),
+                        instruction.kind,
+                        span.alternative,
+                        &views,
+                        &accesses,
+                        kernel.number,
+                        bytes,
+                    )
+                    .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                }
+                target::Architecture::Aarch64 => {
+                    isa_aarch64::validate_aarch64_selected_system_call_form(
+                        section.target,
+                        isa_aarch64::validated_aarch64_physical_register_model(),
+                        instruction.kind,
+                        span.alternative,
+                        &views,
+                        &accesses,
+                        kernel.number,
+                        bytes,
+                    )
+                    .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                }
+            }
+            None
+        }
+        _ => return Err("external call import fields disagree with its entry mechanism"),
     };
-    // Instruction identities are function-global, not block-local indexes:
-    // find the roster instruction by id inside its recorded block.
-    let Some(instruction) = block
-        .instructions
-        .iter()
-        .find(|instruction| instruction.id == field.resolution.instruction)
-    else {
-        return Err("normalized foreign D41 roster row names an absent instruction");
-    };
-    if !matches!(
-        instruction.kind,
-        selected_instructions::SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal }
-            if boundary == field.resolution.boundary && ordinal == field.resolution.ordinal
-    ) {
-        return Err("normalized foreign D41 instruction kind does not match its roster row");
-    }
-    let Some((locator, same_stack_contribution)) = record.call.binding.import() else {
-        return Err("kernel entry cannot carry import relocation custody");
-    };
-    if *locator != foreign.locator
-        || record.call.binding.boundary_entry_plan != foreign.boundary_entry_plan
-        || *same_stack_contribution != foreign.same_stack_contribution
+    if record.call.binding != foreign.binding
         || machine_code::ProviderExecutionRecord::from(record.call.provider_execution)
             != foreign.provider_execution
         || record.call.structural_arguments.len() != structural_arguments.len()
@@ -138,11 +200,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     {
         return Err("normalized foreign D41 roster row drifted from its projected custody");
     }
-    Ok(FragmentForeignCallRejoin {
-        field,
-        import,
-        record,
-    })
+    Ok(FragmentForeignCallRejoin { import, record })
 }
 
 /// Rejoins one roster row's scalar-argument lane against its projected
@@ -258,7 +316,14 @@ fn fragment_scalar_argument_custody_rejoin(
     let (Some(fragment), None) = (fragments.next(), fragments.next()) else {
         return false;
     };
-    if !floating_control::rejoin(publication, function, block, fragment, record, foreign) {
+    if record.call.binding.system_call().is_some() {
+        if foreign.x86_floating_control.is_some()
+            || foreign.aarch64_floating_control.is_some()
+            || !foreign.callback_addresses.is_empty()
+        {
+            return false;
+        }
+    } else if !floating_control::rejoin(publication, function, block, fragment, record, foreign) {
         return false;
     }
     let home_offsets = fragment_durable_home_offsets(function);
@@ -640,19 +705,26 @@ fn fragment_scalar_result_custody_rejoin(
     else {
         return false;
     };
-    let Some(restore) = block.instructions.get(position + 1) else {
-        return false;
+    // Only imports restore user-space floating controls before normalizing
+    // their result. Kernel entries normalize immediately after supervisor return.
+    let normalization_position = if record.call.binding.import().is_some() {
+        let Some(restore) = block.instructions.get(position + 1) else {
+            return false;
+        };
+        if restore.kind
+            != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+                slot: selected_instructions::LocalStorageSlotId::Boundary {
+                    operation: record.operation,
+                },
+            })
+        {
+            return false;
+        }
+        position + 2
+    } else {
+        position + 1
     };
-    if restore.kind
-        != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
-            slot: selected_instructions::LocalStorageSlotId::Boundary {
-                operation: record.operation,
-            },
-        })
-    {
-        return false;
-    }
-    let Some(normalization) = block.instructions.get(position + 2) else {
+    let Some(normalization) = block.instructions.get(normalization_position) else {
         return false;
     };
     let [input, output] = normalization.operands.as_slice() else {
