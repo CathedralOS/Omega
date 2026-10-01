@@ -240,6 +240,9 @@ pub(crate) fn validate_structural_root_operations(
                             *source,
                             path,
                         )
+                        .filter(|(_, storage_path)| {
+                            terminal_psi::is_bounded_structural_scalar_store_path(storage_path)
+                        })
                     } else {
                         super::byte_field_freshness::byte_field_root(function, *source)
                             .map(|(root, _)| (root, path.as_slice()))
@@ -249,7 +252,9 @@ pub(crate) fn validate_structural_root_operations(
                             let Some((structural_type, storage_path)) = geometry else { return false; };
                             (access != terminal_psi::StructuralAccess::WriteOnlyBorrow
                                 || matches!(node.operation, O::StructuralByteSequenceFieldLength { .. }))
-                            && terminal_psi::is_bounded_structural_scalar_store_path(storage_path)
+                            // Static observations follow the exact catalog,
+                            // not the narrower store grammar. Reference
+                            // crossings retain their separate bound above.
                             && super::super::structural_catalog::resolve_structural_path(
                                 structural_types, structural_type, storage_path,
                             ).and_then(|parent| structural_types.get(&parent))

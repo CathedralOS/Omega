@@ -5,6 +5,133 @@ use super::{
     TerminalModule, ValueDeclaration, count, fixture, id, integer,
     reconstruct_operation_obligations, validate_module, verify_module,
 };
+
+fn nest_byte_field_root(module: &mut TerminalModule) -> Vec<terminal_psi::StructuralPathSegment> {
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    for (array_identity, record_identity, child, field_identity, name) in
+        [(3, 4, 1, 2, "slots"), (5, 6, 4, 3, "racks")]
+    {
+        module.structural_types.extend([
+            StructuralTypeDeclaration {
+                id: id(array_identity),
+                identity: format!("test::array{array_identity}"),
+                shape: StructuralTypeShape::FixedArray {
+                    element: id(child),
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: id(record_identity),
+                identity: format!("test::record{record_identity}"),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: id(field_identity),
+                        identity: name.into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(id(array_identity)),
+                    }],
+                },
+            },
+        ]);
+    }
+    module.machines[0].structural_parameters[0].structural_type = id(6);
+    vec![
+        "racks".into(),
+        StructuralPathSegment::FixedIndex(1),
+        "slots".into(),
+        StructuralPathSegment::FixedIndex(0),
+    ]
+}
+
+#[test]
+fn nested_static_byte_field_observations_replay_every_projection() {
+    use terminal_psi::StructuralPathSegment;
+    let (mut module, _) = fixture(StructuralAccess::SharedBorrow);
+    let path = nest_byte_field_root(&mut module);
+    let machine = &mut module.machines[0];
+    machine.structural_places.truncate(1);
+    machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(1),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(1),
+            scalar_type: ScalarType::Integer(integer()),
+        }),
+        kind: OperationKind::StructuralByteSequenceFieldLength {
+            source: id(1),
+            path,
+            field: id(1),
+        },
+    }];
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("length observes the exact nested field without borrowing or writing it");
+    for mutation in 0..7 {
+        let mut changed = module.clone();
+        let OperationKind::StructuralByteSequenceFieldLength {
+            source,
+            path,
+            field,
+        } = &mut changed.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => path[1] = StructuralPathSegment::FixedIndex(2),
+            1 => path[3] = StructuralPathSegment::FixedIndex(2),
+            2 => path[2] = "missing".into(),
+            3 => {
+                path[1] = StructuralPathSegment::RuntimeIndex {
+                    index: id(1),
+                    obligation: id(1),
+                }
+            }
+            4 => path.insert(0, StructuralPathSegment::Referent),
+            5 => *field = id(2),
+            6 => *source = id(99),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&changed).is_err(),
+            "projection mutation {mutation}"
+        );
+    }
+
+    // Observation support does not extend the independently bounded store
+    // contract. All source values and proofs stay unchanged; only the exact
+    // carrier path gains the nested records and fixed arrays above.
+    let (mut stores, _) = indexed_fixture(StructuralAccess::MutableBorrow);
+    let path = nest_byte_field_root(&mut stores);
+    for operation in &mut stores.machines[0].blocks[0].operations {
+        match &mut operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore {
+                path: destination, ..
+            }
+            | OperationKind::StructuralByteSequenceFieldByteStore {
+                path: destination, ..
+            }
+            | OperationKind::StructuralByteSequenceFieldLength {
+                path: destination, ..
+            } => {
+                *destination = path.clone();
+            }
+            _ => {}
+        }
+    }
+    assert!(
+        validate_module(&stores).is_err(),
+        "deep stores remain outside their contract"
+    );
+}
+
 fn indexed_fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
     let (mut module, mut bundle) = fixture(access);
     module.machines[0].blocks[0].operations.extend([

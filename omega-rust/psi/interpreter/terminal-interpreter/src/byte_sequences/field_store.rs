@@ -232,7 +232,7 @@ impl TerminalExecution {
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.place == root)))
-            || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+            || (requires_mutation && !terminal_psi::is_bounded_structural_scalar_store_path(path))
             || self
                 .live_claims
                 .values()
@@ -240,6 +240,9 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
+        // Read-only paths may cross multiple arrays and records. The shared
+        // resolver checks every static hop and rejects dynamic indices or
+        // reference crossings; stores keep their own bounded grammar above.
         let parent = resolve_structural_arguments(
             &self.program.structural_types,
             &self.structural_values,

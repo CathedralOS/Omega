@@ -132,10 +132,10 @@ const GUARDED_REFERENCE_SOURCE: &str = r#"
     data Holder { value: u64; }
     data Bag { holders: [Holder; 3]; }
     machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
-        let holders: &mut [Holder] = bag.holders.as_mut_slice();
+        let holder_view: &mut [Holder] = bag.holders.as_mut_slice();
         transition second {
-            true -> &mut holders[1]
-            false -> &mut holders[0]
+            true -> &mut holder_view[1]
+            false -> &mut holder_view[0]
         }
     }
 "#;

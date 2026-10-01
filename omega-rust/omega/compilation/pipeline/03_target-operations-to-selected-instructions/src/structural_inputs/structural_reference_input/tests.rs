@@ -7,6 +7,8 @@ use super::{
 use crate::structural_inputs::structural_reference_input::byte_field_length;
 use crate::structural_inputs::structural_reference_input::field_read;
 use crate::structural_inputs::structural_reference_input::field_shape;
+use crate::structural_inputs::structural_reference_input::observed_byte_field_length;
+use crate::structural_inputs::structural_reference_input::observed_byte_field_storage;
 use crate::structural_inputs::structural_reference_input::owned_aggregate_shape;
 use crate::structural_inputs::structural_reference_input::plain_record_shape;
 use crate::structural_inputs::structural_reference_input::shape;
@@ -133,6 +135,140 @@ fn owned_aggregate_geometry_preserves_bounded_byte_siblings() {
         assert_eq!(
             owned_aggregate_shape(root, &declarations),
             expected.map(|(size, _)| ValueShape::integer(size, 8)),
+        );
+    }
+}
+
+#[test]
+fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
+    use semantic_vocabulary::{ObligationId, ValueId};
+    use terminal_psi::{BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration};
+
+    let main = StructuralTypeId::new(1).unwrap();
+    let bag = StructuralTypeId::new(2).unwrap();
+    let rooms = StructuralTypeId::new(3).unwrap();
+    let room = StructuralTypeId::new(4).unwrap();
+    let exits = StructuralTypeId::new(5).unwrap();
+    let exit = StructuralTypeId::new(6).unwrap();
+    let bag_field = StructuralFieldId::new(1).unwrap();
+    let rooms_field = StructuralFieldId::new(2).unwrap();
+    let exits_field = StructuralFieldId::new(3).unwrap();
+    let command_field = StructuralFieldId::new(4).unwrap();
+    let structural_field = |id, identity, structural_type| StructuralFieldDeclaration {
+        id,
+        identity: identity.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type),
+    };
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: main,
+            identity: "Main".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![structural_field(bag_field, "bag", bag)],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: bag,
+            identity: "Bag".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![structural_field(rooms_field, "rooms", rooms)],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: rooms,
+            identity: "Rooms".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: room,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: room,
+            identity: "Room".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![structural_field(exits_field, "exits", exits)],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: exits,
+            identity: "Exits".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: exit,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: exit,
+            identity: "Exit".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: command_field,
+                    identity: "command".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                    ),
+                }],
+            },
+        },
+    ];
+    let path = vec![
+        StructuralPathSegment::Field("bag".into()),
+        StructuralPathSegment::Field("rooms".into()),
+        StructuralPathSegment::FixedIndex(0),
+        StructuralPathSegment::Field("exits".into()),
+        StructuralPathSegment::FixedIndex(0),
+    ];
+    let length_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap(),
+    );
+
+    assert_eq!(
+        observed_byte_field_length(main, &path, command_field, length_type, &declarations),
+        Some((0, 8)),
+    );
+    assert_eq!(
+        observed_byte_field_storage(main, &path, command_field, &declarations),
+        Some((0, 8)),
+    );
+    // Mutation geometry deliberately retains the narrower, established
+    // carrier grammar even though the same leaf is readable.
+    assert_eq!(
+        byte_field_length(main, &path, command_field, length_type, &declarations),
+        None,
+    );
+
+    for invalid in [
+        {
+            let mut changed = path.clone();
+            changed[2] = StructuralPathSegment::FixedIndex(2);
+            changed
+        },
+        {
+            let mut changed = path.clone();
+            changed[2] = StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(1).unwrap(),
+                obligation: ObligationId::new(1).unwrap(),
+            };
+            changed
+        },
+        {
+            let mut changed = path.clone();
+            changed.insert(0, StructuralPathSegment::Referent);
+            changed
+        },
+    ] {
+        assert_eq!(
+            observed_byte_field_length(main, &invalid, command_field, length_type, &declarations,),
+            None,
+            "{invalid:?}",
+        );
+        assert_eq!(
+            observed_byte_field_storage(main, &invalid, command_field, &declarations),
+            None,
+            "{invalid:?}",
         );
     }
 }

@@ -50,7 +50,7 @@ pub(in crate::selection) fn read_byte(
     }
     // A bounded owner's bytes follow its inline length word. A shared view
     // field stores a descriptor whose first word points at its bytes.
-    let geometry = match crate::structural_inputs::structural_reference_input::byte_field_storage(
+    let geometry = match crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
         parameter.semantic.structural_type,
         &source.path,
         *field,
@@ -60,7 +60,7 @@ pub(in crate::selection) fn read_byte(
             metadata_offset.checked_add(8).ok_or_else(invalid)?,
         ),
         None => crate::selection::field_bytes::FieldBytes::Descriptor(
-            crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+            crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
                 parameter.semantic.structural_type,
                 &source.path,
                 *field,
