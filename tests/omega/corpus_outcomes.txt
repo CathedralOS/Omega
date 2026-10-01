@@ -1379,6 +1379,7 @@ pass/control_flow/borrowed_state_argument rejected 723ms @2d8ed253669f
 pass/control_flow/case_arm_payload_receiver_call rejected 1242ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1704ms @2d8ed253669f
+pass/control_flow/case_dispatch_unread_structural_payload_exit checked 1124ms @bd9a4018c019+wt
 pass/control_flow/case_pattern_rename_waive_exit rejected 804ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::apply`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: owned non-linear record contents` (state 0)
 pass/control_flow/composite_state_parameter checked 1293ms @2d8ed253669f

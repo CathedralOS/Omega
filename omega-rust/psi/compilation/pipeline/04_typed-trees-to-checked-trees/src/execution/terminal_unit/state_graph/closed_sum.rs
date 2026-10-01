@@ -193,16 +193,14 @@ pub(super) fn build(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    if variants.is_empty()
-        || statements.len() - transition_start > variants.len()
-        || variants.iter().any(|variant| {
-            program.data_payload_fields(variant).iter().any(|field| {
-                program
-                    .primitive_type_reference(field.type_reference)
-                    .is_none()
-            })
-        })
-    {
+    // A case edge forwards only primitive payloads, each into a scalar
+    // successor parameter (`payload_field` below). A structural payload such
+    // as `IoResult::Error { kind: ErrorKind }` may still sit in a case whose
+    // arm leaves it unread: the subject's plain owned contents, checked
+    // above for the whole type graph, give that field no references, slices
+    // or cleanup code, so the dispatch's one disposal of the whole subject
+    // covers it exactly as it covers an unread primitive payload.
+    if variants.is_empty() || statements.len() - transition_start > variants.len() {
         return None;
     }
     let marker_start = statements[..transition_start].iter().rposition(|statement| !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))).map_or(0, |index| index + 1);
@@ -441,6 +439,16 @@ pub(super) fn build(
                                     binding_ordinal,
                                 },
                             ) => subject == binding_ordinal,
+                            // A structural payload copied out of the subject
+                            // would read storage the dispatch has consumed;
+                            // only primitive payloads travel, as scalars.
+                            (
+                                _,
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                                    subject: payload_subject,
+                                    ..
+                                },
+                            ) => payload_subject.source == subject.source,
                             _ => false,
                         }
                     }) {
@@ -477,7 +485,7 @@ pub(super) fn build(
         return None;
     }
     // Destructuring makes a payload available; it does not require forwarding
-    // every binding. The admitted payloads are primitive scalars, so unused
+    // every binding. The subject's contents are plain owned storage, so unused
     // fields carry no separate ownership obligation. Validate their declared
     // identities above and retain the whole subject's disposal below.
     // Affine dispatch requires the actual source exit disposition. Copyable

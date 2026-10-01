@@ -251,19 +251,14 @@ fn result_source<'a>(
         Multiplicity::Affine | Multiplicity::Unrestricted
     ) || checked.normalized_type_identity(reference).as_str() != subject.type_identity
         || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
+        // A structural payload may stay unread in its case: the whole type
+        // graph's plain owned contents leave it no cleanup beyond the
+        // subject's own disposal. Only scalar payloads are bound, and
+        // `case_emission` refuses an argument that reads any other kind.
         || checked
             .data_members(declaration)
             .iter()
-            .any(|member| match member {
-                DataMember::Variant(variant) => {
-                    checked.data_payload_fields(variant).iter().any(|field| {
-                        checked
-                            .primitive_type_reference(field.type_reference)
-                            .is_none()
-                    })
-                }
-                DataMember::Field(_) => true,
-            })
+            .any(|member| matches!(member, DataMember::Field(_)))
     {
         return unsupported("Unit case lacks exact plain non-linear sum custody");
     }
@@ -377,9 +372,10 @@ pub(super) fn validate_markers(
     else {
         return unsupported("Unit case marker lost its terminator");
     };
-    // A marker establishes available fields, not mandatory transfers. Plain
-    // primitive payloads may remain unused; result_source checks that restriction
-    // independently, and validate retains any affine disposal obligation.
+    // A marker establishes available fields, not mandatory transfers. Payloads
+    // of plain owned contents may remain unused; result_source checks that
+    // restriction independently, and validate retains any affine disposal
+    // obligation.
     // Every actual transfer still needs its exact authored destructure below.
     if cases.iter().any(|case| {
         case.payloads.iter().any(|payload| {
