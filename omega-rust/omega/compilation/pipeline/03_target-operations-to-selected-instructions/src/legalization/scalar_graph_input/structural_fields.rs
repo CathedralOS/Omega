@@ -1,4 +1,5 @@
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
+use optimization_unit_semantics::byte_field_root;
 
 pub(in crate::legalization) fn scalar_store_destination(
     function: &PsiOptimizationFunction,
@@ -274,64 +275,6 @@ pub(in crate::legalization) fn view_replacement(
         access,
         path: path.clone(),
     })
-}
-
-/// Rejoin byte-field observations to their original parameter or exact local
-/// producer. Whole-unit custody separately checks availability; neither the
-/// observation nor its field geometry creates storage or borrowed authority.
-fn byte_field_root(
-    function: &PsiOptimizationFunction,
-    source: semantic_vocabulary::PlaceId,
-) -> Option<(
-    semantic_vocabulary::StructuralTypeId,
-    terminal_psi::StructuralAccess,
-)> {
-    if function
-        .entry_claim_declarations
-        .iter()
-        .any(|claim| claim.input == source)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == source)
-    {
-        return None;
-    }
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
-    {
-        return (matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
-        .then_some((parameter.structural_type, parameter.access));
-    }
-    let (producer, result) = super::structural_case::source_result(function, source).ok()?;
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-        || !function.structural_places.iter().any(|place| {
-            place.id == source
-                && place.kind
-                    == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type: result.structural_type,
-                    }
-        })
-    {
-        return None;
-    }
-    Some((
-        result.structural_type,
-        terminal_psi::StructuralAccess::Owned,
-    ))
 }
 
 /// The bounded byte field one indexed byte read observes, as the structural

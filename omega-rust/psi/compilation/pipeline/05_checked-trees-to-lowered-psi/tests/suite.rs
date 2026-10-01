@@ -79,6 +79,7 @@ mod nominal_affine_source;
 mod owned_byte_literal_returns;
 mod owned_local_element_reads;
 mod owned_match_state_residuals;
+mod owned_record_byte_field_read;
 mod owned_record_return_source;
 mod owned_scalar_cycles;
 mod owned_scalar_graphs;

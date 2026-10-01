@@ -2443,11 +2443,12 @@ fn projected_copy_subject(
             .iter()
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
         || program.type_multiplicity(projected_type) != Multiplicity::Unrestricted
-        // A `[copy]` record of plain fields and shared views copies its view
+        // Represented field predicates remain in the copied declaration.
+        // A `[copy]` record of owned fields and shared views copies its view
         // descriptors whole: each copied view keeps its source loan's lineage,
         // and copy permission neither establishes a field's predicates nor
         // extends the loan.
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(program, projected_type)
+        || !(validation::has_plain_owned_contents_with_represented_constraints(program, projected_type)
             || validation::has_owned_or_qualified_shared_view_fields(
                 program,
                 projected_type,

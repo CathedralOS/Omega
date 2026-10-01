@@ -210,9 +210,7 @@ pub(super) fn validate_bindings(
                 .operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                        result, ..
-                    }
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                         if result.binding_ordinal == binding_ordinal =>
                     {
@@ -854,12 +852,12 @@ pub(super) fn validate_bindings(
                 reference = field.type_reference;
             }
             // The copied leaf is the last field's declared type: an
-            // unrestricted value of exactly the target's type, plain owned or
-            // a record whose shared views copy with their source loans.
+            // unrestricted value of exactly the target's type, with represented
+            // owned-field predicates or shared views retaining their source loans.
             let leaf_copyable = path_matches
                 && checked.normalized_type_identity(reference).as_str() == target.type_identity
                 && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
-                && (validation::has_plain_owned_contents_with_numeric_constraints(
+                && (validation::has_plain_owned_contents_with_represented_constraints(
                     &checked.typed,
                     reference,
                 ) || validation::has_owned_or_qualified_shared_view_fields(

@@ -27,6 +27,10 @@ mod unit_validation;
 
 pub use error::OptimizationUnitValidationError;
 
+// Declaration custody shared by validation and target realization. This query
+// grants neither current availability nor permission for a particular access.
+pub use unit_validation::function_structure::byte_field_root;
+
 // Whole-unit acceptance.
 pub use unit_validation::{
     validate_psi_optimization_unit, validate_psi_optimization_unit_with_admitted_cycle_machines,

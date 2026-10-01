@@ -4,8 +4,7 @@
 use super::{
     IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
-    memory,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -29,47 +28,8 @@ pub(in crate::selection) fn read_byte(
         return Err(replay.invalid());
     };
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let signature = function
-        .structural
-        .as_ref()
+    let geometry = crate::selection::field_bytes::FieldBytes::resolve(function, source, *field)
         .ok_or_else(|| replay.invalid())?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == source.place)
-        .ok_or_else(|| replay.invalid())?;
-    if parameter.semantic.access != source.access
-        || !matches!(
-            source.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
-        || !parameter.semantic.projected_qualifications.is_empty()
-    {
-        return Err(replay.invalid());
-    }
-    let geometry = match crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
-        parameter.semantic.structural_type,
-        &source.path,
-        *field,
-        &signature.structural_types,
-    ) {
-        Some((metadata_offset, _)) => crate::selection::field_bytes::FieldBytes::Inline(
-            metadata_offset
-                .checked_add(8)
-                .ok_or_else(|| replay.invalid())?,
-        ),
-        None => crate::selection::field_bytes::FieldBytes::Descriptor(
-            crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
-                parameter.semantic.structural_type,
-                &source.path,
-                *field,
-                &signature.structural_types,
-            )
-            .ok_or_else(|| replay.invalid())?,
-        ),
-    };
     let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) =
         replay.resolve(*index).ok_or_else(|| replay.invalid())?;
