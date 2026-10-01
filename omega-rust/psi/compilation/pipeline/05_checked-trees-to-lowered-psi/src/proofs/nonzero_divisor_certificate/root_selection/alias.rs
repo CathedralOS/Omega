@@ -59,13 +59,12 @@ pub(super) fn two_alias(request: Request, complete: &mut dyn Complete) -> Option
         let Proposition::Equal(outer_left, outer_right) = outer_equality else {
             continue;
         };
-        'root: for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
-            if !distinct_same_carrier_subjects(root, middle_alias) {
+        for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+            // Every inner alias and bound below shares this root, so a root
+            // the completion refuses skips the whole two-hop enumeration.
+            if !distinct_same_carrier_subjects(root, middle_alias) || !complete.admits(root) {
                 continue;
             }
-            // Asked at this root's first candidate, so a root no chain
-            // reaches never pays for its admission.
-            let mut admitted = None;
             for (inner_citation, inner_equality, bound_alias) in
                 aliases_by_endpoint.candidates(middle_alias)
             {
@@ -79,9 +78,6 @@ pub(super) fn two_alias(request: Request, complete: &mut dyn Complete) -> Option
                 for (relation_citation, relation, bound, endpoint) in
                     bounds_by_endpoint.value_candidates(bound_alias)
                 {
-                    if !*admitted.get_or_insert_with(|| complete.admits(root)) {
-                        continue 'root;
-                    }
                     let root_bound = substitute_subject(
                         relation_citation.proof(relation),
                         bound,
