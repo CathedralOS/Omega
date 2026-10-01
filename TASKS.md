@@ -1237,19 +1237,26 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `916377c9e1`
-  on macOS ARM64, the closed-stdin command exits 200 before emission:
-  `Game::run_game_loop` reaches `GameView::render_room`, whose unavailable
-  `RoomFormatter::write_room_info` stops at `structural field store:
-  destination parameter`. Its `out_line = room.description` source is an owned
-  local record, but stage 04's `structural_scalar_store/byte_stores.rs` and
-  `CheckedByteSequenceValue::Field` currently describe parameter roots only.
-  Reuse exact live local-home custody in the byte-field source and stage 05
-  store emitter; preserve the field's UTF-8 predicate and current length.
-  The earlier frame refusal is repaired by retiring private enum-case/move
-  snapshots at exclusive local call arguments, without relaxing reference-slot
-  exposure or callee completeness. All 56 selected write-frame/bounded-owner
-  tests pass, including exact caller writes and retained-versus-fresh agreement.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `9484e48a74`
+  on macOS ARM64, the closed-stdin command
+  exits 200 before emission: `Game::initialize` → `Dungeon::initialize` →
+  `DungeonGenerator::generate` → `MazeBuilder::build` stops at `state graph:
+  operation custody: other operation` (state 0). The previous write-frame
+  rejection is repaired: ordinary multi-arm reference returns retain their
+  finite origin union, and fresh zeroed case storage no longer masquerades as
+  a transferred input. All 83 selected write-frame controls pass. The remaining
+  operation is `level.start_cell = CellId::R00`: stage 04 emits
+  `StructuralCaseLiteralFieldStore`, but state-graph operation custody and
+  stage 05 composed admission/body replay lack the case-store families.
+  Reuse the existing operation-frame emission and move/restore ledger, with
+  exact destination/case source replay; do not waive ownership checks.
+  Local byte-field sources retain their owned home, UTF-8 predicates and
+  post-call live length through source-free replay, interpretation and native
+  execution. At `9ddf8099a0` on macOS ARM64, the dependency fixture
+  `text/local_record_byte_field_copy_exit` executes with authored exit 70 and
+  matching `é\n`, preserving its snapshot after another call changes the local.
+  Stale mutable-view observations, consumed/partial owners and suspended-root
+  controls reject. This does not close the dungeon application acceptance.
   Acceptance remains
   native exit 0 with the authored room, prompt, command and goodbye output;
   independently verified helper plans are not native execution evidence.
