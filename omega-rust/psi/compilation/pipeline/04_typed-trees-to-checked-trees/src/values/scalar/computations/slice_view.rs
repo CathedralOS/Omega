@@ -144,12 +144,18 @@ impl Builder<'_, '_> {
             self.state,
             &mut place,
         );
-        // A byte view's lent window is a `FixedRange` segment — the range is
-        // the view's own extent, so the borrowable walk admits it beside the
-        // static leaf segments for byte carriers only.
+        // A view's lent window is a `FixedRange` segment — the range is the
+        // view's own extent, so the borrowable walk admits it beside the
+        // static leaf segments for primitive-scalar elements. Wider elements
+        // keep element ordinals; only the u8 window spells byte bounds.
+        let scalar_element = self
+            .program
+            .primitive_type_reference(view.element)
+            .is_some();
+        let byte_element = self.program.primitive_type_reference(view.element)
+            == Some(typed_trees::types::PrimitiveType::U8);
         let borrowable = canonical_place_is_borrowable(&place)
-            || (self.program.primitive_type_reference(view.element)
-                == Some(typed_trees::types::PrimitiveType::U8)
+            || (scalar_element
                 && matches!(place.root, facts::PlaceRoot::Symbol(_))
                 && place.segments.iter().all(|segment| {
                     matches!(
@@ -188,15 +194,13 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
             }
         };
-        // A byte view's window (`self.source[0..2]`) ends its loan place in a
+        // A view's window (`self.source[0..2]`) ends its loan place in a
         // `FixedRange`; the window's own type mints no row, so the path mints
-        // against the container and the segment reattaches as
-        // `FixedByteRange` after the literal-extent bound check.
+        // against the container and the range reattaches as `FixedByteRange`
+        // for u8 or as an `ElementViewSubslice` source for wider scalar
+        // elements — its endpoints stay element ordinals.
         let (window, container_place) = match place.segments.last() {
-            Some(facts::PlaceSegment::FixedRange { start, end })
-                if self.program.primitive_type_reference(view.element)
-                    == Some(typed_trees::types::PrimitiveType::U8) =>
-            {
+            Some(facts::PlaceSegment::FixedRange { start, end }) if scalar_element => {
                 (
                     Some((*start, *end)),
                     crate::flow::CanonicalPlace {
@@ -217,22 +221,100 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if let Some((start, end)) = window {
-            let Some(()) = crate::execution::terminal_unit::calls::fixed_byte_range_within_extent(
-                self.program,
-                projected,
-                start,
-                end,
-            ) else {
-                return None;
-            };
-            path.push(
-                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
-                    start: u64::try_from(start).ok()?,
-                    end: u64::try_from(end).ok()?,
-                },
-            );
+        // Wider scalar elements carry the window on the source plan, not on
+        // the path: `ElementViewSubslice` names the same field-projection path
+        // a `&[u8]` byte window would, then attaches literal element-ordinal
+        // endpoints against the fixed array's declared extent. Exclusive
+        // loans keep declining: no `MutableSliceView` consumer reads an
+        // element subslice source yet.
+        if window.is_some() && !byte_element && access != CheckedStructuralAccess::SharedBorrow {
+            return None;
         }
+        let (source, type_identity) = if let Some((start, end)) = window {
+            if byte_element {
+                let Some(()) = crate::execution::terminal_unit::calls::fixed_byte_range_within_extent(
+                    self.program,
+                    projected,
+                    start,
+                    end,
+                ) else {
+                    return None;
+                };
+                path.push(
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
+                        start: u64::try_from(start).ok()?,
+                        end: u64::try_from(end).ok()?,
+                    },
+                );
+                (
+                    source,
+                    self.program
+                        .normalized_type_identity(projected)
+                        .into_string(),
+                )
+            } else {
+                let mut container = projected;
+                while let typed_trees::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                }
+                | typed_trees::types::TypeReferenceNode::Reference {
+                    referee: base_type,
+                    ..
+                } = self.program.type_reference_table.type_reference(container)
+                {
+                    container = *base_type;
+                }
+                let typed_trees::types::TypeReferenceNode::FixedArray {
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                    ..
+                } = self
+                    .program
+                    .type_reference_table
+                    .type_reference(container)
+                else {
+                    return None;
+                };
+                if !(start <= end && end <= usize::try_from(*length).ok()?) {
+                    return None;
+                }
+                let root = match source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } => checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                    _ => return None,
+                };
+                let endpoint = |value: usize| {
+                    Some(checked_trees::CheckedScalarExpression::IntegerLiteral {
+                        literal: numerics::literals::IntegerLiteral::from_value(
+                            i64::try_from(value).ok()?,
+                        ),
+                    })
+                };
+                (
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                        root,
+                        expression,
+                        start: Some(endpoint(start)?),
+                        end: Some(endpoint(end)?),
+                    },
+                    self.program
+                        .normalized_type_identity(expected)
+                        .into_string(),
+                )
+            }
+        } else {
+            (
+                source,
+                self.program
+                    .normalized_type_identity(projected)
+                    .into_string(),
+            )
+        };
         // The lent place must hold the very elements this view carries; an
         // equal-sized or same-named collection supplies no view custody.
         let Some(lent) = lent_collection_element(self.program, projected) else {
@@ -246,10 +328,7 @@ impl Builder<'_, '_> {
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: self
-                .program
-                .normalized_type_identity(projected)
-                .into_string(),
+            type_identity,
             access,
         };
         Some(if access == CheckedStructuralAccess::SharedBorrow {
