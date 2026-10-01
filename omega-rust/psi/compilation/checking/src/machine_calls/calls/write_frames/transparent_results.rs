@@ -1,5 +1,8 @@
 //! Origins of transparent call results and the calls that preserve them.
 
+#[cfg(test)]
+mod tests;
+
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::assignment_targets::{
@@ -51,14 +54,16 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::{
+    StatementNode, TableCall, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 
 /// Every proven caller route one deliberately structural value-call result
 /// may alias. The helper may be
 /// free or attached, but must be acyclic at the result surface, return a reference,
-/// and have terminal result expressions rooted in one reference
-/// parameter -- either a trailing expression or the lone ordinary `Always`
-/// value transition an authored single-arm return desugars to -- or rooted in
+/// and have ordinary result expressions rooted in reference
+/// parameters -- a trailing expression or value-transition arms with an
+/// unconditional final result -- or rooted in
 /// a declared exclusive reference leaf of one by-value carrier parameter whose
 /// binding stayed frozen across the prefix. A prefix may
 /// contain caller-isolated scratch locals and local
@@ -281,21 +286,15 @@ pub(crate) fn transparent_callee_result_origins(
         let (tail, prefix) = statements.split_last()?;
         let result = match tail {
             StatementNode::Expression(result) => *result,
-            // A lone ordinary value transition is the desugared authored
-            // return tail. A guarded arm chain keeps its earlier sibling
-            // transitions in the prefix, which the prefix walk still
-            // rejects, so admitting this tail cannot select one arm of a
-            // multi-result body.
+            // Every fallthrough must reach a result. Earlier guarded value
+            // arms contribute their own origins during the prefix walk.
             StatementNode::Transition(transition)
-                if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                if transition.exit == TransitionExit::Ordinary
                     && !transition.continuation.is_valid()
                     && transition.target.is_valid()
-                    && matches!(
-                        transition.guard,
-                        typed_trees::statement::TransitionGuardNode::Always
-                    ) =>
+                    && matches!(transition.guard, TransitionGuardNode::Always) =>
             {
-                let typed_trees::statement::TransitionTargetNode::Value(result) =
+                let TransitionTargetNode::Value(result) =
                     program.statement_table.transition_target(transition.target)
                 else {
                     return None;
@@ -308,8 +307,51 @@ pub(crate) fn transparent_callee_result_origins(
         let parameters = program.state_parameters(callee_state);
         let mut local_aliases = Vec::new();
         let mut isolated_local_roots = Vec::new();
-        for statement in prefix {
+        let mut returned_origins = Vec::new();
+        for (statement_index, statement) in prefix.iter().enumerate() {
             match statement {
+                StatementNode::Transition(transition)
+                    if transition.exit == TransitionExit::Ordinary
+                        && !transition.continuation.is_valid()
+                        && transition.target.is_valid() =>
+                {
+                    let TransitionGuardNode::When(guard) = transition.guard else {
+                        return None;
+                    };
+                    let TransitionTargetNode::Value(result) =
+                        program.statement_table.transition_target(transition.target)
+                    else {
+                        return None;
+                    };
+                    // A guard can execute calls before selecting either path.
+                    // Their complete non-rebinding effect check is separate
+                    // from collecting this arm's possible returned referents.
+                    if expression_is_effectful_for_transparent_result(program, guard)
+                        && !value_expression_preserves_transparent_result(
+                            program,
+                            callee_machine,
+                            guard,
+                            None,
+                            symbols,
+                            inference,
+                            parameters,
+                            &local_aliases,
+                        )
+                    {
+                        return None;
+                    }
+                    collect_returned_origins(
+                        program,
+                        callee_machine,
+                        *result,
+                        parameters,
+                        &local_aliases,
+                        &prefix[..=statement_index],
+                        symbols,
+                        inference,
+                        &mut returned_origins,
+                    )?;
+                }
                 StatementNode::LocalData(local) => {
                     // The isolated-initializer write fence rebases a written
                     // path through a binding's single proven place. A
@@ -515,64 +557,100 @@ pub(crate) fn transparent_callee_result_origins(
                 _ => return None,
             }
         }
-        parameter_relative_place_or_carrier_origins(
+        collect_returned_origins(
             program,
             callee_machine,
             result,
             parameters,
             &local_aliases,
+            prefix,
             symbols,
             inference,
-        )
-        // A returned place may also be rooted in a by-value carrier
-        // parameter's declared exclusive reference leaf.
-        .or_else(|| carrier_leaf_result_origins(program, result, parameters, prefix))
-        // Every admitted route must export an actual parameter root; a
-        // candidate that reaches only helper-private storage means the result
-        // may escape to a referent this relation cannot name. A route rooted
-        // in a by-value carrier parameter additionally must spell one of the
-        // carrier's declared exclusive reference leaves, and its binding must
-        // stay frozen across the prefix — the same guards
-        // `carrier_leaf_result_origins` enforces, now applied to origins the
-        // primary resolver produced through bound locals and nested calls.
-        .filter(|origins| {
-            origins.iter().all(|origin| {
-                let Some(parameter) = parameters
-                    .iter()
-                    .find(|parameter| parameter.symbol == origin.parameter_symbol)
-                else {
-                    return false;
-                };
-                if !(origin.place.source.root == parameter.symbol
-                    || (parameter.is_self && origin.place.source.root == callee_machine.symbol))
-                {
-                    return false;
-                }
-                if type_reference_is_reference(program, parameter.type_reference) {
-                    return true;
-                }
-                let Some(declared) = super::stored_origins::declared_origins_for_query(
-                    program,
-                    parameter.symbol,
-                    parameter.name.as_str(),
-                    parameter.type_reference,
-                    false,
-                ) else {
-                    return false;
-                };
-                declared.references.iter().any(|leaf| {
-                    super::stored_origins::source_reaches_leaf(
-                        &origin.place.source.segments,
-                        &leaf.local_segments,
-                    )
-                }) && !prefix.iter().any(|statement| {
-                    statement_rebases_carrier_root(program, statement, parameter.symbol)
-                })
-            })
-        })
+            &mut returned_origins,
+        )?;
+        Some(returned_origins)
     })();
     inference.active_states.pop();
     result
+}
+
+/// Resolve each exit at its own prefix, before subsequent fallthrough writes
+/// can replace a local alias. An untraceable arm invalidates the whole union.
+fn collect_returned_origins(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    result: ExpressionHandle,
+    parameters: &[StateParameter],
+    local_aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
+    prefix: &[StatementNode],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    returned_origins: &mut Vec<ParameterRelativeFrameOrigin>,
+) -> Option<()> {
+    let origins = parameter_relative_place_or_carrier_origins(
+        program,
+        callee_machine,
+        result,
+        parameters,
+        local_aliases,
+        symbols,
+        inference,
+    )
+    // A returned place may also be rooted in a by-value carrier
+    // parameter's declared exclusive reference leaf.
+    .or_else(|| carrier_leaf_result_origins(program, result, parameters, prefix))
+    // Every admitted route must export an actual parameter root; a
+    // candidate that reaches only helper-private storage means the result
+    // may escape to a referent this relation cannot name. A route rooted
+    // in a by-value carrier parameter additionally must spell one of the
+    // carrier's declared exclusive reference leaves, and its binding must
+    // stay frozen across the prefix — the same guards
+    // `carrier_leaf_result_origins` enforces, now applied to origins the
+    // primary resolver produced through bound locals and nested calls.
+    .filter(|origins| {
+        origins.iter().all(|origin| {
+            let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == origin.parameter_symbol)
+            else {
+                return false;
+            };
+            if !(origin.place.source.root == parameter.symbol
+                || (parameter.is_self && origin.place.source.root == callee_machine.symbol))
+            {
+                return false;
+            }
+            if type_reference_is_reference(program, parameter.type_reference) {
+                return true;
+            }
+            let Some(declared) = super::stored_origins::declared_origins_for_query(
+                program,
+                parameter.symbol,
+                parameter.name.as_str(),
+                parameter.type_reference,
+                false,
+            ) else {
+                return false;
+            };
+            declared.references.iter().any(|leaf| {
+                super::stored_origins::source_reaches_leaf(
+                    &origin.place.source.segments,
+                    &leaf.local_segments,
+                )
+            }) && !prefix.iter().any(|statement| {
+                statement_rebases_carrier_root(program, statement, parameter.symbol)
+            })
+        })
+    })?;
+    for origin in origins {
+        if !returned_origins.iter().any(|existing| {
+            existing.parameter_symbol == origin.parameter_symbol
+                && same_place_origin(&existing.place, &origin.place)
+        }) {
+            returned_origins.push(origin);
+        }
+    }
+    Some(())
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when
