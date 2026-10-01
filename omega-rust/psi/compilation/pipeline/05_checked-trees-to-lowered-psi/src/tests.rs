@@ -64,6 +64,7 @@ mod scalar_block_invariants;
 mod scalar_call_case_arguments;
 mod scalar_graph;
 mod service_reach_contracts;
+mod shared_state_views;
 mod source_selection;
 mod store_lowering;
 mod structural_array_literal_stores;

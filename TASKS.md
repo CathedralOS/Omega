@@ -1757,20 +1757,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
   The store gate (`structural_scalar_store/destination.rs`) admits a
   declaration only when its rows imply every fact. `game_of_life` and
   `pass/dependent/{collection_predicate_terminal_rows_exit,data_where_relational_callee_restored_exit,data_where_invariant_window_restored_exit}`
-  run natively with exit 70. `omega run
-  tests/omega/pass/float/finite_core_domain_range_discharge/main.omg` now
-  passes the gate and stops at stage 04 `state graph: terminator: jump
-  successor: parameter transfer` (state 0, statement 4): the transition hands
-  the `&mut Main` receiver to `accepts_range(main: &Main, ..)`, and structural
-  parameter transfer requires equal access. Two roster consumers remain. A
-  callee that stores a ranged IEEE field has no proof producer for its
-  restored row (value-equality transport then closed IEEE evaluation; both
-  kernel rules exist), so it fails `OperationProofUnavailable`. Cyclic state
-  graphs have no state-arrival rows, so facts cut at a back edge cannot
-  restore a guarantee after the loop. Coordinate the state-arrival consumer
-  with `COMPOSITE-TRANSITION-ARGUMENT`, and signature, guarantee and namespace
-  consumers with `STATIC-MACHINE-MIGRATION`. Native exit 77 and the three
-  recast customers remain open.
+  run natively with exit 70. A callee restores a ranged IEEE row from its
+  last store by value-equality transport, and a state edge narrows a named
+  `&mut` parameter to a `&` state view as it already did the receiver.
+  `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
+  now passes both and stops in stage 05 at "scalar qualification requires
+  non-vacuous or unsupported evidence": the state parameter
+  `value: f32 in Finite` carries the compiler-known `Finite` value domain,
+  which the closed scalar qualification catalog cannot hold because it has a
+  predicate. Cyclic state graphs have no state-arrival rows, so facts cut at
+  a back edge cannot restore a guarantee after the loop. Coordinate the
+  state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
+  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
+  exit 77 and the three recast customers remain open.
 
   The const-container customer is now a native control (macOS ARM64,
   2026-09-30): `omega run --both
