@@ -1249,8 +1249,7 @@ pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms @6c1f965d49d
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
 pass/calls/runtime_nested_local_field_store_exit checked 1211ms @20d5eb8f7510+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24
-pass/calls/runtime_nested_value_call_guard_exit rejected 1866ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("Unit case has unrelated owned parameter cleanup"))
+pass/calls/runtime_nested_value_call_guard_exit checked 7580ms @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms @2d8ed253669f
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms @2d8ed253669f
