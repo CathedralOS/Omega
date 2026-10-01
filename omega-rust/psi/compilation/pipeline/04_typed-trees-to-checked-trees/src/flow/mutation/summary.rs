@@ -15,6 +15,7 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
+use crate::flow::jump_loans::{TargetRun, target_run};
 use crate::flow::mutation::WritePlaceNamespace;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_call_site;
@@ -47,7 +48,11 @@ impl StateMutationSummaryCache {}
 struct StateMutationSummary {
     state_symbol: SymbolHandle,
     complete: bool,
+    /// The whole run's writes, which a call holds its argument loans across.
     writes: Vec<MutationWrite>,
+    /// The held run's writes, which a jump into the state holds its argument
+    /// loans across (`crate::flow::jump_loans`): a subset of `writes`.
+    held_writes: Vec<MutationWrite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,8 +102,10 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
 }
 
 /// The callee's complete summary restricted to writes reached through its
-/// `self` parameter, instantiated at the call's receiver place. `None` when
-/// the callee has no complete summary or a receiver write cannot be placed.
+/// `self` parameter, instantiated at the call's receiver place: the whole
+/// run's writes for a call, the held run's for a jump, as far as the call's
+/// own argument loans reach. `None` when the callee has no complete summary or
+/// a receiver write cannot be placed.
 pub(super) fn instantiate_known_call_receiver_summary_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -109,7 +116,17 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
     let target_machine_symbol = machine_symbol_for_state(program, target_state);
-    let summary_places = state_mutation_summary_places(program, borrow, cache, target_state, None)?;
+    let summary = state_mutation_summary(program, borrow, cache, target_state, None)?;
+    let summary_places = match target_run(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    ) {
+        TargetRun::Whole => &summary.writes,
+        TargetRun::Held | TargetRun::Released => &summary.held_writes,
+    };
 
     let mut instantiated = Vec::new();
     for write in summary_places {
@@ -154,13 +171,23 @@ fn state_mutation_summary_places<'cache>(
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<&'cache [MutationWrite]> {
+    state_mutation_summary(program, borrow, cache, state, call_frames)
+        .map(|entry| entry.writes.as_slice())
+}
+
+fn state_mutation_summary<'cache>(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    cache: &'cache StateMutationSummaryCache,
+    state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<&'cache StateMutationSummary> {
     cache
         .states
         .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames))
         .iter()
         .find(|entry| entry.state_symbol == state.symbol)
         .filter(|entry| entry.complete)
-        .map(|entry| entry.writes.as_slice())
 }
 
 fn build_state_mutation_summaries(
@@ -195,6 +222,7 @@ fn build_state_mutation_summaries(
         let writes = direct_writes.unwrap_or_default();
         states.push(StateMutationSummary {
             state_symbol: state.symbol,
+            held_writes: writes.clone(),
             complete: direct_complete
                 && state_has_concrete_body_signature(program, state)
                 && inferred_completeness
@@ -215,19 +243,6 @@ fn propagate_state_mutation_summaries(
     states: &mut [StateMutationSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
-    // These are invocation-local dense summary positions, not durable symbol
-    // identities. Resolve each dependency once while retaining authored call order.
-    let calls: Vec<_> = states
-        .iter()
-        .map(|state| {
-            borrow_state_for_symbol(borrow, state.state_symbol)
-                .map(|borrow_state| borrow.calls.span_or_empty(borrow_state.calls))
-                .unwrap_or_default()
-                .iter()
-                .map(|call| (call, summary_index_from(states, call.target_symbol)))
-                .collect::<Vec<_>>()
-        })
-        .collect();
     let owners: Vec<_> = states
         .iter()
         .map(|summary| {
@@ -235,9 +250,28 @@ fn propagate_state_mutation_summaries(
                 .map(|state| (state, machine_symbol_for_state(program, state)))
         })
         .collect();
+    // These are invocation-local dense summary positions, not durable symbol
+    // identities. Resolve each dependency once while retaining authored call order.
+    let calls: Vec<_> = states
+        .iter()
+        .zip(&owners)
+        .map(|(state, owner)| {
+            borrow_state_for_symbol(borrow, state.state_symbol)
+                .map(|borrow_state| borrow.calls.span_or_empty(borrow_state.calls))
+                .unwrap_or_default()
+                .iter()
+                .map(|call| {
+                    let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
+                        target_run(program, machine_symbol, state.state_symbol, borrow, call)
+                    });
+                    (call, summary_index_from(states, call.target_symbol), run)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
     let mut callers = vec![Vec::new(); states.len()];
     for (caller_index, dependencies) in calls.iter().enumerate() {
-        for (_, target_index) in dependencies {
+        for (_, target_index, _) in dependencies {
             if let Some(target_index) = target_index
                 && !callers[*target_index].contains(&caller_index)
             {
@@ -262,13 +296,31 @@ fn propagate_state_mutation_summaries(
             let Some((caller_state, caller_machine)) = owners[caller_index] else {
                 continue;
             };
+            let caller = &states[caller_index];
             let mut additions = Vec::new();
+            let mut held_additions = Vec::new();
+            let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<MutationWrite>| {
+                for (existing, pending, writes) in [
+                    (&caller.writes, &mut additions, writes),
+                    (&caller.held_writes, &mut held_additions, held_writes),
+                ] {
+                    for write in writes {
+                        if state_summary_exposes_place(program, caller_state, &write.place)
+                            && !existing.contains(&write)
+                            && !pending.contains(&write)
+                        {
+                            pending.push(write);
+                        }
+                    }
+                }
+            };
             let mut complete = true;
-            for (call, target_index) in &calls[caller_index] {
+            for (call, target_index, run) in &calls[caller_index] {
                 let Some(target_index) = target_index else {
                     // Signature-only calls are already admitted by the shared
                     // frame law. Import that frame in caller coordinates; an
                     // unresolved frame/origin must not become an empty summary.
+                    // The held run includes all of it, like any call's.
                     let Some(writes) = super::shared_call_storage_places(
                         program,
                         caller_machine,
@@ -280,18 +332,14 @@ fn propagate_state_mutation_summaries(
                         complete = false;
                         break;
                     };
-                    for write in writes {
-                        let write = MutationWrite {
-                            place: write,
+                    let writes: Vec<_> = writes
+                        .into_iter()
+                        .map(|place| MutationWrite {
+                            place,
                             requires_exclusive_access: true,
-                        };
-                        if state_summary_exposes_place(program, caller_state, &write.place)
-                            && !states[caller_index].writes.contains(&write)
-                            && !additions.contains(&write)
-                        {
-                            additions.push(write);
-                        }
-                    }
+                        })
+                        .collect();
+                    expose(writes.clone(), writes);
                     continue;
                 };
                 let target = &states[*target_index];
@@ -299,47 +347,45 @@ fn propagate_state_mutation_summaries(
                     complete = false;
                     break;
                 }
-                for write in &target.writes {
-                    let Some(instantiated_places) = instantiate_call_relative_places(
+                let instantiate = |writes: &[MutationWrite]| {
+                    instantiate_target_writes(
                         program,
                         caller_machine,
                         caller_symbol,
                         borrow,
                         call,
-                        &write.place,
-                        WritePlaceNamespace::Storage,
+                        writes,
                         call_frames,
-                    ) else {
-                        complete = false;
-                        break;
-                    };
-                    for instantiated in instantiated_places {
-                        let instantiated = MutationWrite {
-                            place: instantiated,
-                            requires_exclusive_access: write.requires_exclusive_access,
-                        };
-                        if state_summary_exposes_place(program, caller_state, &instantiated.place)
-                            && !states[caller_index].writes.contains(&instantiated)
-                            && !additions.contains(&instantiated)
-                        {
-                            additions.push(instantiated);
-                        }
-                    }
-                }
-                if !complete {
+                    )
+                };
+                let Some(whole) = instantiate(&target.writes) else {
+                    complete = false;
                     break;
-                }
+                };
+                let held = match run {
+                    TargetRun::Whole => Some(whole.clone()),
+                    TargetRun::Held => instantiate(&target.held_writes),
+                    TargetRun::Released => Some(Vec::new()),
+                };
+                let Some(held) = held else {
+                    complete = false;
+                    break;
+                };
+                expose(whole, held);
             }
-            if !complete || !additions.is_empty() {
-                updates.push((caller_index, complete, additions));
+            if !complete || !additions.is_empty() || !held_additions.is_empty() {
+                updates.push((caller_index, complete, additions, held_additions));
             }
         }
-        for (caller_index, complete, additions) in updates.drain(..) {
-            states[caller_index].complete = complete;
+        for (caller_index, complete, additions, held_additions) in updates.drain(..) {
+            let summary = &mut states[caller_index];
+            summary.complete = complete;
             if complete {
-                states[caller_index].writes.extend(additions);
+                summary.writes.extend(additions);
+                summary.held_writes.extend(held_additions);
             } else {
-                states[caller_index].writes.clear();
+                summary.writes.clear();
+                summary.held_writes.clear();
             }
             for &dependent in &callers[caller_index] {
                 if !scheduled[dependent] {
@@ -354,6 +400,38 @@ fn propagate_state_mutation_summaries(
         }
         std::mem::swap(&mut dirty, &mut next_dirty);
     }
+}
+
+/// A target summary's writes in the caller's storage coordinates at `call`,
+/// in summary order. `None` when one cannot be placed.
+fn instantiate_target_writes(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    call: &BorrowCallFact,
+    writes: &[MutationWrite],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<MutationWrite>> {
+    let mut instantiated = Vec::new();
+    for write in writes {
+        for place in instantiate_call_relative_places(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow,
+            call,
+            &write.place,
+            WritePlaceNamespace::Storage,
+            call_frames,
+        )? {
+            instantiated.push(MutationWrite {
+                place,
+                requires_exclusive_access: write.requires_exclusive_access,
+            });
+        }
+    }
+    Some(instantiated)
 }
 
 fn borrow_state_for_symbol(

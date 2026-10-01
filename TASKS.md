@@ -3671,25 +3671,19 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
 
-- **CALL-OPERAND-ALIAS-SOUNDNESS.** (new-scope) Reject the remaining calls
-  whose operands alias a mutable path the same call holds, under
-  [ownership](wiki/spec/language/ownership.md) ("shared children freeze the
-  parent's mutation; exclusive children suspend the corresponding parent
-  branch") and left-to-right argument evaluation. Whole `&mut` receivers are
-  judged by their write and read footprints (`flow::receiver_reads`,
-  `checks/borrows/calls/receiver/footprint.rs`) against the call's retained
-  argument loans, and whole `self` operands against `self.field` places
-  (`fail/borrows/{whole_mut_receiver_read_under_argument_loan,bare_self_mut_operand_beside_self_view}`).
-  One shape is still accepted on main and is unsound: a named jump that
-  lends an exclusive child of `self` to a successor taking `&mut self` or
-  `&self`, such as `transition { _ -> next(&mut self.count) }` into `state
-  next(&mut self, counter: &mut u64)` that reads or writes `self.count`.
-  Local jumps record `has_receiver` false, so neither
-  `check_receiver_conflicts` nor the footprint check sees the implicit
-  receiver. Keep copies evaluated before the call accepted
-  (`self.set(self.count + 1)`), and disjoint fields and subslices.
-  Acceptance: that shape rejects with a fail fixture; the corpus check leg
-  and every sample's `--check` stay otherwise unchanged.
+- **RECEIVER-ACCESS-UNDER-LIVE-LOANS.** (new-scope) Two receiver accesses are
+  still accepted and unsound under [ownership](wiki/spec/language/ownership.md).
+  A whole `&mut` receiver call reads storage that a live local exclusive loan
+  holds when that loan is not one of the call's operands (`let view: &mut u64 =
+  &mut self.count; let seen: u64 = self.peek_count(); view = 3;` with
+  `peek_count(&mut self)`): `check_call_mutation_borrows` compares only callee
+  writes with live loans. A `&self` machine entry jumps into a `&mut self`
+  state that writes `self` (`machine Main::run(&self)` into `state next(&mut
+  self)`): `check_receiver_conflicts` skips source writability for jumps,
+  because a `&self` state of a `&mut self` machine may enter a `&mut self`
+  sibling, so the successor needs judging against the machine's entry
+  receiver authority instead. Acceptance: both reject with fail fixtures; the
+  corpus check leg and every sample's `--check` stay otherwise unchanged.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi

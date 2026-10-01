@@ -54,6 +54,10 @@ fn receiver_read_rejects_the_field_an_exclusive_argument_lends() {
             slot = 5;
             (seen)
         }",
+        // So does a callee that never writes through the loan.
+        "machine Main::callee(&mut self, slot: &mut u64) -> u64 {
+            (self.count)
+        }",
         // A receiver helper's own read is the callee's read.
         "machine Main::callee(&mut self, slot: &mut u64) -> u64 {
             slot = 5;

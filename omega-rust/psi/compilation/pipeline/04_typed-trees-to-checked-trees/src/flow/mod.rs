@@ -54,7 +54,9 @@ mod domain;
 mod mutation;
 
 // What a call reads through its receiver: the borrow checks compare it with the
-// same call's exclusive argument loans beside whole `&mut` receivers.
+// same call's exclusive argument loans beside whole `&mut` receivers. A jump's
+// argument loans cover less of its successor's run than a call's (`jump_loans`).
+mod jump_loans;
 mod receiver_reads;
 
 // Places, ownership, and reference and value origins: queries also used outside

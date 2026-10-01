@@ -6,10 +6,14 @@
 //! branch of the receiver for the whole call. A receiver write that
 //! interferes with any such loan breaks that freeze or suspension, and so
 //! does a receiver read of storage an exclusive loan suspends, whether the
-//! callee reads it before or after writing through the argument. Copied reads
-//! and completed nested-call loans end before invocation and do not constrain
-//! the callee. Projected receivers compare the whole exclusive child with
-//! every argument in `check_receiver_conflicts`.
+//! callee reads it before or after writing through the argument; an exclusive
+//! local reference operand suspends the storage its own loan captured. Copied
+//! reads and completed nested-call loans end before invocation and do not
+//! constrain the callee. Projected receivers compare the whole exclusive
+//! child with every argument in `check_receiver_conflicts`. A named jump into
+//! a `&mut self` sibling state is judged here too, with the successor as
+//! callee and the caller's `self` as its receiver: the arguments' loans stay
+//! live for the successor's whole run.
 
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -18,7 +22,7 @@ use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
 use super::super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
-use super::attached_place;
+use super::{aliases, attached_place};
 use crate::flow::{CanonicalPlace, StateMutationSummaryCache, StateReceiverReadCache};
 use crate::labels::call_target_label;
 
@@ -38,7 +42,9 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    if !call.has_receiver || !receiver_is_mutable_reference(program, call.target_symbol) {
+    if !super::call_passes_receiver(program, state_flow, call)
+        || !receiver_is_mutable_reference(program, call.target_symbol)
+    {
         return;
     }
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
@@ -130,36 +136,54 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     if writes.is_empty() && reads.is_empty() {
         return;
     }
+    let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
     for argument in retained_arguments {
-        let argument_place = attached_place(
-            program,
-            machine,
-            CapturedPlace {
-                root_symbol: argument.root_symbol,
-                segments: facts.borrow.access_segments(argument).to_vec(),
-            },
-        );
-        let mut interferes = |receiver_place: &CapturedPlace, receiver_access| {
-            !captured_place_compatibility(
-                program,
-                receiver_place,
-                receiver_access,
-                &argument_place,
-                &argument.kind,
-                stated_premises,
-                bound_lookup,
-            )
-            .non_interfering
+        let operand = CapturedPlace {
+            root_symbol: argument.root_symbol,
+            segments: facts.borrow.access_segments(argument).to_vec(),
         };
-        let Some((receiver_access, receiver_place)) = writes
+        // A local reference operand lends the storage its own loan captured,
+        // so an exclusive one suspends that storage, not the local's name.
+        // Only reads need the rejoined place: a receiver write to it already
+        // rejects against the live local loan in `check_call_mutation_borrows`,
+        // which judges writes and not reads.
+        let lent_place = if reads.is_empty() || !argument.kind.is_exclusive() {
+            None
+        } else {
+            aliases::resolve_place(
+                program,
+                facts,
+                state_flow,
+                entry_constraints,
+                operand.clone(),
+            )
+            .filter(|resolved| resolved.local_loan.is_valid())
+            .map(|resolved| attached_place(program, machine, resolved.place))
+        };
+        let argument_place = attached_place(program, machine, operand);
+        let mut interferes =
+            |receiver_place: &CapturedPlace, receiver_access, argument_place: &CapturedPlace| {
+                !captured_place_compatibility(
+                    program,
+                    receiver_place,
+                    receiver_access,
+                    argument_place,
+                    &argument.kind,
+                    stated_premises,
+                    bound_lookup,
+                )
+                .non_interfering
+            };
+        let read_argument_place = lent_place.as_ref().unwrap_or(&argument_place);
+        let Some((receiver_access, receiver_place, argument_place)) = writes
             .iter()
-            .find(|write| interferes(write, &BorrowAccessKind::Mutable))
-            .map(|write| ("writes", write))
+            .find(|write| interferes(write, &BorrowAccessKind::Mutable, &argument_place))
+            .map(|write| ("writes", write, &argument_place))
             .or_else(|| {
                 reads
                     .iter()
-                    .find(|read| interferes(read, &BorrowAccessKind::Read))
-                    .map(|read| ("reads", read))
+                    .find(|read| interferes(read, &BorrowAccessKind::Read, read_argument_place))
+                    .map(|read| ("reads", read, read_argument_place))
             })
         else {
             continue;
@@ -167,7 +191,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
         diagnostics.push(Diagnostic::error(format!(
             "state `{}` receives `{}` as {} while its mutable receiver {receiver_access} `{}`",
             call_target_label(program, call.target_symbol),
-            attached_label(program, state_flow, &argument_place),
+            attached_label(program, state_flow, argument_place),
             match argument.kind {
                 BorrowAccessKind::Read => "read-only",
                 BorrowAccessKind::Mutable => "mutable",

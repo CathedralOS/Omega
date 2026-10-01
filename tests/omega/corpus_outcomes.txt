@@ -159,6 +159,10 @@ fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed2
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_record_state_alias rejected 661ms expected @2d8ed253669f
 	state `finish` receives `cell` as mutable more than once
+fail/borrows/named_jump_receiver_under_argument_loan rejected 361ms expected @ee08fad015b6+wt
+	state `observe` receives shared receiver overlapping another argument in the same call
+	state `read_after` receives `self.count` as mutable while its mutable receiver reads `self.count`
+	state `write_through_self` receives `self.count` as mutable while its mutable receiver writes `self.count`
 fail/borrows/runtime_index_mut_borrow rejected 779ms expected @2d8ed253669f
 	cannot prove index `self.off` is within length 48 in Main::main::main
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 428ms expected @15bee340123a+wt
