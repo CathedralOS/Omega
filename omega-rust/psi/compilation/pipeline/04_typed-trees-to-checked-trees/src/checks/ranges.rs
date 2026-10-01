@@ -41,6 +41,7 @@ mod state_arguments;
 // Statement checking: the shared statement transfer, the statement check
 // that drives it, and the index and assignment-length checks it runs.
 mod assignment_lengths;
+mod expression_transfer;
 mod indexes;
 pub(in crate::checks) use indexes::ranges_seam_owns;
 mod statement_transfer;
