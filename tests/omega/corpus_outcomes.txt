@@ -1792,8 +1792,7 @@ pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 907ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 1)
-pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 923ms @9435ec134b74+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural scalar store names an unknown structural local"))
+pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 2289ms @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 975ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms @2d8ed253669f
@@ -2234,16 +2233,14 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1608ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1638ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1311ms @6ec9ff444c14+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3195ms @6bd4d1a87ff4+wt
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit incomplete 18471ms @6ec9ff444c14+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775808 unproved; the module is not shown invalid
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1585ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 3)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
-pass/wire/runtime_wire_exact_array_without_count_exit rejected 1743ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 1)
+pass/wire/runtime_wire_exact_array_without_count_exit checked 6968ms @6bd4d1a87ff4+wt
 pass/wire/runtime_wire_policy_authored_plan_exit incomplete 21365ms @6ec9ff444c14+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit incomplete 41105ms @6ec9ff444c14+wt
