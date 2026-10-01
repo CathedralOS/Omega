@@ -1241,18 +1241,18 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `afca99a109`
-  plus the composed-receiver and static byte-field observation repairs,
-  on macOS ARM64, closed stdin still exits 200 before Terminal production:
-  `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
-  `MazeBuilder::build` → `MazeBuilder::carve_room` → `RoomEvents::roll_event` →
-  `RoomEvents::apply_event` → `EnemyTables::roll_enemy` →
-  `EnemyTables::roll_enemy_kind` declines at
-  `structural field store: pure source: scalar expression row`
-  (state 1, statement 3). The authored health expression adds a `u32`
-  random result and assigns it to `i32 in Wrapping`; follow
-  **IMPLICIT-STORE-CONVERSION** for explicit value-preserving conversion and
-  real bounds evidence, never relabel a typed operand to force lowering.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `7c72db8f26`
+  plus the runtime-remainder bound and explicit numeric migration repairs,
+  on macOS ARM64, source checking and the local package review succeed; closed
+  stdin still exits 200 during Terminal production with
+  `borrowed selection index has no literal array length`. The next owner is
+  stage 05 `expression_preparation/source_custody/structural_places.rs`:
+  preserve the selected collection's actual fixed extent or live view length
+  instead of inventing a literal bound. RNG guarantees and value-preserving
+  `u32` to `i32` health conversions now cross source checking and independent
+  certificate replay; `arithmetic/runtime_remainder_result_cast_exit` executes
+  its authored exit 70. Neither that witness nor package acceptance establishes
+  that Dungeon runs. Acceptance remains the two complete game commands above.
 
   The composed receiver reproduction
   `borrows/branch_selected_record_composed_receiver_exit` and nested owned

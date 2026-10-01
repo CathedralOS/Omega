@@ -69,6 +69,12 @@ fn map_integer_affine_bound_with_remainder_policy(
 ) -> Result<Proposition, IntegerAffineBoundConversionError> {
     if matches!(
         form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder]
+    ) {
+        return super::remainder::map_bound(form, root_bound);
+    }
+    if matches!(
+        form.endpoint_steps.as_slice(),
         [CheckedIntegerEndpointStep::CorrelatedAddLower]
             | [CheckedIntegerEndpointStep::CorrelatedAddUpper]
     ) {
@@ -264,6 +270,7 @@ fn map_integer_affine_bound_with_remainder_policy(
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
             | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
             | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
             | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
             | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                 return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);

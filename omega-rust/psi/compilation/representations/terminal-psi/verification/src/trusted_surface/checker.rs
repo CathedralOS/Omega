@@ -38,6 +38,8 @@ const AFFINE_BOUND_MAPPING: &str =
 const AFFINE_TRUTH_BOUNDS: &str =
     "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/truth_bounds.rs";
 const AFFINE_WITNESS_CHECKING: &str = "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs";
+const AFFINE_REMAINDER: &str =
+    "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/remainder.rs";
 const INTEGER_CAST: &str =
     "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast.rs";
 const INTEGER_FORBIDDEN: &str =
@@ -342,7 +344,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
         premises: "a checked ordered endpoint witness from one proved root bound through admitted arithmetic definitions and literal landings, or a supported direct arithmetic expression",
-        conclusion: "the mapped endpoint bound equals the conclusion; unsigned remainder can retain a tighter dividend upper bound or its unconditional image; a Truth root admits only checked truth bounds; cited definitions and literal landings remain dependencies",
+        conclusion: "the mapped endpoint bound equals the conclusion; unsigned remainder can retain a tighter dividend upper bound or its unconditional image for a landed divisor, or be strictly below its exact runtime divisor with separately proved positivity; a Truth root admits only checked truth bounds, never runtime-divisor positivity; cited definitions and literal landings remain dependencies",
         dependencies: &[
             "rule:traversal",
             "normalization:integer-affine-witness",
@@ -353,6 +355,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             INTEGER_BOUND_RULES,
             INTEGER_AFFINE,
             AFFINE_WITNESS_CHECKING,
+            AFFINE_REMAINDER,
             AFFINE_BOUND_MAPPING,
             AFFINE_TRUTH_BOUNDS,
             INTEGER_MATH_NORMALIZATION,

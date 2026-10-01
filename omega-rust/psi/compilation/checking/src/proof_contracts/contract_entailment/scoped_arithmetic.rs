@@ -52,6 +52,11 @@ pub enum ScopedArithmeticValue {
     Integer(numerics::bignum::BigInt),
     /// A term read under its own roster before it stands for the binder.
     Term(ScopedArithmeticExpression),
+    /// One exact integer remainder whose caller independently established
+    /// selected builtin meaning, fixed-carrier formation and source custody.
+    /// This marker grants only the existing mathematical remainder
+    /// normalization; positivity and unsigned source bounds remain hypotheses.
+    AdmittedIntegerRemainder(ScopedArithmeticExpression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

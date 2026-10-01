@@ -605,6 +605,17 @@ impl<'program> Engine<'program> {
                     };
                     polynomial
                 }
+                ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
+                    if !self.install_scoped_bindings(&term.bindings)
+                        || self.bind_strict_integer_division(term.expression).is_none()
+                    {
+                        return false;
+                    }
+                    let Some(polynomial) = self.normalize(term.expression) else {
+                        return false;
+                    };
+                    polynomial
+                }
             };
             match binding.binder {
                 ScopedArithmeticBinder::Symbol(symbol) => {
@@ -714,9 +725,21 @@ impl<'program> Engine<'program> {
         };
         let dividend = self.normalize(binary.left)?;
         let divisor = self.normalize(binary.right)?;
+        let positive_divisor = self.prove_at_least(&divisor, &BigInt::from_i64(1));
+        let nonnegative_dividend = self.prove_at_least(&dividend, &BigInt::zero());
         let value = match binary.operator {
             BinaryOperator::Divide => self.integer_quotient(dividend, divisor)?,
-            BinaryOperator::Modulo => self.integer_remainder(dividend, divisor, true)?,
+            BinaryOperator::Modulo => {
+                let value = self.integer_remainder(dividend, divisor.clone(), true)?;
+                // The admitted source owner established an unsigned remainder
+                // operation. Re-derive its correlated strict upper bound only
+                // after the scoped hypotheses independently prove both
+                // unsigned nonnegativity and a positive exact divisor subject.
+                if positive_divisor && nonnegative_dividend {
+                    self.bounds.push((divisor.sub(&value), BigInt::from_i64(1)));
+                }
+                value
+            }
             _ => return None,
         };
         self.bind_strict_occurrence(expression, value).then_some(())

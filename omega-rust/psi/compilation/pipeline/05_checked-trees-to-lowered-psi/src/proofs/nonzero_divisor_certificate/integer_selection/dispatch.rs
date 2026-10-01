@@ -139,7 +139,7 @@ fn prove_math_relation(
         // non-strict bound producers run first and the strict-order leg still
         // applies through its checked weakening, exactly as for a directly
         // stated `LessOrEqual` obligation.
-        Proposition::LessOrEqual(_, _) => prove_atomic(
+        Proposition::LessOrEqual(_, _) | Proposition::LessThan(_, _) => prove_atomic(
             context,
             &scalar_goal,
             assumptions,
@@ -161,7 +161,8 @@ fn prove_math_relation(
     // conjunct. Preserve that proof and use the existing order rule's typed
     // mathematical normalization, rather than changing the projection itself.
     let rule = if matches!(scalar_proof.rule, ProofRule::ConjunctionElimination { .. }) {
-        let Proposition::LessOrEqual(left, _) = scalar_goal else {
+        let (Proposition::LessOrEqual(left, _) | Proposition::LessThan(left, _)) = scalar_goal
+        else {
             return None;
         };
         ProofRule::IntegerOrderSubstitution {

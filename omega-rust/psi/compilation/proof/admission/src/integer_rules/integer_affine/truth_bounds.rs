@@ -133,6 +133,7 @@ pub fn integer_affine_truth_bounds(
             | CheckedIntegerEndpointStep::CorrelatedSubtractLower
             | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
             | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
             | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
             | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                 return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);

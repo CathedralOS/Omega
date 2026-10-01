@@ -83,6 +83,8 @@ pub(crate) enum CheckedIntegerEndpointStep {
     CorrelatedSubtractLower,
     CorrelatedSubtractUpper,
     CorrelatedUnsignedSubtract,
+    /// A positive runtime divisor bounds the exact unsigned remainder image.
+    CorrelatedUnsignedRemainder,
     CorrelatedMultiplyMinimum,
     CorrelatedMultiplyMaximum,
 }
@@ -135,6 +137,9 @@ pub fn check_integer_affine_witness(
     semantic_axioms: &[Proposition],
     witness: &IntegerAffineWitness,
 ) -> Result<CheckedIntegerAffineForm, IntegerAffineWitnessError> {
+    if let Some(form) = super::remainder::check_witness(context, semantic_axioms, witness)? {
+        return Ok(form);
+    }
     if let Some(form) = check_correlated_add_witness(context, semantic_axioms, witness)? {
         return Ok(form);
     }

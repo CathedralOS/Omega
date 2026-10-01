@@ -3,7 +3,12 @@
 //! captured places become shared atoms only within this implication. No source
 //! initializer is replayed, and no callee precondition is imported as a premise.
 //! The existing scoped arithmetic engine owns entailment. This adapter owns
-//! field identity, current-value custody and Exact builtin operation meaning.
+//! field identity, current-value custody and selected builtin operation meaning.
+//! Polynomial terms retain Exact arithmetic. A separately marked unsigned
+//! Wrapping remainder keeps its exact operand roster through policy erasure;
+//! the shared engine still needs independent positivity/nonnegativity premises
+//! before using its divisor-relative bound. This admits no general cast or
+//! syntax-only interpretation of an overridden operator.
 //! Imported return guarantees are optional premises: an ordinary constructor
 //! can project a required field directly to an already bounded caller value.
 //! An unrelated call-result sibling does not change that scalar relationship.
@@ -283,7 +288,7 @@ pub(in crate::checks) fn proposition(
 ) -> Option<ScopedArithmeticExpression> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
-        || !predicate(program, callable, expression)
+        || !predicate(program, &facts.operators, callable, expression)
     {
         return None;
     }
@@ -296,14 +301,22 @@ pub(in crate::checks) fn scalar_term(
     callable: &Callable<'_>,
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
-) -> Option<ScopedArithmeticExpression> {
+) -> Option<ScopedArithmeticValue> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
-        || !term(program, callable, expression)
+        || !term(program, &facts.operators, callable, expression)
     {
         return None;
     }
-    bind_occurrences(program, callable, expression, value)
+    let admitted_remainder =
+        admitted_wrapping_unsigned_remainder(program, &facts.operators, callable, expression);
+    let expression = admitted_remainder.unwrap_or(expression);
+    let term = bind_occurrences(program, callable, expression, value)?;
+    Some(if admitted_remainder.is_some() {
+        ScopedArithmeticValue::AdmittedIntegerRemainder(term)
+    } else {
+        ScopedArithmeticValue::Term(term)
+    })
 }
 
 fn bind_occurrences(
@@ -359,13 +372,19 @@ fn bind_occurrences(
     })
 }
 
-fn predicate(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHandle) -> bool {
+fn predicate(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
     match binary.operator {
         BinaryOperator::And => {
-            predicate(program, callable, binary.left) && predicate(program, callable, binary.right)
+            predicate(program, operators, callable, binary.left)
+                && predicate(program, operators, callable, binary.right)
         }
         BinaryOperator::Equal
         | BinaryOperator::NotEqual
@@ -373,13 +392,19 @@ fn predicate(program: &TypedTrees, callable: &Callable<'_>, expression: Expressi
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            term(program, callable, binary.left) && term(program, callable, binary.right)
+            term(program, operators, callable, binary.left)
+                && term(program, operators, callable, binary.right)
         }
         _ => false,
     }
 }
 
-fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHandle) -> bool {
+fn term(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
@@ -396,7 +421,7 @@ fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHan
             ) =>
         {
             [binary.left, binary.right].into_iter().all(|operand| {
-                term(program, callable, operand)
+                term(program, operators, callable, operand)
                     && callable
                         .scalar_reference(program, operand)
                         .map(|reference| {
@@ -405,6 +430,17 @@ fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHan
                         })
                         .unwrap_or_else(|| proof_integer_term(program, operand))
             })
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Modulo => {
+            super::super::has_builtin_operators(program, operators, expression)
+                && callable.builtin_meaning(program, expression)
+                && builtin_wrapping_unsigned_remainder(program, callable, binary.left, binary.right)
+                && term(program, operators, callable, binary.left)
+                && term(program, operators, callable, binary.right)
+        }
+        ExpressionNode::Cast(cast) => {
+            exact_same_carrier_policy_erasure(program, callable, cast)
+                && term(program, operators, callable, cast.value)
         }
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
             .is_some_and(|(primitive, source)| {
@@ -415,12 +451,101 @@ fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHan
                             | ExpressionNode::Member(_)
                             | ExpressionNode::Integer(_)
                     )
-                    && term(program, callable, source)
+                    && term(program, operators, callable, source)
             }),
         // Casts, indexing, computed actuals and selected calls need their own
         // meaning/capture evidence; no syntax-only polynomial interpretation.
         _ => false,
     }
+}
+
+/// A selected builtin unsigned remainder has one mathematical value in every
+/// integer policy once division-by-zero has been discharged. This adapter does
+/// not establish that obligation: the callee's `requires` and the independent
+/// admitted remainder certificate do. It admits only the customer shape whose
+/// operands share one explicit Wrapping carrier; arbitrary computed policy
+/// mixtures stay outside this source-proof vocabulary.
+fn builtin_wrapping_unsigned_remainder(
+    program: &TypedTrees,
+    callable: &Callable<'_>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let Some(left) = callable.scalar_reference(program, left) else {
+        return false;
+    };
+    let Some(right) = callable.scalar_reference(program, right) else {
+        return false;
+    };
+    let Some(left_primitive) = program.primitive_type_reference(left) else {
+        return false;
+    };
+    let Some(right_primitive) = program.primitive_type_reference(right) else {
+        return false;
+    };
+    left_primitive == right_primitive
+        && fixed_unsigned_integer(left_primitive)
+        && program.arithmetic_domain_for_type_reference(left) == ArithmeticDomain::Wrapping
+        && program.arithmetic_domain_for_type_reference(right) == ArithmeticDomain::Wrapping
+}
+
+/// Select the exact modulo node behind the one supported policy-erasure
+/// spelling. The returned handle is authority-bearing for scoped entailment:
+/// keep every checked operator, callable meaning, carrier and cast fence here.
+fn admitted_wrapping_unsigned_remainder(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !exact_same_carrier_policy_erasure(program, callable, cast) {
+        return None;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(cast.value) else {
+        return None;
+    };
+    (binary.operator == BinaryOperator::Modulo
+        && super::super::has_builtin_operators(program, operators, cast.value)
+        && callable.builtin_meaning(program, cast.value)
+        && builtin_wrapping_unsigned_remainder(program, callable, binary.left, binary.right))
+    .then_some(cast.value)
+}
+
+/// Bare `as` from a policy-qualified integer to the identical unqualified
+/// carrier preserves every bit and mathematical payload. Retain the complete
+/// normalized cast identity so semantic domains, recasts and carrier changes
+/// cannot borrow this policy-erasure reading.
+fn exact_same_carrier_policy_erasure(
+    program: &TypedTrees,
+    callable: &Callable<'_>,
+    cast: &typed_trees::expression::TableCastExpression,
+) -> bool {
+    if cast.form.is_recast()
+        || cast.domain != ArithmeticDomain::Exact
+        || !cast.semantic_domain.is_empty()
+        || !cast.semantic_domain_arguments.is_empty()
+        || cast.semantic_domain_symbol.is_valid()
+        || cast.semantic_domain_id.is_valid()
+        || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+    {
+        return false;
+    }
+    let Some(source) = callable.scalar_reference(program, cast.value) else {
+        return false;
+    };
+    let Some(source_primitive) = program.primitive_type_reference(source) else {
+        return false;
+    };
+    let Some(target_primitive) = program.primitive_type_reference(cast.target_type) else {
+        return false;
+    };
+    source_primitive == target_primitive
+        && fixed_unsigned_integer(source_primitive)
+        && program.arithmetic_domain_for_type_reference(source) == ArithmeticDomain::Wrapping
+        && program.arithmetic_domain_for_type_reference(cast.target_type) == ArithmeticDomain::Exact
 }
 
 // The ordinary runtime result-type query deliberately does not fabricate a
@@ -455,5 +580,12 @@ fn fixed_integer(primitive: PrimitiveType) -> bool {
             | PrimitiveType::U16
             | PrimitiveType::U32
             | PrimitiveType::U64
+    )
+}
+
+fn fixed_unsigned_integer(primitive: PrimitiveType) -> bool {
+    matches!(
+        primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
     )
 }

@@ -23,7 +23,6 @@ impl ExitScalars<'_, '_> {
 
     fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
-        use validation::ScopedArithmeticValue;
         let entry = self.program.machine_states(self.machine).first()?;
         let state = crate::semantic::calls::find_state_in_machine(
             self.program,
@@ -45,7 +44,7 @@ impl ExitScalars<'_, '_> {
             |occurrence, primitive| {
                 if let Some((selected, remaining)) = self.result_projection(occurrence) {
                     if remaining.is_empty() {
-                        let term = arithmetic::scalar_term(
+                        let value = arithmetic::scalar_term(
                             self.program,
                             self.facts,
                             &Callable::Machine {
@@ -65,7 +64,7 @@ impl ExitScalars<'_, '_> {
                                 Some(arithmetic::atom(place, carrier))
                             },
                         )?;
-                        return Some(ScopedArithmeticValue::Term(term));
+                        return Some(value);
                     }
                     let mut place = call_guarantees::direct_place(self.program, selected)?;
                     place.extend_segments(&remaining);
@@ -121,10 +120,7 @@ impl ExitScalars<'_, '_> {
         expression: ExpressionHandle,
     ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
         let place = validation::reserved_result_place(self.program, expression)?;
-        if place.machine_symbol != self.machine.symbol
-            || place.segments.is_empty()
-            || !stable_segments(&place.segments)
-        {
+        if place.machine_symbol != self.machine.symbol || !stable_segments(&place.segments) {
             return None;
         }
         let returned = exit_return_expression(self.program, self.exit);
@@ -132,6 +128,13 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let entry = self.program.machine_states(self.machine).first()?;
+        if place.segments.is_empty() {
+            return self
+                .program
+                .primitive_type_reference(entry.return_type)
+                .is_some()
+                .then_some((returned, Vec::new()));
+        }
         let mut projections = flow::literal_value_projections(
             self.program,
             returned,
