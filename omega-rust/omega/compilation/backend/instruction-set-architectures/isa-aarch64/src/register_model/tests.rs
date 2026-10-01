@@ -173,6 +173,7 @@ fn register_constraint_catalog_closes_the_required_aarch64_inventory() {
             + aarch64_register_aggregate_return_keys(true).len()
             + aarch64_aapcs64_normalized_foreign_call_keys().len()
             + aarch64_darwin_normalized_foreign_call_keys().len()
+            + crate::aarch64_linux_system_call_keys().len()
     );
 
     let call = row(catalog, AARCH64_AAPCS64_CALL);

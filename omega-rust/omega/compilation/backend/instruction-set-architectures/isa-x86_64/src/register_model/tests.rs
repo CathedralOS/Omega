@@ -229,6 +229,7 @@ fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
             + x86_64_microsoft_aggregate_return_keys().len()
             + x86_64_system_v_normalized_foreign_call_keys().len()
             + x86_64_microsoft_normalized_foreign_call_keys().len()
+            + crate::x86_64_linux_system_call_keys().len()
     );
 
     let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);

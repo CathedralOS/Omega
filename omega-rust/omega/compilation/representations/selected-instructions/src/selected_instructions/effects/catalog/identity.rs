@@ -120,6 +120,7 @@ pub fn machine_effect_catalog_identity(
         });
         match declaration.call {
             crate::MachineCallEffect::NoneV1 => bytes.push(0),
+            crate::MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
             crate::MachineCallEffect::DirectInternalNormalReturnV1 {
                 pre_call_stack_alignment,
             } => {
@@ -378,6 +379,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.identity_bytes(&[4]),
+        MachineEncodedControlEffect::SupervisorCallV1 => bytes.identity_bytes(&[11]),
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.identity_bytes(&[5]),
     }
 }

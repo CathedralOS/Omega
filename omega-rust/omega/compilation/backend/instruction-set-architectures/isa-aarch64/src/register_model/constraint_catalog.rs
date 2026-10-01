@@ -886,6 +886,7 @@ pub fn aarch64_register_constraint_catalog(
         });
     }
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
+    super::system_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
     // Scalar IEEE operations read FPCR's rounding controls and clobber their
@@ -985,6 +986,7 @@ pub fn aarch64_register_constraint_catalog(
             }
             required.extend(aarch64_aapcs64_normalized_foreign_call_keys());
             required.extend(aarch64_darwin_normalized_foreign_call_keys());
+            required.extend(super::system_calls::aarch64_linux_system_call_keys());
             required.sort_unstable();
             required
         },

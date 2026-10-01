@@ -82,6 +82,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             .expect("call matrix names a stack-pointer view");
 
         for (key, semantic) in &call_rules {
+            let supervisor = key.family == register_model::RegisterConstraintFamily::SystemCall;
             let row = environment
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected call row {key:?}"));
@@ -95,10 +96,11 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");
             // The call contract is bound to the declared preservation
             // convention, not to the effect producer's own constant.
-            // Normalized foreign rows cross an external boundary: their
-            // normal-return contract is the external variant at the same
-            // convention alignment.
-            let expected_call = if *semantic == MachineSemanticKind::NormalizedForeignCall {
+            // Imports use that convention's alignment. Supervisor entries
+            // share argument transport but have no user-space call frame.
+            let expected_call = if supervisor {
+                MachineCallEffect::SupervisorNormalReturnV1
+            } else if *semantic == MachineSemanticKind::NormalizedForeignCall {
                 MachineCallEffect::DirectExternalNormalReturnV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
@@ -159,14 +161,15 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             }
 
             // A call may only implicitly touch volatile or architecturally
-            // fixed state, must consume the stack pointer, and must never
-            // clobber state the ABI preserves.
-            assert!(
+            // fixed state and must never clobber state the ABI preserves.
+            // Only a user-space call consumes the activation stack pointer.
+            assert_eq!(
                 stack_pointer
                     .units
                     .iter()
                     .all(|unit| row.implicit_uses.contains(unit)),
-                "{key:?} must implicitly use the stack pointer"
+                !supervisor,
+                "{key:?} only a user-space call consumes the stack pointer"
             );
             assert!(
                 row.implicit_uses
@@ -226,11 +229,15 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 );
                 assert_eq!(
                     encoded.control,
-                    MachineEncodedControlEffect::DirectRelativeCallV1,
+                    if supervisor {
+                        MachineEncodedControlEffect::SupervisorCallV1
+                    } else {
+                        MachineEncodedControlEffect::DirectRelativeCallV1
+                    },
                     "{key:?}"
                 );
-                match case.target.architecture {
-                    Architecture::X86_64 => {
+                match (case.target.architecture, supervisor) {
+                    (Architecture::X86_64, false) => {
                         assert_eq!(
                             encoded.memory,
                             MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -248,7 +255,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                             "{key:?}"
                         );
                     }
-                    Architecture::Aarch64 => {
+                    (Architecture::Aarch64, _) | (Architecture::X86_64, true) => {
                         assert_eq!(
                             encoded.memory,
                             MachineEncodedMemoryEffect::NoneV1,

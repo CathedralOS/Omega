@@ -11,6 +11,8 @@
 //! framing rejects older envelopes even when their rows need no new tag. The
 //! content identity domain stays unchanged because existing row bytes retain
 //! their denotation; the envelope version is not part of that content.
+//! Version 30 adds supervisor call/control effects. Kernel entry has no
+//! user-space return-address lifecycle; it cannot decode as an imported call.
 
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 
@@ -62,4 +64,4 @@ use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligatio
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 29;
+const VERSION: u32 = 30;

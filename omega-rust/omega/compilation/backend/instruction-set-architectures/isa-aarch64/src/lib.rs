@@ -10,6 +10,7 @@ mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+pub use register_model::aarch64_linux_system_call_keys;
 mod saturating_forms;
 pub use register_model::AARCH64_DIVIDE_I64;
 pub use register_model::AARCH64_DIVIDE_U64;

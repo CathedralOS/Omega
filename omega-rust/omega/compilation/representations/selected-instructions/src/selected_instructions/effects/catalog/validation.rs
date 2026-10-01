@@ -185,7 +185,12 @@ pub(super) fn validate_declaration(
             crate::MachineCallEffect::DirectExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
-        ) if pre_call_stack_alignment.is_power_of_two() => {}
+        ) if pre_call_stack_alignment.is_power_of_two()
+            && constraint.key.family == register_model::RegisterConstraintFamily::Call => {}
+        (
+            MachineSemanticKind::NormalizedForeignCall,
+            crate::MachineCallEffect::SupervisorNormalReturnV1,
+        ) if constraint.key.family == register_model::RegisterConstraintFamily::SystemCall => {}
         (MachineSemanticKind::NormalizedForeignCall, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
@@ -584,6 +589,21 @@ fn validate_encoded_effects(
         return Err(());
     }
     if declaration.semantic == MachineSemanticKind::NormalizedForeignCall {
+        let supervisor =
+            constraint.key.family == register_model::RegisterConstraintFamily::SystemCall;
+        // Kernel entry is not an imported CALL/BL. Even a declaration with
+        // the right operands must reject a fabricated return-address write,
+        // stack lifecycle, or ordinary call control.
+        let control = if supervisor {
+            if encoded.memory != MachineEncodedMemoryEffect::NoneV1
+                || encoded.stack != MachineEncodedStackEffect::UnchangedV1
+            {
+                return Err(());
+            }
+            MachineEncodedControlEffect::SupervisorCallV1
+        } else {
+            MachineEncodedControlEffect::DirectRelativeCallV1
+        };
         let arity = constraint
             .operands
             .iter()
@@ -615,7 +635,7 @@ fn validate_encoded_effects(
             || encoded.implicit_unit_defs != constraint.implicit_defs
             || encoded.implicit_unit_clobbers != constraint.clobbers
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+            || encoded.control != control
         {
             return Err(());
         }
@@ -647,6 +667,13 @@ fn validate_encoded_effects(
         }
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
+        MachineEncodedControlEffect::SupervisorCallV1
+            if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
+                && declaration.call == crate::MachineCallEffect::SupervisorNormalReturnV1 =>
+        {
+            MachineBarrier::Call
+        }
+        MachineEncodedControlEffect::SupervisorCallV1 => return Err(()),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
         | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
         | MachineEncodedControlEffect::ReturnFromActivationStackV1

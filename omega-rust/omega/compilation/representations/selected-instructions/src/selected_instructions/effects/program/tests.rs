@@ -28,6 +28,71 @@ use target::NativeTarget;
 use super::encoding::*;
 
 #[test]
+fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::NormalizedForeignCall {
+        boundary: semantic_vocabulary::BoundaryMachineId::new(7).unwrap(),
+        ordinal: 0,
+    };
+    instruction.constraint = RegisterConstraintKey {
+        family: RegisterConstraintFamily::SystemCall,
+        variant: 100,
+    };
+    instruction.memory = MachineMemoryEffect::NoneV1;
+    instruction.trap = MachineTrapBehavior::NeverV1;
+    instruction.barrier = MachineBarrier::Call;
+    instruction.call = MachineCallEffect::SupervisorNormalReturnV1;
+    instruction.alternatives.truncate(1);
+    let alternative = &mut instruction.alternatives[0];
+    alternative.key.family = MachineAlternativeFamily::NormalizedForeignCall;
+    alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+    alternative.encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+    alternative.encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+    alternative.encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    let encoded = source.encode();
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&encoded),
+        Ok(source.clone())
+    );
+    for length in 0..encoded.len() {
+        assert!(PreAllocationMachineEffectPlan::decode(&encoded[..length]).is_err());
+    }
+    let mut forged = source.clone();
+    forged.functions[0].blocks[0].instructions[0].call =
+        MachineCallEffect::DirectExternalNormalReturnV1 {
+            pre_call_stack_alignment: 16,
+        };
+    assert_ne!(
+        pre_allocation_machine_effect_identity(&forged),
+        source.identity
+    );
+    // The same family tag must round-trip ordinary imports as well. Its
+    // producer already wrote tag 87; a missing alternative decoder arm
+    // previously rejected both mechanisms before reaching their effects.
+    let instruction = &mut forged.functions[0].blocks[0].instructions[0];
+    instruction.constraint.family = RegisterConstraintFamily::Call;
+    instruction.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+        pre_call_stack_alignment: 16,
+    };
+    instruction.alternatives[0].encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
+    forged.identity = pre_allocation_machine_effect_identity(&forged);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&forged.encode()),
+        Ok(forged.clone())
+    );
+    forged = source.clone();
+    forged.functions[0].blocks[0].instructions[0].alternatives[0]
+        .encoded
+        .control = MachineEncodedControlEffect::DirectRelativeCallV1;
+    assert_ne!(
+        pre_allocation_machine_effect_identity(&forged),
+        source.identity
+    );
+}
+
+#[test]
 fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary() {
     for form in crate::FloatResultPolicyForm::ALL {
         let mut source = plan();
@@ -59,9 +124,9 @@ fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary(
         }
         source.identity = pre_allocation_machine_effect_identity(&source);
         let encoded = source.encode();
-        assert_eq!(&encoded[8..12], &29_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &30_u32.to_le_bytes());
         assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
-        for version in [28_u32, 30_u32] {
+        for version in [29_u32, 31_u32] {
             let mut wrong_version = encoded.clone();
             wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
             assert_eq!(
@@ -921,7 +986,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &29_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &30_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
