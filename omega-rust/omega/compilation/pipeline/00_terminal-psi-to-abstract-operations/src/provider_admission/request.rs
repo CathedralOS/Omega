@@ -10,6 +10,9 @@ use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
 pub enum NativeBoundaryRealization<'execution> {
     Builtin(BoundaryRealization),
     NormalizedForeignCall(&'execution task_plans::AdmittedSameStackContribution),
+    /// A direct kernel entry has no foreign callee on the receiver stack.
+    /// Admission must still rejoin its number, target and evaluated call plan.
+    SystemCall,
 }
 
 impl<'execution> From<BoundaryRealization> for NativeBoundaryRealization<'execution> {

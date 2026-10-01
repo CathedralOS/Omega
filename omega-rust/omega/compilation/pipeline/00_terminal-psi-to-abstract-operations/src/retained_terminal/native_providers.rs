@@ -1,14 +1,14 @@
 //! Prepare a retained proposal's provider inputs before native admission.
 //!
 //! This operation owns package-custody joins and the callback, import and
-//! builtin rosters. Derived import evidence stays owned here until admission
+//! builtin rosters. Derived binding evidence stays owned here until admission
 //! and publication have consumed their borrowed execution records.
 
 use super::TerminalNativeRealizationProposal;
 use crate::provider_admission::{
-    NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedImports,
+    NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
     ProviderAdmissionRequest, SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
-    TerminalAuthorityPolicy, prepare_source_evaluated_imports,
+    TerminalAuthorityPolicy, prepare_source_evaluated_bindings,
 };
 use diagnostics::Diagnostic;
 
@@ -24,7 +24,7 @@ pub struct RetainedNativeProviderInputs<'input> {
 /// Native admission independently checks every borrowed settlement.
 pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
-    pub imports: PreparedSourceEvaluatedImports<'input>,
+    pub bindings: PreparedSourceEvaluatedBindings<'input>,
     callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
     compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
@@ -34,7 +34,7 @@ impl PreparedRetainedNativeProviders<'_> {
     /// Assemble admission from the exact proposal this preparation consumed.
     /// Independent policies remain caller inputs; prepared rows grant no
     /// authority until `admit_native_realization` checks the complete request.
-    /// The import projection borrows this preparation's owned execution records
+    /// The binding projection borrows this preparation's owned execution records
     /// and must remain alive through admission and realization.
     pub fn admission_request<'request>(
         &'request self,
@@ -107,7 +107,7 @@ impl TerminalNativeRealizationProposal {
             )
         })?;
         let demanded = crate::provider_admission::demanded_boundary_identities(&module)?;
-        let prepared_imports = prepare_source_evaluated_imports(
+        let bindings = prepare_source_evaluated_bindings(
             self.providers().selection.plans(),
             &demanded,
             inputs.imports,
@@ -120,7 +120,7 @@ impl TerminalNativeRealizationProposal {
 
         Ok(PreparedRetainedNativeProviders {
             proposal: self,
-            imports: prepared_imports,
+            bindings,
             callbacks: native_callbacks,
             callback_thunks,
             compiler_builtins,

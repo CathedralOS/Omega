@@ -120,6 +120,17 @@ pub struct NormalizedForeignCallBinding {
     pub same_stack_contribution: task_plans::AdmittedSameStackContribution,
 }
 
+/// Exact source-free custody for a direct kernel entry. Unlike an imported
+/// user-space callee it consumes no foreign receiver-stack reserve. The
+/// ordinary lowering stages still owe argument placement, result custody and
+/// the exact supervisor-entry instruction and clobbers in this retained plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSystemCallBinding {
+    pub target: target::NativeTarget,
+    pub number: i64,
+    pub boundary_entry_plan: BoundaryEntryPlan,
+}
+
 /// One occurrence-specific fixed-width integer value materialized for an
 /// evaluated normalized foreign call. The exact authored constant or durable
 /// scalar-result home remains bound to the ordered placement selected by the
@@ -143,6 +154,7 @@ pub type NormalizedForeignStructuralArgument = TargetStructuralArgument;
 pub enum BoundarySettlementRealization {
     Builtin(BoundaryRealization),
     NormalizedForeignCall(NormalizedForeignCallBinding),
+    SystemCall(NormalizedSystemCallBinding),
 }
 
 impl From<BoundaryRealization> for BoundarySettlementRealization {

@@ -53,8 +53,8 @@ pub use boundary::{
     IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
     NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, ProviderExecutionBinding, ProviderPlanReportIdentity,
-    TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
+    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
 };
 pub mod operations;
 pub use operations::{

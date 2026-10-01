@@ -43,6 +43,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
         native_callbacks,
     )?;
     let mut required_imports = BTreeSet::new();
+    let mut required_syscalls = BTreeSet::new();
     let mut admitted_mechanisms = Vec::new();
     // Toolchain-settled host cohort rows emitted for demanded leaves: they
     // classify beside the supplied receiving policy rather than requiring
@@ -122,6 +123,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     boundary: rows.boundary,
                     mechanism,
                 });
+                required_syscalls.insert(requirement);
             }
             ProviderBinding::Import { evaluated } => {
                 if evaluated.locator().target().native_target() != target {
@@ -202,8 +204,32 @@ pub(super) fn validate_source_evaluated_import_coverage(
     }
 
     let mut covered_imports = BTreeSet::new();
+    let mut covered_syscalls = BTreeSet::new();
     for settlement in settlements {
         let requirement = settlement.provider_execution.requirement_identity();
+        if required_syscalls.contains(requirement) {
+            if !matches!(
+                settlement.realization,
+                NativeBoundaryRealization::SystemCall
+            ) {
+                return Err(vec![Diagnostic::error(format!(
+                    "source-evaluated syscall `{requirement}` requires a direct kernel settlement"
+                ))]);
+            }
+            if !covered_syscalls.insert(requirement) {
+                return Err(vec![Diagnostic::error(format!(
+                    "source-evaluated syscall `{requirement}` received more than one settlement"
+                ))]);
+            }
+            continue;
+        } else if matches!(
+            settlement.realization,
+            NativeBoundaryRealization::SystemCall
+        ) {
+            return Err(vec![Diagnostic::error(format!(
+                "syscall settlement for `{requirement}` does not cover a demanded selected syscall"
+            ))]);
+        }
         let is_normalized = matches!(
             settlement.realization,
             NativeBoundaryRealization::NormalizedForeignCall(_)
@@ -231,6 +257,14 @@ pub(super) fn validate_source_evaluated_import_coverage(
     {
         return Err(vec![Diagnostic::error(format!(
             "demanded source-evaluated import `{missing}` has no admitted native settlement"
+        ))]);
+    }
+    if let Some(missing) = required_syscalls
+        .iter()
+        .find(|requirement| !covered_syscalls.contains(**requirement))
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "demanded source-evaluated syscall `{missing}` has no admitted native settlement"
         ))]);
     }
     admitted_mechanisms.sort_by_key(|row| row.boundary);

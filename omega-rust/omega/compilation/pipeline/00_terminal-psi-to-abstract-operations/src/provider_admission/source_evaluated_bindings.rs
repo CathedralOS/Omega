@@ -1,16 +1,20 @@
-//! Source-evaluated import execution and stack inputs for native admission.
+//! Source-evaluated binding execution inputs for native admission.
 //!
-//! Direct and retained compilation share `prepare_source_evaluated_imports`:
-//! join Terminal demand to exact selected import plans, then derive execution
+//! Direct and retained compilation share `prepare_source_evaluated_bindings`:
+//! join Terminal demand to exact selected import and syscall plans, then derive execution
 //! records or rejoin a complete supplied roster. The compact report coordinates
 //! remain diagnostics, not authority. The independent settlement checker joins
 //! the strong plan commitment, retained locator, calling contract, target and
 //! same-stack contribution before any native realization can consume them.
+//! Direct kernel entries have no user-space callee and mint no same-stack
+//! reserve. Their independent settlement rejoins the exact syscall and plan;
+//! preparation never grants receiving authority or recognizes service names.
 //!
 //! `roster` owns the earlier retained-product check: the complete selected import
 //! roster must rejoin its external bindings before execution inputs are prepared.
 
 mod roster;
+mod syscalls;
 
 pub use roster::validate_evaluated_import_rows;
 
@@ -56,13 +60,14 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
     }
 }
 
-/// Prepared source-import execution inputs for native provider admission.
+/// Prepared source-binding execution inputs for native provider admission.
 /// Owns derived evidence or borrows the caller's admitted evidence. Neither
 /// form admits a locator, calling contract, stack bound or receiving authority:
 /// `admit_native_providers` independently rejoins those inputs.
 #[derive(Debug)]
-pub struct PreparedSourceEvaluatedImports<'input> {
+pub struct PreparedSourceEvaluatedBindings<'input> {
     evidence: SourceImportEvidence<'input>,
+    syscalls: Vec<syscalls::PreparedSystemCall<'input>>,
 }
 
 #[derive(Debug)]
@@ -71,29 +76,31 @@ enum SourceImportEvidence<'input> {
     Supplied(Vec<NativeProviderSettlement<'input>>),
 }
 
-/// Prepare exactly the demanded selected imports. An empty supplied roster
+/// Prepare exactly the demanded selected bindings. An empty supplied import roster
 /// derives execution and stack records from the selected plans; a nonempty
 /// roster must cover every demanded import exactly once and never falls back
-/// to derived evidence for missing rows.
-pub fn prepare_source_evaluated_imports<'input>(
+/// to derived evidence for missing rows. Syscalls are always derived from
+/// selected plans: they neither consume nor substitute supplied import custody.
+pub fn prepare_source_evaluated_bindings<'input>(
     plans: &'input [ProviderPlan],
     demanded: &BTreeSet<String>,
     supplied: &[SourceEvaluatedImportSettlement<'input>],
-) -> Result<PreparedSourceEvaluatedImports<'input>, Vec<Diagnostic>> {
+) -> Result<PreparedSourceEvaluatedBindings<'input>, Vec<Diagnostic>> {
     let exact_plans = exact_demanded_import_plans(plans, demanded)?;
     let evidence = if supplied.is_empty() {
         SourceImportEvidence::Derived(mint_source_evaluated_imports(plans, demanded)?)
     } else {
         SourceImportEvidence::Supplied(rejoin_external_import_settlements(&exact_plans, supplied)?)
     };
-    Ok(PreparedSourceEvaluatedImports { evidence })
+    let syscalls = syscalls::prepare_system_calls(plans, demanded)?;
+    Ok(PreparedSourceEvaluatedBindings { evidence, syscalls })
 }
 
-impl PreparedSourceEvaluatedImports<'_> {
+impl PreparedSourceEvaluatedBindings<'_> {
     /// Borrow supplied settlements directly, or project owned execution/stack
     /// records into the native admission request without cloning their evidence.
     pub fn settlements(&self) -> Cow<'_, [NativeProviderSettlement<'_>]> {
-        match &self.evidence {
+        let mut settlements: Cow<'_, [NativeProviderSettlement<'_>]> = match &self.evidence {
             SourceImportEvidence::Derived(imports) => Cow::Owned(
                 imports
                     .iter()
@@ -107,7 +114,21 @@ impl PreparedSourceEvaluatedImports<'_> {
                     .collect(),
             ),
             SourceImportEvidence::Supplied(settlements) => Cow::Borrowed(settlements),
+        };
+        if !self.syscalls.is_empty() {
+            settlements
+                .to_mut()
+                .extend(
+                    self.syscalls
+                        .iter()
+                        .map(|syscall| NativeProviderSettlement {
+                            provider_execution: &syscall.execution,
+                            provider_plan: syscall.plan,
+                            realization: NativeBoundaryRealization::SystemCall,
+                        }),
+                );
         }
+        settlements
     }
 }
 
@@ -123,11 +144,11 @@ impl PreparedSourceEvaluatedImports<'_> {
 const SAME_STACK_BYTES: u64 = 256 * 1024;
 const SAME_STACK_ALIGNMENT: u64 = 16;
 
-/// Execution evidence for one source-evaluated import: the requirement and
+/// Execution evidence for one source-evaluated binding: the requirement and
 /// the exact selected plan, with report coordinates derived from them so the
 /// same compile mints the same values.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceEvaluatedImportExecution {
+struct SourceEvaluatedBindingExecution {
     requirement_identity: String,
     provider_plan_report_identity: u64,
     provider_execution_report_identity: u64,
@@ -135,7 +156,7 @@ struct SourceEvaluatedImportExecution {
     boundary_contract_report_fingerprint: u64,
 }
 
-impl ProviderExecutionEvidence for SourceEvaluatedImportExecution {
+impl ProviderExecutionEvidence for SourceEvaluatedBindingExecution {
     fn requirement_identity(&self) -> &str {
         &self.requirement_identity
     }
@@ -167,7 +188,7 @@ impl ProviderExecutionEvidence for SourceEvaluatedImportExecution {
 #[derive(Debug)]
 struct MintedSourceEvaluatedImport<'plan> {
     plan: &'plan ProviderPlan,
-    execution: SourceEvaluatedImportExecution,
+    execution: SourceEvaluatedBindingExecution,
     same_stack: AdmittedSameStackContribution,
 }
 
@@ -196,7 +217,7 @@ fn mint_source_evaluated_imports<'plan>(
             let plan_commitment =
                 SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
             let locator_digest = evaluated.locator().identity_digest().as_bytes();
-            let execution = SourceEvaluatedImportExecution {
+            let execution = SourceEvaluatedBindingExecution {
                 requirement_identity: requirement.to_owned(),
                 provider_plan_report_identity: plan_report_identity,
                 provider_execution_report_identity: nonzero(fnv1a(&[

@@ -14,6 +14,7 @@ mod boundary;
 mod exact_plan;
 mod normalized_foreign_call;
 mod source_imports;
+mod system_call;
 
 use boundary::settle_boundary;
 use source_imports::validate_source_evaluated_import_coverage;

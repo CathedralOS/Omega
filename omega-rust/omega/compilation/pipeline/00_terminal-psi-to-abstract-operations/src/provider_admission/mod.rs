@@ -1,7 +1,8 @@
 //! Provider admission for native realization.
 //!
-//! `source_evaluated_imports` prepares selected import executions and stack
-//! inputs for both direct compilation and retained Terminal re-entry.
+//! `source_evaluated_bindings` prepares selected import and syscall executions
+//! for direct compilation and retained Terminal re-entry. Only imported
+//! user-space callees carry a foreign same-stack reserve.
 //! `admit_native_providers` independently checks those inputs, settles external
 //! executions, and admits the exact checked-provider installation and authority
 //! closure retained by the plan.
@@ -17,7 +18,7 @@ mod diagnostics;
 mod installation;
 mod request;
 mod settlements;
-mod source_evaluated_imports;
+mod source_evaluated_bindings;
 mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
@@ -31,9 +32,9 @@ pub use compiler_builtins::{
     validate_retained_compiler_builtins,
 };
 
-pub use source_evaluated_imports::{
-    PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_imports, validate_evaluated_import_rows,
+pub use source_evaluated_bindings::{
+    PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,
+    prepare_source_evaluated_bindings, validate_evaluated_import_rows,
 };
 
 pub use request::{

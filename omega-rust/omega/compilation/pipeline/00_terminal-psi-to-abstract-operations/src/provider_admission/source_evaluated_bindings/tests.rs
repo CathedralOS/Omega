@@ -1,6 +1,6 @@
 use super::{
-    PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_imports, validate_evaluated_import_rows,
+    PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,
+    prepare_source_evaluated_bindings, validate_evaluated_import_rows,
 };
 use crate::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
 use effects::provider_plan::{
@@ -224,7 +224,7 @@ fn supplied<'evidence>(
 }
 
 fn rejection(
-    result: Result<PreparedSourceEvaluatedImports<'_>, Vec<diagnostics::Diagnostic>>,
+    result: Result<PreparedSourceEvaluatedBindings<'_>, Vec<diagnostics::Diagnostic>>,
     expected: &str,
 ) {
     let diagnostics = result.expect_err("invalid import evidence must reject");
@@ -249,9 +249,9 @@ fn derives_only_demanded_imports_with_exact_plan_and_stack_custody() {
         "second".to_owned(),
         "builtin".to_owned(),
     ]);
-    let prepared = prepare_source_evaluated_imports(&plans, &demanded, &[]).unwrap();
+    let prepared = prepare_source_evaluated_bindings(&plans, &demanded, &[]).unwrap();
     let settlements = prepared.settlements();
-    let repeated = prepare_source_evaluated_imports(&plans, &demanded, &[]).unwrap();
+    let repeated = prepare_source_evaluated_bindings(&plans, &demanded, &[]).unwrap();
     let repeated = repeated.settlements();
     assert_eq!(settlements.len(), 2);
     for ((settlement, repeated), plan) in settlements
@@ -311,10 +311,10 @@ fn derives_only_demanded_imports_with_exact_plan_and_stack_custody() {
 fn supplied_imports_preserve_evidence_and_caller_order() {
     let plans = [import_plan("first"), import_plan("second")];
     let demanded = BTreeSet::from(["first".to_owned(), "second".to_owned()]);
-    let derived = prepare_source_evaluated_imports(&plans, &demanded, &[]).unwrap();
+    let derived = prepare_source_evaluated_bindings(&plans, &demanded, &[]).unwrap();
     let derived = derived.settlements();
     let imports = [supplied(&derived[1]), supplied(&derived[0])];
-    let prepared = prepare_source_evaluated_imports(&plans, &demanded, &imports).unwrap();
+    let prepared = prepare_source_evaluated_bindings(&plans, &demanded, &imports).unwrap();
     let settlements = prepared.settlements();
     assert!(matches!(settlements, Cow::Borrowed(_)));
     assert_eq!(settlements.len(), 2);
@@ -336,25 +336,25 @@ fn supplied_imports_preserve_evidence_and_caller_order() {
 fn supplied_roster_rejects_missing_duplicate_unselected_and_substituted_evidence() {
     let plans = [import_plan("first"), import_plan("second")];
     let demanded = BTreeSet::from(["first".to_owned(), "second".to_owned()]);
-    let derived = prepare_source_evaluated_imports(&plans, &demanded, &[]).unwrap();
+    let derived = prepare_source_evaluated_bindings(&plans, &demanded, &[]).unwrap();
     let derived = derived.settlements();
     let imports = [supplied(&derived[0]), supplied(&derived[1])];
     rejection(
-        prepare_source_evaluated_imports(&plans, &demanded, &imports[..1]),
+        prepare_source_evaluated_bindings(&plans, &demanded, &imports[..1]),
         "demanded import `second` has no supplied execution and stack custody",
     );
     rejection(
-        prepare_source_evaluated_imports(&plans, &demanded, &[imports[0], imports[0]]),
+        prepare_source_evaluated_bindings(&plans, &demanded, &[imports[0], imports[0]]),
         "requirement `first` was supplied more than once",
     );
     rejection(
-        prepare_source_evaluated_imports(&plans, &BTreeSet::from(["first".to_owned()]), &imports),
+        prepare_source_evaluated_bindings(&plans, &BTreeSet::from(["first".to_owned()]), &imports),
         "requirement `second` is not a demanded selected import",
     );
     let mut changed = plans.clone();
     changed[0].name.push_str("::substituted");
     rejection(
-        prepare_source_evaluated_imports(&changed, &demanded, &imports),
+        prepare_source_evaluated_bindings(&changed, &demanded, &imports),
         "execution evidence for `first` names a different provider-plan report coordinate",
     );
 }
@@ -364,17 +364,65 @@ fn demanded_import_must_have_one_selected_row_before_any_evidence_is_derived() {
     let plan = import_plan("first");
     let demanded = BTreeSet::from(["first".to_owned()]);
     rejection(
-        prepare_source_evaluated_imports(&[plan.clone(), plan.clone()], &demanded, &[]),
+        prepare_source_evaluated_bindings(&[plan.clone(), plan.clone()], &demanded, &[]),
         "resolves to 2 selected import plans",
     );
     let mut duplicate = plan.clone();
     duplicate.rows.push(plan.rows[0].clone());
     rejection(
-        prepare_source_evaluated_imports(std::slice::from_ref(&duplicate), &demanded, &[]),
+        prepare_source_evaluated_bindings(std::slice::from_ref(&duplicate), &demanded, &[]),
         "resolves to 2 selected import plans",
     );
     let empty =
-        prepare_source_evaluated_imports(std::slice::from_ref(&duplicate), &BTreeSet::new(), &[])
+        prepare_source_evaluated_bindings(std::slice::from_ref(&duplicate), &BTreeSet::new(), &[])
             .expect("undemanded rows settle nothing");
     assert!(empty.settlements().is_empty());
+}
+
+#[test]
+fn demanded_syscalls_share_preparation_without_fabricating_import_reserves() {
+    let mut syscall = import_plan("kernel");
+    syscall.target = "linux_x86_64".into();
+    syscall.rows[0].binding = ProviderBinding::Syscall { number: 7 };
+    let plans = [
+        import_plan("foreign"),
+        syscall.clone(),
+        import_plan("unused"),
+    ];
+    let demanded = BTreeSet::from(["foreign".to_owned(), "kernel".to_owned()]);
+    let derived = prepare_source_evaluated_bindings(&plans, &demanded, &[]).unwrap();
+    let settlements = derived.settlements();
+    assert_eq!(settlements.len(), 2);
+    assert_eq!(stack(&settlements[0]).bytes(), 256 * 1024);
+    assert!(matches!(
+        settlements[1].realization,
+        NativeBoundaryRealization::SystemCall
+    ));
+    assert!(std::ptr::eq(settlements[1].provider_plan, &plans[1]));
+    assert_eq!(
+        settlements[1].provider_execution.requirement_identity(),
+        "kernel"
+    );
+    let imported = [supplied(&settlements[0])];
+    let external = prepare_source_evaluated_bindings(&plans, &demanded, &imported).unwrap();
+    let external = external.settlements();
+    assert!(std::ptr::eq(
+        external[0].provider_execution,
+        settlements[0].provider_execution
+    ));
+    assert!(matches!(
+        external[1].realization,
+        NativeBoundaryRealization::SystemCall
+    ));
+    assert_eq!(
+        external[1]
+            .provider_execution
+            .provider_execution_report_fingerprint(),
+        settlements[1]
+            .provider_execution
+            .provider_execution_report_fingerprint()
+    );
+    assert!(
+        prepare_source_evaluated_bindings(&[syscall.clone(), syscall], &demanded, &[]).is_err()
+    );
 }
