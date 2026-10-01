@@ -59,10 +59,13 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     Some(local)
 }
 
-/// Find only mutable owned structural storage declared before this
-/// occurrence: a `let mut` whose plain contents the unit sequence
-/// establishes (by initializer or by zeroing), never a primitive or a
-/// borrow. This is the local-rooted twin of the parameter check below.
+/// Find only owned structural storage declared before this occurrence: a
+/// local whose plain contents the unit sequence establishes (by initializer
+/// or by zeroing), never a primitive or a borrow. This is the local-rooted
+/// twin of the parameter check below. Both callers write a member or an
+/// element, never the whole local, and `mut` grants only whole-binding
+/// replacement, so `let padded: [u8; 11]; padded[0] = title[0];` writes its
+/// element without it, as the structural lane's owned local root already does.
 fn structural_local_before<'program>(
     program: &'program TypedTrees,
     state: &typed_trees::state::State,
@@ -72,10 +75,9 @@ fn structural_local_before<'program>(
     let (_, local) = program
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if !local.is_mutable
-        || program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
+    if program
+        .primitive_type_reference(local.type_reference)
+        .is_some()
         || !validation::has_plain_owned_contents_with_numeric_constraints(
             program,
             local.type_reference,

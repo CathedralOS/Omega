@@ -1733,6 +1733,7 @@ pass/layouts/runtime_size_of_align_of_exit checked 1659ms @2d8ed253669f
 pass/locals/mutable_local_call_initializer_exit checked 1412ms @2d8ed253669f
 pass/locals/mutable_local_call_reassignment_exit checked 1238ms @2d8ed253669f
 pass/locals/runtime_deferred_scalar_initialization_exit checked 1194ms @2d8ed253669f
+pass/locals/runtime_local_array_member_stores_without_mut_exit checked 1639ms @b077958d6785+wt
 pass/memory/address_translation_canary checked 359ms @2d8ed253669f
 pass/memory/bump_allocator_canary checked 1011ms @2d8ed253669f
 pass/memory/interrupt_table_canary checked 1010ms @2d8ed253669f

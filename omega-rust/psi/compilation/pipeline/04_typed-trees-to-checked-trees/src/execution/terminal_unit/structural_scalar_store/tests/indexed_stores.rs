@@ -65,3 +65,70 @@ fn computed_u32_selector_retains_its_runtime_element() {
         ]
     );
 }
+
+/// `mut` grants whole-binding replacement only, so an element store into an
+/// established local array that is not `mut` keeps the local's own root and
+/// literal element instead of declining for want of a parameter loan.
+#[test]
+fn an_element_store_into_a_local_array_needs_no_mut() {
+    let checked = checked_program(
+        r#"
+        machine pad(title: [u8; 3]) {
+            let padded: [u8; 4];
+            padded[2] = title[1];
+        }
+    "#,
+    );
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "pad")
+        .unwrap();
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine.symbol)
+            .is_none(),
+        "the element store composes into the machine's unit plan"
+    );
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = ShapeCollector::new(program);
+    let (structural, scalar) =
+        crate::execution::terminal_unit::calls::free_structural_scalar_signature(
+            program,
+            &mut shapes,
+            state,
+            &machine_binders(program, machine),
+        )
+        .expect("free signature");
+    let stores = build_structural_scalar_field_store_sequence(
+        program,
+        &checked.facts,
+        machine,
+        state,
+        &structural,
+        &scalar,
+        0,
+        None,
+    )
+    .expect("the local element store composes");
+    let [
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            destination: checked_trees::CheckedStoreRoot::Local { .. },
+            path,
+            ..
+        },
+    ] = stores.as_slice()
+    else {
+        panic!("one owned-local element store: {stores:#?}");
+    };
+    assert_eq!(
+        path.as_slice(),
+        [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            2
+        )]
+    );
+}
