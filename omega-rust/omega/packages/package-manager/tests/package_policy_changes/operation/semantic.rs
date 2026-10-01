@@ -7,8 +7,12 @@ use super::{
 mod fixture_roster;
 
 // Existing package_reconstruction_question fixture: ordinary exit checking
-// preserves this assumption, but polynomial entailment cannot represent min.
-const OPEN_CONTRACT: &str = "pub machine unchecked_claim(left: u64, right: u64)\nrequires min(left, right) >= 1\nensures min(left, right) >= 1\n{}\n";
+// proves the guarantee through its transparent proposition, but a
+// proposition guarantee stands down from contract entailment and package exit
+// evidence covers only domain memberships and scalar predicates, so the
+// obligation stays open. A bare `min(left, right) >= 1` guarantee now closes
+// by exit evidence.
+const OPEN_CONTRACT: &str = "pub proposition paired(left: u64, right: u64) = min(left, right) >= 1;\n\npub machine unchecked_claim(left: u64, right: u64)\nrequires paired(left, right)\nensures paired(left, right)\n{}\n";
 
 #[test]
 fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
