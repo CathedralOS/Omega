@@ -77,6 +77,30 @@ pub fn recast_scalar_projection(
     carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
     field: symbols::SymbolHandle,
 ) -> Option<RecastScalarProjection> {
+    let mut path = recast_projection_path(program, root, carrier_path)?;
+    // The field-ending API retains the exact authored symbol, not merely a
+    // same-spelled member of the selected carrier.
+    path.push(RepresentationSegment::Field(field));
+    normalized_scalar_projection(program, root, &path)
+}
+
+/// Resolve a complete scalar-leaf path, including fixed-array endpoints, using
+/// the normalized recast geometry. Runtime selectors require separately
+/// retained values and are not geometry supplied by this query.
+pub fn recast_scalar_path_projection(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    scalar_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<RecastScalarProjection> {
+    let path = recast_projection_path(program, root, scalar_path)?;
+    normalized_scalar_projection(program, root, &path)
+}
+
+fn recast_projection_path(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<RepresentationSegment>> {
     let mut carrier = root;
     let mut path = Vec::new();
     for segment in carrier_path {
@@ -125,7 +149,14 @@ pub fn recast_scalar_projection(
         path.push(RepresentationSegment::Field(selected.symbol));
         carrier = selected.type_reference;
     }
-    path.push(RepresentationSegment::Field(field));
+    Some(path)
+}
+
+fn normalized_scalar_projection(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    path: &[RepresentationSegment],
+) -> Option<RecastScalarProjection> {
     let representation = shared_projection_type_representation(program, root)?;
     let leaf = representation
         .leaves

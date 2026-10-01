@@ -64,7 +64,7 @@ mod record_eligibility;
 mod record_representation;
 pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastScalarProjection, recast_record_source_leaf,
-    recast_scalar_projection,
+    recast_scalar_path_projection, recast_scalar_projection,
 };
 mod representation_types;
 mod scalar_representation;
