@@ -235,7 +235,6 @@ pub(crate) fn evaluate_direct_expression(
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
         | LoweredDirectExpression::IndexedElementFieldRead { .. }
-        | LoweredDirectExpression::ByteCarrierFieldRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }
@@ -462,8 +461,7 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
-        | LoweredBooleanReturnExpression::StructuralField { .. }
-        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. } => None,
+        | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(
             !evaluate_compile_known_boolean_expression(operand, parameters)?,
         ),

@@ -46,6 +46,90 @@ struct MutableRecordLeaf {
     offset: usize,
     size: usize,
     facts: MutableScalarRepresentationFacts,
+    path: Vec<RepresentationSegment>,
+    primitive: typed_trees::types::PrimitiveType,
+    stored_integer: Option<(u16, layout_plans::IntegerInterpretation)>,
+    byte_projection: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RepresentationSegment {
+    Field(symbols::SymbolHandle),
+    Element(usize),
+}
+
+/// A scalar observation's physical geometry, derived by the same normalization
+/// that checks recast compatibility. This describes storage, not loan authority.
+pub struct RecastScalarProjection {
+    pub offset: usize,
+    pub footprint: usize,
+    pub primitive: typed_trees::types::PrimitiveType,
+    pub stored_integer: Option<semantic_vocabulary::IntegerType>,
+}
+
+/// Resolve an already checked record path under its exact field owners, then
+/// select its normalized leaf. Keeping field identities on normalization leaves
+/// avoids another layout calculator in source-to-Terminal projection lowering.
+pub fn recast_scalar_projection(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    carrier_path: &[String],
+    field: symbols::SymbolHandle,
+) -> Option<RecastScalarProjection> {
+    let mut carrier = root;
+    let mut path = Vec::new();
+    for identity in carrier_path {
+        let owner = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            program.type_reference_symbol(carrier),
+        )?;
+        let mut fields = program
+            .data_members(owner)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Field(candidate)
+                    if !candidate.relevance.is_erased()
+                        && candidate.path_identity() == *identity =>
+                {
+                    Some(candidate)
+                }
+                _ => None,
+            });
+        let selected = fields.next()?;
+        if fields.next().is_some() {
+            return None;
+        }
+        path.push(RepresentationSegment::Field(selected.symbol));
+        carrier = selected.type_reference;
+    }
+    path.push(RepresentationSegment::Field(field));
+    let representation = shared_projection_type_representation(program, root)?;
+    let leaf = representation
+        .leaves
+        .iter()
+        .find(|leaf| leaf.path == path)?;
+    if !leaf.byte_projection {
+        return None;
+    }
+    Some(RecastScalarProjection {
+        offset: leaf.offset,
+        footprint: representation.size,
+        primitive: leaf.primitive,
+        stored_integer: match leaf.stored_integer {
+            Some((width, interpretation)) => {
+                let sign = match interpretation {
+                    layout_plans::IntegerInterpretation::Signed => {
+                        semantic_vocabulary::IntegerSign::Signed
+                    }
+                    layout_plans::IntegerInterpretation::Unsigned => {
+                        semantic_vocabulary::IntegerSign::Unsigned
+                    }
+                };
+                Some(semantic_vocabulary::IntegerType::new(sign, width).ok()?)
+            }
+            None => None,
+        },
+    })
 }
 
 pub(super) fn mutable_type_representation(
@@ -214,7 +298,17 @@ fn mutable_record_representation_inner_body(
             field.size = stored_size;
             field.align = field.align.min(stored_size.max(1));
             field.leaves[0].size = stored_size;
+            field.leaves[0].stored_integer = Some((
+                integer_field.stored_width_bits,
+                integer_field.interpretation,
+            ));
             has_stored_integer_projection = true;
+        }
+        // An offset and width cannot replace a fragmented bit recipe.
+        for bit_field in &plan.bit_fields {
+            for leaf in &mut fields.get_mut(bit_field.field_index)?.leaves {
+                leaf.byte_projection = false;
+            }
         }
         for repeated_field in &plan.repeated_fields {
             let field_type = *field_types.get(repeated_field.field_index)?;
@@ -273,9 +367,10 @@ fn mutable_record_representation_inner_body(
     budget.consume(leaf_count)?;
     let mut leaves = Vec::new();
     leaves.try_reserve_exact(leaf_count).ok()?;
-    for (field, field_offset) in fields.into_iter().zip(offsets) {
+    for ((field, field_offset), symbol) in fields.into_iter().zip(offsets).zip(field_symbols) {
         for mut leaf in field.leaves {
             leaf.offset = leaf.offset.checked_add(field_offset)?;
+            leaf.path.insert(0, RepresentationSegment::Field(symbol));
             leaves.push(leaf);
         }
     }
@@ -326,6 +421,10 @@ fn mutable_record_type_representation_body(
             offset: 0,
             size,
             facts: mutable_scalar_representation_facts(program, type_reference)?,
+            path: Vec::new(),
+            primitive,
+            stored_integer: None,
+            byte_projection: true,
         });
         return Some(MutableRecordRepresentation {
             size,
@@ -355,11 +454,10 @@ fn mutable_record_type_representation_body(
             for index in 0..*length {
                 let element_offset = element.size.checked_mul(index)?;
                 for leaf in &element.leaves {
-                    leaves.push(MutableRecordLeaf {
-                        offset: leaf.offset.checked_add(element_offset)?,
-                        size: leaf.size,
-                        facts: leaf.facts.clone(),
-                    });
+                    let mut projected = leaf.clone();
+                    projected.path.insert(0, RepresentationSegment::Element(index));
+                    projected.offset = leaf.offset.checked_add(element_offset)?;
+                    leaves.push(projected);
                 }
             }
             Some(MutableRecordRepresentation {
@@ -448,11 +546,12 @@ pub(super) fn repeat_representation(
     for index in 0..count {
         let base = element.size.checked_mul(index)?;
         for leaf in &element.leaves {
-            leaves.push(MutableRecordLeaf {
-                offset: base.checked_add(leaf.offset)?,
-                size: leaf.size,
-                facts: leaf.facts.clone(),
-            });
+            let mut projected = leaf.clone();
+            projected
+                .path
+                .insert(0, RepresentationSegment::Element(index));
+            projected.offset = base.checked_add(leaf.offset)?;
+            leaves.push(projected);
         }
     }
     Some(MutableRecordRepresentation {
@@ -484,11 +583,12 @@ fn repeat_representation_with_stride(
     for index in 0..count {
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
-            leaves.push(MutableRecordLeaf {
-                offset: base.checked_add(leaf.offset)?,
-                size: leaf.size,
-                facts: leaf.facts.clone(),
-            });
+            let mut projected = leaf.clone();
+            projected
+                .path
+                .insert(0, RepresentationSegment::Element(index));
+            projected.offset = base.checked_add(leaf.offset)?;
+            leaves.push(projected);
         }
     }
     Some(MutableRecordRepresentation {
