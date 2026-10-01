@@ -165,13 +165,11 @@ the complete product bar; focused successes below do not establish that baseline
     (`transition self.items[self.w] { Color::Red -> .. }`) as a
     `StructuralCaseMembership` whose path carries the runtime element
     ([structural access](wiki/spec/terminal-psi/structural_access.md#case-observation));
-    `entity_list` exits 35 and
+    `entity_list` exits 35, `bouncing_particles` meets its oracle, and
     `pass/control_flow/runtime_indexed_case_dispatch_exit` exits 2 on macOS
-    arm64. Remaining: `bouncing_particles` checks its reads and, with std
-    `Clock`, stops at `OperationProofUnavailable` for obligation 2^63 + 9; Boolean
-    element fields, which Terminal and Omega admit but stage 04's
-    `view_element_field_read` does not produce; bounded and IEEE element
-    fields.
+    arm64. Remaining: Boolean element fields, which Terminal and Omega admit
+    but stage 04's `view_element_field_read` does not produce; bounded and
+    IEEE element fields.
 
     Float field observation needs the same typed-read design, not another
     integer/Boolean-shaped copy. Store admission already accepts structural
@@ -627,11 +625,12 @@ the complete product bar; focused successes below do not establish that baseline
   1200` records 127 of 142 scored samples meeting their documented oracles
   (149 samples; 6 document no oracle and `uefi_hello` is not host-runnable).
   None built with a wrong exit or output, and no package review timed out.
-  The 15 that build no native program are the rows below.
+  The 15 that build no native program are the rows below, less
+  `bouncing_particles`, which the proof-search containment repair now runs
+  natively (exit 0).
 
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
-  | `rendering/bouncing_particles` | With std `Clock` on macOS ARM64 its package review takes 6 s, and `omega run` stops after 12 s at `OperationProofUnavailable` for Unit call obligation 2^63 + 9 with no provision exceeded (it previously exhausted `proof_search_candidate_work` on the same obligation). That obligation is `plot_set`'s `self.grid[self.b * 20 + self.a] = 1` bound, `v78 < 200` for `v78 = (wrapping (b * 20) + a) as u64`; the incoming guard from `plot_cell` supplies `0 <= v64` and `v70 < 200` over the same wrapping expression of the unchanged fields `a` and `b`, so the proof needs the store's recomputed index identified with the guard's equal terms. `collections/entity_list`, formerly in this row, meets its oracle. |
   | std `Clock` on Linux hosts (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`) | Both linux `nanosleep` leaves stop target lowering with `MissingBoundarySettlement`: provider admission classifies an authored syscall leaf's mechanism but settles no native realization for it. Then linux_x86_64 can take the darwin leg's shape, a checked adapter over a std-private wait requirement, through the integer-only `poll` syscall (7); linux_arm64 has only `ppoll` and `nanosleep`, whose `timespec*` needs a pointer argument that syscall plans do not admit. |
   | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operations: the generated decoder's whole-referent `verdict = WireVerdict::Sound` store, then the codec states' view-length arrivals (**TERMINAL-SLICE-VIEW-VOCABULARY**). |
   | `gui/{image_viewer,window_app,window_demo}` | At `0d3a0f15b72` plus the borrowed-reference boundary plans on macOS ARM64, `sample_native_gate.py --filter gui/window_demo,gui/window_app,gui/windowed_calculator --jobs 3 --timeout 1800` builds none of the three. Borrowed `&u8`/`&i32` requirements (`ObjectiveC::get_class`, `register_selector`, `send_string`, `send_byte_string`, `CoreGraphics::bitmap_context`) now have boundary plans, and a provider body's forwarded `&u8` loan and fixed element `&words.bytes[2]` reach libSystem `_strlen` natively (`pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit`, exit **70**). `window_demo` and `windowed_calculator` stop in stage 05 `structural_calls/result_uses.rs` ("Unit structural result argument has invalid claim-free custody") at `objc_get_class(&cbuf1[0])`, a shared loan of a local array's fixed element. Ordinary scalar callees now read through `&u8` formals and affine local records lend single leaves (`pass/calls/{scalar_callee_borrowed_primitive_reads_exit,local_record_leaf_loan_scalar_calls_exit}`, exit **70**), but trusted Terminal verification still refuses every element loan rooted at a local array, ordinary or boundary: `validation/operations.rs` admits an owned scalar-array payload source only with an empty path (`ScalarArrayResultMismatch`) and `argument_checks.rs` resolves no projected path on an `EstablishScalarArray` result (`UnknownStructuralArgument`); then `attached_unit/parameters.rs` ("invalid checked custody"); the by-value parameter element `&title[0]` next stops at "primitive array parameter requires exact whole owned transport", and Omega's normalized foreign call still admits only caller-parameter-rooted loans, not a local array's structural home. `window_app` composes `let padded: [u8; 11]; padded[0] = title[0];` (`pass/locals/runtime_local_array_member_stores_without_mut_exit`, exit **70**) and stops at stage 05's `call_catalog.rs` fence: "write-only stores and atomic events in opaque provider candidates require a pinned non-observation judgment". The providers' fields remain owner question `provider-private-state-home`. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the argument/result matrix. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
@@ -3401,35 +3400,33 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Finish aggregate
   proof-search accounting and [outcome publication](wiki/spec/proofs/publication.md#outcomes).
-  Reuse c2l's `proofs/operation_proofs.rs` machine preparation cache and
-  `scalar_block_invariants.rs` verdict cache, shared roster-round/candidate
-  budgets and cyclic-guarantee budget. Their exhaustion reaches
-  `ProofSearchCapacityExhausted`, whose `ExceededProvision` publishes the
-  compiler request's `Incomplete` outcome (batch row tag 2, `omega` exit 2);
-  source-derived tests already distinguish a declined inference budget from
-  invalid source. The computed-selector guard is gone, and the committed macOS
-  snapshot records `runtime_hoisted_index_write_exit` running at exit 7.
+  Every named proof-search provision, including the divisor certificate
+  search's, declines into `ProofSearchCapacityExhausted`, whose
+  `ExceededProvision` publishes the compiler request's `Incomplete` outcome
+  (batch row tag 2, `omega` exit 2, `omega run` status 202) under its
+  [compiler-request](wiki/spec/build/compiler_request.md) scalar-resource row,
+  codes 27 to 34. Source-derived tests distinguish a declined inference
+  budget from invalid source. `OMEGA_PROOF_TIMINGS=1` prints each verdict and
+  operation search's time, each roster arrival's verdict, and the discovery
+  pool left after each producer.
 
-  Remaining work: `nonzero_divisor_certificate/integer_selection/direct_add/conjunction`
-  discards its usage and turns exhaustion into `None`. Carry such declines
-  through fallback search and finalization when no other route proves the
-  obligation. The [compiler-request](wiki/spec/build/compiler_request.md)
-  scalar-resource table has no rows for `proof_search_result_guarantee_work`
-  (the resource `pass/filesystem/native_metadata_ino` exhausts on linux_x86_64,
-  the only golden `incomplete` row) or `proof_obligation_identities`, and its
-  code 28 limit (4,096) disagrees with the reference compiler's 65,536. `omega
-  run` still reports `Incomplete` as 200.
-  Complete production-path exhaustion controls beyond the existing helper-budget
-  tests, retaining independent certificate verification.
+  Remaining work: refused roster verdicts still grow with scope size. On
+  macOS ARM64 (debug), `cellular_automaton`'s roster pass takes 239 s of its
+  373 s compile and run over 26 proof rounds; its 321 refusals average 3.4 s
+  at 300 axioms, 7.1 s at 400 and 13.3 s at 600, and every round re-proves
+  each arrival under that round's axioms. Remove that growth rather than
+  raising provisions. `tests/bootstrap/ocreq-tables.sh` reports codes 27 to
+  34 unprojected in the `bootstrap/5_omega` outcome tables. Complete
+  production-path exhaustion controls beyond the existing helper-budget tests,
+  retaining independent certificate verification.
 
   Rebaseline **RC-PCC-REPLAY**'s terminated case and the computed-selector
-  customer with `OMEGA_PROOF_TIMINGS=1`. Measure aggregate reconstruction/search
-  work and certificate size; remove remaining demonstrated duplication/growth
-  instead of using caps to hide it. Acceptance requires completed source checks,
-  accounted bounded work, and resource exhaustion reported as `Incomplete`
-  through publication. Invalid evidence still rejects; missing evidence cannot
-  authorize acceptance. [Kernel budgets](wiki/spec/proofs/kernel_metatheory.md)
-  remain implementation policy, not narrower language semantics.
+  customer with `OMEGA_PROOF_TIMINGS=1`, and measure certificate size.
+  Acceptance requires completed source checks, accounted bounded work, and
+  resource exhaustion reported as `Incomplete` through publication. Invalid
+  evidence still rejects; missing evidence cannot authorize acceptance.
+  [Kernel budgets](wiki/spec/proofs/kernel_metatheory.md) remain
+  implementation policy, not narrower language semantics.
 
 - **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics through
   [machine contracts and witness/law bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)

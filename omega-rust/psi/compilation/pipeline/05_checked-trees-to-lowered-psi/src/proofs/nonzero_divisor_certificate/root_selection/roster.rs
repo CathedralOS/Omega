@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, ValueId};
 
 use super::super::integer_evidence::{Citation, cited_facts};
 use super::super::scope_identity::{self, ScopeDerived};
@@ -132,27 +132,43 @@ pub(super) fn value_aliases<'a>(request: Request<'a>) -> impl Iterator<Item = Ci
         .filter(|(_, _, root, alias)| root != alias && is_value(root) && is_value(alias))
 }
 
-/// Value-keyed candidates in insertion order.
+/// Term-keyed candidates in insertion order. Root sources look up value
+/// terms many times per goal, so values key by identity and carrier rather
+/// than by a whole-term comparison; other terms key by the whole term.
 pub(super) struct ValueIndex<T> {
-    by_value: BTreeMap<ScalarTerm, Vec<T>>,
+    by_value: BTreeMap<(ValueId, ScalarType), Vec<T>>,
+    by_term: BTreeMap<ScalarTerm, Vec<T>>,
 }
 
 impl<T> ValueIndex<T> {
     pub(super) fn new() -> Self {
         Self {
             by_value: BTreeMap::new(),
+            by_term: BTreeMap::new(),
         }
     }
 
-    pub(super) fn push(&mut self, value: &ScalarTerm, candidate: T) {
-        self.by_value
-            .entry(value.clone())
-            .or_default()
-            .push(candidate);
+    pub(super) fn push(&mut self, term: &ScalarTerm, candidate: T) {
+        match term {
+            ScalarTerm::Value { id, scalar_type } => self
+                .by_value
+                .entry((*id, *scalar_type))
+                .or_default()
+                .push(candidate),
+            _ => self
+                .by_term
+                .entry(term.clone())
+                .or_default()
+                .push(candidate),
+        }
     }
 
-    pub(super) fn candidates(&self, value: &ScalarTerm) -> &[T] {
-        self.by_value.get(value).map(Vec::as_slice).unwrap_or(&[])
+    pub(super) fn candidates(&self, term: &ScalarTerm) -> &[T] {
+        let candidates = match term {
+            ScalarTerm::Value { id, scalar_type } => self.by_value.get(&(*id, *scalar_type)),
+            _ => self.by_term.get(term),
+        };
+        candidates.map(Vec::as_slice).unwrap_or(&[])
     }
 }
 

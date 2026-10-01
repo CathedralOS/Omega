@@ -20,7 +20,7 @@
 use std::collections::BTreeMap;
 
 use proof_admission::ProofNode;
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::affine_custody::{self, DefinitionIndex};
 use super::cast_custody;
@@ -108,8 +108,11 @@ trait Complete {
 struct Selection<'request, 'completion> {
     request: Request<'request>,
     completion: Completion<'completion>,
-    /// Affine custody's admission answers by root.
-    admitted: BTreeMap<ScalarTerm, bool>,
+    /// Affine custody's admission answers by root: value roots by identity,
+    /// which every source asks about many times per goal, and other roots by
+    /// their whole term.
+    admitted_values: BTreeMap<ValueId, bool>,
+    admitted_terms: BTreeMap<ScalarTerm, bool>,
     /// Cast custody's admitted roots, resolved at the first question: a
     /// goal's cast chains are few and short, while sources ask about every
     /// equality endpoint in the scope.
@@ -130,7 +133,11 @@ impl Complete for Selection<'_, '_> {
                 })
                 .contains(root),
             Completion::AffineCustody(definitions) => {
-                if let Some(&admitted) = self.admitted.get(root) {
+                let known = match root {
+                    ScalarTerm::Value { id, .. } => self.admitted_values.get(id),
+                    _ => self.admitted_terms.get(root),
+                };
+                if let Some(&admitted) = known {
                     return admitted;
                 }
                 let admitted = affine_custody::reaches_goal(
@@ -140,7 +147,14 @@ impl Complete for Selection<'_, '_> {
                     definitions,
                     root,
                 );
-                self.admitted.insert(root.clone(), admitted);
+                match root {
+                    ScalarTerm::Value { id, .. } => {
+                        self.admitted_values.insert(*id, admitted);
+                    }
+                    _ => {
+                        self.admitted_terms.insert(root.clone(), admitted);
+                    }
+                }
                 admitted
             }
         }
@@ -261,7 +275,8 @@ fn select(request: Request, sources: &[RootSource], completion: Completion) -> O
     let mut selection = Selection {
         request,
         completion,
-        admitted: BTreeMap::new(),
+        admitted_values: BTreeMap::new(),
+        admitted_terms: BTreeMap::new(),
         cast_roots: None,
     };
     sources
