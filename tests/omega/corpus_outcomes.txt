@@ -1553,6 +1553,7 @@ pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
 pass/domains/unit_membership_postcondition_exit checked 3141ms @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
 pass/domains/utf8_equals_literal_exit checked 1773ms @55e0349c204c+wt
+pass/domains/utf8_equals_literal_mismatch_exit checked 659ms @54a65e21a512+wt
 pass/domains/utf8_field_read_carries_domain_exit rejected 748ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
 pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
