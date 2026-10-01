@@ -286,7 +286,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
             (projected.root, projected.path, carrier)
         }
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
-            let Some(StatementNode::Call(source)) = checked
+            let Some(statement @ StatementNode::Call(source)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
                 .get(coordinate.statement_index as usize)
@@ -311,7 +311,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
                 return unsupported("binding receiver changed its parameter or field identity");
             }
             let (root, path) = crate::unit::attached_unit::statement_receiver_path(
-                checked, machine, state, source,
+                checked, machine, state, statement,
             )?;
             // The shared path validator has checked the endpoint against its
             // exact declared owner. Recover that field's type, not its spelling.
@@ -482,14 +482,23 @@ pub(crate) fn validate_operation(
                 .typed
                 .statement_table
                 .statements(state.statement_nodes);
-            if let Some(checked_trees::statement::StatementNode::Assignment(_)) =
-                statements.get(result.statement_index as usize)
-            {
-                // A store consuming its own statement's call product has no
-                // authored local binding; the consuming store's ScalarResult
-                // lane rejoins the value by dense scalar position. The authored
-                // assignment's right-hand side is this call, so its exact
-                // signature still pins the stored result.
+            let statement = statements.get(result.statement_index as usize);
+            let statement_result =
+                matches!(
+                    statement,
+                    Some(checked_trees::statement::StatementNode::Assignment(_))
+                ) || (matches!(
+                    statement,
+                    Some(checked_trees::statement::StatementNode::Transition(_))
+                ) && authored::locate_source(checked, caller_state, coordinate)?
+                    .source_site
+                    .is_none());
+            if statement_result {
+                // Stores and named terminal invocations consume the call's
+                // product directly, without an authored scalar local. Rejoin
+                // its exact signature here; the store or completion owner
+                // independently checks which result it consumes. A nested
+                // guard/operand call still has its own expression use-site.
                 let call = authored::locate_source(checked, caller_state, coordinate)?;
                 let target =
                     authored::target_signature(checked, caller_machine, call.source_target)?;
@@ -497,7 +506,7 @@ pub(crate) fn validate_operation(
                     || checked.primitive_type_reference(target.return_type)
                         != Some(result.primitive_type)
                 {
-                    return unsupported("stored scalar result changed its authored signature");
+                    return unsupported("statement scalar result changed its authored signature");
                 }
             } else {
                 // A final scalar call owns the return expression, not an invented
@@ -540,14 +549,25 @@ pub(crate) fn validate_operation(
     // A boundary call retains no erased lane.
     let erased_arguments = planned.erased_scalar_arguments().unwrap_or_default();
     let boundary = planned.is_boundary();
-    // Only scalar calls and boundary structural calls rejoin their
-    // initializer computations here.
+    let call = authored::locate(
+        checked,
+        caller_machine,
+        caller_state,
+        coordinate,
+        planned.target.machine,
+        planned.target.state,
+    )?;
+    // A named terminal invocation has no initializer expression. Its exact
+    // statement target and signature were rejoined above; every operand and
+    // nested call still rejoins its checked source below. Expression-result
+    // calls additionally retain their initializer's captured outer occurrence.
     let initializer_owner = match planned.result() {
         CheckedUnitCallResult::Unit => false,
         CheckedUnitCallResult::Scalar(_) => true,
         CheckedUnitCallResult::Structural { .. } => boundary,
     };
     if initializer_owner
+        && call.source_site.is_some()
         && coordinate.call_ordinal == 0
         && arguments.iter().any(|argument| {
             matches!(
@@ -558,14 +578,6 @@ pub(crate) fn validate_operation(
     {
         initializers::validate(checked, caller_machine, caller_state, coordinate)?;
     }
-    let call = authored::locate(
-        checked,
-        caller_machine,
-        caller_state,
-        coordinate,
-        planned.target.machine,
-        planned.target.state,
-    )?;
     if boundary {
         validate_parameter_binding_receiver(
             checked,

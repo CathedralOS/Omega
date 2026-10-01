@@ -264,21 +264,30 @@ fn validate_statement_receiver(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
-    let Some(checked_trees::NominalMachineUseSite::Statement(_)) = source_site else {
-        return unsupported("scalar wrapper parameter has no exact authored argument");
-    };
-    let Some(checked_trees::statement::StatementNode::Call(call)) = checked
+    let Some(statement) = checked
         .statement_table
         .statements(source_state.statement_nodes)
         .get(coordinate.statement_index as usize)
     else {
         return unsupported("scalar wrapper receiver lost its authored statement call");
     };
-    if !parameter.is_self || call.receiver.is_empty() {
+    if !parameter.is_self
+        || !matches!(
+            (source_site, statement),
+            (
+                Some(checked_trees::NominalMachineUseSite::Statement(_)),
+                checked_trees::statement::StatementNode::Call(_)
+            ) | (None, checked_trees::statement::StatementNode::Transition(_))
+        )
+    {
         return unsupported("scalar wrapper parameter has no exact authored argument");
     }
-    let (root, path) =
-        super::parameters::statement_receiver_path(checked, source_machine, source_state, call)?;
+    let (root, path) = super::parameters::statement_receiver_path(
+        checked,
+        source_machine,
+        source_state,
+        statement,
+    )?;
     let source_index = argument
         .source_parameter_index()
         .ok_or(LoweringError::Unsupported(

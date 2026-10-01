@@ -5,6 +5,134 @@ use super::{
 };
 use crate::scalar_graph::PrimitiveType;
 
+const DISTANCE_CALL: &str = r#"
+        data Main {}
+        machine Main::evaluate(&mut self) -> u64 {
+            transition { _ -> self.walk(4, 0) }
+        }
+        machine Main::walk(&mut self, limit: u64, index: u64)
+        terminates by (index, limit) -> Nat::BoundedDistance;
+        -> u64 {
+            transition index < limit {
+                true -> walk(limit, index + 1)
+                false -> index
+            }
+        }
+        "#;
+
+#[test]
+fn bounded_distance_callee_retains_its_rank_behind_an_unranked_caller() {
+    assert_distance_call(DISTANCE_CALL, 4);
+}
+
+#[test]
+fn increasing_call_after_local_computation_preserves_an_already_crossed_bound() {
+    let source = DISTANCE_CALL
+        .replace(
+            "(index, limit) -> Nat::BoundedDistance",
+            "index -> Nat::IncreasingTo(limit)",
+        )
+        .replace(
+            "transition { _ -> self.walk(4, 0) }",
+            "let start: u64 = 3; transition { _ -> self.walk(2, start + 4) }",
+        );
+    assert_distance_call(&source, 7);
+}
+
+fn assert_distance_call(source: &str, expected: u128) {
+    let checked = crate::front_end::checked_program(source);
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Main::evaluate"),
+    )
+    .expect("a terminal call retains the callee's bounded-distance judgment");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the callee's distance rank independently verifies");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let receiver = terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let executed = terminal_interpreter::interpret_terminal_artifact_measured(
+        &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs {
+            arguments: &[receiver],
+            ..Default::default()
+        },
+        &mut terminal_interpreter::AcceptTerminalEffects,
+    )
+    .expect("the serialized caller and ranked callee execute without source");
+    assert!(matches!(
+        executed.value(),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            }
+        ) if value == expected
+    ));
+    let mut missing_proof = lowered.proof_bundle.clone();
+    missing_proof.control_cycles.clear();
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing_proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "the ordinary call boundary cannot erase the callee's rank proof"
+    );
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let evaluate = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::evaluate")
+            .unwrap()
+            .symbol;
+        let caller = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == evaluate)
+            .expect("ordinary caller");
+        let result = caller
+            .scalar_result
+            .as_mut()
+            .expect("terminal scalar call result");
+        if mutation == 0 {
+            result.binding_ordinal += 1;
+        } else {
+            result.statement_index += 1;
+        }
+        assert!(
+            crate::lower_machine(
+                &changed,
+                crate::TerminalMachineSelection::Name("Main::evaluate")
+            )
+            .is_err(),
+            "a different result or source occurrence cannot complete the caller"
+        );
+    }
+}
+
 const MUTUAL_RANK_TRANSPORT: &str = r#"
     data Main {}
     machine Main::main(main: &mut Main) -> u32 {
@@ -857,18 +985,14 @@ fn an_interior_header_keeps_its_owners_authored_ranking_obligation() {
         .iter()
         .find(|machine| machine.name.as_str() == "Main::evaluate")
         .expect("evaluate");
-    let graph = fused
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(evaluate.symbol)
-        .expect("fused scalar graph");
-    assert!(graph.states.len() > 1, "walk fuses into evaluate's graph");
-    assert!(matches!(
-        prepare(&fused, graph, &[], &[], &mut 10),
-        Err(LoweringError::Unsupported(
-            "scalar loop header's ranking witness has no graph judgment"
-        ))
-    ));
+    assert!(
+        fused
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(evaluate.symbol)
+            .is_none(),
+        "unsupported fusion must leave the callee's ordinary proof boundary intact"
+    );
 }
 use checked_trees::expression::ExpressionNode;

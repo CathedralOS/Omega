@@ -1037,7 +1037,13 @@ the complete product bar; focused successes below do not establish that baseline
   Quotient/remainder, left/right shift and bitwise-AND actuals already use
   `install_nonpolynomial_terms`; `rank_ranges/{call_components,field_endpoint_arithmetic}.rs`
   checks exact substitution, nested operations, shift widths, signed floor-shift
-  and two's-complement mask bounds. Ordinary callee requirements accept stable
+  and two's-complement mask bounds. The unchanged
+  `control_flow/termination_index_distance_compile` customer executes natively
+  with exit 0 on macOS ARM64: an unranked caller retains the ranked callee's
+  ordinary call boundary. Source-free Terminal execution checks returned values
+  4 and 7, including an already-crossed bound after a local computation; missing
+  cycle evidence and changed result/source coordinates reject. Keep this control
+  when extending endpoint transport. Ordinary callee requirements accept stable
   saved locals; recursive-component checks still reject local names in
   `meanings::builtin`. Extend that route to
   saved values with exact binding-time identity and write/exposure invalidation.

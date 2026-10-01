@@ -351,17 +351,29 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             && plan.structural_result.is_some())
     });
     composed_machines.retain(|graph| {
-        !matches!(graph.result, checked_trees::CheckedControlResultPlan::Unit)
-            || !candidates.iter().any(|plan| {
-                plan.machine == graph.machine
-                    && graph
-                        .states
-                        .first()
-                        .is_some_and(|state| state.state == plan.state)
-                    && plan.structural_result.is_none()
-                    && plan.scalar_result.is_none()
-                    && plan.scalar_control.is_none()
-            })
+        !candidates.iter().any(|plan| {
+            plan.machine == graph.machine
+                && graph
+                    .states
+                    .first()
+                    .is_some_and(|state| state.state == plan.state)
+                && plan.structural_result.is_none()
+                && match graph.result {
+                    checked_trees::CheckedControlResultPlan::Unit => {
+                        plan.scalar_result.is_none() && plan.scalar_control.is_none()
+                    }
+                    checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+                        plan.scalar_result
+                            .as_ref()
+                            .is_some_and(|result| result.primitive_type == primitive_type)
+                            || plan
+                                .scalar_control
+                                .as_ref()
+                                .is_some_and(|control| control.primitive_type == primitive_type)
+                    }
+                    checked_trees::CheckedControlResultPlan::Structural(_) => false,
+                }
+        })
     });
     omissions.record_dropped(
         &candidates,
