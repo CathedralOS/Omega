@@ -137,6 +137,7 @@ pub(in crate::validation) fn validate_uses(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
                             )
                     })
@@ -164,12 +165,21 @@ pub(in crate::validation) fn validate_uses(
             require(left.source())?;
             require(right.source())
         }
+        OperationKind::ByteSequenceStore {
+            destination,
+            source,
+            ..
+        } => {
+            // A state edge moves exclusive use of a whole owner to its new
+            // block name. A valid payload does not revive an old destination.
+            require(*destination)?;
+            require(*source)
+        }
         OperationKind::ByteSequenceLength { source }
         | OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldStore { source, .. }
-        | OperationKind::ByteSequenceStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),
         OperationKind::ByteSequenceWrite { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. } => require(*destination),

@@ -58,7 +58,7 @@ pub(super) fn validate_declarations(
                     )
                 )
                 || (!declaration.qualifications.is_empty()
-                    && !shared_bounded_owner_loan(module, declaration))
+                    && !bounded_owner_loan(module, declaration))
                 || !declaration.projected_qualifications.is_empty()
                 || !machine.structural_places.iter().any(|place| {
                     place.id == declaration.place
@@ -77,7 +77,7 @@ pub(super) fn validate_declarations(
                                 if carrier.is_borrowed()
                             )
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                            || shared_bounded_owner_loan(module, declaration)
+                            || bounded_owner_loan(module, declaration)
                             || mutable_records::parameter_type(module, declaration)
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
@@ -121,8 +121,20 @@ pub(super) fn shared_bounded_owner_loan(
     module: &TerminalModule,
     declaration: &StructuralParameterDeclaration,
 ) -> bool {
-    declaration.access == StructuralAccess::SharedBorrow
-        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+    declaration.access == StructuralAccess::SharedBorrow && bounded_owner_loan(module, declaration)
+}
+
+/// Whole bounded loans carry only primitive byte invariants of their exact
+/// carrier. Mutable transport moves the usable name; each permitted store
+/// independently preserves these predicates before another edge can forward it.
+fn bounded_owner_loan(
+    module: &TerminalModule,
+    declaration: &StructuralParameterDeclaration,
+) -> bool {
+    matches!(
+        declaration.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && declaration.multiplicity == StructuralMultiplicity::Unrestricted
         && !declaration.is_self
         && declaration.projected_qualifications.is_empty()
         && module.structural_types.iter().any(|row| {
@@ -199,11 +211,12 @@ pub(super) fn validate_successor(
                 place: argument.place,
             });
         }
-        if shared_bounded_owner_loan(module, expected) {
-            // A bounded owner's shared loan is forwarded whole from a
+        if bounded_owner_loan(module, expected) {
+            // A bounded owner's loan is forwarded whole from a
             // signature or dominating block parameter with the identical
-            // declaration. The source's frozen referent already carries every
-            // qualification the target declares; no other root can supply one.
+            // declaration. Shared loans freeze their referent; mutable stores
+            // preserve its primitive predicates. Exclusive availability above
+            // still consumes the prior name instead of duplicating authority.
             let forwarded = machine
                 .structural_parameters
                 .iter()
@@ -214,15 +227,12 @@ pub(super) fn validate_successor(
                 })
                 .is_some_and(|source| {
                     source.structural_type == expected.structural_type
-                        && source.access == StructuralAccess::SharedBorrow
+                        && source.access == expected.access
                         && source.multiplicity == StructuralMultiplicity::Unrestricted
                         && source.qualifications == expected.qualifications
                         && source.projected_qualifications.is_empty()
                 });
-            if !argument.path.is_empty()
-                || argument.access != StructuralAccess::SharedBorrow
-                || !forwarded
-            {
+            if !argument.path.is_empty() || argument.access != expected.access || !forwarded {
                 return Err(ModuleError::InvalidStructuralSuccessorArgument {
                     edge,
                     place: argument.place,
@@ -617,6 +627,7 @@ pub(super) fn mutable_availability(
                             declaration.shape,
                             StructuralTypeShape::ByteSequence(carrier)
                             if carrier.is_borrowed()
+                                || matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
                         ) || matches!(
                             declaration.shape,
                             StructuralTypeShape::ElementView { .. }
