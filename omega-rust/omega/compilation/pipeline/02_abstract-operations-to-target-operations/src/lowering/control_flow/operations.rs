@@ -639,6 +639,7 @@ pub(super) fn lower_operation(
                 settlements,
                 native_callbacks,
                 parameters_by_place,
+                &live.structural_homes,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &BTreeMap::new(),

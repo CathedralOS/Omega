@@ -11,8 +11,8 @@ use super::KnownUnitInteger;
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     NativeTarget, OperationId, PlaceId, StructuralTypeId, StructuralTypeLookup,
-    StructuralTypeShape, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarHomeRequirement, ValueId, ValueLocation, ValueShape,
+    StructuralTypeShape, TargetStructuralParameter, TargetUnitScalarHomeRequirement, ValueId,
+    ValueLocation, ValueShape,
 };
 use calling_conventions::ValueClass;
 #[cfg(test)]
@@ -32,7 +32,8 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 /// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
 /// Each admitted borrowed argument must resolve to one static projection
-/// rooted at a caller structural parameter: record fields and fixed array
+/// rooted at caller storage: a structural parameter or a dominating home.
+/// Record fields and fixed array
 /// elements (`&record.field`, `&text[0]`), or the whole parameter when the
 /// caller forwards a loan it received. The projected type equals the declared
 /// parameter type, and the evaluated plan places the referent pointer as one
@@ -58,7 +59,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     native_callbacks: &[target_operations::TargetNativeCallbackArgument],
-    operations: &[TargetUnitOperation],
+    local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
     // Only direct parameter destinations insert telescope slots; a field
     // destination's write flows through an already-occupied record parameter.
@@ -100,28 +101,46 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     .iter()
                     .filter(|ordinal| semantic_position >= **ordinal)
                     .count();
-            let (source_structural_type, source_shape, argument_source) =
+            let (source_structural_type, source_shape, source_multiplicity, argument_source) =
                 if let Some(source) = parameters_by_place.get(&argument.place).copied() {
                     (
                         source.structural_type,
                         source.shape,
+                        source.multiplicity,
                         source.placement.clone().into(),
                     )
-                } else if let Some((home, _placement)) =
-                    super::super::projected_result::source(operations, argument.place)
-                {
-                    // An owned argument may transport a dominating call's exact
-                    // result place: the structural home carries the producer
-                    // identity the verifier's boundary-actuals arm requires.
-                    let (psi_operation, _) = home
-                        .operation_result()
-                        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+                } else if let Some(home) = local_homes.get(&argument.place) {
+                    // The control graph already retains exact dominating
+                    // establishments and block arrivals. Calls consume that
+                    // inventory, not a second search for a favored producer.
+                    if home.place() != argument.place
+                        || home.access() != StructuralAccess::Owned
+                        || home.has_claims()
+                        || !home.qualifications().is_empty()
+                        || !home.projected_qualifications().is_empty()
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    let source = match &home.origin {
+                        target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation,
+                            ..
+                        } => target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: *operation,
+                        },
+                        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                            block,
+                            declaration,
+                        } => target_operations::TargetStructuralArgumentSource::BlockParameter {
+                            block: *block,
+                            place: declaration.place,
+                        },
+                    };
                     (
                         home.structural_type(),
                         home.layout.shape(),
-                        target_operations::TargetStructuralArgumentSource::StructuralHome {
-                            psi_operation,
-                        },
+                        home.multiplicity(),
+                        source,
                     )
                 } else {
                     return Err(LoweringError::UnknownStructuralArgumentPlace {
@@ -182,10 +201,10 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                             0,
                         )
-                    } else if parameters_by_place.contains_key(&argument.place) {
-                        // A whole caller parameter lent unchanged (`leaf(text)`
-                        // for a `text: &u8` formal) is its own referent: the
-                        // pointer word is the parameter's place at offset zero.
+                    } else {
+                        // A whole loan points at its backing's offset zero,
+                        // independent of whether that backing arrived as a
+                        // parameter or was established in this invocation.
                         (
                             source_structural_type,
                             structural_shape(
@@ -197,8 +216,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                             0,
                         )
-                    } else {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
                 } else {
                     // Record fields and fixed array elements both resolve to
@@ -261,14 +278,12 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     }
                 }
             };
-            // Caller storage parameters arrive with unrestricted multiplicity;
-            // a dominating call's result is the consumed-once owned aggregate
-            // the verifier admits under affine multiplicity.
-            let expected_multiplicity = match &argument_source {
-                target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
-                    terminal_psi::StructuralMultiplicity::Affine
-                }
-                _ => terminal_psi::StructuralMultiplicity::Unrestricted,
+            // Borrowing does not transfer the owner's multiplicity. Owned
+            // transport, in contrast, retains the exact source contract.
+            let expected_multiplicity = if argument.access == StructuralAccess::Owned {
+                source_multiplicity
+            } else {
+                terminal_psi::StructuralMultiplicity::Unrestricted
             };
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access

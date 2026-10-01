@@ -788,7 +788,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
             &[],
-            &[],
+            &BTreeMap::new(),
         )
         .expect("owned aggregate argument lowers");
         let [argument] = lowered.as_slice() else {
@@ -863,7 +863,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &[],
-                &[],
+                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -1003,7 +1003,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &[],
-                &[],
+                &BTreeMap::new(),
             )
             .expect("borrowed-view descriptor argument lowers");
             let [argument] = lowered.as_slice() else {
@@ -1107,7 +1107,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &[],
-                &[],
+                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -1158,7 +1158,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
             callback,
-            &[],
+            &BTreeMap::new(),
         )
     };
 
@@ -1463,7 +1463,7 @@ fn normalized_foreign_borrowed_bytes_resolve_elements_and_forwarded_loans() {
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
             &[],
-            &[],
+            &BTreeMap::new(),
         )
     };
     let argument = |place: PlaceId, path: Vec<terminal_psi::StructuralPathSegment>| {
@@ -1724,6 +1724,7 @@ fn lower_direct_port_read_call(
         &settlements,
         &BTreeMap::new(),
         &parameters_by_place,
+        &BTreeMap::new(),
         &mut shape_cache,
         &mut active,
         &established_byte_sequences,

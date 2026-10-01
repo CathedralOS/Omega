@@ -357,16 +357,42 @@ pub(crate) fn validate(
         }
     }
     // Each structural argument re-derives its projected type, source offset,
-    // and borrowed-view shape from the caller's own structural signature; the
-    // source must be the incoming parameter's declared placement, and the
+    // and borrowed-view shape from the caller's own structural signature and
+    // established homes; the source must retain that exact origin, and the
     // destination is the exact pointer word the plan assigned at that index.
     for (index, argument) in structural_parameter_positions(call).zip(&call.structural_arguments) {
         let signature = source.structural.as_ref().ok_or_else(invalid)?;
         let parameter = signature
             .parameters
             .iter()
-            .find(|parameter| parameter.semantic.place == argument.place)
-            .ok_or_else(invalid)?;
+            .find(|parameter| parameter.semantic.place == argument.place);
+        let (root_type, expected_source) = if let Some(parameter) = parameter {
+            (
+                parameter.semantic.structural_type,
+                TargetStructuralArgumentSource::Placement(parameter.target.placement.clone()),
+            )
+        } else if let Some((producer, result)) =
+            crate::selection::aggregate_result_input::home(source, argument.place)
+        {
+            (
+                result.structural_type,
+                TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: producer,
+                },
+            )
+        } else if let Some((block, parameter)) =
+            crate::selection::aggregate_result_input::block_home(source, argument.place)
+        {
+            (
+                parameter.structural_type,
+                TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place: parameter.place,
+                },
+            )
+        } else {
+            return Err(invalid());
+        };
         let (projected_type, source_byte_offset) =
             crate::structural_inputs::structural_reference_input::project(
                 argument.root_structural_type,
@@ -390,7 +416,7 @@ pub(crate) fn validate(
             terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || argument.root_structural_type != parameter.semantic.structural_type
+        ) || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
             || argument.shape
@@ -400,8 +426,7 @@ pub(crate) fn validate(
                 )
             || argument.fixed_array_length.is_some()
             || argument.element_stride.is_some()
-            || argument.source
-                != TargetStructuralArgumentSource::Placement(parameter.target.placement.clone())
+            || argument.source != expected_source
             || plan.call.parameters.get(index) != Some(&argument.destination)
             || argument.destination.shape
                 != ValueShape::integer(u32::from(pointer_size), pointer_alignment)

@@ -140,6 +140,7 @@ pub(super) fn validate(
                     optimized,
                     native.target,
                     plan,
+                    *expected_operation,
                 )
             },
         )

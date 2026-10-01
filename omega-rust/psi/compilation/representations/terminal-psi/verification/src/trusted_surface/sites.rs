@@ -1364,12 +1364,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/structural_arguments.rs",
-        sha256: Some("129ac706755b79155bc667a33c2c59bab09496b112a9a0642fbe9bf6bf2f994e"),
+        sha256: Some("527e61c0c3981b8dda4a9b5d08e244dc8176f2f343e2438419d3fd1ef2925022"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs",
-        sha256: Some("2efc73aaae11b1393b9b6e32256d6b845f42fe1309ce4f13003185925b4ed242"),
+        sha256: Some("62649ed3edf35da254aab6823ecd69de492559a02b4507644898173765df9178"),
         inventory_machinery: false,
     },
     ImplementationSite {

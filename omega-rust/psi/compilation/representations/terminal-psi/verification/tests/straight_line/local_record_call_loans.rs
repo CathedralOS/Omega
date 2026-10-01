@@ -35,6 +35,98 @@ const CALLEE_RESULT: u64 = 12;
 const CALLEE_RETURNED: u64 = 13;
 const CALLEE_ESTABLISH: u64 = 911;
 
+fn boundary_loan_module(
+    arguments: Vec<StructuralArgument>,
+    accesses: &[StructuralAccess],
+) -> TerminalModule {
+    let mut module = local_loan_module(arguments.clone(), accesses);
+    let formals = module.machines.pop().unwrap().structural_parameters;
+    module
+        .boundary_machines
+        .push(terminal_psi::BoundaryMachineDeclaration {
+            id: id(1),
+            identity: "test::observe_local".into(),
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
+            attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural; formals.len()],
+            scalar_parameters: Vec::new(),
+            structural_parameters: formals,
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            scalar_requires: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    module.machines[0].blocks[0].operations[1].kind = OperationKind::BoundaryCall {
+        boundary: id(1),
+        arguments: Vec::new(),
+        structural_arguments: arguments,
+        completion_receipts: Vec::new(),
+        requirement_obligations: Vec::new(),
+    };
+    module
+}
+
+#[test]
+fn boundary_local_record_loans_preserve_backing_and_exact_custody() {
+    let shared = StructuralAccess::SharedBorrow;
+    let exclusive = StructuralAccess::MutableBorrow;
+    let mut whole = boundary_loan_module(vec![loan(&[], shared)], &[shared]);
+    whole.boundary_machines[0].structural_parameters[0].structural_type = id(SCREEN_TYPE);
+    let projected = boundary_loan_module(
+        vec![loan(&["top"], exclusive), loan(&["bottom"], shared)],
+        &[exclusive, shared],
+    );
+    for valid in [whole, projected] {
+        verify_module(
+            &valid,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("boundary loans reuse completed storage without consuming it");
+        let mut early = valid.clone();
+        early.machines[0].blocks[0].operations.swap(0, 1);
+        assert!(matches!(
+            validate_module(&early),
+            Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { .. })
+        ));
+        let mut unknown = valid.clone();
+        let OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } = &mut unknown.machines[0].blocks[0].operations[1].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].place = id(999);
+        assert!(validate_module(&unknown).is_err());
+    }
+    let overlap = boundary_loan_module(
+        vec![loan(&["top"], exclusive), loan(&["top"], shared)],
+        &[exclusive, shared],
+    );
+    assert!(matches!(
+        validate_module(&overlap),
+        Err(ModuleError::OverlappingExclusiveStructuralArguments { .. })
+    ));
+    let wrong_type = boundary_loan_module(vec![loan(&[], shared)], &[shared]);
+    assert!(matches!(
+        validate_module(&wrong_type),
+        Err(ModuleError::StructuralArgumentTypeMismatch { .. })
+    ));
+    let owned = boundary_loan_module(
+        vec![loan(&[], StructuralAccess::Owned)],
+        &[StructuralAccess::Owned],
+    );
+    assert!(
+        validate_module(&owned).is_err(),
+        "loans do not grant owned boundary transfers"
+    );
+}
+
 fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).unwrap()
 }
