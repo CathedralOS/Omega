@@ -8,7 +8,7 @@ use calling_conventions::ValueShape;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetByteView;
 use target_operations::{TargetIntegerExpression, TargetStructuralParameter};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
@@ -121,6 +121,16 @@ pub(in crate::lowering) fn is_owner_loan(
     )
 }
 
+pub(in crate::lowering) fn is_owned_byte_parameter(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+        parameter,
+        |identity| structural_types.get(&identity).copied(),
+    )
+}
+
 /// Whether a byte view reads the owner layout: an owned concatenation in this
 /// activation or a shared bounded owner loan, whose length word sits at
 /// offset 0 rather than after a descriptor's base pointer.
@@ -142,7 +152,9 @@ fn reads_owner_layout(
                         .flat_map(|entry| entry.structural_parameters.iter()),
                 )
                 .any(|parameter| {
-                    parameter.place == *place && is_owner_loan(parameter, structural_types)
+                    parameter.place == *place
+                        && (is_owner_loan(parameter, structural_types)
+                            || is_owned_byte_parameter(parameter, structural_types))
                 })
         }
         TargetByteView::Literal { .. } | TargetByteView::Subslice { .. } => false,
@@ -501,17 +513,31 @@ pub(in crate::lowering) fn view_for_place(
             .iter()
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
+        // An owned byte formal uses the ordinary aggregate ABI. Its incoming
+        // value-copy address supports observations; it is not a borrowed
+        // descriptor or a loan of the caller's original payload.
+        let owned = is_owned_byte_parameter(semantic, structural_types);
+        let expected_shape = if owned {
+            crate::lowering::structural_layout::structural_shape(
+                semantic.structural_type,
+                structural_types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?
+        } else {
+            ValueShape::borrowed_reference(
+                byte_view_referent_size(semantic, structural_types).ok_or_else(invalid)?,
+                8,
+            )
+        };
         if (!is_immutable_byte_parameter(semantic, structural_types)
-            && !is_owner_loan(semantic, structural_types))
+            && !is_owner_loan(semantic, structural_types)
+            && !owned)
             || parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity
             || parameter.projected_qualifications != semantic.projected_qualifications
-            || parameter.shape
-                != ValueShape::borrowed_reference(
-                    byte_view_referent_size(semantic, structural_types).ok_or_else(invalid)?,
-                    8,
-                )
+            || parameter.shape != expected_shape
         {
             return Err(invalid());
         }

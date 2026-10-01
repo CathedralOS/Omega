@@ -1,4 +1,4 @@
-//! Shared loans of a bounded byte owner (`&[u8; N] in Utf8`).
+//! Bounded byte owner storage at invocation, borrowed or passed by value.
 //!
 //! A domain-qualified fixed byte array is a bounded owner: a live length
 //! word at offset 0 and up to `N` bytes after it (wiki/spec/language/domains.md,
@@ -12,6 +12,10 @@
 //!
 //! This is a type rule, not producer evidence. Each stage still replays its
 //! own edge sources, availability and origin custody.
+//! The separate owned-parameter classifier below describes the by-value
+//! `{length, bytes}` payload, never a loan or descriptor ABI. Keeping those
+//! roles distinct prevents readable owner storage from authorizing an address
+//! join or changing an owned argument into a borrowed pointer.
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -44,6 +48,41 @@ pub fn is_shared_bounded_owner_loan_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_shared_bounded_owner_loan(parameter, |identity| {
+        let mut declarations = types
+            .iter()
+            .filter(|declaration| declaration.id == identity);
+        match (declarations.next(), declarations.next()) {
+            (Some(declaration), None) => Some(declaration),
+            _ => None,
+        }
+    })
+}
+
+/// An unrestricted bounded byte payload arriving by value. Qualifications
+/// remain declaration-owned obligations; layout does not erase or establish
+/// them. Consumers independently replay the signature and its aggregate ABI.
+pub fn is_owned_bounded_byte_parameter<'a>(
+    parameter: &StructuralParameterDeclaration,
+    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+) -> bool {
+    parameter.access == StructuralAccess::Owned
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && !parameter.is_self
+        && parameter.projected_qualifications.is_empty()
+        && lookup(parameter.structural_type).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            )
+        })
+}
+
+/// Slice form with an independently unique type declaration.
+pub fn is_owned_bounded_byte_parameter_in(
+    parameter: &StructuralParameterDeclaration,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    is_owned_bounded_byte_parameter(parameter, |identity| {
         let mut declarations = types
             .iter()
             .filter(|declaration| declaration.id == identity);

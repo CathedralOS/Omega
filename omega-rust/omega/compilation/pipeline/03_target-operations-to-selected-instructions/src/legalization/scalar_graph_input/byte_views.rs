@@ -474,7 +474,23 @@ pub(in crate::legalization) fn reads_owner_layout(
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    owned_concatenation(function, place).is_some() || owner_loan(function, place, types).is_some()
+    owned_concatenation(function, place).is_some()
+        || owner_loan(function, place, types).is_some()
+        || owned_parameter(function, place, types).is_some()
+}
+
+/// Readable by-value payload, distinct from the shared pointer loan above.
+pub(in crate::legalization) fn owned_parameter<'a>(
+    function: &'a PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    function.structural_parameters.iter().find(|parameter| {
+        parameter.place == place
+            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                parameter, types,
+            )
+    })
 }
 
 /// The shared bounded owner loan declared at `place`, if any.

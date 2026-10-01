@@ -110,6 +110,10 @@ pub(super) fn owner_layout_type(
                     parameter,
                     &signature.structural_types,
                 )
+                    || (signature.parameters.iter().any(|declared| declared.semantic.place == place)
+                        && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                            parameter, &signature.structural_types,
+                        ))
             })
             .map(|parameter| parameter.structural_type)
     })

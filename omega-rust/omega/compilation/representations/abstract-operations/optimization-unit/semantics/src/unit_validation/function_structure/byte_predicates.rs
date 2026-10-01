@@ -421,6 +421,14 @@ where
             if !matches!(
                 parameter.access,
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) && !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+                parameter,
+                |identity| {
+                    catalogs
+                        .types
+                        .clone()
+                        .find(|declaration| declaration.id == identity)
+                },
             ) {
                 return None;
             }
