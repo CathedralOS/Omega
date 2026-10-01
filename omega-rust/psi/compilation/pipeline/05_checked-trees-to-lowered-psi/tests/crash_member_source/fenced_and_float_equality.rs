@@ -1002,7 +1002,8 @@ fn assert_byte_sequence_aggregate_equality(
             StructuralTypeShape::Record { fields } => fields
                 .iter_mut()
                 .find(|field| field.field_type.byte_sequence_carrier().is_some()),
-            StructuralTypeShape::Reference { .. }
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
