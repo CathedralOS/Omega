@@ -4,41 +4,40 @@ data LineBuf {
     case Closed;
 }
 
-data Main {
-    line_buffer: [u8; 512];
-    cells: [u8; 512];
-    buf: LineBuf;
-    score: u64;
+data Score {
+    value: u64;
 }
 
-machine Main::main(&mut self) {
-    self.buf = LineBuf::Empty;
-    self.score = 0;
-    transition { _ -> begin(&mut self, &mut self.line_buffer, &self.buf, 8) }
-    state begin(main: &mut Main, line: &mut [u8], buf: &LineBuf, count: u64) {
+machine Main::main() {
+    let mut line_buffer: [u8; 512];
+    let cells: [u8; 512];
+    let buf: LineBuf = LineBuf::Empty;
+    let mut score: Score = Score { value: 0 };
+    transition { _ -> begin(&mut score, &mut line_buffer, &cells, &buf, 8) }
+    state begin(score: &mut Score, line: &mut [u8], cells: &[u8; 512], buf: &LineBuf, count: u64) {
         transition buf {
-            LineBuf::Active { text } -> parse(main, line, &text[0..count])
-            LineBuf::Empty -> empty(main, line)
-            _ -> wrong(main)
+            LineBuf::Active { text } -> parse(score, line, cells, &text[0..count])
+            LineBuf::Empty -> empty(score, line)
+            _ -> wrong(score)
         }
     }
-    state parse(main: &mut Main, line: &mut [u8], text: &[u8]) {
+    state parse(score: &mut Score, line: &mut [u8], cells: &[u8; 512], text: &[u8]) {
         transition text.len {
-            text.len == 0 -> empty(main, line)
-            text.len < 8 -> take(main, line, &main.cells[0..8])
-            _ -> wrong(main)
+            text.len == 0 -> empty(score, line)
+            text.len < 8 -> take(score, line, &cells[0..8])
+            _ -> wrong(score)
         }
     }
-    state take(main: &mut Main, line: &mut [u8], whole: &[u8]) {
-        transition whole.len >= 8 { true -> good(main) _ -> wrong(main) }
+    state take(score: &mut Score, line: &mut [u8], whole: &[u8]) {
+        transition whole.len >= 8 { true -> good(score) _ -> wrong(score) }
     }
-    state empty(main: &mut Main, line: &mut [u8]) {
-        transition { _ -> good(main) }
+    state empty(score: &mut Score, line: &mut [u8]) {
+        transition { _ -> good(score) }
     }
-    state good(main: &mut Main) {
-        main.score = 70;
+    state good(score: &mut Score) {
+        score.value = 70;
     }
-    state wrong(main: &mut Main) {
-        main.score = 71;
+    state wrong(score: &mut Score) {
+        score.value = 71;
     }
 }
