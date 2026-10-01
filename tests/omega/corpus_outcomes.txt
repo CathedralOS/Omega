@@ -159,6 +159,9 @@ fail/borrows/mutable_record_state_alias rejected 661ms expected @2d8ed253669f
 	state `finish` receives `cell` as mutable more than once
 fail/borrows/runtime_index_mut_borrow rejected 779ms expected @2d8ed253669f
 	cannot prove index `self.off` is within length 48 in Main::main::main
+fail/borrows/whole_mut_receiver_write_under_argument_view rejected 194ms expected @7010d65ad299+wt
+	state `overwrite_then_read` receives `main.arr[0..2]` as read-only while its mutable receiver writes `main.arr[0]`
+	state `overwrite_then_read` receives `self.arr[0..2]` as read-only while its mutable receiver writes `self.arr[0]`
 fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/build_effects_undeclared rejected 940ms expected @2d8ed253669f

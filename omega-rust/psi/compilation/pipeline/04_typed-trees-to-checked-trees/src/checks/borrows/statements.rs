@@ -443,6 +443,19 @@ fn check_call_mutation_borrows<'p>(
         );
         let stated_premises = available_premises.as_slice();
 
+        // The call's own retained argument loans are not live at its entry,
+        // yet the callee writes through a whole receiver while holding them.
+        super::calls::check_receiver_writes_against_argument_loans(
+            program,
+            facts,
+            state_flow,
+            borrow_call,
+            stated_premises,
+            summary_cache,
+            diagnostics,
+            bound_lookup,
+        );
+
         let exiting_source =
             source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
 

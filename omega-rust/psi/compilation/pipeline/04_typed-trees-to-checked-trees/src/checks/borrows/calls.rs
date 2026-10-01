@@ -17,7 +17,8 @@
 //! adds the call's premises and runs `check_call_borrows`: argument accesses
 //! against active loans (`conflicts`), the implicit receiver (`receiver`),
 //! then mutable argument writability (`writability`). `evidence` records the
-//! comparisons. `receiver::check_exclusive_place_use` is also used by
+//! comparisons. `receiver::check_exclusive_place_use` and
+//! `receiver::check_receiver_writes_against_argument_loans` are also used by
 //! `borrows::statements`.
 
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
@@ -31,7 +32,9 @@ mod evidence;
 mod receiver;
 mod writability;
 
-pub(super) use receiver::check_exclusive_place_use;
+pub(super) use receiver::{
+    check_exclusive_place_use, check_receiver_writes_against_argument_loans,
+};
 
 use self::conflicts::check_call_access_conflicts;
 use self::evidence::CallCompatibility;

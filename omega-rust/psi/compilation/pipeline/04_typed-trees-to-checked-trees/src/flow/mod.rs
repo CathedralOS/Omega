@@ -110,9 +110,10 @@ pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
 pub(crate) use mutation::origin_place;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
-    StateMutationSummaryCache, call_mutated_places, call_write_accesses,
-    canonical_receiver_place_for_call_site, frame_storage_writes, place_from_origin_path,
-    signature_ceiling_places, statement_mutated_place, statement_storage_writes,
+    StateMutationSummaryCache, call_mutated_places, call_receiver_write_accesses,
+    call_write_accesses, canonical_receiver_place_for_call_site, frame_storage_writes,
+    place_from_origin_path, signature_ceiling_places, statement_mutated_place,
+    statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

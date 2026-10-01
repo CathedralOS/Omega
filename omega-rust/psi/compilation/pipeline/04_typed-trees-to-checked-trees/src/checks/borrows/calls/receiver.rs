@@ -13,6 +13,9 @@ use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubje
 
 mod aliases;
 mod returned;
+mod writes;
+
+pub(in crate::checks::borrows) use writes::check_receiver_writes_against_argument_loans;
 
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
@@ -248,7 +251,8 @@ pub(super) fn check_receiver_conflicts<'p>(
         )));
     }
     // Whole mutable-receiver calls already use complete mutation summaries
-    // for field-precise interference (including known-pure helpers). Keep that
+    // for field-precise interference (including known-pure helpers), against
+    // live loans and this call's retained argument loans (`writes`). Keep that
     // existing path after checking source authority; a projected receiver
     // introduces the exclusive child loan admitted here. Whole write-only
     // receivers remain strictly exclusive.

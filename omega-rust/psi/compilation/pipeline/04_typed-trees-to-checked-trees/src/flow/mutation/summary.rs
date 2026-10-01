@@ -78,6 +78,53 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     Some(instantiated)
 }
 
+/// The callee's complete summary restricted to writes reached through its
+/// `self` parameter, instantiated at the call's receiver place. `None` when
+/// the callee has no complete summary or a receiver write cannot be placed.
+pub(super) fn instantiate_known_call_receiver_summary_places(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    cache: &StateMutationSummaryCache,
+) -> Option<Vec<CanonicalPlace>> {
+    let target_state = find_state(program, borrow_call.target_symbol)?;
+    let target_machine_symbol = machine_symbol_for_state(program, target_state);
+    let summary_places = state_mutation_summary_places(program, borrow, cache, target_state, None)?;
+
+    let mut instantiated = Vec::new();
+    for summary_place in summary_places {
+        let facts::PlaceRoot::Symbol(root) = summary_place.root else {
+            return None;
+        };
+        let reached_through_receiver = root == target_machine_symbol
+            || program
+                .state_parameters(target_state)
+                .iter()
+                .any(|parameter| parameter.is_self && parameter.symbol == root);
+        if !reached_through_receiver {
+            continue;
+        }
+        for place in instantiate_call_relative_places(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow,
+            borrow_call,
+            summary_place,
+            WritePlaceNamespace::AccessRoute,
+            None,
+        )? {
+            if !instantiated.contains(&place) {
+                instantiated.push(place);
+            }
+        }
+    }
+
+    Some(instantiated)
+}
+
 fn state_mutation_summary_places<'cache>(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,

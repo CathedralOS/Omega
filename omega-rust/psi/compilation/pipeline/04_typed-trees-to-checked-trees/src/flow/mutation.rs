@@ -119,6 +119,38 @@ pub(crate) fn call_write_accesses(
     .expect("access-route projection always retains the ownership fallback")
 }
 
+/// The subset of `call_write_accesses` a call writes through its implicit
+/// receiver: the callee's complete summary writes reached through `self`, or
+/// the whole receiver place when no complete summary is known. Writes through
+/// explicit `&mut` arguments are excluded; argument checks own those.
+pub(crate) fn call_receiver_write_accesses(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    state_mutation_summaries: &StateMutationSummaryCache,
+) -> Vec<CanonicalPlace> {
+    summary::instantiate_known_call_receiver_summary_places(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        state_mutation_summaries,
+    )
+    .or_else(|| {
+        call_receiver_mutated_place(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+        )
+        .map(|place| vec![place])
+    })
+    .unwrap_or_default()
+}
+
 fn call_write_places(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
