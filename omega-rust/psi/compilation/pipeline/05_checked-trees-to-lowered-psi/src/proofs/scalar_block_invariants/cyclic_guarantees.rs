@@ -20,7 +20,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
-    BlockId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ValueId,
+    BlockId, MachineId, Proposition, PropositionContext, ScalarTerm, ValueId,
 };
 use terminal_psi::{
     ScalarBlockInvariant, ScalarBlockInvariantArrival, TerminalMachine, TerminalModule, Terminator,
@@ -385,8 +385,7 @@ fn merge(
             grouped.push(candidate);
         }
     }
-    let mut next = terminal_verifier::maximum_registered_obligation_id(module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+    let mut fresh_obligations = crate::proofs::FreshObligations::above(module)?;
     for mut candidate in grouped {
         if let Some(existing) = module.scalar_block_invariants.iter_mut().find(|existing| {
             (existing.machine, existing.header) == (candidate.machine, candidate.header)
@@ -406,20 +405,15 @@ fn merge(
                 "guarantee candidate lost its machine",
             ))?;
         for edge in header_arrival_edges(machine, candidate.header) {
-            let Some(fresh) = next.checked_add(1) else {
-                // The identity-space provision declined; account it like
-                // every other named capacity so an unmet guarantee reports
-                // the capacity instead of reading as a disproof.
-                declines.record(ProofSearchCapacity::TerminalObligationIdentities);
+            // A declined identity is accounted like every other named
+            // capacity, so an unmet guarantee reports the capacity instead
+            // of reading as a disproof.
+            let Some(obligation) = fresh_obligations.mint(declines) else {
                 return Ok(false);
             };
-            next = fresh;
-            candidate.arrivals.push(ScalarBlockInvariantArrival {
-                edge,
-                obligation: ObligationId::new(next).ok_or(LoweringError::Unsupported(
-                    "scalar invariant obligation identity is zero",
-                ))?,
-            });
+            candidate
+                .arrivals
+                .push(ScalarBlockInvariantArrival { edge, obligation });
         }
         module.scalar_block_invariants.push(candidate);
     }

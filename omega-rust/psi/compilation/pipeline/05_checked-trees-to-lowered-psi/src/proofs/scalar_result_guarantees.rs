@@ -71,15 +71,12 @@ pub(super) fn retain_provable(
     if candidates.is_empty() {
         return Ok(());
     }
-    let mut next = terminal_verifier::maximum_registered_obligation_id(&lowered.semantic_module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+    let mut fresh_obligations = super::FreshObligations::above(&lowered.semantic_module)?;
     let mut added = Vec::new();
     for (owner, proposition) in candidates {
-        let Some(fresh) = next.checked_add(1).and_then(ObligationId::new) else {
-            declines.record(ProofSearchCapacity::TerminalObligationIdentities);
+        let Some(fresh) = fresh_obligations.mint(declines) else {
             break;
         };
-        next = fresh.get();
         let machine = lowered
             .semantic_module
             .machines

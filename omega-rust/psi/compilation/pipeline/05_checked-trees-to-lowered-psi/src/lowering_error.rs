@@ -14,10 +14,8 @@ use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError
 /// variant names one resource the passes provision privately — an aggregate
 /// round count, a shared work pool, or an identity space — so a decline can
 /// publish the resource it drew against instead of reading as a disproof of
-/// the module. The roster-round and work-pool variants are the
-/// `proof_search_*` scalar-resource rows of the compiler-request
-/// `Incomplete` outcome; the identity-space provision exceeds every
-/// publishable scalar limit, so it travels by name alone.
+/// the module. Each variant is one scalar-resource row of the
+/// compiler-request `Incomplete` outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofSearchCapacity {
     /// The scalar block-invariant roster pass's aggregate whole-module
@@ -32,10 +30,11 @@ pub enum ProofSearchCapacity {
     /// Candidate discovery and equation transport for optional scalar result
     /// relations (`proof_search_result_guarantee_work`).
     ScalarResultGuaranteeWork,
-    /// The obligation-identity space the passes mint fresh arrival
-    /// obligations from (`proof_obligation_identities`): the whole `u64`
-    /// nonzero identity provision, larger than any scalar-resource limit
-    /// the outcome table can publish.
+    /// Fresh obligation identities one optional pass mints above the
+    /// module's registered identities for its proposals' arrivals and
+    /// guarantee clauses (`proof_obligation_identities`). A mint past the
+    /// provision, or past the end of the nonzero `u64` identity space,
+    /// declines.
     TerminalObligationIdentities,
     /// The nonzero-divisor certificate's direct-add conjunction search:
     /// shared definition-DAG visits across one obligation
@@ -78,7 +77,10 @@ impl ProofSearchCapacity {
             Self::ScalarInvariantCandidateWork => 65_536,
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
-            Self::TerminalObligationIdentities => u64::MAX,
+            // Each minted identity is one arrival or clause the pass must
+            // then prove; the roster pass's candidate pool bounds how many
+            // it can propose far below this.
+            Self::TerminalObligationIdentities => 65_536,
             Self::NonzeroDivisorDefinitionVisits => 128,
             Self::NonzeroDivisorSearchDepth => 32,
             Self::NonzeroDivisorComputedJoins => 8,
@@ -229,9 +231,9 @@ impl LoweringError {
 
 /// The accounted facts of one proof-search capacity refusal: the scalar
 /// resource that declined, the total demand of the draw it declined (past
-/// `capacity.limit()`, saturating at the identity space's `u64::MAX`), and
-/// the obligation left unproved — the compiler request's `Incomplete`
-/// resource, requested amount and internal-row coordinate.
+/// `capacity.limit()`), and the obligation left unproved — the compiler
+/// request's `Incomplete` resource, requested amount and internal-row
+/// coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProofSearchExhaustion {
     pub capacity: ProofSearchCapacity,

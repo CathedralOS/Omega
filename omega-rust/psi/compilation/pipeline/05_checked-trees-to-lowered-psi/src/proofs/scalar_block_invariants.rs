@@ -399,8 +399,7 @@ fn retain_provable_roster_bounded(
     if candidates.is_empty() {
         return Ok(());
     }
-    let mut next = terminal_verifier::maximum_registered_obligation_id(module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+    let mut fresh_obligations = crate::proofs::FreshObligations::above(module)?;
     let mut seeds = None;
     let mut discovery_round = 0usize;
     'discovery: loop {
@@ -445,20 +444,15 @@ fn retain_provable_roster_bounded(
                     "invariant candidate lost its machine",
                 ))?;
             for edge in header_arrival_edges(machine, candidate.header) {
-                let Some(fresh) = next.checked_add(1) else {
-                    declines.record(ProofSearchCapacity::TerminalObligationIdentities);
+                let Some(obligation) = fresh_obligations.mint(declines) else {
                     if !restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                         module.scalar_block_invariants.clear();
                     }
                     break 'discovery;
                 };
-                next = fresh;
-                candidate.arrivals.push(ScalarBlockInvariantArrival {
-                    edge,
-                    obligation: ObligationId::new(next).ok_or(LoweringError::Unsupported(
-                        "scalar invariant obligation identity is zero",
-                    ))?,
-                });
+                candidate
+                    .arrivals
+                    .push(ScalarBlockInvariantArrival { edge, obligation });
             }
             module.scalar_block_invariants.push(candidate);
             changed = true;

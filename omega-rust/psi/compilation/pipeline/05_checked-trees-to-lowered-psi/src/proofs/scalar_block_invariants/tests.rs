@@ -644,3 +644,49 @@ fn the_decline_ledger_keeps_each_capacitys_first_declined_demand() {
     assert!(exhaustion.requested > exhaustion.capacity.limit());
     assert_eq!(exhaustion.obligation, unmet);
 }
+
+#[test]
+fn fresh_obligation_identities_decline_past_their_provision_or_the_identity_space() {
+    use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+    use crate::proofs::{FreshObligations, ProofSearchDeclines};
+
+    let capacity = ProofSearchCapacity::TerminalObligationIdentities;
+    let unmet = semantic_vocabulary::ObligationId::new(3).unwrap();
+    let mut declines = ProofSearchDeclines::default();
+    let mut fresh = FreshObligations {
+        next: 7,
+        minted: capacity.limit() - 1,
+    };
+    assert_eq!(
+        fresh.mint(&mut declines).map(|identity| identity.get()),
+        Some(8)
+    );
+    assert_eq!(
+        declines.unproved_obligation_error(unmet),
+        LoweringError::OperationProofUnavailable(unmet),
+    );
+    assert!(fresh.mint(&mut declines).is_none());
+    let exhaustion = declines
+        .unproved_obligation_error(unmet)
+        .incomplete_capacity()
+        .expect("the spent provision is an accounted decline");
+    assert_eq!(exhaustion.capacity, capacity);
+    assert_eq!(exhaustion.requested, capacity.limit() + 1);
+    // Both publishable: the compiler request's scalar resources stay below
+    // INT32_MAX.
+    assert!(exhaustion.requested < i32::MAX as u64);
+
+    let mut declines = ProofSearchDeclines::default();
+    let mut fresh = FreshObligations {
+        next: u64::MAX,
+        minted: 0,
+    };
+    assert!(fresh.mint(&mut declines).is_none());
+    assert_eq!(
+        declines
+            .unproved_obligation_error(unmet)
+            .incomplete_capacity()
+            .map(|exhaustion| exhaustion.capacity),
+        Some(capacity),
+    );
+}
