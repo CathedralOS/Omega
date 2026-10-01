@@ -23,11 +23,12 @@
 //   shape. Its `ClockNativeProvider::sleep` is an ordinary checked adapter
 //   over a std-private `poll` requirement that reaches `Clock`, realized by
 //   the libSystem `poll` import (see its `clock_impl.omg`).
-// * Both linux targets bind the kernel `nanosleep` as the leaf itself, and
-//   neither sleeps yet: an authored syscall leaf has no native boundary
-//   settlement, and `nanosleep` takes a `timespec*` that the leaf's
-//   millisecond parameter cannot supply (see the linux `clock_impl.omg`
-//   files).
+// * `linux_x86_64` uses a checked adapter over the integer-only kernel poll
+//   wait. Its authored syscall leaf still needs native boundary settlement.
+// * `linux_arm64` still binds kernel nanosleep directly and does not sleep:
+//   the millisecond parameter cannot supply nanosleep's timespec pointer,
+//   and authored syscall leaves have no native settlement. See the target
+//   `clock_impl.omg` files for these separate remaining dependencies.
 //
 // `macos_x86_64` is bundled but unadmitted (console's family has no
 // implementation for it either), and freestanding `uefi_x86_64` has no hosted
