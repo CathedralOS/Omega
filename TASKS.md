@@ -102,7 +102,13 @@ build authority, and artifact verification remain separate obligations.
   scalar- and structural-result calls, the Console reader included
   (`pass/calls/static_state_context_field_window_exit`). The fully static
   `vending_machine`, `stack_vm` and `account_ledger` exit **70** natively and
-  interpreted on macOS ARM64. The static `game_of_life`, with its canonical
+  interpreted on macOS ARM64. The five migrated counters — `sensor_min_max`,
+  `print_number`, `array_sum`, `run_length_encode` and `caesar_cipher` — meet
+  their documented oracles on macOS ARM64 under `tools/sample_native_gate.py`
+  with their loop bounds inferred rather than authored, reading and storing
+  domain-qualified byte fields through the forwarded context; the corpus pins
+  that capability at
+  [pass/storage/forwarded_context_byte_field_read_store_exit](tests/omega/pass/storage/forwarded_context_byte_field_read_store_exit/main.omg). The static `game_of_life`, with its canonical
   collection invariant, meets its native oracle;
   `pass/time/runtime_duration_core_exit` and
   `pass/calls/runtime_nested_value_call_guard_exit` exit **70** natively and
@@ -140,32 +146,6 @@ Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
-
-- **FORWARDED-CONTEXT-BYTE-FIELD-ACCESS.** (split-of:STATIC-MACHINE-MIGRATION)
-  Read and store a domain-qualified byte field through a forwarded attached
-  data loan. Carrying the field is done:
-  [pass/storage/forwarded_context_bounded_byte_field_exit](tests/omega/pass/storage/forwarded_context_bounded_byte_field_exit/main.omg)
-  builds and runs with a `[u8; 5] in Utf8` field beside a forwarded
-  `main: &mut Main`. Touching it is not, and the three samples now stop at
-  three distinct later refusals rather than one module-validity refusal:
-  `caesar_cipher` at
-  `InvalidTerminalModule(InvalidStructuralByteSequenceFieldAccess(OperationId(25)))`
-  reading `main.text[main.i]`, `print_number` at
-  `InvalidTerminalModule(InvalidStructuralByteSequenceFieldStore(OperationId(34)))`
-  storing into its digit buffer, and `run_length_encode` at
-  `Lowering(OperationProofUnavailable(ObligationId(23)))`, which is a missing
-  proof rather than an invalid module and so is the nearest of the three.
-  Frontier: these are the byte-field access and store validators, which are
-  what keep the carrying admission honest — a loan of the record grants its
-  byte field nothing, as `formation:machine-validation` now states — so each
-  needs its own reason for refusing a forwarded root, not a relaxation.
-  Owners are the byte-sequence validation under
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence.rs`
-  and the store and access producers in
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/`.
-  Acceptance: `print_number`, `run_length_encode` and `caesar_cipher` meet
-  their documented oracle under `tools/sample_native_gate.py` on a matching
-  host, each with a corpus fixture pinning the operation it needed.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
