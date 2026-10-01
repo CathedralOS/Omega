@@ -1,0 +1,1 @@
+receives `main.arr[0..2]` as read-only while its mutable receiver writes `main.arr[0]`

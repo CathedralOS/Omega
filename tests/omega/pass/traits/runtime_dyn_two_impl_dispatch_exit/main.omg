@@ -42,9 +42,9 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let a: i32 in Wrapping = self.dispatch(&mut self.c);
-    let b: i32 in Wrapping = self.dispatch(&mut self.q);
-    let n: i32 in Wrapping = a * 10 + b;
+    let a: i32 = Main::dispatch(&mut self.c);
+    let b: i32 = Main::dispatch(&mut self.q);
+    let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
         true -> good()
         _ -> bad()
@@ -59,6 +59,6 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
+machine Main::dispatch(s: &mut dyn Shape) -> i32 {
     s.code()
 }

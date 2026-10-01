@@ -4,6 +4,7 @@ mod lifetime_results;
 mod mutable_overlaps;
 mod persistent_storage;
 mod premised_disjoint_writes;
+mod receiver_argument_loans;
 mod view_returns;
 
 use crate::borrow::build_borrow_facts;
