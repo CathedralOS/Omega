@@ -649,7 +649,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/call_composition.rs",
-        sha256: Some("8279f75296401df409d481156580375ec8cc46c607783705cc367a5e0984f278"),
+        sha256: Some("88d259c138fc8cdf961e1ff0aa7cbc729cff19c5eafe10e58eda96c8a22e5a31"),
         inventory_machinery: false,
     },
     ImplementationSite {

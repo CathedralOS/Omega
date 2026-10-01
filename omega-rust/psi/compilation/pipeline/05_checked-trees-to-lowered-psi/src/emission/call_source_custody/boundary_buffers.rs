@@ -219,10 +219,45 @@ pub(super) fn validate(
                     .ok_or(LoweringError::Unsupported(
                         "boundary byte loan lost its authored source parameter",
                     ))?;
+                // A qualified bounded owner has a live length, not the fixed
+                // extent of its array spelling. A whole shared observation
+                // retains that original formal and only attenuates access.
+                let whole_bounded_loan = shared
+                    && !fixed_window
+                    && range.is_none()
+                    && source.path.is_empty()
+                    && validation::loaned_bounded_byte_buffer_capacity(
+                        &checked.typed,
+                        source_parameter.type_reference,
+                    )
+                    .is_some()
+                    && {
+                        let carrier = crate::unit::attached_unit::structural_carrier_type(
+                            checked,
+                            source_parameter.type_reference,
+                        )?;
+                        let declared_access =
+                            match checked.type_reference_table.type_reference(carrier) {
+                                TypeReferenceNode::Reference {
+                                    access: language_core::ReferenceAccess::Shared,
+                                    ..
+                                } => Some(CheckedStructuralAccess::SharedBorrow),
+                                TypeReferenceNode::Reference {
+                                    access: language_core::ReferenceAccess::Mutable,
+                                    ..
+                                } => Some(CheckedStructuralAccess::MutableBorrow),
+                                TypeReferenceNode::FixedArray { .. } => {
+                                    Some(CheckedStructuralAccess::Owned)
+                                }
+                                _ => None,
+                            };
+                        declared_access == Some(parameter.access)
+                    };
                 if source_parameter.symbol != source.root
                     || (source.path.is_empty()
                         && byte_view_access(source_parameter) != Some(expected_access)
-                        && !is_fixed_byte_array(checked, source_parameter, shared))
+                        && !is_fixed_byte_array(checked, source_parameter, shared)
+                        && !whole_bounded_loan)
                 {
                     return unsupported("boundary byte loan differs from its source parameter");
                 }

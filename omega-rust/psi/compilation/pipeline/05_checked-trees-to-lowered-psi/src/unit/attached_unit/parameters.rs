@@ -1113,13 +1113,7 @@ pub(crate) fn validate_transfer_shape(
         if argument.type_identity != target.type_identity
             || (argument.path.is_empty()
                 && source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                && !fixed_byte_array_view_transfer(
-                    source,
-                    argument,
-                    target,
-                    type_ids,
-                    structural_types,
-                ))
+                && !byte_view_transfer(source, argument, target, type_ids, structural_types))
         {
             return unsupported("Unit structural argument type identity is inconsistent");
         }
@@ -1264,7 +1258,7 @@ fn whole_array_result_borrow(
     }
     // The synthetic declaration describes the already-checked loan, not a new
     // parameter or an authority grant. Reuse exact byte extent/access rules.
-    fixed_byte_array_view_transfer(
+    byte_view_transfer(
         &StructuralParameterDeclaration {
             place,
             position: target.position,
@@ -1282,7 +1276,7 @@ fn whole_array_result_borrow(
     )
 }
 
-fn fixed_byte_array_view_transfer(
+fn byte_view_transfer(
     source: &StructuralParameterDeclaration,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     target: &checked_trees::CheckedUnitStructuralParameterPlan,
@@ -1314,20 +1308,30 @@ fn fixed_byte_array_view_transfer(
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
+    let argument = StructuralArgument {
+        place: source.place,
+        path: match lower_structural_path(&argument.path) {
+            Ok(path) => path,
+            Err(_) => return false,
+        },
+        access,
+    };
     terminal_semantics::fixed_byte_array_window(
         structural_types.iter(),
         source,
-        &StructuralArgument {
-            place: source.place,
-            path: match lower_structural_path(&argument.path) {
-                Ok(path) => path,
-                Err(_) => return false,
-            },
-            access,
-        },
+        &argument,
         &expected,
     )
     .is_some()
+        // The bounded carrier keeps its runtime length and owned backing;
+        // presenting a shared view does not create a fixed-size window.
+        || terminal_semantics::shared_boundary_buffer_capacity(
+            structural_types.iter(),
+            source.structural_type,
+            &argument,
+            &expected,
+        )
+        .is_some()
 }
 
 fn checked_access_can_supply(

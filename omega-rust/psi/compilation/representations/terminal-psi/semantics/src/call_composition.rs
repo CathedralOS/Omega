@@ -41,8 +41,8 @@ pub fn boundary_buffer_capacity<'types>(
     )
 }
 
-/// Resolve the inline capacity presented to a boundary's shared byte-view
-/// parameter. A shared loan observes the field's live bytes in place; it grants
+/// Resolve the owner capacity presented to a boundary's shared byte-view
+/// parameter. A shared loan observes whole or field storage's live bytes; it grants
 /// neither mutation, new storage, an extent change, nor a qualification. Callers
 /// must separately validate source access, multiplicity, aliasing, and custody.
 pub fn shared_boundary_buffer_capacity<'types>(
@@ -80,6 +80,21 @@ fn inline_byte_field_capacity<'types>(
         })
     {
         return None;
+    }
+    // A whole owner and an inline owner share the read-only presentation.
+    // Capacity identifies backing layout, never the current live length. Only
+    // the shared route admits this: mutable view access cannot erase an owner's
+    // qualifications or replace its extent. The receiving caller still checks
+    // original source access, multiplicity, and lifetime independently.
+    if access == StructuralAccess::SharedBorrow && argument.path.is_empty() {
+        return types
+            .clone()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity,
+                }) if declaration.id == root_type => Some(capacity),
+                _ => None,
+            });
     }
     let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
         return None;
