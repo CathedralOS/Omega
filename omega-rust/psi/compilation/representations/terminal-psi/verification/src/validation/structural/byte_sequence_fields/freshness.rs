@@ -99,6 +99,104 @@ fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> 
     left.starts_with(right) || right.starts_with(left)
 }
 
+/// A descriptor is a spelling of backing storage, not an independent owner.
+/// Retain its exact establishment prefix when checking a call's mutation;
+/// a narrowed view with an unknown offset conservatively names its parent's
+/// whole backing. Unresolved aliases cannot establish that a snapshot survived.
+fn call_argument_changes(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    observed: &[StructuralPathSegment],
+    argument: &terminal_psi::StructuralArgument,
+) -> bool {
+    let mut place = argument.place;
+    let mut region = argument.path.clone();
+    let mut visited = BTreeSet::new();
+    loop {
+        if region
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+        {
+            return true;
+        }
+        if place == root {
+            return terminal_semantics::structural_paths_may_overlap(observed, &region);
+        }
+        if !visited.insert(place) {
+            return true;
+        }
+        // A different borrowed block name may denote this same storage. Its
+        // declaration alone cannot prove disjointness from the observation.
+        if crate::validation::block_views::parameter(machine, place).is_some()
+            || crate::validation::block_views::parameter(machine, root).is_some()
+        {
+            return true;
+        }
+        let Some(declaration) = machine.structural_places.iter().find(|row| row.id == place) else {
+            return true;
+        };
+        let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = declaration.kind
+        else {
+            // Distinct entry parameters and literal homes have independently
+            // checked separation; they cannot be aliases of a fresh local.
+            return false;
+        };
+        let Some(operation) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)
+        else {
+            return true;
+        };
+        match &operation.kind {
+            OperationKind::EstablishElementView { source, .. }
+            | OperationKind::EstablishMutableElementView { source, .. } => {
+                if crate::validation::element_view::view_loan_result(machine, place).is_none() {
+                    return true;
+                }
+                let mut backing = source.path.clone();
+                if let Some(range) = backing.iter().position(|segment| {
+                    matches!(segment, StructuralPathSegment::FixedByteRange { .. })
+                }) {
+                    // View-relative indices do not share a range's origin.
+                    // Without an exact offset join, keep the containing array.
+                    backing.truncate(range);
+                } else {
+                    backing.extend(region);
+                }
+                region = backing;
+                place = source.place;
+            }
+            OperationKind::ElementViewSubslice { source, .. }
+            | OperationKind::ByteSequenceSubslice { source, .. } => {
+                region.clear();
+                place = *source;
+            }
+            _ => {
+                return module
+                    .structural_types
+                    .iter()
+                    .find(|row| row.id == structural_type)
+                    .is_none_or(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Reference { .. }
+                                | StructuralTypeShape::ElementView { .. }
+                                | StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                )
+                        )
+                    });
+            }
+        }
+    }
+}
+
 fn changes_length(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -187,14 +285,12 @@ fn changes_length(
             structural_arguments,
             ..
         } => structural_arguments.iter().any(|argument| {
-            argument.place == root
-                && overlaps(path, &argument.path)
-                && matches!(
-                    argument.access,
-                    StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                        | StructuralAccess::Owned
-                )
+            matches!(
+                argument.access,
+                StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+                    | StructuralAccess::Owned
+            ) && call_argument_changes(module, machine, root, path, argument)
         }),
         // Dynamic dispatch retains its receiver in a separate catalog. Until
         // that exact footprint is resolved here it cannot preserve this fact.

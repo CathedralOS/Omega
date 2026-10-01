@@ -301,8 +301,7 @@ fn assert_rejects(module: &TerminalModule, expected: ModuleError) {
     );
 }
 
-#[test]
-fn repaired_local_window_expires_byte_field_length_observations() {
+fn local_byte_window_module() -> TerminalModule {
     use terminal_psi::control_flow::ByteSequenceOperand;
     use terminal_psi::{ByteSequenceCarrier, StructuralPathSegment};
     let mut module = window_module();
@@ -405,8 +404,17 @@ fn repaired_local_window_expires_byte_field_length_observations() {
             capacity_obligation: id(1, semantic_vocabulary::ObligationId::new),
         },
     });
+    module
+}
+
+#[test]
+fn repaired_local_window_expires_byte_field_length_observations() {
+    let mut module = local_byte_window_module();
     validate_module(&module).expect("a fresh observation after exact local repair is valid");
     let mut open_hole = module.clone();
+    open_hole.machines[0]
+        .structural_places
+        .retain(|place| place.id != id(3, PlaceId::new));
     let operations = &mut open_hole.machines[0].blocks[0].operations;
     // Remove the later concatenation so freshness cannot mask the custody
     // check: even an unrestricted local cannot observe absent storage.
@@ -427,6 +435,161 @@ fn repaired_local_window_expires_byte_field_length_observations() {
         &module,
         ModuleError::InvalidByteSequenceConcatenation(id(5, OperationId::new)),
     );
+}
+
+#[test]
+fn local_byte_field_length_expires_after_mutation_through_element_view() {
+    use terminal_psi::{StructuralPathSegment, control_flow::ByteSequenceOperand};
+    for sibling_view in [false, true] {
+        let mut module = local_byte_window_module();
+        let array_type = id(4, StructuralTypeId::new);
+        let view_type = id(5, StructuralTypeId::new);
+        module.structural_types.extend([
+            StructuralTypeDeclaration {
+                id: array_type,
+                identity: "Cells".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: cell(),
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: view_type,
+                identity: "CellView".into(),
+                shape: StructuralTypeShape::ElementView { element: cell() },
+            },
+        ]);
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            unreachable!()
+        };
+        for field in fields {
+            field.field_type = StructuralFieldType::Structural(array_type);
+        }
+        let caller = &mut module.machines[0];
+        caller
+            .structural_places
+            .retain(|place| place.id != id(2, PlaceId::new));
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: id(4, PlaceId::new),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(6, OperationId::new),
+                structural_type: view_type,
+            },
+        });
+        let operations = &mut caller.blocks[0].operations;
+        operations.retain(|operation| {
+            !matches!(
+                operation.kind,
+                OperationKind::MoveStructuralField { .. }
+                    | OperationKind::StoreStructuralField { .. }
+            )
+        });
+        let OperationKind::StructuralByteSequenceFieldLength { path, .. } = &mut operations[1].kind
+        else {
+            unreachable!()
+        };
+        path.push(StructuralPathSegment::FixedIndex(0));
+        let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } =
+            &mut operations[2].kind
+        else {
+            unreachable!()
+        };
+        for operand in [left, right] {
+            let ByteSequenceOperand::Field { source, .. } = operand else {
+                unreachable!()
+            };
+            source.path.push(StructuralPathSegment::FixedIndex(0));
+        }
+        operations.insert(
+            1,
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(6, OperationId::new),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: id(4, PlaceId::new),
+                    structural_type: view_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishMutableElementView {
+                    destination: id(4, PlaceId::new),
+                    element: cell(),
+                    source: StructuralArgument {
+                        place: id(1, PlaceId::new),
+                        access: StructuralAccess::MutableBorrow,
+                        path: vec![StructuralPathSegment::Field(
+                            if sibling_view { "right" } else { "left" }.into(),
+                        )],
+                    },
+                },
+            },
+        );
+        operations.insert(
+            2,
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(7, OperationId::new),
+                result: OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: id(2, MachineId::new),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: id(4, PlaceId::new),
+                        access: StructuralAccess::MutableBorrow,
+                        path: vec![StructuralPathSegment::FixedIndex(0)],
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            },
+        );
+        let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &mut caller.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        trivial_affine_discards.push(id(4, PlaceId::new));
+        let mut callee = machine();
+        callee.id = id(2, MachineId::new);
+        callee.contract.id = id(2, ContractId::new);
+        callee.structural_parameters[0].structural_type = cell();
+        callee.structural_parameters[0].place = id(10, PlaceId::new);
+        callee.structural_places.truncate(1);
+        callee.structural_places[0].id = id(10, PlaceId::new);
+        callee.entry = id(2, BlockId::new);
+        callee.blocks[0].id = callee.entry;
+        callee.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: id(2, EdgeId::new),
+            trivial_affine_discards: Vec::new(),
+        };
+        callee.blocks[0].operations.clear();
+        module.machines.push(callee);
+        validate_module(&module).expect(
+            "post-call length observes the current local field through a valid mutable view loan",
+        );
+        let operations = &mut module.machines[0].blocks[0].operations;
+        let observation = operations.remove(3);
+        operations.insert(2, observation);
+        if sibling_view {
+            validate_module(&module)
+                .expect("mutation through a view of the sibling array preserves the observation");
+        } else {
+            assert_rejects(
+                &module,
+                ModuleError::InvalidByteSequenceConcatenation(id(5, OperationId::new)),
+            );
+        }
+    }
 }
 
 fn block_window_module() -> TerminalModule {
