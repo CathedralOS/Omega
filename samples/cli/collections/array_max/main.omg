@@ -1,10 +1,6 @@
 // Find the maximum element of an array -- a small but real data-processing loop
-// that exercises capabilities that just landed together: a bounded loop, a
-// RUNTIME-indexed array read (`self.nums[self.i]`, the loop head's `self.i < N`
-// proving the body's index across the state edge), and a conditional update.
-//
-//   max = 0
-//   for i in 0..N: if nums[i] > max: max = nums[i]
+// over an invocation-local array. States carry the index and running maximum;
+// the current element exists only in the state that compares it.
 //
 // Over [4, 15, 8, 42, 16, 23] the maximum (at index 3, not the last) is 42.
 // Expected exit: 42.
@@ -14,72 +10,57 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    nums: [i32; 6];
-    i: i32;
-    cur: i32;
-    max: i32;
-    pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
-    self.nums[0] = 4;
-    self.nums[1] = 15;
-    self.nums[2] = 8;
-    self.nums[3] = 42;
-    self.nums[4] = 16;
-    self.nums[5] = 23;
-    self.i = 0;
-    self.max = 0;
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
+    let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
+    let maximum: i32 = array_maximum(&numbers);
+    context.console.write_line("result: the maximum, 42 for this dataset (the exit code)");
+    context.console.write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block context.console.read_line(&mut pause);
+    context.console.exit_process(maximum);
+}
 
-    transition {
-        _ -> step()
-    }
+machine array_maximum(numbers: &[i32; 6]) -> i32 {
+    transition { _ -> step(numbers, 0, 0) }
 
     // Loop head: scan until every element has been visited.
-    state step(&mut self) {
-        transition self.i < 6 {
-            true -> body()
-            _ -> done()
+    state step(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0 {
+        transition index < 6 {
+            true -> body(numbers, index, maximum)
+            _ -> done(maximum)
         }
     }
 
     // Read the current element; keep it if it beats the running maximum.
-    state body(&mut self) {
-        self.cur = self.nums[self.i];
-        transition self.cur > self.max {
-            true -> keep()
-            _ -> advance()
+    state body(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0
+    requires index < 6 {
+        let current: i32 = numbers[index];
+        transition current > maximum {
+            true -> advance(numbers, index, current)
+            _ -> advance(numbers, index, maximum)
         }
     }
 
-    state keep(&mut self) {
-        self.max = self.cur;
-        transition {
-            _ -> advance()
+    // Re-guard before the increment: the direct edge into bump proves
+    // index + 1 cannot overflow -- fully Exact, no wrapping arithmetic.
+    state advance(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0 {
+        transition index < 6 {
+            true -> bump(numbers, index, maximum)
+            _ -> step(numbers, index, maximum)
         }
     }
 
-    // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
-    // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
-    state advance(&mut self) {
-        transition self.i < 6 {
-            true -> bump()
-            _ -> step()
-        }
+    state bump(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0
+    requires index < 6 {
+        transition { _ -> step(numbers, index + 1, maximum) }
     }
 
-    state bump(&mut self) {
-        self.i = self.i + 1;
-        transition {
-            _ -> step()
-        }
-    }
-
-    state done(&mut self) {
-        self.console.write_line("result: the maximum, 42 for this dataset (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.max);
-    }
+    state done(maximum: i32) -> i32 { maximum }
 }
