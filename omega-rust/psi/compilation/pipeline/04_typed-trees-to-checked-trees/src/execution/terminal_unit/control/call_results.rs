@@ -256,7 +256,11 @@ fn structural_result_type(
                     program,
                     result_type,
                 )
-                || validation::has_owned_or_shared_view_fields(program, result_type))
+                // Whole-contents form of the record-level carrier check: a
+                // sum whose payloads are plain records or view-carrying
+                // records — `DecodeResult<Relayed<M>>` — binds the same
+                // result shape the bare record already did.
+                || validation::has_owned_or_shared_view_contents(program, result_type))
                 || !qualifications.is_empty()))
     {
         return None;

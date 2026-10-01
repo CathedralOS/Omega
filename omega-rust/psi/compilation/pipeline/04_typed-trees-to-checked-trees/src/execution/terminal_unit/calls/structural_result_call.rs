@@ -280,6 +280,18 @@ pub(super) fn build(
                     program,
                     target_state.return_type,
                 ))
+            // A sum or record carrying shared-view members — the same
+            // descriptor loans the bare-view arm below names, nested inside
+            // owned contents. The classifier admits no loan that mutates, no
+            // erased or generic member, and no cleanup owner, so the result
+            // keeps the same claim-free custody the plain-contents arm gives.
+            || (matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) && validation::has_owned_or_shared_view_contents(
+                program,
+                target_state.return_type,
+            ))
             // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
             // storage through the caller frame: its plan is affine like
             // the reference-record family above, and the result-shape arm

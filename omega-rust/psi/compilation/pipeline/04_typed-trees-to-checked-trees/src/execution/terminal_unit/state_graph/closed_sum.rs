@@ -173,7 +173,9 @@ pub(super) fn build(
                 },
             )
         };
-    if !validation::has_plain_owned_contents_with_numeric_constraints(program, type_reference) {
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, type_reference)
+        && !validation::has_owned_or_shared_view_contents(program, type_reference)
+    {
         return None;
     }
     let TypeReferenceNode::Named { symbol, .. } =
