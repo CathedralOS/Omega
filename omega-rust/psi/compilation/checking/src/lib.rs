@@ -72,6 +72,7 @@ pub use value_custody::storage_contents::{
     has_plain_owned_contents_with_substitutions, has_service_seam_contents,
     has_stable_observable_contents, has_structural_construction_contents,
 };
+pub use value_custody::transition_operand_moves::transition_operand_moves;
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;

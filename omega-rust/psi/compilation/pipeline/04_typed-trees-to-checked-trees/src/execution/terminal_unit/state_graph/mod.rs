@@ -430,6 +430,7 @@ pub(super) fn build_traced(
             &result,
             &signatures,
             &state_entry_claims[state_index],
+            &sequence.structural_results,
             sequence.scalar_result.as_ref(),
             sequence.structural_result.as_ref(),
             sequence.next_scalar_binding,
@@ -1423,13 +1424,20 @@ fn declared_contains_reference(
     false
 }
 
-/// The callee catalog and source-state entry claims an edge plans its own
-/// operand calls against. A composite argument's call runs only on the
-/// selected edge, under the same argument custody an in-sequence call takes.
+/// The callee catalog, source-state entry claims and source-state local
+/// results an edge plans its own operand calls against. A composite
+/// argument's call runs only on the selected edge, under the same argument
+/// custody an in-sequence call takes: an operand naming one of the state's
+/// `let` locals (or an anonymous result it established) resolves to that
+/// result binding exactly as a later statement's call would.
 #[derive(Clone, Copy)]
 pub(super) struct EdgeCalls<'a> {
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
+    pub(super) local_results: &'a [(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
 }
 
 fn successor(
@@ -1796,9 +1804,15 @@ fn successor_bindings(
             // literal, or a call's structural result — has no custody root to
             // name; the edge establishes the registered value into the
             // parameter's storage. Its calls are planned exactly as a `let`
-            // initializer's are, against this state's parameters, and run on
-            // the selected edge only. A nested structural operand would need
-            // establishing ahead of the edge's selection, so it declines.
+            // initializer's are, against this state's parameters and its own
+            // earlier local results, and run on the selected edge only. A
+            // whole owned operand naming an affine local moves it on this
+            // edge alone: the sibling edges still dispose of it, so the
+            // state's operations keep their discard flags and the edge's
+            // own move roster (`CheckedStructuralControlSuccessorPlan::
+            // result_moves`) subtracts it from this edge's cleanup. A nested
+            // structural operand would need establishing ahead of the edge's
+            // selection, so it declines.
             if target.access == CheckedStructuralAccess::Owned
                 && let Some(root) = facts.values.structural_values.root_for_expression(
                     source.symbol,
@@ -1823,7 +1837,7 @@ fn successor_bindings(
                     source_structural,
                     &[],
                     edge_calls.entry_claims,
-                    &[],
+                    edge_calls.local_results,
                     &mut operand_calls,
                     &mut result_count,
                     root.root,

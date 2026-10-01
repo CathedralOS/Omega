@@ -372,16 +372,21 @@ impl StateGraphEmission<'_, '_> {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the
                             // member calls run here, after selection, exactly
-                            // as a `let` initializer's would. Its bindings
-                            // are edge-local: they register in a registry of
-                            // their own, and the state's registry returns
-                            // untouched once the argument's place is read.
+                            // as a `let` initializer's would. Its operands
+                            // read the state's own results (a `let` local the
+                            // call takes or copies), so the state's registry
+                            // stays visible; the edge's bindings number after
+                            // it. They are edge-local all the same: the
+                            // state's registry is restored untouched once the
+                            // argument's place is read, so a sibling edge
+                            // neither sees this edge's bindings nor a move
+                            // its operand call made.
                             let Some(result) = establishment.structural_result_binding() else {
                                 return unsupported(
                                     "Unit graph established argument has no result binding",
                                 );
                             };
-                            let state_bindings = std::mem::take(&mut operations.structural_values);
+                            let state_bindings = operations.structural_values.clone();
                             let emitted = super::super::super::emission::emit_call_operations(
                                 checked,
                                 plan.machine,

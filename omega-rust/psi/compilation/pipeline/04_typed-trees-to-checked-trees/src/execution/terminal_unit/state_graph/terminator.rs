@@ -28,6 +28,10 @@ pub(super) fn build(
     result: &checked_trees::CheckedControlResultPlan,
     signatures: &[Signature],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    local_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
     scalar_result: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
     structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
     next_scalar_binding: usize,
@@ -43,6 +47,7 @@ pub(super) fn build(
     let edge_calls = EdgeCalls {
         scalar_callees,
         entry_claims,
+        local_results,
     };
     let edge = |operations: &[CheckedUnitEffectOperationPlan],
                 transition,
@@ -67,12 +72,11 @@ pub(super) fn build(
     let terminator = if let Some(terminator) = closed_sum::build(
         program,
         facts,
-        scalar_callees,
         shapes,
         machine,
         state_index,
         signatures,
-        entry_claims,
+        edge_calls,
         &result,
         operations,
         terminator_index,

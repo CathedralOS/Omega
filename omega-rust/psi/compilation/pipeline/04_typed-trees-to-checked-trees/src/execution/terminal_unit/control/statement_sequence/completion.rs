@@ -483,6 +483,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_result,
         operations,
         structural_local_symbols,
+        structural_results,
         next_scalar_binding: scalar_count,
     })
 }

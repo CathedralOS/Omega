@@ -114,10 +114,27 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
 ) -> Result<(), LoweringError> {
     // A member call shares its construction's statement custody: the
     // construction's source replay rejoins the member's occurrence and
-    // result as part of the value. Only its target is admitted here.
+    // result as part of the value. Only its target is admitted here, and an
+    // operand naming one of the caller's earlier result bindings (a `let`
+    // local the call reads or takes) rejoins its authored source through the
+    // shared result-use check, so it cannot stand in for another local.
     if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } = operation {
         for call in calls {
-            unit_target(checked, plans, call.operation())?;
+            let member = call.operation();
+            let target = unit_target(checked, plans, member)?;
+            if member.call_structural_arguments().iter().any(|argument| {
+                argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some()
+            }) {
+                structural_calls::validate_consumer(
+                    checked,
+                    caller,
+                    member,
+                    target.structural_parameters,
+                    target.entry_claims,
+                )?;
+            }
         }
         return Ok(());
     }

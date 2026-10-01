@@ -681,6 +681,12 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
+    /// Every structural result binding the sequence established, keyed by
+    /// the authored root it publishes (a `let` local's symbol or an
+    /// anonymous operand's expression). A state's successor edges plan their
+    /// own operand calls against these, as a later statement's call would.
+    pub(in crate::execution::terminal_unit) structural_results:
+        Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
     /// The dense scalar binding ordinal the next retained result takes after
     /// this sequence: the prefix's immutable bindings, then every scalar
     /// result the sequence retained. A guarded arm's terminal call result

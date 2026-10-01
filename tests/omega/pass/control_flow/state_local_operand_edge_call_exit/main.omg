@@ -1,0 +1,109 @@
+// A composite internal state argument computed by an edge call whose operand
+// is one of the source state's own local results. The call reads the local
+// the state established, runs on the selected edge only, after selection,
+// and delivers its structural result into the target's owned parameter:
+//
+//   copy local     take_copy(Main::shift(&mut context.counter, seed, 10), context)
+//                  `seed` is a `[copy]` record local; unconditional edge
+//   result local   take_result(Main::shift(&mut context.counter, made, 2), context)
+//                  `made` holds a structural call result; a guarded edge
+//                  whose unselected arm calls `shift` too, and that call
+//                  must leave no effect
+//   affine local   take_settled(Main::settle(&mut context.counter, owned), context)
+//                  `owned` is a non-copy record that `settle` consumes only
+//                  on the edge carrying the call. In `keep_first` the other
+//                  edge is selected, so `owned` dies there and the unselected
+//                  `settle` must not run; in `settle_second` the call's edge
+//                  is selected and moves `owned`, so it is not also disposed.
+//
+// `counter.calls` counts every helper call: three `shift`s and one `settle`
+// run, so an unselected arm's call or a call hoisted ahead of selection moves
+// the count. Checksum: copy 11 + 12, result 14 + 15, settled 6 + 8 = 66, plus
+// four calls = 70. Every delivered field and the call count reach the exit.
+// Expected exit: 70.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+
+data Owned {
+    value: i32 in Wrapping;
+}
+
+data Counter {
+    calls: i32 in Wrapping;
+}
+
+data Main {
+    console: Binding<Console>;
+    counter: Counter;
+    total: i32 in Wrapping;
+}
+
+machine Main::shift(counter: &mut Counter, pair: Pair, by: i32 in Wrapping) -> Pair {
+    counter.calls = counter.calls + 1;
+    Pair { a: pair.a + by, b: pair.b + by }
+}
+
+machine Main::settle(counter: &mut Counter, owned: Owned) -> Pair {
+    counter.calls = counter.calls + 1;
+    Pair { a: owned.value, b: owned.value + 2 }
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.counter.calls = 0;
+    context.total = 0;
+    transition { _ -> copied(context) }
+
+    state copied(context: &mut Main) {
+        let seed: Pair = Pair { a: 1, b: 2 };
+        transition { _ -> take_copy(Main::shift(&mut context.counter, seed, 10), context) }
+    }
+
+    state take_copy(pair: Pair, context: &mut Main) {
+        context.total = context.total + pair.a + pair.b;
+        let made: Pair = Main::shift(&mut context.counter, pair, 1);
+        transition context.total == 23 {
+            true -> take_result(Main::shift(&mut context.counter, made, 2), context)
+            false -> take_result(Main::shift(&mut context.counter, made, 50), context)
+        }
+    }
+
+    state take_result(pair: Pair, context: &mut Main) {
+        context.total = context.total + pair.a + pair.b;
+        transition { _ -> keep_first(context) }
+    }
+
+    // `owned` dies on the selected edge here; the unselected sibling edge
+    // would have moved it into `settle`, whose call must not run.
+    state keep_first(context: &mut Main) {
+        let owned: Owned = Owned { value: 50 };
+        transition context.total == 52 {
+            true -> settle_second(context)
+            false -> take_settled(Main::settle(&mut context.counter, owned), context)
+        }
+    }
+
+    // The selected edge moves `owned` into `settle`; the unselected sibling
+    // edge would have disposed of it instead.
+    state settle_second(context: &mut Main) {
+        let owned: Owned = Owned { value: 6 };
+        transition context.total == 52 {
+            true -> take_settled(Main::settle(&mut context.counter, owned), context)
+            false -> finish(72, context)
+        }
+    }
+
+    state take_settled(pair: Pair, context: &mut Main) {
+        context.total = context.total + pair.a + pair.b;
+        transition { _ -> finish((context.total + context.counter.calls) as i32, context) }
+    }
+
+    state finish(code: i32, context: &mut Main) {
+        context.console.exit_process(code);
+    }
+}
