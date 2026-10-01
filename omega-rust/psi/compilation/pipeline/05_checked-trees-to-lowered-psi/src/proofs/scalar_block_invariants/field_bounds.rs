@@ -116,24 +116,20 @@ pub(super) fn candidates(
             let Some(predicates) = transported(&site.obligation.proposition, &equations) else {
                 continue;
             };
-            let predicates = restated_on_equal_observations(
-                predicates.into_iter().map(inclusive_bound).collect(),
-                &equations,
-            );
+            let predicates = predicates
+                .into_iter()
+                .map(inclusive_bound)
+                .collect::<Vec<_>>();
             // Transport the site's retained field comparisons once, then
             // select the subset scoped to each header and distinct from the
             // proposed conclusion. These can include derived path bounds;
             // none become trusted simply because they are candidate premises.
-            let guards = restated_on_equal_observations(
-                site.semantic_axioms
-                    .iter()
-                    .filter(|fact| literal_comparison(fact))
-                    .filter_map(|fact| transport_relation(fact, &equations))
-                    .collect(),
-                &equations,
-            )
-            .into_iter()
-            .collect::<BTreeSet<_>>();
+            let guards = site
+                .semantic_axioms
+                .iter()
+                .filter(|fact| literal_comparison(fact))
+                .filter_map(|fact| transport_relation(fact, &equations))
+                .collect::<BTreeSet<_>>();
             // Distinct arrivals may observe the same field through different
             // SSA values. Their bounds disappear at ordinary fact intersection
             // even when every arrival proves the same storage predicate. Loop
@@ -191,10 +187,15 @@ pub(super) fn candidates(
                 // then drop the guard naming each predicate by comparison.
                 let scoped_guards = guards
                     .iter()
-                    .filter(|guard| scope.validate(guard).is_ok())
-                    .cloned()
+                    .filter_map(|guard| scope_rooted(guard, &equations, scope))
                     .collect::<Vec<_>>();
                 for predicate in &predicates {
+                    // The demand's own observation may root at a block this
+                    // header cannot name; re-root it onto the observation the
+                    // header scopes before proposing anything.
+                    let Some(predicate) = &scope_rooted(predicate, &equations, scope) else {
+                        continue;
+                    };
                     // A bound the site's own path guard already states needs
                     // no header invariant; proposing it only adds a question.
                     if guards.contains(predicate) {
@@ -582,42 +583,37 @@ fn literal_comparison(proposition: &Proposition) -> bool {
     }
 }
 
-/// `transported`, plus the same claims restated on every field observation
-/// the site's own equations prove equal to one they name.
+/// `claim` re-rooted onto the field observation this header can actually name.
 ///
 /// A header invariant may name only places live at its arrivals. A machine
 /// that forwards its attached data along its state edges — the ordinary shape
 /// once a state names its data instead of taking a receiver — reads the same
 /// field through a fresh block parameter in each block, so a demand's own
-/// observation roots at the demand block's parameter and the loop header
-/// rejects it as an unknown place. Restating the claim on the header's own
-/// observation of that storage is the difference between a proposal the
-/// header can hold and no proposal at all.
+/// observation roots at the demand block's parameter and the header rejects it
+/// as an unknown place.
 ///
-/// This is substitution under an equation the site already carries, and it
-/// confers nothing: the arrival transaction still proves each restated
+/// The site's own equations say which observations are the same storage, so
+/// the root is a CHOICE made where it is decidable — here, against this
+/// header's telescope — not an enumeration of every alias left for the
+/// telescope to reject. One claim goes in and at most one comes out, so the
+/// roster does not grow with the number of aliases.
+///
+/// The substitution is justified by an equation the site already carries, and
+/// it confers nothing: the arrival transaction still proves the chosen
 /// predicate at every arrival, and the demand still proves its original
-/// obligation from whatever is retained. One substitution is applied per
-/// claim, so the roster grows with the number of equal observations rather
-/// than their powerset.
-fn restated_on_equal_observations(
-    claims: Vec<Proposition>,
+/// obligation from whatever is retained.
+fn scope_rooted(
+    claim: &Proposition,
     equations: &FieldEquations<'_>,
-) -> Vec<Proposition> {
-    let mut restated = claims;
-    if equations.equal_observations.is_empty() {
-        return restated;
+    scope: &PropositionContext,
+) -> Option<Proposition> {
+    if scope.validate(claim).is_ok() {
+        return Some(claim.clone());
     }
-    for position in 0..restated.len() {
-        for (from, to) in &equations.equal_observations {
-            if let Some(claim) = substituted_observation(&restated[position], from, to)
-                && !restated.contains(&claim)
-            {
-                restated.push(claim);
-            }
-        }
-    }
-    restated
+    equations.equal_observations.iter().find_map(|(from, to)| {
+        let restated = substituted_observation(claim, from, to)?;
+        scope.validate(&restated).is_ok().then_some(restated)
+    })
 }
 
 /// `claim` with every occurrence of the `from` observation replaced by `to`,
