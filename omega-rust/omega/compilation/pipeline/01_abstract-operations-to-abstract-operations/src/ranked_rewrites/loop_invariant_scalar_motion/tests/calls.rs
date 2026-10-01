@@ -1131,10 +1131,11 @@ const OWNED_PARAMETER_SCALAR_CALL_SOURCE: &str = r#"
 
 #[test]
 fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
-    let session = lowered_session_entry(
+    let session = super::lowered_session_entry_with_module_edit(
         OWNED_PARAMETER_SCALAR_CALL_SOURCE,
         "owned parameter scalar-call loop",
         "scan",
+        super::pass_snapshot_roots_directly,
     );
     let [component] = session.cycle_components().components() else {
         panic!("one cyclic component")
@@ -4060,10 +4061,11 @@ const MEMBER_PRODUCED_RECORD_SCALAR_CALL_SOURCE: &str = r#"
 
 #[test]
 fn member_produced_record_owned_argument_scalar_call_relocates() {
-    let session = lowered_session_entry(
+    let session = super::lowered_session_entry_with_module_edit(
         MEMBER_PRODUCED_RECORD_SCALAR_CALL_SOURCE,
         "member-produced record owned-argument scalar-call loop",
         "Root::scan",
+        super::pass_snapshot_roots_directly,
     );
     let [component] = session.cycle_components().components() else {
         panic!("one cyclic component")
