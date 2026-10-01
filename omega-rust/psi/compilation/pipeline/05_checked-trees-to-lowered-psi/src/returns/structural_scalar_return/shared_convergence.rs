@@ -160,6 +160,8 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
         | LoweredDirectExpression::IntegerExactCast { .. }
         | LoweredDirectExpression::IntegerWiden { .. }
+        // A re-view's integer is not an integer computation of its operand.
+        | LoweredDirectExpression::RepresentationView { .. }
         // A Trapping conversion may crash; it is not a shared total input.
         | LoweredDirectExpression::IntegerTrappingCast { .. }
         | LoweredDirectExpression::ErasedParameter { .. }

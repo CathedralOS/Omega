@@ -176,6 +176,7 @@ pub(super) fn lower(
             | AbstractOperation::FloatResultPolicy { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
             | AbstractOperation::IntegerExactCast { result, .. }
+            | AbstractOperation::ScalarRepresentationView { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
             | AbstractOperation::IntegerLessThan { result, .. }
             | AbstractOperation::IntegerLessOrEqual { result, .. }

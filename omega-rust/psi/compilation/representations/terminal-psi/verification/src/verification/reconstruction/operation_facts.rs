@@ -174,6 +174,37 @@ pub(super) fn append_operation(
         });
         return Ok(());
     }
+    if let OperationKind::ScalarRepresentationView {
+        operand,
+        landing_obligation,
+    } = operation.kind
+    {
+        // A total re-view publishes no fact: no scalar term spells its bit
+        // reading. A byte landing on `bool` owes the canonical `{0, 1}`
+        // interval, rebuilt from the operand's declared carrier rather than
+        // read from the bundle, against the facts available before the
+        // result exists.
+        let pair = crate::validation::scalar_representation_view::scalar_representation_view_pair(
+            operation,
+            value_types,
+        )?;
+        if let (Some(id), Some(proposition)) = (landing_obligation, pair.landing_goal(operand)) {
+            operation_obligations.push(ReconstructedOperationObligation {
+                owner: ReconstructedTerminalObligationOwner::Operation {
+                    machine: machine.id,
+                    operation: operation.id,
+                },
+                obligation: Obligation {
+                    id,
+                    proposition,
+                    class: ObligationClass::Derivable,
+                },
+                semantic_axioms: axioms.clone(),
+                canonical_certificate: true,
+            });
+        }
+        return Ok(());
+    }
     if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
         return record::append(module, machine, operation, axioms, operation_obligations);
     }
@@ -715,6 +746,9 @@ pub(super) fn append_operation(
         OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
+        OperationKind::ScalarRepresentationView { .. } => {
+            unreachable!("scalar representation views return before legacy reduction dispatch")
+        }
         OperationKind::AtomicAccess { .. } => {
             unreachable!("atomic events return before specialized reconstruction")
         }

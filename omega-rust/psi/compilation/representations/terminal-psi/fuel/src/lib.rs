@@ -85,6 +85,7 @@ impl TerminalFuelSchedule {
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::IeeeFloatCompare { .. }
+            | OperationKind::ScalarRepresentationView { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. }

@@ -544,6 +544,20 @@ pub enum AbstractOperation {
         target_type: IntegerType,
         operand: ValueId,
     },
+    /// Re-view one scalar's stored bits at another carrier of the same width:
+    /// an IEEE value and an integer of its width, or a Boolean and a byte
+    /// (`terminal_semantics::ScalarRepresentationViewPair`). Psi verified the
+    /// pair and proved any byte landing on `bool` is `0` or `1`, so the
+    /// operation computes nothing: the result is the same bits normalized as
+    /// the target carrier holds them. The landing obligation is proof-only and
+    /// is not retained; no Omega rule checks or elides it.
+    ScalarRepresentationView {
+        psi_operation: OperationId,
+        result: ValueId,
+        source_type: ScalarType,
+        target_type: ScalarType,
+        operand: ValueId,
+    },
     IntegerBitwiseAnd {
         psi_operation: OperationId,
         result: ValueId,
@@ -806,6 +820,7 @@ impl AbstractOperation {
             | Self::IntegerBitwiseNot { psi_operation, .. }
             | Self::IntegerWiden { psi_operation, .. }
             | Self::IntegerExactCast { psi_operation, .. }
+            | Self::ScalarRepresentationView { psi_operation, .. }
             | Self::IntegerBitwiseAnd { psi_operation, .. }
             | Self::IntegerBitwiseOr { psi_operation, .. }
             | Self::IntegerBitwiseXor { psi_operation, .. }

@@ -203,7 +203,8 @@ pub(super) fn validate_operation(
             AbstractOperation::IeeeFloatCompare { .. }
             | AbstractOperation::FloatResultPolicy { .. }
             | AbstractOperation::IeeeFloatConstant { .. }
-            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. },
+            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
+            | AbstractOperation::ScalarRepresentationView { .. },
         ) => {
             ieee_float::validate(target, abstracted, sources)?;
         }

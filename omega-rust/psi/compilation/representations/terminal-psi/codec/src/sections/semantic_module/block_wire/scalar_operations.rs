@@ -48,6 +48,44 @@ pub(super) fn decode_ieee_float_compare(
     })
 }
 
+/// A total bit re-view spells tag 101; a `{0, 1}` landing on `bool` spells
+/// tag 102 and its obligation. Neither tag encodes the carriers: they are the
+/// operand's and the result's declarations, which the verifier pairs.
+pub(super) fn encode_scalar_representation_view(
+    writer: &mut Writer,
+    operand: ValueId,
+    landing_obligation: Option<ObligationId>,
+) -> Result<(), CodecError> {
+    writer.u8(if landing_obligation.is_some() {
+        operation_tags::LANDED_SCALAR_REPRESENTATION_VIEW
+    } else {
+        operation_tags::SCALAR_REPRESENTATION_VIEW
+    });
+    writer.id(operand);
+    if let Some(obligation) = landing_obligation {
+        writer.id(obligation);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_scalar_representation_view(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ScalarRepresentationView {
+        operand: reader.id("ValueId")?,
+        landing_obligation: None,
+    })
+}
+
+pub(super) fn decode_landed_scalar_representation_view(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ScalarRepresentationView {
+        operand: reader.id("ValueId")?,
+        landing_obligation: Some(reader.id("ObligationId")?),
+    })
+}
+
 pub(super) fn encode_nearest_ieee_float_fused_multiply_add(
     writer: &mut Writer,
     left: ValueId,

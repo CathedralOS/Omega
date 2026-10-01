@@ -416,6 +416,9 @@ pub(crate) fn lowered_direct_scalar_term(
         LoweredDirectExpression::IntegerTrappingCast { .. } => {
             return unsupported("Trapping conversion forms no crash predicate term");
         }
+        LoweredDirectExpression::RepresentationView { .. } => {
+            return unsupported("a representation re-view forms no crash predicate term");
+        }
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,

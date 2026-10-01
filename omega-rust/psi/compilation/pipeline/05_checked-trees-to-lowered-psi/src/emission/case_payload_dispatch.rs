@@ -527,6 +527,13 @@ pub(crate) fn substitute_direct(
             scalar_type,
             operand: Box::new(substitute_direct(*operand, bound)),
         },
+        Direct::RepresentationView {
+            scalar_type,
+            operand,
+        } => Direct::RepresentationView {
+            scalar_type,
+            operand: Box::new(substitute_direct(*operand, bound)),
+        },
         Direct::IntegerTrappingCast {
             scalar_type,
             operand,
@@ -677,6 +684,7 @@ fn collect_direct_case_reads<'e>(
         Direct::IntegerBitwiseNot { operand, .. }
         | Direct::IntegerWiden { operand, .. }
         | Direct::IntegerExactCast { operand, .. }
+        | Direct::RepresentationView { operand, .. }
         | Direct::IntegerTrappingCast { operand, .. } => collect_direct_case_reads(operand, reads),
         Direct::Boolean { expression } => case_reads(expression, reads),
         Direct::ByteSequenceLength { .. }

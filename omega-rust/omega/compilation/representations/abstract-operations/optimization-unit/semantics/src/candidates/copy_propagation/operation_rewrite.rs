@@ -56,7 +56,8 @@ pub(crate) fn rewrite_block_parameter_operation(
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. } => replace(operand),
+        | O::IntegerExactCast { operand, .. }
+        | O::ScalarRepresentationView { operand, .. } => replace(operand),
         O::BooleanEqual { left, right, .. }
         | O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }

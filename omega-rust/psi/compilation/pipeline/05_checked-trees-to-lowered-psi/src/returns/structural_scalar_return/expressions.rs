@@ -88,6 +88,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
         LoweredDirectExpression::IntegerBitwiseNot { operand, .. }
         | LoweredDirectExpression::IntegerWiden { operand, .. }
         | LoweredDirectExpression::IntegerExactCast { operand, .. }
+        | LoweredDirectExpression::RepresentationView { operand, .. }
         | LoweredDirectExpression::IntegerTrappingCast { operand, .. } => {
             is_branch_free_structural_integer_expression(
                 operand,

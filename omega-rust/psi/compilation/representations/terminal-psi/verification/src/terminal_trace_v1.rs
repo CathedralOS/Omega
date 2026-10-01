@@ -378,6 +378,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::IeeeFloatCompare { .. }
+        | OperationKind::ScalarRepresentationView { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }

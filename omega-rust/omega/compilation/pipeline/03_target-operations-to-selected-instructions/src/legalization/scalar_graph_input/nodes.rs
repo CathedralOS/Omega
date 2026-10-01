@@ -316,6 +316,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::ScalarRepresentationView {
+            psi_operation,
+            result,
+            ..
         } => Ok((*psi_operation, *result)),
         AbstractOperation::IntegerExactCast {
             psi_operation,
@@ -1023,6 +1028,26 @@ pub(super) fn validate(
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*target_type)
+            }
+            // The verified pair is replayed from the two carriers; a pair
+            // outside the shared table, or an operand of another carrier, is a
+            // malformed plan.
+            AbstractOperation::ScalarRepresentationView {
+                operand,
+                source_type,
+                target_type,
+                ..
+            } => {
+                if terminal_semantics::ScalarRepresentationViewPair::classify(
+                    *source_type,
+                    *target_type,
+                )
+                .is_none()
+                    || value_type(optimized, *operand) != Some(*source_type)
+                {
+                    return Err(LegalizationError::custody());
+                }
+                *target_type
             }
             AbstractOperation::IntegerExactCast {
                 operand,

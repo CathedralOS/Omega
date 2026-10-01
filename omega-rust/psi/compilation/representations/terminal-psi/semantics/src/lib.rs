@@ -9,9 +9,11 @@
 //!
 //! `semantic_rows.rs` is the root: the row every terminal
 //! operation kind resolves to. `scalar_leaf_schema.rs` describes a goal-free
-//! scalar leaf and `scalar_leaf_semantics.rs` interprets one; the other
-//! modules cover call composition, proof-bearing scalars, record fields,
-//! primitive places, scalar arrays and structural effects.
+//! scalar leaf and `scalar_leaf_semantics.rs` interprets one;
+//! `scalar_representation_view.rs` owns the closed carrier pairs and bit
+//! meaning of a scalar re-view. The other modules cover call composition,
+//! proof-bearing scalars, record fields, primitive places, scalar arrays and
+//! structural effects.
 
 mod byte_carriers;
 mod byte_sequence_concatenation;
@@ -24,6 +26,7 @@ mod record_field;
 mod scalar_array;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
+mod scalar_representation_view;
 mod semantic_rows;
 mod service_binding;
 mod static_path;
@@ -72,6 +75,7 @@ pub use record_field::{
     record_field_carrier,
 };
 pub use scalar_array::scalar_array_leaf_shape;
+pub use scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,

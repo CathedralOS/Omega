@@ -278,6 +278,7 @@ impl OperationKind {
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
             | Self::IeeeFloatCompare { .. }
+            | Self::ScalarRepresentationView { .. }
             | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
             | Self::BooleanNot { .. }
             | Self::BooleanEqual { .. }
@@ -439,6 +440,7 @@ impl OperationKind {
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
             | Self::IeeeFloatCompare { .. }
+            | Self::ScalarRepresentationView { .. }
             | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
             | Self::BooleanStructuralField { .. }
             | Self::IntegerStructuralField { .. }

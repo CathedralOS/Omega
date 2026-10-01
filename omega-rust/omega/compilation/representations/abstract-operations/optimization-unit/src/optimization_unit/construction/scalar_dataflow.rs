@@ -92,6 +92,11 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         O::IntegerShift {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
+        O::ScalarRepresentationView {
+            result,
+            target_type,
+            ..
+        } => Some((*result, *target_type)),
         O::AtomicEvent { event, .. } => {
             use abstract_operations::AbstractAtomicEvent as E;
             // The instruction-observed prior is the scalar definition a
@@ -176,7 +181,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. } => vec![*operand],
+        | O::IntegerExactCast { operand, .. }
+        | O::ScalarRepresentationView { operand, .. } => vec![*operand],
         O::BooleanEqual { left, right, .. }
         | O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }

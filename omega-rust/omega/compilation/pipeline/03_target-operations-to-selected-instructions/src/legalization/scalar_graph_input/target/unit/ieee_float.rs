@@ -92,6 +92,43 @@ pub(super) fn validate(
             }
             sources.push((*result, Source::Home(*result_home)));
         }
+        // A re-view's home is the Terminal operation's result at the target
+        // carrier, and its operand is the one available source of the
+        // operand value at the source carrier; the pair itself is replayed.
+        (
+            TargetUnitOperation::ScalarRepresentationView {
+                result_home,
+                operand,
+            },
+            AbstractOperation::ScalarRepresentationView {
+                psi_operation,
+                result,
+                source_type,
+                target_type,
+                operand: expected_operand,
+            },
+        ) => {
+            if terminal_semantics::ScalarRepresentationViewPair::classify(
+                *source_type,
+                *target_type,
+            )
+            .is_none()
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != *result
+                || result_home.scalar_type != *target_type
+                || Some(result_home.shape) != super::super::super::scalar_shape(*target_type)
+                || operand.source_value() != *expected_operand
+                || operand.scalar_type() != *source_type
+                || !sources
+                    .iter()
+                    .filter(|(value, _)| value == expected_operand)
+                    .map(|(_, source)| source)
+                    .eq(std::iter::once(operand))
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((*result, Source::Home(*result_home)));
+        }
         (
             TargetUnitOperation::IeeeFloatConstant {
                 psi_operation,

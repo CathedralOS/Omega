@@ -214,6 +214,11 @@ operation_semantic_rows! {
         goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
     IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
     IeeeFloatCompare => ("schema:operation:ieee-float-compare", LeafDenotation, None),
+    // A bit re-view states no result equation: its denotation is the
+    // operand's stored bits read at the result carrier, which no scalar term
+    // spells. The integer-to-`bool` landing obligation is reconstructed by
+    // the verifier from the operand's declared type, not by this row.
+    ScalarRepresentationView => ("schema:operation:scalar-representation-view", LeafDenotation, None),
     NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
     BooleanStructuralField => ("schema:operation:boolean-structural-field", LeafDenotation, None),
     IntegerStructuralField => ("schema:operation:integer-structural-field", LeafDenotation, None),

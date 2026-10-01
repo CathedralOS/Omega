@@ -98,6 +98,11 @@ pub(crate) fn expected_definitions(
         O::IntegerShift {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
+        O::ScalarRepresentationView {
+            result,
+            target_type,
+            ..
+        } => Some((*result, *target_type)),
         O::AtomicEvent { event, .. } => {
             use abstract_operations::AbstractAtomicEvent as E;
             // A load defines its observed result; a read-modify-write,
@@ -180,7 +185,8 @@ pub(crate) fn expected_uses(
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. } => vec![*operand],
+        | O::IntegerExactCast { operand, .. }
+        | O::ScalarRepresentationView { operand, .. } => vec![*operand],
         O::BooleanEqual { left, right, .. }
         | O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }

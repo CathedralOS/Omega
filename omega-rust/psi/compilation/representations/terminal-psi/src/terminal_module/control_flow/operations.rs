@@ -716,6 +716,24 @@ pub enum OperationKind {
         left: ValueId,
         right: ValueId,
     },
+    /// Re-view one scalar's stored bits at another carrier of the same width.
+    /// The source carrier is the operand's declaration and the target the
+    /// result's; the admitted pairs are closed: an IEEE binary32 (binary64)
+    /// value and a 32-bit (64-bit) integer of either sign holding its
+    /// interchange bits, in either direction, and a Boolean and an 8-bit
+    /// integer of either sign holding its `{0, 1}` byte. NaN payloads and
+    /// signed zeros survive bit for bit. Integer-to-integer pairs keep their
+    /// modular-image integer operations, so no pair has two spellings.
+    ///
+    /// Every pair is a total bit map except an integer landing on `bool`,
+    /// whose operand must already lie in `{0, 1}`: `landing_obligation` is
+    /// required exactly for that direction and proves `0 <= operand <= 1`
+    /// before the result exists. The operation states no result equation;
+    /// a consumer that needs one keeps its own observation of the source.
+    ScalarRepresentationView {
+        operand: ValueId,
+        landing_obligation: Option<ObligationId>,
+    },
     /// Compute `round_nearest_even(left * right + addend)` in the result's
     /// exact IEEE format. This remains distinct from multiply-then-add.
     NearestIeeeFloatFusedMultiplyAdd {
@@ -943,7 +961,8 @@ impl OperationKind {
             | Self::BooleanNot { operand: value }
             | Self::IntegerBitwiseNot { operand: value }
             | Self::IntegerWiden { operand: value }
-            | Self::IntegerExactCast { operand: value, .. } => *value = map(*value),
+            | Self::IntegerExactCast { operand: value, .. }
+            | Self::ScalarRepresentationView { operand: value, .. } => *value = map(*value),
             Self::StructuralByteSequenceFieldStore { length, .. }
             | Self::ByteSequenceStore { length, .. } => {
                 *length = map(*length);

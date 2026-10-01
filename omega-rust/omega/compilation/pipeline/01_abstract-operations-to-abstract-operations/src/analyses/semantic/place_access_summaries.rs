@@ -1191,6 +1191,7 @@ fn scan_operation(
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }
         | O::IntegerExactCast { .. }
+        | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }

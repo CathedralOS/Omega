@@ -1,14 +1,25 @@
 // RUN CANARY (exit 70) + interpreter differential. `bool` is ordinary typed
 // storage with the exact representation set {0, 1}: a shared view may forget
-// that fact, a typed {0,1} byte may establish it for a shared view, and mutable
-// aliases are legal only when both sides preserve the same set.
+// that fact (`&u8` reads the stored byte), a byte whose data `where` fact
+// bounds it to {0, 1} may establish it for a shared `&bool` view, and a
+// mutable alias is legal when both sides preserve the same set, as the byte's
+// fact and `bool` do.
+//
+// The revoked spelling also aliased the Boolean field mutably as
+// `&mut u8 [0..=1]`. A local reference cannot spell a range, so its only
+// canonical target is an unconstrained `&mut u8`, which could store 2 into
+// the Boolean; `fail/recast/recast_mut_bool_as_unconstrained_byte` pins that
+// rejection instead.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main
+where
+    byte >= 0 && byte <= 1,
+{
     console: Binding<Console>;
     flag: bool;
-    byte: u8 [0..=1];
+    byte: u8;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -22,11 +33,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state mutate(main: &mut Main) {
-        let flag_bits: &mut u8 [0..=1] = &mut main.flag as &mut u8;
-        flag_bits = 0;
         let byte_flag: &mut bool = &mut main.byte as &mut bool;
         byte_flag = false;
-        transition !main.flag && main.byte == 0 {
+        transition main.flag && main.byte == 0 {
             true -> good(main)
             _ -> bad(main)
         }

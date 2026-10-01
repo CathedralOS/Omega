@@ -203,3 +203,11 @@ pub(super) const FLOAT_RESULT_POLICY: u8 = 99;
 
 /// `OperationKind::StructuralByteViewFieldStore`.
 pub(super) const STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 100;
+
+/// `OperationKind::ScalarRepresentationView` with no landing obligation:
+/// the total bit re-views (IEEE float and integer, Boolean to byte).
+pub(super) const SCALAR_REPRESENTATION_VIEW: u8 = 101;
+
+/// `OperationKind::ScalarRepresentationView` with its `{0, 1}` landing
+/// obligation: an 8-bit integer re-viewed as `bool`.
+pub(super) const LANDED_SCALAR_REPRESENTATION_VIEW: u8 = 102;

@@ -8,7 +8,7 @@
 //! and this module replays the carrier relation from the two types alone
 //! instead of trusting the retained pairing.
 //!
-//! The relation replayed here is the one Terminal Psi can already spell:
+//! The relations replayed here:
 //!
 //! - Two fixed integer carriers of equal width hold the same two's-complement
 //!   bits, so the view reads the source value's modular image at the view
@@ -20,28 +20,32 @@
 //!   little-endian (`byte_region`). Each byte read owes its own Terminal
 //!   index obligation, so the region's bounds are re-proved rather than taken
 //!   from the recast judgment.
+//! - An IEEE float and an integer of its width, and a Boolean and a byte, are
+//!   one Terminal `ScalarRepresentationView` over the source read: the result
+//!   is the same stored bits at the view carrier, NaN payloads and signed
+//!   zeros included. The pair is the shared closed table
+//!   (`terminal_semantics::ScalarRepresentationViewPair`), which the verifier
+//!   replays independently. A byte re-viewed as `bool` emits the landing
+//!   obligation `0 <= byte <= 1`, so Terminal re-proves the `{0, 1}` fact the
+//!   recast judgment relied on from the facts on the path (a data `where`
+//!   row, a bounded field, a guard) rather than trusting the judgment.
 //! - A retained view must change its carrier. A same-carrier recast only
 //!   changes facts and stage 04 reads the place directly, so an identity pair
 //!   here is a malformed judgment rather than a no-op to accept silently.
-//! - An integer carrier re-viewed as `bool` lands the byte's {0, 1} bit
-//!   image as `operand != 0` — the same flat spelling the store side uses
-//!   for the inverse landing, and total for every integer source.
-//! - Any other width change, and every other pairing of a Boolean or IEEE
-//!   float carrier with another carrier, reject. A `bool` re-viewed as an
-//!   integer needs the 0/1 landing only branch-level conditional landing
-//!   can mint — no flat operation stands in for it — and equal byte counts
-//!   do not make `f32` and `u32` interchangeable values either: those views
-//!   need a Terminal re-view vocabulary (bit reinterpretation) that Terminal
-//!   Psi does not have yet.
+//! - Any other pairing rejects: unequal widths, two floats, or a Boolean
+//!   against a float have no bit view to replay.
+//!
+//! Guard positions do not reach this module for an integer seen as `bool`:
+//! a checked Boolean expression has no scalar leaf to hold a re-view, so
+//! stage 04 spells that guard operand as the image `read != 0`, which is total
+//! and equals the re-view on every byte the recast judgment admits.
 //!
 //! The operand must observe one place. A re-view of a computed value would be
 //! a conversion, which the recast contract forbids a cast to perform.
 
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::emission::operation_emission::integer::{
-    LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
-};
+use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
@@ -70,33 +74,20 @@ pub(crate) fn replay(
             }
             crate::expression_preparation::wrapping_cast::wrapping_cast(operand, source_type, view)
         }
-        // A `bool` view reads the integer's nonzero image: the recast
-        // contract admits the pairing only for a declared {0, 1} bit set,
-        // so `operand != 0` reproduces the byte the view names.
-        (ScalarType::Integer(source_type), ScalarType::Boolean) => {
+        // Every cross-family pair the shared table admits is one Terminal
+        // re-view of the place's own read; the verifier replays the pair and
+        // proves a byte's `{0, 1}` landing on `bool`.
+        _ if terminal_semantics::ScalarRepresentationViewPair::classify(source, view).is_some() => {
             if !observes_one_place(&operand) {
                 return unsupported("a representation re-view must observe one scalar place");
             }
-            let zero = match source_type.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(0),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-            };
-            Ok(LoweredDirectExpression::Boolean {
-                expression: Box::new(LoweredBooleanReturnExpression::Not {
-                    operand: Box::new(LoweredBooleanReturnExpression::IntegerComparison {
-                        kind: LoweredIntegerComparisonKind::Equal,
-                        left: Box::new(operand),
-                        right: Box::new(LoweredDirectExpression::IntegerLiteral {
-                            value: zero,
-                            scalar_type: source,
-                        }),
-                    }),
-                }),
+            Ok(LoweredDirectExpression::RepresentationView {
+                scalar_type: view,
+                operand: Box::new(operand),
             })
         }
         _ => unsupported(
-            "a representation re-view between Boolean or IEEE float and other carriers has no \
-             Terminal Psi vocabulary",
+            "a representation re-view pairs carriers of unequal width or without a bit view",
         ),
     }
 }
@@ -197,16 +188,25 @@ fn byte_region(
 }
 
 fn observes_one_place(operand: &LoweredDirectExpression) -> bool {
-    matches!(
-        operand,
+    match operand {
         LoweredDirectExpression::PrimitiveRead { .. }
-            | LoweredDirectExpression::StructuralField { .. }
-            | LoweredDirectExpression::IndexedPrimitiveRead { .. }
-            | LoweredDirectExpression::IndexedElementFieldRead { .. }
-            | LoweredDirectExpression::ElementViewRead { .. }
-            | LoweredDirectExpression::Parameter { .. }
-            | LoweredDirectExpression::Local { .. }
-    )
+        | LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::IndexedPrimitiveRead { .. }
+        | LoweredDirectExpression::IndexedElementFieldRead { .. }
+        | LoweredDirectExpression::ElementViewRead { .. }
+        | LoweredDirectExpression::Parameter { .. }
+        | LoweredDirectExpression::Local { .. } => true,
+        // A Boolean place reads through the Boolean lane; only its leaf
+        // observations name one place; a composed condition does not.
+        LoweredDirectExpression::Boolean { expression } => matches!(
+            expression.as_ref(),
+            LoweredBooleanReturnExpression::PrimitiveRead { .. }
+                | LoweredBooleanReturnExpression::StructuralField { .. }
+                | LoweredBooleanReturnExpression::Parameter { .. }
+                | LoweredBooleanReturnExpression::Local { .. }
+        ),
+        _ => false,
+    }
 }
 
 #[cfg(test)]

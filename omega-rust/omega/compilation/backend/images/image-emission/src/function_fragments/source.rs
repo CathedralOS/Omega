@@ -440,6 +440,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::BooleanNot { .. }
                 | AbstractOperation::IntegerWiden { .. }
                 | AbstractOperation::IntegerExactCast { .. }
+                | AbstractOperation::ScalarRepresentationView { .. }
                 | AbstractOperation::IntegerBitwiseAnd { .. }
                 | AbstractOperation::IntegerBitwiseOr { .. }
                 | AbstractOperation::IntegerBitwiseXor { .. }

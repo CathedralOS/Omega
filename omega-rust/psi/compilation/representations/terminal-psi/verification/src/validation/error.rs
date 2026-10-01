@@ -1458,6 +1458,20 @@ pub enum ModuleError {
         target: ScalarType,
     },
     IntegerExactCastRequiresIntegerResult(OperationId),
+    /// The operand and result carriers are not one admitted equal-width
+    /// cross-family pair of a scalar representation view.
+    ScalarRepresentationViewPairMismatch {
+        operation: OperationId,
+        source: ScalarType,
+        target: ScalarType,
+    },
+    /// A landing obligation is missing on an integer-to-`bool` view, or
+    /// present on a total re-view.
+    ScalarRepresentationViewLandingMismatch {
+        operation: OperationId,
+        source: ScalarType,
+        target: ScalarType,
+    },
     IntegerExactCastOperandTypeMismatch {
         operation: OperationId,
         source: ScalarType,

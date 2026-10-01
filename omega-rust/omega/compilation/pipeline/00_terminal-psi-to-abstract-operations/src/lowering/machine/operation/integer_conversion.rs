@@ -1,3 +1,6 @@
+//! Integer widening and exact casts, and the bit re-view between a scalar
+//! carrier and an integer of the same width.
+
 use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation;
@@ -48,6 +51,28 @@ pub(super) fn lower(
                 result: operation.result.expect_scalar().id,
                 source_type,
                 target_type,
+                operand,
+            }
+        }
+        // The verified pair is re-derived from the two declarations, not
+        // trusted: a carrier pair outside the closed table is malformed.
+        OperationKind::ScalarRepresentationView { operand, .. } => {
+            let result = operation.result.expect_scalar();
+            let source_type = value_types.get(&operand).copied().ok_or(
+                LoweringError::VerifiedScalarRepresentationViewMalformed(operation.id),
+            )?;
+            terminal_semantics::ScalarRepresentationViewPair::classify(
+                source_type,
+                result.scalar_type,
+            )
+            .ok_or(LoweringError::VerifiedScalarRepresentationViewMalformed(
+                operation.id,
+            ))?;
+            AbstractOperation::ScalarRepresentationView {
+                psi_operation: operation.id,
+                result: result.id,
+                source_type,
+                target_type: result.scalar_type,
                 operand,
             }
         }

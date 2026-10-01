@@ -194,6 +194,14 @@ pub(crate) enum LoweredDirectExpression {
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
     },
+    /// One place's stored bits re-viewed at `scalar_type`, a carrier of the
+    /// same width in another family (`ScalarRepresentationView`). An integer
+    /// landing on `bool` emits its `{0, 1}` landing obligation; every other
+    /// admitted pair is total.
+    RepresentationView {
+        scalar_type: ScalarType,
+        operand: Box<LoweredDirectExpression>,
+    },
     /// Selected Trapping conversion: the operand's exact value when it is
     /// representable in `scalar_type`, otherwise a `Trap` at this operation.
     IntegerTrappingCast {
@@ -257,6 +265,7 @@ impl LoweredDirectExpression {
             | Self::IntegerBitwiseNot { scalar_type, .. }
             | Self::IntegerWiden { scalar_type, .. }
             | Self::IntegerExactCast { scalar_type, .. }
+            | Self::RepresentationView { scalar_type, .. }
             | Self::IntegerTrappingCast { scalar_type, .. } => *scalar_type,
             Self::IeeeFloatLiteral { value } => ScalarType::IeeeFloat(value.format()),
             Self::Boolean { .. } => ScalarType::Boolean,
@@ -891,6 +900,48 @@ pub(crate) fn emit_direct_expression(
                             .checked_add(1)
                             .expect("exact-cast obligation follows its operation identity"),
                     ),
+                },
+            });
+            id
+        }
+        LoweredDirectExpression::RepresentationView {
+            scalar_type,
+            operand,
+        } => {
+            let source_type = operand.scalar_type();
+            let operand =
+                emit_direct_expression(operand, parameters, next_value_identity, operations);
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after a representation view");
+            let operation = operations.allocate();
+            // The landing obligation follows its operation identity exactly as
+            // an exact cast's does; replay admitted the pair, so a pair the
+            // shared table does not classify cannot reach emission.
+            let landing_obligation =
+                terminal_semantics::ScalarRepresentationViewPair::classify(source_type, *scalar_type)
+                    .filter(|pair| pair.requires_landing())
+                    .map(|_| {
+                        obligation_id(
+                            operation
+                                .get()
+                                .checked_add(1)
+                                .expect("landing obligation follows its operation identity"),
+                        )
+                    });
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id,
+                    scalar_type: *scalar_type,
+                }),
+                kind: OperationKind::ScalarRepresentationView {
+                    operand,
+                    landing_obligation,
                 },
             });
             id

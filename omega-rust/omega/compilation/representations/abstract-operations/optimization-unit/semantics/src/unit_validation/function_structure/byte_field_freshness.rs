@@ -348,6 +348,7 @@ pub(super) fn changes_length(
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }
         | O::IntegerExactCast { .. }
+        | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }

@@ -303,6 +303,22 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             *target_type,
             *operand,
         ),
+        O::ScalarRepresentationView {
+            psi_operation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => {
+            // Tag 99 extends the roster. Both carriers are identity: the pair
+            // decides how the result's register holds the same bits.
+            bytes.u8(99);
+            bytes.id(*psi_operation);
+            bytes.id(*result);
+            encode_scalar_type(bytes, *source_type);
+            encode_scalar_type(bytes, *target_type);
+            bytes.id(*operand);
+        }
         O::IntegerExactCast {
             psi_operation,
             obligation,

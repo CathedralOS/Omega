@@ -504,7 +504,9 @@ pub(super) fn lower(
             integer_constants_and_relations::lower(operation)
         }
         OperationKind::IntegerBitwiseNot { .. } => integer_bitwise::lower(operation),
-        OperationKind::IntegerWiden { .. } | OperationKind::IntegerExactCast { .. } => {
+        OperationKind::IntegerWiden { .. }
+        | OperationKind::IntegerExactCast { .. }
+        | OperationKind::ScalarRepresentationView { .. } => {
             integer_conversion::lower(operation, value_types)
         }
         OperationKind::IntegerBitwiseAnd { .. }

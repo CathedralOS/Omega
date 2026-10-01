@@ -306,6 +306,40 @@ pub(super) fn lower_operation(
             });
             Ok(())
         }
+        AbstractOperation::ScalarRepresentationView {
+            psi_operation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => {
+            let operand = super::scalar_sources::source(*operand, function, live)?;
+            if operand.scalar_type() != *source_type
+                || terminal_semantics::ScalarRepresentationViewPair::classify(
+                    *source_type,
+                    *target_type,
+                )
+                .is_none()
+            {
+                return Err(LoweringError::ValueTypeMismatch(*result));
+            }
+            let result_home = TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: *result,
+                scalar_type: *target_type,
+                shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(*target_type)
+                    .ok_or(LoweringError::ValueTypeMismatch(*result))?,
+            };
+            if live.scalar_homes.insert(*result, result_home).is_some() {
+                return Err(LoweringError::DuplicateValue(*result));
+            }
+            provenance.operations.push(*psi_operation);
+            operations.push(TargetUnitOperation::ScalarRepresentationView {
+                result_home,
+                operand,
+            });
+            Ok(())
+        }
         AbstractOperation::EstablishScalarArray { .. } => super::scalar_arrays::establish(
             operation,
             function,

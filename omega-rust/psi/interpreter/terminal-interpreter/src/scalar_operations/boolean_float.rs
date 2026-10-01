@@ -1,4 +1,5 @@
-//! Boolean and IEEE-float operations of the interpreter loop.
+//! Boolean and IEEE-float operations of the interpreter loop, including the
+//! scalar representation re-view between those carriers and integers.
 
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
@@ -6,6 +7,7 @@ use crate::scalar_operations::{ieee_float_compare, nearest_ieee_float_fused_mult
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::OperationKind;
+use terminal_semantics::{ScalarRepresentationViewPair, ScalarViewValue};
 
 impl TerminalExecution {
     pub(crate) fn execute_ieee_float_constant(
@@ -53,6 +55,55 @@ impl TerminalExecution {
             operation.result.expect_scalar().id,
             TerminalScalarValue::Boolean(ieee_float_compare(comparison, left, right)),
         );
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Re-view the operand's stored bits at the result carrier through the
+    /// shared pair table. Verification already rejected unadmitted pairs and
+    /// proved a byte landing on `bool` lies in `{0, 1}`; a value the table
+    /// cannot re-view is a malformed operation, never a silent truncation.
+    pub(crate) fn execute_scalar_representation_view(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::ScalarRepresentationView { operand, .. } = operation.kind else {
+            unreachable!("dispatched execute_scalar_representation_view")
+        };
+        let result = operation.result.expect_scalar();
+        let source = self
+            .values
+            .get(&operand)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
+        let (source_type, source_value) = match source {
+            TerminalScalarValue::Boolean(value) => {
+                (ScalarType::Boolean, ScalarViewValue::Boolean(value))
+            }
+            TerminalScalarValue::Integer { scalar_type, value } => (
+                ScalarType::Integer(scalar_type),
+                ScalarViewValue::Integer(value),
+            ),
+            TerminalScalarValue::IeeeFloat(value) => (
+                ScalarType::IeeeFloat(value.format()),
+                ScalarViewValue::IeeeFloat(value),
+            ),
+        };
+        let viewed = ScalarRepresentationViewPair::classify(source_type, result.scalar_type)
+            .and_then(|pair| pair.view(source_value))
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let value = match (viewed, result.scalar_type) {
+            (ScalarViewValue::Boolean(value), ScalarType::Boolean) => {
+                TerminalScalarValue::Boolean(value)
+            }
+            (ScalarViewValue::Integer(value), ScalarType::Integer(scalar_type)) => {
+                TerminalScalarValue::Integer { scalar_type, value }
+            }
+            (ScalarViewValue::IeeeFloat(value), ScalarType::IeeeFloat(_)) => {
+                TerminalScalarValue::IeeeFloat(value)
+            }
+            _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+        };
+        self.values.insert(result.id, value);
         Ok(OperationFlow::Advance)
     }
 

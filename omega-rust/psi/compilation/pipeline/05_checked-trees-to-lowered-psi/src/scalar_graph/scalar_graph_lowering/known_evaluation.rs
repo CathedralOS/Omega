@@ -325,6 +325,9 @@ pub(crate) fn evaluate_direct_expression(
                 .widen_value_to(*target_type, value)
                 .map(KnownDirectScalar::Integer)
         }
+        // A re-view's result is a bit reading no known-value rule spells;
+        // it stays a runtime value.
+        LoweredDirectExpression::RepresentationView { .. } => None,
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,
