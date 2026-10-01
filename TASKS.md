@@ -1223,27 +1223,24 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `4e0c009cd9`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `b8deb3c407`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
-  `Game::run_game_loop` → `GameView::render_room` →
-  `RoomFormatter::write_room_info` → `RoomLookup::find_room` stops at
-  `structural field store: record literal source` (state 2, statement 15),
-  the nested `out_room.event.enemy = room.event.enemy` assignment in
-  `apply_room`. Stage 04 `execution/terminal_unit/structural_scalar_store/mod.rs`
-  routes a plain-record field destination through `record_literal_stores`,
-  which accepts a literal but not this copied record projection. Earlier,
-  `values/scalar/computations/structural_values.rs::is_copied_place_operand`
-  excludes owned roots for nonempty copy paths, preventing the ordinary
-  copied-value registration. Admit readable owned projections under the same
-  unrestricted-leaf/source replay checks, then use existing structural copy
-  and field replacement custody instead of requiring
-  a rewritten sample or decomposing fields by source spelling. Guarded Unit
-  completion and selected-edge indexed record arguments now compose through
-  existing plans, with exact source/selector replay, ordinary cleanup and
-  verified runtime bounds. Seven focused native fixtures execute their authored
-  exits; three composite-argument tests, ten leaf-copy selection tests and the
-  Unit-return cleanup/mutation test pass. Preserve whole-view descriptor copying
-  separately from projected element reads of its backing storage.
+  `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
+  `MazeBuilder::build` → `MazeBuilder::clear_level` stops at
+  `call operation: structural arguments: caller structural result`.
+  The method lends `&mut rooms[0]` from its local mutable view to
+  `clear_room`; trace the result argument's referent, projected access and
+  represented field constraints in Stage 04
+  `execution/terminal_unit/calls/result_arguments/mod.rs`.
+  Readable owned projections now copy unrestricted nested records through
+  ordinary field replacement and exact source replay; native argument
+  transport retains bounded-owned byte fields and their declared predicates.
+  The focused `borrows/owned_nested_record_copy_exit` executes 70 with a
+  source reread, and four nearby native controls retain their authored exits.
+  Eleven copied-operand tests, seven layout tests and four ABI tests pass,
+  including same-typed source substitution rejection and borrowed-descriptor
+  exclusion. Preserve guarded Unit cleanup, selected-edge indexed arguments,
+  and whole-view descriptor copying separately from projected backing reads.
   Preserve the established local byte-copy, write-frame, stale-view,
   consumed/partial-owner and suspended-root controls. These dependency results
   do not close the dungeon application acceptance.
