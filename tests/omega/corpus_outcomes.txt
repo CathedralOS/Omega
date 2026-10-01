@@ -1169,8 +1169,7 @@ pass/calls/by_value_case_param_self_write_exit checked 1360ms @2d8ed253669f
 pass/calls/callback_private_materialization rejected 1409ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms @2d8ed253669f
-pass/calls/caller_structural_result_indexed_borrow_exit rejected 4105ms @17039e6ea406+wt
-	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(5) })
+pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg rejected 1217ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/calls/case_scrutinee_param_clone_exit rejected 758ms @2d8ed253669f

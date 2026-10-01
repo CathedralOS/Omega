@@ -196,11 +196,14 @@ struct Replay<'a> {
 /// establishments own their storage; caller and block parameters keep their
 /// declared access. `whole_loan` marks an unrestricted, unqualified,
 /// claim-free operation result: the only local home Terminal verification lets
-/// a call borrow whole as a fixed-array view.
+/// a call borrow whole as a fixed-array view. `graph_home` marks an aggregate
+/// home established in this body: any call argument rooted there takes the
+/// live-graph lowering, never the parameter-roster one.
 struct RootDeclaration {
     structural_type: StructuralTypeId,
     access: StructuralAccess,
     whole_loan: bool,
+    graph_home: bool,
 }
 
 impl RootDeclaration {
@@ -760,6 +763,15 @@ impl Replay<'_> {
         if *call_plan != expected_plan {
             return Err(psi_operation);
         }
+        // Lowering resolves a Unit call against the caller's parameter
+        // roster unless a result lands or an argument roots at a home this
+        // body established; those calls take the live graph instead.
+        let live_graph = !matches!(expected_result, BoundResult::Unit)
+            || structural_arguments.iter().any(|argument| {
+                self.roots
+                    .get(&argument.place)
+                    .is_some_and(|root| root.graph_home)
+            });
         self.scalar_arguments(
             psi_operation,
             actual_scalar,
@@ -780,6 +792,7 @@ impl Replay<'_> {
                 semantic,
                 declared,
                 &expected_plan,
+                live_graph,
             )?;
         }
         self.bind_result(
@@ -2807,6 +2820,7 @@ impl Replay<'_> {
     /// One retained structural call argument replays the declared parameter
     /// identity, the independently reconstructed referent shape, and the
     /// canonical destination placement.
+    #[allow(clippy::too_many_arguments)]
     fn structural_argument(
         &self,
         psi_operation: OperationId,
@@ -2815,6 +2829,7 @@ impl Replay<'_> {
         semantic: &StructuralArgument,
         declared: &StructuralParameterDeclaration,
         expected_plan: &CallPlan,
+        live_graph: bool,
     ) -> Result<(), OperationId> {
         // A `.., Referent` argument transports the referent root's
         // pointer: `place` names the root whose canonical storage
@@ -2931,9 +2946,10 @@ impl Replay<'_> {
         }
         // Static subloans carry a pointer to the reconstructed leaf, not
         // an array-view descriptor. Indexed paths need the same carrier
-        // and offset replay as fields; owned indexed copies retain their
-        // separate array transport metadata.
-        let static_borrow = root.access != StructuralAccess::Owned
+        // and offset replay as fields. Only the parameter-roster lowering
+        // gives an owned root's indexed subloan the root array's transport
+        // metadata; a live-graph call lends the bare leaf of any root.
+        let static_borrow = (root.access != StructuralAccess::Owned || live_graph)
             && semantic.access != StructuralAccess::Owned
             && semantic.path.iter().all(|segment| {
                 matches!(
@@ -3655,7 +3671,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
         };
-        let (place, structural_type, whole_loan) = match operation {
+        let (place, structural_type, whole_loan, graph_home) = match operation {
             AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
@@ -3665,32 +3681,36 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             | AbstractOperation::BoundaryCall {
                 result: AbstractBoundaryResult::Structural(result),
                 ..
-            } => (result.place, result.structural_type, plain_loan(result)),
-            AbstractOperation::EstablishPrimitiveLocal { result, .. }
-            | AbstractOperation::EstablishRecord { result, .. }
+            } => (result.place, result.structural_type, plain_loan(result), true),
+            AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             // Extraction transfers the field into a distinct owned root;
             // its later call operand is not the borrowed source root.
-            | AbstractOperation::MoveStructuralField { result, .. }
+            | AbstractOperation::MoveStructuralField { result, .. } => {
+                (result.place, result.structural_type, false, true)
+            }
+            // Primitive storage and byte views stay roster-eligible.
+            AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. } => {
-                (result.place, result.structural_type, false)
+                (result.place, result.structural_type, false, false)
             }
             AbstractOperation::EstablishByteSequenceLiteral {
                 place,
                 structural_type,
                 ..
-            }
-            | AbstractOperation::EstablishTrivialAffineLocal {
+            } => (place.id, structural_type.id, false, false),
+            AbstractOperation::EstablishTrivialAffineLocal {
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id, false),
+            } => (place.id, structural_type.id, false, true),
             _ => continue,
         };
         roots.entry(place).or_insert(RootDeclaration {
             structural_type,
             access: StructuralAccess::Owned,
             whole_loan,
+            graph_home,
         });
     }
     for entry in &source.block_entries {
@@ -3702,6 +3722,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 structural_type: parameter.structural_type,
                 access: parameter.access,
                 whole_loan: false,
+                graph_home: false,
             });
         }
     }
@@ -3710,6 +3731,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             structural_type: parameter.structural_type,
             access: parameter.access,
             whole_loan: false,
+            graph_home: false,
         });
     }
     roots
