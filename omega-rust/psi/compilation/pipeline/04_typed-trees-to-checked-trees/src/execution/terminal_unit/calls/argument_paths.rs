@@ -803,14 +803,20 @@ pub(crate) fn ordinary_projected_call_is_supported(
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
-    if arguments.iter().all(|argument| argument.path.is_empty()) {
+    // A range over a fixed-array field carries the field projection to the
+    // collection its lowering views whole; it presents a fresh shared view,
+    // not a projected subloan of its root.
+    let projected = |argument: &CheckedUnitStructuralArgumentPlan| {
+        !argument.path.is_empty() && !super::view_subslice::is_field_range(argument)
+    };
+    if !arguments.iter().any(projected) {
         return true;
     }
     // A retained result carrier presents its borrowed referent, not a moved
     // aggregate field. Exact producing local/loan custody was rejoined by the
     // shared result argument builder and is independently replayed in lowering.
     if arguments.iter().all(|argument| {
-        argument.path.is_empty()
+        !projected(argument)
             || (argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
@@ -864,7 +870,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .iter()
             .zip(&target_parameters)
             .all(|(argument, target)| {
-                if argument.path.is_empty() {
+                if !projected(argument) {
                     return true;
                 }
                 argument
@@ -912,7 +918,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .iter()
             .zip(&target_parameters)
             .any(|(argument, parameter)| {
-                !argument.path.is_empty()
+                projected(argument)
                     && target_contract_mentions_projected_parameter(
                         program,
                         facts,
@@ -934,7 +940,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .iter()
             .zip(&target_parameters)
             .all(|(argument, target)| {
-                if argument.path.is_empty() {
+                if !projected(argument) {
                     return true;
                 }
                 let Some(source) = argument
@@ -1103,7 +1109,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             == Multiplicity::Affine
                         && !type_graph_requires_nominal_drop(program, target.type_reference);
                 }
-                argument.path.is_empty()
+                !projected(argument)
             })
         && program.machine_states(caller_machine).len() == 1
         && program.machine_states(target_machine).len() == 1

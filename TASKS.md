@@ -1618,14 +1618,24 @@ crash and native exit behavior. Use affected check/native corpus slices under
   claim-transferring arm calls remain declined there.
 
   Acceptance: `slices/domained_runtime_end_subslice_exit` exits 70 with its
-  Path-qualified runtime-end slice. It stops at `call operation: structural
-  arguments: parameter path`: `calls/view_subslice.rs::shape` refuses a
-  qualified (`in Path`) source parameter. Past that, a composed state's call
-  has no subslice argument staging (`composed_control/literal_arguments.rs`;
-  the unqualified shape stops at "byte-sequence argument place is absent").
-  `slices/runtime_bounded_fixed_array_subslice_arg_exit` (exit 3) shares the
-  phase through its field range `self.arr[lo..hi]`, which `admit_replayed`
-  admits only at a local binding.
+  Path-qualified runtime-end slice. Calls stage runtime view and field ranges
+  (`calls/view_subslice.rs`, `attached_unit/byte_subslices.rs`):
+  `slices/runtime_bounded_fixed_array_subslice_arg_exit` exits **3** and
+  `calls/guarded_arm_view_range_tail_call_exit` exits **70** natively and on
+  the interpreter on macOS ARM64, and the domained fixture exits 70 with its
+  formal's `in Path` removed. As written it stops at `call operation:
+  structural arguments: range into a qualified view formal`. Psi already
+  grants a subslice-preserving byte domain to the range
+  (`ByteSequencePredicate::is_subslice_preserving`), but a Terminal subslice
+  result carries no qualifications
+  ([byte views](wiki/spec/terminal-psi/byte_views.md)), so admitting it
+  makes the verifier report `StructuralArgumentMissingQualification` for
+  `prefix: &[u8] in Path`. Next dependency, on the trusted surface: Terminal
+  subslice results keep their source's subslice-preserving primitive
+  predicates, and argument checks replay them. Ordinary single-state bodies
+  still refuse field and element ranges by name (`ordinary_machine.rs`), and
+  a statement call passing a range in a multi-state body stops at `state
+  graph: operation custody: call non-parameter argument` (`state_graph/mod.rs`).
   `termination/runtime_shrinking_slice_recursion_exit` now executes unchanged
   with native exit **70** on macOS ARM64, summing 10+20+15+25 through staged
   subslices and head reads. Whole element views use their existing element

@@ -237,17 +237,8 @@ pub(super) fn emit_call_operations(
             None
         } else {
             Some(literal_arguments::evaluate(
-                checked,
-                machine,
-                state.state,
-                operation,
-                catalogs,
-                evaluation,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
+                checked, machine, state, parameters, operation, catalogs, evaluation, values,
+                next_value, next_block, next_edge, operations,
             )?)
         };
         let mut calls = catalogs.scalar_calls.emission_context();

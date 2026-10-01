@@ -1232,6 +1232,7 @@ pass/calls/field_path_byte_subslice_exit checked 3105ms @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 4173ms @d0cd22d4e92a+wt
+pass/calls/guarded_arm_view_range_tail_call_exit checked 746ms @ad4cf8611e36+wt
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
@@ -1971,8 +1972,8 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 358ms @2d8ed25366
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms @ed38350cbc69+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 307ms @2d8ed253669f
-pass/slices/domained_runtime_end_subslice_exit rejected 524ms @c9c108ecb4ac+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
+pass/slices/domained_runtime_end_subslice_exit rejected 445ms @ad4cf8611e36+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: range into a qualified view formal` (state 0, statement 0)
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 293ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 319ms @2d8ed253669f
@@ -1981,8 +1982,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669
 pass/slices/local_array_element_view_exit checked 2015ms @2d8ed253669f
 pass/slices/recursive_subslice_element_accumulator_exit checked 1421ms @2d8ed253669f
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 521ms @c9c108ecb4ac+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 709ms @ad4cf8611e36+wt
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit checked 1286ms @2d8ed253669f

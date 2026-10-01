@@ -672,18 +672,29 @@ pub(crate) fn validate_transfer_shape(
             }
             continue;
         }
-        if argument.byte_sequence_literal().is_some()
-            || matches!(
-                argument.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            )
-        {
-            // A literal can construct a fresh bounded owner; subslices still
-            // supply only shared views. Source replay checks the exact formal,
-            // and Terminal checks every emitted qualification from its bytes.
+        let range = super::byte_subslices::range(argument);
+        if argument.byte_sequence_literal().is_some() || range.is_some() {
+            // A literal can construct a fresh bounded owner; ranges of either
+            // view family still supply only shared views. Source replay checks
+            // the exact formal, and Terminal checks every emitted
+            // qualification from its bytes. A range over a fixed-array field
+            // keeps the field projection its staging views whole.
             let owned_literal = argument.byte_sequence_literal().is_some()
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned;
-            if !argument.path.is_empty()
+            let field_range = range.as_ref().is_some_and(|range| {
+                matches!(
+                    range.root,
+                    checked_trees::CheckedStorageRoot::Parameter { .. }
+                )
+            }) && argument
+                .path
+                .iter()
+                .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)));
+            let element_range = range.as_ref().is_some_and(|range| {
+                range.family
+                    == crate::emission::operation_emission::view_subslice::ViewFamily::Elements
+            });
+            if (!argument.path.is_empty() && !field_range)
                 || argument.type_identity != target.type_identity
                 || (!owned_literal
                     && argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow)
@@ -696,9 +707,10 @@ pub(crate) fn validate_transfer_shape(
             if !structural_types.iter().any(|declaration| {
                 declaration.id == structural_type
                     && match declaration.shape {
+                        StructuralTypeShape::ElementView { .. } => element_range,
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                             ..
-                        }) => !owned_literal,
+                        }) => !owned_literal && !element_range,
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
                             capacity,
                         }) => {
@@ -1545,8 +1557,10 @@ pub(crate) fn lower_structural_arguments(
                 };
                 return Ok(StructuralArgument { place: local.declaration.id, path: Vec::new(), access });
             }
+            // Literals and view ranges of either family were staged into
+            // places of their own, in argument order.
             if argument.byte_sequence_literal().is_some()
-                || matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
+                || matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. })
             {
                 let place = *byte_argument_places
                     .get(next_byte_argument)

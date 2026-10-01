@@ -15,19 +15,38 @@
 //! local was actually established before this statement, and lowering
 //! resolves the symbol to its published place or refuses.
 //!
-//! A range over a fixed-array field (`let sub: &[T] = self.items[1..hi]`) has
-//! no established view to narrow, so the range names the field instead: its
-//! root is the structural parameter that owns the storage and its argument
-//! `path` is the record-field projection to the array. Lowering first
-//! establishes a whole view over that field under a shared loan and
-//! then narrows it through the same subslice operation, so the field's
-//! extent, the endpoints' bounds and the narrowed length all come from the
-//! ordinary view vocabulary rather than a field-specific range. Only a view
-//! local's binding admits this form: its view outlives the statement, while a
-//! call argument over field storage keeps its call-scoped `FixedByteRange`
-//! window and an edge transfer carries no projection. The checked borrow
-//! ledger must already hold the local's shared loan of exactly that field, so
-//! later writes to the array while the view is live stay rejected there.
+//! Qualifications stay with the source. A byte view parameter may carry
+//! primitive byte domains (`path: &[u8] in Path`); its range is the same
+//! fresh, unqualified subslice an unqualified view's is, so it can supply
+//! only an unqualified formal. A range into a domain-qualified formal
+//! (`prefix: &[u8] in Path`) would need the subslice result itself to carry
+//! the domain, which the Terminal byte-view vocabulary does not define, even
+//! where the checker proved the range in that domain (`no_nul` is
+//! subslice-preserving). Call planners name that boundary
+//! (`narrows_into_qualified_formal`) rather than admit a plan the verifier
+//! must reject.
+//!
+//! A range over a fixed-array field (`let sub: &[T] = self.items[1..hi]`,
+//! `self.consume(self.items[lo..hi])`) has no established view to narrow, so
+//! the range names the field instead: its root is the structural parameter
+//! that owns the storage and its argument `path` is the record-field
+//! projection to the array. Lowering first establishes a whole view over that
+//! field under a shared loan and then narrows it through the same subslice
+//! operation, so the field's extent, the endpoints' bounds and the narrowed
+//! length all come from the ordinary view vocabulary rather than a
+//! field-specific range.
+//!
+//! A view local's binding and a call argument admit this form; an edge
+//! transfer carries no projection. The two admitting sites differ in who
+//! keeps the array unwritten while the view lives. A local's view outlives
+//! its statement, so the checked borrow ledger must already hold the local's
+//! shared loan of exactly that field, and later writes stay rejected there. A
+//! call argument's view dies with its call: the checker's call-argument
+//! overlap judgment (a callee that writes the lent array through its own
+//! receiver rejects, `fail/borrows/whole_mut_receiver_write_under_argument_view`)
+//! already covers the only interval the view is live, and the ledger records
+//! no loan for it. A byte range whose bounds are literals keeps the
+//! call-scoped `FixedByteRange` window it always took at a call argument.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
@@ -156,9 +175,51 @@ pub(in crate::execution) fn admit(
         statement_index,
         site,
     )?;
-    (subslice.range.collection.is_empty()
-        || lends_field_collection(program, facts, machine, state, statement_index, expression))
-    .then_some(subslice)
+    let established = match site {
+        _ if subslice.range.collection.is_empty() => true,
+        CheckedSubsliceSite::LocalBinding => {
+            lends_field_collection(program, facts, machine, state, statement_index, expression)
+        }
+        // The call-argument overlap judgment, not a ledger loan, keeps the
+        // field unwritten for the call (module header).
+        CheckedSubsliceSite::CallArgument { .. } => true,
+        CheckedSubsliceSite::TransitionArgument { .. } => false,
+    };
+    established.then_some(subslice)
+}
+
+/// Whether `argument` narrows a fixed-array field rather than an established
+/// view: an exclusive range whose path is the record-field projection to the
+/// array its lowering views whole before narrowing. That path names the
+/// collection a fresh shared view establishes, not a projected subloan of the
+/// root, so projection admission and claim accounting treat the argument
+/// like any other whole view.
+pub(crate) fn is_field_range(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+    matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root: CheckedStorageRoot::Parameter { .. },
+            ..
+        } | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: CheckedStorageRoot::Parameter { .. },
+            ..
+        }
+    ) && !argument.path.is_empty()
+        && argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+        && argument.access == CheckedStructuralAccess::SharedBorrow
+}
+
+/// Whether `argument` is an exclusive range over a view or a fixed-array
+/// field, of either view family.
+pub(crate) fn is_view_subslice(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+    matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+    )
 }
 
 /// Shared admission also serves computation construction, before CheckFacts
@@ -284,7 +345,15 @@ pub(in crate::execution) fn admit_replayed(
         expression,
         statement_index,
     )?;
-    if !range.collection.is_empty() && site != CheckedSubsliceSite::LocalBinding {
+    if !range.collection.is_empty()
+        && !match site {
+            CheckedSubsliceSite::LocalBinding => true,
+            CheckedSubsliceSite::CallArgument { .. } => {
+                !fixed_byte_window(program, state, statement_index, expression, range.kind)
+            }
+            CheckedSubsliceSite::TransitionArgument { .. } => false,
+        }
+    {
         return None;
     }
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -339,6 +408,58 @@ pub(in crate::execution) fn shape(
     let kind = view_kind(program, target).or_else(|| {
         borrowed_slice_view_element(program, target, &[]).map(|_| ViewKind::Elements)
     })?;
+    shape_of_kind(
+        program,
+        machine,
+        state,
+        parameters,
+        target,
+        kind,
+        expression,
+        statement_index,
+    )
+}
+
+/// Whether `expression` is a range `shape` would admit if the formal it
+/// supplies were not domain-qualified (`prefix: &[u8] in Path`). Such a
+/// range has no lowering (module header): a Terminal subslice result carries
+/// no qualifications (wiki/spec/terminal-psi/byte_views.md, "Values and
+/// observations"), so the verifier would find the formal's domain missing.
+pub(in crate::execution) fn narrows_into_qualified_formal(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+) -> bool {
+    domain_qualified_byte_view(program, target)
+        && shape_of_kind(
+            program,
+            machine,
+            state,
+            parameters,
+            target,
+            ViewKind::Bytes,
+            expression,
+            statement_index,
+        )
+        .is_some()
+}
+
+/// `shape` for a target of the view family `kind`.
+#[allow(clippy::too_many_arguments)]
+fn shape_of_kind(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    kind: ViewKind,
+    expression: ExpressionHandle,
+    statement_index: usize,
+) -> Option<ViewRange> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -392,11 +513,21 @@ pub(in crate::execution) fn shape(
             .iter()
             .position(|parameter| parameter.position as usize == position)?;
         let parameter = &parameters[parameter_index];
+        // A byte view parameter's primitive byte domains (`path: &[u8] in
+        // Path`) qualify the source only: the narrowed view is a fresh
+        // unqualified subslice, so narrowing forgets them, and the target's
+        // own exact view type above admits no qualified formal.
+        let source_kind = if parameter.qualifications.is_empty() {
+            view_kind(program, authored[position].type_reference)
+        } else {
+            domain_qualified_byte_view(program, authored[position].type_reference)
+                .then_some(ViewKind::Bytes)
+        };
         if parameter.access != CheckedStructuralAccess::SharedBorrow
             || parameter.multiplicity != Multiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
             || parameter.type_identity != type_identity
-            || view_kind(program, authored[position].type_reference) != Some(kind)
+            || source_kind != Some(kind)
         {
             return None;
         }
@@ -497,6 +628,32 @@ fn field_collection(
         ))
 }
 
+/// Whether a byte range over field storage canonicalizes to a literal window
+/// (`self.buffer[0..4]`). Such a call argument keeps the call-scoped
+/// `FixedByteRange` projection of its backing, which needs no view
+/// establishment; only ranges the window cannot spell take the field route.
+fn fixed_byte_window(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    kind: ViewKind,
+) -> bool {
+    kind == ViewKind::Bytes
+        && crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        )
+        .is_some_and(|place| {
+            matches!(
+                place.segments.last(),
+                Some(facts::PlaceSegment::FixedRange { .. })
+            )
+        })
+}
+
 /// The immutable borrowed-view `let` that `symbol` names, declared at an
 /// earlier statement of `state`. Parameters and later or mutable locals are
 /// not established view places at `statement_index`.
@@ -513,6 +670,56 @@ pub(in crate::execution) fn view_local_before<'a>(
         && local.initial_value.is_valid()
         && view_kind(program, local.type_reference).is_some())
     .then_some(local)
+}
+
+/// Whether `reference` is an immutable byte view under domain constraints
+/// only (`&[u8] in Path`): an exact shared `&[u8]` whose reference or slice
+/// carries one or more constraint shells, each naming only domains.
+fn domain_qualified_byte_view(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    let mut constrained = false;
+    let mut peel = |mut reference: TypeReferenceHandle| {
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        {
+            if !program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .all(|constraint| {
+                    matches!(
+                        constraint,
+                        typed_trees::types::TypeConstraintNode::Domain(_)
+                    )
+                })
+            {
+                return None;
+            }
+            constrained = true;
+            reference = *base_type;
+        }
+        Some(reference)
+    };
+    let Some(TypeReferenceNode::Reference {
+        referee,
+        access: language_semantics::ReferenceAccess::Shared,
+        ..
+    }) = peel(reference).map(|outer| program.type_reference_table.type_reference(outer))
+    else {
+        return false;
+    };
+    let Some(TypeReferenceNode::Slice { element_type }) =
+        peel(*referee).map(|inner| program.type_reference_table.type_reference(inner))
+    else {
+        return false;
+    };
+    constrained
+        && matches!(
+            program.type_reference_table.type_reference(*element_type),
+            TypeReferenceNode::Named { .. }
+        )
+        && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
 }
 
 /// The borrowed view family of an exact immutable `&[u8]` or `&[T]` type.
