@@ -5,15 +5,16 @@
 // (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_release`) only
 // releases a still-vacant region; a resident must be retired to `Vacant`
 // before its extent can return tail-ward.
+use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
-data Split {
+pub data Split {
     taken: Extent in Granted & Vacant;
     rest: Extent in Granted & Vacant;
 }
 
-boundary trait ExtentPartition {
+pub boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))
@@ -42,23 +43,23 @@ data Issued {
     allocation: Extent in Granted & Vacant;
 }
 
-data Slot [copy] {
+pub data Slot [copy] {
     value: u32;
 }
 
-data SlotPlacement {}
+pub data SlotPlacement {}
 
-data Occupied {
+pub data Occupied {
     storage: Extent in Granted & Resident<SlotPlacement, Slot>;
 }
 
-boundary trait ResidentStorage {
+pub boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }
 
-machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+machine allocate(partition: &Binding<ExtentPartition>, strategy: Bump, length: u64) -> Issued
 requires
     length <= strategy.remaining
 reaches ExtentPartition
@@ -80,7 +81,7 @@ reaches ExtentPartition
 // live. `returned` must still be `Vacant` — the same demand `merge` makes on
 // every folded part.
 machine release(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     strategy: Bump,
     returned: Extent in Granted & Vacant
 ) -> Bump
@@ -98,8 +99,8 @@ reaches ExtentPartition
 // Allocate twice, establish a resident in the newest region, then attempt its
 // tail-ward release without retiring it first.
 machine exercise(
-    partition: &ExtentPartition,
-    storage: &ResidentStorage,
+    partition: &Binding<ExtentPartition>,
+    storage: &Binding<ResidentStorage>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent

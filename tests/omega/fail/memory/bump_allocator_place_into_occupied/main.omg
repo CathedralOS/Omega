@@ -4,15 +4,16 @@
 // no `Vacant` premise. The pass-side sibling
 // (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_resident`)
 // retires before the storage can be reused.
+use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
-data Split {
+pub data Split {
     taken: Extent in Granted & Vacant;
     rest: Extent in Granted & Vacant;
 }
 
-boundary trait ExtentPartition {
+pub boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         Granted::content(old(&whole))
@@ -31,22 +32,22 @@ boundary trait ExtentPartition {
         == Granted::content(&result);
 }
 
-data Slot [copy] {
+pub data Slot [copy] {
     value: u32;
 }
 
-data SlotPlacement {}
+pub data SlotPlacement {}
 
-data Occupied {
+pub data Occupied {
     storage: Extent in Granted & Resident<SlotPlacement, Slot>;
 }
 
-data Retired {
+pub data Retired {
     storage: Extent in Granted & Vacant;
     value: Slot;
 }
 
-boundary trait ResidentStorage {
+pub boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);
@@ -59,8 +60,8 @@ boundary trait ResidentStorage {
 }
 
 machine exercise(
-    partition: &ExtentPartition,
-    storage: &ResidentStorage,
+    partition: &Binding<ExtentPartition>,
+    storage: &Binding<ResidentStorage>,
     whole: Extent in Granted & Vacant
 ) -> Extent
 reaches ExtentPartition, ResidentStorage
