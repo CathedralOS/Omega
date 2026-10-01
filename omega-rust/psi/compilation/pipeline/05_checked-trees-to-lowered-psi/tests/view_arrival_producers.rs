@@ -3,8 +3,14 @@
 //! reconstruction relates the successor's length read to the dominating
 //! establishment or subslice, the producer searches a certificate against those
 //! reconstructed axioms, and the reloaded artifact is verified independently.
+//!
+//! The same holds between the blocks of one state: each element-view length
+//! a read or subslice names must be observed in that operation's own block.
+//! A call's operands each occupy a block, so a subslice operand and a read
+//! operand of one view cannot share a length observation.
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
+use std::collections::BTreeSet;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 
@@ -205,4 +211,124 @@ fn a_retargeted_arrival_invalidates_the_tail_certificate() {
         ),
         "the arrival read's certificate is rejected: {error:?}"
     );
+}
+
+/// `probe` passes `sub[1..]` and `sub[1].value` to one call in each authored
+/// order. Arguments evaluate left to right, but the scalar graph builds each
+/// operand's block from the call backwards and emits them in that order, so a
+/// length cached while emitting one operand's block would be named by the
+/// other operand's block, which runs first and does not see it.
+const SAME_VIEW_CALL_OPERANDS: &str = r#"
+        boundary trait Output {
+            machine count(value: u64) reaches Output;
+        }
+        data Entry {
+            value: i32;
+        }
+        data Root {
+            entries: [Entry; 4];
+        }
+        machine Root::confirm(tail: &[Entry], chosen: i32) -> i32 {
+            transition tail.len >= 1 {
+                true -> emit(tail[0].value)
+                false -> chosen
+            }
+            state emit(first: i32) -> i32 {
+                transition { _ -> first }
+            }
+        }
+        machine Root::confirm_after(chosen: i32, tail: &[Entry]) -> i32 {
+            transition tail.len >= 1 {
+                true -> emit(tail[0].value)
+                false -> chosen
+            }
+            state emit(first: i32) -> i32 {
+                transition { _ -> first }
+            }
+        }
+        machine Root::probe(sub: &[Entry]) -> i32 {
+            transition sub.len >= 2 {
+                true -> picked(sub)
+                false -> 0
+            }
+            state picked(sub: &[Entry]) -> i32 {
+                let first: i32 = Root::confirm(sub[1..], sub[1].value);
+                let second: i32 = Root::confirm_after(sub[1].value, sub[1..]);
+                transition first == 9 {
+                    true -> done(second)
+                    false -> 0
+                }
+            }
+            state done(value: i32) -> i32 {
+                transition { _ -> value }
+            }
+        }
+        machine Root::enter(&mut self) reaches Output {
+            self.entries[1].value = 9;
+            let view: &[Entry] = self.entries.as_slice();
+            let result: i32 = Root::probe(view);
+            transition result == 9 {
+                true -> good()
+                false -> bad()
+            }
+            state good(&mut self) { Output::count(1); }
+            state bad(&mut self) { Output::count(2); }
+        }
+    "#;
+
+/// Lower `source`, require every element-view read and subslice to name a
+/// length observed in its own block, and verify the reloaded artifact.
+fn verify_operand_lengths(source: &str) {
+    let lowered = lower(source).expect("both operand orders lower");
+    let (mut subslices, mut reads) = (0, 0);
+    for machine in &lowered.semantic_module.machines {
+        for block in &machine.blocks {
+            let observed = block
+                .operations
+                .iter()
+                .filter_map(|operation| match operation.kind {
+                    OperationKind::ElementViewLength { .. } => {
+                        operation.result.scalar().map(|value| value.id)
+                    }
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            for operation in &block.operations {
+                let length = match operation.kind {
+                    OperationKind::ElementViewSubslice { length, .. } => {
+                        subslices += 1;
+                        length
+                    }
+                    OperationKind::ElementViewRead { length, .. } => {
+                        reads += 1;
+                        length
+                    }
+                    _ => continue,
+                };
+                assert!(
+                    observed.contains(&length),
+                    "block {:?} names length {length:?} observed in another block",
+                    block.id
+                );
+            }
+        }
+    }
+    // Two operand subslices and two operand reads, plus the callees' reads.
+    assert!(
+        subslices >= 2 && reads >= 4,
+        "{subslices} subslices, {reads} reads"
+    );
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("the operand subslices and reads verify independently");
+}
+
+#[test]
+fn subslice_and_read_call_operands_observe_their_own_view_length() {
+    verify_operand_lengths(SAME_VIEW_CALL_OPERANDS);
 }

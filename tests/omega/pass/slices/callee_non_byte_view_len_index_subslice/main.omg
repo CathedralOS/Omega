@@ -6,12 +6,23 @@
 // just the length fact. The callees take only the view: forwarding `&mut Main`
 // beside a live shared loan of `main.entries` would alias that loan.
 
+use omega_language_std::console;
+use omega::language::core::binding;
+
 data Entry {
     value: i32;
 }
 
 data Main {
+    console: Binding<Console>;
     entries: [Entry; 4];
+}
+
+// The executable entry exits with the result the view operations select:
+// entries[1].value through `sub[index]` and the tail's first element, 9.
+machine Main::run(context: &mut Main) reaches Console {
+    let result: i32 = Main::main(context);
+    context.console.exit_process(result);
 }
 
 machine Main::main(main: &mut Main) -> i32 {
@@ -19,16 +30,19 @@ machine Main::main(main: &mut Main) -> i32 {
 
     let view: &[Entry] = main.entries.as_slice();
     let index: u64 = 1;
-
-    transition {
-        _ -> Main::inspect(view, index)
-    }
+    let selected: i32 = Main::inspect(view, index);
+    (selected)
 }
 
 machine Main::inspect(sub: &[Entry], index: u64) -> i32 {
     transition sub.len >= 1 && index < sub.len {
-        true -> Main::confirm(sub[1..], sub[index].value)
+        true -> confirmed(sub, index)
         false -> 0
+    }
+
+    state confirmed(sub: &[Entry], index: u64) -> i32 {
+        let first: i32 = Main::confirm(sub[1..], sub[index].value);
+        (first)
     }
 }
 
