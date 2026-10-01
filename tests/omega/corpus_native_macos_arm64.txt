@@ -561,6 +561,7 @@ pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 667m
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit built 1062ms exit:70
 pass/layouts/runtime_size_of_align_of_exit built 1151ms exit:70
+pass/locals/runtime_local_array_member_stores_without_mut_exit built 2573ms exit:70 @b077958d6785+wt
 pass/memory/address_translation_canary checked 259ms
 pass/memory/bump_allocator_canary built 732ms
 pass/memory/interrupt_table_canary checked 341ms
