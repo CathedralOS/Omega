@@ -1,6 +1,6 @@
-// A bare `self` argument is authored under the state parameter's own symbol,
-// while the borrow model keys the same segment-free storage at the machine
-// symbol. The structural argument must be admitted under either spelling.
+// A shared parameter is forwarded as the whole structural argument of another
+// static machine. Its storage identity comes from that parameter, never from
+// the machine's qualified owner. Exercise the helpers from a local record.
 
 data Filter { count: u64; }
 
@@ -15,4 +15,14 @@ machine Filter::cloned_count(filter: &Filter) -> u64 {
     cloned.count
 }
 
-machine Main::main() { }
+machine Main::main() crashes Trap {
+    let mut main: Main;
+    main.filter.count = 17;
+    let count: u64 = Filter::cloned_count(&main.filter);
+    transition count == 17 && main.filter.count == 17 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}
