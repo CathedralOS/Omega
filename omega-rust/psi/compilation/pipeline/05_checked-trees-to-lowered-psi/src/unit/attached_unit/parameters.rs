@@ -992,7 +992,7 @@ pub(crate) fn validate_transfer_shape(
                                     | StructuralTypeShape::Sum { .. }
                             )
                     });
-            let array_borrow = whole_array_result_borrow(
+            let array_borrow = array_result_borrow(
                 source.id,
                 structural_type,
                 argument,
@@ -1068,7 +1068,8 @@ pub(crate) fn validate_transfer_shape(
                 && !record_borrow
                 && !reference_borrow
                 && !scalar_leaf_borrow
-                && !element_view_borrow)
+                && !element_view_borrow
+                && !array_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?
@@ -1238,8 +1239,11 @@ pub(crate) fn emitted_claim_transfers(
 }
 
 /// Source replay has checked the local declaration and captured loan. Preserve
-/// its owned array home here while checking the borrowed formal's presentation.
-fn whole_array_result_borrow(
+/// its owned home here while checking the borrowed formal's presentation. A
+/// window retains the original result type and field path; the shared byte-view
+/// relation independently reconstructs its backing extent rather than treating
+/// the presentation as a replacement storage type.
+fn array_result_borrow(
     place: PlaceId,
     structural_type: StructuralTypeId,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -1247,8 +1251,7 @@ fn whole_array_result_borrow(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
 ) -> bool {
-    if !argument.path.is_empty()
-        || target.is_self
+    if target.is_self
         || argument.access != target.access
         || target.multiplicity != Multiplicity::Unrestricted
         || !target.qualifications.is_empty()
@@ -1262,6 +1265,23 @@ fn whole_array_result_borrow(
         checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
         _ => return false,
     };
+    // The source declaration describes the already-checked loan, not a new
+    // parameter or an authority grant. Fixed byte windows may project through
+    // record fields; the existing relation checks the complete backing path,
+    // exact u8 element, access, and range bounds against that original home.
+    let source = StructuralParameterDeclaration {
+        place,
+        position: target.position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    if !argument.path.is_empty() {
+        return byte_view_transfer(&source, argument, target, type_ids, structural_types);
+    }
     let Some(StructuralTypeDeclaration {
         shape: StructuralTypeShape::FixedArray { element, length },
         ..
@@ -1284,24 +1304,7 @@ fn whole_array_result_borrow(
     }) {
         return true;
     }
-    // The synthetic declaration describes the already-checked loan, not a new
-    // parameter or an authority grant. Reuse exact byte extent/access rules.
-    byte_view_transfer(
-        &StructuralParameterDeclaration {
-            place,
-            position: target.position,
-            is_self: false,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            access,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        },
-        argument,
-        target,
-        type_ids,
-        structural_types,
-    )
+    byte_view_transfer(&source, argument, target, type_ids, structural_types)
 }
 
 fn byte_view_transfer(
@@ -1868,6 +1871,140 @@ fn record_field_type(
 mod tests {
     use super::{StructuralDomainBinding, lower_projected_qualifications};
     use crate::terminal_identities::{structural_domain_id, structural_type_id};
+
+    #[test]
+    fn array_result_window_replays_backing_bounds_access_and_custody() {
+        use checked_trees::{
+            CheckedFusedServiceParameterReceipt, CheckedStructuralAccess,
+            CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+            CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+        };
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::{
+            ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
+            StructuralTypeDeclaration, StructuralTypeShape,
+        };
+
+        let byte = structural_type_id(1);
+        let backing = structural_type_id(2);
+        let view = structural_type_id(3);
+        let record = structural_type_id(4);
+        let types = vec![
+            StructuralTypeDeclaration {
+                id: byte,
+                identity: "byte".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+                )),
+            },
+            StructuralTypeDeclaration {
+                id: backing,
+                identity: "backing".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: byte,
+                    length: 4,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: view,
+                identity: "view".into(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+            },
+            StructuralTypeDeclaration {
+                id: record,
+                identity: "record".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: crate::terminal_identities::structural_field_id(1),
+                        identity: "bytes".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(backing),
+                    }],
+                },
+            },
+        ];
+        let identities = types
+            .iter()
+            .map(|declaration| (declaration.identity.clone(), declaration.id))
+            .collect::<Vec<_>>();
+        let argument = CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: 0,
+            },
+            path: vec![CheckedUnitStructuralPathSegment::FixedByteRange { start: 1, end: 3 }],
+            type_identity: "view".into(),
+            access: CheckedStructuralAccess::SharedBorrow,
+        };
+        let target = CheckedUnitStructuralParameterPlan {
+            position: 0,
+            is_self: false,
+            type_identity: "view".into(),
+            multiplicity: language_semantics::Multiplicity::Unrestricted,
+            access: CheckedStructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            fused_service_erasure: None,
+        };
+        let admitted = |root,
+                        argument: &CheckedUnitStructuralArgumentPlan,
+                        target: &CheckedUnitStructuralParameterPlan,
+                        types: &[_]| {
+            super::array_result_borrow(
+                crate::terminal_identities::place_id(1),
+                root,
+                argument,
+                target,
+                &identities,
+                types,
+            )
+        };
+        assert!(admitted(backing, &argument, &target, &types));
+        let mut whole = argument.clone();
+        whole.path.clear();
+        assert!(admitted(backing, &whole, &target, &types));
+        let mut projected = argument.clone();
+        projected
+            .path
+            .insert(0, CheckedUnitStructuralPathSegment::Field("bytes".into()));
+        assert!(admitted(record, &projected, &target, &types));
+        projected.path[0] = CheckedUnitStructuralPathSegment::Field("missing".into());
+        assert!(!admitted(record, &projected, &target, &types));
+
+        for (start, end) in [(3, 1), (1, 5)] {
+            let mut changed = argument.clone();
+            changed.path[0] = CheckedUnitStructuralPathSegment::FixedByteRange { start, end };
+            assert!(!admitted(backing, &changed, &target, &types));
+        }
+        let mut changed = argument.clone();
+        changed.access = CheckedStructuralAccess::MutableBorrow;
+        assert!(!admitted(backing, &changed, &target, &types));
+        let mut mutable_target = target.clone();
+        mutable_target.access = CheckedStructuralAccess::MutableBorrow;
+        assert!(admitted(backing, &changed, &mutable_target, &types));
+        changed.access = CheckedStructuralAccess::WriteOnlyBorrow;
+        mutable_target.access = CheckedStructuralAccess::WriteOnlyBorrow;
+        assert!(!admitted(backing, &changed, &mutable_target, &types));
+
+        let mut changed_types = types.clone();
+        changed_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 16).expect("u16"),
+        ));
+        assert!(!admitted(backing, &argument, &target, &changed_types));
+        let mut erased = target.clone();
+        erased.fused_service_erasure = Some(CheckedFusedServiceParameterReceipt {
+            source_parameter: symbols::SymbolHandle::from_arena_index(1),
+            carrier_type_identity: "view".into(),
+            requirement: symbols::SymbolHandle::from_arena_index(2),
+        });
+        assert!(!admitted(backing, &argument, &erased, &types));
+        let mut qualified = target.clone();
+        qualified
+            .qualifications
+            .push(language_semantics::SemanticDomainId(1));
+        assert!(!admitted(backing, &argument, &qualified, &types));
+    }
 
     #[test]
     fn projected_domain_binding_resolves_the_exact_leaf_carrier() {
