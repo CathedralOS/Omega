@@ -76,6 +76,7 @@
 // (wiki/spec/resources/placed_access.md), so the hardware crossings remain
 // boundary requirements; demand-grown intermediate tables and multi-page
 // installation are the package's next edges.
+use omega::language::core::binding;
 use omega::language::core::assembly;
 use omega::language::core::extent;
 use translation::BorrowedMapping;
@@ -121,7 +122,7 @@ machine observe_release(obligations: &TranslationReleaseObligations) {
 // The Cathedral-shaped driver: install one owned mapping, then tear it down
 // and discharge its TLB debt, recovering both ranges' authority.
 machine install_and_teardown(
-    authority: &TranslationAuthority,
+    authority: &Binding<TranslationAuthority>,
     source: Extent in Granted,
     destination: Extent in Granted
 ) -> Reclaimed
@@ -159,7 +160,7 @@ reaches TranslationAuthority + MachineControl
 // loan rather than returning a source, so the caller's own `source`
 // authority is what resumes after the shootdown is discharged.
 machine borrowed_install_and_teardown(
-    authority: &TranslationAuthority,
+    authority: &Binding<TranslationAuthority>,
     source: Extent in Granted,
     destination: Extent in Granted
 ) -> Reclaimed
@@ -202,8 +203,8 @@ reaches TranslationAuthority + MachineControl
 // both ranges' custody plus the owed shootdown, and `discharge` completes
 // the cross-core debt.
 machine cathedral_install_and_teardown(
-    authority: &TranslationAuthority,
-    hardware: &TranslationHardware,
+    authority: &Binding<TranslationAuthority>,
+    hardware: &Binding<TranslationHardware>,
     tables: CathedralPageTables,
     source: Extent in Granted,
     destination: Extent in Granted
@@ -249,8 +250,8 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
 // teardown sequence runs with the package's `install_huge`/`remove_huge`
 // where the four-level driver used `install`/`remove`.
 machine cathedral_huge_install_and_teardown(
-    authority: &TranslationAuthority,
-    hardware: &TranslationHardware,
+    authority: &Binding<TranslationAuthority>,
+    hardware: &Binding<TranslationHardware>,
     tables: CathedralPageTables,
     source: Extent in Granted,
     destination: Extent in Granted

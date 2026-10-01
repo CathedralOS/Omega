@@ -3,13 +3,14 @@
 // only the correlated terminal operation can redeem that claim as Buffer
 // custody again. Both directions retain the same core Content algebra.
 
+use omega::language::core::binding;
 use omega::language::core::content;
 
 data ByteUnit {}
 
-data Buffer [linear] {}
+pub data Buffer [linear] {}
 
-domain Buffer::Owned
+pub domain Buffer::Owned
 established by Writer::complete;
 
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
@@ -18,9 +19,9 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 
-data PendingWrite [linear] {}
+pub data PendingWrite [linear] {}
 
-domain PendingWrite::Retained
+pub domain PendingWrite::Retained
 established by Writer::submit;
 
 machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
@@ -29,7 +30,7 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 
-boundary trait Writer {
+pub boundary trait Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite
     ensures
         result in PendingWrite::Retained;
@@ -40,7 +41,7 @@ boundary trait Writer {
 }
 
 machine round_trip(
-    writer: &Writer,
+    writer: &Binding<Writer>,
     buffer: Buffer in Buffer::Owned
 ) -> Buffer
 reaches Writer

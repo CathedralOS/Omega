@@ -10,23 +10,24 @@
 // `tests/omega/pass/contracts/proof_fact_indexed_domain_application`; the
 // field-sourced sibling is
 // `tests/omega/fail/memory/bump_allocator_restated_resident_index_mismatch`.
+use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
-data Slot [copy] {
+pub data Slot [copy] {
     value: u32;
 }
 
-data SlotPlacement {}
+pub data SlotPlacement {}
 
-data OtherPlacement {}
+pub data OtherPlacement {}
 
-data Retired {
+pub data Retired {
     storage: Extent in Granted & Vacant;
     value: Slot;
 }
 
-boundary trait ResidentStorage {
+pub boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
     ensures
         result in Granted & Resident<SlotPlacement, Slot>,
@@ -40,7 +41,7 @@ boundary trait ResidentStorage {
 }
 
 machine exercise_placed(
-    storage: &ResidentStorage,
+    storage: &Binding<ResidentStorage>,
     vacant: Extent in Granted & Vacant
 ) -> Extent
 reaches ResidentStorage

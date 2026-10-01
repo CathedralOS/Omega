@@ -16,21 +16,22 @@
 // `tests/omega/pass/contracts/proof_fact_indexed_domain_application`, where
 // `place` ensures the exact instance; the index-mismatch sibling is
 // `tests/omega/fail/contracts/proof_fact_indexed_domain_application_mismatch`.
+use omega::language::core::binding;
 use omega::language::core::extent;
 use omega::language::core::content;
 
-data Slot [copy] {
+pub data Slot [copy] {
     value: u32;
 }
 
-data SlotPlacement {}
+pub data SlotPlacement {}
 
-data Retired {
+pub data Retired {
     storage: Extent in Granted & Vacant;
     value: Slot;
 }
 
-boundary trait ResidentStorage {
+pub boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Extent
     ensures
         result in Granted,
@@ -44,7 +45,7 @@ boundary trait ResidentStorage {
 }
 
 machine exercise_placed(
-    storage: &ResidentStorage,
+    storage: &Binding<ResidentStorage>,
     vacant: Extent in Granted & Vacant
 ) -> Extent
 reaches ResidentStorage

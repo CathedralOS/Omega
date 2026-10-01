@@ -38,6 +38,7 @@
 // carried-loan machinery that would let `install_borrowed` thread the
 // `BorrowedMapping` carrier is upstream work, so the borrowed route keeps
 // its authority-only drivers for now.
+use omega::language::core::binding;
 use omega::language::core::assembly;
 use cathedral::tables;
 use cathedral::hardware;
@@ -79,7 +80,7 @@ pub data ClearedLeaf {
 // receipt crossing is what requalifies it.
 pub machine CathedralPageTables::install(
     tables: CathedralPageTables,
-    hardware: &TranslationHardware,
+    hardware: &Binding<TranslationHardware>,
     pending: Mapping in Pending
 ) -> WalkedInstall
 reaches TranslationHardware + MachineControl
@@ -119,7 +120,7 @@ invokes hardware;
 // installed until the authority's `unmap` receipt releases it.
 pub machine CathedralPageTables::remove(
     tables: CathedralPageTables,
-    hardware: &TranslationHardware,
+    hardware: &Binding<TranslationHardware>,
     active: Mapping in Installed
 ) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
@@ -147,7 +148,7 @@ invokes hardware;
 // bit pattern -- and the provider still finishes by activating the root.
 pub machine CathedralPageTables::install_huge(
     tables: CathedralPageTables,
-    hardware: &TranslationHardware,
+    hardware: &Binding<TranslationHardware>,
     pending: Mapping in Pending
 ) -> WalkedInstall
 reaches TranslationHardware + MachineControl
@@ -180,7 +181,7 @@ invokes hardware;
 // spanning more of the address space.
 pub machine CathedralPageTables::remove_huge(
     tables: CathedralPageTables,
-    hardware: &TranslationHardware,
+    hardware: &Binding<TranslationHardware>,
     active: Mapping in Installed
 ) -> ClearedLeaf
 reaches TranslationHardware + MachineControl

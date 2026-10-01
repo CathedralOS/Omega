@@ -1,27 +1,28 @@
 // A pending mapping is not installed translations: unmapping requires the
 // exact `Installed` state, so `unmap` on a `Pending` carrier rejects
 // (wiki/spec/resources/extents.md "Mapping and reclamation").
+use omega::language::core::binding;
 use omega::language::core::extent;
 
-data TranslationActivationFact {
+pub data TranslationActivationFact {
     identity: u64;
 }
 
-data TranslationCompletionFact {
+pub data TranslationCompletionFact {
     identity: u64;
 }
 
-data TranslationInstallObligations {
+pub data TranslationInstallObligations {
     facts: [TranslationActivationFact; 2];
 }
 
-data TranslationReleaseObligations {
+pub data TranslationReleaseObligations {
     facts: [TranslationCompletionFact; 2];
 }
 
-boundary data MappingToken [linear];
+pub boundary data MappingToken [linear];
 
-data Mapping [linear] {
+pub data Mapping [linear] {
     token: MappingToken;
     source_base: addr;
     source_length: u64;
@@ -31,23 +32,23 @@ data Mapping [linear] {
     release: TranslationReleaseObligations;
 }
 
-domain Mapping::Pending
+pub domain Mapping::Pending
 established by TranslationAuthority::map;
 
-domain Mapping::Installed
+pub domain Mapping::Installed
 established by TranslationAuthority::activate;
 
-boundary data Shootdown [linear];
+pub boundary data Shootdown [linear];
 
-domain Shootdown::Owed;
+pub domain Shootdown::Owed;
 
-data Unmapped {
+pub data Unmapped {
     destination: Extent in Granted;
     source: Extent in Granted;
     shootdown: Shootdown in Owed;
 }
 
-boundary trait TranslationAuthority {
+pub boundary trait TranslationAuthority {
     machine map(
         source: Extent in Granted,
         destination: Extent in Granted,
@@ -67,7 +68,7 @@ boundary trait TranslationAuthority {
 }
 
 machine unmap_early(
-    authority: &TranslationAuthority,
+    authority: &Binding<TranslationAuthority>,
     source: Extent in Granted,
     destination: Extent in Granted
 ) -> Unmapped
