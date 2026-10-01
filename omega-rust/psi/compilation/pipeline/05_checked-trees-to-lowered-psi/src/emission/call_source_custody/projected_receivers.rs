@@ -793,6 +793,35 @@ pub(crate) fn validate(
     };
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    if let Some((ordinal, local)) = locals::returned_reference(
+        checked,
+        state,
+        coordinate.statement_index as usize,
+        source.root,
+    ) {
+        if targets.next().is_some() {
+            return unsupported("returned-reference receiver selected multiple self parameters");
+        }
+        let argument = structural_arguments
+            .get(index)
+            .ok_or(LoweringError::Unsupported(
+                "returned-reference receiver argument missing",
+            ))?;
+        return locals::validate_returned_reference(
+            checked,
+            caller_machine,
+            caller_state,
+            caller_operations,
+            coordinate,
+            planned.target.state,
+            authored.source_target,
+            target,
+            argument,
+            &source,
+            ordinal,
+            local,
+        );
+    }
     if locals::declaration(
         checked,
         state,

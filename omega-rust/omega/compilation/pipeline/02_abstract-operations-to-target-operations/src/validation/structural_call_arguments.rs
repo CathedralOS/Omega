@@ -2733,18 +2733,18 @@ impl Replay<'_> {
         expected_plan: &CallPlan,
         live_graph: bool,
     ) -> Result<(), OperationId> {
-        if semantic.path.len() > 1
-            && matches!(semantic.path.first(), Some(StructuralPathSegment::Referent))
-        {
-            if !self.returned_record_projection(psi_operation, actual, semantic, declared) {
+        if matches!(semantic.path.first(), Some(StructuralPathSegment::Referent)) {
+            if self.returned_record_projection(psi_operation, actual, semantic, declared) {
+                let Some(destination) = expected_plan.parameters.get(plan_index) else {
+                    return Err(psi_operation);
+                };
+                return (actual.destination == *destination)
+                    .then_some(())
+                    .ok_or(psi_operation);
+            }
+            if semantic.path.len() > 1 {
                 return Err(psi_operation);
             }
-            let Some(destination) = expected_plan.parameters.get(plan_index) else {
-                return Err(psi_operation);
-            };
-            return (actual.destination == *destination)
-                .then_some(())
-                .ok_or(psi_operation);
         }
         // A `.., Referent` argument transports the referent root's
         // pointer: `place` names the root whose canonical storage
@@ -2978,11 +2978,9 @@ impl Replay<'_> {
         let [StructuralPathSegment::Referent, suffix @ ..] = semantic.path.as_slice() else {
             return false;
         };
-        if suffix.is_empty()
-            || semantic.access == StructuralAccess::Owned
+        if semantic.access == StructuralAccess::Owned
             || actual.access != semantic.access
             || actual.access != declared.access
-            || declared.is_self
             || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !declared.qualifications.is_empty()
             || !declared.projected_qualifications.is_empty()

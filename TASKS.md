@@ -1248,14 +1248,28 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `f05a176052`
-  plus the qualified-record element-store change on macOS ARM64, the closed-stdin
-  command gets past `Room::append_exit` and exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `9aae7a801c`
+  plus the returned-reference receiver change on macOS ARM64, the closed-stdin
+  command still exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect` →
   receiver reconciliation. Stage 04 `receiver_calls/mod.rs::result_receiver_argument`
-  must consume the existing returned-reference permission for the immutable
-  `let from_room: &mut Room` binding, not require a mutable owned record.
+  now consumes an immutable local's exact returned-reference permission;
+  `borrows/returned_record_method_receiver_exit` executes 70 and observes the
+  original record's method mutation, a later sibling store and an untouched
+  neighboring element. Source replay rejects stale or substituted permissions;
+  native replay rejects forged roots, indices and offsets. The real
+  `from_room.append_exit(self.direction_command(direction), direction, to)`
+  composition still fails reconciliation: `structural_result_call::view_result_loan`
+  records the producer's checked loan across `Level::room_mut`'s alternative
+  return arms, but receiver reconciliation retains only the result binding and
+  re-derives its loan through single-tail `reference_result_custody::result_loan`.
+  Rejoin that existing call custody with independent producer/lifetime replay;
+  preserve the runtime-selected slot. Native bare-reference results currently
+  retain one static `root_path`, so alternative slots also need returned-address
+  transport rather than an invented fixed origin. The nested byte operand does
+  not explain this refusal.
+  Do not infer full customer support from the single-origin receiver fixture.
   `structs/qualified_record_element_assignment_exit` executes 70: a method
   forwards qualified owned bytes and a direction through a state, constructs
   and stores an indexed record, and observes its bytes, live length, direction,

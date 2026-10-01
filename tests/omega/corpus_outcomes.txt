@@ -1197,6 +1197,7 @@ pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
+pass/borrows/returned_record_method_receiver_exit checked 904ms @db98ccdfb56c+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt

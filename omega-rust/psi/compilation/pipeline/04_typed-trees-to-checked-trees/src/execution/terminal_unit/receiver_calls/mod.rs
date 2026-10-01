@@ -422,16 +422,10 @@ fn result_receiver_argument(
     let (result, local) = matching.next()?;
     if matching.next().is_some()
         || !local.initial_value.is_valid()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            program,
-            local.type_reference,
-        )
         || program
             .normalized_type_identity(local.type_reference)
             .as_str()
             != result.type_identity
-        || program.type_multiplicity(local.type_reference) != result.multiplicity
-        || result.multiplicity == Multiplicity::Linear
     {
         return None;
     }
@@ -472,6 +466,26 @@ fn result_receiver_argument(
         || !call.has_receiver
         || !borrow_call.has_receiver
         || borrow_call.receiver_symbol != call.receiver_symbol
+    {
+        return None;
+    }
+    if let Some(argument) = calls::reference_result_receiver_argument(
+        program,
+        facts,
+        machine,
+        source,
+        call,
+        place,
+        local,
+        result,
+        target_state,
+        target,
+    ) {
+        return Some(argument);
+    }
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
+        || program.type_multiplicity(local.type_reference) != result.multiplicity
+        || result.multiplicity == Multiplicity::Linear
         || (target.access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
     {
         return None;
