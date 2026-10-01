@@ -12,10 +12,6 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Clamper {
-    values: [i32 in Wrapping; 5];
-}
-
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
 machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
@@ -26,22 +22,17 @@ machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrappin
 
 data Main {
     console: Binding<Console>;
-    clamper: Clamper;
-    pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
-    self.clamper.values[0] = 80;
-    self.clamper.values[1] = -5;
-    self.clamper.values[2] = 50;
-    self.clamper.values[3] = 200;
-    self.clamper.values[4] = 30;
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
+    let values: [i32 in Wrapping; 5] = [80, -5, 50, 200, 30];
 
-    let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
-    let total: i32 = clamp_sum(s, 0) as i32;
-    self.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
-    self.console.write_line("[press Enter to close]");
-    _ = block self.console.read_line(&mut self.pause);
-    self.console.exit_process(total);
+    let slice: &[i32 in Wrapping] = values.as_slice();
+    let total: i32 = clamp_sum(slice, 0) as i32;
+    context.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
+    context.console.write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block context.console.read_line(&mut pause);
+    context.console.exit_process(total);
 }
