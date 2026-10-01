@@ -1,5 +1,7 @@
-//! One scalar store through a representation view: `view = v` where `view`
-//! is the `&mut` local an authored `&mut place as &mut T` loan established.
+//! Scalar stores through representation views, including fields of a record
+//! view. Source replay establishes the loan and projection; the shared byte
+//! destination evaluates selectors before the RHS, proves its stored integer
+//! carrier, then encodes that one SSA value into the original backing.
 //!
 //! Replay rejoins the checked plan to the recast loan: the named target's
 //! `LocalData` statement unwraps `Borrow` and the recast `Cast` to the place
@@ -15,10 +17,9 @@
 //!   owes its own bound obligation — and carries the `value >> 8j` low byte.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    Operation, OperationKind, OperationResult, PrimitiveType, ScalarType, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, ValueId, allocate_dense, emit_direct_expression, emit_u64_coordinate,
-    obligation_id, terminal_scalar_type, unsupported, value_id,
+    OperationKind, PrimitiveType, ScalarType, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId,
+    allocate_dense, emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -242,14 +243,18 @@ pub(crate) fn emit(
     let Some((leaf, prefix)) = write.path.split_last() else {
         return unsupported("representation view store lost its leaf segment");
     };
-    let (steps, walked) = walk_carrier_prefix(parameter.structural_type, prefix, structural_types)?;
     let destination = parameter.place;
     let mut kinds = Vec::new();
-    match (leaf, walked) {
+    match leaf {
         // A whole-field leaf of the view's width: one primitive store whose
         // value is the authored value retagged to the leaf's declared
         // carrier.
-        (CheckedUnitStructuralPathSegment::Field(identity), Walked::Type(owner)) => {
+        CheckedUnitStructuralPathSegment::Field(identity) => {
+            let (steps, walked) =
+                walk_carrier_prefix(parameter.structural_type, prefix, structural_types)?;
+            let Walked::Type(owner) = walked else {
+                return unsupported("representation view store leaf owner is not structural");
+            };
             let declaration = declaration_at(structural_types, owner)?;
             let (StructuralTypeShape::Record { fields }
             | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
@@ -301,53 +306,12 @@ pub(crate) fn emit(
                 range_obligation,
             });
         }
-        // A `u8` element leaf below a bounded-owned byte field: one primitive
-        // store per little-endian footprint byte, each byte's `index + j`
-        // owing its own bound obligation.
-        (
-            CheckedUnitStructuralPathSegment::FixedIndex(_)
-            | CheckedUnitStructuralPathSegment::RuntimeIndex(_),
-            walked_tail,
-        ) => {
-            let ScalarType::Integer(view_integer) = view_scalar else {
-                return unsupported("representation view store requires an integer view");
-            };
-            let view_bytes = u64::from(view_integer.bits()) / 8;
-            let capacity = match walked_tail {
-                Walked::Carrier(&ByteSequenceCarrier::BoundedOwned { capacity, .. }) => capacity,
-                // A plain `[u8; N]` field walks to its fixed array type; the
-                // literal length bounds the footprint exactly like the
-                // bounded-owned carrier's declared capacity.
-                Walked::Type(array) => {
-                    let StructuralTypeShape::FixedArray { element, length } =
-                        &declaration_at(structural_types, array)?.shape
-                    else {
-                        return unsupported(
-                            "representation view store byte carrier is not a fixed array",
-                        );
-                    };
-                    let StructuralTypeShape::PrimitiveScalar(scalar) =
-                        &declaration_at(structural_types, *element)?.shape
-                    else {
-                        return unsupported(
-                            "representation view store byte carrier's element is not a scalar",
-                        );
-                    };
-                    if *scalar != terminal_scalar_type(PrimitiveType::U8)? {
-                        return unsupported(
-                            "representation view store carrier element is not a byte",
-                        );
-                    }
-                    *length
-                }
-                _ => {
-                    return unsupported(
-                        "representation view store requires a bounded byte carrier",
-                    );
-                }
-            };
-            let indexes = runtime_elements::evaluate_selectors(
-                &steps,
+        CheckedUnitStructuralPathSegment::FixedIndex(_)
+        | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+            let destination = prepare_byte_destination(
+                destination,
+                parameter.structural_type,
+                &write.path,
                 checked,
                 machine,
                 state,
@@ -360,134 +324,254 @@ pub(crate) fn emit(
                 next_edge,
                 operations,
                 calls,
+                structural_types,
             )?;
-            let prefix_path = runtime_elements::complete_path(steps, indexes, calls)?;
-            // The leaf's base index is evaluated once, widened to `u64`, and
-            // read back through the dense frame for each byte's add.
-            let base_index = match leaf {
-                CheckedUnitStructuralPathSegment::FixedIndex(index) => Some((*index, None)),
-                CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
-                    let operand = runtime_index_value(
-                        runtime,
-                        write,
-                        checked,
-                        machine,
-                        state,
-                        &bindings,
-                        evaluation,
-                        source_value_count,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                        calls,
-                    )?;
-                    Some((0, Some(operand)))
-                }
-                _ => None,
-            };
-            let Some((fixed_index, runtime_index)) = base_index else {
-                return unsupported("representation view store leaf index is absent");
-            };
             let operand = lower_value(write, &bindings, checked, state, values, view_scalar)?;
-            let byte_scalar = terminal_scalar_type(PrimitiveType::U8)?;
-            let count_scalar = terminal_scalar_type(PrimitiveType::U64)?;
-            for offset in 0..view_bytes {
-                let mut path = prefix_path.clone();
-                match leaf {
-                    CheckedUnitStructuralPathSegment::FixedIndex(_) => {
-                        let selected =
-                            fixed_index
-                                .checked_add(offset)
-                                .ok_or(LoweringError::Unsupported(
-                                    "representation view store byte index overflows",
-                                ))?;
-                        if selected >= capacity {
-                            return unsupported(
-                                "representation view store byte index exceeds the field capacity",
-                            );
-                        }
-                        path.push(StructuralPathSegment::FixedIndex(selected));
-                    }
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-                        let index = if offset == 0 {
-                            runtime_index.ok_or(LoweringError::Unsupported(
-                                "representation view store lost its evaluated index",
-                            ))?
-                        } else {
-                            let step = emit_scalar_leaf(
-                                OperationKind::IntegerConstant {
-                                    value: IntegerValue::Unsigned(u128::from(offset)),
-                                },
-                                count_scalar,
-                                next_value,
-                                operations,
-                            );
-                            let base = runtime_index.ok_or(LoweringError::Unsupported(
-                                "representation view store lost its evaluated index",
-                            ))?;
-                            let id = value_id(allocate_dense(next_value)?);
-                            let operation = operations.allocate();
-                            operations.push(Operation {
-                                static_reach_binding: None,
-                                suspension_crossing: None,
-                                id: operation,
-                                result: OperationResult::Scalar(ValueDeclaration {
-                                    qualifications: Default::default(),
-                                    id,
-                                    scalar_type: count_scalar,
-                                }),
-                                kind: OperationKind::ExactIntegerAdd {
-                                    left: base,
-                                    right: step,
-                                    obligation: obligation_id(
-                                        operation.get().checked_add(1).expect(
-                                            "byte index add obligation follows its operation",
-                                        ),
-                                    ),
-                                },
-                            });
-                            id
-                        };
-                        path.push(StructuralPathSegment::RuntimeIndex {
-                            index,
-                            obligation: calls.allocate_requirement()?,
-                        });
-                    }
-                    _ => unreachable!("leaf family checked above"),
-                }
-                let shifted = if offset == 0 {
-                    operand.clone()
-                } else {
-                    LoweredDirectExpression::IntegerBinary {
-                        kind: LoweredIntegerBinaryKind::WrappingShiftRight,
-                        scalar_type: view_scalar,
-                        left: Box::new(operand.clone()),
-                        right: Box::new(LoweredDirectExpression::IntegerLiteral {
-                            value: IntegerValue::Unsigned(u128::from(
-                                offset
-                                    .checked_mul(8)
-                                    .expect("view width shifts fit the index range"),
-                            )),
-                            scalar_type: view_scalar,
-                        }),
-                    }
-                };
-                let byte_expression = wrapping_cast(shifted, view_integer, byte_scalar)?;
-                let byte = emit_direct_expression(&byte_expression, values, next_value, operations);
-                kinds.push(OperationKind::WriteOnlyPrimitiveStore {
-                    destination,
-                    path,
-                    value: byte,
-                });
-            }
+            let value = ValueDeclaration {
+                qualifications: Default::default(),
+                id: emit_direct_expression(&operand, values, next_value, operations),
+                scalar_type: view_scalar,
+            };
+            kinds.extend(destination.emit(value, view_scalar, 0, next_value, operations, calls)?);
         }
         _ => {
             return unsupported("representation view store leaf path is incompatible");
         }
     }
     Ok(kinds)
+}
+
+/// An established byte location, with every selector evaluated before the RHS.
+/// Primitive re-views and record projections share this physical write path.
+pub(crate) struct ByteStoreDestination {
+    destination: semantic_vocabulary::PlaceId,
+    prefix_path: Vec<StructuralPathSegment>,
+    index: ByteStoreIndex,
+    capacity: u64,
+}
+
+enum ByteStoreIndex {
+    Fixed(u64),
+    Runtime(ValueId),
+}
+
+impl ByteStoreDestination {
+    /// Prove semantic-to-stored representability before extracting any bytes.
+    /// Reusing the completed SSA value is essential: repeated RHS reads could
+    /// observe bytes already changed by earlier stores in the same assignment.
+    pub(crate) fn emit(
+        self,
+        value: ValueDeclaration,
+        stored_type: ScalarType,
+        field_offset: u64,
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<Vec<OperationKind>, LoweringError> {
+        let (ScalarType::Integer(source_integer), ScalarType::Integer(stored_integer)) =
+            (value.scalar_type, stored_type)
+        else {
+            return unsupported("byte representation store requires an integer carrier");
+        };
+        if !stored_integer.bits().is_multiple_of(8) {
+            return unsupported("byte representation store requires a whole-byte encoding");
+        }
+        let encoded = if value.scalar_type == stored_type {
+            value
+        } else {
+            let kind = if source_integer.can_widen_to(stored_integer) {
+                OperationKind::IntegerWiden { operand: value.id }
+            } else {
+                OperationKind::IntegerExactCast {
+                    operand: value.id,
+                    obligation: obligation_id(allocate_dense(&mut calls.next_obligation_identity)?),
+                }
+            };
+            ValueDeclaration {
+                qualifications: Default::default(),
+                id: emit_scalar_leaf(kind, stored_type, next_value, operations),
+                scalar_type: stored_type,
+            }
+        };
+        let byte_scalar = terminal_scalar_type(PrimitiveType::U8)?;
+        let count_scalar = terminal_scalar_type(PrimitiveType::U64)?;
+        let byte_count = u64::from(stored_integer.bits()) / 8;
+        let mut kinds = Vec::new();
+        for byte_offset in 0..byte_count {
+            let offset =
+                field_offset
+                    .checked_add(byte_offset)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte representation store offset overflows",
+                    ))?;
+            let mut path = self.prefix_path.clone();
+            if let ByteStoreIndex::Runtime(base) = self.index {
+                let index = if offset == 0 {
+                    base
+                } else {
+                    let step = emit_scalar_leaf(
+                        OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(u128::from(offset)),
+                        },
+                        count_scalar,
+                        next_value,
+                        operations,
+                    );
+                    emit_scalar_leaf(
+                        OperationKind::ExactIntegerAdd {
+                            left: base,
+                            right: step,
+                            obligation: obligation_id(allocate_dense(
+                                &mut calls.next_obligation_identity,
+                            )?),
+                        },
+                        count_scalar,
+                        next_value,
+                        operations,
+                    )
+                };
+                path.push(StructuralPathSegment::RuntimeIndex {
+                    index,
+                    obligation: calls.allocate_requirement()?,
+                });
+            } else {
+                let ByteStoreIndex::Fixed(fixed_index) = self.index else {
+                    return unsupported("byte representation store lost its coordinate");
+                };
+                let selected =
+                    fixed_index
+                        .checked_add(offset)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte representation store index overflows",
+                        ))?;
+                if selected >= self.capacity {
+                    return unsupported("byte representation store exceeds its backing capacity");
+                }
+                path.push(StructuralPathSegment::FixedIndex(selected));
+            }
+            let operand = LoweredDirectExpression::Parameter {
+                position: 0,
+                scalar_type: stored_type,
+            };
+            let shifted = if byte_offset == 0 {
+                operand
+            } else {
+                LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::WrappingShiftRight,
+                    scalar_type: stored_type,
+                    left: Box::new(operand),
+                    right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                        value: IntegerValue::Unsigned(u128::from(byte_offset * 8)),
+                        scalar_type: stored_type,
+                    }),
+                }
+            };
+            let byte_expression = wrapping_cast(shifted, stored_integer, byte_scalar)?;
+            let byte = emit_direct_expression(&byte_expression, &[encoded], next_value, operations);
+            kinds.push(OperationKind::WriteOnlyPrimitiveStore {
+                destination: self.destination,
+                path,
+                value: byte,
+            });
+        }
+        Ok(kinds)
+    }
+}
+
+/// Resolve a captured byte path using the same carrier walk as a primitive
+/// representation view. The caller owns root authority and evaluates the RHS
+/// only after this returns, preserving ordinary assignment sequencing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_byte_destination(
+    destination: semantic_vocabulary::PlaceId,
+    root_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    source_value_count: usize,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+    calls: &mut CallEmissionContext<'_>,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ByteStoreDestination, LoweringError> {
+    let Some((leaf, prefix)) = path.split_last() else {
+        return unsupported("byte representation store has no backing coordinate");
+    };
+    let (mut steps, walked) = walk_carrier_prefix(root_type, prefix, structural_types)?;
+    let capacity = byte_capacity(walked, structural_types)?;
+    let fixed_index = match leaf {
+        CheckedUnitStructuralPathSegment::FixedIndex(index) => *index,
+        CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
+            steps.push(runtime_elements::selector_step(selector));
+            0
+        }
+        _ => return unsupported("byte representation store has no element coordinate"),
+    };
+    let mut indexes = runtime_elements::evaluate_selectors(
+        &steps,
+        checked,
+        machine,
+        state,
+        statement_index,
+        evaluation,
+        source_value_count,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+        calls,
+    )?;
+    let runtime_index = if matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_)) {
+        steps.pop();
+        Some(indexes.pop().ok_or(LoweringError::Unsupported(
+            "byte store lost its evaluated coordinate",
+        ))?)
+    } else {
+        None
+    };
+    let prefix_path = runtime_elements::complete_path(steps, indexes, calls)?;
+    Ok(ByteStoreDestination {
+        destination,
+        prefix_path,
+        index: match runtime_index {
+            Some(value) => ByteStoreIndex::Runtime(value),
+            None => ByteStoreIndex::Fixed(fixed_index),
+        },
+        capacity,
+    })
+}
+
+fn byte_capacity(
+    walked: Walked<'_>,
+    types: &[StructuralTypeDeclaration],
+) -> Result<u64, LoweringError> {
+    match walked {
+        Walked::Carrier(ByteSequenceCarrier::BoundedOwned { capacity, .. }) => Ok(*capacity),
+        Walked::Type(array) => {
+            let StructuralTypeShape::FixedArray { element, length } =
+                &declaration_at(types, array)?.shape
+            else {
+                return unsupported("byte representation store carrier is not a fixed array");
+            };
+            let StructuralTypeShape::PrimitiveScalar(scalar) =
+                &declaration_at(types, *element)?.shape
+            else {
+                return unsupported("byte representation store carrier element is not scalar");
+            };
+            if *scalar != terminal_scalar_type(PrimitiveType::U8)? {
+                return unsupported("byte representation store carrier element is not a byte");
+            }
+            Ok(*length)
+        }
+        _ => unsupported("byte representation store requires a bounded backing"),
+    }
 }
 
 /// Where the carrier prefix's walk ends: inside a structural type (the
@@ -590,9 +674,9 @@ fn walk_carrier_prefix<'a>(
                         );
                     }
                 };
-                if !steps.contains(&step) {
-                    steps.push(step);
-                }
+                // A path contains occurrences, not a set of selectors:
+                // identical indexes at different depths still select twice.
+                steps.push(step);
                 walked = Walked::Type(element);
             }
             _ => return unsupported("representation view store carrier path is incompatible"),
@@ -700,79 +784,6 @@ fn declaration_at(
     Ok(declaration)
 }
 
-/// Evaluate the leaf's runtime index to a `u64` coordinate: a bound
-/// `AssignmentIndex` selector, the scalar frame's own parameter or local
-/// position, or a structural parameter field read emitted at the store's
-/// program point.
-#[allow(clippy::too_many_arguments)]
-fn runtime_index_value(
-    runtime: &CheckedRuntimeIndex,
-    write: &CheckedRepresentationViewStorePlan,
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    bindings: &ScalarBindings,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
-) -> Result<ValueId, LoweringError> {
-    match runtime {
-        CheckedRuntimeIndex::AssignmentIndex { depth } => {
-            let steps = vec![ProjectionStep::AssignmentIndex { depth: *depth }];
-            let mut indexes = runtime_elements::evaluate_selectors(
-                &steps,
-                checked,
-                machine,
-                state,
-                write.statement_index,
-                evaluation,
-                source_value_count,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                calls,
-            )?;
-            if indexes.len() != 1 {
-                return unsupported("representation view store index evaluated ambiguously");
-            }
-            Ok(indexes.pop().expect("index count checked above"))
-        }
-        CheckedRuntimeIndex::Parameter { position } | CheckedRuntimeIndex::Local { position } => {
-            let declaration = values
-                .get(*position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "representation view store index position is absent",
-                ))?;
-            emit_u64_coordinate(
-                declaration.id,
-                declaration.scalar_type,
-                next_value,
-                &mut calls.next_obligation_identity,
-                operations,
-            )
-        }
-        CheckedRuntimeIndex::StructuralField(field) => {
-            let selector = bindings.runtime_index_field(field)?;
-            let scalar_type = selector.scalar_type();
-            let value = emit_direct_expression(&selector, values, next_value, operations);
-            emit_u64_coordinate(
-                value,
-                scalar_type,
-                next_value,
-                &mut calls.next_obligation_identity,
-                operations,
-            )
-        }
-    }
-}
-
 /// Lower the store's checked value to the view carrier: a bound
 /// `AssignmentValue` expression, or the statement's own scalar result read
 /// from the dense frame's last position.
@@ -813,5 +824,53 @@ fn lower_value(
         CheckedStoreValue::Computation(_) => {
             unsupported("representation view store kept a computation")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn carrier_path_retains_repeated_runtime_selector_occurrences() {
+        let byte = crate::terminal_identities::structural_type_id(1);
+        let inner = crate::terminal_identities::structural_type_id(2);
+        let outer = crate::terminal_identities::structural_type_id(3);
+        let types = [
+            StructuralTypeDeclaration {
+                id: byte,
+                identity: "u8".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(
+                    terminal_scalar_type(PrimitiveType::U8).unwrap(),
+                ),
+            },
+            StructuralTypeDeclaration {
+                id: inner,
+                identity: "[u8;2]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: byte,
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: outer,
+                identity: "[[u8;2];2]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: inner,
+                    length: 2,
+                },
+            },
+        ];
+        let selector =
+            CheckedUnitStructuralPathSegment::RuntimeIndex(CheckedRuntimeIndex::Parameter {
+                position: 0,
+            });
+        let (steps, terminal) =
+            walk_carrier_prefix(outer, &[selector.clone(), selector], &types).unwrap();
+        assert_eq!(
+            steps,
+            vec![ProjectionStep::RuntimeIndexParameter { position: 0 }; 2]
+        );
+        assert!(matches!(terminal, Walked::Type(leaf) if leaf == byte));
     }
 }

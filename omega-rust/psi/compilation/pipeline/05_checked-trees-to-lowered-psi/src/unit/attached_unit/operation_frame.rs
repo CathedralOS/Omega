@@ -1078,6 +1078,91 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
+        let loan = crate::scalar_graph::scalar_computations::fields::loaned_store(
+            self.checked,
+            self.machine,
+            self.state,
+            store,
+            self.structural_types.declarations(),
+        )?;
+        let mut rejoined;
+        let store = if let Some(loan) = loan {
+            use crate::scalar_graph::scalar_computations::fields::LoanedSource;
+            let destination = match loan.source {
+                LoanedSource::Parameter(position) => {
+                    let (authored, _) = self
+                        .evaluation
+                        .structural_parameters
+                        .get(position as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "record store lost its captured parameter",
+                        ))?;
+                    checked_trees::CheckedStoreRoot::Parameter {
+                        position: *authored,
+                    }
+                }
+                LoanedSource::Local(symbol) => checked_trees::CheckedStoreRoot::Local { symbol },
+            };
+            if let Some(projection) = loan.byte_overlay {
+                let (place, root_type) = match destination {
+                    checked_trees::CheckedStoreRoot::Parameter { position } => {
+                        let (_, parameter) = self
+                            .evaluation
+                            .structural_parameters
+                            .iter()
+                            .find(|(authored, _)| *authored == position)
+                            .ok_or(LoweringError::Unsupported(
+                                "record store lost its backing parameter",
+                            ))?;
+                        crate::emission::structural_scalar_store::validate_root_access(
+                            parameter,
+                            crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                        )?;
+                        (parameter.place, parameter.structural_type)
+                    }
+                    checked_trees::CheckedStoreRoot::Local { symbol } => {
+                        self.local_store_root(symbol, &LocalStoreRoot::SCALAR_FIELD_STORE)?
+                    }
+                };
+                let destination =
+                    crate::emission::representation_view_store::prepare_byte_destination(
+                        place,
+                        root_type,
+                        &loan.path,
+                        self.checked,
+                        self.machine,
+                        self.state,
+                        store.statement_index,
+                        self.evaluation,
+                        self.source_value_count,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                        self.calls,
+                        self.structural_types.declarations(),
+                    )?;
+                let value = self.scalar_field_store_value(store)?;
+                for kind in destination.emit(
+                    value,
+                    projection.stored_type,
+                    projection.offset,
+                    self.next_value,
+                    self.operations,
+                    self.calls,
+                )? {
+                    self.push_unit(kind);
+                }
+                return Ok(());
+            }
+            rejoined = store.clone();
+            rejoined.destination = destination;
+            rejoined.carrier_path = loan.path;
+            &rejoined
+        } else {
+            store
+        };
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
@@ -1132,21 +1217,7 @@ impl OperationFrame<'_, '_> {
             self.operations,
             self.calls,
         )?;
-        let value = self.evaluation.field_assignment_value(
-            self.checked,
-            self.machine,
-            self.state,
-            store.statement_index,
-            &store.value,
-            store.primitive_type,
-            Some(&store.field_identity),
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let value = self.scalar_field_store_value(store)?;
         if value.scalar_type != lowered.scalar_type {
             return unsupported("structural scalar store RHS differs from its field type");
         }
@@ -1193,6 +1264,27 @@ impl OperationFrame<'_, '_> {
         let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
         self.push_unit(kind);
         Ok(())
+    }
+
+    fn scalar_field_store_value(
+        &mut self,
+        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        self.evaluation.field_assignment_value(
+            self.checked,
+            self.machine,
+            self.state,
+            store.statement_index,
+            &store.value,
+            store.primitive_type,
+            Some(&store.field_identity),
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )
     }
 
     /// Replace one unrestricted sum field beneath a mutable-borrowed
