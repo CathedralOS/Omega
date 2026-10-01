@@ -134,6 +134,15 @@ impl Checker<'_> {
                         argument.place,
                         *root_structural_type,
                     ),
+                    TargetStructuralArgumentSource::BlockParameter { block, place } => {
+                        *place == argument.place
+                            && self.block_home_precedes(
+                                *block,
+                                *place,
+                                *psi_operation,
+                                *root_structural_type,
+                            )
+                    }
                     _ => false,
                 };
                 *place == source
@@ -196,6 +205,53 @@ impl Checker<'_> {
                         })
             }
         }
+    }
+
+    /// An owned arrival lends its own destination storage. A descriptor or
+    /// another block's same-typed parameter cannot stand in for that home.
+    fn block_home_precedes(
+        &self,
+        block: semantic_vocabulary::BlockId,
+        place: PlaceId,
+        consumer: semantic_vocabulary::OperationId,
+        root_structural_type: semantic_vocabulary::StructuralTypeId,
+    ) -> bool {
+        let Some(parameter) = self
+            .optimized
+            .blocks
+            .iter()
+            .find(|entry| entry.id == block)
+            .and_then(|entry| {
+                entry
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == place)
+            })
+        else {
+            return false;
+        };
+        let Some((consumer_block, _)) =
+            crate::legalization::scalar_graph_input::aggregate_results::node_site(
+                self.optimized,
+                |node| node.psi_operation() == Some(consumer),
+            )
+        else {
+            return false;
+        };
+        parameter.access == terminal_psi::StructuralAccess::Owned
+            && parameter.structural_type == root_structural_type
+            && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && self.optimized.structural_places.iter().any(|declaration| {
+                declaration.id == place
+                    && declaration.kind
+                        == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                            block,
+                            position: parameter.position,
+                        }
+            })
+            && super::control_flow::sources::dominates(self.optimized, block, consumer_block)
     }
 
     /// The local aggregate at `place` is the owned, non-linear, claim-free

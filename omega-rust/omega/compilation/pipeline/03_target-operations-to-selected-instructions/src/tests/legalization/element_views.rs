@@ -550,3 +550,277 @@ fn a_borrowed_element_view_arrives_through_a_block_parameter() {
         );
     }
 }
+
+/// Form the descriptor after ownership crosses an edge: the arrival owns its
+/// backing, even though a predecessor originally established the same bytes.
+fn owned_array_arrival_source() -> abstract_operations::AbstractOperationPlan {
+    use super::owned_block_store::id;
+    use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding};
+    use terminal_psi::{StructuralArgument, StructuralOperationResult};
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    let scalar = integer(IntegerSign::Signed, 32);
+    source.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: id(1),
+            identity: "Element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        },
+        StructuralTypeDeclaration {
+            id: id(2),
+            identity: "Array".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: id(1),
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(3),
+            identity: "Record".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: id(1),
+                    identity: "values".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(id(2)),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(4),
+            identity: "View".into(),
+            shape: StructuralTypeShape::ElementView { element: id(1) },
+        },
+    ]
+    .into();
+    let result = |place, structural_type| StructuralOperationResult {
+        place: id(place),
+        structural_type: id(structural_type),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    let function = &mut source.functions[0];
+    let measured = AbstractResult {
+        value: id(1),
+        scalar_type: integer(IntegerSign::Unsigned, 64),
+    };
+    function.result = AbstractFunctionResult::Scalar(measured);
+    function.block_entries.push(AbstractBlockEntry {
+        block: id(2),
+        parameters: Vec::new(),
+        operation_offset: 2,
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: id(11),
+            position: 0,
+            is_self: false,
+            structural_type: id(3),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+    });
+    function.operations = vec![
+        O::EstablishZeroedStructural {
+            psi_operation: id(1),
+            result: result(10, 3),
+        },
+        O::Jump {
+            psi_edge: id(1),
+            target: id(2),
+            bindings: Vec::new(),
+            structural_bindings: vec![AbstractStructuralBinding {
+                parameter: id(11),
+                argument: StructuralArgument {
+                    place: id(10),
+                    access: StructuralAccess::Owned,
+                    path: Vec::new(),
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+        O::EstablishElementView {
+            psi_operation: id(2),
+            result: result(12, 4),
+            destination: id(12),
+            element: id(1),
+            source: StructuralArgument {
+                place: id(11),
+                access: StructuralAccess::SharedBorrow,
+                path: vec![Segment::Field("values".into())],
+            },
+        },
+        O::ElementViewLength {
+            psi_operation: id(3),
+            result: measured,
+            source: id(12),
+        },
+        O::Return {
+            psi_edge: id(2),
+            result: measured.value,
+            value: measured.value,
+            scalar_type: measured.scalar_type,
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    source
+}
+
+#[test]
+fn owned_arrival_element_view_retains_backing_and_rejects_substitution() {
+    use super::owned_block_store::id;
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    };
+    use target_operations::{
+        TargetElementView, TargetStructuralArgumentSource, TargetUnitOperation,
+    };
+    let source = owned_array_arrival_source();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+            .unwrap();
+        for mutation in 0..4 {
+            let mut changed = targeted.clone();
+            let view = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::EstablishElementView { view, .. } => Some(view),
+                    _ => None,
+                })
+                .unwrap();
+            let TargetElementView::Established {
+                source: backing,
+                extent,
+                ..
+            } = view
+            else {
+                panic!("established view");
+            };
+            match mutation {
+                0 => {
+                    *backing = TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: id(1),
+                    }
+                }
+                1 => {
+                    *backing = TargetStructuralArgumentSource::BlockParameter {
+                        block: id(1),
+                        place: id(11),
+                    }
+                }
+                2 => {
+                    *backing = TargetStructuralArgumentSource::BlockParameter {
+                        block: id(2),
+                        place: id(10),
+                    }
+                }
+                _ => *extent += 1,
+            }
+            assert!(
+                crate::legalize_target_operations(&changed, &source, &unit).is_err(),
+                "target mutation {mutation}"
+            );
+            assert!(
+                crate::validate_legalized_operations(
+                    &changed,
+                    &source,
+                    &unit,
+                    legalized.plan().clone()
+                )
+                .is_err(),
+                "replayed target mutation {mutation}"
+            );
+        }
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        assert!(
+            selected.plan().functions[0]
+                .memory_accesses
+                .iter()
+                .any(|access| {
+                    access.origin == SelectedMemoryAccessOrigin::Operation(id(2))
+                        && access.place == id::<PlaceId>(11)
+                        && access.role
+                            == SelectedMemoryAccessRole::AddressLocal {
+                                slot: LocalStorageSlotId::StructuralBlockParameter {
+                                    block: id(2),
+                                    place: id(11),
+                                },
+                            }
+                })
+        );
+    }
+}
+
+#[test]
+fn owned_arrival_element_view_rejects_unavailable_backing() {
+    use super::owned_block_store::id;
+    for mutation in 0..2 {
+        let mut source = owned_array_arrival_source();
+        let function = &mut source.functions[0];
+        if mutation == 0 {
+            // The descriptor cannot read a future block's owned arrival.
+            function.operations.swap(1, 2);
+            function.block_entries[1].operation_offset = 3;
+        } else {
+            // Moving an affine root ends that old home even though its
+            // establishing operation still dominates the descriptor.
+            let O::EstablishZeroedStructural { result, .. } = &mut function.operations[0] else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Affine;
+            function.block_entries[1].structural_parameters[0].multiplicity =
+                StructuralMultiplicity::Affine;
+            let O::EstablishElementView { source, .. } = &mut function.operations[2] else {
+                unreachable!()
+            };
+            source.place = id(10);
+        }
+        let admitted = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .map_err(|_| ())
+        .and_then(|unit| {
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).map_err(|_| ())
+        });
+        assert!(admitted.is_err(), "unavailable backing mutation {mutation}");
+    }
+}

@@ -1,0 +1,29 @@
+// An owned state arrival lends its nested array and observes the same backing.
+use omega_language_std::console;
+
+data Samples { items: [i32; 4]; }
+data Packet { samples: Samples; marker: i32; }
+
+machine read(values: &[i32]) -> i32 {
+    transition values.len >= 4 {
+        true -> (values[0])
+        _ -> (0)
+    }
+}
+
+machine main() reaches Console {
+    let packet: Packet = Packet { samples: Samples { items: [70, 2, 3, 5] }, marker: 9 };
+    transition { _ -> check(packet) }
+
+    state check(packet: Packet) {
+        let view: &[i32] = packet.samples.items.as_slice();
+        let observed: i32 = read(view);
+        transition observed == 70 && packet.samples.items[0] == 70
+            && packet.samples.items[3] == 5 && packet.samples.items[1] == 2 && packet.marker == 9 {
+            true -> done()
+            _ -> failed()
+        }
+    }
+    state done() { Console::exit_process(70); }
+    state failed() { Console::exit_process(71); }
+}

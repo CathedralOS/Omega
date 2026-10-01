@@ -104,17 +104,21 @@ pub(super) fn establish(
                     }) => {}
         _ => return Err(replay.invalid()),
     }
-    // The backing is an incoming parameter's storage or a local aggregate
-    // home. A home presents its own owned storage through this view's loan
-    // and lends the address of its activation slot.
+    // Incoming parameters lend their original address; operation results and
+    // owned block arrivals lend their exact activation slot. A transferred
+    // descriptor is not an owned aggregate and cannot supply this backing.
     let parameter = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == source.place)
         .map(|parameter| &parameter.semantic);
-    let home = crate::selection::aggregate_result_input::home(function, source.place)
-        .map(|(_, home)| local_home_root(home));
-    let Some(root) = parameter.or(home.as_ref()) else {
+    let home = crate::selection::aggregate_result_input::home(function, source.place);
+    let local_root = home.map(|(_, home)| local_home_root(home));
+    let block_home = crate::selection::aggregate_result_input::block_home(function, source.place);
+    let Some(root) = parameter
+        .or(local_root.as_ref())
+        .or(block_home.map(|(_, declaration)| declaration))
+    else {
         return Err(replay.invalid());
     };
     let Some((field_offset, element_count, _stride)) =
@@ -139,11 +143,20 @@ pub(super) fn establish(
         };
         base
     } else {
-        let mut homes = replay
-            .transport
-            .local_slots
-            .iter()
-            .filter(|slot| slot.id.structural_place() == Some(source.place));
+        let mut homes = replay.transport.local_slots.iter().filter(|slot| {
+            Some(slot.id)
+                == home
+                    .map(|(operation, _)| LocalStorageSlotId::Structural {
+                        operation,
+                        place: source.place,
+                    })
+                    .or_else(|| {
+                        block_home.map(|(block, _)| LocalStorageSlotId::StructuralBlockParameter {
+                            block,
+                            place: source.place,
+                        })
+                    })
+        });
         let (Some(home), None) = (homes.next().cloned(), homes.next()) else {
             return Err(replay.invalid());
         };

@@ -42,6 +42,7 @@ pub(super) fn lower(
             function,
             structural_types,
             &prepared.parameters,
+            &live.structural_homes,
             &values,
             &live.lengths,
             *destination,
