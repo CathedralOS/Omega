@@ -345,6 +345,28 @@ struct ScalarContractTerms<'namespace> {
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+        // Integer operations compose through the shared predicate lowering
+        // entry requirements use, so a member leaf below arithmetic
+        // (`self.length - 1`) resolves in the same namespace as a bare one.
+        // Closed contracts carry no partial operation's safety evidence.
+        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(leaf))
+    }
+
+    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
+        crate::proofs::crash_routes::checked_boolean_scalar_term(
+            expression,
+            self.namespace,
+            self.erased,
+        )
+    }
+
+    fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
+        strict_result_bound(left, right)
+    }
+}
+
+impl ScalarContractTerms<'_> {
+    fn leaf(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         // Member leaves root at the contract's structural parameters and
         // mint field-rooted scalar terms; the entry namespace carries the
         // declarations and types the path resolves against.
@@ -382,18 +404,6 @@ impl PredicateTerms for ScalarContractTerms<'_> {
             self.views.parameters,
             self.views.element_views,
         )
-    }
-
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::crash_routes::checked_boolean_scalar_term(
-            expression,
-            self.namespace,
-            self.erased,
-        )
-    }
-
-    fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
-        strict_result_bound(left, right)
     }
 }
 

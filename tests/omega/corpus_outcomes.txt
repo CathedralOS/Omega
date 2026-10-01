@@ -346,6 +346,8 @@ fail/constraints/multiple_policy_domain_chain rejected 391ms expected @2d8ed2536
 	data `Main` field `value` declares conflicting `arithmetic_policy` semantic-role contributions `Wrapping`, `Trapping`; a domain chain may carry at most one policy domain
 fail/constraints/scalar_requires_unproven_literal rejected 802ms expected @2d8ed253669f
 	cannot prove requires contract for call accept from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/ensures_wrapping_field_arithmetic_wrong rejected 241ms expected @a5f40f5895bf+wt
+	cannot prove ensures contract for exit from Countdown::arm at statement 1: self.remaining - 1 < 8
 fail/contracts/negated_edge_guard_unproven_bound rejected 1025ms expected @2d8ed253669f
 	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 808ms expected @2d8ed253669f
@@ -1331,8 +1333,7 @@ pass/collections/runtime_computed_index_direct_exit checked 1505ms @2d8ed253669f
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit built 2524ms @2a68bc887d9+wt
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
-pass/collections/runtime_fixed_vec_round_trip_exit rejected 1217ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("scalar completion lacks complete entry requirements"))
+pass/collections/runtime_fixed_vec_round_trip_exit checked 1573ms @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms @2d8ed253669f
 pass/collections/runtime_hoisted_index_write_exit checked 1411ms @2d8ed253669f
 pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms @2d8ed253669f
@@ -1362,6 +1363,9 @@ pass/constraints/guarded_parameter_result_contract checked 294ms @2d8ed253669f
 pass/constraints/proof_machine_order_fact checked 327ms @2d8ed253669f
 pass/constraints/scalar_requires_satisfied_by_literal checked 324ms @2d8ed253669f
 pass/constraints/selected_arithmetic_return_ensures checked 275ms @2d8ed253669f
+pass/contracts/ensures_borrowed_parameter_field_exit checked 1465ms @a5f40f5895bf+wt
+pass/contracts/ensures_fact_list_exit checked 1427ms @a5f40f5895bf+wt
+pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1484ms @a5f40f5895bf+wt
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 1251ms @2d8ed253669f
 pass/contracts/requires_u8_ceiling_below_carrier checked 885ms @2d8ed253669f
@@ -1852,8 +1856,8 @@ pass/proofs/ring_law_conformance checked 1204ms @2d8ed253669f
 pass/proofs/runtime_decreases_u64_measure_exit checked 1636ms @2d8ed253669f
 pass/proofs/runtime_inductive_climbing_sum_exit rejected 8423ms @7c6892099245+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::climb", reason: "scalar callee has no checked executable body", omission: Some("`Main::climb` has no admitted body (local construction stopped at statement sequence: call count agreement)") })
-pass/proofs/runtime_inductive_gauss_sum_exit rejected 7914ms @7c6892099245+wt
-	terminal-artifact production failed: Lowering(Unsupported("machine must have exactly one requires and one ensures clause"))
+pass/proofs/runtime_inductive_gauss_sum_exit rejected 1004ms @a5f40f5895bf+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(4294967297)))
 pass/proofs/runtime_nat_structural_recursion_exit checked 1175ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_early_exit checked 1867ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1671ms @2d8ed253669f

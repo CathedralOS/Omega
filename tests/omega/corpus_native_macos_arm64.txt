@@ -201,8 +201,7 @@ pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit rejected 447ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 3)
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
-pass/collections/runtime_fixed_vec_round_trip_exit rejected 486ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`FixedVecI32x4::push`), which was itself omitted at local construction at `structural field store: destination parameter`
+pass/collections/runtime_fixed_vec_round_trip_exit built 1644ms exit:70 @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7
 pass/collections/runtime_indexed_struct_field_rmw_exit built 2368ms exit:1 @fb2178def922
@@ -227,6 +226,9 @@ pass/constraints/guarded_parameter_result_contract checked 173ms
 pass/constraints/proof_machine_order_fact checked 194ms
 pass/constraints/scalar_requires_satisfied_by_literal checked 207ms
 pass/constraints/selected_arithmetic_return_ensures checked 193ms
+pass/contracts/ensures_borrowed_parameter_field_exit built 1452ms exit:70 @a5f40f5895bf+wt
+pass/contracts/ensures_fact_list_exit built 1562ms exit:70 @a5f40f5895bf+wt
+pass/contracts/ensures_wrapping_field_arithmetic_exit built 1363ms exit:70 @a5f40f5895bf+wt
 pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/control_flow/arm_pattern_rest_optout_exit rejected 473ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`

@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from Countdown::arm at statement 1: self.remaining - 1 < 8

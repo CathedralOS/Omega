@@ -709,18 +709,26 @@ fn integer_entry_fields_reuse_fixed_carrier_landing_and_total_comparisons() {
         ] {
             let program = numeric_field(primitive, "&Input", predicate);
             assert!(read(&program).is_some(), "{primitive}: {predicate}");
-            assert!(
-                crate::values::lower_scalar_contract_predicate(
-                    &program,
-                    &CheckedOperatorFacts::default(),
-                    &program.machines()[0],
-                    requirement(&program),
-                    false,
-                    &mut 4096,
-                )
-                .is_none(),
-                "scalar contract namespace remains closed to structural fields"
-            );
+            // A borrowed parameter's members are caller storage, which the
+            // closed scalar contract namespace names as it names the
+            // receiver's; a by-value parameter is the callee's own copy and
+            // its members stay outside the namespace.
+            for (root, retained) in [("&Input", true), ("Input", false)] {
+                let program = numeric_field(primitive, root, predicate);
+                assert_eq!(
+                    crate::values::lower_scalar_contract_predicate(
+                        &program,
+                        &CheckedOperatorFacts::default(),
+                        &program.machines()[0],
+                        requirement(&program),
+                        false,
+                        &mut 4096,
+                    )
+                    .is_some(),
+                    retained,
+                    "{root} {primitive}: {predicate}"
+                );
+            }
         }
     }
     for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
