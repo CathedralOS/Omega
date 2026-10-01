@@ -104,7 +104,7 @@ pub(super) fn updates_preserve_order(
         };
         for statement in program.statement_table.statements(state.statement_nodes) {
             if let StatementNode::Assignment(assignment) = statement
-                && assignment_counter_field(program, machine, assignment) == Some(counter)
+                && assignment_counter_field(program, machine, state, assignment) == Some(counter)
             {
                 let Some((lower, upper)) = validation::builtin_monotonic_integer_update_bounds(
                     program,
@@ -271,9 +271,9 @@ fn guard_bounds(
         ));
     }
     let mut operator = binary.operator;
-    let literal = if expression_is_counter_member(program, machine, binary.left, counter) {
+    let literal = if expression_is_counter_member(program, machine, state, binary.left, counter) {
         integer_literal(program, binary.right)
-    } else if expression_is_counter_member(program, machine, binary.right, counter) {
+    } else if expression_is_counter_member(program, machine, state, binary.right, counter) {
         operator = match operator {
             BinaryOperator::Less => BinaryOperator::Greater,
             BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
