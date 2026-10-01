@@ -67,7 +67,7 @@ fn wrapper_object_wire_rejects_every_closed_axis_and_envelope_mutation() {
         |bytes| bytes[offsets.identity] ^= 1,
         OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch,
     );
-    for vocabulary in [0_u16, 110, 111, 113] {
+    for vocabulary in [0_u16, 112, 113, 115] {
         assert_decode_error(
             encoded,
             |bytes| {
