@@ -234,7 +234,7 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-leaf-copy",
-    "a readable live whole root and validated field/index path to an Unrestricted leaf, or to a leaf a SharedBorrow reference result loans",
+    "a readable live whole root and validated field/index path to an Unrestricted leaf, or to a leaf a SharedBorrow reference result loans; a whole bounded-byte copy has the exact source carrier and primitive qualification roster, with no new establishment evidence or claims",
     "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; a runtime-selected source path publishes no equation; a SharedBorrow result is an affine reference carrier rooted at the source, a shared loan until released, and publishes no equation",
     &[
         "fact:semantic-axiom-roster",
@@ -736,7 +736,7 @@ static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
     "operation:establish-record",
-    "a validated record establishment over a record shape",
+    "a validated complete record establishment in declaration field order; owned bounded-byte operands are live unrestricted whole values of the exact capacity whose independently interpreted source predicates imply the member predicates, never evidence supplied by the destination declaration",
     "the record's field-establishment facts and declared obligations",
     &[
         "fact:record-establishment",
@@ -755,7 +755,7 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
 );
 static OP_BOOLEAN_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:boolean-structural-field",
-    "a validated Boolean structural field read whose carrier reaches a record field, or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
+    "a validated Boolean structural field read whose canonical carrier composes exact record fields and in-bounds fixed-array indices to reach a record field, or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
     "the read observation's field-path equation for the result",
     &[
         "fact:structural-effect-observation",
@@ -779,7 +779,7 @@ static OP_BOOLEAN_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
 );
 static OP_INTEGER_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:integer-structural-field",
-    "a validated integer structural field read over a referent with a declared interval, whose carrier reaches a record field or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
+    "a validated integer structural field read over a referent with a declared interval, whose canonical carrier composes exact record fields and in-bounds fixed-array indices to reach a record field or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
     "the field-path equation plus the declared interval bounds on the read value",
     &[
         "fact:structural-effect-observation",

@@ -89,6 +89,168 @@ fn fields(module: &mut TerminalModule) -> &mut Vec<terminal_psi::RecordFieldInit
     fields
 }
 
+fn owned_byte_record() -> TerminalModule {
+    let mut module = module();
+    let carrier = StructuralTypeId::new(2).unwrap();
+    let domain = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+    let source = PlaceId::new(2).unwrap();
+    let copied = PlaceId::new(3).unwrap();
+    let producer = OperationId::new(2).unwrap();
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    let StructuralTypeShape::Record {
+        fields: declarations,
+    } = &mut module.structural_types[0].shape
+    else {
+        panic!("record");
+    };
+    declarations[0].field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        predicates,
+    };
+    fields(&mut module)[0].value = terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+        place: copied,
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    });
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: carrier,
+        identity: "OwnedBytes8".into(),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity: 8,
+        }),
+    });
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            id: domain,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "Utf8Bytes8".into(),
+            carrier,
+            byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+            content_projection: None,
+            establishment_routes: Vec::new(),
+        });
+    let machine = &mut module.machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type: carrier,
+            access: StructuralAccess::Owned,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: vec![domain],
+            projected_qualifications: Vec::new(),
+        });
+    machine.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: copied,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: carrier,
+            },
+        },
+    ]);
+    machine.blocks[0].operations.insert(
+        0,
+        Operation {
+            id: producer,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            kind: OperationKind::StructuralLeafCopy {
+                source,
+                path: Vec::new(),
+            },
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: copied,
+                structural_type: carrier,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: vec![domain],
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+        },
+    );
+    module
+}
+
+#[test]
+fn record_byte_child_keeps_exact_copy_predicates_and_capacity() {
+    let module = owned_byte_record();
+    validate_module(&module).expect("qualified byte snapshot binds one complete record field");
+    assert!(
+        reconstruct_terminal_obligations(&module)
+            .expect("byte children need no fabricated scalar equations")
+            .obligations()
+            .is_empty()
+    );
+    terminal_verifier::verify_module(
+        &module,
+        &terminal_verifier::ProofBundle::default(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the exact byte snapshot and record verify with no additional proof");
+}
+
+#[test]
+fn record_byte_child_rejects_forged_source_predicate_capacity_and_order() {
+    for corruption in 0..8 {
+        let mut module = owned_byte_record();
+        match corruption {
+            0 => module.machines[0].structural_parameters[0]
+                .qualifications
+                .clear(),
+            1 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[0].blocks[0].operations[0].result
+                else {
+                    panic!("copy");
+                };
+                result.qualifications.clear();
+            }
+            2 => module.structural_domains[0].carrier = StructuralTypeId::new(1).unwrap(),
+            3 => {
+                module.structural_types[1].shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 9 },
+                )
+            }
+            4 => module.machines[0].blocks[0].operations.swap(0, 1),
+            5 => {
+                module.machines[0].structural_parameters[0].access =
+                    StructuralAccess::WriteOnlyBorrow
+            }
+            6 | 7 => {
+                let OperationKind::EstablishRecord { fields } =
+                    &mut module.machines[0].blocks[0].operations[1].kind
+                else {
+                    panic!("record");
+                };
+                let terminal_psi::RecordFieldValue::Structural(argument) = &mut fields[0].value
+                else {
+                    panic!("bytes");
+                };
+                if corruption == 6 {
+                    argument.place = PlaceId::new(99).unwrap();
+                } else {
+                    argument.access = StructuralAccess::SharedBorrow;
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(validate_module(&module).is_err(), "corruption {corruption}");
+    }
+}
+
 #[test]
 fn runtime_scalar_record_requires_complete_ordered_exact_defined_fields() {
     validate_module(&module()).expect("runtime integer and Boolean fields are supported");

@@ -885,16 +885,10 @@ pub(super) fn retained(
                 ));
                 carrier = child;
             }
-            // The bounded carrier grammar ends with at most one literal
-            // index: the fixed-array element is the record owning the
-            // observed field. The bound is rechecked against the declared
-            // extent rather than trusted from the producer.
-            // An element view contributes its own live extent as the index
-            // bound; the producer's establishment already discharged it, so
-            // only the declared element joins the carrier walk.
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
-                if position + 1 == carrier_path.len() =>
-            {
+            // Fixed-array indices compose with later record fields and replay
+            // each declared bound. Element views keep the terminal-index rule:
+            // their bound comes from the separately proved live extent.
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
                 let Some(declaration) = target
                     .graph
                     .structural_types
@@ -910,7 +904,11 @@ pub(super) fn retained(
                         }
                         *element
                     }
-                    terminal_psi::StructuralTypeShape::ElementView { element } => *element,
+                    terminal_psi::StructuralTypeShape::ElementView { element }
+                        if position + 1 == carrier_path.len() =>
+                    {
+                        *element
+                    }
                     _ => return false,
                 };
                 runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));

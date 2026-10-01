@@ -325,6 +325,13 @@ pub(super) struct SourceSignature {
 }
 
 impl SourceSignature {
+    pub(super) fn has_exact_qualifications(
+        &self,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+    ) -> bool {
+        self.qualifications == qualifications && self.projected_qualifications.is_empty()
+    }
+
     fn has_empty_qualifications(&self) -> bool {
         self.qualifications.is_empty() && self.projected_qualifications.is_empty()
     }

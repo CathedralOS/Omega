@@ -599,8 +599,8 @@ pub(in crate::legalization) fn read(
 }
 
 /// The runtime spelling of a canonical projection beneath `root`: each field
-/// by its declared identity, and at most one literal index as the final
-/// segment, bounded by the declared extent.
+/// by its declared identity, and fixed-array indices bounded at every hop.
+/// Element-view indexing retains its terminal-segment admission.
 fn runtime_path(
     root: semantic_vocabulary::StructuralTypeId,
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
@@ -636,13 +636,9 @@ fn runtime_path(
                 ));
                 carrier = child;
             }
-            // The bounded carrier grammar ends with at most one literal
-            // index: the fixed-array element is the record owning the
-            // observed field. The bound is rechecked against the declared
-            // extent rather than trusted from the producer.
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
-                if position + 1 == path.len() =>
-            {
+            // Replay each fixed extent even when a later field continues
+            // inside the element; the producer's offset is not authority.
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
                 let element = match &types
                     .iter()
                     .find(|declaration| declaration.id == carrier)?
@@ -656,7 +652,11 @@ fn runtime_path(
                     }
                     // An element view's live extent is the bound proven by
                     // its producer; the index names one member.
-                    terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                    terminal_psi::StructuralTypeShape::ElementView { element }
+                        if position + 1 == path.len() =>
+                    {
+                        element
+                    }
                     _ => return None,
                 };
                 runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));

@@ -45,10 +45,34 @@ pub(super) fn argument(
     let (source, root_structural_type, source_byte_offset) = if let Some(home) =
         live.structural_homes.get(&argument.place)
     {
+        // A field snapshot has no qualification roster of its own. The
+        // canonical call judgment reconstructs its captured byte predicates;
+        // this leg transports that exact owned carrier, not a borrowed view.
+        // Geometry cannot establish a predicate from the formal's roster.
+        let copied_byte_field = argument.path.is_empty()
+            && !declaration.is_self
+            && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+            && home.qualifications().is_empty()
+            && types.get(&declaration.structural_type).is_some_and(|row| {
+                matches!(row.shape, StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                ))
+            })
+            && home.operation_result().is_some_and(|(producer, result)| {
+                result.qualification_establishments.is_empty()
+                    && function.operations.iter().any(|operation| matches!(operation,
+                        abstract_operations::AbstractOperation::StructuralLeafCopy {
+                            psi_operation, result: actual,
+                            path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
+                        } if *psi_operation == producer && actual == result
+                            && matches!(path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
+                    ))
+            });
         if home.access() != StructuralAccess::Owned
             || home.multiplicity() != declaration.multiplicity
             || home.has_claims()
-            || home.qualifications() != declaration.qualifications.as_slice()
+            || (home.qualifications() != declaration.qualifications.as_slice()
+                && !copied_byte_field)
             || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
         {
             return Err(invalid());

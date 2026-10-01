@@ -330,7 +330,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             }
             // A path ending at the index selects an inline primitive
             // element; one ending at a field is a record-field observation
-            // whose carrier may itself cross one literal index.
+            // whose carrier may itself cross literal fixed-array indices.
             if matches!(
                 path.last(),
                 Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
@@ -1174,7 +1174,7 @@ fn lower_checked_boolean_expression_with_parameters(
             if !structural_fields.is_empty() {
                 // Index-terminal paths read an inline primitive element;
                 // field-terminal paths observe a record field whose carrier
-                // may itself cross one literal index.
+                // may itself cross literal fixed-array indices.
                 if matches!(
                     path.last(),
                     Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))

@@ -261,10 +261,16 @@ pub(super) fn validate_successors(
                             })
                             .flatten()
                     });
-                let source_owned_contract = live
+                let exact_source_owned_contract = live
                     .structural_homes
                     .get(&place)
-                    .map(|home| (home.access(), home.multiplicity()))
+                    .map(|home| {
+                        home.access() == parameter.access
+                            && home.multiplicity() == parameter.multiplicity
+                            && home.qualifications() == parameter.qualifications.as_slice()
+                            && home.projected_qualifications()
+                                == parameter.projected_qualifications.as_slice()
+                    })
                     .or_else(|| {
                         function
                             .structural_parameters
@@ -276,7 +282,13 @@ pub(super) fn validate_successors(
                                     .flat_map(|entry| &entry.structural_parameters),
                             )
                             .find(|source| source.place == place)
-                            .map(|source| (source.access, source.multiplicity))
+                            .map(|source| {
+                                source.access == parameter.access
+                                    && source.multiplicity == parameter.multiplicity
+                                    && source.qualifications == parameter.qualifications
+                                    && source.projected_qualifications
+                                        == parameter.projected_qualifications
+                            })
                     });
                 let argument_type = source_type.and_then(|root| {
                     if binding.argument.path.is_empty() {
@@ -296,8 +308,7 @@ pub(super) fn validate_successors(
                 });
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
-                        && source_owned_contract
-                            != Some((parameter.access, parameter.multiplicity)))
+                        && exact_source_owned_contract != Some(true))
                     || argument_type != Some(parameter.structural_type)
                     || binding.argument.access != parameter.access
                     || moved_loan_leaf

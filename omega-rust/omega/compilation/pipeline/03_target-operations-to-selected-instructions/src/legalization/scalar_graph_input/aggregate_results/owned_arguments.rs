@@ -162,9 +162,33 @@ pub(super) fn reconstruct(
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
+        // Whole-unit custody independently replays captured field predicates
+        // at this exact call before geometry is reconstructed. Its unqualified
+        // owned snapshot is not required to invent the callee's domain roster.
+        let copied_byte_field = argument.path.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::Owned
+            && !destination.is_self
+            && destination.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
+            && plan.structural_types.iter().any(|row| {
+                row.id == result.structural_type
+                    && matches!(row.shape, terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    ))
+            })
+            && caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                matches!(&node.operation,
+                    AbstractOperation::StructuralLeafCopy {
+                        psi_operation, result: actual,
+                        path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
+                    } if *psi_operation == producer && actual == result
+                        && matches!(path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
+                )
+            });
         if result.multiplicity != destination.multiplicity
             || !result.claims.is_empty()
-            || result.qualifications != destination.qualifications
+            || (result.qualifications != destination.qualifications && !copied_byte_field)
             || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());

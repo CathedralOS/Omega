@@ -1248,18 +1248,20 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `33d47d475b`
-  plus the completed-record result change on macOS ARM64, the closed-stdin
-  command gets past `clear_event` and exits 200 before emission:
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At base `f05a176052`
+  plus the qualified-record element-store change on macOS ARM64, the closed-stdin
+  command gets past `Room::append_exit` and exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::build_segment` → `MazeBuilder::connect` →
-  `Room::append_exit` stops at `structural field store: scalar field type: indexed
-  element destination` (state 1, statement 0), on
-  `self.exits[0] = Exit { command: command, direction: direction, destination: destination }`.
-  Stage 04 `structural_scalar_store/mod.rs` still refuses this record-element
-  destination. Carry ordinary qualified record construction into the existing
-  element-store path, preserving the command's `Utf8` bytes, direction, cell
-  identity and untouched exits. The scripted session cannot run yet.
+  receiver reconciliation. Stage 04 `receiver_calls/mod.rs::result_receiver_argument`
+  must consume the existing returned-reference permission for the immutable
+  `let from_room: &mut Room` binding, not require a mutable owned record.
+  `structs/qualified_record_element_assignment_exit` executes 70: a method
+  forwards qualified owned bytes and a direction through a state, constructs
+  and stores an indexed record, and observes its bytes, live length, direction,
+  nested destination and untouched neighbor. Source/Terminal/native replay
+  retain exact predicates, producer, capacity and bounds; copying a byte field
+  does not authorize borrowing it. The scripted customer session cannot run yet.
   `calls/qualified_record_call_result_field_exit` executes 70: two effectful
   mutable-self calls return independently completed copy records with qualified
   byte fields, then store them into separate fields. Exact call order, bytes,
@@ -1281,8 +1283,8 @@ the complete product bar; focused successes below do not establish that baseline
   `borrows/returned_record_projected_call_exit` exits 70 after a helper mutates
   a nested child through the returned permission, with stores before/after,
   parent restoration and unchanged neighboring storage. Its observation uses
-  an ordinary read helper; direct nested field reads below an array index still
-  lack a scalar observation form. Source replay rejects same-typed sibling
+  an ordinary read helper; direct nested field reads below fixed-array indices
+  now also execute in the record-element witness. Source replay rejects same-typed sibling
   substitution; Terminal checks path/access/lifetime and suspended parents;
   x64/ARM64 target replay rejects forged root, index and sibling-field rows.
   Remaining receiver work in Stage 04

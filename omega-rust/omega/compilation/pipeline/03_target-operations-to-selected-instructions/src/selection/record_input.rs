@@ -73,6 +73,64 @@ pub(super) fn field_shape(
     }
     let declarations = &source.structural.as_ref()?.structural_types;
     let shape = match (&field.value, &expected.field_type) {
+        (RecordFieldValue::Structural(argument), field_type)
+            if matches!(
+                field_type.byte_sequence_carrier(),
+                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+            ) =>
+        {
+            if argument.access != terminal_psi::StructuralAccess::Owned
+                || !argument.path.is_empty()
+                || argument.place == parent.place
+            {
+                return None;
+            }
+            let signature = source.structural.as_ref()?;
+            let mut parameters = signature
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.semantic)
+                .chain(
+                    source
+                        .blocks
+                        .iter()
+                        .filter(|block| block.id != source.entry_block)
+                        .flat_map(|block| &block.structural_parameters),
+                )
+                .filter(|parameter| parameter.place == argument.place);
+            let child_type = if let Some(parameter) = parameters.next() {
+                if parameters.next().is_some()
+                    || parameter.access != terminal_psi::StructuralAccess::Owned
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return None;
+                }
+                parameter.structural_type
+            } else {
+                let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
+                if result.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return None;
+                }
+                result.structural_type
+            };
+            // Primitive domain implication was checked before target lowering;
+            // selection preserves the exact qualified source home and copies
+            // its length-prefixed value, not its capacity as a live extent.
+            let declaration = declarations
+                .iter()
+                .find(|declaration| declaration.id == child_type)?;
+            if declaration.shape
+                != StructuralTypeShape::ByteSequence(field_type.byte_sequence_carrier()?)
+            {
+                return None;
+            }
+            crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
+        }
         (
             RecordFieldValue::Scalar {
                 range_obligation, ..

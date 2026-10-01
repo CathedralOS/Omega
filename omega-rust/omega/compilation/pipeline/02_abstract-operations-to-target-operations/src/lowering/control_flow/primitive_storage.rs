@@ -409,14 +409,10 @@ pub(super) fn lower(
                         ));
                         carrier = child;
                     }
-                    // The bounded carrier grammar ends with at most one
-                    // literal index: the fixed-array element is the record
-                    // owning the observed field. The bound is rechecked
-                    // against the declared extent rather than trusted from
-                    // the producer.
-                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
-                        if position + 1 == carrier_end =>
-                    {
+                    // Fixed-array indices compose with later record fields;
+                    // each hop retains its own declared bound. Element views
+                    // keep the separately verified terminal-index contract.
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
                         let shape = &types
                             .get(&carrier)
                             .ok_or_else(|| {
@@ -434,7 +430,11 @@ pub(super) fn lower(
                             }
                             // An element view's live extent is the bound proven
                             // by its producer; the index names one member.
-                            StructuralTypeShape::ElementView { element } => element,
+                            StructuralTypeShape::ElementView { element }
+                                if position + 1 == carrier_end =>
+                            {
+                                element
+                            }
                             _ => {
                                 return Err(LoweringError::unsupported_control_flow(
                                     function.machine,

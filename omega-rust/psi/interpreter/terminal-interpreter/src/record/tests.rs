@@ -243,6 +243,174 @@ fn run(
 }
 
 #[test]
+fn owned_byte_copy_and_record_execution_publish_complete_snapshots() {
+    let mut module = record_module();
+    let carrier = StructuralTypeId::new(2).unwrap();
+    let record = StructuralTypeId::new(3).unwrap();
+    let domain = StructuralDomainId::new(1).unwrap();
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: carrier,
+            identity: "bytes8".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity: 8,
+            }),
+        },
+        StructuralTypeDeclaration {
+            id: record,
+            identity: "named-count".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "name".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::PredicateByteSequence {
+                            carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                            predicates,
+                        },
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).unwrap(),
+                        identity: "count".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(unsigned(0).scalar_type()),
+                    },
+                ],
+            },
+        },
+    ]);
+    module.structural_domains.push(StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: DomainSemanticId::new(1).unwrap(),
+        identity: "Utf8".into(),
+        carrier,
+        byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+        content_projection: None,
+        establishment_routes: Vec::new(),
+    });
+    let (mut execution, _) = run(&module, &[unsigned(7)]);
+    // This execution-unit control supplies a completed activation value.
+    // Source-free verifier tests and the corpus cover admission of its producer.
+    let source = PlaceId::new(20).unwrap();
+    let copied = PlaceId::new(21).unwrap();
+    let destination = PlaceId::new(22).unwrap();
+    execution.structural_values.insert(
+        source,
+        crate::values::TerminalStructuralValue {
+            opaque_identity: 9000,
+            structural_type: carrier,
+            qualifications: vec![domain],
+            path: Vec::new(),
+        },
+    );
+    execution.byte_sequence_values.insert(
+        source,
+        crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
+            crate::byte_sequences::ByteSequenceView::new(b"bat".to_vec()),
+        ),
+    );
+    let result = StructuralOperationResult {
+        place: copied,
+        structural_type: carrier,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: vec![domain],
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    execution
+        .execute_structural_leaf_copy(&Operation {
+            id: OperationId::new(50).unwrap(),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            kind: OperationKind::StructuralLeafCopy {
+                source,
+                path: Vec::new(),
+            },
+            result: OperationResult::Structural(result),
+        })
+        .expect("copy snapshots existing byte value");
+    let crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes) =
+        execution.byte_sequence_values.get_mut(&source).unwrap()
+    else {
+        panic!("owned bytes");
+    };
+    bytes.replace_byte(0, b'r').unwrap();
+    let result = StructuralOperationResult {
+        place: destination,
+        structural_type: record,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    let mut fields = vec![
+        RecordFieldInitializer {
+            field: StructuralFieldId::new(1).unwrap(),
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: copied,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }),
+        },
+        RecordFieldInitializer {
+            field: StructuralFieldId::new(2).unwrap(),
+            value: RecordFieldValue::Scalar {
+                value: ValueId::new(99).unwrap(),
+                range_obligation: None,
+            },
+        },
+    ];
+    let snapshot = |execution: &TerminalExecution| {
+        execution
+            .structural_byte_sequence_fields
+            .iter()
+            .map(|(field, bytes)| (field.clone(), bytes.bytes().to_vec()))
+            .collect::<Vec<_>>()
+    };
+    let before = snapshot(&execution);
+    execution
+        .establish_record(&result, &fields)
+        .expect_err("unavailable later operand cannot publish earlier byte field");
+    assert!(!execution.structural_values.contains_key(&destination));
+    assert_eq!(snapshot(&execution), before);
+    execution
+        .values
+        .insert(ValueId::new(99).unwrap(), unsigned(7));
+    execution
+        .establish_record(&result, &fields)
+        .expect("all complete operands publish together");
+    let value = &execution.structural_values[&destination];
+    assert_eq!(
+        execution.structural_byte_sequence_field(
+            value.opaque_identity,
+            &[],
+            StructuralFieldId::new(1).unwrap()
+        ),
+        Some(b"bat".as_slice())
+    );
+    assert_eq!(
+        execution.byte_sequence_values[&source]
+            .immutable()
+            .unwrap()
+            .bytes(),
+        b"rat"
+    );
+    fields[0].value = RecordFieldValue::Structural(StructuralArgument {
+        place: source,
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    });
+    execution
+        .establish_record(&result, &fields)
+        .expect_err("constructor needs owned child access");
+}
+
+#[test]
 fn ordinary_scalar_calls_reenter_constructor_with_fresh_record_identities() {
     let mut module = record_module();
     let machine = &mut module.machines[0];

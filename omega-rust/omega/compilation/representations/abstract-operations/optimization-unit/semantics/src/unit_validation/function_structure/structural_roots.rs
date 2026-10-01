@@ -668,6 +668,23 @@ pub(crate) fn validate_structural_root_operations(
                         )
                         .is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+                            // Whole byte copies transport exactly the source
+                            // contract; they establish no new predicate and
+                            // cannot silently drop a retained qualification.
+                            && if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+                                && structural_types.get(&result.structural_type).is_some_and(|declaration| {
+                                    matches!(declaration.shape, terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    ))
+                                })
+                            {
+                                signature.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    && signature.has_exact_qualifications(&result.qualifications)
+                                    && !signature.has_result_evidence()
+                                    && result.qualification_establishments.is_empty()
+                            } else {
+                                result.qualifications.is_empty()
+                            }
                             && match path {
                                 abstract_operations::StructuralCopyPath::Ordinary(path) => {
                                     // A `&`-leaf copy mints the reference
@@ -687,7 +704,7 @@ pub(crate) fn validate_structural_root_operations(
                                             _ => None,
                                         })
                                         .unwrap_or(result.structural_type);
-                                    let selected = crate::unit_validation::structural_catalog::resolve_structural_path(structural_types, signature.structural_type, path);
+                                    let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
                                     selected == Some(expected)
                                         || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
                                 },
@@ -713,7 +730,6 @@ pub(crate) fn validate_structural_root_operations(
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || owned_case_copy
                             || shared_borrow_loan)
-                            && result.qualifications.is_empty()
                             && result.projected_qualifications.is_empty()
                             && result.claims.is_empty()
                             && matches!(

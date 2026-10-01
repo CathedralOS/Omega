@@ -18,7 +18,8 @@ mod witnesses;
 
 pub(crate) use function_catalog::{structural_root_key, validate_function_structural_catalog};
 pub(crate) use paths::{
-    byte_carrier_leaf_window, resolve_structural_path, structural_qualifications_match,
+    byte_carrier_leaf_window, resolve_leaf_copy_path, resolve_structural_path,
+    structural_qualifications_match,
 };
 pub(crate) use provider_specialization::validate_provider_attachment_specialization;
 pub(crate) use witnesses::{

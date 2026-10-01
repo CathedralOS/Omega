@@ -33,7 +33,9 @@ pub(super) fn block_home(
     declaration: &terminal_psi::StructuralParameterDeclaration,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
-    if !super::super::unobserved_owned::parameter(declaration) {
+    if !super::super::unobserved_owned::parameter(declaration)
+        && !super::super::scalar::byte_views::is_owned_byte_parameter(declaration, types)
+    {
         return Err(LoweringError::UnsupportedStructuralSum(
             declaration.structural_type,
         ));

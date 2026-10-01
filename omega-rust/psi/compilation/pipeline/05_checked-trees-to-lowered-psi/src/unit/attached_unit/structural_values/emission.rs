@@ -2297,6 +2297,39 @@ impl Emission<'_, '_, '_> {
         argument: &StructuralArgument,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
+        // Snapshot whole byte operands before later record members execute.
+        // Copy the source's exact established roster, not the destination's
+        // requested predicates; the independent copy checker rejoins both.
+        let qualifications = if argument.path.is_empty()
+            && self.structural_types.iter().any(|declaration| {
+                declaration.id == self.structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            }) {
+            self.evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+                .chain(self.evaluation.block_structural_parameters.iter())
+                .find(|parameter| parameter.place == argument.place)
+                .map(|parameter| parameter.qualifications.clone())
+                .or_else(|| {
+                    self.operations
+                        .iter()
+                        .filter_map(|operation| operation.result.structural())
+                        .find(|result| result.place == argument.place)
+                        .map(|result| result.qualifications.clone())
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "copied byte operand has no established source contract",
+                ))?
+        } else {
+            Vec::new()
+        };
         let place = place_id(allocate_dense(self.next_place)?);
         let operation = self.operations.allocate();
         self.operations.push(Operation {
@@ -2308,7 +2341,7 @@ impl Emission<'_, '_, '_> {
                 place,
                 structural_type: self.structural_type,
                 multiplicity: self.multiplicity,
-                qualifications: Vec::new(),
+                qualifications,
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),

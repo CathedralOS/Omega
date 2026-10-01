@@ -29,6 +29,24 @@ pub(crate) struct StructuralSourceContract<'a> {
 }
 
 impl StructuralSourceContract<'_> {
+    pub(crate) fn has_exact_qualifications(&self, required: &[StructuralDomainId]) -> bool {
+        self.qualifications == required && self.projected_qualifications.is_empty()
+    }
+
+    pub(crate) fn declared_byte_predicates(
+        &self,
+        domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    ) -> Option<terminal_psi::ByteSequencePredicateSet> {
+        if !self.projected_qualifications.is_empty() || self.has_result_evidence() {
+            return None;
+        }
+        terminal_semantics::byte_qualification_predicates_in(
+            domains.values().copied(),
+            self.structural_type,
+            self.qualifications,
+        )
+    }
+
     pub(crate) fn is_unqualified(&self) -> bool {
         self.qualifications.is_empty() && self.projected_qualifications.is_empty()
     }
@@ -56,6 +74,7 @@ impl StructuralSourceContract<'_> {
 
 pub(crate) fn structural_arguments_match(
     caller: &PsiOptimizationFunction,
+    consumer: Option<semantic_vocabulary::OperationId>,
     arguments: &[terminal_psi::StructuralArgument],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -506,9 +525,40 @@ pub(crate) fn structural_arguments_match(
             } else {
                 terminal_psi::StructuralMultiplicity::Linear
             };
+        let copied_byte_predicates = projection != StructuralProjectionPolicy::Boundary
+            && !parameter.is_self
+            && argument.path.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::Owned
+            && parameter.access == terminal_psi::StructuralAccess::Owned
+            && source.structural_type == parameter.structural_type
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && parameter.projected_qualifications.is_empty()
+            && !caller
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == argument.place)
+            && !caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place)
+            && terminal_semantics::byte_parameter_predicates_in(
+                domains.values().copied(),
+                parameter,
+            )
+            .zip(consumer.and_then(|consumer| {
+                crate::unit_validation::function_structure::copied_field_predicates_at_call(
+                    types.values().copied(),
+                    caller,
+                    argument.place,
+                    consumer,
+                )
+            }))
+            .is_some_and(|(required, available)| available.implies(required));
         if actual_multiplicity != parameter.multiplicity
             || (!bounded_owner_presentation
                 && !view_field_presentation
+                && !copied_byte_predicates
                 && parameter.qualifications.iter().any(|qualification| {
                     !source.carries_qualification(&argument.path, *qualification)
                 }))

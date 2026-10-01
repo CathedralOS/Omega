@@ -2039,6 +2039,7 @@ pass/structs/deep_nested_write_paths_exit checked 1590ms @2d8ed253669f
 pass/structs/mutable_array_record_state_transfer checked 1502ms @2d8ed253669f
 pass/structs/mutable_record_state_transfer checked 1392ms @2d8ed253669f
 pass/structs/nested_unused_provider_fields checked 1269ms @2d8ed253669f
+pass/structs/qualified_record_element_assignment_exit checked 825ms @e7a526bf3ac6+wt
 pass/structs/record_literal_array_field checked 7790ms @2d8ed253669f
 pass/structs/runtime_array_member_snapshot_exit checked 927ms @a951f37ea156+wt
 pass/structs/runtime_case_array_payload_exit checked 916ms @605c339eaa84

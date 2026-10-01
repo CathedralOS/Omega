@@ -164,6 +164,16 @@ impl ScalarBindings {
             ) || (source == StructuralAccess::SharedBorrow
                 && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
         };
+        // A shared read retains the established place and its qualifications;
+        // it cannot invalidate them. Mutable borrowing still needs a separate
+        // preservation contract, and projected qualification custody is not
+        // represented by this join.
+        let supports_parameter = |source: &StructuralParameterDeclaration| {
+            supports_borrow(source.access)
+                && (source.qualifications.is_empty()
+                    || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+                && source.projected_qualifications.is_empty()
+        };
         let place = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
@@ -201,10 +211,7 @@ impl ScalarBindings {
                             .ok_or(LoweringError::Unsupported(
                                 "computed borrow lost its parameter",
                             ))?;
-                        if !supports_borrow(source.access)
-                            || !source.qualifications.is_empty()
-                            || !source.projected_qualifications.is_empty()
-                        {
+                        if !supports_parameter(source) {
                             return unsupported("computed borrow widens its parameter custody");
                         }
                         source.place
@@ -220,10 +227,7 @@ impl ScalarBindings {
                     .ok_or(LoweringError::Unsupported(
                         "computed borrow lost its parameter",
                     ))?;
-                if !supports_borrow(source.access)
-                    || !source.qualifications.is_empty()
-                    || !source.projected_qualifications.is_empty()
-                {
+                if !supports_parameter(source) {
                     return unsupported("computed borrow widens its parameter custody");
                 }
                 source.place

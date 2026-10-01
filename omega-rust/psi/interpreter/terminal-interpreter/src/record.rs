@@ -59,6 +59,7 @@ impl TerminalExecution {
         };
         let mut staged = BTreeMap::new();
         let mut staged_referents = BTreeMap::new();
+        let mut staged_bytes = BTreeMap::new();
         let mut consumed = BTreeSet::new();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
@@ -85,6 +86,49 @@ impl TerminalExecution {
                         .structural_values
                         .get(&argument.place)
                         .ok_or_else(invalid)?;
+                    if let Some(
+                        carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    ) = declaration.field_type.byte_sequence_carrier()
+                    {
+                        let predicates = terminal_semantics::byte_qualification_predicates_in(
+                            self.program.catalogs.structural_domains.iter(),
+                            child.structural_type,
+                            &child.qualifications,
+                        )
+                        .ok_or_else(invalid)?;
+                        let bytes = self
+                            .byte_sequence_values
+                            .get(&argument.place)
+                            .ok_or_else(invalid)?
+                            .immutable()?;
+                        if argument.access != StructuralAccess::Owned
+                            || !argument.path.is_empty()
+                            || !child.path.is_empty()
+                            || !self
+                                .program
+                                .structural_types
+                                .get(&child.structural_type)
+                                .is_some_and(|declaration| {
+                                    declaration.shape == StructuralTypeShape::ByteSequence(carrier)
+                                })
+                            || !predicates.implies(declaration.field_type.byte_predicates())
+                            || u64::try_from(bytes.len()).map_or(true, |length| length > capacity)
+                            || self
+                                .live_affine_frontier
+                                .iter()
+                                .any(|entry| entry.place == argument.place)
+                        {
+                            return Err(invalid());
+                        }
+                        staged_bytes.insert(
+                            crate::values::StructuralByteSequenceRuntimeField {
+                                parent: StructuralRuntimePlace::from(&value),
+                                field: binding.field,
+                            },
+                            bytes.clone(),
+                        );
+                        continue;
+                    }
                     if argument.access != StructuralAccess::Owned
                         || !argument.path.is_empty()
                         || !child.qualifications.is_empty()
@@ -144,6 +188,25 @@ impl TerminalExecution {
                             );
                         }
                     }
+                    for (field, bytes) in &self.structural_byte_sequence_fields {
+                        if field.parent.opaque_identity == child.opaque_identity
+                            && field.parent.path.starts_with(&child.path)
+                        {
+                            let mut path =
+                                vec![StructuralPathSegment::Field(declaration.identity.clone())];
+                            path.extend_from_slice(&field.parent.path[child.path.len()..]);
+                            staged_bytes.insert(
+                                crate::values::StructuralByteSequenceRuntimeField {
+                                    parent: StructuralRuntimePlace {
+                                        opaque_identity: value.opaque_identity,
+                                        path,
+                                    },
+                                    field: field.field,
+                                },
+                                bytes.clone(),
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -157,10 +220,15 @@ impl TerminalExecution {
                     field.parent.opaque_identity != child.opaque_identity
                         || !field.parent.path.starts_with(&child.path)
                 });
+                self.structural_byte_sequence_fields.retain(|field, _| {
+                    field.parent.opaque_identity != child.opaque_identity
+                        || !field.parent.path.starts_with(&child.path)
+                });
             }
             remove_affine_root(&mut self.live_affine_frontier, place);
         }
         self.structural_scalar_fields.extend(staged);
+        self.structural_byte_sequence_fields.extend(staged_bytes);
         self.reference_referents.extend(staged_referents);
         self.structural_values.insert(result.place, value);
         if result.multiplicity == StructuralMultiplicity::Affine {

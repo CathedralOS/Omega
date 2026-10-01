@@ -1254,6 +1254,57 @@ impl TerminalExecution {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
+        if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+            && path.is_empty()
+            && let Some(terminal_psi::StructuralTypeDeclaration {
+                shape:
+                    StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                        capacity,
+                    }),
+                ..
+            }) = self.program.structural_types.get(&result.structural_type)
+        {
+            let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
+            let bytes = self
+                .byte_sequence_values
+                .get(source)
+                .ok_or_else(invalid)?
+                .immutable()?;
+            if result.multiplicity != StructuralMultiplicity::Unrestricted
+                || result.structural_type != source_value.structural_type
+                || result.qualifications != source_value.qualifications
+                || !source_value.path.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+                || self.structural_values.contains_key(&result.place)
+                || self.byte_sequence_values.contains_key(&result.place)
+                || u64::try_from(bytes.len()).map_or(true, |length| length > *capacity)
+                || !terminal_semantics::byte_literal_qualifications_hold_in(
+                    self.program.catalogs.structural_domains.iter(),
+                    result.structural_type,
+                    &result.qualifications,
+                    bytes.bytes(),
+                )
+            {
+                return Err(invalid());
+            }
+            // Snapshot the live byte value before publishing its independent
+            // identity. Later indexed writes detach the immutable backing.
+            let bytes = bytes.clone();
+            let copied = TerminalStructuralValue {
+                opaque_identity: self.local_structural_identities.allocate()?,
+                structural_type: result.structural_type,
+                qualifications: result.qualifications.clone(),
+                path: Vec::new(),
+            };
+            self.byte_sequence_values.insert(
+                result.place,
+                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes),
+            );
+            self.structural_values.insert(result.place, copied);
+            return Ok(OperationFlow::Advance);
+        }
         // Affine payload copies and reference relocations need their own
         // frontier/loan publication. Preserve the explicit execution boundary
         // rather than calling an admitted but unsupported operation malformed.

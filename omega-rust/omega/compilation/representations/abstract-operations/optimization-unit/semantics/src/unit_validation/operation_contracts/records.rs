@@ -110,6 +110,10 @@ pub(crate) fn record_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::EstablishRecord {
         psi_operation,
@@ -145,7 +149,47 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
-    field_initializers_match(function, result, declarations, fields)
+    declarations.len() == fields.len()
+        && declarations.iter().zip(fields).all(|(declaration, field)| {
+            // Byte fields retain their own predicate contract; nested records keep
+            // the qualification-free whole-child contract below.
+            if let Some(carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) =
+                declaration.field_type.byte_sequence_carrier()
+            {
+                let RecordFieldValue::Structural(argument) = &field.value else {
+                    return false;
+                };
+                let Some(source) = structural_source_contract(function, argument.place, false)
+                else {
+                    return false;
+                };
+                field.field == declaration.id
+                    && !declaration.relevance.is_erased()
+                    && argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && argument.place != result.place
+                    && source.access == StructuralAccess::Owned
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && !source_has_claims(function, argument.place)
+                    && types
+                        .get(&source.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape == StructuralTypeShape::ByteSequence(carrier)
+                        })
+                    && source
+                        .declared_byte_predicates(domains)
+                        .is_some_and(|predicates| {
+                            predicates.implies(declaration.field_type.byte_predicates())
+                        })
+            } else {
+                field_initializers_match(
+                    function,
+                    result,
+                    std::slice::from_ref(declaration),
+                    std::slice::from_ref(field),
+                )
+            }
+        })
 }
 
 pub(crate) fn plain_owned_shape(
@@ -345,6 +389,13 @@ fn record_type(
                     )
                     .is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => {}
                 _ => return false,
             }
         }

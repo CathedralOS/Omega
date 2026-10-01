@@ -1,4 +1,7 @@
 //! Complete fields in authored order before committing a declaration-ordered record.
+//! Byte members retain their complete owned value, including live length and
+//! qualifications. A destination declaration never supplies missing source proof:
+//! Terminal replay checks each completed operand before establishing the record.
 use super::super::super::{StructuralAccess, StructuralArgument, StructuralFieldType};
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
@@ -201,6 +204,22 @@ impl emission::Emission<'_, '_, '_> {
                         let child_type = match &target.field_type {
                             StructuralFieldType::Structural(child_type) => *child_type,
                             StructuralFieldType::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                            )
+                            | StructuralFieldType::PredicateByteSequence {
+                                carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                                ..
+                            } => {
+                                let carrier = super::super::structural_carrier_type(
+                                    self.checked,
+                                    field.type_reference,
+                                )?;
+                                lookup_type_id(
+                                    self.type_ids,
+                                    self.checked.normalized_type_identity(carrier).as_str(),
+                                )?
+                            }
+                            StructuralFieldType::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                             ) => lookup_type_id(
                                 self.type_ids,
@@ -226,9 +245,8 @@ impl emission::Emission<'_, '_, '_> {
                         };
                         if !matches!(
                             target.field_type,
-                            StructuralFieldType::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                            )
+                            StructuralFieldType::ByteSequence(_)
+                                | StructuralFieldType::PredicateByteSequence { .. }
                         ) && lookup_type_id(
                             self.type_ids,
                             self.checked

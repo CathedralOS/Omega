@@ -1158,6 +1158,20 @@ pub(crate) fn project(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32)> {
+    project_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn project_with_leaf_shape(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Option<(StructuralTypeId, u32)> {
     project_inner(
         root,
         path.iter().map(|segment| match segment {
@@ -1166,6 +1180,7 @@ pub(crate) fn project(
             _ => Projection::Unsupported,
         }),
         declarations,
+        leaf_shape,
     )
 }
 
@@ -1179,6 +1194,7 @@ fn project_inner<'a>(
     root: StructuralTypeId,
     path: impl Iterator<Item = Projection<'a>>,
     declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<(StructuralTypeId, u32)> {
     let mut carrier = root;
     let mut offset = 0_u32;
@@ -1216,7 +1232,7 @@ fn project_inner<'a>(
                 let nested = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
+                        let shape = leaf_shape(leaf)?;
                         declarations
                             .iter()
                             .find(|declaration| declaration.shape == shape)?
@@ -1243,7 +1259,7 @@ fn project_inner<'a>(
                         let nested = match &field.field_type {
                             StructuralFieldType::Structural(nested) => *nested,
                             leaf => {
-                                let shape = leaf.canonical_leaf_shape()?;
+                                let shape = leaf_shape(leaf)?;
                                 declarations
                                     .iter()
                                     .find(|declaration| declaration.shape == shape)
@@ -1278,6 +1294,35 @@ pub(crate) fn runtime_projection(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    runtime_projection_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// Copy snapshots expose the declaration's byte payload and live length, not
+/// permission to use a byte field as an ordinary borrowed call operand.
+pub(crate) fn runtime_leaf_copy_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    runtime_projection_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+fn runtime_projection_with_leaf_shape(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let mut container = root;
     let mut byte_offset = 0u32;
     let mut elements = Vec::new();
@@ -1287,8 +1332,12 @@ pub(crate) fn runtime_projection(
             continue;
         };
         if position > segment_start {
-            let (selected, run_offset) =
-                project(container, &path[segment_start..position], declarations)?;
+            let (selected, run_offset) = project_with_leaf_shape(
+                container,
+                &path[segment_start..position],
+                declarations,
+                leaf_shape,
+            )?;
             container = selected;
             byte_offset = byte_offset.checked_add(run_offset)?;
         }
@@ -1315,7 +1364,8 @@ pub(crate) fn runtime_projection(
         container = element;
         segment_start = position + 1;
     }
-    let (endpoint, tail_offset) = project(container, &path[segment_start..], declarations)?;
+    let (endpoint, tail_offset) =
+        project_with_leaf_shape(container, &path[segment_start..], declarations, leaf_shape)?;
     Some((endpoint, byte_offset.checked_add(tail_offset)?, elements))
 }
 
@@ -1482,8 +1532,7 @@ fn scalar_field_geometry(
     None
 }
 
-/// Exact bounded carrier geometry: record fields, optionally followed by one
-/// literal fixed-array index — the same grammar the store projection shares.
+/// Exact static carrier geometry: record fields and bounded fixed-array indices.
 /// Callers independently reconstruct readable root custody and availability;
 /// this helper does not grant access to storage.
 pub(crate) fn field_read(
@@ -1494,14 +1543,19 @@ pub(crate) fn field_read(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
     if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || !path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+        })
     {
         return None;
     }
     // An element view is a descriptor, not the observed storage: its live
     // extent — not a root record footprint — bounds the read. A fixed array
     // roots its literal element's field read as a record roots its member's:
-    // the path's one literal index selects the owning record, and the whole
+    // every literal index selects its declared element, and the whole
     // array footprint bounds the read.
     let root_shape = &declarations
         .iter()

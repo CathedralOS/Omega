@@ -44,6 +44,13 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 ) => references,
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => true,
                 _ => field.field_type.scalar_type().is_some(),
             }
     }
@@ -165,6 +172,64 @@ pub(crate) fn fields<'a>(
             return Err(failure());
         }
         match (&declaration.field_type, &binding.value) {
+            (field_type, RecordFieldValue::Structural(argument))
+                if matches!(
+                    field_type.byte_sequence_carrier(),
+                    Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+                ) =>
+            {
+                let source =
+                    super::structural::result_contracts::source_signature(machine, argument.place)
+                        .ok_or_else(failure)?;
+                let carrier = module
+                    .structural_types
+                    .iter()
+                    .find(|candidate| candidate.id == source.structural_type)
+                    .ok_or_else(failure)?;
+                let predicates = terminal_semantics::byte_qualification_predicates_in(
+                    module.structural_domains.iter(),
+                    source.structural_type,
+                    source.qualifications,
+                )
+                .ok_or_else(failure)?;
+                if argument.access != StructuralAccess::Owned
+                    || !argument.path.is_empty()
+                    || argument.place == result.place
+                    || source.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !source.projected_qualifications.is_empty()
+                    || carrier.shape
+                        != StructuralTypeShape::ByteSequence(
+                            field_type.byte_sequence_carrier().ok_or_else(failure)?,
+                        )
+                    || !predicates.implies(field_type.byte_predicates())
+                    || machine
+                        .structural_parameters
+                        .iter()
+                        .chain(
+                            machine
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.structural_parameters),
+                        )
+                        .any(|parameter| {
+                            parameter.place == argument.place
+                                && parameter.access != StructuralAccess::Owned
+                        })
+                    || machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|producer| {
+                            producer.result.structural().is_some_and(|source| {
+                                source.place == argument.place
+                                    && (!source.claims.is_empty()
+                                        || !source.qualification_establishments.is_empty())
+                            })
+                        })
+                {
+                    return Err(failure());
+                }
+            }
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
                 let source =
                     super::structural::result_contracts::source_signature(machine, argument.place)
@@ -424,6 +489,18 @@ pub(super) fn validate_uses(
                 if let RecordFieldValue::Structural(argument) = &field.value {
                     validate(argument.place)?;
                     copy_payload(argument.place)?;
+                    if owned_byte_source(module, machine, argument.place)
+                        && machine.structural_places.iter().any(|place| {
+                            place.id == argument.place
+                                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+                        })
+                        && !available.contains(&argument.place)
+                    {
+                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                            operation: operation.id,
+                            place: argument.place,
+                        });
+                    }
                 }
             }
         }
@@ -473,6 +550,28 @@ pub(super) fn validate_uses(
         _ => {}
     }
     Ok(())
+}
+
+/// A byte child remains an ordinary unrestricted value. Its exact producer,
+/// predicates and current availability are checked separately before binding.
+pub(super) fn owned_byte_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> bool {
+    super::structural::result_contracts::source_signature(machine, place).is_some_and(|source| {
+        source.multiplicity == StructuralMultiplicity::Unrestricted
+            && source.projected_qualifications.is_empty()
+            && module.structural_types.iter().any(|candidate| {
+                candidate.id == source.structural_type
+                    && matches!(
+                        candidate.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            })
+    })
 }
 
 pub(super) fn result(

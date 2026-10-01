@@ -552,7 +552,7 @@ pub(super) fn build_traced(
             if parameter.multiplicity != Multiplicity::Linear
                 && !parameter.qualifications.is_empty()
                 && !(state_index == 0 && invocation_only_entry)
-                && !forwards_qualified_loan(
+                && !forwards_qualified_parameter(
                     shapes,
                     &planned,
                     &live_states,
@@ -577,15 +577,19 @@ pub(super) fn build_traced(
                     return None;
                 }
                 (false, CheckedStructuralAccess::Owned) => {
-                    // Fixed primitive arrays carry their recursively checked
-                    // payload shape rather than a nominal record identity.
+                    // Primitive arrays and bounded byte owners carry their
+                    // checked payload shape rather than a nominal identity.
                     // Edge custody still checks the exact source/destination;
                     // adding states must not remove the ordinary call carrier.
-                    let primitive_array = parameter.multiplicity == Multiplicity::Unrestricted
+                    let owned_sequence = parameter.multiplicity == Multiplicity::Unrestricted
                         && !program.state_parameters(state)[parameter.position as usize].is_mutable
-                        && validation::is_closed_primitive_array_type(program, reference());
+                        && (validation::is_closed_primitive_array_type(program, reference())
+                            || (validation::bounded_byte_buffer_capacity(program, reference()).is_some()
+                                && validation::has_plain_owned_contents_with_represented_constraints(
+                                    program, reference(),
+                                )));
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !primitive_array
+                        && !owned_sequence
                         && !matches!(
                             program.type_reference_table.type_reference(reference()),
                             TypeReferenceNode::Named { .. }
@@ -600,7 +604,7 @@ pub(super) fn build_traced(
                     // initializer. Exact edge custody retains represented byte
                     // predicates, including those below record/array children.
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !primitive_array
+                        && !owned_sequence
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,
                             reference(),
@@ -775,6 +779,8 @@ pub(super) fn build_traced(
 /// A shared loan freezes its referent. A mutable bounded byte owner instead
 /// preserves its primitive byte predicates through independently checked stores.
 /// Neither rule grants transport for arbitrary mutable qualified values.
+/// An immutable owned byte parameter likewise forwards its established value
+/// whole, with exactly the same primitive predicate roster on every arrival.
 /// A successor's qualified parameter is admitted only when every live
 /// edge into its state forwards a source parameter with exactly the same
 /// carrier, access, multiplicity and qualifications, or, for a shared byte
@@ -783,7 +789,7 @@ pub(super) fn build_traced(
 /// Terminal verification decides from the literal's octets at the edge.
 /// The entry state keeps its invocation rule: a re-entered entry is a
 /// separate arrival.
-fn forwards_qualified_loan(
+fn forwards_qualified_parameter(
     shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
     live: &[bool],
@@ -799,8 +805,10 @@ fn forwards_qualified_loan(
     if target_index == 0
         || parameter.is_self
         || !(parameter.access == CheckedStructuralAccess::SharedBorrow
-            || (parameter.access == CheckedStructuralAccess::MutableBorrow
-                && parameter.projected_qualifications.is_empty()
+            || (matches!(
+                parameter.access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
+            ) && parameter.projected_qualifications.is_empty()
                 && shapes
                     .types
                     .get(&parameter.type_identity)

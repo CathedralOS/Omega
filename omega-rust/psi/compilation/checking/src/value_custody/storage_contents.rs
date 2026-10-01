@@ -68,7 +68,10 @@ enum ContentsRequirement {
     /// may additionally carry a plain domain that means exactly an interval:
     /// the bounded carrier represents membership completely and the
     /// construction proves it through the member's own range obligation.
-    /// Every other `CleanupOwned` caller keeps refusing declared domains.
+    /// Bounded byte members also retain represented primitive predicates; the
+    /// constructor must prove these from each completed operand, independently
+    /// of this storage classification. Other `CleanupOwned` callers keep
+    /// refusing declared domains.
     StructuralConstruction,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
@@ -146,7 +149,9 @@ pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReference
 /// Classify the contents a record or case literal establishes: exactly
 /// [`has_cleanup_owned_contents`], plus scalar members under a plain domain
 /// that means exactly an interval. This is the same storage judgment for both
-/// forms; each construction still proves its members' range obligations.
+/// forms; bounded byte members may retain primitive byte predicates too. Each
+/// construction still proves its members' range or byte-predicate obligations;
+/// admitting storage never establishes a member's declared qualification.
 pub fn has_structural_construction_contents(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -449,7 +454,9 @@ fn resolve(
                         ) && matches!(contents, ContentType::Scalar(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
-                        || (requirement == ContentsRequirement::RepresentedOwned
+                        || (matches!(requirement,
+                                ContentsRequirement::RepresentedOwned
+                                    | ContentsRequirement::StructuralConstruction)
                             && matches!(&contents, ContentType::Array(element, _)
                                 if matches!(element.as_ref(), ContentType::Scalar(PrimitiveType::U8)))
                             && is_plain_value_domain(program, domain)

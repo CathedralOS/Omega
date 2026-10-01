@@ -79,11 +79,17 @@ pub(super) fn append(
                         axioms,
                     );
                 }
-                // A borrowed-view binding relocates a whole descriptor: there
-                // is no child record to project and no scalar equation to mint.
+                // Byte bindings have no scalar child fields to equate. The
+                // field validator above already checks exact owned capacity
+                // and predicate implication (or borrowed descriptor custody).
                 terminal_psi::StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) => {}
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                )
+                | terminal_psi::StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => {}
                 _ => return Err(ModuleError::RecordResultMismatch(operation.id)),
             }
             continue;

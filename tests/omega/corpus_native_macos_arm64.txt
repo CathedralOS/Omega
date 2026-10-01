@@ -921,6 +921,7 @@ pass/structs/deep_nested_write_paths_exit built 1883ms exit:70 @fb2178def922
 pass/structs/mutable_array_record_state_transfer built 707ms exit:70
 pass/structs/mutable_record_state_transfer built 629ms exit:70
 pass/structs/nested_unused_provider_fields built 600ms exit:70
+pass/structs/qualified_record_element_assignment_exit built 1120ms exit:70 @e7a526bf3ac6+wt
 pass/structs/record_literal_array_field built 20964ms exit:0 @48008365d839
 pass/structs/runtime_array_member_snapshot_exit built 1217ms exit:70 @a951f37ea156+wt
 pass/structs/runtime_case_array_payload_exit built 936ms exit:70 @605c339eaa84+wt

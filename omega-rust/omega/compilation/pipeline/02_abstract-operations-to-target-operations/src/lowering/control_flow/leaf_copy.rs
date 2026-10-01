@@ -35,8 +35,21 @@ pub(super) fn copy(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let root_type = if let Some(home) = live.structural_homes.get(source) {
+        let whole_byte_copy = matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+            && home.structural_type() == result.structural_type
+            && types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+                })
+            && home.qualifications() == result.qualifications;
         if home.has_claims()
-            || !home.qualifications().is_empty()
+            || (!home.qualifications().is_empty() && !whole_byte_copy)
             || !home.projected_qualifications().is_empty()
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -104,7 +117,7 @@ pub(super) fn copy_extent(
             Vec::new(),
         ),
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
-            crate::lowering::structural_layout::runtime_projection(
+            crate::lowering::structural_layout::runtime_leaf_copy_projection(
                 root_type,
                 path,
                 types,

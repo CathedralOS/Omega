@@ -58,7 +58,7 @@ pub(super) fn validate_declarations(
                     )
                 )
                 || (!declaration.qualifications.is_empty()
-                    && !bounded_owner_loan(module, declaration)
+                    && !bounded_owner_parameter(module, declaration)
                     && !qualified_shared_byte_view(module, declaration))
                 || !declaration.projected_qualifications.is_empty()
                 || !machine.structural_places.iter().any(|place| {
@@ -78,7 +78,7 @@ pub(super) fn validate_declarations(
                                 if carrier.is_borrowed()
                             )
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                            || bounded_owner_loan(module, declaration)
+                            || bounded_owner_parameter(module, declaration)
                             || mutable_records::parameter_type(module, declaration)
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
@@ -122,7 +122,8 @@ pub(super) fn shared_bounded_owner_loan(
     module: &TerminalModule,
     declaration: &StructuralParameterDeclaration,
 ) -> bool {
-    declaration.access == StructuralAccess::SharedBorrow && bounded_owner_loan(module, declaration)
+    declaration.access == StructuralAccess::SharedBorrow
+        && bounded_owner_parameter(module, declaration)
 }
 
 /// A shared borrowed byte view (`&[u8] in Utf8`) whose every qualification is
@@ -196,16 +197,18 @@ fn established_literal_qualifications<'machine>(
         .then_some((structural_type, qualifications))
 }
 
-/// Whole bounded loans carry only primitive byte invariants of their exact
-/// carrier. Mutable transport moves the usable name; each permitted store
-/// independently preserves these predicates before another edge can forward it.
-fn bounded_owner_loan(
+/// Whole bounded owners and their loans carry only primitive byte invariants
+/// of their exact carrier. An owned arrival moves the complete `{length,
+/// bytes}` value; it does not acquire loan authority. Mutable transport moves
+/// the usable loan name, while every permitted store independently preserves
+/// the predicates before another edge can forward it.
+fn bounded_owner_parameter(
     module: &TerminalModule,
     declaration: &StructuralParameterDeclaration,
 ) -> bool {
     matches!(
         declaration.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) && declaration.multiplicity == StructuralMultiplicity::Unrestricted
         && !declaration.is_self
         && declaration.projected_qualifications.is_empty()
@@ -283,12 +286,13 @@ pub(super) fn validate_successor(
                 place: argument.place,
             });
         }
-        if bounded_owner_loan(module, expected) {
-            // A bounded owner's loan is forwarded whole from a
-            // signature or dominating block parameter with the identical
-            // declaration. Shared loans freeze their referent; mutable stores
-            // preserve its primitive predicates. Exclusive availability above
-            // still consumes the prior name instead of duplicating authority.
+        if bounded_owner_parameter(module, expected) {
+            // A bounded owner or its loan is forwarded whole from a signature
+            // or dominating block parameter with the identical declaration.
+            // Owned transfer moves its complete value and qualification roster;
+            // shared loans freeze their referent, while mutable stores preserve
+            // its primitive predicates. Exclusive availability above still
+            // consumes a mutable name instead of duplicating authority.
             let forwarded = machine
                 .structural_parameters
                 .iter()
