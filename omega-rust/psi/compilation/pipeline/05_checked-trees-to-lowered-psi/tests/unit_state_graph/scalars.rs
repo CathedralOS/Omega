@@ -258,6 +258,9 @@ fn short_circuit_local_values_compose_with_prefix_and_later_bindings() {
 
 #[test]
 fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
+    // The state prefix carries immutable scalar values only. `let mut output`
+    // and its assignment are ordinary statement operations, so the authored
+    // writes are its storage establishment and store, not prefix bindings.
     let baseline = crate::front_end::checked_program(PREFIX);
     for mutation in 0..3 {
         let mut changed = baseline.clone();
@@ -276,19 +279,49 @@ fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
             .find(|plan| plan.machine == relay)
             .unwrap();
         let entry = &mut plan.states[0];
-        assert_eq!(entry.bindings.len(), 3);
+        assert!(entry.bindings.is_empty(), "{:?}", entry.bindings);
+        let establishment = entry
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                        statement_index: 0,
+                        ..
+                    }
+                )
+            })
+            .expect("the mutable declaration establishes its storage");
+        let store = entry
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                        statement_index: 1,
+                        ..
+                    }
+                )
+            })
+            .expect("the authored assignment stores into that storage");
+        assert_eq!((establishment, store), (0, 1));
         match mutation {
             0 => {
-                entry.bindings.clear();
-                entry.binding_initializers.clear();
+                entry.operations.remove(store);
             }
-            1 => {
-                entry.bindings.swap(0, 1);
-                entry.binding_initializers.swap(0, 1);
-            }
+            1 => entry.operations.swap(establishment, store),
             2 => {
-                entry.bindings[1].destination =
-                    checked_trees::CheckedScalarBindingDestination::Immutable;
+                let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    destination,
+                    ..
+                } = &mut entry.operations[store]
+                else {
+                    unreachable!("located above")
+                };
+                // Retarget the write from `output` to the `byte` parameter.
+                *destination = checked_trees::CheckedStoreRoot::Parameter { position: 2 };
             }
             _ => unreachable!(),
         }

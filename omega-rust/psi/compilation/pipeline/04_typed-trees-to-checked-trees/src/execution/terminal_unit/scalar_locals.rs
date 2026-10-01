@@ -20,12 +20,18 @@ pub(super) fn scalar_expression_local_at(
         return None;
     }
     let primitive_type = program.primitive_type_reference(local.type_reference)?;
-    let value = facts.values.scalar_expressions.expression_at(
+    // The value-only state prefix and this ordinary statement sequence share
+    // one custody contract: the plan row must bind this local's own
+    // initializer, not merely sit at its coordinate.
+    let (custody, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
         CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
     )?;
-    if crate::values::scalar_expression_type(value) != Some(primitive_type) {
+    if custody.expression != local.initial_value
+        || custody.destination != local.symbol
+        || crate::values::scalar_expression_type(value) != Some(primitive_type)
+    {
         return None;
     }
     Some((
