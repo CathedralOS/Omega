@@ -1,6 +1,8 @@
 // Defaults flow through both body-level `requires` and header-parent
 // composition. A conformance to the child trait alone receives the inherited
-// machine.
+// machine. Exits 70 only when each reset ran its own resolution: 30 from the
+// required default, 30 through the parent, and 10 from the authored override
+// that settles the two conflicting defaults.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -85,7 +87,18 @@ machine Main::main(main: &mut Main) reaches Console {
     main.required_value.reset();
     main.parent_value.reset();
     main.resolved_value.reset();
-    main.console.exit_process(
-        main.required_value.value + main.parent_value.value + main.resolved_value.value,
-    );
+    transition main.required_value.value == 30
+        && main.parent_value.value == 30
+        && main.resolved_value.value == 10 {
+        true -> done(main)
+        _ -> refused(main)
+    }
+
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state refused(main: &mut Main) {
+        main.console.exit_process(71);
+    }
 }
