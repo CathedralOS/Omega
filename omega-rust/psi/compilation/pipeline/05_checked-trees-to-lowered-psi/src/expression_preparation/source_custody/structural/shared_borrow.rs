@@ -153,7 +153,10 @@ pub(super) fn validate_copied_place(
     if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
         return unsupported("copied place changed its planned access");
     }
-    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
+    // Copying does not consume the source loan. A slice's literal selector is
+    // an exact coordinate too; emission must retain its live-length obligation
+    // rather than treating the coordinate as a fixed-array bounds proof.
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression, true)?;
     // A bare whole-root name walks to the empty path — the copied leaf is
     // then the root's own declared `Unrestricted` type, which the leaf/type
     // agreement below already pins exactly.

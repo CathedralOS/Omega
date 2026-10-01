@@ -294,6 +294,7 @@ pass/collections/runtime_maze_pathfind_exit built 1835ms exit:70
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 1177ms exit:70 @5f978f80e84b+wt
 pass/collections/runtime_signed_element_offset_read_exit built 587ms exit:70
+pass/collections/runtime_slice_record_copy_exit built 1323ms exit:70 @83d1d7229173+wt
 pass/collections/runtime_vec_u32_growth_exit built 2538ms exit:70
 pass/collections/runtime_whole_array_value_copy_exit built 857ms exit:70 @a59d5a661528+wt
 pass/collections/shared_slice_view_dropped_receiver built 1081ms exit:181 @48008365d839

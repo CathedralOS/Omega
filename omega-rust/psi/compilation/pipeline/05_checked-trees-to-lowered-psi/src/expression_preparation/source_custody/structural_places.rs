@@ -164,9 +164,10 @@ fn fixed_element(
 /// Walk an authored member/indexed place chain to its root name, rebuilding
 /// the retained field/fixed-index path against the same declaration and
 /// literal-bound rules the checker committed to. `view_root_index` admits a
-/// literal index into a slice-typed (view) collection: only a shared-borrow
-/// target may use it — the loan's own live extent is the bound, while copied
-/// and scalar-case leaves still need the literal array length's evidence.
+/// literal index into a slice-typed collection when the receiving operation
+/// retains the view's live bound. Rebuilding a coordinate does not prove that
+/// bound: copied leaves lower it to an independently checked runtime-index
+/// obligation, while reference establishments retain their loan's extent.
 pub(crate) fn walk_exact_place(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
@@ -294,10 +295,9 @@ pub(crate) fn walk_exact_place(
                     "borrowed selection index has no declared collection",
                 ))?;
                 // A slice-typed collection — a `&[Cell]` view root — carries no
-                // literal bound: a shared loan's own live extent discharges the
-                // index the way the runtime selector's obligation does. Copied
-                // and scalar-case leaves instead mint the literal's exact place
-                // and keep the literal array length's evidence rule.
+                // literal bound: the receiving operation must retain the
+                // view's live extent obligation. Owners without that contract
+                // still require a declared fixed-array length here.
                 let mut unwrapped = container;
                 let literal_length = loop {
                     match checked.type_reference_table.type_reference(unwrapped) {

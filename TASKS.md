@@ -1283,18 +1283,20 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `7c72db8f26`
-  plus the runtime-remainder bound and explicit numeric migration repairs,
-  on macOS ARM64, source checking and the local package review succeed; closed
-  stdin still exits 200 during Terminal production with
-  `borrowed selection index has no literal array length`. The next owner is
-  stage 05 `expression_preparation/source_custody/structural_places.rs`:
-  preserve the selected collection's actual fixed extent or live view length
-  instead of inventing a literal bound. RNG guarantees and value-preserving
-  `u32` to `i32` health conversions now cross source checking and independent
-  certificate replay; `arithmetic/runtime_remainder_result_cast_exit` executes
-  its authored exit 70. Neither that witness nor package acceptance establishes
-  that Dungeon runs. Acceptance remains the two complete game commands above.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `83d1d72291`
+  plus the slice-copy repair, on macOS ARM64, source checking and local package
+  review succeed; closed stdin exits 200 during Terminal production with
+  `Unit machine operation order is not canonical source order`.
+  `MazeBuilder::carve_room` assigns a returned byte buffer to `room.label`:
+  stage 05 `unit/attached_unit/call_closure.rs` must pair the store with its
+  exact completed call instead of rejecting their shared source coordinate.
+  `RoomLookup::find_room` now crosses slice-copy source replay with retained
+  live-length obligations. `collections/runtime_slice_record_copy_exit`
+  executes its authored exit 70, preserving qualified byte fields, enum values,
+  the source and destination sibling; twelve existing native controls retain
+  their results and four invalid-copy/bounds fixtures still reject. Those
+  witnesses do not establish that Dungeon runs. Acceptance remains the two
+  complete game commands above.
 
   The composed receiver reproduction
   `borrows/branch_selected_record_composed_receiver_exit` and nested owned
@@ -1305,7 +1307,7 @@ the complete product bar; focused successes below do not establish that baseline
   interpretation and native lowering without acquiring runtime-index, view
   crossing or mutation authority. Sixteen existing native controls retain their
   authored results, and four invalid-borrow controls still reject. None of those
-  closes the application; its next dependency is the numeric expression above.
+  closes the application; its current dependency is recorded above.
 
   Preserve exact initializer identity, nested consuming-call coordinates,
   finite reference-origin coverage, selected result addresses and loan release;
