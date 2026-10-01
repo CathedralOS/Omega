@@ -22,7 +22,7 @@ fn invalid() -> SelectedInstructionError {
 /// followed by chunked loads, chunked stores, and the place's transport
 /// pointer.
 pub(super) fn copy(
-    _source: &LegalizedScalarFunction,
+    function: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -32,6 +32,7 @@ pub(super) fn copy(
         byte_offset,
         shape,
         indices,
+        path,
         ..
     } = &row.kind
     else {
@@ -61,9 +62,43 @@ pub(super) fn copy(
         alignment: shape.alignment,
     });
     let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, true)?;
+    // Independently replay the descriptor-to-backing read only for projected
+    // elements; an empty path copies the complete descriptor instead.
+    let input = if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty())
+        && (replay
+            .transport
+            .element_views
+            .iter()
+            .any(|view| view.place == *source)
+            || crate::selection::established_view_input::element_view_type(function, *source)
+                .is_some())
+    {
+        let backing = super::element_views::element_backing_pointer(replay, row, *source)?;
+        let view = replay
+            .transport
+            .element_views
+            .iter()
+            .find(|view| view.place == *source)
+            .copied();
+        if let Some(view) = view {
+            let base = super::result(replay, *source, *byte_offset)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ByteViewAddress,
+                replay.constraints.keys.add_i64,
+                &[backing, view.byte_offset, base],
+                &provenance(row),
+            )?;
+            Some(base)
+        } else {
+            Some(backing)
+        }
+    } else {
+        input
+    };
+
     let Some(input) = input else {
         check_fragments(
-            _source,
+            function,
             row,
             source,
             CopyEnd {

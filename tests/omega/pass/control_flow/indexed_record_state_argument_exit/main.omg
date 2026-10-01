@@ -1,0 +1,39 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Kind [copy] { case First; case Second; }
+data Item [copy] { kind: Kind; value: u64; }
+data Output { kind: Kind; value: u64; }
+data Main { console: Binding<Console>; items: [Item; 2]; output: Output; }
+
+machine select(items: &[Item], index: u64, output: &mut Output)
+{
+    transition index < items.len {
+        true -> write(items[index], output)
+        false -> {}
+    }
+    state write(item: Item, output: &mut Output) {
+        output.kind = item.kind;
+        output.value = item.value;
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.items[0] = Item { kind: Kind::First, value: 11 };
+    self.items[1] = Item { kind: Kind::Second, value: 22 };
+    let entries: &[Item] = self.items.as_slice();
+    select(entries, 1, &mut self.output);
+    // An unselected edge must not evaluate its out-of-bounds copy.
+    select(entries, 99, &mut self.output);
+    transition self.output.kind {
+        Kind::First -> finish(1)
+        Kind::Second -> check_value()
+    }
+    state check_value(&mut self) {
+        transition self.output.value == 22 {
+            true -> finish(70)
+            false -> finish(2)
+        }
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

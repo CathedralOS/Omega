@@ -828,10 +828,12 @@ pub(crate) fn build_checked_value_computation_plans(
                         let Some(expected_type) =
                             program.primitive_type_reference(parameter.type_reference)
                         else {
-                            // A composite argument with no named custody root —
-                            // an inline record, case, or fixed-array literal,
-                            // or a call's structural result — is a fresh value
-                            // the edge itself establishes into the parameter.
+                            // A composite argument needing fresh storage — a
+                            // literal, indexed copy, or call result — is
+                            // established only on its selected edge. Indexed
+                            // copies retain selector evaluation in the value
+                            // plan; field-only copies and whole-root transfers
+                            // retain their existing direct custody plans.
                             // Retain its structural value so the successor
                             // plan can name it as an established source; the
                             // builder admits a call only when its declared
@@ -847,10 +849,35 @@ pub(crate) fn build_checked_value_computation_plans(
                                     program,
                                     *argument,
                                     parameter.type_reference,
-                                ) || matches!(
-                                    program.expression_table.expression(*argument),
-                                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::Call(_)
-                                ))
+                                ) || (!crate::execution::terminal_unit::types::is_reference(
+                                    program,
+                                    parameter.type_reference,
+                                ) && structural_values::needs_copied_place_root(
+                                    program,
+                                    state.symbol,
+                                    statement_index,
+                                    *argument,
+                                    parameter.type_reference,
+                                )
+                                    && crate::flow::canonical_place_from_expression_in_state(
+                                        program,
+                                        state.symbol,
+                                        statement_index,
+                                        *argument,
+                                    )
+                                    .is_some_and(|place| {
+                                        place.segments.iter().any(|segment| {
+                                            matches!(
+                                                segment,
+                                                facts::PlaceSegment::Index { .. }
+                                                    | facts::PlaceSegment::FixedIndex { .. }
+                                            )
+                                        })
+                                    }))
+                                    || matches!(
+                                        program.expression_table.expression(*argument),
+                                        ExpressionNode::ArrayLiteral(_) | ExpressionNode::Call(_)
+                                    ))
                                 && structural_values
                                     .root_for_expression(state.symbol, statement_ordinal, *argument)
                                     .is_none()

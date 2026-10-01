@@ -137,8 +137,9 @@ pub(super) fn lower(
 /// mirroring the verifier's `resolve_structural_path`: field segments select
 /// a non-erased record member whose structural or canonical leaf shape joins
 /// the declaration roster, fixed indices step into in-bounds array elements,
-/// and a runtime index steps into any fixed array's element: its bound is the
-/// obligation the verifier discharged.
+/// and indexed views select their declared element. A view's extent is its
+/// live runtime length, not a static type length; the verifier discharges
+/// that bound before this static-shape replay and the path retains its proof.
 fn resolve_copyable_path(
     structural_types: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,
@@ -171,6 +172,10 @@ fn resolve_copyable_path(
             (
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
+            ) => *element,
+            (
+                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { element },
             ) => *element,
             _ => return None,
         };

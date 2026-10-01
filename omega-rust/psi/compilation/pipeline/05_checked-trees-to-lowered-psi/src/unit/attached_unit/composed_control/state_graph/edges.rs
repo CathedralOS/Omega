@@ -362,11 +362,13 @@ pub(super) fn validate_bindings(
             establishment,
         } = &transfer.source
         {
-            // The authored operand is the inline construction or call itself:
+            // The authored operand is the construction, call, or copied place:
             // it is the one value the statement registers as rooted at that
             // expression, its declared carrier is the target's, and its kind
-            // is a construction or a call product — no custody-bearing shape
-            // (place, projection) may masquerade as fresh custody. The edge's
+            // is a construction, call product, or copy. A copied place must
+            // replay its exact source/path and unrestricted leaf below; this
+            // is fresh destination storage, not a transfer of source custody.
+            // The edge's
             // establishment is an ordinary one at the transition's own
             // coordinate, producing exactly the target's type and
             // multiplicity, and replays as a `let` initializer's does,
@@ -421,6 +423,8 @@ pub(super) fn validate_bindings(
                         | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
                         | checked_trees::CheckedStructuralValueKind::Case { .. }
                         | checked_trees::CheckedStructuralValueKind::Call { .. }
+                        | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
+                        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
                 )
             {
                 return unsupported("Unit graph established argument custody drifted");
