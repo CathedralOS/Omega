@@ -9,7 +9,9 @@
 //! that finish during operand evaluation from loans held through invocation.
 //! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
-//! operation's receiver.
+//! operation's receiver. A transition arm's target roster comes from
+//! `collect_transition_target_argument_accesses`, which also ends the reads of
+//! payloads its dispatch already copied (`dispatch_extraction`).
 //!
 //! `borrow_access_place` (`place`) resolves an expression to the place it
 //! accesses, with `contextual` resolving names and members in the state and
@@ -21,6 +23,7 @@ use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
 mod collection;
 mod contextual;
+mod dispatch_extraction;
 mod place;
 mod read;
 mod records;
@@ -51,6 +54,39 @@ pub(crate) fn collect_call_argument_accesses(
             statement_index,
             machine_symbol,
         );
+
+        collect_target_argument_accesses(&mut collection, arguments, target_symbol);
+    }
+
+    accesses
+}
+
+/// A transition arm's own target roster. Its plain-copy payload bindings were
+/// copied out of the dispatch's saved subject before the target evaluates any
+/// argument; nested calls' rosters keep `collect_call_argument_accesses`.
+pub(crate) fn collect_transition_target_argument_accesses(
+    program: &typed_trees::TypedTrees,
+    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
+    arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+) -> arena::HandleSpan<BorrowArgumentAccessFact> {
+    let mut accesses = arena::HandleSpan::empty();
+
+    {
+        let mut collection = BorrowAccessCollection::new(
+            program,
+            access_segments,
+            argument_accesses,
+            &mut accesses,
+            state_symbol,
+            statement_index,
+            machine_symbol,
+        )
+        .after_dispatch_extraction();
 
         collect_target_argument_accesses(&mut collection, arguments, target_symbol);
     }

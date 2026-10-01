@@ -10,7 +10,7 @@ pub(super) fn collect_transition_target_borrow_calls(
         TransitionTargetNode::Named {
             arguments, path, ..
         } => {
-            let accesses = collection.collect_call_argument_accesses(
+            let accesses = collection.collect_transition_target_argument_accesses(
                 collection
                     .program
                     .statement_table
