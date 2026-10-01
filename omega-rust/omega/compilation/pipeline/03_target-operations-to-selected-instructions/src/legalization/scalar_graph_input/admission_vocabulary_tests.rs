@@ -184,6 +184,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IntegerEqual { .. }
         | AbstractOperation::IntegerExactCast { .. }
+        | AbstractOperation::ScalarRepresentationView { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerWiden { .. }
