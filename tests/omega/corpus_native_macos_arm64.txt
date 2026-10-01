@@ -913,6 +913,7 @@ pass/structural/case_payload_record_member_read built 1215ms @fb2178def922
 pass/structural/composed_case_field_store_exit built 834ms exit:70 @1a09bf67b6a7+wt
 pass/structural/element_store built 523ms exit:0
 pass/structural/local_record_receivers checked 201ms
+pass/structural/runtime_enum_equality_exit built 3177ms exit:70 @e0052d8c2fa7
 pass/structural/runtime_mutable_record_copy_exit built 2083ms exit:42 @48008365d839
 pass/structural/runtime_provider_payload_array_exit built 818ms exit:42 @bbd0a9fdb8d4+wt
 pass/structural/runtime_selected_case_record_member_exit built 1425ms exit:42 @9f5f12201f80+wt
