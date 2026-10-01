@@ -720,6 +720,20 @@ pub(super) fn validate(
                     )?;
                 }
             }
+            (
+                CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_),
+                StatementNode::Assignment(_),
+            ) => {
+                crate::emission::structural_scalar_store_source::validate_case_store(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.operations,
+                    &state.structural_parameters,
+                )?;
+            }
             // A Unit call: a boundary call consumes its boundary; an ordinary
             // call may transfer no claims inside a composed state.
             (
@@ -903,8 +917,7 @@ pub(super) fn validate(
 }
 
 /// The rejection for a store the walk attributed to another statement than
-/// the one its plan names. A whole-sum field store has no replay arm here, so
-/// it keeps the general reordering rejection.
+/// the one its plan names.
 fn reordered_store(
     operation: &CheckedUnitEffectOperationPlan,
     ordinal: usize,
@@ -930,6 +943,10 @@ fn reordered_store(
         }
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {
             "Unit graph reordered a field store"
+        }
+        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+        | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_) => {
+            "Unit graph reordered a case field store"
         }
         _ => return None,
     })
@@ -1247,6 +1264,12 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
+        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
+            Some(store.statement_index)
+        }
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
             Some(store.statement_index)
         }

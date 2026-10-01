@@ -80,6 +80,13 @@ pub(super) fn admit(
             // carries the loan; the write claims no root of its own.
             | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            // Case replacement closes its destination window within the
+            // operation. Literal construction and unrestricted leaf copy
+            // carry no new ownership across the selected edge; receiving
+            // source replay and the ordinary move/restore ledger still
+            // check the exact destination and replacement independently.
+            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             // A representation view store writes through the view's own
             // loaned destination; each footprint byte's index obligation,
             // operand, and destination rejoined at mint. No edge carries a
