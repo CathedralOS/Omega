@@ -1222,19 +1222,23 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `3b53db9e13`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `e20f8316b6`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::carve_room` stops at
-  `statement sequence: assignment: structural call result field store`.
-  The helper-result stores to `room.label` and `room.description` need owned
-  bounded-byte completion from guarded literals, exact call-result custody
-  into ordinary byte-field replacement, and native byte-owner return transport.
-  Reuse bounded literal establishment and byte stores in Stage 04
-  `execution/terminal_unit/control/statement_sequence/`; preserve capacity,
-  predicates and live length. Omega stage 03 `selection/aggregate_result_input.rs`
-  still excludes `ByteSequence` roots from aggregate call results. Existing
-  local literal and field-copy controls do not prove owned return support.
+  `structural field store: byte sequence carrier`.
+  Owned bounded-byte completions now retain predicates and live length through
+  calls, ordinary parameter-rooted field replacement and native aggregate
+  returns: `text/owned_byte_call_result_field_exit` executes 70, including a
+  longer-to-shorter replacement and sibling preservation. The remaining
+  `room.label` and `room.description` stores write through the returned
+  `&mut Room` local from `level.room_mut(cell)`. Stage 04
+  `structural_scalar_store/byte_stores.rs::field_store` and Stage 05
+  `emission/structural_byte_sequence_store.rs` still require parameter roots.
+  Compose the existing store with the local's authenticated reference lineage;
+  extend the matching Terminal destination-authority and native pointer replay.
+  Preserve capacity, predicates, producer availability, access and loan release.
+  A borrowed record referent is not an owned record or descriptor storage.
   `clear_level` now admits its mutable
   view element calls; projected loans and independent slice replay preserve
   represented field constraints without applying owned-move restrictions.
