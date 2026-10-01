@@ -1160,6 +1160,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
@@ -1168,6 +1169,7 @@ pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
+pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
@@ -1420,6 +1422,7 @@ pass/control_flow/guarded_value_transition_roster checked 1554ms @15f38e49aac2+w
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 1890ms @2d8ed253669f
 pass/control_flow/ordered_unconditional_arm_exit checked 1444ms @2d8ed253669f
+pass/control_flow/projected_loan_state_argument_exit checked 2026ms @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms @2d8ed253669f
 pass/control_flow/runtime_branching_helper_string rejected 396ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
