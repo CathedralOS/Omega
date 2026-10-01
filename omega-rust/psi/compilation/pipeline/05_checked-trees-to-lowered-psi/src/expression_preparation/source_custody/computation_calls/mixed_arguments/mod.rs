@@ -167,9 +167,9 @@ pub(crate) fn rejoin_computation_call_arguments(
         .ok_or(LoweringError::Unsupported(
             "computed invocation has an invalid structural span",
         ))?;
-    let borrow_call = if structural.is_empty() {
-        None
-    } else {
+    // Scalar-valued actuals can evaluate nested loans. Their enclosing call's
+    // roster needs the same independent replay as a structural invocation.
+    let borrow_call = {
         let borrow_call = borrow_rows::call(
             checked,
             machine,
@@ -188,16 +188,7 @@ pub(crate) fn rejoin_computation_call_arguments(
         }
         Some(borrow_call)
     };
-    let access_positions = if structural.iter().any(|argument| match argument {
-        CheckedScalarComputationStructuralArgument::Array { .. } => true,
-        CheckedScalarComputationStructuralArgument::Case(_) => true,
-        CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
-            argument.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                | checked_trees::CheckedStructuralAccess::Owned
-        ),
-    }) {
+    let access_positions = {
         Some(access_occurrences::rejoin(
             checked,
             machine,
@@ -208,8 +199,6 @@ pub(crate) fn rejoin_computation_call_arguments(
             ))?,
             authored,
         )?)
-    } else {
-        None
     };
     let mut scalars = scalars.iter();
     let mut structural = structural.iter();
@@ -331,7 +320,8 @@ pub(crate) fn rejoin_computation_call_arguments(
                     borrow_call,
                     access_positions
                         .as_ref()
-                        .map(|positions| positions[formal_position])
+                        .map(|positions| positions[formal_position].operand_position())
+                        .transpose()?
                         .ok_or(LoweringError::Unsupported(
                             "computed owned argument has no positional source observation",
                         ))?,
@@ -343,7 +333,8 @@ pub(crate) fn rejoin_computation_call_arguments(
             ) {
                 let position = access_positions
                     .as_ref()
-                    .map(|positions| positions[formal_position])
+                    .map(|positions| positions[formal_position].operand_position())
+                    .transpose()?
                     .ok_or(LoweringError::Unsupported(
                         "computed subslice lost its observation position",
                     ))?;
@@ -387,7 +378,8 @@ pub(crate) fn rejoin_computation_call_arguments(
                 }
                 let position = access_positions
                     .as_ref()
-                    .map(|positions| positions[formal_position])
+                    .map(|positions| positions[formal_position].operand_position())
+                    .transpose()?
                     .ok_or(LoweringError::Unsupported(
                         "view argument lost its observation position",
                     ))?;
@@ -408,7 +400,8 @@ pub(crate) fn rejoin_computation_call_arguments(
             {
                 let position = access_positions
                     .as_ref()
-                    .map(|positions| positions[formal_position])
+                    .map(|positions| positions[formal_position].operand_position())
+                    .transpose()?
                     .ok_or(LoweringError::Unsupported(
                         "record argument lost its observation position",
                     ))?;
@@ -435,7 +428,8 @@ pub(crate) fn rejoin_computation_call_arguments(
                     borrow_call,
                     access_positions
                         .as_ref()
-                        .map(|positions| positions[formal_position]),
+                        .map(|positions| positions[formal_position].operand_position())
+                        .transpose()?,
                 )?
             };
             if previous_access.is_some_and(|previous| previous >= position) {

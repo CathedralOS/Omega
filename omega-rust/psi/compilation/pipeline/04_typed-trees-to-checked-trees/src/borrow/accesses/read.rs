@@ -96,13 +96,14 @@ pub(super) fn collect_read_accesses(
                 collection.retain_receiver_accesses(first_access);
             }
 
-            for argument in collection
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-            {
-                collect_read_accesses(collection, *argument);
-            }
+            super::collect_target_argument_accesses(
+                collection,
+                collection
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                call.target_symbol,
+            );
             collection.finish_nested_call(first_access, expression);
         }
         ExpressionNode::Cast(cast) => collect_read_accesses(collection, cast.value),
@@ -123,28 +124,7 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Name(_) => {
             append_read_access(collection, expression);
         }
-        ExpressionNode::Borrow(borrow) => {
-            // A nested borrow is a loan, not a copied read: its row keeps the
-            // authored access and lasts until its enclosing call completes
-            // (`finish_nested_call`). Forming it still evaluates the place's
-            // own selector, whose reads follow the loan exactly as they follow
-            // an indexed read above. Stage 05 replays this order in
-            // `mixed_arguments/access_occurrences.rs`.
-            let Some(access_place) = collection.borrow_access_place(borrow.target) else {
-                // No retained source place: the operand's own reads remain.
-                collect_read_accesses(collection, borrow.target);
-                return;
-            };
-            collection
-                .append_argument_access(access_place, super::borrow_access_kind(borrow.access));
-            if let ExpressionNode::Indexed(indexed) = collection
-                .program
-                .expression_table
-                .expression(borrow.target)
-            {
-                collect_read_accesses(collection, indexed.index);
-            }
-        }
+        ExpressionNode::Borrow(_) => super::collect_argument_accesses(collection, expression),
         ExpressionNode::Unary(unary) => collect_read_accesses(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in collection

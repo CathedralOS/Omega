@@ -17,9 +17,16 @@ fn premise_dependent_call_retains_its_compatibility_evidence() {
     let mut checked = checked_program(ARGUMENT_BESIDE_LOAN);
     let certificate = premised_certificate(&checked);
     assert_eq!(
-        certificate.left.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(0)
+        checked
+            .facts
+            .borrow
+            .calls
+            .get(certificate.call)
+            .accesses
+            .count(),
+        2
     );
+    assert_retained_indexed_argument(&checked, &certificate, &certificate.left, "index");
     assert!(matches!(
         certificate.right.subject,
         checked_trees::BorrowCallCompatibilitySubject::ActiveLoan(_)
@@ -32,14 +39,16 @@ fn premise_dependent_call_retains_its_compatibility_evidence() {
             certificate.formation.state_symbol,
         )
         .expect("accepted caller state");
-    assert_eq!(accepted.borrow_call_compatibility_certificates().count(), 1);
+    // The copied selector read is also compared with the active loan;
+    // that structural comparison does not replace the indexed-loan premise.
+    assert_eq!(accepted.borrow_call_compatibility_certificates().count(), 2);
     assert_eq!(
         accepted
             .statement(certificate.formation.statement_index)
             .unwrap()
             .borrow_call_compatibility_certificates()
             .count(),
-        1
+        2
     );
     assert_eq!(
         accepted
@@ -53,6 +62,39 @@ fn premise_dependent_call_retains_its_compatibility_evidence() {
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("call evidence replays without regeneration");
     assert_eq!(before, checked.facts.borrow.call_compatibility_certificates);
+}
+
+fn assert_retained_indexed_argument(
+    checked: &checked_trees::CheckedTrees,
+    certificate: &checked_trees::CheckedBorrowCallCompatibilityCertificate,
+    operand: &checked_trees::BorrowCallCompatibilityOperand,
+    selector_name: &str,
+) {
+    let borrow = &checked.facts.borrow;
+    let call = borrow.calls.get(certificate.call);
+    let accesses = borrow.argument_accesses.span_or_empty(call.accesses);
+    let matching = accesses
+        .windows(2)
+        .enumerate()
+        .filter(|(_, pair)| {
+            checked.typed.symbols.name(pair[0].root_symbol) == selector_name
+                && pair[0].kind == checked_trees::BorrowAccessKind::Read
+                && pair[1].kind == checked_trees::BorrowAccessKind::Mutable
+                && pair[1].end_before_access.is_none()
+        })
+        .collect::<Vec<_>>();
+    let [(selector_ordinal, pair)] = matching.as_slice() else {
+        panic!("one copied selector followed by its retained mutable indexed argument")
+    };
+    assert_eq!(pair[0].end_before_access, Some(selector_ordinal + 1));
+    assert!(!borrow.access_segments(&pair[1]).is_empty());
+    assert_eq!(
+        operand.subject,
+        checked_trees::BorrowCallCompatibilitySubject::Argument(selector_ordinal + 1)
+    );
+    assert_eq!(operand.access, pair[1].kind);
+    assert_eq!(operand.place.root_symbol, pair[1].root_symbol);
+    assert_eq!(operand.place.segments, borrow.access_segments(&pair[1]));
 }
 
 fn premised_certificate(
@@ -101,13 +143,17 @@ fn exclusive_argument_pair_retains_disequality_without_fabricating_loans() {
     assert!(checked.facts.borrow.loans.is_empty());
     let certificate = premised_certificate(&checked);
     assert_eq!(
-        certificate.left.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(0)
+        checked
+            .facts
+            .borrow
+            .calls
+            .get(certificate.call)
+            .accesses
+            .count(),
+        4
     );
-    assert_eq!(
-        certificate.right.subject,
-        checked_trees::BorrowCallCompatibilitySubject::Argument(1)
-    );
+    assert_retained_indexed_argument(&checked, &certificate, &certificate.left, "left_index");
+    assert_retained_indexed_argument(&checked, &certificate, &certificate.right, "right_index");
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).unwrap();
 }
 

@@ -158,11 +158,11 @@ pub(crate) fn validate(
     {
         return unsupported("computed primitive argument substituted its normalized referent type");
     }
-    // Bare forwarding observes the reference carrier. An explicit borrow's
-    // access row records the borrowed referent's exact authored access.
+    // Forwarding retains the selected formal's loan access; explicit borrow
+    // formation retains its authored access.
     let expected_kind = match explicit_access {
         Some(access) => borrow_kind(access)?,
-        None => BorrowAccessKind::Read,
+        None => borrow_kind(argument.access)?,
     };
     if argument.access == CheckedStructuralAccess::SharedBorrow
         && let Some(position) = access_position

@@ -316,6 +316,76 @@ fn indexed_borrow_arguments_retain_selector_reads_before_the_loan() {
 }
 
 #[test]
+fn nested_forwarded_mutable_reference_conflicts_with_retained_outer_observation() {
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        r#"
+        data Buffer { value: u64; }
+        machine stamp(buffer: &mut Buffer) -> u64 {
+            buffer.value = 1;
+            transition { _ -> 1 }
+        }
+        machine observe(buffer: &Buffer, marker: u64) {}
+        machine forward(buffer: &mut Buffer) { observe(&buffer, stamp(buffer)); }
+    "#,
+    )
+    .expect_err("the first operand's shared loan spans nested mutation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn nested_forwarded_mutable_reference_loans_end_between_scalar_operands() {
+    let checked = checked(
+        r#"
+        data Buffer { value: u64; }
+        machine stamp(buffer: &mut Buffer) -> u64 {
+            buffer.value = 1;
+            transition { _ -> 1 }
+        }
+        machine observe(first: u64, second: u64) {}
+        machine forward(buffer: &mut Buffer) { observe(stamp(buffer), stamp(buffer)); }
+    "#,
+    );
+    let state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine_named(&checked, "forward"))
+        .expect("forward borrow facts");
+    let outer = checked
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .find(|call| {
+            checked
+                .facts
+                .borrow
+                .argument_accesses
+                .span_or_empty(call.accesses)
+                .len()
+                == 2
+        })
+        .expect("both nested accesses belong to the outer invocation");
+    let accesses = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(outer.accesses);
+    for (ordinal, access) in accesses.iter().enumerate() {
+        assert_eq!(access.kind, checked_trees::BorrowAccessKind::Mutable);
+        assert_eq!(access.end_before_access, Some(ordinal + 1));
+    }
+}
+
+#[test]
 fn borrowed_root_projection_rejects_reference_bearing_storage() {
     let checked = checked(
         r#"

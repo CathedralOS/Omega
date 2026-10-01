@@ -15,6 +15,65 @@ machine read(clock: &mut Clock) reaches Host {
 "#;
 
 #[test]
+fn borrowed_binding_invokes_preserves_parameter_identity_through_helpers() {
+    for access in ["&", "&mut "] {
+        let typed = crate::tests::front_end::typed_program_with_core_service(&format!(
+            "pub boundary trait Host {{ machine mark(value: u64); }}
+             machine helper(host: {access}Binding<Host>) reaches Host invokes host; {{
+                 host.mark(1);
+             }}
+             pub machine forward(first: {access}Binding<Host>, second: {access}Binding<Host>)
+             reaches Host invokes second; {{ helper(second); }}"
+        ));
+        let forward = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .expect("forward machine")
+            .symbol;
+        let invocations = validation::infer_synchronous_invocations(&typed);
+        let summary = invocations.for_machine(forward).expect("forward summary");
+        assert_eq!(
+            summary.published,
+            [flow_effects::InvocationTarget::Parameter(1)]
+        );
+        assert_eq!(
+            summary.inferred_transitive,
+            [flow_effects::InvocationTarget::Parameter(1)]
+        );
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect("borrowed binding invocation ceiling admits its exact parameter");
+    }
+}
+
+#[test]
+fn borrowed_binding_invokes_does_not_cover_another_binding_of_the_same_trait() {
+    for access in ["&", "&mut "] {
+        let typed = crate::tests::front_end::typed_program_with_core_service(&format!(
+            "pub boundary trait Host {{ machine mark(value: u64); }}
+             pub machine report(first: {access}Binding<Host>, second: {access}Binding<Host>)
+             reaches Host invokes first; {{ second.mark(1); }}"
+        ));
+        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect_err("a ceiling on first cannot authorize invoking second");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains("omits `invokes second;`") }),
+            "{diagnostics:?}"
+        );
+        assert!(
+            !diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("stale or non-boundary parameter")
+            }),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn borrowed_binding_parameter_keeps_exact_service_custody() {
     for access in ["&", "&mut "] {
         let checked = checked_with_service(&format!(
@@ -436,18 +495,59 @@ fn nested_binding_field_keeps_boundary_calls() {
 }
 
 #[test]
-fn binding_field_without_erasure_authorization_has_no_executable_plan() {
+fn binding_field_without_erasure_authorization_retains_provider_storage() {
     let typed = crate::tests::front_end::typed_program_with_core_service(SOURCE);
+    let clock = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Clock")
+        .expect("Clock declaration");
+    let [typed_trees::data::DataMember::Field(host)] = typed.data_members(clock) else {
+        panic!("one binding field");
+    };
+    let binding_identity = typed
+        .normalized_type_identity(host.type_reference)
+        .into_string();
     let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .expect("source checking is independent of selected Fused erasure");
     let machine = machine_named(&checked, "read");
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine)
-            .is_none()
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans
+        .for_machine(machine)
+        .expect("incoming binding remains represented");
+    let [parameter] = plan.structural_parameters.as_slice() else {
+        panic!("one borrowed Clock");
+    };
+    assert!(parameter.fused_service_erasure.is_none());
+    let shape = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == parameter.type_identity)
+        .expect("Clock shape");
+    let checked_trees::CheckedUnitStructuralTypeShape::Record { fields } = &shape.shape else {
+        panic!("Clock record");
+    };
+    let [field] = fields.as_slice() else {
+        panic!("one retained binding field");
+    };
+    assert_eq!(
+        field.field_type,
+        checked_trees::CheckedUnitStructuralFieldType::ProviderBacked {
+            provider_type_identity: binding_identity,
+        }
+    );
+    // This function borrows an already established caller value. Its shape
+    // is not entry establishment and grants neither a provider nor erasure.
+    assert!(!plans.structural_types.iter().any(|shape| matches!(
+        shape.shape,
+        checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding
+    )));
+    assert_eq!(
+        plan.operations
+            .iter()
+            .filter(|operation| operation.call().is_some_and(|call| call.is_boundary()))
+            .count(),
+        2
     );
 }
 

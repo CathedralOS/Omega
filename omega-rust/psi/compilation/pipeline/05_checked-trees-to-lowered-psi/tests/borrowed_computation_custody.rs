@@ -32,6 +32,107 @@ const PARAMETER_SOURCE: &str = r#"
     }
 "#;
 
+const INDEXED_BORROW_SOURCE: &str = r#"
+    data Cell [copy] { value: u64; }
+    machine inspect(cell: &Cell) -> u64 { cell.value }
+    machine relay(cell: &mut Cell) -> u64 { inspect(cell) }
+    machine enter(cells: &mut [Cell; 2], index: u64) -> u64
+    requires index <= 1 {
+        relay(&mut cells[index])
+    }
+"#;
+
+#[test]
+fn indexed_borrow_evaluates_selector_before_its_retained_loan() {
+    let original = publish_original(INDEXED_BORROW_SOURCE);
+    let computation = calls_to(&original, "relay")[0];
+    let call = borrow_call(&original, computation);
+    let accesses = original.facts.borrow.calls.get(call).accesses;
+    let rows = original
+        .facts
+        .borrow
+        .argument_accesses
+        .span(accesses)
+        .unwrap();
+    assert_eq!(
+        rows.len(),
+        2,
+        "selector read precedes the selected cell loan"
+    );
+    assert_eq!(rows[0].kind, BorrowAccessKind::Read);
+    assert_eq!(rows[0].end_before_access, Some(1));
+    assert_eq!(rows[1].kind, BorrowAccessKind::Mutable);
+    assert_eq!(rows[1].end_before_access, None);
+    assert_ne!(rows[0].root_symbol, rows[1].root_symbol);
+    for mutation in [
+        "swap rows",
+        "omit selector",
+        "weaken loan",
+        "extend selector",
+        "shorten loan",
+    ] {
+        let mut changed = original.clone();
+        let rows = changed
+            .facts
+            .borrow
+            .argument_accesses
+            .span_mut_or_empty(accesses);
+        match mutation {
+            "swap rows" => rows.swap(0, 1),
+            "omit selector" => rows[0] = rows[1].clone(),
+            "weaken loan" => rows[1].kind = BorrowAccessKind::Read,
+            "extend selector" => rows[0].end_before_access = None,
+            "shorten loan" => rows[1].end_before_access = Some(2),
+            _ => unreachable!(),
+        }
+        reject(&changed, mutation);
+    }
+}
+
+#[test]
+fn indexed_shared_borrow_and_local_array_use_the_same_observation_order() {
+    publish_original(&INDEXED_BORROW_SOURCE.replace("&mut", "&"));
+    let local = INDEXED_BORROW_SOURCE.replace(
+        "machine enter(cells: &mut [Cell; 2], index: u64)",
+        "machine enter(index: u64)",
+    ).replace("relay(&mut cells[index])", "let mut cells: [Cell; 2] = [Cell { value: 11 }, Cell { value: 29 }]; relay(&mut cells[index])");
+    publish_original(&local);
+}
+
+#[test]
+fn nested_forwarded_reference_uses_the_selected_formal_access() {
+    let source = PARAMETER_SOURCE.replace("&mut other", "other");
+    let original = publish_original(&source);
+    let computation = calls_to(&original, "second")[0];
+    let call = borrow_call(&original, computation);
+    let accesses = original.facts.borrow.calls.get(call).accesses;
+    let rows = original
+        .facts
+        .borrow
+        .argument_accesses
+        .span(accesses)
+        .unwrap();
+    assert_eq!(rows[0].kind, BorrowAccessKind::Mutable);
+    assert_eq!(rows[0].end_before_access, Some(1));
+    for mutation in [
+        "weaken nested forwarded loan",
+        "retain nested forwarded loan",
+    ] {
+        let mut changed = original.clone();
+        let rows = changed
+            .facts
+            .borrow
+            .argument_accesses
+            .span_mut_or_empty(accesses);
+        if mutation == "weaken nested forwarded loan" {
+            rows[0].kind = BorrowAccessKind::Read;
+        } else {
+            rows[0].end_before_access = None;
+        }
+        reject(&changed, mutation);
+    }
+}
+
 fn publish_original(source: &str) -> CheckedTrees {
     let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(

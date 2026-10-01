@@ -26,7 +26,7 @@ use language_core::ReferenceAccess;
 pub(super) enum ArgumentOccurrence<'a> {
     Receiver {
         parameters: &'a [StateParameter],
-        access_positions: &'a [usize],
+        access_positions: &'a [super::mixed_arguments::access_occurrences::ArgumentAccessExtent],
     },
     Explicit(usize),
 }
@@ -137,6 +137,14 @@ pub(super) fn validate(
                 TypeReferenceNode::Named { .. }
                     if *target_access == ReferenceAccess::Shared || local.is_mutable =>
                 {
+                    local.type_reference
+                }
+                TypeReferenceNode::FixedArray { .. }
+                    if !argument.path.is_empty()
+                        && (*target_access == ReferenceAccess::Shared || local.is_mutable) =>
+                {
+                    // The array owns storage; the exact projected nominal
+                    // endpoint is independently reconstructed below.
                     local.type_reference
                 }
                 _ => return unsupported("record operand widens source access"),
@@ -297,25 +305,17 @@ pub(super) fn validate(
             {
                 return unsupported("record receiver has a stale explicit formal");
             }
-            // Scalar actuals are evaluated to values before invocation. Their
-            // reads and nested call loans were checked by source replay, but
-            // do not coexist with the receiver loan delivered to this call.
-            if checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-            {
-                continue;
-            }
-            let start = access_positions[position];
-            let end = access_positions
-                .get(position + 1)
-                .copied()
-                .unwrap_or(accesses.len());
+            // Completed copies do not retain custody. Exclusive loans during
+            // argument evaluation still conflict with the retained receiver,
+            // even when a nested call ends them before producing a scalar.
+            let start = access_positions[position].start;
+            let end = access_positions[position].end;
             let retained = accesses.get(start..end).ok_or(LoweringError::Unsupported(
                 "record receiver has an invalid explicit argument partition",
             ))?;
             if retained.iter().any(|access| {
-                (access.root_symbol == root || access.root_symbol == endpoint)
+                (access.end_before_access.is_none() || access.kind.is_exclusive())
+                    && (access.root_symbol == root || access.root_symbol == endpoint)
                     && (expected_access == CheckedStructuralAccess::MutableBorrow
                         || access.kind.is_exclusive())
             }) {
@@ -335,13 +335,7 @@ pub(super) fn validate(
             call,
             position,
             source.captured_place(),
-            // Bare forwarding reads the reference carrier; an explicit
-            // borrow records the requested referent access at this position.
-            if matches!(table.expression(expression), ExpressionNode::Borrow(_)) {
-                expected_kind
-            } else {
-                checked_trees::BorrowAccessKind::Read
-            },
+            expected_kind,
         )?;
     }
     Ok(())

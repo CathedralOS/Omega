@@ -52,48 +52,53 @@ pub(crate) fn collect_call_argument_accesses(
             machine_symbol,
         );
 
-        let mut parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)
-            .unwrap_or_default()
-            .iter()
-            .filter(|parameter| !parameter.is_self);
-        for argument in arguments {
-            let parameter = parameters.next();
-            // Forwarding a reference binding retains a loan through the
-            // invocation just like an authored borrow. The selected formal
-            // can attenuate a mutable reference to shared observation.
-            let forwarded_access = parameter.and_then(|parameter| {
-                if matches!(
-                    program.expression_table.expression(*argument),
-                    ExpressionNode::Borrow(_)
-                ) {
-                    return None;
-                }
-                let reference = crate::flow::expression_type_reference_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    *argument,
-                )?;
-                validation::reference_shell(program, reference)?;
-                let formal = validation::reference_shell(program, parameter.type_reference)?;
-                Some(match formal.access {
-                    language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
-                    language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-                    language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-                })
-            });
-            if let Some(kind) = forwarded_access
-                && let Some(place) = collection.borrow_access_place(*argument)
-            {
-                read::collect_place_evaluation_reads(&mut collection, *argument);
-                collection.append_argument_access(place, kind);
-                continue;
-            }
-            collect_argument_accesses(&mut collection, *argument);
-        }
+        collect_target_argument_accesses(&mut collection, arguments, target_symbol);
     }
 
     accesses
+}
+
+/// Nested and outer invocations retain the same formal-directed loan access.
+fn collect_target_argument_accesses(
+    collection: &mut BorrowAccessCollection<'_>,
+    arguments: &[ExpressionHandle],
+    target_symbol: SymbolHandle,
+) {
+    let program = collection.program;
+    let mut parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)
+        .unwrap_or_default()
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+    for argument in arguments {
+        let parameter = parameters.next();
+        // Forwarding a reference binding retains a loan through the
+        // invocation just like an authored borrow. The selected formal
+        // can attenuate a mutable reference to shared observation.
+        let forwarded_access = parameter.and_then(|parameter| {
+            if matches!(
+                program.expression_table.expression(*argument),
+                ExpressionNode::Borrow(_)
+            ) {
+                return None;
+            }
+            let reference = collection.expression_type_reference(*argument)?;
+            validation::reference_shell(program, reference)?;
+            let formal = validation::reference_shell(program, parameter.type_reference)?;
+            Some(match formal.access {
+                language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+                language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+                language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+            })
+        });
+        if let Some(kind) = forwarded_access
+            && let Some(place) = collection.borrow_access_place(*argument)
+        {
+            read::collect_place_evaluation_reads(collection, *argument);
+            collection.append_argument_access(place, kind);
+            continue;
+        }
+        collect_argument_accesses(collection, *argument);
+    }
 }
 
 fn collect_argument_accesses(

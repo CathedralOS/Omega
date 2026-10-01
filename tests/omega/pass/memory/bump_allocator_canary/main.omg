@@ -176,9 +176,10 @@
 //   semantics are settled.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::binding;
 use alloc::bump;
 machine exercise(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -223,7 +224,7 @@ reaches ExtentPartition
 // success recomposes its allocation and tail; rejection returns the strategy's
 // unchanged tail. No caller-side guard substitutes for the returned custody.
 machine exercise_fallible(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64,
     demand: u64
@@ -263,7 +264,7 @@ reaches ExtentPartition
     // Allocation already happened inside the request. This arm returns both
     // selected claims to the partition boundary for exact recomposition.
     state reuse(
-        partition: &ExtentPartition,
+        partition: &Binding<ExtentPartition>,
         issued: Issued
     ) -> Extent
     {
@@ -293,7 +294,7 @@ reaches ExtentPartition
 // rule `exercise`'s second request follows — and the closing reset
 // restores the full original capacity for one unguarded reuse.
 machine exercise_release(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -343,7 +344,7 @@ reaches ExtentPartition
 // The record fields retain their existing qualifications while this exercise
 // explicitly rebuilds the container before returning its backing.
 machine exercise_vec(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -373,7 +374,7 @@ reaches ExtentPartition
 // request another growth and close either returned outcome. The second
 // request exercises full-slot rejection without dropping retained custody.
 machine exercise_grow(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -401,7 +402,7 @@ reaches ExtentPartition
         Growth::Rejected { vec } -> finish(partition, vec)
     }
 
-    state retry(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+    state retry(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
         let second: Growth = grow(partition, vec, 1);
         transition second {
             Growth::Grown { vec } -> finish(partition, vec)
@@ -409,7 +410,7 @@ reaches ExtentPartition
         }
     }
 
-    state finish(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(partition, vec);
         recomposed.backing as Extent
     }
@@ -422,7 +423,7 @@ reaches ExtentPartition
 // live buffer's custody and the container stays usable: a later request that
 // fits the residual still grows, and `close` folds every region back.
 machine exercise_grow_exhausted(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -452,7 +453,7 @@ reaches ExtentPartition
 
     // The rejected container kept its live buffer and its empty retained
     // slot; a demand that fits the residual still grows it.
-    state retry_within(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+    state retry_within(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
         let second: Growth = grow(partition, vec, 8);
         transition second {
             Growth::Grown { vec } -> finish(partition, vec)
@@ -460,7 +461,7 @@ reaches ExtentPartition
         }
     }
 
-    state finish(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(partition, vec);
         recomposed.backing as Extent
     }
@@ -472,7 +473,7 @@ reaches ExtentPartition
 // back. The grown leg proves the restored residual is spendable, not just
 // recorded — the same residual law `release` established.
 machine exercise_shrink(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -489,7 +490,7 @@ reaches ExtentPartition
         Growth::Rejected { vec } -> finish(partition, vec)
     }
 
-    state finish(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+    state finish(partition: &Binding<ExtentPartition>, vec: BumpVec) -> Extent {
         let recomposed: Recomposed = close(partition, vec);
         recomposed.backing as Extent
     }
@@ -499,7 +500,7 @@ reaches ExtentPartition
 // kept as the control surface for restating `Split` fields from a boundary
 // result.
 machine exercise_boundary(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant
 ) -> Extent
 reaches ExtentPartition
@@ -568,8 +569,8 @@ boundary trait ResidentStorage {
 
 // One allocation, established, read, retired, and recomposed with the tail.
 machine exercise_resident(
-    partition: &ExtentPartition,
-    storage: &ResidentStorage,
+    partition: &Binding<ExtentPartition>,
+    storage: &Binding<ResidentStorage>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -600,8 +601,8 @@ reaches ExtentPartition, ResidentStorage
 // exactly typed `let` and the qualified extent itself crosses the view and
 // retirement calls.
 machine exercise_resident_restated(
-    partition: &ExtentPartition,
-    storage: &ResidentStorage,
+    partition: &Binding<ExtentPartition>,
+    storage: &Binding<ResidentStorage>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent
@@ -629,7 +630,7 @@ reaches ExtentPartition, ResidentStorage
     recomposed as Extent
 }
 machine exercise_retained(
-    partition: &ExtentPartition,
+    partition: &Binding<ExtentPartition>,
     whole: Extent in Granted & Vacant,
     capacity: u64
 ) -> Extent

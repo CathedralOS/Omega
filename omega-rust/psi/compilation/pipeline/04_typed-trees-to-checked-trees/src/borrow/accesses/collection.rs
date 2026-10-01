@@ -50,6 +50,18 @@ impl<'a> BorrowAccessCollection<'a> {
         )
     }
 
+    pub(super) fn expression_type_reference(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        crate::flow::expression_type_reference_in_state(
+            self.program,
+            self.state_symbol,
+            self.statement_index,
+            expression,
+        )
+    }
+
     pub(super) fn append_argument_access(
         &mut self,
         access_place: BorrowAccessPlace,
