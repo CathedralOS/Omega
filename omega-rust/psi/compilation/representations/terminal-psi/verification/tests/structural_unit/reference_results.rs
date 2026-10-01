@@ -421,6 +421,73 @@ fn returned_record_field_store_retains_mutable_reference_custody() {
     }
 }
 
+fn returned_record_read() -> TerminalModule {
+    let mut module = returned_record_store(false, false);
+    let caller = &mut module.machines[0];
+    caller.blocks[0].operations[1].kind = OperationKind::IntegerStructuralField {
+        source: place_id(2),
+        path: Vec::new(),
+        field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+    };
+    caller.blocks[0].operations[1].result = OperationResult::Scalar(ValueDeclaration {
+        id: value_id(2),
+        scalar_type: signed_i8(),
+        qualifications: Default::default(),
+    });
+    let Terminator::Return { value, .. } = &mut caller.blocks[0].terminator else {
+        unreachable!()
+    };
+    *value = value_id(2);
+    module
+}
+
+#[test]
+fn returned_record_field_read_requires_live_unsuspended_permission() {
+    let original = returned_record_read();
+    verify_module(
+        &original,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a live mutable carrier permits field observation");
+
+    let mut released = original.clone();
+    released.machines[0].blocks[0].operations.swap(1, 2);
+    rejects_custody(&released);
+
+    let mut parent = original.clone();
+    let OperationKind::IntegerStructuralField { source, .. } =
+        &mut parent.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *source = place_id(1);
+    rejects_custody(&parent);
+
+    let mut child = original;
+    let caller = &mut child.machines[0];
+    caller.structural_places.push(reference_place(3, 9));
+    caller.blocks[0]
+        .operations
+        .insert(1, establish(9, 3, argument(2, true)));
+    assert_eq!(
+        validate_module(&child).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(1),
+            reason: "field source reference remains suspended by a live loan",
+        })
+    );
+    child.machines[0].blocks[0]
+        .operations
+        .insert(2, release(12, 3));
+    verify_module(
+        &child,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("ending the child restores the parent's read permission");
+}
+
 fn branch_selected_record_return() -> TerminalModule {
     let mut module = returned_record_store(true, false);
     let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape

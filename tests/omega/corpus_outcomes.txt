@@ -1207,6 +1207,7 @@ pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/returned_record_byte_field_store_exit checked 884ms @e7c13a0f55b2+wt
+pass/borrows/returned_record_field_read_exit checked 935ms @2067346ef4fa+wt
 pass/borrows/returned_record_method_receiver_exit checked 904ms @db98ccdfb56c+wt
 pass/borrows/returned_record_projected_call_exit checked 760ms @e7c13a0f55b2+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
@@ -1219,8 +1220,7 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
-pass/borrows/transition_shared_borrow_result rejected 442ms @4b33596b9ee1+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "operation accesses suspended referent or treats reference carrier as owned data" }))
+pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt

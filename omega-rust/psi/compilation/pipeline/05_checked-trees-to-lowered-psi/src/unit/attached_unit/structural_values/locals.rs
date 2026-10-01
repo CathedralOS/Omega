@@ -48,18 +48,26 @@ pub(crate) fn bind_local(
     else {
         return Ok(());
     };
-    // A `&mut` view local carries the referent's storage as affine loan
-    // custody: its binding joins as a mutable borrow of the published place,
-    // the same registration the composed route gives `&mut` call results.
-    let mutable_view = validation::reference_result_custody::mutable_borrowed_parts(
+    // Every readable returned reference publishes the same exact local-to-place
+    // join. Its declared access distinguishes shared from mutable permission;
+    // omitting shared carriers makes later computations lose their live source.
+    let borrowed_access = validation::reference_result_custody::mutable_borrowed_parts(
         &checked.typed,
         local.type_reference,
     )
-    .is_some();
+    .or_else(|| {
+        validation::reference_result_custody::shared_borrowed_parts(
+            &checked.typed,
+            local.type_reference,
+        )
+    })
+    .map(|(_, access)| {
+        crate::expression_preparation::bindings::structural_paths::terminal_access(access)
+    });
     let owned_array =
         validation::is_closed_primitive_array_type(&checked.typed, local.type_reference);
     if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(mutable_view
+        || !(borrowed_access.is_some()
             || owned_array
             || (expression.is_some()
                 && matches!(
@@ -93,11 +101,7 @@ pub(crate) fn bind_local(
         local.symbol,
         terminal_psi::StructuralArgument {
             place,
-            access: if mutable_view {
-                terminal_psi::StructuralAccess::MutableBorrow
-            } else {
-                terminal_psi::StructuralAccess::Owned
-            },
+            access: borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned),
             path: Vec::new(),
         },
     ));
