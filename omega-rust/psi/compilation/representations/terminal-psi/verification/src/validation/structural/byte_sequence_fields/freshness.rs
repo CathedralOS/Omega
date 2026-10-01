@@ -216,11 +216,10 @@ fn stored_field_identity(
     path: &[StructuralPathSegment],
     field: &StructuralFieldId,
 ) -> Option<String> {
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
-    let carrier = resolve_structural_path(module, parameter.structural_type, path)?;
+    // Owned homes and state-local loans can also open and repair a nested
+    // window. Closing its debt does not revive an earlier length observation.
+    let (structural_type, _) = terminal_semantics::byte_field_root(machine, root)?;
+    let carrier = resolve_structural_path(module, structural_type, path)?;
     let declaration = module
         .structural_types
         .iter()

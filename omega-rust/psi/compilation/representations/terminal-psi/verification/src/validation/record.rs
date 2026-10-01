@@ -348,6 +348,14 @@ pub(super) fn completed_source<'a>(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
                     && (plain_type(module, result.structural_type)
+                        // Zero establishment also owns bounded byte fields
+                        // whose declared predicates admit an empty live range.
+                        // Rejoin that constructor's checked contract instead
+                        // of treating all byte-bearing records as constructible.
+                        || (matches!(operation.kind, OperationKind::EstablishZeroedStructural { .. })
+                            && super::structural::operations::validate_establish_zeroed_structural(
+                                module, machine, operation,
+                            ).is_ok())
                         // A verified copy preserves the exact owned subtree,
                         // including bounded byte fields' live extent and
                         // predicates. This admits completed snapshots, not

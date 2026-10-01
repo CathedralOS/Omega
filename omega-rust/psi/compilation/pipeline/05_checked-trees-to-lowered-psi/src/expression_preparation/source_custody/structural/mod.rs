@@ -185,6 +185,12 @@ pub(crate) fn validate(
         || checked.normalized_type_identity(storage_carrier).as_str() != result.type_identity
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
+            // ZII construction proves its declared empty-byte predicates through
+            // the zeroed carrier rule. The dedicated replay below still rejoins
+            // the declaration; this grants no arbitrary byte constructor.
+            || (matches!(plans.nodes.get(*value).kind,
+                    CheckedStructuralValueKind::ZeroedStructural { .. })
+                && validation::zeroed_structural_parts(&checked.typed, carrier))
             // Copying an established owned subtree retains its bounded byte
             // predicates. The worklist below independently reconstructs the
             // exact source path and type; constructors must still prove their

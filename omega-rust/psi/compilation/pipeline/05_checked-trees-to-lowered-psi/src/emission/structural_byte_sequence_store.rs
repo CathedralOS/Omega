@@ -1,4 +1,9 @@
 //! Source correspondence and ordered emission for bounded byte-field replacement.
+//!
+//! Field operands retain either a formal's storage or an established local's
+//! current owned home. Both routes observe live length and snapshot the bytes
+//! before replacing the destination; neither reuses an initializer's contents
+//! after a call has mutated that home. Destination authority remains separate.
 use super::{
     CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind,
     OperationResult, PrimitiveType, StructuralParameterDeclaration, StructuralPlaceDeclaration,
@@ -6,7 +11,7 @@ use super::{
     ValueDeclaration, allocate_dense, obligation_id, place_id, structural_type_id,
     terminal_scalar_type, unsupported, value_id,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 
 use checked_trees::{
     CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue,
@@ -56,7 +61,8 @@ pub(crate) fn validate_assignment(
         Some(statement_index),
         assignment.target,
     )?;
-    // Neither a whole byte owner nor a byte field has a local-rooted lowering.
+    // Destinations remain parameter-rooted. A readable local source below does
+    // not acquire byte-owner or byte-field mutation authority here.
     let Some(position) = store.root.parameter_position() else {
         return unsupported("byte-field store has no parameter root");
     };
@@ -219,7 +225,7 @@ fn validate_value(
         }
         (
             ByteValue::Field {
-                parameter_position,
+                root,
                 carrier_path,
                 field_identity,
                 ..
@@ -238,15 +244,35 @@ fn validate_value(
                     Some(statement_index),
                     expression,
                 )?;
-            let parameter = checked
-                .state_parameters(state)
-                .get(*parameter_position as usize)
-                .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
+            let root_symbol = match *root {
+                checked_trees::CheckedStoreRoot::Parameter { position } => {
+                    checked
+                        .state_parameters(state)
+                        .get(position as usize)
+                        .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?
+                        .symbol
+                }
+                checked_trees::CheckedStoreRoot::Local { symbol } => {
+                    let (_, local) = checked
+                        .state_local_declaration(state, symbol)
+                        .filter(|&(ordinal, _)| ordinal < statement_index)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte value local has no earlier declaration",
+                        ))?;
+                    if !validation::has_plain_owned_contents_with_represented_constraints(
+                        &checked.typed,
+                        local.type_reference,
+                    ) {
+                        return unsupported("byte value local has no plain owned storage");
+                    }
+                    symbol
+                }
+            };
             let mut path = carrier_path.clone();
             path.push(CheckedUnitStructuralPathSegment::Field(
                 field_identity.clone(),
             ));
-            if source.root != parameter.symbol || source.path != path {
+            if source.root != root_symbol || source.path != path {
                 return unsupported("byte value field differs from its authored place");
             }
             Ok(())
@@ -447,6 +473,7 @@ pub(crate) fn literal_view_type(
 pub(crate) fn emit(
     store: &checked_trees::CheckedByteSequenceStorePlan,
     parameters: &[(u32, StructuralParameterDeclaration)],
+    locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -514,6 +541,7 @@ pub(crate) fn emit(
     let mut emitter = ValueEmitter {
         plan: &store.value,
         parameters,
+        locals,
         emission: ByteEmission {
             structural_types,
             places: literal_places,
@@ -804,10 +832,88 @@ impl ByteEmission<'_> {
 struct ValueEmitter<'input> {
     plan: &'input CheckedByteSequenceValuePlan,
     parameters: &'input [(u32, StructuralParameterDeclaration)],
+    locals: &'input [(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
     emission: ByteEmission<'input>,
 }
 
 impl ValueEmitter<'_> {
+    /// Source reads retain the local's current whole owned home, not write
+    /// authority and not a copied constructor result. Receiving validation
+    /// independently checks that the produced owner remains live here.
+    fn field_source(
+        &self,
+        root: checked_trees::CheckedStoreRoot,
+    ) -> Result<(semantic_vocabulary::PlaceId, StructuralTypeId), LoweringError> {
+        match root {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                let (_, parameter) = self
+                    .parameters
+                    .iter()
+                    .find(|(authored, _)| *authored == position)
+                    .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
+                if !matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                ) || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return unsupported("byte value parameter has no ordinary read authority");
+                }
+                Ok((parameter.place, parameter.structural_type))
+            }
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                let mut locals = self
+                    .locals
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == symbol);
+                let (_, local) = locals.next().ok_or(LoweringError::Unsupported(
+                    "byte value local has no established home",
+                ))?;
+                if locals.next().is_some()
+                    || local.access != terminal_psi::StructuralAccess::Owned
+                    || !local.path.is_empty()
+                {
+                    return unsupported("byte value local lost its exact whole owned home");
+                }
+                let produced = self
+                    .emission
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == local.place)
+                    .or_else(|| {
+                        // A construction may complete at a control join; its
+                        // registered result owns the same home and custody.
+                        self.emission
+                            .operations
+                            .structural_values
+                            .iter()
+                            .filter_map(|(_, binding)| match binding {
+                                StructuralBinding::OperationResult(result) => Some(result),
+                                _ => None,
+                            })
+                            .find(|result| result.place == local.place)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "byte value local has no completed producer",
+                    ))?;
+                if !matches!(
+                    produced.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                ) || !produced.qualifications.is_empty()
+                    || !produced.projected_qualifications.is_empty()
+                    || !produced.claims.is_empty()
+                {
+                    return unsupported("byte value local lost its ordinary read custody");
+                }
+                Ok((local.place, produced.structural_type))
+            }
+        }
+    }
+
     fn owned(
         &mut self,
         left: ByteSequenceOperand,
@@ -889,28 +995,15 @@ impl ValueEmitter<'_> {
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
             ByteValue::Field {
-                parameter_position,
+                root,
                 carrier_path,
                 field_identity,
                 capacity,
             } => {
-                let (_, parameter) = self
-                    .parameters
-                    .iter()
-                    .find(|(authored, _)| *authored == *parameter_position)
-                    .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
-                if !matches!(
-                    parameter.access,
-                    terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow
-                ) || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return unsupported("byte value parameter has no ordinary read authority");
-                }
+                let (source_place, source_type) = self.field_source(*root)?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_path(
-                        parameter.structural_type,
+                        source_type,
                         carrier_path,
                         field_identity,
                         self.emission.structural_types,
@@ -923,7 +1016,7 @@ impl ValueEmitter<'_> {
                     return unsupported("byte value field has a different carrier");
                 }
                 let source = terminal_psi::StructuralArgument {
-                    place: parameter.place,
+                    place: source_place,
                     path: path.clone(),
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                 };

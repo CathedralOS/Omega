@@ -58,31 +58,20 @@ fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, Loweri
     ))
 }
 
-/// The bounded byte field `path`/`field` beneath a readable borrowed
-/// parameter, as the structural argument its observations keep. Neither a
+/// The bounded byte field `path`/`field` beneath a borrowed parameter or
+/// established owned home, as the structural argument its observations keep. Neither a
 /// length nor a byte read establishes a borrowed view or other authority.
 pub(super) fn readable_byte_field(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    live: &LiveDefinitions,
     source: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let unsupported = || LoweringError::unsupported_control_flow(function.machine);
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
-        .ok_or_else(unsupported)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+    if !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || super::references::check_root_access(live, source)
         || function
             .entry_claims
             .iter()
@@ -90,11 +79,41 @@ pub(super) fn readable_byte_field(
     {
         return Err(unsupported());
     }
+    let (structural_type, access) = if let Some(home) = live.structural_homes.get(&source) {
+        // The establishment retains original backing and live ownership;
+        // observing its field does not manufacture a parameter or a loan.
+        if home.has_claims()
+            || home.multiplicity() == StructuralMultiplicity::Linear
+            || !home.qualifications().is_empty()
+            || !home.projected_qualifications().is_empty()
+        {
+            return Err(unsupported());
+        }
+        (home.structural_type(), StructuralAccess::Owned)
+    } else {
+        let parameter = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == source)
+            .ok_or_else(unsupported)?;
+        if !matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(unsupported());
+        }
+        (parameter.structural_type, parameter.access)
+    };
     let carrier = if path.is_empty() {
-        parameter.structural_type
+        structural_type
     } else {
         crate::lowering::structural_layout::resolve_structural_projection_path(
-            parameter.structural_type,
+            structural_type,
             path,
             types,
             &mut BTreeMap::new(),
@@ -120,7 +139,7 @@ pub(super) fn readable_byte_field(
     }
     Ok(terminal_psi::StructuralArgument {
         place: source,
-        access: parameter.access,
+        access,
         path: path.to_vec(),
     })
 }
@@ -173,8 +192,8 @@ pub(super) fn lower(
             if result.scalar_type != unsigned(function, 64)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let source = readable_byte_field(function, types, *source, path, *field)?;
-            // Metadata keeps the original parameter and static projection. It
+            let source = readable_byte_field(function, types, live, *source, path, *field)?;
+            // Metadata keeps the original home and static projection. It
             // does not establish a borrowed view or grant byte-content access.
             retain_result(*psi_operation, *result, live)?;
             (
@@ -197,7 +216,7 @@ pub(super) fn lower(
             length,
             obligation,
         } => {
-            let argument = readable_byte_field(function, types, *source, path, *field)?;
+            let argument = readable_byte_field(function, types, live, *source, path, *field)?;
             // Content needs a shared or mutable borrow; a write-only borrow
             // may observe the live length but not the bytes. The index is
             // bounded by this same field's live length: the length operand

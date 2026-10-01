@@ -112,22 +112,61 @@ impl TerminalExecution {
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
-        let parameter = machine
+        let access = if let Some(parameter) = machine
             .structural_parameters
             .iter()
+            .chain(
+                machine
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.structural_parameters),
+            )
             .find(|parameter| parameter.place == root)
-            .ok_or_else(invalid)?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ) || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || (requires_mutation && parameter.access == StructuralAccess::SharedBorrow)
+        {
+            if !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            parameter.access
+        } else {
+            // Admission already verified the exact producer and its declaration
+            // custody. Execution must find that home's current instance; it
+            // cannot recover a value from a future or retired producer.
+            let declaration = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == root)
+                .ok_or_else(invalid)?;
+            let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            } = declaration.kind
+            else {
+                return Err(invalid());
+            };
+            if !self
+                .structural_values
+                .get(&root)
+                .is_some_and(|value| value.structural_type == structural_type)
+            {
+                return Err(invalid());
+            }
+            StructuralAccess::Owned
+        };
+        // Reads resolve the current established home, including an owned local.
+        // This does not add a local destination: replacement and indexed writes
+        // retain the exclusive borrowed-parameter contract.
+        if (requires_mutation
+            && (!matches!(
+                access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || !machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == root)))
             || !terminal_psi::is_bounded_structural_scalar_store_path(path)
             || self
                 .live_claims
@@ -142,7 +181,7 @@ impl TerminalExecution {
             &[StructuralArgument {
                 place: root,
                 path: path.to_vec(),
-                access: parameter.access,
+                access,
             }],
         )?
         .pop()

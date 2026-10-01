@@ -423,16 +423,15 @@ fn byte_value_plan(
                 expression,
             )?;
             let root = crate::flow::normalized_event_place_root(program, place.root);
-            let parameter_position =
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .position(|parameter| {
-                        crate::flow::normalized_event_place_root(
-                            program,
-                            facts::PlaceRoot::Symbol(parameter.symbol),
-                        ) == root
-                    })?;
+            let parameter_position = program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| {
+                    crate::flow::normalized_event_place_root(
+                        program,
+                        facts::PlaceRoot::Symbol(parameter.symbol),
+                    ) == root
+                });
             let type_reference = crate::flow::canonical_place_type_reference(
                 program,
                 state.symbol,
@@ -454,6 +453,7 @@ fn byte_value_plan(
                 return None;
             }
             if place.segments.is_empty() {
+                let parameter_position = parameter_position?;
                 let parameter = program.state_parameters(state).get(parameter_position)?;
                 if program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
                     || !matches!(
@@ -487,6 +487,31 @@ fn byte_value_plan(
                     capacity,
                 ));
             }
+            // A field read observes the live home after earlier operations,
+            // including calls that mutated a local. Keep that storage identity
+            // rather than substituting the local's original value plan.
+            let source_root = if let Some(position) = parameter_position {
+                checked_trees::CheckedStoreRoot::Parameter {
+                    position: u32::try_from(position).ok()?,
+                }
+            } else {
+                let facts::PlaceRoot::Symbol(symbol) = root else {
+                    return None;
+                };
+                let (_, local) = program
+                    .state_local_declaration(state, symbol)
+                    .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
+                if structural_access_for_type_reference(program, local.type_reference)
+                    != Some(CheckedStructuralAccess::Owned)
+                    || !validation::has_plain_owned_contents_with_represented_constraints(
+                        program,
+                        local.type_reference,
+                    )
+                {
+                    return None;
+                }
+                checked_trees::CheckedStoreRoot::Local { symbol }
+            };
             let mut carrier_path = Vec::new();
             for segment in &place.segments {
                 carrier_path.push(match segment {
@@ -504,7 +529,7 @@ fn byte_value_plan(
             };
             (
                 Value::Field {
-                    parameter_position: u32::try_from(parameter_position).ok()?,
+                    root: source_root,
                     carrier_path,
                     field_identity,
                     capacity,
