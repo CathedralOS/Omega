@@ -2,8 +2,9 @@
 //! appends one `BorrowArgumentAccessFact` per accessed place and returns the
 //! call's span of them: a `&`, `&mut` or `&write` argument records a read,
 //! mutable or write-only access to its borrowed place, and any other argument
-//! records a read access for each place it reads (`read`).
-//! Retained rows also distinguish copied observations and nested-call loans
+//! records a read access for each place it reads (`read`). A borrow nested in
+//! such an argument records its loan with the borrow's own access, followed by
+//! the reads its place selector performs. Retained rows also distinguish copied observations and nested-call loans
 //! that finish during operand evaluation from loans held through invocation.
 //! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
@@ -64,14 +65,20 @@ fn collect_argument_accesses(
     match collection.program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner_expression) => {
             if let Some(access_place) = collection.borrow_access_place(inner_expression.target) {
-                let kind = match inner_expression.access {
-                    language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-                    language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-                    language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
-                };
-                collection.append_argument_access(access_place, kind);
+                collection.append_argument_access(
+                    access_place,
+                    borrow_access_kind(inner_expression.access),
+                );
             }
         }
         _ => collect_read_accesses(collection, expression),
+    }
+}
+
+fn borrow_access_kind(access: language_semantics::ReferenceAccess) -> BorrowAccessKind {
+    match access {
+        language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+        language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+        language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
     }
 }
