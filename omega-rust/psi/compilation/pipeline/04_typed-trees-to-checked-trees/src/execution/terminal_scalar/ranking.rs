@@ -29,6 +29,17 @@ pub(super) fn plan(
     }
     let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
+        // Fusion does not erase a callee's termination contract. If the shared
+        // component projection above cannot represent a retained owner's
+        // witness, keep its ordinary call boundary and let its own execution
+        // plan publish the rank. Publishing an unranked fused graph here would
+        // preempt that route and fail only after the caller had been selected.
+        for row in &graph.states {
+            let (owner, _) = crate::semantic::calls::find_state_with_machine(program, row.state)?;
+            if owner.termination_plan.implementation_witness.is_some() {
+                return None;
+            }
+        }
         return Some(None);
     }
     let Some(components) = crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(

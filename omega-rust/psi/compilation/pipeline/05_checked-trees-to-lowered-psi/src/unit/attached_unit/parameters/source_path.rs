@@ -68,18 +68,20 @@ pub(crate) fn source_path(
     Ok((symbol, path, access))
 }
 
-/// The receiver place a statement-position call spells as a name path
-/// (`_ = self.roll(..)`, `self.tally.bump()`). Statement calls keep no
+/// The receiver place a call statement or named transition spells as a path
+/// (`_ = self.roll(..)`, `self.tally.bump()`, `-> self.roll(..)`). These keep no
 /// receiver expression, so this rejoins the authored root member, the lexical
 /// root symbol and each projected field against their declarations, the same
 /// exact field owners an expression receiver's `Member` chain resolves. The
-/// final field must be the call's captured endpoint. Lexical `self` resolves
+/// final field must also match a call statement's captured endpoint. A named
+/// transition retains its root and selected target, but not that endpoint.
+/// Lexical `self` resolves
 /// to the machine symbol; any other root must be a formal of `source_state`.
 pub(crate) fn statement_receiver_path(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     source_state: &checked_trees::state::State,
-    call: &checked_trees::statement::TableCall,
+    statement: &StatementNode,
 ) -> Result<
     (
         symbols::SymbolHandle,
@@ -87,12 +89,41 @@ pub(crate) fn statement_receiver_path(
     ),
     LoweringError,
 > {
-    let members = checked.statement_table.name_path_members(call.receiver);
-    let root = call.receiver_root_symbol;
+    let (members, root, captured_endpoint) = match statement {
+        StatementNode::Call(call) => {
+            let members = checked.statement_table.name_path_members(call.receiver);
+            if members.len() != call.receiver.count() as usize || !call.receiver_symbol.is_valid() {
+                return unsupported("statement receiver has an invalid authored path");
+            }
+            (members, call.receiver_root_symbol, call.receiver_symbol)
+        }
+        StatementNode::Transition(transition) => {
+            if !checked
+                .statement_table
+                .transition_target_is_valid(transition.target)
+            {
+                return unsupported("statement receiver has a stale invocation target");
+            }
+            let checked_trees::statement::TransitionTargetNode::Named { path, .. } =
+                checked.statement_table.transition_target(transition.target)
+            else {
+                return unsupported("statement receiver has no named invocation");
+            };
+            let members = checked.statement_table.name_path_members(path.members);
+            if members.len() != path.members.count() as usize {
+                return unsupported("statement receiver has an invalid authored path");
+            }
+            let (_, receiver) = members.split_last().ok_or(LoweringError::Unsupported(
+                "statement receiver has no invocation target",
+            ))?;
+            (receiver, path.head_symbol, symbols::SymbolHandle::invalid())
+        }
+        _ => return unsupported("statement receiver has no authored invocation"),
+    };
     let Some(root_member) = members.first() else {
         return unsupported("statement receiver has no authored root");
     };
-    if members.len() != call.receiver.count() as usize || !root.is_valid() {
+    if !root.is_valid() {
         return unsupported("statement receiver has an invalid authored path");
     }
     let parameters = checked.state_parameters(source_state);
@@ -138,7 +169,7 @@ pub(crate) fn statement_receiver_path(
         // the declared owner and unique field name select each one, and the
         // last must also match the captured endpoint.
         let retained = if position + 1 == members.len() {
-            call.receiver_symbol
+            captured_endpoint
         } else {
             symbols::SymbolHandle::invalid()
         };
@@ -161,7 +192,7 @@ pub(crate) fn statement_receiver_path(
         type_reference = field.type_reference;
         endpoint = field.symbol;
     }
-    if endpoint != call.receiver_symbol {
+    if captured_endpoint.is_valid() && endpoint != captured_endpoint {
         return unsupported("statement receiver changed its captured endpoint");
     }
     Ok((root, path))

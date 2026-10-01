@@ -39,9 +39,6 @@ pub(super) fn validate(
     {
         return unsupported("scalar completion differs from its authored result signature");
     }
-    let Some(StatementNode::Expression(expression)) = statements.last() else {
-        return unsupported("scalar completion has no final authored expression");
-    };
     if matches!(
         checked
             .type_reference_table
@@ -81,7 +78,8 @@ pub(super) fn validate(
     }
     crate::unit::runtime_requirements::validate_scalar_source(checked, source, state)?;
     crate::scalar_graph::scalar_contracts::validate_guarantees(checked, source, state)?;
-    if result.statement_index as usize + 1 == statements.len()
+    if matches!(statements.last(), Some(StatementNode::Expression(_)))
+        && result.statement_index as usize + 1 == statements.len()
         && machine.operations.iter().any(|operation| {
             matches!(operation,
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result: candidate, .. }
@@ -113,34 +111,70 @@ pub(super) fn validate(
         }
         return Ok(());
     }
-    let (source_expression, named_return) = match checked.expression_table.expression(*expression) {
-        ExpressionNode::Name(name) => {
-            let Some(StatementNode::LocalData(local)) =
-                statements.get(result.statement_index as usize)
-            else {
-                return unsupported("scalar completion name has no retained call declaration");
-            };
-            if local.is_mutable
-                || !local.symbol.is_valid()
-                || result.statement_index as usize + 1 >= statements.len()
-                || name.symbol != local.symbol
-                || name.head_symbol != local.symbol
-                || checked
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-                || checked.primitive_type_reference(local.type_reference)
-                    != Some(result.primitive_type)
-            {
-                return unsupported("scalar completion name differs from its exact call binding");
-            }
-            (local.initial_value, true)
+    let (source_site, named_return) = match statements.last() {
+        // A named terminal invocation has a statement coordinate, not an
+        // expression handle. Its ordinary call result completes the caller;
+        // the existing source join distinguishes it from guarded arms and
+        // internal jumps before the same producer/coverage checks below.
+        Some(StatementNode::Transition(_))
+            if result.statement_index as usize + 1 == statements.len()
+                && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+                    checked,
+                    machine.state,
+                    result.statement_index,
+                )? =>
+        {
+            (None, false)
         }
-        ExpressionNode::Call(_) if result.statement_index as usize + 1 == statements.len() => {
-            (*expression, false)
+        Some(StatementNode::Expression(expression)) => {
+            let (source_expression, named_return) =
+                match checked.expression_table.expression(*expression) {
+                    ExpressionNode::Name(name) => {
+                        let Some(StatementNode::LocalData(local)) =
+                            statements.get(result.statement_index as usize)
+                        else {
+                            return unsupported(
+                                "scalar completion name has no retained call declaration",
+                            );
+                        };
+                        if local.is_mutable
+                            || !local.symbol.is_valid()
+                            || result.statement_index as usize + 1 >= statements.len()
+                            || name.symbol != local.symbol
+                            || name.head_symbol != local.symbol
+                            || checked
+                                .expression_table
+                                .name_path_members(name.members)
+                                .len()
+                                != 1
+                            || checked.primitive_type_reference(local.type_reference)
+                                != Some(result.primitive_type)
+                        {
+                            return unsupported(
+                                "scalar completion name differs from its exact call binding",
+                            );
+                        }
+                        (local.initial_value, true)
+                    }
+                    ExpressionNode::Call(_)
+                        if result.statement_index as usize + 1 == statements.len() =>
+                    {
+                        (*expression, false)
+                    }
+                    _ => {
+                        return unsupported(
+                            "scalar completion source is not its call or immutable binding",
+                        );
+                    }
+                };
+            (
+                Some(checked_trees::NominalMachineUseSite::Expression(
+                    source_expression,
+                )),
+                named_return,
+            )
         }
-        _ => return unsupported("scalar completion source is not its call or immutable binding"),
+        _ => return unsupported("scalar completion has no final authored result"),
     };
     let mut producers = machine.operations.iter().filter_map(|operation| {
         // Any call with a scalar result, ordinary or boundary.
@@ -161,12 +195,8 @@ pub(super) fn validate(
         machine.state,
         coordinate,
     )?;
-    if authored.source_site
-        != Some(checked_trees::NominalMachineUseSite::Expression(
-            source_expression,
-        ))
-    {
-        return unsupported("scalar completion call differs from its final source expression");
+    if authored.source_site != source_site {
+        return unsupported("scalar completion call differs from its final source occurrence");
     }
     for statement_index in 0..statements.len() {
         if (named_return && statement_index + 1 == statements.len())
