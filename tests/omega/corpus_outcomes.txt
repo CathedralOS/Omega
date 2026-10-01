@@ -1240,8 +1240,7 @@ pass/calls/runtime_loop_rotation_exit checked 1398ms @2d8ed253669f
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 2466ms @2d8ed253669f
-pass/calls/runtime_mutable_local_parameter_write_exit rejected 5930ms @17039e6ea406+wt
-	terminal-artifact production failed: Lowering(Unsupported("an owned local element read takes no projection path"))
+pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
 pass/calls/runtime_nested_local_field_store_exit checked 1211ms @20d5eb8f7510+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24

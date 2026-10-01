@@ -1647,14 +1647,13 @@ crash and native exit behavior. Use affected check/native corpus slices under
   interpreter lags the verifier here: it refuses affine
   `EstablishZeroedStructural`, scalar stores into zeroed homes, and projected
   moves out of records with fixed-array members, so stage 05's
-  `structural_array_literals` tests verify rather than execute.
-  `pass/calls/caller_structural_result_indexed_borrow_exit` runs natively
-  (exit 171): a live-graph call lends `&mut rooms[i]` of the local home as its
-  bare element. `pass/calls/runtime_mutable_local_parameter_write_exit` stops
-  at stage 05 "an owned local element read takes no projection path"
-  (`rooms[0].exit_count` on an owned local root has no element-field route). A
-  `[u32; 1]` local's `&mut rooms[i]` instead fails Terminal
-  `UnknownStructuralArgument`.
+  `structural_array_literals` tests verify rather than execute. Both local
+  record-array customers run natively with exit 171:
+  `pass/calls/caller_structural_result_indexed_borrow_exit` lends
+  `&mut rooms[i]` of the local home as its bare element, and
+  `pass/calls/runtime_mutable_local_parameter_write_exit` reads
+  `rooms[0].exit_count` back through the selector and member. A `[u32; 1]`
+  local's `&mut rooms[i]` still fails Terminal `UnknownStructuralArgument`.
 
   `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively and on
   the checked interpreter on macOS ARM64 at `03e30df59d33` plus this repair:
