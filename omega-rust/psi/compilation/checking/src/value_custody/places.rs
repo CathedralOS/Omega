@@ -504,7 +504,8 @@ pub(crate) use parameter_scoped::parameter_scoped_type_reference;
 mod projected_members;
 mod result_shape;
 pub use attached_storage::{
-    AttachedStorageRoot, attached_storage_root, exact_attached_storage_field,
+    AttachedStorageRoot, attached_storage_root, canonical_storage_label, declaration_storage_label,
+    exact_attached_storage_field, expression_names_attached_storage,
 };
 pub use builtin_coordinates::place_has_builtin_coordinates;
 pub use builtin_coordinates::{

@@ -18,7 +18,9 @@
 //! through whichever root the declaration actually binds.
 
 use super::{exact_attached_field, exact_self_field, unwrapped_type_reference};
-use language_core::SELF_RECEIVER;
+use language_core::{
+    PLACE_MEMBER_SEPARATOR, SELF_RECEIVER, receiver_place_field, receiver_place_label,
+};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
@@ -128,4 +130,95 @@ pub fn exact_attached_storage_field<'program>(
         member.member_symbol,
         member.member.as_str(),
     )
+}
+
+/// Whether `expression` names a place reached from this machine's attached
+/// storage, at any depth below the root.
+///
+/// The root is resolved by symbol, so a binding that merely shares the data
+/// parameter's spelling is not this storage. The depth below the root is
+/// deliberately unconstrained: what makes a deeper place usable is the
+/// caller's own stability reasoning, not the shape of the path.
+pub fn expression_names_attached_storage(
+    program: &TypedTrees,
+    machine: &Machine,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(root) = attached_storage_root(program, machine, parameters) else {
+        return false;
+    };
+    let mut current = expression;
+    for _ in 0..128 {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                current = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => current = indexed.collection,
+            ExpressionNode::Borrow(borrow) => current = borrow.target,
+            ExpressionNode::Name(path) => {
+                return path.symbol == root.symbol
+                    && path.head_symbol == root.symbol
+                    && matches!(program.expression_table.name_path_members(path.members),
+                        [only] if only.as_str() == root.name);
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Render `label`, as `parameters` spells it, rooted at the receiver.
+///
+/// Rendered place text is how several checkers compare places across
+/// declarations, and a declaration's own spelling of its storage is not
+/// shared: `self` cannot be shadowed, so the receiver is the one spelling
+/// every declaration of a machine agrees on, while a data parameter's name
+/// belongs to its own declaration. A preheader writing `self.i` and a loop
+/// state reading `main.i` name the same storage and have to compare equal.
+///
+/// A label rooted anywhere else is returned unchanged: it already means the
+/// same thing in every declaration that can spell it, or it means nothing
+/// there.
+pub fn canonical_storage_label(
+    program: &TypedTrees,
+    machine: &Machine,
+    parameters: &[StateParameter],
+    label: &str,
+) -> String {
+    let Some(root) = attached_storage_root(program, machine, parameters) else {
+        return label.to_owned();
+    };
+    if root.name == SELF_RECEIVER {
+        return label.to_owned();
+    }
+    match label
+        .strip_prefix(root.name)
+        .and_then(|below| below.strip_prefix(PLACE_MEMBER_SEPARATOR))
+    {
+        Some(field) => receiver_place_label(field),
+        None => label.to_owned(),
+    }
+}
+
+/// Render a canonical storage label back into this declaration's own
+/// spelling, so a fact keyed here matches what its own expressions render.
+///
+/// `None` when the declaration reaches no attached storage at all: there is
+/// no spelling for the place there, so no fact about it belongs to it.
+pub fn declaration_storage_label(
+    program: &TypedTrees,
+    machine: &Machine,
+    parameters: &[StateParameter],
+    canonical: &str,
+) -> Option<String> {
+    let Some(field) = receiver_place_field(canonical) else {
+        return Some(canonical.to_owned());
+    };
+    let root = attached_storage_root(program, machine, parameters)?;
+    Some(if root.name == SELF_RECEIVER {
+        canonical.to_owned()
+    } else {
+        format!("{}{PLACE_MEMBER_SEPARATOR}{field}", root.name)
+    })
 }
