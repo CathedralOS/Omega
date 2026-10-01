@@ -1237,23 +1237,19 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `d16b2241bb`
-  plus the bounded-byte receiver guard repair over `e5fbee57b9` on macOS ARM64,
-  the actual command exits 200 before emission: `Game::initialize` reaches
-  unavailable `Dungeon::initialize`, whose local construction stops at
-  `call operation: structural arguments: source symbol`.
-  Trace that call's argument source through stage 04's structural call planner
-  and independent stage 05 replay. The state-17 projected mutable receiver guard
-  now plans without removing its nested byte predicates or copied enum argument;
-  its lowering/verifier regression and sibling-path/access substitutions pass,
-  as do all 11 producer computation-argument controls. Borrowed bindings,
-  copied `Level` operands, boundary-result
-  dispatch, byte-field views, view literal guards, and owned UTF-8 field
-  arguments now pass their earlier planning gates. The rebased copy/view
-  selection passes 55 controls, including independent rejection of stripped byte
-  predicates, unreadable backing, and reused snapshots; they do not establish
-  native execution. Acceptance remains native exit 0 with the authored room,
-  prompt, command and goodbye output.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `9aa70dd2e8`
+  on macOS ARM64, the closed-stdin command exits 200 before emission:
+  `Game::run_game_loop` reaches unavailable `Dungeon::use_event`, whose
+  state 1 signature stops at `parameter custody shape: qualified non-linear
+  parameter`. Trace that parameter in stage 04's
+  `execution/terminal_unit/state_graph/mod.rs` and retain its exact authored
+  predicates through state transfers and independent replay. The actual command
+  now gets past `GameView::render_room`; its whole-buffer boundary views and
+  repeated method reborrows also pass all 53 selected forwarding,
+  boundary-buffer and trusted-surface controls. Those views preserve live
+  extent and reject reads through write-only storage. Acceptance remains
+  native exit 0 with the authored room, prompt, command and goodbye output;
+  independently verified helper plans are not native execution evidence.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
   output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`

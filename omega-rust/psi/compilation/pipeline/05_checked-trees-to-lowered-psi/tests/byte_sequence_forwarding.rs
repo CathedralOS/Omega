@@ -43,20 +43,22 @@ fn qualified_whole_byte_parameter_lends_a_shared_boundary_view() {
         r#"
         domain [u8; 128]::Utf8 requires valid_utf8(self);
         boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
-        machine replace(line: &mut [u8; 128] in Utf8)
+        data Formatter {}
+        data Renderer { formatter: Formatter; }
+        machine Formatter::replace(&mut self, line: &mut [u8; 128] in Utf8)
         ensures line in Utf8 { line = "room"; }
-        machine render(line: &mut [u8; 128] in Utf8) reaches Output
+        machine Renderer::render(&mut self, line: &mut [u8; 128] in Utf8) reaches Output
         ensures line in Utf8 {
-            replace(line);
+            self.formatter.replace(line);
             Output::write(line);
-            replace(line);
+            self.formatter.replace(line);
             Output::write(line);
         }
         "#,
     );
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
-        TerminalMachineSelection::Name("render"),
+        TerminalMachineSelection::Name("Renderer::render"),
     )
     .expect("qualified whole storage lends its current live bytes to the boundary");
     terminal_verifier::verify_module(

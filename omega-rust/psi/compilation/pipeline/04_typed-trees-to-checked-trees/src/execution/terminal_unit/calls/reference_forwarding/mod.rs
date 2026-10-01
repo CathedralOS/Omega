@@ -309,10 +309,21 @@ fn preceding_reborrow_preserves_carrier(
     let arguments = program
         .statement_table
         .expression_handles(authored.arguments);
-    if parameters.len() != arguments.len() {
+    // Runtime receivers supply `self` separately; static carrier calls may
+    // spell it as the first argument. Rejoin the same explicit telescope as
+    // ordinary call planning before judging a completed operand's reborrow.
+    let explicit_self = arguments.len()
+        > parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+    let parameters = parameters
+        .iter()
+        .filter(|parameter| explicit_self || !parameter.is_self);
+    if parameters.clone().count() != arguments.len() {
         return false;
     }
-    let mut matching = parameters.iter().zip(arguments).filter(|(_, expression)| {
+    let mut matching = parameters.zip(arguments).filter(|(_, expression)| {
         matches!(program.expression_table.expression(**expression), ExpressionNode::Name(name) if name.symbol == source_symbol)
     });
     let Some((parameter, expression)) = matching.next() else {
