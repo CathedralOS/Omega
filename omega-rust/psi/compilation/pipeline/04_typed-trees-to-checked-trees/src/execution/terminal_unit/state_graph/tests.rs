@@ -1,6 +1,189 @@
 //! Ordinary state-local operations precede their actual control exit.
 
 #[test]
+fn owned_inline_call_values_keep_their_custody_across_state_graphs() {
+    let checked = crate::tests::front_end::checked_program(
+        r#"
+        domain [u8;16]::Utf8 requires valid_utf8(self);
+        data Writer {}
+        machine Writer::replace(&mut self, value: [u8;16] in Utf8, output: &mut [u8;16] in Utf8) {
+            output = value;
+        }
+        machine write(writer: &mut Writer, output: &mut [u8;16] in Utf8) {
+            writer.replace("Wanderer", output);
+            transition { _ -> finish(writer, output) }
+            state finish(writer: &mut Writer, output: &mut [u8;16] in Utf8) {
+                writer.replace("é", output);
+            }
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write")
+        .unwrap();
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine.symbol)
+        .unwrap_or_else(|| {
+            panic!(
+                "inline owned arguments must compose: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine.symbol)
+            )
+        });
+    let literals = plan
+        .states
+        .iter()
+        .flat_map(|state| &state.operations)
+        .flat_map(checked_trees::CheckedUnitEffectOperationPlan::call_structural_arguments)
+        .filter_map(|argument| {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                bytes,
+            } = &argument.source
+            else {
+                return None;
+            };
+            assert_eq!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::Owned
+            );
+            assert!(argument.path.is_empty());
+            assert!(
+                argument
+                    .source_structural_result_binding_ordinal()
+                    .is_none()
+            );
+            Some(bytes.as_slice())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(literals, vec![b"Wanderer".as_slice(), "é".as_bytes()]);
+}
+
+#[test]
+fn owned_call_results_require_one_retained_exact_producer() {
+    use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
+    for copy_marker in ["[copy]", ""] {
+        let checked = crate::tests::front_end::checked_program(&format!(
+            "data Value {copy_marker} {{ number: u32; }}\n\
+             machine make() -> Value {{ Value {{ number: 7 }} }}\n\
+             machine take(value: Value) {{}}\n\
+             machine walk() {{\n\
+                 let value: Value = make();\n\
+                 take(value);\n\
+                 transition {{ _ -> finish() }}\n\
+                 state finish() {{}}\n\
+             }}"
+        ));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "walk")
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .expect("copy and affine result arguments compose");
+        let operations = &plan.states[0].operations;
+        let (consumer_index, argument) = operations
+            .iter()
+            .enumerate()
+            .find_map(|(index, operation)| {
+                operation
+                    .call_structural_arguments()
+                    .iter()
+                    .find(|argument| {
+                        argument.access == checked_trees::CheckedStructuralAccess::Owned
+                            && argument
+                                .source_structural_result_binding_ordinal()
+                                .is_some()
+                    })
+                    .map(|argument| (index, argument))
+            })
+            .expect("an owned call argument uses the earlier result");
+        let earlier = &operations[..consumer_index];
+        let ordinal = argument.source_structural_result_binding_ordinal().unwrap();
+        let producer_index = earlier
+            .iter()
+            .position(|operation| {
+                operation
+                    .structural_result_binding()
+                    .is_some_and(|result| result.binding_ordinal == ordinal)
+            })
+            .unwrap();
+        let producer = &earlier[producer_index];
+        assert!(super::call_argument_admitted(argument, earlier));
+        // A copyable local may produce a fresh operand snapshot owned by this
+        // call. Its original named result, not that snapshot, distinguishes
+        // reusable copying from affine consumption.
+        let named_result = earlier
+            .iter()
+            .find(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::Call(call)
+                    if call.structural_result().is_some())
+            })
+            .expect("the named value comes from make");
+        assert_eq!(
+            super::call_owns_result(named_result),
+            copy_marker.is_empty(),
+            "affine consumption and unrestricted copying retain distinct dispositions"
+        );
+        if !copy_marker.is_empty() && super::call_owns_result(producer) {
+            assert!(
+                matches!(
+                    producer,
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        operand_source: Some(
+                            checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                        ),
+                        ..
+                    }
+                ),
+                "an unrestricted call-owned result is its fresh operand snapshot"
+            );
+        }
+        assert!(!super::call_argument_admitted(argument, &[]));
+
+        let mut duplicate = earlier.to_vec();
+        duplicate.push(producer.clone());
+        assert!(!super::call_argument_admitted(argument, &duplicate));
+
+        let mut wrong_type = argument.clone();
+        wrong_type.type_identity.push_str("::other");
+        assert!(!super::call_argument_admitted(&wrong_type, earlier));
+
+        let mut missing = argument.clone();
+        missing.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: u32::MAX,
+        };
+        assert!(!super::call_argument_admitted(&missing, earlier));
+
+        let mut projected = argument.clone();
+        projected
+            .path
+            .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                0,
+            ));
+        assert!(!super::call_argument_admitted(&projected, earlier));
+
+        let mut discarded = earlier.to_vec();
+        let (_, discard) = discarded[producer_index]
+            .discardable_structural_result_mut()
+            .expect("the call result has a disposition");
+        *discard = true;
+        assert!(!super::call_argument_admitted(argument, &discarded));
+    }
+}
+
+#[test]
 fn indexed_unit_call_precedes_the_store_and_scalar_return() {
     let checked = crate::tests::front_end::checked_program(
         r#"

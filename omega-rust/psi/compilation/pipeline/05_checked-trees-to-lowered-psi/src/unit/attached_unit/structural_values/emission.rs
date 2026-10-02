@@ -17,6 +17,7 @@ use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
+mod completed_storage;
 mod copied_place;
 mod dispatch;
 
@@ -240,6 +241,7 @@ pub(crate) fn emit(
         sources,
         owners,
         result_access,
+        published_places: Vec::new(),
     };
     let place = if emission.sources.is_empty()
         && let CheckedStructuralValueKind::Reference { source } = &checked
@@ -308,21 +310,29 @@ pub(crate) fn emit(
         .iter()
         .position(|item| item.id == place)
         .map(|position| emission.temporary_places.remove(position));
-    if declaration.is_none()
-        && !matches!(
-            checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .kind,
-            CheckedStructuralValueKind::Call { .. }
-        )
-    {
-        return unsupported("structural value place was not declared");
+    let mut published = emission
+        .published_places
+        .iter()
+        .filter(|row| row.id == place);
+    let published_declaration = published.next();
+    if published.next().is_some() || (declaration.is_some() && published_declaration.is_some()) {
+        return unsupported("structural value place was declared more than once");
     }
-    emission.evaluation.establish_structural_result(
+    let completed_declaration =
+        declaration
+            .as_ref()
+            .or(published_declaration)
+            .ok_or(LoweringError::Unsupported(
+                "structural value place was not declared",
+            ))?;
+    let completed = completed_storage::completed_result(
+        place,
+        completed_declaration,
+        emission.operations,
+        emission.evaluation.current,
+        &emission.evaluation.block_structural_parameters,
+    )?;
+    emission.evaluation.establish_structural_binding(
         checked,
         state,
         result,
@@ -330,15 +340,7 @@ pub(crate) fn emit(
             operand_source,
             Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
         ),
-        terminal_psi::StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        },
+        completed.into(),
         structural_types,
         emission.operations,
     )?;
@@ -586,6 +588,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// The join result slot's custody: `Owned` for an owned selection,
     /// `SharedBorrow` for a `&T` result whose branches rejoin shared borrows.
     result_access: StructuralAccess,
+    /// Exact declarations already published by nested operation emission.
+    /// These are receipts, not new catalog entries owned by this value.
+    published_places: Vec<StructuralPlaceDeclaration>,
 }
 
 pub(super) struct ValueContinuation {
@@ -731,9 +736,11 @@ impl Emission<'_, '_, '_> {
                 completed = declaration;
             }
         }
-        completed.ok_or(LoweringError::Unsupported(
+        let completed = completed.ok_or(LoweringError::Unsupported(
             "structural operand call did not publish its result",
-        ))
+        ))?;
+        self.published_places.push(completed);
+        Ok(completed)
     }
 
     pub(super) fn record_field_value(
