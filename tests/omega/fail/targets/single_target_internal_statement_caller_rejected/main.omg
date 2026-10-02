@@ -22,14 +22,14 @@ use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-uefi_x86_64 machine Helper::record_paradigm_event(&mut self) {
+uefi_x86_64 machine Helper::record_paradigm_event() {
     transition { _ -> done() }
     state done() { }
 }
 
 data Main { console: Binding<Console>; helper: Helper; }
 
-machine Main::main(&mut self) reaches Console {
-    self.helper.record_paradigm_event();
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    Helper::record_paradigm_event();
+    main.console.exit_process(70);
 }
