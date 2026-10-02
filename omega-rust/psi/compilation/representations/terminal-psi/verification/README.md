@@ -198,6 +198,12 @@ calls observe those current bindings; affine reads after consumption reject.
 Successor binding consumes all affine sources before establishing destinations,
 allowing swaps and self-loops without duplication or overwriting a live owner.
 Every arrival, including a backedge, must establish the same structural frontier.
+Complete record construction uses ordinary field and custody replay within a
+cycle, including affine records with scalar or nested owned fields. Construction
+consumes affine children once and publishes the parent; selected edges must
+transfer or dispose it before an arrival can overwrite its live ownership.
+Field count does not change that transaction, and no implicit backedge cleanup
+is synthesized.
 Disposal follows establishment dominance and parameter order, not serialized
 block IDs. Owned byte descriptors do not gain immutable-view read authority.
 Unit and plain scalar-sum-result loops also admit a claim-free, unqualified affine boundary-result sum with
