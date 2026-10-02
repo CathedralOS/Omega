@@ -169,40 +169,47 @@ execution and native exit/output. A moved refusal is still unfinished work.
   migrate those three samples as acceptance. Do not widen the remaining
   machine-parameter-only sites without their own customer program.
 
-- **STATIC-SUBJECT-BOUND-DISPATCH.** (split-of:STATIC-MACHINE-MIGRATION)
-  A generic body dispatching through a trait bound does not supply the subject
-  to a satisfier that names it. `subject.increment()` under
-  `machine step<T>(subject: &mut T) where T satisfies Incrementable` reports
-  "state `increment` expects 1 argument(s), got 0" once
-  `Counter::increment(counter: &mut Counter)` spells its subject; the same
-  satisfier called directly as `Counter::increment(&mut main.counter)` checks
-  and runs (`pass/traits/static_subject_satisfies_receiver_requirement_exit`,
-  exit 1). So conformance matching is done and only bound dispatch is left.
-  Measured customers: `pass/traits/{trait_generic_bound_static_dispatch,
-  runtime_inherited_trait_default_exit,equatable_record_equality_exit}` reach
-  this once migrated, out of a 13-fixture trait cluster whose other 6 are
-  migration-tool residue (a trait declared in another file, so the tool cannot
-  read its requirement arity) and are not compiler work.
-  `machine_calls/calls.rs::report_argument_count_mismatch` is the arity contract
-  and says so in its own doc: a receiver call binds `self` "through the receiver
-  place (the callee's `self` parameter is not an authored argument)", counted as
-  `filter(|parameter| self_is_argument || !parameter.is_self)`. A named subject
-  has `is_self` false, so it is counted as an authored argument the receiver
-  call never writes. The fix is the same correspondence already landed for
-  conformance: a receiver-style call binds the callee's SUBJECT, so the
-  parameter at the subject position is not an authored argument.
-  `TypedTrees::parameter_declares_attached_data` is the positional predicate for
-  it; `data_binding_parameter` is the wrong one here, because `equals(point:
-  &Point, other: &Point)` has no single data binding and its position 0 is still
-  the subject.
-  Scope note, unverified: a direct receiver call on a static machine
-  (`main.fill_literal(&mut main.bag, fresh)`) is reported as already checking, so
-  measure whether that path shares this counter before widening it -- if it does,
-  this is narrower than the arity contract and the generic specialization route
-  is what differs.
-  Acceptance: the three fixtures check and the `*_exit` ones meet their native
-  oracles with their satisfiers spelling the subject; a bound call supplying the
-  wrong argument count still rejects, with a fixture naming that.
+- **STATIC-NOMINAL-BINDER-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
+  A NOMINAL machine binder over a receiver-spelled trait requirement cannot take
+  a satisfier that names its subject. Not blocking: the structural binder is a
+  complete alternative and already works, so this is precision, not a gap in the
+  migration path.
+  What was measured on 2026-10-02, so it is not re-derived. A receiver-style
+  call is not a static spelling at all --
+  [machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+  removes "implicit receiver, bound-method value, or receiver-inserting call
+  syntax" and spells the call `Counter::clear(&mut counter)`. So
+  `subject.increment()` in a generic body, and `main.bump(5)` on a static
+  machine, are both authored debt rather than compiler gaps; the arity refusal
+  they get ("state `bump` expects 2 argument(s), got 1") is correct.
+  `report_argument_count_mismatch` must NOT be generalized to accept them -- that
+  would resurrect the syntax the contract removes.
+  The static spelling of a bounded generic is a machine binder with an authored
+  contract plus explicit machine arguments, and it compiles and runs today:
+  `machine step<T, machine Increment>(subject: &mut T) where machine
+  Increment(target: &mut T); { Increment(subject); }` called as
+  `step<Counter, Counter::increment>(&mut main.counter)`.
+  `pass/traits/trait_generic_bound_static_dispatch` is migrated to it and meets
+  its native oracle at exit 1. Both halves are load-bearing: the binder needs
+  `<machine Increment>` in the generic list AND a semicolon-terminated
+  `where machine Increment ...;` of its own (comma-joining it to a type bound
+  parses as a clause keyword and rejects), and the call must pass the machine
+  argument.
+  What is left is only the NOMINAL contract form
+  (`where machine Increment satisfies Incrementable::increment;`). With a
+  satisfier that names its subject it reports "parameter 0 has a different
+  calling mode" from
+  `machine_parameters/callable_shape.rs`'s `required.is_self != actual.is_self`.
+  Relaxing that alone is not enough and was measured: the next refusal is
+  "parameter 0 expects `&mut Self`, got `&mut Counter`" (the subject position
+  needs the shape-only treatment the conformance route gives it), and after that
+  "state `increment` expects 0 argument(s), got 1" -- the requirement's `self` is
+  excluded from authored arguments while a binder call, being a static call, must
+  author it. So the nominal form needs the binder's arity taken from the selected
+  declaration rather than the requirement. Three linked sites, no customer that
+  the structural form does not already serve.
+  Acceptance: a fixture spelling the nominal binder over a static satisfier
+  checks and runs, and the structural form keeps working.
 
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is
@@ -245,12 +252,39 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `value_receiver_form(main: &mut Main)` beside its receiver form, and the
   recorded diagnostic names `main.arr[0..2]`. So the machine-call route handles
   the named parent; only the jump route does not.
-  Scope: generalize the footprint gate to accept the argument that supplies the
-  successor's data binding whole and mutably as the parent, and keep
-  `conflicts.rs` from refusing a pair the footprint judgment owns. The
-  suspension obligation must still be enforced inside the successor -- accepting
-  the pair without it would let the successor reach `main.inner` through `main`
-  while `loan` is live.
+  Scope, with the gates named. `call_passes_receiver` already answers yes for
+  this jump -- `local_jump` matches a single-member `TransitionNamed` path, which
+  `next(main, &mut main.inner)` is -- so the first refusing gate is
+  `receiver_is_mutable_reference`, which asks for a parameter that is both
+  `is_self` and `&mut`. The successor's subject is `&mut` and not `is_self`, so
+  it answers no.
+  The load-bearing part is underneath: `flow/place/canonicalization.rs::
+  normalize_attached_place_root` re-roots a field-rooted place at the machine
+  symbol only when the state has an `is_self` parameter, so a receiver-rooted
+  place and a data-binding-rooted place reach DIFFERENT canonical forms, and the
+  footprint judgment compares canonical places. The receiver form COLLAPSES a
+  projection to the field (`self.inner` is recorded as the `inner` field with no
+  segments) while the static form keeps the path (the `main` parameter plus one
+  `Field` segment).
+  **Measured dead end, 2026-10-02 -- do not retry.** Re-rooting the static form
+  at the machine symbol to match the receiver form regresses 55 fixtures from a
+  clean base (measured with `corpus_gate --baseline` at 972d5894a30c): 21 report
+  Lowering `Unsupported("borrowed slice view source does not match its root")`,
+  7 the mutable twin, 15 a unit-plan omission, 5 `scalar computation needs one
+  checked ...`. The root symbol of a static place is load-bearing downstream --
+  a view's source is matched to it -- and the machine symbol does not
+  distinguish two records reaching the same machine through different
+  arguments, so the collapse is not merely imprecise.
+  What that leaves: the two forms must be compared WITHOUT rewriting either
+  root, so the comparison learns that (machine, [field]) and (data binding,
+  [field]) denote one place, rather than the places being normalized to agree.
+  `canonical_place_for_loan` and `captured_place_compatibility` are where that
+  comparison lives.
+  Then: the subject's own argument must be excluded from the arguments the
+  footprint judges, or it is compared against itself; and `conflicts.rs` must
+  stop refusing a pair the footprint judgment owns. The suspension obligation
+  must still be enforced inside the successor -- accepting the pair without it
+  would let the successor reach `main.inner` through `main` while `loan` is live.
   Acceptance: the 13 fixtures check and the `*_exit` ones meet their native
   oracles in the static spelling; the three `receiver_jump_loans` refusals keep
   rejecting, with a static-spelling fixture for each of the two obligations
