@@ -29,40 +29,40 @@ data Main {
     badge: Badge;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.badge.label = "north";
-    self.badge.rank = 9;
-    transition { _ -> inspect(self.badge) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.badge.label = "north";
+    main.badge.rank = 9;
+    transition { _ -> inspect(main, main.badge) }
 
-    state inspect(&mut self, badge: Badge) {
+    state inspect(main: &mut Main, badge: Badge) {
         transition badge.label.len == 5 && badge.rank == 9 {
-            true -> confirm(badge)
-            false -> finish(71)
+            true -> confirm(main, badge)
+            false -> finish(main, 71)
         }
     }
 
-    state confirm(&mut self, badge: Badge) {
+    state confirm(main: &mut Main, badge: Badge) {
         transition badge.label == "north" && badge.rank == 9 {
-            true -> last_byte(badge)
-            false -> finish(72)
+            true -> last_byte(main, badge)
+            false -> finish(main, 72)
         }
     }
 
-    state last_byte(&mut self, badge: Badge) {
+    state last_byte(main: &mut Main, badge: Badge) {
         transition badge.label.len > 4 {
-            true -> matched(badge.label[4] == 104)
-            false -> finish(73)
+            true -> matched(main, badge.label[4] == 104)
+            false -> finish(main, 73)
         }
     }
 
-    state matched(&mut self, same: bool) {
+    state matched(main: &mut Main, same: bool) {
         transition same {
-            true -> finish(70)
-            false -> finish(73)
+            true -> finish(main, 70)
+            false -> finish(main, 73)
         }
     }
 
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(main: &mut Main, code: i32) {
+        main.console.exit_process(code);
     }
 }

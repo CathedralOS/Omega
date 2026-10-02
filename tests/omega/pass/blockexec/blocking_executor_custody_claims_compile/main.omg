@@ -55,10 +55,7 @@ pub boundary trait WorkerProvider {
 
 data CanaryWorkerProvider { }
 
-machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(
-    &self,
-    arguments: Arguments
-) -> T
+machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(canary_worker_provider: &CanaryWorkerProvider, arguments: Arguments) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
 via ForeignBinding::CompilerIntrinsic;
@@ -157,8 +154,8 @@ boundary requirement Executor::close(self);
 
 // Consume a terminal lifecycle outcome — affine, so `drop` remains the
 // ordinary early-disposal call and the edge applies trivial cleanup.
-machine ExecutorOutcome::release(self) {
-    drop(self);
+machine ExecutorOutcome::release(executor_outcome: ExecutorOutcome) {
+    drop(executor_outcome);
 }
 
 // Consume an admission outcome — whichever linear case is active is
@@ -206,7 +203,7 @@ data Main {
     executor: Executor;
 }
 
-machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
+machine Main::probe(main: &mut Main) reaches WorkerProvider suspends; blocks; {
     // Moved custody: `arguments` moves into the submission by value.
     let submission: Submission = Submission {
         arguments: Token { id: 7 },
@@ -230,7 +227,7 @@ machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
     // discharges exactly once at `settle` below.
     Ticket::request_cancel();
     let settled: ExecutorOutcome =
-        suspend block ticket.settle(self.executor.wait_word);
+        suspend block ticket.settle(main.executor.wait_word);
     ExecutorOutcome::release(settled);
 
     // Call-returned sum carrying a linear claim on either arm: binding the
