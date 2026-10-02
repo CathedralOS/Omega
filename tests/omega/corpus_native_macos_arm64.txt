@@ -57,7 +57,7 @@ pass/borrow/runtime_method_view_write_after_last_use_exit built 1212ms exit:70 @
 pass/borrow/write_only_constrained_record_field checked 188ms
 pass/borrow/write_only_whole_scalar_replace checked 204ms
 pass/borrows/borrow_domain_window_write_and_call checked 169ms
-pass/borrows/borrow_guarded_window_write_and_call checked 210ms
+pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd
 pass/borrows/borrow_returned_window_write_and_call checked 181ms
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/branch_selected_record_composed_receiver_exit built 1918ms exit:70 @63377f7122bb+wt
