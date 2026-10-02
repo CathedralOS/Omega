@@ -68,13 +68,10 @@ pub(super) fn declared(
     if !matches!(
         access,
         language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable
-    ) || !matches!(
-        program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { .. }
     ) {
         return None;
     }
-    let primitive_type = program.primitive_type_reference(*referee)?;
+    let primitive_type = validation::unrestricted_builtin_primitive(program, *referee)?;
     if primitive_type == PrimitiveType::Addr {
         return None;
     }

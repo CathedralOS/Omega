@@ -450,6 +450,37 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     Ok(Some(ParameterBindingReceiver { parameter, path }))
 }
 
+/// Rejoin an already located call's observations without interpreting its
+/// result's destination. Constructor member calls own a nested occurrence
+/// whose destination is authenticated by the structural-value source owner.
+pub(crate) fn validate_observations(
+    checked: &CheckedTrees,
+    caller_machine: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    call: &authored::AuthoredCall,
+) -> Result<(), LoweringError> {
+    // Every call family authenticates the captured ordered observations. A
+    // geometrically valid sibling or equally typed local is not evidence for
+    // the authored operand's loan; result shape cannot substitute this join.
+    let captured = crate::expression_preparation::source_custody::borrow_occurrences::call(
+        checked,
+        caller_machine,
+        caller_state,
+        coordinate,
+        call.source_target,
+    )?;
+    crate::expression_preparation::source_custody::computation_calls::replay_call_accesses(
+        checked,
+        caller_machine,
+        caller_state,
+        coordinate.statement_index,
+        captured,
+        &call.explicit_arguments,
+    )?;
+    Ok(())
+}
+
 pub(crate) fn validate_operation(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
@@ -569,6 +600,7 @@ pub(crate) fn validate_operation(
         planned.target.machine,
         planned.target.state,
     )?;
+    validate_observations(checked, caller_machine, caller_state, coordinate, &call)?;
     // A named terminal invocation has no initializer expression. Its exact
     // statement target and signature were rejoined above; every operand and
     // nested call still rejoins its checked source below. Expression-result

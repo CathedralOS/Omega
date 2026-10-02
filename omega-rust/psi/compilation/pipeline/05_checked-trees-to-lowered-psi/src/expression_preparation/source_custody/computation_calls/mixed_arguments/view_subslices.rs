@@ -25,13 +25,14 @@ pub(super) fn captured_range(
     let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
         return unsupported("computed subslice lost its range");
     };
-    let source = crate::emission::call_source_custody::projected_receivers::source(
-        checked,
-        machine,
-        state,
-        statement as usize,
-        indexed.collection,
-    )?;
+    let mut captured =
+        crate::emission::call_source_custody::projected_receivers::observation_place(
+            checked,
+            machine,
+            state,
+            statement as usize,
+            indexed.collection,
+        )?;
     // The borrow ledger canonicalizes closed constant bounds as a fixed
     // half-open range. An omitted end still observes the runtime view length,
     // so it retains the authored index identity rather than a guessed extent.
@@ -59,7 +60,6 @@ pub(super) fn captured_range(
             expression: indexed.index,
         },
     };
-    let mut captured = source.captured_place().clone();
     captured.segments.push(segment);
     Ok(captured)
 }

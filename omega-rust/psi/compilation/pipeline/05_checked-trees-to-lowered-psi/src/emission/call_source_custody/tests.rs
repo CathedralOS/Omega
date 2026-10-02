@@ -795,3 +795,426 @@ fn same_statement_field_store_still_refuses_an_unproved_bounded_destination() {
         "the refusal names at least one diagnostic: {diagnostics:#?}"
     );
 }
+
+const INDEXED_LOCAL_CALL_LOANS: &str = r#"
+    data Tally { hits: i32 in Wrapping; }
+    data Board { tallies: [Tally; 2]; }
+    data Report { total: i32 in Wrapping; }
+    machine bump_hit(hits: &mut i32 in Wrapping) { hits = hits + 1; }
+    machine Tally::absorb(into: &mut Tally, from: &Tally) -> Report {
+        transition { _ -> apply(into, from) }
+        state apply(into: &mut Tally, from: &Tally) {
+            into.hits = into.hits + from.hits;
+            transition { _ -> (Report { total: into.hits }) }
+        }
+    }
+    machine run() {
+        let mut board: Board;
+        let mut other: Board;
+        bump_hit(&mut board.tallies[1].hits);
+        let report: Report = Tally::absorb(&mut board.tallies[1], &other.tallies[1]);
+    }
+"#;
+
+#[test]
+fn indexed_local_call_loans_reject_substituted_checked_custody() {
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+    let checked = crate::front_end::checked_program(INDEXED_LOCAL_CALL_LOANS);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("indexed scalar and state-forwarded record loans lower");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("both call families retain independently verified custody");
+
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = &checked.machine_states(run)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let local_symbol = |index| match &statements[index] {
+        checked_trees::statement::StatementNode::LocalData(local) => local.symbol,
+        _ => panic!("authored Board declaration"),
+    };
+    let board = local_symbol(0);
+    let other = local_symbol(1);
+    let operations = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == run.symbol && plan.state == state.symbol)
+        .flat_map(|plan| &plan.operations)
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter()
+                .filter(|plan| plan.machine == run.symbol)
+                .flat_map(|plan| &plan.states)
+                .filter(|plan| plan.state == state.symbol)
+                .flat_map(|plan| &plan.operations),
+        )
+        .collect::<Vec<_>>();
+    let other_binding = operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                if result.statement_index == 1 =>
+            {
+                Some(result.binding_ordinal)
+            }
+            _ => None,
+        })
+        .expect("same-typed other Board producer");
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|borrow| borrow.machine_symbol == run.symbol && borrow.state_symbol == state.symbol)
+        .expect("run borrow state");
+
+    for target_name in ["bump_hit", "Tally::absorb"] {
+        let target = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == target_name)
+            .unwrap()
+            .symbol;
+        let calls = operations
+            .iter()
+            .filter_map(|operation| operation.call())
+            .filter(|call| call.target.machine == target)
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 1, "one exact {target_name} occurrence");
+        let call = calls[0];
+        assert_eq!(
+            call.structural_result().is_some(),
+            target_name == "Tally::absorb"
+        );
+        let coordinate = call.coordinate;
+        let target_state = call.target.state;
+        let captured = checked
+            .facts
+            .borrow
+            .calls
+            .span(borrow_state.calls)
+            .unwrap()
+            .iter()
+            .filter(|call| {
+                call.statement_index == coordinate.statement_index as usize
+                    && call.call_ordinal == coordinate.call_ordinal as usize
+                    && call.target_symbol == target_state
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(captured.len(), 1, "one exact captured {target_name} call");
+        let access_span = captured[0].accesses;
+        let positions = checked
+            .facts
+            .borrow
+            .argument_accesses
+            .span(access_span)
+            .unwrap()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, access)| (access.root_symbol == board).then_some(position))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            positions.len(),
+            1,
+            "one exclusive Board access at {target_name}"
+        );
+        for mutation in [
+            "root",
+            "index",
+            "access",
+            "captured root",
+            "captured path",
+            "captured access",
+            "captured lifetime",
+        ] {
+            let mut changed = checked.clone();
+            if mutation.starts_with("captured ") {
+                // Change only this occurrence's evidence; authored source and
+                // the argument plan remain intact in each independent control.
+                let row = &mut changed
+                    .facts
+                    .borrow
+                    .argument_accesses
+                    .span_mut(access_span)
+                    .unwrap()[positions[0]];
+                match mutation {
+                    "captured root" => row.root_symbol = other,
+                    "captured path" => {
+                        let segments = row.segments;
+                        let index = changed
+                            .facts
+                            .borrow
+                            .access_segments
+                            .span_mut(segments)
+                            .unwrap()
+                            .iter_mut()
+                            .find(|segment| {
+                                matches!(segment, facts::PlaceSegment::FixedIndex { index: 1 })
+                            })
+                            .expect("captured second element");
+                        *index = facts::PlaceSegment::FixedIndex { index: 0 };
+                    }
+                    "captured access" => {
+                        assert_eq!(row.kind, checked_trees::BorrowAccessKind::Mutable);
+                        row.kind = checked_trees::BorrowAccessKind::Read;
+                    }
+                    "captured lifetime" => {
+                        assert_eq!(row.end_before_access, None);
+                        row.end_before_access = Some(positions[0] + 1);
+                    }
+                    _ => unreachable!(),
+                }
+            } else {
+                let plans = &mut changed.facts.flow.terminal_unit_effects;
+                let mut calls = plans
+                    .machines
+                    .iter_mut()
+                    .filter(|plan| plan.machine == run.symbol && plan.state == state.symbol)
+                    .flat_map(|plan| &mut plan.operations)
+                    .chain(
+                        plans
+                            .composed_machines
+                            .iter_mut()
+                            .filter(|plan| plan.machine == run.symbol)
+                            .flat_map(|plan| &mut plan.states)
+                            .filter(|plan| plan.state == state.symbol)
+                            .flat_map(|plan| &mut plan.operations),
+                    )
+                    .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                    .filter(|call| call.target.machine == target && call.coordinate == coordinate);
+                let call = calls.next().expect("retained call to mutate");
+                assert!(calls.next().is_none());
+                let argument = &mut call.structural_arguments[0];
+                match mutation {
+                    "root" => {
+                        argument.source =
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal: other_binding,
+                            }
+                    }
+                    "index" => {
+                        let index = argument
+                            .path
+                            .iter_mut()
+                            .find(|segment| {
+                                matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(1))
+                            })
+                            .expect("authored second element");
+                        // Both elements have the same type and valid bounds;
+                        // geometry alone cannot distinguish this substitution.
+                        *index = CheckedUnitStructuralPathSegment::FixedIndex(0);
+                    }
+                    "access" => {
+                        assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+                        argument.access = CheckedStructuralAccess::SharedBorrow;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            assert!(
+                lower_machine(&changed, TerminalMachineSelection::Name("run")).is_err(),
+                "{target_name} accepted substituted {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn indexed_record_call_loans_preserve_disjoint_siblings_and_reject_overlap() {
+    let disjoint = INDEXED_LOCAL_CALL_LOANS.replace("&other.tallies[1]", "&board.tallies[0]");
+    let checked = crate::front_end::checked_program(&disjoint);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("one owner can lend disjoint record elements to a state-forwarded call");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("disjoint sibling loans retain independent verification");
+
+    let overlapping = INDEXED_LOCAL_CALL_LOANS.replace("&other.tallies[1]", "&board.tallies[1]");
+    let Err(diagnostics) = crate::front_end::checked_program_result(&overlapping) else {
+        panic!("exclusive and shared loans of the same record element must conflict");
+    };
+    assert!(
+        !diagnostics.is_empty(),
+        "overlapping loans must report a diagnostic"
+    );
+}
+
+#[test]
+fn constructor_member_call_replays_its_own_captured_loan() {
+    let definitions = INDEXED_LOCAL_CALL_LOANS
+        .split("machine run() {")
+        .next()
+        .unwrap();
+    let source = format!(
+        "{definitions}
+        data Envelope {{ report: Report; }}
+        machine run(board: &mut Board, other: &Board) {{
+            let envelope: Envelope = Envelope {{
+                report: Tally::absorb(&mut board.tallies[1], &other.tallies[1])
+            }};
+        }}"
+    );
+    let mut checked = crate::front_end::checked_program(&source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("constructor member call keeps its nested source occurrence");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("constructor member loan verifies independently");
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = &checked.machine_states(run)[0];
+    let other = checked.state_parameters(state)[1].symbol;
+    let absorb = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Tally::absorb")
+        .unwrap();
+    let absorb_entry = checked.machine_states(absorb)[0].symbol;
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .find(|row| row.machine_symbol == run.symbol && row.state_symbol == state.symbol)
+        .unwrap();
+    let calls = checked
+        .facts
+        .borrow
+        .calls
+        .span(borrow_state.calls)
+        .unwrap()
+        .iter()
+        .filter(|call| call.target_symbol == absorb_entry)
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "one constructor member invocation");
+    let accesses = calls[0].accesses;
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .argument_accesses
+            .span(accesses)
+            .unwrap()
+            .len(),
+        2
+    );
+    let loan = &mut checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span_mut(accesses)
+        .unwrap()[0];
+    assert_eq!(loan.kind, checked_trees::BorrowAccessKind::Mutable);
+    assert_ne!(loan.root_symbol, other);
+    loan.root_symbol = other;
+    assert!(
+        lower_machine(&checked, TerminalMachineSelection::Name("run")).is_err(),
+        "a constructor's member call cannot substitute its captured exclusive root"
+    );
+}
+
+#[test]
+fn folded_local_selectors_keep_their_exact_captured_occurrences() {
+    let mut checked = crate::front_end::checked_program(
+        "machine write_marker(value: &mut u32) { value = 70; }
+         machine run() {
+             let values: [u32; 2] = [10, 20];
+             let position: u64 = 1;
+             let other_position: u64 = 1;
+             write_marker(&mut values[position]);
+             write_marker(&mut values[other_position]);
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("folded local selectors preserve their captured reads and loans");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("folded argument places verify independently");
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = &checked.machine_states(run)[0];
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .find(|row| row.machine_symbol == run.symbol && row.state_symbol == state.symbol)
+        .unwrap();
+    let calls = checked.facts.borrow.calls.span(borrow_state.calls).unwrap();
+    assert_eq!(calls.len(), 2);
+    let captured_segments = calls
+        .iter()
+        .map(|call| {
+            let accesses = checked
+                .facts
+                .borrow
+                .argument_accesses
+                .span(call.accesses)
+                .unwrap();
+            let loans = accesses
+                .iter()
+                .filter(|access| access.kind == checked_trees::BorrowAccessKind::Mutable)
+                .collect::<Vec<_>>();
+            assert_eq!(loans.len(), 1);
+            loans[0].segments
+        })
+        .collect::<Vec<_>>();
+    let selector = |span| {
+        let [facts::PlaceSegment::Index { expression }] =
+            checked.facts.borrow.access_segments.span(span).unwrap()
+        else {
+            panic!("an immutable local selector retains its source occurrence")
+        };
+        *expression
+    };
+    let first = selector(captured_segments[0]);
+    let second = selector(captured_segments[1]);
+    assert_ne!(first, second);
+    // Both selectors fold to the same legal index. Neither equal carrier
+    // shape nor equal folded value can replace the captured source occurrence.
+    checked
+        .facts
+        .borrow
+        .access_segments
+        .span_mut(captured_segments[0])
+        .unwrap()[0] = facts::PlaceSegment::Index { expression: second };
+    assert!(
+        lower_machine(&checked, TerminalMachineSelection::Name("run")).is_err(),
+        "a different equally valued local selector cannot replace this occurrence"
+    );
+}

@@ -4,8 +4,10 @@
 // loans end with the call. A completed local record also lends one element
 // of its record array through the same calls: `&mut board.tallies[1]` is the
 // projected exclusive loan and `&board.tallies[1]` the projected shared
-// observation. Exits 70 only when the reports and every local
-// show exactly the writes made through the exclusive loans.
+// observation. A scalar-field loan below that element increments its hits,
+// and the record-returning callee forwards both loans to a successor state.
+// Exits 70 only when the reports and every local show exactly the writes
+// made through the exclusive loans.
 
 use omega_language_std::console;
 
@@ -21,9 +23,17 @@ machine Tally::peek(tally: &Tally) -> i32 in Wrapping {
     tally.hits
 }
 
+machine bump_hit(hits: &mut i32 in Wrapping) {
+    hits = hits + 1;
+}
+
 machine Tally::absorb(into: &mut Tally, from: &Tally) -> Report {
-    into.hits = into.hits + from.hits;
-    transition { _ -> (Report { total: into.hits + into.misses }) }
+    transition { _ -> apply(into, from) }
+
+    state apply(into: &mut Tally, from: &Tally) {
+        into.hits = into.hits + from.hits;
+        transition { _ -> (Report { total: into.hits + into.misses }) }
+    }
 }
 
 machine main() reaches Console {
@@ -35,11 +45,12 @@ machine main() reaches Console {
     let mut board: Board;
     Tally::bump(&mut board.tallies[0], 30);
     Tally::bump(&mut board.tallies[1], 40);
+    bump_hit(&mut board.tallies[1].hits);
     let projected: Report = Tally::absorb(&mut board.tallies[1], &right);
     let peeked: i32 in Wrapping = Tally::peek(&board.tallies[1]);
     transition merged.total == 70 && left.hits == 70 && right.hits == 40
-        && projected.total == 80 && board.tallies[1].hits == 80
-        && board.tallies[0].hits == 30 && peeked == 80 {
+        && projected.total == 81 && board.tallies[1].hits == 81
+        && board.tallies[0].hits == 30 && peeked == 81 {
         true -> done(70)
         _ -> done(71)
     }

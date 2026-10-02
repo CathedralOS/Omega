@@ -15,6 +15,8 @@ pub(crate) mod nested;
 pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
+    /// Original explicit source order, before partitioning scalar and structural lanes.
+    pub explicit_arguments: Vec<ExpressionHandle>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     /// Positions within `scalar_arguments` the callee strips as proof-only
     /// erased formals. Plan rows carry them on a separate lane.
@@ -298,6 +300,7 @@ pub(crate) fn locate_source(
     Ok(AuthoredCall {
         source_target,
         source_site,
+        explicit_arguments: arguments.to_vec(),
         scalar_arguments,
         erased_scalar_positions,
         structural_arguments,

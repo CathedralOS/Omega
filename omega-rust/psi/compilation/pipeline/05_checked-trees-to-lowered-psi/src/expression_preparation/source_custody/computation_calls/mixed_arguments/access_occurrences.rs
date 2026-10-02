@@ -39,8 +39,41 @@ impl ArgumentAccessExtent {
     }
 }
 
-/// Keep each actual's complete observation extent separate from its operand row.
+/// Preserve the scalar lane's conservative overlap admission after replaying
+/// the exact authored observation roster shared with all call result families.
 pub(crate) fn rejoin(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    call: &BorrowCallFact,
+    arguments: &[ExpressionHandle],
+) -> Result<Vec<ArgumentAccessExtent>, LoweringError> {
+    let positions = replay(checked, machine, state, statement, call, arguments)?;
+    let rows = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span(call.accesses)
+        .ok_or(LoweringError::Unsupported(
+            "computed shared borrow has a stale observation roster",
+        ))?;
+    for (position, row) in rows.iter().enumerate() {
+        for (later_position, later) in rows.iter().enumerate().skip(position + 1) {
+            if row.root_symbol == later.root_symbol
+                && (row.kind.is_exclusive() || later.kind.is_exclusive())
+                && row.end_before_access.is_none_or(|end| end > later_position)
+            {
+                return unsupported("computed shared borrow aliases an exclusive observation");
+            }
+        }
+    }
+    Ok(positions)
+}
+
+/// Authenticate every ordered observation and its lifetime against authored
+/// places. This does not grant loans or replace path-sensitive conflict checks.
+pub(crate) fn replay(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -59,6 +92,53 @@ pub(crate) fn rejoin(
     let (source_machine, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let plain_copy = |expression| {
+        // The borrow roster records reads of captured places, not the type of
+        // a newly produced range descriptor. Its dynamic Index projects the
+        // collection element; a closed FixedRange has no scalar place type.
+        // Reconstruct that exact distinction before checking the recorded end.
+        // This is only the read row's lifetime, not the descriptor's backing
+        // loan. Explicit/forwarded loans bypass copy expiry below; view source
+        // custody and Terminal independently retain their backing lifetime.
+        if let ExpressionNode::Indexed(indexed) = table.expression(expression)
+            && let ExpressionNode::Range(range) = table.expression(indexed.index)
+        {
+            let fixed_start = !range.start.is_valid()
+                || table
+                    .constant_integer_value(range.start)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_some();
+            let fixed_end = range.end.is_valid()
+                && table
+                    .constant_integer_value(range.end)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_some();
+            if fixed_start && fixed_end {
+                return false;
+            }
+            return validation::expression_result_type_reference(
+                &checked.typed,
+                source_machine,
+                source_state,
+                indexed.collection,
+            )
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .and_then(
+                |reference| match checked.type_reference_table.type_reference(reference) {
+                    checked_trees::types::TypeReferenceNode::Slice { element_type }
+                    | checked_trees::types::TypeReferenceNode::FixedArray {
+                        element_type, ..
+                    } => Some(*element_type),
+                    _ => None,
+                },
+            )
+            .is_some_and(|element| {
+                validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    element,
+                ) && checked.type_multiplicity(element)
+                    == language_semantics::Multiplicity::Unrestricted
+            });
+        }
         validation::expression_result_type_reference(
             &checked.typed,
             source_machine,
@@ -73,6 +153,14 @@ pub(crate) fn rejoin(
     };
     let mut positions = Vec::with_capacity(arguments.len());
     let selected_access = |argument, formal| {
+        // A range computes a new descriptor. It is observed in source order,
+        // unlike forwarding an already established reference carrier, whose
+        // place selectors are evaluated before its retained loan.
+        if matches!(table.expression(argument), ExpressionNode::Indexed(indexed)
+            if matches!(table.expression(indexed.index), ExpressionNode::Range(_)))
+        {
+            return None;
+        }
         validation::expression_result_type_reference(
             &checked.typed,
             source_machine,
@@ -89,27 +177,12 @@ pub(crate) fn rejoin(
     };
     let mut observation_ends: Vec<Option<usize>> = Vec::new();
     let mut position = 0;
-    let owner =
-        checked
-            .machine_holding_state(call.target_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "observation target has no authored owner",
-            ))?;
-    let target = checked
-        .machine_states(owner)
-        .iter()
-        .find(|state| state.symbol == call.target_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "observation target has no authored state",
-        ))?;
-    let parameters = checked
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() {
-        return unsupported("observation arguments disagree with the selected signature");
-    }
+    let signature = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        machine,
+        call.target_symbol,
+    )?;
+    let parameters = explicit_parameters(signature.parameters, arguments.len())?;
     for (argument, parameter) in arguments.iter().zip(parameters) {
         let start = position;
         let mut operand = None;
@@ -198,7 +271,13 @@ pub(crate) fn rejoin(
             let mut argument_children = Vec::new();
             let mut receiver = None;
             let (named, kind) = if let Some((target, kind)) = loan {
-                (Some(target), kind)
+                // Place evaluation already replayed a temporary's producer and
+                // its operands. A computed result has no named capture row;
+                // result custody independently owns the temporary's live loan.
+                (
+                    has_named_place_root(checked, target)?.then_some(target),
+                    kind,
+                )
             } else {
                 match table.expression(expression) {
                     ExpressionNode::Borrow(borrow) => (
@@ -226,7 +305,19 @@ pub(crate) fn rejoin(
                         );
                         (None, BorrowAccessKind::Read)
                     }
+                    ExpressionNode::Name(_)
+                        if validation::exact_case_reference_owner(&checked.typed, expression)
+                            .is_some() =>
+                    {
+                        (None, BorrowAccessKind::Read)
+                    }
                     ExpressionNode::Name(_) => (Some(expression), BorrowAccessKind::Read),
+                    ExpressionNode::Member(member)
+                        if !has_named_place_root(checked, expression)? =>
+                    {
+                        children.push(member.receiver);
+                        (None, BorrowAccessKind::Read)
+                    }
                     ExpressionNode::Member(_) => (Some(expression), BorrowAccessKind::Read),
                     ExpressionNode::Atomic(atomic) => {
                         children.push(atomic.value);
@@ -287,28 +378,14 @@ pub(crate) fn rejoin(
                                 "computed shared borrow has stale nested argument observations",
                             );
                         }
-                        let owner = checked.machine_holding_state(call.target_symbol).ok_or(
-                            LoweringError::Unsupported(
-                                "nested observation target has no authored owner",
-                            ),
-                        )?;
-                        let target = checked
-                            .machine_states(owner)
-                            .iter()
-                            .find(|state| state.symbol == call.target_symbol)
-                            .ok_or(LoweringError::Unsupported(
-                                "nested observation target has no authored state",
-                            ))?;
-                        let parameters = checked
-                            .state_parameters(target)
-                            .iter()
-                            .filter(|parameter| !parameter.is_self)
-                            .collect::<Vec<_>>();
-                        if parameters.len() != arguments.len() {
-                            return unsupported(
-                                "nested observations disagree with the selected signature",
-                            );
-                        }
+                        let signature =
+                            crate::emission::call_source_custody::authored::target_signature(
+                                checked,
+                                machine,
+                                call.target_symbol,
+                            )?;
+                        let parameters =
+                            explicit_parameters(signature.parameters, arguments.len())?;
                         for (argument, parameter) in arguments.iter().zip(parameters) {
                             let access = selected_access(*argument, parameter.type_reference);
                             argument_children.push((*argument, access));
@@ -341,6 +418,12 @@ pub(crate) fn rejoin(
                         // Array source replay independently validates every sibling;
                         // only the selector contributes reads here.
                         children.push(indexed.index);
+                        (None, BorrowAccessKind::Read)
+                    }
+                    ExpressionNode::Indexed(indexed)
+                        if !has_named_place_root(checked, expression)? =>
+                    {
+                        children.extend([indexed.collection, indexed.index]);
                         (None, BorrowAccessKind::Read)
                     }
                     ExpressionNode::Indexed(indexed) => {
@@ -383,15 +466,13 @@ pub(crate) fn rejoin(
                         checked, machine, state, statement, named,
                     )?
                 } else {
-                    crate::emission::call_source_custody::projected_receivers::source(
+                    crate::emission::call_source_custody::projected_receivers::observation_place(
                         checked,
                         machine,
                         state,
                         statement as usize,
                         named,
                     )?
-                    .captured_place()
-                    .clone()
                 };
                 let row = rows.get(position).ok_or(LoweringError::Unsupported(
                     "computed shared borrow omits an authored observation",
@@ -451,16 +532,59 @@ pub(crate) fn rejoin(
         if row.end_before_access != observation_ends[position] {
             return unsupported("computed borrow changed its authored observation lifetime");
         }
-        for (later_position, later) in rows.iter().enumerate().skip(position + 1) {
-            if row.root_symbol == later.root_symbol
-                && (row.kind.is_exclusive() || later.kind.is_exclusive())
-                && observation_ends[position].is_none_or(|end| end > later_position)
-            {
-                return unsupported("computed shared borrow aliases an exclusive observation");
-            }
-        }
     }
     Ok(positions)
+}
+
+/// Distinguish stored projections from a computed value's member/index reads.
+/// This only chooses which evaluation to replay; the existing canonical-place
+/// resolver still authenticates every named storage root and full projection.
+fn has_named_place_root(
+    checked: &CheckedTrees,
+    mut expression: ExpressionHandle,
+) -> Result<bool, LoweringError> {
+    let mut visited = Vec::new();
+    loop {
+        if !checked.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            return unsupported("call observation has a stale or cyclic place source");
+        }
+        visited.push(expression);
+        match checked.expression_table.expression(expression) {
+            ExpressionNode::Name(_) => {
+                return Ok(
+                    validation::exact_case_reference_owner(&checked.typed, expression).is_none(),
+                );
+            }
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
+            _ => return Ok(false),
+        }
+    }
+}
+
+/// The source may spell self explicitly or supply it as a receiver. Keep the
+/// original explicit order, including erased formals, for observation replay.
+fn explicit_parameters(
+    parameters: &[checked_trees::signature::StateParameter],
+    argument_count: usize,
+) -> Result<Vec<&checked_trees::signature::StateParameter>, LoweringError> {
+    let nonself_count = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    let explicit_self = argument_count > nonself_count;
+    let explicit = parameters
+        .iter()
+        .filter(|parameter| explicit_self || !parameter.is_self)
+        .collect::<Vec<_>>();
+    if explicit.len() != argument_count {
+        return unsupported("observation arguments disagree with the selected signature");
+    }
+    Ok(explicit)
 }
 
 /// Place formation evaluates selectors, not the referent's contents.
