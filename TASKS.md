@@ -206,15 +206,36 @@ execution and native exit/output. A moved refusal is still unfinished work.
   simulation/langtons_ant,simulation/random_walk}`. All nine meet their native
   oracles today and reach only this refusal once migrated, so they are a clean
   acceptance set.
-  **This one is NOT purely an implementation fix and needs the owner.** The
-  parameter identity is a NORMALIZED identity that package review evidence
-  digests; emitting the subject role instead of the `self` spelling changes the
-  identity string of every receiver-form machine in the repository, so every
-  recorded evidence digest moves with it. The shape to decide is whether the
-  atom becomes `subject(yes|no)` answered by role -- which is what makes the two
-  spellings agree -- and how the digest refresh is attributed, given
-  [[trusted-surface digests]] says never to refresh a digest for a file one did
-  not author.
+  **Three sites in a chain, the first two measured as fixable and digest-safe,
+  the third a real semantics question. Attempted and reverted 2026-10-02 because
+  the first two alone leave no green customer.**
+  1. `type_identity.rs:560` writes `atom("self", parameter.is_self)`. Answering
+     it from `data_binding_position` instead -- keeping the atom's NAME -- makes
+     a named subject read `self(yes)` and leaves every receiver-form identity
+     byte-identical, so recorded digests do not move. Measured: the identity then
+     matches and the refusal advances.
+  2. `realization/selected-dispatch/.../adapter_rows.rs` filters the provider's
+     entry parameters with `!parameter.is_self`, so a named subject is counted as
+     a forwarded boundary parameter and the row reports "has 2 non-self entry
+     parameters". Excluding the subject POSITION instead advances it again, and
+     `langtons_ant` then CHECKS with a named-subject `Clock` provider -- the Q4
+     widest case, admitted.
+  3. What remains is `validation/foundation/provider_candidates.rs`, which
+     requires `row.signature.parameters` to equal BOTH the boundary's and the
+     candidate's `provider_signature_parameter` list, and that record carries
+     `is_self`. Here the difference is not a spelling: at the Terminal level a
+     static machine genuinely has NO attachment -- the contract says a carrier
+     qualification "contributes no argument or storage" -- so the boundary's
+     `self(yes, Clock)` and the candidate's `subject(no, PacingClockProvider)`
+     differ in both flag and type. Making them correspond is a provider
+     REFINEMENT rule (the provider's own subject standing in for the boundary
+     receiver, at the provider's type), which is realization semantics rather
+     than a keyed-to-`self` slip.
+  Setting the structural parameter's `is_self` true for a named subject at
+  lowering is NOT the answer: `AttachmentStorage::AuthoredReceiver` already
+  distinguishes a machine that retains a receiver, and a static machine
+  deliberately has no attachment, so that flag would contradict the
+  representation.
   Two smaller blockers sit behind the same nine samples once this clears:
   `rendering/bouncing_particles` and `text/substring_search` report "cannot prove
   index ... is within length" for `main.b * 20 + main.a` and a plain `main.j`,

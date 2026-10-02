@@ -4,9 +4,9 @@
 // arms"); an internal state target stays a jump. Each leg forwards an `i32`
 // result through `_ -> callee(..)` with scalar arguments:
 //
-//   forward  a one-state receiver machine tail-calls `Main::add(&mut self, value, 5)`.
+//   forward  a one-state receiver machine tail-calls `Main::add(main, value, 5)`.
 //   staged   jumps to its internal state `adding`, whose closing arm
-//            tail-calls `Main::add(&mut self, value, 7)`: the call is that state's last
+//            tail-calls `Main::add(main, value, 7)`: the call is that state's last
 //            operation and its bound result is the state's returned value.
 //   pick     a machine without a receiver forwards a borrowed view and an
 //            index to `Main::at`, which reads the selected element.

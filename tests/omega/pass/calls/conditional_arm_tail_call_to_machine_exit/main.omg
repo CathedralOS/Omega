@@ -1,8 +1,8 @@
 // A terminal machine call directly in a guarded transition arm completes the
 // caller with that call; the untaken arm's call must not run
 // (wiki/spec/language/state_contracts.md, "Terminal calls in transition
-// arms"). `main` checks a stored value and takes `true -> Main::finish(&mut self)`,
-// which exits 70; the `false` arm tail-calls `Main::wrong(&mut self)`, which exits 71.
+// arms"). `main` checks a stored value and takes `true -> Main::finish(main)`,
+// which exits 70; the `false` arm tail-calls `Main::wrong(main)`, which exits 71.
 // `calls/transition_tail_call_to_machine` covers tail calls in unconditional
 // arms.
 use omega_language_std::console;

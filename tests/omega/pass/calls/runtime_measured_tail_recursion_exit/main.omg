@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70) + interpreter differential. Measured recursion MR1
 // (ruling 2026-07-18): the call-spelled TAIL arm `true ->
-// Main::countdown(&mut self, remaining - 1)` on a MEASURED machine (`terminates by
+// Main::countdown(main, remaining - 1)` on a MEASURED machine (`terminates by
 // remaining;`) is legal -- it resolves onto the SAME
 // loop-back edge as the bare `-> countdown(..)` (a jump with re-bound
 // arguments; constant stack), and the termination pass proves the strict
