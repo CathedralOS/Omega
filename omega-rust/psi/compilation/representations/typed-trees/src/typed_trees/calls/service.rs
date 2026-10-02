@@ -80,9 +80,7 @@ pub fn classify_exact_bound_service_carrier(
         TypeReferenceNode::Generic { .. } => current,
         TypeReferenceNode::Named { symbol, .. } => {
             let Some(origin) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+                .data_definition_by_symbol(*symbol)
                 .and_then(|definition| definition.generic_instance)
             else {
                 return Ok(None);
@@ -176,11 +174,7 @@ pub fn exact_bound_service_requirement(
 }
 
 pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
-    else {
+    let Some(definition) = program.data_definition_by_symbol(symbol) else {
         return false;
     };
     // One carrier, one source. `ForeignBinding` was listed here as a second
