@@ -702,6 +702,38 @@ pub enum AbstractOperation {
 }
 
 impl AbstractOperation {
+    /// The declared structural value produced by this operation, independent
+    /// of its constructor or call origin. This is semantic custody, not an
+    /// assertion that the value owns storage: views and primitive locals also
+    /// produce structural declarations, and receiving storage owners decide
+    /// which results need a physical home.
+    pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
+        let result = match self {
+            Self::EstablishScalarArray { result, .. }
+            | Self::EstablishPrimitiveLocal { result, .. }
+            | Self::ByteSequenceSubslice { result, .. }
+            | Self::EstablishElementView { result, .. }
+            | Self::ElementViewSubslice { result, .. }
+            | Self::MoveStructuralField { result, .. }
+            | Self::StructuralLeafCopy { result, .. }
+            | Self::EstablishCase { result, .. }
+            | Self::EstablishByteSequenceConcatenation { result, .. }
+            | Self::EstablishZeroedStructural { result, .. }
+            | Self::EstablishRecord { result, .. }
+            | Self::EstablishReference { result, .. }
+            | Self::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
+            | Self::BoundaryCall {
+                result: AbstractBoundaryResult::Structural(result),
+                ..
+            } => result,
+            _ => return None,
+        };
+        Some((self.psi_operation()?, result))
+    }
+
     /// Every runtime-selected element (`RuntimeIndex { index, obligation }`)
     /// in the name-spelled paths this operation carries, in operand and path
     /// order: the Omega image of Terminal's `structural_projections`

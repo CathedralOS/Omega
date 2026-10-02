@@ -484,6 +484,197 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
 }
 
 #[test]
+fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
+    use abstract_operations::AbstractBoundaryResult;
+    use semantic_vocabulary::BoundaryMachineId;
+    use target_operations::{
+        NativeCallOrigin, TargetCallResult, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
+        TargetStructuralHomeRequirement,
+    };
+    use terminal_psi::{
+        ProviderCandidateConformance, ProviderRefinement, ProviderSignature,
+        StructuralOperationResult, StructuralResultDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let (mut function, mut target) = field_fixture(scalar_type);
+    let parameter = function.structural_parameters.remove(0);
+    target.graph.parameters.clear();
+    let producer = OperationId::new(2).unwrap();
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let callee = MachineId::new(2).unwrap();
+    let owner = StructuralOperationResult {
+        place: parameter.place,
+        structural_type: parameter.structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    let element = StructuralTypeId::new(2).unwrap();
+    target.graph.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: owner.structural_type,
+            identity: "test::Bytes".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 2 },
+        },
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "test::Byte".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        },
+    ]
+    .into();
+    let observation = OperationId::new(1).unwrap();
+    let observed = AbstractResult {
+        value: ValueId::new(1).unwrap(),
+        scalar_type,
+    };
+    function.operations[0] = AbstractOperation::PrimitiveScalarRead {
+        psi_operation: observation,
+        result: observed,
+        source: owner.place,
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+    };
+    function.operations.insert(
+        0,
+        AbstractOperation::BoundaryCall {
+            psi_operation: producer,
+            result: AbstractBoundaryResult::Structural(owner.clone()),
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    target.graph.blocks[0].operations[0] = TargetUnitOperation::PrimitiveScalarRead {
+        psi_operation: observation,
+        result: observed,
+        source: owner.place,
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+        indices: Vec::new(),
+    };
+    target.graph.blocks[0].operations.insert(
+        0,
+        TargetUnitOperation::Call {
+            origin: NativeCallOrigin::InstalledProvider {
+                boundary,
+                provider: ProviderCandidateConformance {
+                    boundary,
+                    requirement_identity: "Factory::produce".into(),
+                    provider_identity: "Provider".into(),
+                    candidate_identity: "Provider::produce".into(),
+                    candidate: callee,
+                    signature: ProviderSignature {
+                        parameters: Vec::new(),
+                    },
+                    refinement: ProviderRefinement {
+                        positional_parameters: Vec::new(),
+                        required_domains: Vec::new(),
+                        realized_service_ceiling: Vec::new(),
+                    },
+                },
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+            psi_operation: producer,
+            callee,
+            call_plan: target.graph.call_plan.clone(),
+            result: TargetCallResult::Structural {
+                result: owner.clone(),
+                callee_result: StructuralResultDeclaration {
+                    place: PlaceId::new(20).unwrap(),
+                    structural_type: owner.structural_type,
+                    multiplicity: owner.multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                },
+                result_home: Some(TargetStructuralHomeRequirement {
+                    origin: TargetStructuralHomeOrigin::OperationResult {
+                        operation: producer,
+                        result: owner.clone(),
+                    },
+                    layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(2, 1)),
+                }),
+                reference_results: Vec::new(),
+                returned_claim_transfers: Vec::new(),
+            },
+            scalar_arguments: Vec::new(),
+            arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    );
+    // Source membership checks the read and its owned result identity. The
+    // independent call/installation and selected-load replays own the ABI,
+    // provider conformance, layout and physical residence.
+    assert!(retained(&function, &function.operations[1], &target));
+    for mutation in 0..7 {
+        let mut changed = target.clone();
+        let TargetUnitOperation::Call {
+            psi_operation,
+            result: TargetCallResult::Structural { result_home, .. },
+            ..
+        } = &mut changed.graph.blocks[0].operations[0]
+        else {
+            panic!("structural call");
+        };
+        let home = result_home.as_mut().unwrap();
+        let TargetStructuralHomeOrigin::OperationResult { operation, result } = &mut home.origin
+        else {
+            panic!("operation home");
+        };
+        match mutation {
+            0 => *psi_operation = OperationId::new(3).unwrap(),
+            1 => *operation = OperationId::new(3).unwrap(),
+            2 => result.place = PlaceId::new(3).unwrap(),
+            3 => result.structural_type = element,
+            4 => result.multiplicity = StructuralMultiplicity::Affine,
+            5 => *result_home = None,
+            _ => {
+                changed.graph.blocks[0].operations.remove(0);
+            }
+        };
+        assert!(
+            !retained(&function, &function.operations[1], &changed),
+            "mutation {mutation}"
+        );
+    }
+    let mut missing_source = function.clone();
+    missing_source.operations.remove(0);
+    assert!(!retained(
+        &missing_source,
+        &missing_source.operations[0],
+        &target
+    ));
+    function.operations[0] = AbstractOperation::CallStructural {
+        psi_operation: producer,
+        callee,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        result: AbstractStructuralCallResult::Structural {
+            result: owner,
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let TargetUnitOperation::Call { origin, .. } = &mut target.graph.blocks[0].operations[0] else {
+        panic!("call");
+    };
+    *origin = NativeCallOrigin::Authored;
+    assert!(retained(&function, &function.operations[1], &target));
+}
+
+#[test]
 fn local_byte_length_membership_requires_the_exact_owned_home() {
     use target_operations::{
         TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
