@@ -287,6 +287,23 @@ impl Context<'_> {
                     )
                     .is_ok()
             }
+            Computation::ByteSequencePredicate {
+                operand_type,
+                source_expression,
+                subject,
+                ..
+            } => {
+                node.primitive_type == PrimitiveType::Bool
+                    && super::computation_calls::byte_predicates::validate(
+                        self.checked,
+                        self.state,
+                        self.statement,
+                        *source_expression,
+                        *operand_type,
+                        subject,
+                    )
+                    .is_ok()
+            }
             Computation::StructuralField {
                 source_expression,
                 subject,
@@ -1032,6 +1049,7 @@ impl Context<'_> {
             // expression producer used by array operands.
             Boolean::IeeeFloatComparison { .. }
             | Boolean::ByteSequenceEqual { .. }
+            | Boolean::ByteSequencePredicate { .. }
             | Boolean::ErasedParameter { .. }
             | Boolean::PayloadlessSumEqual { .. } => false,
         }

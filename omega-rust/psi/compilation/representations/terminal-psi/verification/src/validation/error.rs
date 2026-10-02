@@ -1403,6 +1403,21 @@ pub enum ModuleError {
         source: PlaceId,
         length: ValueId,
     },
+    ByteSequencePredicateRequiresBooleanResult(OperationId),
+    InvalidByteSequencePredicateSource {
+        operation: OperationId,
+        source: PlaceId,
+    },
+    InvalidByteSequencePredicateLength {
+        operation: OperationId,
+        source: PlaceId,
+        length: ValueId,
+    },
+    InvalidByteSequencePredicateField {
+        operation: OperationId,
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
     ByteSequenceReadOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,

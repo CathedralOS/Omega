@@ -378,6 +378,17 @@ fn substitute_boolean(
             element_path,
             case,
         },
+        Boolean::ByteSequencePredicate {
+            predicate,
+            source,
+            path,
+            field,
+        } => Boolean::ByteSequencePredicate {
+            predicate,
+            source,
+            path: substitute_path(path, bound),
+            field,
+        },
         expression @ (Boolean::StructuralCaseMembership { .. }
         | Boolean::PrimitiveRead { .. }
         | Boolean::Constant { .. }
@@ -606,6 +617,18 @@ fn case_reads<'e>(
             collect_direct_case_reads(right, reads);
         }
         Boolean::IndexedCaseMembership { index, .. } => collect_direct_case_reads(index, reads),
+        Boolean::ByteSequencePredicate { path, .. } => {
+            for segment in path {
+                if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } =
+                    segment
+                {
+                    collect_direct_case_reads(selector, reads);
+                    if let Some(extent) = extent {
+                        collect_direct_case_reads(extent, reads);
+                    }
+                }
+            }
+        }
         Boolean::StructuralCaseMembership { .. }
         | Boolean::Constant { .. }
         | Boolean::Parameter { .. }

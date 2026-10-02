@@ -366,3 +366,29 @@ fn decode_byte_sequence_operand(
         tag => Err(CodecError::InvalidTag("byte sequence operand", tag)),
     }
 }
+
+pub(super) fn encode_byte_sequence_predicate(
+    writer: &mut Writer,
+    operand: terminal_psi::control_flow::ByteSequenceOperand,
+    predicate: terminal_psi::ByteSequencePredicate,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::BYTE_SEQUENCE_PREDICATE);
+    encode_byte_sequence_operand(writer, operand)?;
+    writer.u8(predicate.mask_bit());
+    Ok(())
+}
+
+pub(super) fn decode_byte_sequence_predicate(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ByteSequencePredicate {
+        operand: decode_byte_sequence_operand(reader)?,
+        predicate: match reader.u8()? {
+            1 => terminal_psi::ByteSequencePredicate::ValidUtf8,
+            2 => terminal_psi::ByteSequencePredicate::NoNul,
+            4 => terminal_psi::ByteSequencePredicate::AsciiOnly,
+            8 => terminal_psi::ByteSequencePredicate::NonEmpty,
+            tag => return Err(CodecError::InvalidTag("ByteSequencePredicate", tag)),
+        },
+    })
+}

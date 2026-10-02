@@ -738,7 +738,8 @@ fn computation_contains_trapping_operation(
             Kind::BoundaryCall { arguments, .. } => {
                 pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
             }
-            Kind::ByteSequenceLiteralComparison { subject, .. } => {
+            Kind::ByteSequenceLiteralComparison { subject, .. }
+            | Kind::ByteSequencePredicate { subject, .. } => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { start, end, .. } = &subject.source
                     && start.iter().chain(end.iter()).any(|endpoint| endpoint.contains_trapping_operation())
                 { return true; }

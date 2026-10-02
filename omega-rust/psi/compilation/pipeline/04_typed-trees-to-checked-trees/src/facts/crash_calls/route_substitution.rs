@@ -469,6 +469,7 @@ fn boolean_evidence_is_crash_lane_lowerable(
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
     }
@@ -606,6 +607,34 @@ pub(crate) fn substitute_checked_boolean_expression(
             CheckedBooleanExpression::StructuralCaseMembership {
                 subject: substitute_structural_parameter_field(subject, fields)?,
                 case: case.clone(),
+            }
+        }
+        // A byte-predicate evaluation is atomic over the same structural
+        // operand: a parameter-rooted subject re-roots through the caller's
+        // frozen structural channel and its path appends below the bound
+        // member spine. A predicate rooted at local storage cannot be rebound
+        // by the outer call and loses portable structure like a local read.
+        CheckedBooleanExpression::ByteSequencePredicate {
+            predicate,
+            root,
+            path,
+        } => {
+            let checked_trees::CheckedStorageRoot::Parameter { index } = root else {
+                return None;
+            };
+            let leaf = substitute_structural_parameter_field(
+                &checked_trees::CheckedStructuralParameterField {
+                    parameter_position: *index,
+                    path: path.clone(),
+                },
+                fields,
+            )?;
+            CheckedBooleanExpression::ByteSequencePredicate {
+                predicate: *predicate,
+                root: checked_trees::CheckedStorageRoot::Parameter {
+                    index: leaf.parameter_position,
+                },
+                path: leaf.path,
             }
         }
         // A standalone Boolean field read is the same frozen structural leaf

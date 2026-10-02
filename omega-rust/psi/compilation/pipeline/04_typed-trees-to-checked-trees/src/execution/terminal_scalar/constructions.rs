@@ -240,7 +240,8 @@ pub(super) fn retain_shapes(
             }
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 operand_type, ..
-            } => {
+            }
+            | CheckedScalarComputationKind::ByteSequencePredicate { operand_type, .. } => {
                 for shape in
                     super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?
                 {

@@ -75,6 +75,7 @@ const VAL_BYTES_LENGTH: &str = "omega-rust/psi/compilation/representations/termi
 const VAL_BYTES_READ: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/read.rs";
 const VAL_BYTES_WRITE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/write.rs";
 const VAL_BYTES_SUBSLICE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/subslice.rs";
+const VAL_BYTES_PREDICATE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/predicate.rs";
 const VAL_FLOAT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_meaning.rs";
 const VAL_PARTIAL_AFFINE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/partial_affine.rs";
 const VAL_CONTRACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/contracts.rs";
@@ -639,6 +640,23 @@ static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
         OP_FACTS_BYTE_EXTENT,
         VAL_OPS,
         VAL_BYTES_SUBSLICE,
+    ],
+);
+static OP_BYTE_SEQUENCE_PREDICATE: TrustedSurfaceEntry = entry(
+    "operation:byte-sequence-predicate",
+    "a validated byte-sequence predicate evaluation over the operand's exact live extent",
+    "the operand's own dominating length observation is the read bound, so the observation carries the evaluated predicate and its boolean verdict and owes no index certificate",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_BYTES_PREDICATE,
     ],
 );
 static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
@@ -1342,6 +1360,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_BYTE_SEQUENCE_WRITE,
     OP_BYTE_SEQUENCE_READ,
     OP_BYTE_SEQUENCE_SUBSLICE,
+    OP_BYTE_SEQUENCE_PREDICATE,
     OP_ESTABLISH_ELEMENT_VIEW,
     OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
     OP_ELEMENT_VIEW_LENGTH,
@@ -1447,6 +1466,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::ByteSequenceWrite => &OP_BYTE_SEQUENCE_WRITE,
         OperationSemanticTag::ByteSequenceRead => &OP_BYTE_SEQUENCE_READ,
         OperationSemanticTag::ByteSequenceSubslice => &OP_BYTE_SEQUENCE_SUBSLICE,
+        OperationSemanticTag::ByteSequencePredicate => &OP_BYTE_SEQUENCE_PREDICATE,
         OperationSemanticTag::EstablishElementView => &OP_ESTABLISH_ELEMENT_VIEW,
         OperationSemanticTag::EstablishMutableElementView => &OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
         OperationSemanticTag::ElementViewLength => &OP_ELEMENT_VIEW_LENGTH,

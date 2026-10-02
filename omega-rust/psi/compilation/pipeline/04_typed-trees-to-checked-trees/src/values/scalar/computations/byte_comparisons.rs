@@ -37,38 +37,7 @@ impl Builder<'_, '_> {
         };
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
         super::super::boolean_lowering::comparable_byte_carrier_type(self.program, target)?;
-        let (machine, state) =
-            crate::semantic::calls::find_state_with_machine(self.program, self.state)?;
-        let subject = if let Some(subject) = self.byte_comparison_place(operand, target) {
-            subject
-        } else {
-            let parameters = if machine.attached_data.is_some() {
-                calls::ambient_self_scalar_graph_signature(self.program, machine, state)?.0
-            } else {
-                calls::free_structural_scalar_signature(
-                    self.program,
-                    &mut types::ShapeCollector::new(self.program),
-                    state,
-                    &[],
-                )?
-                .0
-            };
-            calls::view_subslice::admit_resolved(
-                self.program,
-                self.operators,
-                self.pure,
-                machine,
-                state,
-                &parameters,
-                target,
-                operand,
-                self.statement_index,
-                CheckedSubsliceSite::Expression {
-                    expression: operand,
-                },
-            )?
-            .argument()
-        };
+        let subject = self.byte_operand_subject(operand, target)?;
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
@@ -77,6 +46,71 @@ impl Builder<'_, '_> {
                 subject,
             },
         ))
+    }
+
+    /// A declared byte-predicate call observes the same completed structural
+    /// operand a content comparison would: a pure place or a computed
+    /// descriptor admitted at the same selective evaluation point. The
+    /// predicate's reads happen only after the operand's own preparation.
+    pub(super) fn byte_predicate(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let (predicate, operand) =
+            typed_trees::byte_predicates::byte_predicate_call(self.program, expression)?;
+        let target = semantic_casts::result_type(self.program, self.state, operand)?;
+        super::super::boolean_lowering::comparable_byte_carrier_type(self.program, target)?;
+        let subject = self.byte_operand_subject(operand, target)?;
+        Some(self.insert(
+            PrimitiveType::Bool,
+            CheckedScalarComputationKind::ByteSequencePredicate {
+                predicate,
+                operand_type: target,
+                source_expression: expression,
+                subject,
+            },
+        ))
+    }
+
+    /// The byte-observation operand both content comparisons and declared
+    /// predicates share: a pure place when one names the operand, else the
+    /// computed descriptor admission at the expression's own site.
+    fn byte_operand_subject(
+        &mut self,
+        operand: ExpressionHandle,
+        target: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        if let Some(subject) = self.byte_comparison_place(operand, target) {
+            return Some(subject);
+        }
+        let (machine, state) =
+            crate::semantic::calls::find_state_with_machine(self.program, self.state)?;
+        let parameters = if machine.attached_data.is_some() {
+            calls::ambient_self_scalar_graph_signature(self.program, machine, state)?.0
+        } else {
+            calls::free_structural_scalar_signature(
+                self.program,
+                &mut types::ShapeCollector::new(self.program),
+                state,
+                &[],
+            )?
+            .0
+        };
+        calls::view_subslice::admit_resolved(
+            self.program,
+            self.operators,
+            self.pure,
+            machine,
+            state,
+            &parameters,
+            target,
+            operand,
+            self.statement_index,
+            CheckedSubsliceSite::Expression {
+                expression: operand,
+            },
+        )
+        .map(|resolution| resolution.argument())
     }
     fn byte_comparison_place(
         &self,

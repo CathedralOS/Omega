@@ -4,9 +4,7 @@
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
-use crate::values::{TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use terminal_psi::control_flow::ByteSequenceOperand;
+use crate::values::TerminalStructuralValue;
 use terminal_psi::{ByteSequenceCarrier, Operation, OperationKind, StructuralTypeShape};
 
 impl TerminalExecution {
@@ -29,8 +27,8 @@ impl TerminalExecution {
         else {
             return Err(invalid());
         };
-        let left = self.concatenation_operand(left)?;
-        let right = self.concatenation_operand(right)?;
+        let left = self.byte_sequence_operand_view(left)?;
+        let right = self.byte_sequence_operand_view(right)?;
         let length = left.len().checked_add(right.len()).ok_or_else(invalid)?;
         if u64::try_from(length).map_err(|_| invalid())? > capacity {
             return Err(invalid());
@@ -50,40 +48,5 @@ impl TerminalExecution {
         );
         self.structural_values.insert(result.place, value);
         Ok(OperationFlow::Advance)
-    }
-
-    fn concatenation_operand(
-        &self,
-        operand: &ByteSequenceOperand,
-    ) -> Result<ByteSequenceView, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let bytes = match operand {
-            ByteSequenceOperand::Whole { source, .. } => self
-                .byte_sequence_values
-                .get(source)
-                .ok_or_else(invalid)?
-                .immutable()?
-                .clone(),
-            ByteSequenceOperand::Field { source, field, .. } => {
-                let (key, _) = self.resolve_structural_byte_sequence_field(
-                    source.place,
-                    &source.path,
-                    *field,
-                    false,
-                )?;
-                self.structural_byte_sequence_fields
-                    .get(&key)
-                    .ok_or_else(invalid)?
-                    .clone()
-            }
-        };
-        let expected = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-        if !matches!(self.values.get(&operand.length()), Some(TerminalScalarValue::Integer {
-            scalar_type, value: IntegerValue::Unsigned(length),
-        }) if *scalar_type == expected && *length == bytes.len() as u128)
-        {
-            return Err(invalid());
-        }
-        Ok(bytes)
     }
 }

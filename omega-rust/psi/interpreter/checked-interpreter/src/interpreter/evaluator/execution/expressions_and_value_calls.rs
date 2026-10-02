@@ -546,6 +546,21 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
+        // A byte-sequence predicate (`valid_utf8`, `no_nul`, `ascii_only`,
+        // `non_empty`) owns no executable callee: its contract evaluates the
+        // argument's live bytes directly.
+        if let Some((predicate, argument)) =
+            typed_trees::byte_predicates::byte_predicate_call(self.program, handle)
+        {
+            let value = self.eval_expression(argument, frame)?;
+            let bytes = byte_sequence_operand_bytes(&value)?;
+            let value = Value::Bool(predicate.holds_for(&bytes));
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
+
         let target = call.target.as_str();
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
@@ -1712,5 +1727,31 @@ impl<'program> Evaluator<'program> {
         // Share the same argument-evaluation rules as state calls (incl. reference
         // forwarding for bare-place arguments that already hold a `&mut`).
         self.eval_argument(argument, frame)
+    }
+}
+
+/// Flatten an evaluated byte-sequence operand to its live bytes: a text
+/// buffer, a byte-array window, or a reference to either.
+fn byte_sequence_operand_bytes(value: &Value) -> EvalResult<Vec<u8>> {
+    match value {
+        Value::Str(text) => Ok(text.borrow().to_vec()),
+        Value::Array(elements) => elements
+            .iter()
+            .map(|cell| {
+                let value = cell.borrow();
+                value
+                    .as_int()
+                    .and_then(|byte| u8::try_from(byte).ok())
+                    .ok_or_else(|| {
+                        Halt::Trap(
+                            "byte-sequence predicate operand holds a non-byte element".to_owned(),
+                        )
+                    })
+            })
+            .collect(),
+        Value::Ref(cell) => byte_sequence_operand_bytes(&cell.borrow()),
+        _ => Err(Halt::Trap(
+            "byte-sequence predicate operand is not a byte sequence".to_owned(),
+        )),
     }
 }

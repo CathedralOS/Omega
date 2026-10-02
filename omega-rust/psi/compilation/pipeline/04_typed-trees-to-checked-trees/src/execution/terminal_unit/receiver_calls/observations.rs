@@ -63,6 +63,9 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
             | checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 subject,
                 ..
+            }
+            | checked_trees::CheckedScalarComputationKind::ByteSequencePredicate {
+                subject, ..
             } => {
                 if subject.source_parameter_index() == Some(receiver_source) {
                     return true;
@@ -239,6 +242,9 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         }
         // Mathematical contract graphs are never executable receiver bodies.
         CheckedBooleanExpression::IntegerMathComparison { .. } => true,
+        CheckedBooleanExpression::ByteSequencePredicate { root, .. } => {
+            root.parameter() == Some(receiver)
+        }
         CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }

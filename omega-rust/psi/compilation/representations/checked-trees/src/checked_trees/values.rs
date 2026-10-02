@@ -769,6 +769,14 @@ pub enum CheckedBooleanExpression {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
     },
+    /// Evaluate one declared byte predicate over an exact byte-sequence operand.
+    /// The root and projection path name existing storage or a prepared view;
+    /// the operand is evaluated once before the predicate's reads.
+    ByteSequencePredicate {
+        predicate: language_semantics::byte_predicates::ByteSequencePredicate,
+        root: CheckedStorageRoot,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+    },
     /// Equality of two structural sums. Terminal lowering expands
     /// this closed case roster into canonical per-case membership equivalence.
     PayloadlessSumEqual {
@@ -816,6 +824,7 @@ impl CheckedBooleanExpression {
             | Self::StructuralParameterField { .. }
             | Self::IeeeFloatComparison { .. }
             | Self::ByteSequenceEqual { .. }
+            | Self::ByteSequencePredicate { .. }
             | Self::PayloadlessSumEqual { .. }
             | Self::StructuralCaseMembership { .. } => false,
         }

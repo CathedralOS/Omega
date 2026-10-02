@@ -55,6 +55,16 @@ pub(crate) enum LoweredBooleanReturnExpression {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
+    /// Evaluate one declared predicate over an immutable byte view. `path` is
+    /// the element projection from `source` to the byte-sequence carrier —
+    /// empty for a whole-view operand; `field` names the operand's
+    /// byte-sequence field below that carrier when the view is a field view.
+    ByteSequencePredicate {
+        predicate: terminal_psi::ByteSequencePredicate,
+        source: PlaceId,
+        path: Vec<super::expressions::LoweredElementPathSegment>,
+        field: Option<StructuralFieldId>,
+    },
     Not {
         operand: Box<LoweredBooleanReturnExpression>,
     },
@@ -206,6 +216,76 @@ pub(crate) fn emit_boolean_expression(
                 },
             });
             id
+        }
+        LoweredBooleanReturnExpression::ByteSequencePredicate {
+            predicate,
+            source,
+            path,
+            field,
+        } => {
+            let operand = match field {
+                Some(field) => {
+                    let path = super::expressions::emit_prepared_path(
+                        path,
+                        0,
+                        parameters,
+                        next_value_identity,
+                        operations,
+                    );
+                    let path = super::expressions::path_with_current_bounds(
+                        &path,
+                        operations.next_identity,
+                    );
+                    // The operand's own dominating field-length observation is
+                    // the predicate's read bound; record it so sibling
+                    // observations reuse this exact value identity.
+                    let length = emit_scalar_leaf(
+                        OperationKind::StructuralByteSequenceFieldLength {
+                            source: *source,
+                            path: path.clone(),
+                            field: *field,
+                        },
+                        ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .expect("u64 is valid"),
+                        ),
+                        next_value_identity,
+                        operations,
+                    );
+                    operations
+                        .field_byte_lengths
+                        .push((*source, path.clone(), *field, length));
+                    terminal_psi::control_flow::ByteSequenceOperand::Field {
+                        source: terminal_psi::StructuralArgument {
+                            place: *source,
+                            path,
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                        },
+                        field: *field,
+                        length,
+                    }
+                }
+                None => terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                    source: *source,
+                    length: super::expressions::emit_byte_length(
+                        *source,
+                        next_value_identity,
+                        operations,
+                    ),
+                },
+            };
+            emit_scalar_leaf(
+                OperationKind::ByteSequencePredicate {
+                    operand,
+                    predicate: *predicate,
+                },
+                ScalarType::Boolean,
+                next_value_identity,
+                operations,
+            )
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unreachable!("shared Boolean members resolve before terminal operation emission")

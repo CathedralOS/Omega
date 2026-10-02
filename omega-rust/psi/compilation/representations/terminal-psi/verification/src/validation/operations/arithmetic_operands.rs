@@ -293,6 +293,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
+        | OperationKind::ByteSequencePredicate { .. }
         | OperationKind::EstablishElementView { .. }
         | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::ElementViewLength { .. }

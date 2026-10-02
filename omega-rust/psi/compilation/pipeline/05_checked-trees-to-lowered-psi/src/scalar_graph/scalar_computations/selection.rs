@@ -192,6 +192,7 @@ impl Expansion<'_> {
                     pending.push((*operand, false))
                 }
                 CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+                | CheckedScalarComputationKind::ByteSequencePredicate { .. }
                 | CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }
                 | CheckedScalarComputationKind::CaseMembership { .. }

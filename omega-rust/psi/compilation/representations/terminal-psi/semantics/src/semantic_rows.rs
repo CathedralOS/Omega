@@ -189,6 +189,7 @@ operation_semantic_rows! {
     ByteSequenceWrite => ("schema:operation:byte-sequence-write", LeafDenotation, None),
     ByteSequenceRead => ("schema:operation:byte-sequence-read", LeafDenotation, None),
     ByteSequenceSubslice => ("schema:operation:byte-sequence-subslice", LeafDenotation, None),
+    ByteSequencePredicate => ("schema:operation:byte-sequence-predicate", LeafDenotation, None),
     EstablishElementView => ("schema:operation:establish-element-view", LeafDenotation, None),
     EstablishMutableElementView => ("schema:operation:establish-mutable-element-view", LeafDenotation, None),
     ElementViewLength => ("schema:operation:element-view-length", LeafDenotation, None),

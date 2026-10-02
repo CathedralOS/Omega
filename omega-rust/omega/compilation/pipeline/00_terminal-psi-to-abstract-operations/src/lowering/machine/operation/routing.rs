@@ -122,6 +122,9 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
+        OperationKind::ByteSequencePredicate { .. } => Err(
+            LoweringError::UnsupportedByteSequencePredicate(operation.id),
+        ),
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

@@ -1276,6 +1276,52 @@ fn lower_checked_boolean_expression_with_parameters(
                 path,
             }
         }
+        CheckedBooleanExpression::ByteSequencePredicate {
+            predicate,
+            root,
+            path,
+        } => {
+            if !path.is_empty() {
+                let (source, path, field) =
+                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
+                        .ok_or(LoweringError::Unsupported(
+                            "byte predicate requires a live byte descriptor",
+                        ))?;
+                return Ok(LoweredBooleanReturnExpression::ByteSequencePredicate {
+                    predicate: *predicate,
+                    source,
+                    path,
+                    field: Some(field),
+                });
+            }
+            let source = match *root {
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                } => view_observation_parameter(parameter_position, structural_parameters)?.place,
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                    view_local_observation(view_locals, symbol, path)?.0
+                }
+                checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+                    let source = owned_local_observation(structural_locals, symbol)?;
+                    let local = crate::expression_preparation::bindings::view_locals::resolve(
+                        view_locals,
+                        symbol,
+                    )?;
+                    if local.place != source || local.carrier != ViewCarrier::Bytes {
+                        return unsupported(
+                            "byte predicate operand lost its established byte carrier",
+                        );
+                    }
+                    source
+                }
+            };
+            LoweredBooleanReturnExpression::ByteSequencePredicate {
+                predicate: *predicate,
+                source,
+                path: Vec::new(),
+                field: None,
+            }
+        }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression_with_parameters(
                 operand,

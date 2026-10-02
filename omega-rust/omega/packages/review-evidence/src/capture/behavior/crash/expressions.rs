@@ -27,6 +27,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
         CheckedBooleanExpression::IntegerMathComparison { .. } => return None,
         CheckedBooleanExpression::ErasedParameter { .. } => return None,
         CheckedBooleanExpression::StorageRead { .. } => return None,
+        CheckedBooleanExpression::ByteSequencePredicate { .. } => return None,
         CheckedBooleanExpression::Constant(value) => {
             PackageReviewBooleanExpression::Constant(*value)
         }

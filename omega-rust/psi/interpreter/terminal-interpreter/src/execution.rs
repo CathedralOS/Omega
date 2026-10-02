@@ -660,6 +660,9 @@ impl TerminalExecution {
                         self.execute_byte_sequence_write(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::ByteSequencePredicate { .. } => {
+                        self.execute_byte_sequence_predicate(operation)?
+                    }
                     OperationKind::ByteSequenceRead { .. } => {
                         self.execute_byte_sequence_read(operation)?
                     }

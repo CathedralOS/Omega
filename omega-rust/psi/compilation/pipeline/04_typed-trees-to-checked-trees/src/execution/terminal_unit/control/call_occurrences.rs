@@ -1049,7 +1049,8 @@ fn collect(
         }
         CheckedScalarComputationKind::Value(_)
         | CheckedScalarComputationKind::StructuralField { .. }
-        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
+        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+        | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
         CheckedScalarComputationKind::Call {
             source_call,
             call_ordinal,

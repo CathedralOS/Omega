@@ -78,6 +78,9 @@ pub(super) fn register_scalar_result_operation(
                 ModuleError::DuplicateObligation,
             )?;
         }
+        OperationKind::ByteSequencePredicate { operand, .. } => {
+            super::super::byte_sequence::predicate::validate(module, machine, operation, &operand)?;
+        }
         OperationKind::ElementViewLength { source } => {
             super::super::element_view::length::validate(module, machine, operation, source)?;
         }
