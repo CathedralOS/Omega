@@ -544,6 +544,40 @@ pub(crate) fn is_unrestricted_shared_subloan(
         )
 }
 
+/// A completed, claim-free local result keeps whole-value custody like an
+/// owned parameter: it can lend an exact subtree through the same
+/// projection, access, and multiplicity checks a parameter declaration
+/// answers. The synthesized declaration is signature-only — dominance and
+/// live-frontier replay still establish that the source is live at the call.
+fn completed_local_backing(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> Option<StructuralParameterDeclaration> {
+    let result = crate::validation::record::completed_source(module, caller, argument.place)?;
+    (!caller
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == argument.place)
+        && !caller
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place))
+    .then(|| StructuralParameterDeclaration {
+        place: argument.place,
+        position: 0,
+        is_self: false,
+        structural_type: result.structural_type,
+        // A completed local lends with unrestricted presentation: the
+        // producing result's own affine lifecycle is already discharged,
+        // and availability plus paired-loan replay keep custody honest.
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    })
+}
+
 pub(crate) fn is_unrestricted_mutable_subloan(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -552,13 +586,21 @@ pub(crate) fn is_unrestricted_mutable_subloan(
 ) -> bool {
     // The argument's root is the place the projection borrows from: a
     // machine-level parameter or a block parameter that rebinder edges fill
-    // with it. Source signatures already resolve both channels.
-    let Some(actual) = caller
+    // with it. Source signatures already resolve both channels; a completed
+    // local presents the same checked root through its synthesized backing.
+    let owned_backing;
+    let declared = caller
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
-        .or_else(|| crate::validation::block_views::parameter(caller, argument.place))
-    else {
+        .or_else(|| crate::validation::block_views::parameter(caller, argument.place));
+    let Some(actual) = (match declared {
+        Some(declaration) => Some(declaration),
+        None => {
+            owned_backing = completed_local_backing(module, caller, argument);
+            owned_backing.as_ref()
+        }
+    }) else {
         return false;
     };
     if argument.access == StructuralAccess::MutableBorrow
