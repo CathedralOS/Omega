@@ -72,18 +72,7 @@ pub(crate) fn byte_field_store_capacity(
     // is admitted here by its carrier alone; its accepted goal must carry the
     // stored byte's class legs (the obligation catalog checks that) and a
     // UTF-8 field must be all-ASCII on every path (`byte_predicates`).
-    let whole_field_store = matches!(
-        operation,
-        AbstractOperation::StructuralByteSequenceFieldStore { .. }
-    );
-    match writable_byte_field_carrier(
-        function,
-        *destination,
-        path,
-        *field,
-        whole_field_store,
-        structural_types,
-    )? {
+    match writable_byte_field_carrier(function, *destination, path, *field, structural_types)? {
         ByteSequenceCarrier::BoundedOwned { capacity } => Some(capacity),
         _ => None,
     }
@@ -114,16 +103,10 @@ pub(crate) fn byte_view_field_store_is_valid(
         if structural_types.get(structural_type).is_some_and(|declaration| {
             declaration.shape.is_borrowed_byte_view()
         }))
-        && writable_byte_field_carrier(
-            function,
-            *destination,
-            path,
-            *field,
-            false,
-            structural_types,
-        ) == Some(ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        })
+        && writable_byte_field_carrier(function, *destination, path, *field, structural_types)
+            == Some(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            })
 }
 
 /// The declared carrier of one byte field below an exclusive, unqualified,
@@ -133,10 +116,8 @@ fn writable_byte_field_carrier(
     destination: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
-    whole_field_store: bool,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<ByteSequenceCarrier> {
-    let destination = &destination;
     let (root_type, storage_path) = if matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
@@ -144,70 +125,34 @@ fn writable_byte_field_carrier(
         super::super::references::mutable_record_field_destination(
             function,
             structural_types,
-            *destination,
+            destination,
             path,
         )?
-    } else if whole_field_store
-        && function.structural_places.iter().any(|place| {
-            place.id == *destination
-                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
-        })
-    {
-        let owned = super::super::operation_contracts::structural_source_contract(
-            function,
-            *destination,
-            false,
-        )?;
-        if owned.access != StructuralAccess::Owned
-            || owned.multiplicity != StructuralMultiplicity::Unrestricted
-            || !owned.is_unqualified()
-            || owned.has_result_evidence()
-            || !matches!(
-                structural_types.get(&owned.structural_type)?.shape,
-                StructuralTypeShape::Record { .. }
-            )
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == *destination)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *destination)
-        {
-            return None;
-        }
-        // The existing whole-unit availability walk still requires the exact
-        // producer to dominate this write. Shape resolution grants no storage.
-        (owned.structural_type, path)
     } else {
-        let (structural_type, access) =
-            super::byte_field_freshness::byte_field_root(function, *destination)?;
-        if !matches!(
-            access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == *destination)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *destination)
-        {
+        let (root_type, access) =
+            super::byte_field_freshness::byte_field_root(function, destination)?;
+        let writable = match access {
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
+            // Owned payload is writable; owning a loan descriptor does not
+            // itself grant authority over the memory its pointer denotes.
+            StructuralAccess::Owned => matches!(
+                structural_types.get(&root_type)?.shape,
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::Mixed { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+            ),
+            StructuralAccess::SharedBorrow => false,
+        };
+        if !writable {
             return None;
         }
-        (structural_type, path)
+        (root_type, path)
     };
-    if !terminal_psi::is_bounded_structural_scalar_store_path(storage_path) {
+    if !terminal_psi::is_structural_scalar_store_path(storage_path) {
         return None;
     }
-    let parent = super::super::structural_catalog::resolve_structural_path(
-        structural_types,
-        root_type,
-        storage_path,
-    )?;
+    let parent =
+        super::byte_field_freshness::field_carrier(structural_types, root_type, storage_path)?;
     let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
         return None;
     };
