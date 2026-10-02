@@ -3972,22 +3972,28 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   descriptor alias in first-definition inference. Other wire customers and
   interpreter agreement remain under **RECORD-LITERAL-ARRAY-FIELD**.
 
+  At `4202376a2d`, including literal-custody repair `eb36ac8f6a`, macOS ARM64
+  `python3 tools/corpus_gate.py --both --golden tests/omega/corpus_native_macos_arm64.txt
+  --filter domained_runtime_end_subslice_exit,runtime_bounded_fixed_array_subslice_arg_exit,dependent/runtime_sibling_len_index_exit`
+  observes native/interpreter exits 70, 3 and 7. The domain-qualified runtime
+  window preserves `no_nul`; literal descriptors retain shared-borrow custody,
+  and call validation independently reconstructs their content predicates.
+  The latter two fixtures already execute on `11e21a0895e`.
+  The public sibling-index command
+  remains pending ordinary package review (exit 200), separate from these
+  reviewed-corpus execution results.
+
   Remaining joins:
   - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
     plain scalar fields and fields under exactly one arithmetic policy; a
     ranged, erased or structural field still declines.
-  - Establish byte views over fixed byte fields for
-    `wire/runtime_wire_encode_byte_slice_exit` (`runtime_subslice_len_exit`
-    now exits 70 natively); `field_collection` currently
-    admits only non-byte element views. Preserve the wire fixture's five exact
-    bytes and count, not merely its descriptor shape.
-  - Preserve bounded and end-only subslices through ordinary control
-    sequencing. Stage 04 omits the callee's unit plan for
-    `runtime_bounded_fixed_array_subslice_arg_exit` at `conditional successors:
-    target state` and for `domained_runtime_end_subslice_exit` at `conditional
-    successors: guard expression`.
+  - Preserve byte-field backing loans in
+    `wire/runtime_wire_encode_byte_slice_exit`: `4202376a2d` reaches Terminal
+    validation and rejects `BorrowedDescriptorLoanDisturbed` at operation 6,
+    place 7, while the checked interpreter exits 70. Preserve the fixture's
+    five exact bytes and count, not merely its descriptor shape.
   - Verify consuming mutable-view forwarding on the Unit-graph route with exact
     reborrow places available at successors. Reuse `tests/unit_state_graph/bindings.rs`
     for byte-view controls.

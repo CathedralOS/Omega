@@ -401,6 +401,90 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
 }
 
 #[test]
+fn shared_literal_loan_replays_content_predicates_without_granting_mutation() {
+    use abstract_operations::AbstractOperation as Operation;
+    use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
+    use terminal_psi::{ByteSequencePredicate, StructuralAccess as Access};
+
+    let mut unit = crate::tests::fixtures::dominance::byte_literal_boundary_unit();
+    let domain = StructuralDomainId::new(9_050).unwrap();
+    let mut parameter = unit.boundary_machines[0].structural_parameters[0].clone();
+    parameter.qualifications = vec![domain];
+    unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: DomainSemanticId::new(9_050).unwrap(),
+        identity: "literal-path".into(),
+        carrier: parameter.structural_type,
+        byte_predicate: Some(ByteSequencePredicate::NoNul),
+        content_projection: None,
+        establishment_routes: Vec::new(),
+    }]
+    .into();
+    let Operation::EstablishByteSequenceLiteral { place, bytes, .. } =
+        &mut unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("literal fixture");
+    };
+    *bytes = b"/adir/x".to_vec();
+    let argument = terminal_psi::StructuralArgument {
+        place: place.id,
+        path: Vec::new(),
+        access: Access::SharedBorrow,
+    };
+    let source = structural_source_contract(&unit.functions[0], argument.place, true)
+        .expect("literal descriptor has shared custody");
+    assert_eq!(source.access, Access::SharedBorrow);
+    assert_eq!(
+        source.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+    );
+    let accepts = |unit: &optimization_unit::PsiOptimizationUnit,
+                   argument: &terminal_psi::StructuralArgument,
+                   parameter: &terminal_psi::StructuralParameterDeclaration| {
+        structural_arguments_match(
+            &unit.functions[0],
+            None,
+            std::slice::from_ref(argument),
+            std::slice::from_ref(parameter),
+            &unit
+                .structural_types
+                .iter()
+                .map(|row| (row.id, row))
+                .collect(),
+            &unit
+                .structural_domains
+                .iter()
+                .map(|row| (row.id, row))
+                .collect(),
+            StructuralProjectionPolicy::Unit,
+            true,
+        )
+    };
+    assert!(accepts(&unit, &argument, &parameter));
+    for access in [
+        Access::MutableBorrow,
+        Access::WriteOnlyBorrow,
+        Access::Owned,
+    ] {
+        let mut changed_argument = argument.clone();
+        changed_argument.access = access;
+        let mut changed_parameter = parameter.clone();
+        changed_parameter.access = access;
+        assert!(!accepts(&unit, &changed_argument, &changed_parameter));
+    }
+    let mut absent = argument.clone();
+    absent.place = PlaceId::new(9_051).unwrap();
+    assert!(!accepts(&unit, &absent, &parameter));
+    let Operation::EstablishByteSequenceLiteral { bytes, .. } =
+        &mut unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("literal fixture");
+    };
+    bytes.push(0);
+    assert!(!accepts(&unit, &argument, &parameter));
+}
+
+#[test]
 fn ordinary_call_owned_byte_result_lends_a_shared_view_without_producer_spelling() {
     use abstract_operations::{AbstractOperation as Operation, AbstractStructuralCallResult};
     use semantic_vocabulary::{
