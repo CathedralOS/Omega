@@ -46,17 +46,14 @@ impl PreparedScalarQualifications {
                         .primitive_type_reference(parameter.type_reference)
                         .is_some()
                     {
-                        references.push((
-                            parameter.type_reference,
-                            validation::finite_arrival_parameter(&checked.typed, state, parameter),
-                        ));
+                        references.push(parameter.type_reference);
                     }
                 }
                 if checked
                     .primitive_type_reference(state.return_type)
                     .is_some()
                 {
-                    references.push((state.return_type, false));
+                    references.push(state.return_type);
                 }
             }
         }
@@ -93,7 +90,7 @@ impl PreparedScalarQualifications {
                     result_type,
                     ..
                 } => {
-                    references.push((*result_type, false));
+                    references.push(*result_type);
                     pending.push(*operand);
                 }
                 CheckedScalarComputationKind::AuthoredCast {
@@ -101,7 +98,7 @@ impl PreparedScalarQualifications {
                     result_type,
                     ..
                 } => {
-                    references.push((*result_type, false));
+                    references.push(*result_type);
                     pending.push(*operand);
                 }
                 CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
@@ -153,8 +150,8 @@ impl PreparedScalarQualifications {
         }
         let mut catalog = ScalarQualificationCatalog::default();
         let mut atom_sets = Vec::new();
-        for (reference, finite_carried) in references {
-            let (primitive, atoms) = carried_type_atoms(checked, reference, finite_carried)?;
+        for reference in references {
+            let (primitive, atoms) = type_atoms(checked, reference)?;
             let scalar_type = terminal_scalar_type(primitive)?;
             let mut identities = Vec::new();
             for (symbol, semantic_id) in atoms {
@@ -258,18 +255,7 @@ impl PreparedScalarQualifications {
         checked: &CheckedTrees,
         reference: TypeReferenceHandle,
     ) -> Result<QualifiedScalarType, LoweringError> {
-        self.carried_value_type(checked, reference, false)
-    }
-
-    /// `value_type` for a carrier whose `Finite` value domain an arrival row
-    /// carries (`validation::finite_arrival_parameter`).
-    fn carried_value_type(
-        &self,
-        checked: &CheckedTrees,
-        reference: TypeReferenceHandle,
-        finite_carried: bool,
-    ) -> Result<QualifiedScalarType, LoweringError> {
-        let (primitive, atoms) = carried_type_atoms(checked, reference, finite_carried)?;
+        let (primitive, atoms) = type_atoms(checked, reference)?;
         let scalar_type = terminal_scalar_type(primitive)?;
         let mut domains = Vec::new();
         for (_, identity) in atoms {
@@ -333,13 +319,7 @@ impl PreparedScalarQualifications {
                         .primitive_type_reference(parameter.type_reference)
                         .is_some()
             })
-            .map(|parameter| {
-                self.carried_value_type(
-                    checked,
-                    parameter.type_reference,
-                    validation::finite_arrival_parameter(&checked.typed, state, parameter),
-                )
-            })
+            .map(|parameter| self.value_type(checked, parameter.type_reference))
             .collect::<Result<Vec<_>, _>>()?;
         Ok((parameters, self.value_type(checked, state.return_type)?))
     }
@@ -434,18 +414,6 @@ pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {
-    carried_type_atoms(checked, reference, false)
-}
-
-/// `type_atoms`, where `finite_carried` admits the compiler-known `Finite`
-/// value domain on an IEEE carrier because an arrival row proves it at every
-/// edge. Anywhere else that predicate-bearing domain still has no carriage
-/// and refuses.
-fn carried_type_atoms(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-    finite_carried: bool,
-) -> Result<(PrimitiveType, Vec<(SymbolHandle, SemanticDomainId)>), LoweringError> {
     let primitive =
         checked
             .primitive_type_reference(reference)
@@ -498,13 +466,14 @@ fn carried_type_atoms(
                         // atoms, not a replacement store or overflow judgment.
                         TypeConstraintNode::ArithmeticDomain(_)
                         | TypeConstraintNode::Range { .. } => {}
+                        // Value-domain obligations travel as scalar predicates
+                        // at entry, return and arrival boundaries. They are not
+                        // predicate-free semantic atoms in this catalog.
                         TypeConstraintNode::Domain(domain)
-                            if finite_carried
-                                && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                                && domain.subject
-                                    == DomainConstraintSubject::Value(
-                                        language_semantics::value_domain::ValueDomain::Finite,
-                                    ) => {}
+                            if matches!(domain.subject, DomainConstraintSubject::Value(value_domain)
+                                if validation::scalar_value_domain_predicate(value_domain,
+                                    checked_trees::CheckedScalarExpression::Parameter { position: 0, primitive_type: primitive }
+                                ).is_some()) => {}
                         // A domain whose membership is exactly an interval is
                         // retained as the same closed entry range a bracketed
                         // range is, so the range owner carries it too.

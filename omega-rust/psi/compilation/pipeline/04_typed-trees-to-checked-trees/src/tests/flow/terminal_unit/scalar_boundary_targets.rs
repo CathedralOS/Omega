@@ -201,7 +201,7 @@ fn scalar_parameter_range_collector_keeps_unsupported_endpoint_rows() {
     };
     *maximum = arena::Handle::invalid();
     let requirements =
-        crate::values::lower_integer_parameter_range_requirements(&checked.typed, &machine);
+        crate::values::lower_scalar_parameter_refinement_predicates(&checked.typed, &machine);
     assert_eq!(
         requirements,
         vec![None],

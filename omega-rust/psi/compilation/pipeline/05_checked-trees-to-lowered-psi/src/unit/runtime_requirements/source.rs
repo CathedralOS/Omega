@@ -195,6 +195,31 @@ fn validate_parameter_ranges<'clause>(
                     constraints,
                 } => {
                     for constraint in checked.type_reference_table.constraints(*constraints) {
+                        if let TypeConstraintNode::Domain(domain) = constraint
+                            && let checked_trees::types::DomainConstraintSubject::Value(domain) =
+                                domain.subject
+                        {
+                            let expected = primitive
+                                .and_then(|primitive_type| {
+                                    validation::scalar_value_domain_predicate(
+                                        domain,
+                                        CheckedScalarExpression::Parameter {
+                                            position,
+                                            primitive_type,
+                                        },
+                                    )
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "scalar value domain has no predicate meaning",
+                                ))?;
+                            if !matches!(retained.next(), Some(Some(RetainedClause::Predicate(actual))) if *actual == expected)
+                            {
+                                return unsupported(
+                                    "scalar entry value domain lost its exact predicate",
+                                );
+                            }
+                            continue;
+                        }
                         // An exactly-interval domain on an integer carrier
                         // retains the same closed entry range a bracketed
                         // range does; any other domain carries no range row.

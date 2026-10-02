@@ -224,3 +224,196 @@ fn wider_ranged_parameter_cannot_deliver_into_a_narrower_range() {
         "{source}"
     );
 }
+
+#[test]
+fn finite_value_contracts_transport_entry_result_and_local() {
+    for carrier in ["f32", "f64"] {
+        for initializer in ["retain(0.5)", "retain(retain(0.5))"] {
+            let source = format!(
+                r#"
+            machine retain(value: {carrier} in Finite) -> {carrier} in Finite {{ value }}
+            machine value() -> {carrier} {{
+                let result: {carrier} in Finite = {initializer};
+                transition {{ _ -> (result) }}
+            }}
+        "#
+            );
+            let lowered = lower(&source, "value");
+            let module = &lowered.semantic_module;
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .any(|machine| !machine.contract.requires.is_empty())
+            );
+            assert!(
+                module
+                    .machines
+                    .iter()
+                    .any(|machine| !machine.contract.ensures.is_empty())
+            );
+            assert!(
+                !module.scalar_block_invariants.is_empty(),
+                "local establishment has an arrival proof"
+            );
+            let module_bytes = encode_module(module).unwrap();
+            let proof_bytes = encode_proof_section(module, &lowered.proof_bundle).unwrap();
+            assert_eq!(decode_module(&module_bytes).unwrap(), *module);
+            let expected = if carrier == "f32" {
+                IeeeFloatValue::Binary32(0.5f32.to_bits())
+            } else {
+                IeeeFloatValue::Binary64(0.5f64.to_bits())
+            };
+            assert_eq!(
+                interpret_terminal_artifact(
+                    &module_bytes,
+                    &proof_bytes,
+                    &proof_admission::AdmissionProfile::default(),
+                    &[]
+                )
+                .unwrap(),
+                TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(expected))
+            );
+        }
+    }
+}
+
+#[test]
+fn finite_value_contracts_reject_nonfinite_call_delivery_after_publication() {
+    let source = r#"
+        machine retain(value: f32 in Finite) -> f32 in Finite { value }
+        machine value() -> f32 { retain(0.5) }
+    "#;
+    let lowered = lower(source, "value");
+    for bits in [
+        f32::INFINITY.to_bits(),
+        f32::NEG_INFINITY.to_bits(),
+        f32::NAN.to_bits(),
+    ] {
+        let mut module = lowered.semantic_module.clone();
+        let constant = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::IeeeFloatConstant { value }
+                    if *value == IeeeFloatValue::Binary32(0.5f32.to_bits()) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .expect("call actual constant");
+        *constant = IeeeFloatValue::Binary32(bits);
+        let module_bytes = encode_module(&module).unwrap();
+        let proof_bytes = encode_proof_section(&module, &lowered.proof_bundle).unwrap();
+        assert!(
+            interpret_terminal_artifact(
+                &module_bytes,
+                &proof_bytes,
+                &proof_admission::AdmissionProfile::default(),
+                &[]
+            )
+            .is_err(),
+            "nonfinite delivery must not borrow the original evidence"
+        );
+    }
+}
+
+#[test]
+fn finite_value_contracts_reject_nonfinite_local_after_publication() {
+    let lowered = lower(
+        "machine value() -> f32 { let result: f32 in Finite = 0.5; transition { _ -> (result) } }",
+        "value",
+    );
+    assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
+    for bits in [
+        f32::INFINITY.to_bits(),
+        f32::NEG_INFINITY.to_bits(),
+        f32::NAN.to_bits(),
+    ] {
+        let mut module = lowered.semantic_module.clone();
+        let constant = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::IeeeFloatConstant { value } => Some(value),
+                _ => None,
+            })
+            .expect("local initializer");
+        *constant = IeeeFloatValue::Binary32(bits);
+        let module_bytes = encode_module(&module).unwrap();
+        let proof_bytes = encode_proof_section(&module, &lowered.proof_bundle).unwrap();
+        assert!(
+            interpret_terminal_artifact(
+                &module_bytes,
+                &proof_bytes,
+                &proof_admission::AdmissionProfile::default(),
+                &[]
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn finite_value_contracts_reject_nonfinite_return_after_publication() {
+    let lowered = lower("machine value() -> f32 in Finite { 0.5 }", "value");
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .any(|machine| !machine.contract.ensures.is_empty())
+    );
+    for bits in [
+        f32::INFINITY.to_bits(),
+        f32::NEG_INFINITY.to_bits(),
+        f32::NAN.to_bits(),
+    ] {
+        let mut module = lowered.semantic_module.clone();
+        let constant = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::IeeeFloatConstant { value } => Some(value),
+                _ => None,
+            })
+            .expect("returned constant");
+        *constant = IeeeFloatValue::Binary32(bits);
+        let module_bytes = encode_module(&module).unwrap();
+        let proof_bytes = encode_proof_section(&module, &lowered.proof_bundle).unwrap();
+        assert!(
+            interpret_terminal_artifact(
+                &module_bytes,
+                &proof_bytes,
+                &proof_admission::AdmissionProfile::default(),
+                &[]
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn finite_value_contracts_preserve_predicate_free_result_qualifications() {
+    let lowered = lower(
+        r#"
+        domain i64::Km;
+        machine retain(value: i64 in Km) -> i64 in Km { value }
+        machine value() -> i64 { retain(5 as i64 in Km) as i64 }
+    "#,
+        "value",
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("semantic result tags retain their catalog owner");
+}

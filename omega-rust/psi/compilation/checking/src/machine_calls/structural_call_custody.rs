@@ -290,11 +290,7 @@ pub fn state_finite_predicate(
     state: &typed_trees::state::State,
     parameter: SymbolHandle,
 ) -> Option<checked_trees::CheckedBooleanExpression> {
-    use checked_trees::{
-        CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedScalarExpression,
-    };
-    use semantic_vocabulary::IeeeFloatValue;
-    use typed_trees::types::PrimitiveType;
+    use checked_trees::CheckedScalarExpression;
     let parameters = program.state_parameters(state);
     let index = parameters
         .iter()
@@ -312,35 +308,13 @@ pub fn state_finite_predicate(
                     .is_some()
         })
         .count();
-    let (lowest, largest) = match primitive_type {
-        PrimitiveType::F32 => (
-            IeeeFloatValue::Binary32((-f32::MAX).to_bits()),
-            IeeeFloatValue::Binary32(f32::MAX.to_bits()),
-        ),
-        PrimitiveType::F64 => (
-            IeeeFloatValue::Binary64((-f64::MAX).to_bits()),
-            IeeeFloatValue::Binary64(f64::MAX.to_bits()),
-        ),
-        _ => return None,
-    };
-    let subject = || {
-        Box::new(CheckedScalarExpression::Parameter {
+    crate::scalar_value_domain_predicate(
+        language_semantics::value_domain::ValueDomain::Finite,
+        CheckedScalarExpression::Parameter {
             position,
             primitive_type,
-        })
-    };
-    Some(CheckedBooleanExpression::And {
-        left: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
-            kind: CheckedIeeeFloatComparisonKind::LessOrEqual,
-            left: Box::new(CheckedScalarExpression::IeeeFloatLiteral { value: lowest }),
-            right: subject(),
-        }),
-        right: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
-            kind: CheckedIeeeFloatComparisonKind::LessOrEqual,
-            left: subject(),
-            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral { value: largest }),
-        }),
-    })
+        },
+    )
 }
 
 /// Read every constrained shell without narrowing endpoints to the host's i64

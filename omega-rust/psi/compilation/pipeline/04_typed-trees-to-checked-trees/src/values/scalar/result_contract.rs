@@ -569,11 +569,11 @@ pub(super) fn lower_integer_contract_comparison(
 /// requires-tail clause row and its retained roster evidence can never
 /// disagree about which source range they describe.
 pub(crate) struct ParameterRangeRequirements {
-    /// Integer bounds as closed comparison predicates, one slot per authored
-    /// range. The crash requirement capsule and the boundary rejoin read this
-    /// projection; floating ranges keep an explicit `None` here because they
-    /// are not integer predicates.
-    pub(crate) integer_predicates: Vec<Option<CheckedBooleanExpression>>,
+    /// Scalar refinements as closed predicates, one slot per authored
+    /// constraint. The crash requirement capsule and boundary replay read
+    /// this projection. Legacy floating ranges retain `None` because their
+    /// separate endpoint roster has not joined this predicate owner.
+    pub(crate) scalar_predicates: Vec<Option<CheckedBooleanExpression>>,
     /// Requires-tail rows in authored constraint order: supported integer
     /// ranges as `Predicate` clauses and retained floating ranges as
     /// `FloatRange` clauses carrying their IEEE endpoints verbatim. `None`
@@ -603,7 +603,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
     let Some(entry) = program.machine_states(machine).first() else {
         // An absent entry cannot publish an empty-but-complete range roster.
         return ParameterRangeRequirements {
-            integer_predicates: Vec::new(),
+            scalar_predicates: Vec::new(),
             scalar_clauses: Vec::new(),
             float_entry_ranges: None,
             integer_entry_ranges: None,
@@ -619,7 +619,7 @@ pub(crate) fn lower_callable_parameter_range_requirements(
     parameters: &[StateParameter],
 ) -> ParameterRangeRequirements {
     let mut ranges = ParameterRangeRequirements {
-        integer_predicates: Vec::new(),
+        scalar_predicates: Vec::new(),
         scalar_clauses: Vec::new(),
         float_entry_ranges: Some(Vec::new()),
         integer_entry_ranges: Some(Vec::new()),
@@ -640,6 +640,27 @@ pub(crate) fn lower_callable_parameter_range_requirements(
                     constraints,
                 } => {
                     for constraint in program.type_reference_table.constraints(*constraints) {
+                        if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                            && let typed_trees::types::DomainConstraintSubject::Value(domain) =
+                                domain.subject
+                        {
+                            let predicate = primitive_type.and_then(|primitive_type| {
+                                validation::scalar_value_domain_predicate(
+                                    domain,
+                                    CheckedScalarExpression::Parameter {
+                                        position,
+                                        primitive_type,
+                                    },
+                                )
+                            });
+                            ranges.scalar_clauses.push(
+                                predicate
+                                    .clone()
+                                    .map(checked_trees::ClosedScalarContractValue::Predicate),
+                            );
+                            ranges.scalar_predicates.push(predicate);
+                            continue;
+                        }
                         // A domain whose membership is exactly an interval
                         // means what a bracketed range meant, so it lands the
                         // same closed entry range; any other domain is a
@@ -745,7 +766,7 @@ pub(crate) fn lower_callable_parameter_range_requirements(
                             continue;
                         }
                         ranges
-                            .integer_predicates
+                            .scalar_predicates
                             .push(predicate.map(|(predicate, _)| predicate));
                     }
                     type_reference = *base_type;
@@ -776,12 +797,12 @@ impl ParameterRangeRequirements {
                 self.scalar_clauses.push(Some(
                     checked_trees::ClosedScalarContractValue::Predicate(predicate.clone()),
                 ));
-                self.integer_predicates.push(Some(predicate));
+                self.scalar_predicates.push(Some(predicate));
             }
             None => {
                 self.integer_entry_ranges = None;
                 self.scalar_clauses.push(None);
-                self.integer_predicates.push(None);
+                self.scalar_predicates.push(None);
             }
         }
     }
@@ -879,11 +900,12 @@ fn closed_integer_entry_range(
     Some((predicate, requirement))
 }
 
-/// The integer projection of the authored parameter ranges; floating windows
-/// keep an explicit unsupported slot because they are not integer predicates.
-pub(crate) fn lower_integer_parameter_range_requirements(
+/// Predicate obligations from authored parameter refinements. Legacy floating
+/// interval rows keep an unsupported slot until their endpoint owner joins
+/// the predicate representation; core value domains already use predicates.
+pub(crate) fn lower_scalar_parameter_refinement_predicates(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<Option<CheckedBooleanExpression>> {
-    lower_scalar_parameter_range_requirements(program, machine).integer_predicates
+    lower_scalar_parameter_range_requirements(program, machine).scalar_predicates
 }

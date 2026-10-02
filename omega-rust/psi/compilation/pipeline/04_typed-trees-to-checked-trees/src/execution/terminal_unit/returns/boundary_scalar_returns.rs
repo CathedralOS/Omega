@@ -65,7 +65,7 @@ fn boundary_scalar_contracts_supported(
     // Rejoin the entire implicit suffix through its existing source collector.
     // Unsupported, removed, added, or changed range rows cannot become omission.
     let expected_ranges =
-        crate::values::lower_integer_parameter_range_requirements(program, machine);
+        crate::values::lower_scalar_parameter_refinement_predicates(program, machine);
     requirements.len() == expected_ranges.len()
         && requirements.zip(&expected_ranges).all(|(retained, expected)| {
             matches!((retained, expected),

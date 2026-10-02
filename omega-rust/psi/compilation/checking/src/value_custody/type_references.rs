@@ -46,6 +46,8 @@ use generic_arguments::{
 };
 pub use generic_arguments::{validate_closed_const_argument, validate_exact_const_value_encoding};
 pub use open_index_expressions::normalize_open_index_expressions;
+mod refinement_predicates;
+pub use refinement_predicates::{scalar_type_refinement_predicates, scalar_value_domain_predicate};
 mod float_ranges;
 pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;

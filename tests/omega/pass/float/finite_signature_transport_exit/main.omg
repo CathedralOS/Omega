@@ -1,0 +1,11 @@
+use omega_language_std::console;
+use omega::language::core::float_operations;
+machine retain(value: f32 in Finite) -> f32 in Finite {
+    transition { _ -> (value) }
+}
+machine main() reaches Console {
+    let result: f32 in Finite = retain(0.5);
+    transition result == 0.5 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(77); }
+    state bad() { Console::exit_process(78); }
+}
