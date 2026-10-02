@@ -1634,8 +1634,13 @@ the complete product bar; focused successes below do not establish that baseline
   instead of its backing storage. Case tags, scalar/byte fields and projected
   copies now resolve that storage through one address owner, with independent
   replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
-  and derived views. The unchanged full-game rerun is still pending; do not
-  substitute this reduced program's result for application acceptance.
+  and derived views. The unchanged full-game commands remain in allocation
+  recovery; do not substitute this reduced program's result for application
+  acceptance. Independent live-range replay visits actual register memberships,
+  groups operands by instruction, reconstructs tied components once and walks
+  ordered fragments. It retains liveness revalidation and exact evidence
+  comparison; repeated full scans are removed, not the checks. Full-game output
+  and elapsed time remain unverified for this repair.
   Indexed-field replacement retains its explicit complete projection, distinct
   from whole-element replacement. A reference crossing alone is not a child
   window: whole-root replacement still requires the original exclusive parameter

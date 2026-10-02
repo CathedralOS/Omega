@@ -121,15 +121,75 @@ pub(super) fn edge_row(
 }
 
 pub(super) fn overlaps(left: &[LiveRangeFragment], right: &[LiveRangeFragment]) -> bool {
-    for first in left {
-        for second in right {
-            if first.block == second.block
-                && first.start.0 < second.end.0
-                && second.start.0 < first.end.0
-            {
-                return true;
-            }
+    // These are independently reconstructed fragments, not submitted evidence.
+    // Revalidated liveness numbers instructions densely across the function;
+    // append_maximal emits disjoint intervals in that same execution order.
+    // Walk those coordinates, not block IDs (which need not describe execution
+    // order). An interval ending first cannot meet any later opposing interval.
+    let mut left_remaining = left;
+    let mut right_remaining = right;
+    while let (Some(first), Some(second)) = (left_remaining.first(), right_remaining.first()) {
+        if first.block == second.block && first.start < second.end && second.start < first.end {
+            return true;
+        }
+        if first.end <= second.end {
+            left_remaining = &left_remaining[1..];
+        } else {
+            right_remaining = &right_remaining[1..];
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordered_overlap_matches_point_membership_across_blocks_and_gaps() {
+        // Exhaust every membership mask over two four-point block domains.
+        // Reversed sparse block IDs ensure the walk follows points, not IDs.
+        let ranges = (0u16..256)
+            .map(|mask| {
+                let mut fragments = Vec::new();
+                for (offset, block) in [(0, SelectedBlockId(u32::MAX)), (4, SelectedBlockId(7))] {
+                    let occupied = (offset..offset + 4)
+                        .filter(|point| mask & (1 << point) != 0)
+                        .map(LiveRangePoint)
+                        .collect();
+                    append_maximal(block, occupied, &mut fragments);
+                }
+                fragments
+            })
+            .collect::<Vec<_>>();
+        for (left_mask, left) in ranges.iter().enumerate() {
+            for (right_mask, right) in ranges.iter().enumerate() {
+                assert_eq!(
+                    overlaps(left, right),
+                    left_mask & right_mask != 0,
+                    "left mask {left_mask}, right mask {right_mask}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordered_overlap_retains_block_identity_and_half_open_endpoint() {
+        let interval = LiveRangeFragment {
+            block: SelectedBlockId(9),
+            start: LiveRangePoint(u32::MAX - 2),
+            end: LiveRangePoint(u32::MAX),
+        };
+        assert!(overlaps(&[interval], &[interval]));
+        let mut other = interval;
+        other.block = SelectedBlockId(10);
+        assert!(!overlaps(&[interval], &[other]));
+        let earlier = LiveRangeFragment {
+            block: interval.block,
+            start: LiveRangePoint(0),
+            end: interval.start,
+        };
+        assert!(!overlaps(&[earlier], &[interval]));
+        assert!(!overlaps(&[interval], &[earlier]));
+    }
 }
