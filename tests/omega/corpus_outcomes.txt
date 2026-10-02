@@ -1471,6 +1471,7 @@ pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1484ms @a5f40f5895
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms @527c7c316c6f+wt
+pass/control_flow/affine_record_state_cycle_exit checked 704ms @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 1748ms @ca8c127c90c5
 pass/control_flow/borrowed_state_argument checked 3409ms @527c7c316c6f+wt
 pass/control_flow/case_arm_payload_receiver_call rejected 1242ms @2d8ed253669f
