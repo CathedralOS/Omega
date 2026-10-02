@@ -677,16 +677,19 @@ def measurement_stamp(golden) -> str | None:
     if not revision:
         return None
     status = git_out("status", "--porcelain", "--untracked-files=no") or ""
-    try:
-        relative = Path(golden).resolve().relative_to(ROOT).as_posix()
-    except ValueError:
-        relative = None
     # `git status --porcelain` writes `XY path` per line, but git_out strips
     # the whole buffer, so a first line like ` M x` arrives as `M x`; parse
     # the path after the status token instead of a fixed column.
+    def porcelain_path(line):
+        return line.strip().split(None, 1)[-1].split(" -> ")[-1].strip().strip('"')
+    # Record targets exempt from provenance dirt: every corpus golden, since a
+    # multi-golden --record dirties the earlier goldens while measuring the next.
+    record_targets = {
+        path.resolve().relative_to(ROOT).as_posix()
+        for path in (ROOT / "tests" / "omega").glob("corpus_*.txt")
+    }
     dirty = any(
-        line.strip().split(None, 1)[-1].split(" -> ")[-1].strip().strip('"')
-        != relative
+        porcelain_path(line) not in record_targets
         for line in status.splitlines() if line)
     return revision[:12] + ("+wt" if dirty else "")
 
