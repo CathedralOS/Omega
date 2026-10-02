@@ -1,10 +1,19 @@
 //! Current-graph exclusive record/view bindings and fresh view observations.
+//!
+//! Each invocation prepares exact edge transfers from this graph, then solves
+//! definite availability and possible liveness separately. Transfers do not
+//! depend on the evolving arrival sets; rediscovering them for every destination
+//! in every round made validation scan the whole graph quadratically. Keeping
+//! edge occurrences (not predecessor sets) also preserves parallel-edge loans.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
+
+#[cfg(test)]
+mod tests;
 
 /// Exact exclusive spellings live at each block entrance. Ownership pins and
 /// operand validation consume the same replay, so a descriptor address cannot
@@ -21,6 +30,88 @@ impl CurrentMutableBorrows {
             .get(&block)
             .is_some_and(|places| places.contains(&place))
     }
+}
+
+/// Invocation-local transfer: (incoming - retired) union generated. Produced
+/// names are included in generated only after this edge's retirements, while
+/// destination bindings are generated after retirement of their previous names.
+struct MutableBorrowTransfer {
+    source: BlockId,
+    target: BlockId,
+    retired: BTreeSet<PlaceId>,
+    generated: BTreeSet<PlaceId>,
+}
+
+fn prepare_transfers(
+    function: &PsiOptimizationFunction,
+    mutable: &BTreeSet<PlaceId>,
+    descriptor_views: &BTreeSet<PlaceId>,
+    produced: &BTreeMap<BlockId, BTreeSet<PlaceId>>,
+) -> Vec<MutableBorrowTransfer> {
+    let blocks = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
+    let block_names = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .map(|parameter| parameter.place)
+        .collect::<BTreeSet<_>>();
+    let mut transfers = Vec::new();
+    for source in &function.blocks {
+        for edge in source.nodes.iter().flat_map(|node| &node.successors) {
+            // Unknown successors are rejected by CFG validation, not repaired
+            // here. Like the prior replay, only existing destinations contribute.
+            let Some(target) = blocks.get(&edge.target) else {
+                continue;
+            };
+            let mut retired = target
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place)
+                .collect::<BTreeSet<_>>();
+            for binding in &edge.structural_bindings {
+                let argument = &binding.argument;
+                let attenuated_block_name = argument.access == StructuralAccess::SharedBorrow
+                    && block_names.contains(&argument.place)
+                    && target.structural_parameters.iter().any(|parameter| {
+                        parameter.place == binding.parameter
+                            && parameter.access == StructuralAccess::SharedBorrow
+                    });
+                // A whole descriptor handoff retires its exclusive spelling,
+                // including attenuation to shared access. A projected loan
+                // keeps the parent name; invocation records retain their own
+                // restoration lifetime unless they transfer mutable authority.
+                if mutable.contains(&argument.place)
+                    && argument.path.is_empty()
+                    && (descriptor_views.contains(&argument.place)
+                        || attenuated_block_name
+                        || argument.access == StructuralAccess::MutableBorrow)
+                {
+                    retired.insert(argument.place);
+                }
+            }
+            let mut generated = produced[&source.id]
+                .difference(&retired)
+                .copied()
+                .collect::<BTreeSet<_>>();
+            generated.extend(
+                edge.structural_bindings
+                    .iter()
+                    .map(|binding| binding.parameter)
+                    .filter(|place| mutable.contains(place)),
+            );
+            transfers.push(MutableBorrowTransfer {
+                source: source.id,
+                target: edge.target,
+                retired,
+                generated,
+            });
+        }
+    }
+    transfers
 }
 
 pub(crate) fn current_mutable_borrows(
@@ -137,6 +228,12 @@ pub(crate) fn current_mutable_borrows(
         .map(|parameter| parameter.place)
         .filter(|place| mutable.contains(place))
         .collect::<BTreeSet<_>>();
+    let transfers = prepare_transfers(function, &mutable, &descriptor_views, &produced);
+    let reached = transfers
+        .iter()
+        .map(|transfer| transfer.target)
+        .chain(std::iter::once(function.entry))
+        .collect::<BTreeSet<_>>();
     let mut arrivals = function
         .blocks
         .iter()
@@ -171,88 +268,59 @@ pub(crate) fn current_mutable_borrows(
     // Start from the greatest candidate set and intersect every incoming path,
     // including backedges. A descriptor address does not keep a consumed loan live.
     loop {
-        let previous = arrivals.clone();
-        let previous_possible = possible_arrivals.clone();
-        for block in &function.blocks {
-            let mut incoming = if block.id == function.entry {
-                entry.clone()
-            } else {
-                mutable.clone()
-            };
-            let mut possible_incoming = if block.id == function.entry {
-                entry.clone()
-            } else {
-                BTreeSet::new()
-            };
-            let mut reached = block.id == function.entry;
-            for predecessor in &function.blocks {
-                for edge in predecessor
-                    .nodes
-                    .iter()
-                    .flat_map(|node| &node.successors)
-                    .filter(|edge| edge.target == block.id)
-                {
-                    reached = true;
-                    let mut carried = previous[&predecessor.id].clone();
-                    let mut possible_carried = previous_possible[&predecessor.id].clone();
-                    carried.extend(produced[&predecessor.id].iter().copied());
-                    possible_carried.extend(produced[&predecessor.id].iter().copied());
-                    for binding in &edge.structural_bindings {
-                        let attenuated_block_name = binding.argument.access
-                            == StructuralAccess::SharedBorrow
-                            && binding.argument.path.is_empty()
-                            && function.blocks.iter().any(|definition| {
-                                definition
-                                    .structural_parameters
-                                    .iter()
-                                    .any(|parameter| parameter.place == binding.argument.place)
-                            })
-                            && block.structural_parameters.iter().any(|parameter| {
-                                parameter.place == binding.parameter
-                                    && parameter.access == StructuralAccess::SharedBorrow
-                            });
-                        // A whole-root mutable borrow transfers the argument's
-                        // custody to the receiving loan. A subtree borrow
-                        // binds only the projected path, so the ambient root
-                        // stays carried; uses through the lent path while the
-                        // loan is live are not yet distinguished here.
-                        // Whole block-name attenuation retires that exclusive
-                        // spelling too; the shared arrival retains its original
-                        // backing. Invocation resources keep their lifetime and
-                        // can only restore through their own loan replay.
-                        if mutable.contains(&binding.argument.place)
-                            && binding.argument.path.is_empty()
-                            && (descriptor_views.contains(&binding.argument.place)
-                                || attenuated_block_name
-                                || binding.argument.access == StructuralAccess::MutableBorrow)
-                        {
-                            carried.remove(&binding.argument.place);
-                            possible_carried.remove(&binding.argument.place);
-                        }
-                    }
-                    for parameter in &block.structural_parameters {
-                        carried.remove(&parameter.place);
-                        possible_carried.remove(&parameter.place);
-                    }
-                    for binding in &edge.structural_bindings {
-                        if mutable.contains(&binding.parameter) {
-                            carried.insert(binding.parameter);
-                            possible_carried.insert(binding.parameter);
-                        }
-                    }
-                    incoming.retain(|place| carried.contains(place));
-                    possible_incoming.extend(possible_carried);
-                }
+        let mut next_arrivals = function
+            .blocks
+            .iter()
+            .map(|block| {
+                let incoming = if block.id == function.entry {
+                    entry.clone()
+                } else if reached.contains(&block.id) {
+                    mutable.clone()
+                } else {
+                    BTreeSet::new()
+                };
+                (block.id, incoming)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut next_possible = function
+            .blocks
+            .iter()
+            .map(|block| {
+                (
+                    block.id,
+                    if block.id == function.entry {
+                        entry.clone()
+                    } else {
+                        BTreeSet::new()
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        for transfer in &transfers {
+            // Read only the previous round, even for backward and parallel
+            // edges. Merge directly without allocating a carried set per edge.
+            if let Some(incoming) = next_arrivals.get_mut(&transfer.target) {
+                incoming.retain(|place| {
+                    transfer.generated.contains(place)
+                        || (!transfer.retired.contains(place)
+                            && arrivals[&transfer.source].contains(place))
+                });
             }
-            if !reached {
-                incoming.clear();
+            if let Some(incoming) = next_possible.get_mut(&transfer.target) {
+                incoming.extend(
+                    possible_arrivals[&transfer.source]
+                        .iter()
+                        .copied()
+                        .filter(|place| !transfer.retired.contains(place))
+                        .chain(transfer.generated.iter().copied()),
+                );
             }
-            arrivals.insert(block.id, incoming);
-            possible_arrivals.insert(block.id, possible_incoming);
         }
-        if arrivals == previous && possible_arrivals == previous_possible {
+        if next_arrivals == arrivals && next_possible == possible_arrivals {
             break;
         }
+        arrivals = next_arrivals;
+        possible_arrivals = next_possible;
     }
     CurrentMutableBorrows {
         mutable,
