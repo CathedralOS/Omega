@@ -154,13 +154,9 @@ fn receiver_written_paths(
         return None;
     }
     inference.active_states.push(state.symbol);
-    let written = symbols
-        .caller_sites
-        .with_complete_state_summaries(|summaries| {
-            super::super::state_write_walk::summarize_complete_state_written_paths(
-                program, machine, state, symbols, inference, summaries,
-            )
-        });
+    let written = super::super::state_write_walk::summarize_complete_state_written_paths(
+        program, machine, state, symbols, inference,
+    );
     inference.active_states.pop();
     written
 }

@@ -6,9 +6,7 @@
 //! this call; a terminal spelling neither hides them nor grants an empty frame.
 
 use super::caller_aliases::CallOriginContext;
-use super::{
-    FrameInference, HashMap, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols, TypedTrees,
-};
+use super::{FrameInference, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols, TypedTrees};
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) fn target(
@@ -39,7 +37,6 @@ pub(super) fn written_paths(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     origins: &CallOriginContext<'_>,
 ) -> Option<Vec<String>> {
     // Retain the exact callable state: spelling-based lookup can accidentally
@@ -95,7 +92,6 @@ pub(super) fn written_paths(
         symbols,
         inference,
         Some(&argument_origins),
-        complete_state_summaries,
     )?;
     Some(origins.close_paths(paths))
 }

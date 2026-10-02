@@ -24,7 +24,6 @@ use crate::machine_calls::calls::write_frames::transition_topology::{
     named_state_transition_subgraph_is_acyclic, named_transition_target_state,
 };
 use symbols::SymbolHandle;
-use symbols::SymbolKeyMap as HashMap;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionTargetNode};
@@ -229,7 +228,6 @@ fn state_result_origins<'program>(
             state,
             symbols,
             inference,
-            &mut HashMap::default(),
             include_shared,
             &|statement_index| match &statements[statement_index] {
                 StatementNode::Expression(_) => statement_index + 1 == statements.len(),

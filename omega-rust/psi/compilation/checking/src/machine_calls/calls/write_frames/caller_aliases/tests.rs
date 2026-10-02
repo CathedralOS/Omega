@@ -4,7 +4,6 @@ use super::{
     TopLevelSymbols, TypedTrees, caller_aliases_at_site, close_caller_aliases,
 };
 use crate::CallFrameResolver;
-use symbols::SymbolKeyMap as HashMap;
 
 #[test]
 fn explicit_owned_receiver_origins_reject_added_reference_boundaries() {
@@ -113,7 +112,6 @@ fn replayed_assignment_paths(
             state,
             symbols,
             &mut FrameInference::default(),
-            &mut HashMap::default(),
             Some(StateWriteQuery::Assignment(statement)),
         )?
         .assignment?

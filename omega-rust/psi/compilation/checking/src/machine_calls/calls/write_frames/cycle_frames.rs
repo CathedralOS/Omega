@@ -45,8 +45,6 @@ use crate::machine_calls::calls::write_frames::transition_topology::{
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
 use crate::machine_calls::calls::write_frames::{stored_origins, wire_codecs};
-use symbols::SymbolHandle;
-use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -66,7 +64,6 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
     entry: &'program State,
     symbols: &TopLevelSymbols<'program>,
     outer_inference: &FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // The equations below take their edges from the same top-level named
     // transitions the topology walk follows, so a state whose reachable named
@@ -102,7 +99,6 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
             symbols,
             &machine_symbols,
             outer_inference,
-            complete_state_summaries,
         )?;
         pending.extend(equation.edges.iter().map(|edge| edge.target));
         equations.push(equation);
@@ -197,9 +193,9 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
     // record all of them in the shared memo so the next state's complete-frame
     // query reads this solve instead of re-running the same equation system.
     for (symbol, writes) in &summaries {
-        complete_state_summaries
-            .entry(*symbol)
-            .or_insert_with(|| writes.clone());
+        symbols
+            .caller_sites
+            .record_completed_state_writes(*symbol, writes);
     }
     summaries
         .into_iter()
@@ -213,7 +209,6 @@ fn build_cycle_frame_equation<'program>(
     symbols: &TopLevelSymbols<'program>,
     machine_symbols: &MachineSymbols<'program>,
     outer_inference: &FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<CycleFrameEquation<'program>> {
     #[cfg(test)]
     super::CYCLE_EQUATIONS.with(|equations| equations.set(equations.get() + 1));
@@ -317,7 +312,6 @@ fn build_cycle_frame_equation<'program>(
                 symbols,
                 &mut inference,
                 &mut expression_writes,
-                complete_state_summaries,
                 &super::caller_aliases::CallOriginContext {
                     parameters,
                     isolated_locals: &isolated_local_roots,
@@ -458,7 +452,6 @@ fn build_cycle_frame_equation<'program>(
                         symbols,
                         &mut inference,
                         Some(&argument_origins),
-                        complete_state_summaries,
                     )
                     .or_else(|| {
                         (!arguments.iter().any(|argument| {
@@ -513,7 +506,6 @@ fn build_cycle_frame_equation<'program>(
                             machine_symbols,
                             symbols,
                             &mut inference,
-                            complete_state_summaries,
                             &origins,
                         )?;
                         for relative in expand_write_paths(&writes, &local_alias_origins, &stored)?
@@ -597,7 +589,6 @@ pub(crate) fn summarize_transition_target_written_paths(
     target: typed_trees::statement::TransitionTargetHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     source_locals: &[String],
     require_complete: bool,
     origins: &CallOriginContext<'_>,
@@ -614,7 +605,6 @@ pub(crate) fn summarize_transition_target_written_paths(
             machine_symbols,
             symbols,
             inference,
-            complete_state_summaries,
             origins,
         );
     }
@@ -653,14 +643,7 @@ pub(crate) fn summarize_transition_target_written_paths(
             } else {
                 summarize_state_written_paths
             };
-            let target_writes = summarize(
-                program,
-                machine,
-                target_state,
-                symbols,
-                inference,
-                complete_state_summaries,
-            );
+            let target_writes = summarize(program, machine, target_state, symbols, inference);
             inference.active_states.pop();
             let target_writes = target_writes?;
             let parameters = program.state_parameters(target_state);

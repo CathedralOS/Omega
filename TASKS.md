@@ -1421,12 +1421,20 @@ the complete product bar; focused successes below do not establish that baseline
   A sample of the current review again found nested write-frame inference copying
   accumulated origin snapshots. The shared collector now materializes only
   caller-requested boundaries while retaining complete body validation and the
-  all-boundary cache contract. All 102 focused frame tests pass; the 81-fixture
-  borrow corpus's eight golden differences reproduce exactly on base `94e7af7e417`,
-  with all negative cases rejecting. Scoped Clippy's 31 diagnostics also reproduce
-  on that base. Finish the same application command, integrate this snapshot
-  repair, and compare identical inputs before claiming an end-to-end speedup or
-  assigning the next semantic failure. Resolve publication before updating pins.
+  all-boundary cache contract. Completed effects now share one frozen-program
+  memo with short lookup/publication locks; the duplicate resolver table and
+  private-map recursive fallback are removed. A returned-carrier regression
+  preserves its origin and active-producer rejection while avoiding a repeated
+  callee walk. All 102 focused frame tests pass; the 81-fixture borrow corpus
+  retains exactly the eight previously attributed baseline golden differences,
+  with every negative case rejecting. The full checking library is 660/661:
+  `reachable_conflicts_and_missing_fields_do_not_become_constants` also fails on
+  base `0edba502f11` because its source replacements use the old receiver name.
+  Scoped Clippy's 31 diagnostics match that base. Finish the same application
+  command, compare the snapshot repair on identical inputs, then integrate the
+  completed-effect reuse before assigning the next semantic failure. Neither
+  change yet establishes an end-to-end speedup. Resolve publication before
+  updating pins.
 
   Shared frame inference now completes the entire `assemble_results_view`
   cycle: `build` writes `self.target_addresses`, array filling writes

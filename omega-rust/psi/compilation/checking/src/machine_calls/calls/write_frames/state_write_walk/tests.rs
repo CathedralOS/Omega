@@ -1,5 +1,5 @@
 use super::{
-    FrameInference, HashMap, PREFIX_WALKS, TopLevelSymbols, collect_state_write_prefixes,
+    FrameInference, PREFIX_WALKS, TopLevelSymbols, collect_state_write_prefixes,
     summarize_complete_state_written_paths, walk_state_write_prefix_collected,
 };
 
@@ -287,6 +287,21 @@ fn returned_carrier_preserves_origins_after_parameter_reborrow() {
         1,
         "derive the result relation without rebuilding completed callee effects"
     );
+    let make = symbols.machine("make").expect("result producer");
+    let make_state = &program.machine_states(make)[0];
+    assert!(
+        super::super::path_instantiation::aggregate_arguments::reference_leaves(
+            &program,
+            machine,
+            local.initial_value,
+            local.type_reference,
+            "",
+            &symbols,
+            &mut FrameInference::for_state(make_state.symbol),
+        )
+        .is_none(),
+        "cached effects cannot supply an active producer's result origins"
+    );
 }
 
 #[test]
@@ -441,11 +456,15 @@ fn statement_prefix_demand_stops_before_successor_effects() {
             1,
             "a before-statement query must not summarize successor states"
         );
-        symbols
-            .caller_sites
-            .with_complete_state_summaries(|summaries| {
-                assert!(summaries.is_empty(), "prefixes are not complete summaries");
-            });
+        for candidate in program.machine_states(machine) {
+            assert!(
+                symbols
+                    .caller_sites
+                    .completed_state_writes(candidate.symbol)
+                    .is_none(),
+                "prefixes are not complete summaries"
+            );
+        }
     }
 }
 
@@ -458,28 +477,19 @@ fn whole_state_demand_retains_successor_effects() {
     let machine = symbols.machine("inspect").unwrap();
     let state = &program.machine_states(machine)[0];
     let mut inference = FrameInference::default();
-    let mut summaries = HashMap::default();
 
-    let written = summarize_complete_state_written_paths(
-        &program,
-        machine,
-        state,
-        &symbols,
-        &mut inference,
-        &mut summaries,
-    )
-    .unwrap();
+    let written =
+        summarize_complete_state_written_paths(&program, machine, state, &symbols, &mut inference)
+            .unwrap();
     assert_eq!(written, ["value"]);
 
     for include_shared in [false, true] {
-        let mut summaries = HashMap::default();
         let (prefix, boundaries) = walk_state_write_prefix_collected(
             &program,
             machine,
             state,
             &symbols,
             &mut inference,
-            &mut summaries,
             include_shared,
             &|_| true,
         )
@@ -515,7 +525,6 @@ fn selected_boundaries_preserve_alias_versions_and_complete_effects() {
                 state,
                 &symbols,
                 &mut FrameInference::default(),
-                &mut HashMap::default(),
                 include_shared,
                 requested,
             )
@@ -581,7 +590,6 @@ fn selected_boundaries_do_not_hide_later_unknown_effects() {
             state,
             &symbols,
             &mut FrameInference::default(),
-            &mut HashMap::default(),
             include_shared,
             &|position| position == 1,
         );

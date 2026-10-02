@@ -70,35 +70,20 @@ pub(crate) fn summarize_state_written_paths(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
-    summarize_complete_state_written_paths(
-        program,
-        machine,
-        state,
-        symbols,
-        inference,
-        complete_state_summaries,
+    summarize_complete_state_written_paths(program, machine, state, symbols, inference).or_else(
+        || {
+            if named_state_transition_subgraph_is_acyclic(program, machine, state) {
+                return None;
+            }
+            // A named backedge can close this walk in the active state's exact
+            // namespace. That contextual prefix is not a reusable callee summary:
+            // a call can re-enter a machine whose named state is already active,
+            // and truncating there would omit the rest of that invocation's writes.
+            walk_state_write_prefix(program, machine, state, symbols, inference, None)
+                .map(|prefix| prefix.written)
+        },
     )
-    .or_else(|| {
-        if named_state_transition_subgraph_is_acyclic(program, machine, state) {
-            return None;
-        }
-        // A named backedge can close this walk in the active state's exact
-        // namespace. That contextual prefix is not a reusable callee summary:
-        // a call can re-enter a machine whose named state is already active,
-        // and truncating there would omit the rest of that invocation's writes.
-        walk_state_write_prefix(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            complete_state_summaries,
-            None,
-        )
-        .map(|prefix| prefix.written)
-    })
 }
 
 /// Only context-independent summaries may cross an ordinary call boundary or
@@ -111,21 +96,15 @@ pub(crate) fn summarize_complete_state_written_paths(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
-    if let Some(paths) = complete_state_summaries.get(&state.symbol) {
-        return Some(paths.clone());
+    if let Some(paths) = symbols.caller_sites.completed_state_writes(state.symbol) {
+        return Some(paths);
     }
     if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
         // The solver already records every state it solves — including `state`
-        // — into `complete_state_summaries`.
+        // — into the shared completed-summary memo.
         return summarize_state_written_paths_with_cycles(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            complete_state_summaries,
+            program, machine, state, symbols, inference,
         );
     }
     let prefix = walk_state_write_prefix(
@@ -134,12 +113,11 @@ pub(crate) fn summarize_complete_state_written_paths(
         state,
         symbols,
         inference,
-        complete_state_summaries,
         Some(StateWriteQuery::Complete),
     )?;
-    complete_state_summaries
-        .entry(state.symbol)
-        .or_insert_with(|| prefix.written.clone());
+    symbols
+        .caller_sites
+        .record_completed_state_writes(state.symbol, &prefix.written);
     Some(prefix.written)
 }
 
@@ -177,23 +155,18 @@ pub(crate) fn walk_state_assignments(
 ) -> Vec<(usize, AssignmentPrefix)> {
     let mut assignments = Vec::new();
     let mut inference = FrameInference::default();
-    symbols
-        .caller_sites
-        .with_complete_state_summaries(|complete_state_summaries| {
-            let _ = inference.with_local_scope(|inference| {
-                walk_state_write_prefix_inner(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    inference,
-                    complete_state_summaries,
-                    None,
-                    None,
-                    Some(&mut assignments),
-                )
-            });
-        });
+    let _ = inference.with_local_scope(|inference| {
+        walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            None,
+            None,
+            Some(&mut assignments),
+        )
+    });
     assignments
 }
 
@@ -242,7 +215,6 @@ pub(crate) fn walk_state_write_prefix_collected(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     include_shared: bool,
     requested: &dyn Fn(usize) -> bool,
 ) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
@@ -257,7 +229,6 @@ pub(crate) fn walk_state_write_prefix_collected(
             state,
             symbols,
             inference,
-            complete_state_summaries,
             if include_shared {
                 Some(StateWriteQuery::ReferenceResult)
             } else {
@@ -294,23 +265,18 @@ pub(crate) fn collect_state_write_prefixes(
     let mut inference = FrameInference::default();
     // The walk's own result is unused here: `prefixes` carries everything the
     // caller reads, and solved callee summaries land in the shared memo.
-    symbols
-        .caller_sites
-        .with_complete_state_summaries(|complete_state_summaries| {
-            let _ = inference.with_local_scope(|inference| {
-                walk_state_write_prefix_inner(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    inference,
-                    complete_state_summaries,
-                    Some(StateWriteQuery::StatementPrefixes { include_shared }),
-                    Some(&mut collection),
-                    None,
-                )
-            });
-        });
+    let _ = inference.with_local_scope(|inference| {
+        walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            Some(StateWriteQuery::StatementPrefixes { include_shared }),
+            Some(&mut collection),
+            None,
+        )
+    });
     while collection.prefixes.len() < statement_count {
         collection.prefixes.push(None);
     }
@@ -362,20 +328,11 @@ pub(crate) fn walk_state_write_prefix(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
     inference.with_local_scope(|inference| {
         walk_state_write_prefix_inner(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            complete_state_summaries,
-            query,
-            None,
-            None,
+            program, machine, state, symbols, inference, query, None, None,
         )
     })
 }
@@ -386,7 +343,6 @@ fn walk_state_write_prefix_inner(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
     mut collect: Option<&mut StatementPrefixCollection<'_>>,
     mut assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
@@ -833,7 +789,6 @@ fn walk_state_write_prefix_inner(
                 symbols,
                 inference,
                 &mut expression_writes,
-                complete_state_summaries,
                 &origins,
             )?;
             for relative in expand_write_paths(&expression_writes, &local_alias_origins, &stored)? {
@@ -1079,7 +1034,6 @@ fn walk_state_write_prefix_inner(
                         symbols,
                         inference,
                         Some(&argument_origins),
-                        complete_state_summaries,
                     )
                     .or_else(|| {
                         if has_divergent_receiver {
@@ -1195,7 +1149,6 @@ fn walk_state_write_prefix_inner(
                         target,
                         symbols,
                         inference,
-                        complete_state_summaries,
                         &locals,
                         matches!(query, Some(StateWriteQuery::Complete)),
                         &origins,
