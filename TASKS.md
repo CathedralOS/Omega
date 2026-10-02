@@ -1521,8 +1521,11 @@ the complete product bar; focused successes below do not establish that baseline
   acceptance. Independent live-range replay visits actual register memberships,
   groups operands by instruction, reconstructs tied components once and walks
   ordered fragments. It retains liveness revalidation and exact evidence
-  comparison; repeated full scans are removed, not the checks. Full-game output
-  and elapsed time remain unverified for this repair.
+  comparison; repeated full scans are removed, not the checks. Spill recovery
+  retains a failed crossing allocation probe within its current victim attempt:
+  an independently validated bounded rewrite reuses it only when the complete
+  plan and receipt match. Final recovery replay remains independent. Full-game
+  output and elapsed time remain unverified for these repairs.
   Indexed-field replacement retains its explicit complete projection, distinct
   from whole-element replacement. A reference crossing alone is not a child
   window: whole-root replacement still requires the original exclusive parameter
