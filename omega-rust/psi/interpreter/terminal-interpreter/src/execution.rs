@@ -630,11 +630,9 @@ impl TerminalExecution {
                     OperationKind::IntegerStructuralField { .. } => {
                         self.execute_integer_structural_field(operation)?
                     }
-                    OperationKind::EstablishElementView { .. } => {
+                    OperationKind::EstablishElementView { .. }
+                    | OperationKind::EstablishMutableElementView { .. } => {
                         self.execute_establish_element_view(operation)?
-                    }
-                    OperationKind::EstablishMutableElementView { .. } => {
-                        self.execute_establish_mutable_element_view(operation)?
                     }
                     OperationKind::ElementViewLength { .. } => {
                         self.execute_element_view_length(operation)?

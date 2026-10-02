@@ -49,14 +49,7 @@ impl TerminalExecution {
                 // Initialized value arrays own a payload instead of an opaque
                 // root. Resolve their selectors here too, before dispatch, so
                 // every consumer receives the same checked static projection.
-                let root_type = match (
-                    self.structural_values.get(&root),
-                    self.scalar_array_values.get(&root),
-                ) {
-                    (Some(value), None) => value.structural_type,
-                    (None, Some(array)) => array.structural_type,
-                    _ => return Err(invalid()),
-                };
+                let root_type = self.live_structural_type(root)?;
                 let array = resolve_structural_path_type(
                     &self.program.structural_types,
                     root_type,

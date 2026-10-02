@@ -64,6 +64,25 @@ fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralT
 }
 
 impl TerminalExecution {
+    /// Initialized arrays carry their own payload instead of an opaque row.
+    /// Every storage observer must resolve that same exclusive live root.
+    pub(crate) fn live_structural_type(
+        &self,
+        place: PlaceId,
+    ) -> Result<StructuralTypeId, TerminalInterpretError> {
+        match (
+            self.structural_values.get(&place),
+            self.scalar_array_values.get(&place),
+        ) {
+            (Some(value), None) => Ok(value.structural_type),
+            (None, Some(array)) => Ok(array.structural_type),
+            (None, None) => Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            )),
+            (Some(_), Some(_)) => Err(TerminalInterpretError::VerifiedOperationMalformed),
+        }
+    }
+
     /// `path` is static here: the execution loop already replaced each
     /// runtime-selected element with the fixed index its value names.
     fn primitive_access(
@@ -543,9 +562,24 @@ impl TerminalExecution {
             .result
             .scalar()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        if let Some(value) = self.element_field_read(source, path, result.scalar_type)? {
-            self.values.insert(result.id, value);
-            return Ok(());
+        let scalar = self.read_primitive_place(source, path, result.scalar_type)?;
+        self.values.insert(result.id, scalar);
+        Ok(())
+    }
+
+    /// Ordinary reads and collection descriptors observe the same resolved
+    /// primitive storage; neither may manufacture an alternate backing.
+    pub(crate) fn read_primitive_place(
+        &self,
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if let Some(value) = self.element_field_read(source, path, expected)? {
+            if !terminal_scalar_belongs_to_type(value) {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+            return Ok(value);
         }
         let (storage, scalar_type) = self.primitive_access(source, false, path)?;
         let scalar = match storage {
@@ -584,14 +618,13 @@ impl TerminalExecution {
                 })
             }
         }?;
-        if result.scalar_type != scalar_type
+        if expected != scalar_type
             || scalar.scalar_type() != scalar_type
             || !terminal_scalar_belongs_to_type(scalar)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        self.values.insert(result.id, scalar);
-        Ok(())
+        Ok(scalar)
     }
 
     pub(crate) fn execute_primitive_store(
@@ -604,12 +637,21 @@ impl TerminalExecution {
         if operation.result != OperationResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let (storage, scalar_type) = self.primitive_access(destination, true, path)?;
         let scalar = self
             .values
             .get(&value)
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+        self.store_primitive_place(destination, path, scalar)
+    }
+
+    pub(crate) fn store_primitive_place(
+        &mut self,
+        destination: PlaceId,
+        path: &[StructuralPathSegment],
+        scalar: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let (storage, scalar_type) = self.primitive_access(destination, true, path)?;
         if scalar.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
@@ -668,6 +710,7 @@ impl TerminalExecution {
     }
 
     pub(crate) fn retire_plain_locals(&mut self) {
+        self.retire_unrestricted_views();
         let Some(machine) = self.program.machines.get(&self.current_machine) else {
             return;
         };
