@@ -89,14 +89,10 @@ pub(super) fn validate(
         }
         return Ok(());
     };
-    let expected_multiplicity = if shared_borrowed_slice_view(checked, state.return_type) {
-        // A minted `&[T]` view is loan custody like every `EstablishReference`
-        // binding: the checked carrier is affine even though the shared
-        // borrow's type multiplicity spells Unrestricted.
-        Multiplicity::Affine
-    } else {
-        validation::reference_result_custody::result_multiplicity(&checked.typed, state.return_type)
-    };
+    let expected_multiplicity = validation::reference_result_custody::result_multiplicity(
+        &checked.typed,
+        state.return_type,
+    );
     if state.symbol != machine.state
         || !source.body_is_present
         || result.multiplicity != expected_multiplicity

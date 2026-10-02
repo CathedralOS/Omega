@@ -292,11 +292,13 @@ pub(super) fn build(
                 program,
                 target_state.return_type,
             ))
-            // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
-            // storage through the caller frame: its plan is affine like
-            // the reference-record family above, and the result-shape arm
-            // already proved the identity.
-            || (result.multiplicity == Multiplicity::Affine
+            // Shared descriptors and materialized reference carriers borrow
+            // storage but retain their distinct result-custody obligations.
+            || (result.multiplicity
+                == validation::reference_result_custody::result_multiplicity(
+                    program,
+                    target_state.return_type,
+                )
                 && (crate::execution::terminal_unit::types::borrowed_slice_view(
                     program,
                     target_state.return_type,
@@ -324,15 +326,7 @@ pub(super) fn build(
             result: CheckedUnitCallResult::Structural {
                 binding: result.clone(),
                 discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                    && !reference_loan.is_valid()
-                    && !crate::execution::terminal_unit::types::borrowed_slice_view(
-                        program,
-                        target_state.return_type,
-                    )
-                    && !crate::execution::terminal_unit::types::borrowed_named_view(
-                        program,
-                        target_state.return_type,
-                    ),
+                    && !reference_loan.is_valid(),
             },
             transfers: CheckedUnitCallTransfers::StructuralCustody(
                 checked_trees::CheckedStructuralCallCustodyPlan {

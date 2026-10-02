@@ -84,12 +84,11 @@ pub(super) fn signature_matches(
                         == Some(&result.projected_qualifications);
             }
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
-                // The checker stamps the same affine view-loan custody on a
-                // shared slice result that the mutable and named arms above
-                // spell, while `type_multiplicity` still reads the `&`
-                // carrier as unrestricted.
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
-                    && result.multiplicity == Multiplicity::Affine
+                    && validation::reference_result_custody::result_multiplicity(
+                        &checked.typed,
+                        source.return_type,
+                    ) == result.multiplicity
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
                     && validation::structural_result_projected_qualifications(

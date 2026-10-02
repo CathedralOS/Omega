@@ -187,17 +187,18 @@ fn structural_result_type(
             multiplicity: Multiplicity::Affine,
         });
     }
-    // A `&[u8]`/`&[T]` borrowed slice view is the same shared-loan result as
-    // the named view above: affine custody against the callee's storage. The
-    // `add_type` mint peels the borrow — identical to what an anonymous
-    // operand result of the same call produces — so bound and anonymous
-    // borrowed-view results carry the same plan shape.
+    // Shared descriptors are unrestricted; materialized reference carriers
+    // keep their separate loan-retirement obligation. Peeling the storage
+    // identity must not invent affine custody over the borrowed backing.
     if crate::execution::terminal_unit::types::borrowed_slice_view(program, result_type) {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
             type_identity: shapes.add_type(result_type, binders, &[])?,
-            multiplicity: Multiplicity::Affine,
+            multiplicity: validation::reference_result_custody::result_multiplicity(
+                program,
+                result_type,
+            ),
         });
     }
     // A `&mut R`/`&mut [T]` exclusive structural view is the exclusive-loan

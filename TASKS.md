@@ -1493,12 +1493,16 @@ the complete product bar; focused successes below do not establish that baseline
   copies now resolve that storage through one address owner, with independent
   replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
   and derived views. Older unchanged full-game runs remain in allocation
-  recovery. The latest help/exit run (macOS ARM64, `a10a36f6dd` compiler,
-  unchanged source checkout `356d43c6d6`) instead rejects in Psi stage 05 after
-  63.58 seconds: `borrowed view result acquired owned storage custody` in
-  `unit/attached_unit/structural_calls/result_uses.rs`. Trace the view result's
-  carrier transfer and loan retirement through the shared custody flow; do not
-  exempt a producer spelling or weaken validation. Do not substitute the
+  recovery. The latest help/exit run (macOS ARM64, `991578229a9` compiler,
+  unchanged source checkout `356d43c6d6`) rejects after 37.11 seconds at
+  `OwnedStructuralFrontierJoinMismatch(BlockId(66))`. The earlier borrowed-view
+  rejection was a type-wide exception that mistook descriptor retirement for
+  backing ownership. Removing it and restoring canonical shared-result
+  multiplicity lets `collections/mutable_slice_view_establishment` execute 181;
+  four related native controls and three invalid-borrow controls also retain
+  their authored outcomes. Trace the conflicting incoming ownership frontiers
+  through ordinary control-flow publication; do not exempt a block or weaken
+  independent verification. Do not substitute the
   reduced program's result for application acceptance. Independent live-range
   replay visits actual register memberships,
   groups operands by instruction, reconstructs tied components once and walks
