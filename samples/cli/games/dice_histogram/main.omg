@@ -35,13 +35,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart");
-    self.counts = [0, 0, 0, 0, 0, 0];
-    self.line = "                        ";
-    self.st = 1;
-    self.n = 0;
-    transition { _ -> roll_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart");
+    main.counts = [0, 0, 0, 0, 0, 0];
+    main.line = "                        ";
+    main.st = 1;
+    main.n = 0;
+    transition { _ -> roll_loop(main) }
 
     // --- roll 60 dice, tally each face ---
     state roll_loop(main: &mut Main) {

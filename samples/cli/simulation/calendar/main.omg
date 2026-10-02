@@ -33,14 +33,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("calendar: render a 30-day month starting on Wednesday as a 7-column grid");
-    self.header = "Su Mo Tu We Th Fr Sa ";
-    self.line = "                     ";
-    self.col = 3; // the month starts on Wednesday
-    self.d = 1;
-    self.console.write_line(self.header);
-    transition { _ -> day_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("calendar: render a 30-day month starting on Wednesday as a 7-column grid");
+    main.header = "Su Mo Tu We Th Fr Sa ";
+    main.line = "                     ";
+    main.col = 3; // the month starts on Wednesday
+    main.d = 1;
+    main.console.write_line(main.header);
+    transition { _ -> day_loop(main) }
 
     state day_loop(main: &mut Main) {
         transition main.d >= 1 && main.d <= 30 { true -> place(main) _ -> flush(main) }
