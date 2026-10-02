@@ -474,10 +474,10 @@ fn owned_data_definition(
         .type_reference_table
         .type_reference(peel_constrained(program, type_reference))
     {
-        TypeReferenceNode::Named { symbol, .. } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol),
+        // Array traversal revisits these owners at each exact index. Reuse the
+        // program's revision-checked first-match index instead of rescanning
+        // every declaration; predicate enumeration and path order stay intact.
+        TypeReferenceNode::Named { symbol, .. } => program.data_definition_by_symbol(*symbol),
         _ => None,
     }
 }

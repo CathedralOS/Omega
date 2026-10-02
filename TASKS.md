@@ -1378,66 +1378,42 @@ the complete product bar; focused successes below do not establish that baseline
 
   Current candidate application `248a79e66025` has six unpublished source-lifetime
   repairs; its remote denies writes, so do not advance the application gitlink.
-  On macOS ARM64, the last completed `omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64` review with compiler
-  `04ac304a976` and application `65449080992e` rejected `ProjectItem::get_field_name`:
-  a transition carried a view beyond its local `DataValue` owner's storage.
-  The application now uses its existing byte-copy helper in an ordinary call,
-  keeping the owner live and removing the duplicated state loop. Review of that
-  candidate is in flight; neither successful review nor native execution is proven.
-  A sample of the current review again found nested write-frame inference copying
-  accumulated origin snapshots. The shared collector now materializes only
-  caller-requested boundaries while retaining complete body validation and the
-  all-boundary cache contract. Completed effects now share one frozen-program
-  memo with short lookup/publication locks; the duplicate resolver table and
-  private-map recursive fallback are removed. A returned-carrier regression
-  preserves its origin and active-producer rejection while avoiding a repeated
-  callee walk. All 102 focused frame tests pass; the 81-fixture borrow corpus
-  retains exactly the eight previously attributed baseline golden differences,
-  with every negative case rejecting. The full checking library is 660/661:
-  `reachable_conflicts_and_missing_fields_do_not_become_constants` also fails on
-  base `0edba502f11` because its source replacements use the old receiver name.
-  Scoped Clippy's 31 diagnostics match that base. Finish the same application
-  command, compare the snapshot repair on identical inputs, then integrate the
-  completed-effect reuse before assigning the next semantic failure. Neither
-  change yet establishes an end-to-end speedup. Resolve publication before
-  updating pins.
+  On macOS ARM64, `omega update --project samples/apps/squalr/squalr-tests
+  --target linux_x86_64` with compiler `b9498b04547` returned after 599.74 seconds:
+  `ProgramStorageEntry::enter` had no evaluated calling plan. The dependency's
+  calling vocabulary differed from the bundled source only by a binder rename;
+  checking's `declarations/standard_declarations.rs` required byte equality.
+  Recognition now uses the resolved nominal calling interface, with one route
+  for toolchain and dependency sources. Policy execution, closed-result decoding
+  and independent plan validation remain required. Nine interface tests and
+  29 calling-plan tests pass, including invalid-result rejection without a
+  retained plan. Four checked build fixtures and two native build fixtures
+  retain their outcomes, including one authored native exit.
 
-  Shared frame inference now completes the entire `assemble_results_view`
-  cycle: `build` writes `self.target_addresses`, array filling writes
-  `level_candidates_view`, and the finite substitution solve propagates both
-  without widening to `self`. Ordinary and cyclic walks share assignment
-  transfer; indexed writes discard overlapping origin evidence and rebuild the
-  full declared reference inventory, including newly introduced enum cases.
-  The prior cycle-only replacement rejection is removed. The downstream
-  `04_typed-trees-to-checked-trees/src/flow/mutation/` adapter now retains
-  unknown reference rows and selects overlapping storage before requiring a
-  source. Unknown leaves conservatively lose their facts on writes, while
-  known aliases keep their full invalidation footprint; exact-origin queries
-  retain unknown alternatives and live-local identity checks remain required.
-  All 341 focused frame, borrow, range, declaration-index and service-binding
-  tests pass, including a complete checked metadata-call program and stale
-  value-evidence rejection. The 78-fixture borrow corpus has unchanged outcomes
-  from the prior checkpoint (including its attributed baseline failures).
-  Profiling found repeated service and closed-data declaration scans. Both now
-  use the existing mutation-aware declaration index; unique-owner queries retain
-  duplicate rejection rather than taking the first match. The lookup change
-  passes 176 identity, index, generic-store and frame tests and scoped Clippy.
-  Finish the package-review reproduction before assigning its next semantic frontier.
-  The unchanged native carrier-store probe still stops at stage 04's
-  `structural field store: destination parameter`; do not remove the referent
-  store to turn that execution test green. Its primitive store needs the actual
-  carrier home and explicit `Field(destination), Referent` path preserved through
-  source replay, custody checks and native address loading. An inferred origin
-  is not an address choice; a source-shaped rebase is not this operation.
-  The route retains
-  candidate windows in external result entries, sorts disjoint `target_addresses`,
-  and updates scalar metadata on the new result; no candidate-arena write was found. The owning
-  paths are checking's receiver footprint/write-frame analysis and flow mutation
-  summaries. Distinguish a genuinely opaque frame from lost field or result
-  identity before changing application code. Windows remain live after their
-  temporary formals disappear: a later arena write must still reject. Then rerun
-  the same package-review command and the documented native application oracle.
+  Full review with `702aed0e8c1` was deliberately interrupted after 835.04 seconds
+  without a verdict. Two profiles found repeated declaration-roster scans in
+  crash-contract predicate traversal. `fb24797a5eb` reuses the existing indexed
+  first-match owner query without changing predicate enumeration; six predicate
+  tests and seven index tests pass. The identical application review completed
+  on macOS ARM64 in 777.83 seconds with exit 3: ordinary pending capability
+  decisions, not a compilation failure. Maximum resident memory was 9,549,742,080
+  bytes. The missing calling-plan frontier is cleared; the interrupted baseline
+  does not establish an end-to-end speedup. Review output is
+  `squalr-tests/build/package-manager/review-linux_x86_64.txt` in the candidate
+  application checkout. Accepted project files remain unchanged. Review the
+  pending source-replacement and capability decisions before `omega update
+  --project samples/apps/squalr/squalr-tests --target linux_x86_64 --resume`;
+  do not manufacture approval. Native emission and execution remain unverified.
+
+  Reconcile the unpublished carrier-custody and pointer-load repairs against
+  current main before publishing them. Preserve the actual carrier home and
+  explicit `Field(destination), Referent` geometry through source replay,
+  custody checking and native address loading. Keep newer main's exact storage
+  receipts, mutable-view backing and state-arrival joins. Do not remove the
+  store from the customer or substitute inferred origin for its address.
+  Escaped candidate windows remain live after their temporary formals disappear;
+  a later arena write must still reject. The same package-review command and
+  documented native application oracle are the acceptance route.
 
   The public macOS native command stops at missing exact-target package review;
   the existing Linux lock names a different checkout's local source identities.
