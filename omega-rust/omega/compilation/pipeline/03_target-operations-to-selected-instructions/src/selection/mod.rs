@@ -10,6 +10,7 @@ mod aggregate_result_input;
 mod atomic_access;
 mod block_order;
 mod byte_concatenation_input;
+mod byte_owner_input;
 mod byte_view_homes;
 mod constraints;
 mod construction;

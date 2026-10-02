@@ -27,7 +27,6 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
-    is_bounded_structural_scalar_store_path,
 };
 
 /// Validate the closed representation foundation needed before the independent
@@ -901,9 +900,10 @@ fn validate_structural_arguments(
         {
             continue;
         }
-        // The shared counterpart: a borrowed view reads the field's live bytes.
-        // Boundary actuals admit it directly; ordinary borrowed calls admit the
-        // same unrestricted subloan the verifier's shared-field rule describes.
+        // A shared view observes the live bytes of either whole or projected
+        // bounded storage. Call kind and entry-versus-block placement do not
+        // change that presentation; verification separately checks source
+        // permission, multiplicity, availability and overlapping loans.
         let shared_byte_field_loan = terminal_semantics::shared_boundary_buffer_capacity(
             module.structural_types.iter(),
             actual_type,
@@ -911,17 +911,7 @@ fn validate_structural_arguments(
             expected,
         )
         .is_some()
-            && match presentation {
-                StructuralArgumentPresentation::Boundary => true,
-                StructuralArgumentPresentation::Ordinary => {
-                    expected.multiplicity == StructuralMultiplicity::Unrestricted
-                        && is_bounded_structural_scalar_store_path(&argument.path)
-                        && machine.structural_parameters.iter().any(|parameter| {
-                            parameter.place == argument.place
-                                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        })
-                }
-            };
+            && expected.multiplicity == StructuralMultiplicity::Unrestricted;
         if shared_byte_field_loan {
             continue;
         }

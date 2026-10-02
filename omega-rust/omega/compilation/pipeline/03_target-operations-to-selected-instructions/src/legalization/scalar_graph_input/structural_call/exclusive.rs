@@ -64,7 +64,7 @@ pub(super) fn argument(
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
             .ok_or(LegalizationError::custody())?;
-    let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
+    let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_view(
         source,
         semantic,
         destination.structural_type,

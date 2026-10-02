@@ -65,7 +65,7 @@ pub(super) fn loan(
         )
         && structural_access_for_type_reference(program, local.type_reference)
             == Some(CheckedStructuralAccess::Owned)
-        && super::super::boundary_admission::boundary_argument_presentation_is_admitted(
+        && super::super::argument_presentation::is_admitted(
             program,
             local.type_reference,
             parameter.type_reference,

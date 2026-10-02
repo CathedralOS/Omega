@@ -21,6 +21,9 @@ use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// A call or constructed-value result that no automatic return discard
 /// retires: the selected edge owns its disposal.
 pub(super) fn result(
@@ -496,44 +499,57 @@ pub(super) fn validate(
     };
     // A `&mut`-referee binding joins the same carrier `add_view_type`
     // recorded — view/named referees peel to the view or record carrier.
-    let expected_identity = if let Some(carrier) =
-        crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-            checked,
-            local.type_reference,
-        ) {
-        checked.normalized_type_identity(carrier).into_string()
-    } else if is_borrowed_view_local(checked, local.type_reference) {
-        validation::unwrapped_type_reference(&checked.typed, local.type_reference)
-            .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
-            .unwrap_or_else(|| {
-                checked
-                    .normalized_type_identity(local.type_reference)
-                    .into_string()
-            })
-    } else if let Some((referee, _)) =
-        validation::reference_result_custody::shared_place_borrowed_parts(
-            checked,
-            local.type_reference,
-        )
-        && !(matches!(
-            checked.expression_table.expression(local.initial_value),
-            ExpressionNode::Call(_)
-        ) && matches!(
-            checked.type_reference_table.type_reference(referee),
-            checked_trees::types::TypeReferenceNode::Named { .. }
-        ))
-    {
-        // A shared-loaned local publishes its referent identity — the same
-        // peel the checker-side roster applies. A call result returning a
-        // record `&T` keeps the reference shell: its binding stamps the
-        // callee's `&T` return type identity, not the peeled referee's.
-        // View and primitive referees still peel to their own carrier.
-        checked.normalized_type_identity(referee).into_string()
-    } else {
-        checked
-            .normalized_type_identity(local.type_reference)
-            .into_string()
-    };
+    let expected_identity =
+        if validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference).is_some()
+        {
+            // The byte constructor and ordinary result signature retain the
+            // carrier separately from its predicates. Reconstruct that same
+            // identity from the authored declaration; source validation still
+            // checks the establishment's complete qualification roster.
+            let carrier = crate::unit::attached_unit::parameters::structural_carrier_type(
+                checked,
+                local.type_reference,
+            )?;
+            checked.normalized_type_identity(carrier).into_string()
+        } else if let Some(carrier) =
+            crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                checked,
+                local.type_reference,
+            )
+        {
+            checked.normalized_type_identity(carrier).into_string()
+        } else if is_borrowed_view_local(checked, local.type_reference) {
+            validation::unwrapped_type_reference(&checked.typed, local.type_reference)
+                .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
+                .unwrap_or_else(|| {
+                    checked
+                        .normalized_type_identity(local.type_reference)
+                        .into_string()
+                })
+        } else if let Some((referee, _)) =
+            validation::reference_result_custody::shared_place_borrowed_parts(
+                checked,
+                local.type_reference,
+            )
+            && !(matches!(
+                checked.expression_table.expression(local.initial_value),
+                ExpressionNode::Call(_)
+            ) && matches!(
+                checked.type_reference_table.type_reference(referee),
+                checked_trees::types::TypeReferenceNode::Named { .. }
+            ))
+        {
+            // A shared-loaned local publishes its referent identity — the same
+            // peel the checker-side roster applies. A call result returning a
+            // record `&T` keeps the reference shell: its binding stamps the
+            // callee's `&T` return type identity, not the peeled referee's.
+            // View and primitive referees still peel to their own carrier.
+            checked.normalized_type_identity(referee).into_string()
+        } else {
+            checked
+                .normalized_type_identity(local.type_reference)
+                .into_string()
+        };
     if expected_multiplicity != result.multiplicity || expected_identity != result.type_identity {
         return unsupported("Unit graph local disposition type drifted");
     }

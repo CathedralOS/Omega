@@ -471,8 +471,8 @@ pub(crate) fn structural_call_arguments(
             && !argument.whole_parameter_is_admitted(
                 source,
                 target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && is_unit(program, target_state.return_type)
                     && custody.lends_unrestricted_borrow(),
+                &[],
             )
         {
             return None;

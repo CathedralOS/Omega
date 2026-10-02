@@ -3,11 +3,9 @@
 
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
 use crate::execution::terminal_unit::types::{
-    base_type_identity, is_unit, type_graph_requires_nominal_drop,
+    base_type_identity_with_substitutions, substituted_formal_type,
 };
-use crate::execution::terminal_unit::types::{
-    base_type_identity_with_substitutions, byte_sequence_carrier, substituted_formal_type,
-};
+use crate::execution::terminal_unit::types::{is_unit, type_graph_requires_nominal_drop};
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
     TypedTrees, is_reference,
@@ -124,73 +122,6 @@ pub(crate) fn boundary_value_result_matches(
                 && crate::checks::type_multiplicity(program, return_type) == expected.multiplicity
                 && base_type_identity_with_substitutions(program, return_type, &[], substitutions)
                     .is_some_and(|identity| identity == expected.type_identity)
-        }
-    }
-}
-
-/// Whether a projected caller place may be presented at this boundary
-/// requirement parameter. The ordinary rule is the transitive lane's: the
-/// projected type carries the parameter's exact normalized identity.
-///
-/// One carrier presentation additionally crosses. A concrete owned
-/// `[u8; N] in D` destination is admitted at a requirement that declares the
-/// borrowed `[u8]` view, which is the settled `Console::read_line` surface: the
-/// requirement keeps its checked mutable-slice type while the lowering derives
-/// the existing writable extent from this exact call-site place. That is why the
-/// argument retains the projected path instead of a materialized view. Equal
-/// element types establish nothing on their own -- both sides must classify as
-/// byte-sequence carriers, and no other pair of carriers agrees.
-pub(crate) fn boundary_argument_presentation_is_admitted(
-    program: &TypedTrees,
-    projected_type: typed_trees::types::TypeReferenceHandle,
-    parameter_type: typed_trees::types::TypeReferenceHandle,
-    target_identity: &str,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> bool {
-    if base_type_identity(program, projected_type, &[])
-        .is_some_and(|identity| identity == target_identity)
-    {
-        return true;
-    }
-    let formal = substituted_formal_type(program, parameter_type, substitutions);
-    match (
-        byte_sequence_carrier(program, projected_type, &[]),
-        byte_sequence_carrier(program, formal, substitutions),
-    ) {
-        (
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
-        ) => true,
-        // A stored shared view field presents its own descriptor at a shared
-        // view formal: the callee reborrows the stored view's backing for the
-        // call, not the record. An exclusive view on either side would
-        // duplicate or widen a loan, so both must be shared.
-        (
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
-        ) => {
-            shared_view_reference(program, projected_type)
-                && crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                    program, formal,
-                ) == Some(checked_trees::CheckedStructuralAccess::SharedBorrow)
-        }
-        _ => false,
-    }
-}
-
-/// Whether a declared field type is a shared `&[u8]` view, through any
-/// domain constraint shells.
-fn shared_view_reference(
-    program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { access, .. } => {
-                return *access == language_core::ReferenceAccess::Shared;
-            }
-            _ => return false,
         }
     }
 }

@@ -748,18 +748,55 @@ pub(crate) fn fixed_element_array_view(
     Some((offset, element_count, element_stride))
 }
 
-/// Reconstruct a borrowed view presented from a bounded inline byte field.
-/// The field's live length word and capacity bytes stay in the caller's record
+/// Reconstruct a borrowed view presented from whole or inline bounded-owner
+/// storage. The live length word and capacity bytes stay in the caller's
 /// storage; the descriptor staged for the call reads that length in place.
-/// This returns metadata geometry only — it grants neither byte access nor
-/// authority to replace the field.
-pub(crate) fn bounded_byte_field_view(
+/// Shared presentation does not copy the owner's primitive predicate roster
+/// onto the view formal; call semantics has already proved the view's weaker
+/// promises. This returns metadata geometry only — it grants neither byte
+/// access nor authority to replace the storage.
+pub(crate) fn bounded_byte_view(
     source: &terminal_psi::StructuralParameterDeclaration,
     argument: &terminal_psi::StructuralArgument,
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64)> {
-    bounded_byte_field_borrow(source, argument, view_type, declarations, false)
+    if source.place != argument.place
+        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+        || !source.projected_qualifications.is_empty()
+    {
+        return None;
+    }
+    // Exclusive borrowed-view fields retain their existing field-only route
+    // and exact qualification restrictions. Only a shared presentation may
+    // expose a whole owner without copying its primitive predicate roster onto
+    // the view formal.
+    if argument.access != terminal_psi::StructuralAccess::SharedBorrow {
+        return bounded_byte_field_borrow(source, argument, view_type, declarations, false);
+    }
+    let expected = terminal_psi::StructuralParameterDeclaration {
+        place: argument.place,
+        position: 0,
+        is_self: false,
+        structural_type: view_type,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let capacity = terminal_semantics::shared_boundary_buffer_capacity(
+        declarations.iter(),
+        source.structural_type,
+        argument,
+        &expected,
+    )?;
+    if argument.path.is_empty() {
+        return Some((0, capacity));
+    }
+    let (offset, field_capacity) =
+        bounded_byte_field_borrow(source, argument, view_type, declarations, false)?;
+    (field_capacity == capacity).then_some((offset, capacity))
 }
 
 /// A stored shared view field lent whole to a shared view formal: the
@@ -831,24 +868,29 @@ fn bounded_byte_field_borrow(
     let Some((StructuralPathSegment::Field(name), prefix)) = argument.path.split_last() else {
         return None;
     };
+    let shared_owned_storage = !owned
+        && source.access == StructuralAccess::Owned
+        && argument.access == StructuralAccess::SharedBorrow;
     if source.place != argument.place
-        || !matches!(
-            (source.access, argument.access),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::WriteOnlyBorrow,
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::WriteOnlyBorrow,
-                StructuralAccess::WriteOnlyBorrow
-            )
-        )
+        || !(shared_owned_storage
+            || matches!(
+                (source.access, argument.access),
+                (
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow,
+                ) | (
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow
+                ) | (
+                    StructuralAccess::WriteOnlyBorrow,
+                    StructuralAccess::WriteOnlyBorrow
+                )
+            ))
         || source.multiplicity != StructuralMultiplicity::Unrestricted
-        || !source.qualifications.is_empty()
+        || (owned || argument.access != StructuralAccess::SharedBorrow)
+            && !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
         || !declarations.iter().any(|declaration| {
             declaration.id == view_type

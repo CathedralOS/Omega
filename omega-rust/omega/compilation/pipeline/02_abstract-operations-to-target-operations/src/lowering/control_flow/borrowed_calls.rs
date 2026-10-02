@@ -423,19 +423,6 @@ pub(super) fn byte_argument(
     let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    if let Some(home) = live.structural_homes.get(&argument.place)
-        && let Some(view) = crate::lowering::unit::roster_arguments::owned_byte_view_argument(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            function,
-            home,
-            types,
-        )
-    {
-        return Ok(view);
-    }
     // A home that is no whole plain array (a mutable view's affine custody
     // home, for one) keeps the descriptor routes below.
     if let Some(home) = live.structural_homes.get(&argument.place)

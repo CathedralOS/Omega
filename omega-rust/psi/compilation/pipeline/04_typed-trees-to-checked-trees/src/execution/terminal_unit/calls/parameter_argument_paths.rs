@@ -10,8 +10,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     projected_argument_path_with_identity, projected_borrowed_path,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
-    fixed_byte_array_view_is_admitted,
+    fixed_array_slice_view_is_admitted, fixed_byte_array_view_is_admitted,
 };
 use crate::execution::terminal_unit::types::{
     base_type_identity, borrowed_slice_view_element, byte_sequence_carrier, parameter_root_symbol,
@@ -273,14 +272,24 @@ pub(crate) fn boundary_parameter_path(
 }
 
 impl ParameterArgument<'_> {
-    /// A whole parameter passes at its own identity or, when `byte_view`
-    /// custody allows, as a fixed byte array lent as the formal's byte view.
+    /// Whole storage and projected storage use the same carrier presentation.
+    /// This proves representation, not permission: the call's access and
+    /// predicate checks still govern the loan. The separate fixed-array rule
+    /// retains its unrestricted, unqualified custody requirement.
     pub(crate) fn whole_parameter_is_admitted(
         self,
         source: SourceParameter<'_>,
         byte_view: bool,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
         source.plan.type_identity == self.target_identity
+            || super::argument_presentation::is_admitted(
+                self.program,
+                source.declaration.type_reference,
+                self.target,
+                self.target_identity,
+                substitutions,
+            )
             || (byte_view
                 && fixed_byte_array_view_is_admitted(
                     self.program,
@@ -326,7 +335,7 @@ impl ParameterArgument<'_> {
         .then_some(path)
     }
 
-    /// A projection the formal presents through the boundary presentation
+    /// A projection the formal presents through the carrier presentation
     /// rule or, when `byte_view` allows, as a fixed byte array's byte view.
     fn presented_projection_path(
         self,
@@ -336,7 +345,7 @@ impl ParameterArgument<'_> {
         let (program, target) = (self.program, self.target);
         let (projected, path) =
             projected_argument_path(program, self.state, self.statement_index, self.place)?;
-        (boundary_argument_presentation_is_admitted(
+        (super::argument_presentation::is_admitted(
             program,
             projected,
             target,

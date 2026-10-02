@@ -1,0 +1,134 @@
+use super::*;
+
+#[test]
+fn qualified_byte_disposition_replays_constructor_and_call_local_carriers() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+        machine text() -> [u8; 16] in Utf8 { "Go!" }
+        machine observe(bytes: &[u8]) -> bool {
+            transition bytes == "Go!" { true -> true false -> false }
+        }
+        machine main() -> bool {
+            transition { _ -> arrived() }
+            state arrived() {
+                let constructed: [u8; 16] in Utf8 = "Go" + "!";
+                let first: bool = observe(constructed);
+                let returned: [u8; 16] in Utf8 = text();
+                let second: bool = observe(returned);
+                first && second
+            }
+        }
+        "#,
+    );
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+        .expect("qualified locals keep canonical byte carriers after shared observation");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("original owner predicates and shared loan custody verify");
+    // Shared presentation must not turn a forged completion signature into
+    // evidence. Check the semantic module directly, before any proof envelope
+    // identity could mask the receiving call-contract rejection.
+    for corrupt_qualifications in [true, false] {
+        let mut module = lowered.semantic_module.clone();
+        let view_type = module
+            .structural_types
+            .iter()
+            .find(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+                )
+            })
+            .expect("observer's view carrier")
+            .id;
+        let result = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| {
+                if !matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallStructural { .. }
+                        | terminal_psi::OperationKind::CallStructuralWithScalarArguments { .. }
+                ) {
+                    return None;
+                }
+                match &mut operation.result {
+                    terminal_psi::OperationResult::Structural(result)
+                        if !result.qualifications.is_empty() =>
+                    {
+                        Some(result)
+                    }
+                    _ => None,
+                }
+            })
+            .expect("qualified ordinary byte completion");
+        if corrupt_qualifications {
+            result.qualifications.clear();
+        } else {
+            result.structural_type = view_type;
+        }
+        assert!(
+            terminal_verifier::validate_module(&module).is_err(),
+            "a borrowed argument cannot legitimize altered call-result custody"
+        );
+    }
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .expect("main");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == machine.symbol)
+        .expect("composed main");
+    let mut replayed = 0;
+    for state in &plan.states {
+        let authored = checked
+            .machine_states(machine)
+            .iter()
+            .find(|authored| authored.symbol == state.state)
+            .expect("authored state");
+        let statements = checked.statement_table.statements(authored.statement_nodes);
+        for result in state
+            .operations
+            .iter()
+            .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+        {
+            let Some(StatementNode::LocalData(local)) =
+                statements.get(result.statement_index as usize)
+            else {
+                continue;
+            };
+            if validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference)
+                .is_none()
+            {
+                continue;
+            }
+            validate(&checked, machine.symbol, authored, local, result)
+                .expect("exact local receipt");
+            let mut wrong = result.clone();
+            wrong.type_identity.push_str("different-capacity");
+            assert!(validate(&checked, machine.symbol, authored, local, &wrong).is_err());
+            wrong = result.clone();
+            wrong.multiplicity = Multiplicity::Affine;
+            assert!(validate(&checked, machine.symbol, authored, local, &wrong).is_err());
+            replayed += 1;
+        }
+    }
+    assert_eq!(
+        replayed, 2,
+        "both constructor and ordinary-call results are replayed"
+    );
+}
