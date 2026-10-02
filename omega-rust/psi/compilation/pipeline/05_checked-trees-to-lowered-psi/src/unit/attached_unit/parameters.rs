@@ -687,21 +687,33 @@ pub(crate) fn validate_transfer_shape(
         }
         let range = super::byte_subslices::range(argument);
         if argument.byte_sequence_literal().is_some() || range.is_some() {
-            // A literal can construct a fresh bounded owner; ranges of either
-            // view family still supply only shared views. Source replay checks
-            // the exact formal, and Terminal checks every emitted
-            // qualification from its bytes. A range retains its collection
-            // projection; storage replay checks that projection before staging.
+            // A literal may construct a fresh bounded owner. A range instead
+            // lends its exact backing with the requested borrowing access;
+            // descriptor custody cannot manufacture owned storage. Source and
+            // storage replay retain the formal and collection projection, and
+            // Terminal independently checks access and qualifications.
             let owned_literal = argument.byte_sequence_literal().is_some()
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned;
+            let access_allowed = if range.is_some() {
+                matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
+            } else {
+                matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::Owned
+                )
+            };
             let element_range = range.as_ref().is_some_and(|range| {
                 range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Elements
             });
             if (!argument.path.is_empty() && range.is_none())
                 || argument.type_identity != target.type_identity
-                || (!owned_literal
-                    && argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow)
+                || !access_allowed
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
             {
