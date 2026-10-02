@@ -252,19 +252,25 @@ pub(crate) fn structural_arguments_match(
             && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 || (source.access == terminal_psi::StructuralAccess::Owned
                     && completed_affine_result));
-        // A live view binding lends one viewed element: the descriptor's
+        // A live view binding lends its descriptor or a viewed element: its
         // custody stays with the caller, so the loan presents unrestricted
         // exactly like a parameter subloan — even when the view result
         // itself is affine (a mutable establishment's result is Affine, not
-        // Unrestricted, yet nothing moves when an element is borrowed).
-        let element_view_loan = !argument.path.is_empty()
-            && argument.access != terminal_psi::StructuralAccess::Owned
+        // Unrestricted, yet nothing moves when the view is borrowed).
+        let view_loan = argument.access != terminal_psi::StructuralAccess::Owned
             && matches!(
-                types
-                    .get(&source.structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(terminal_psi::StructuralTypeShape::ElementView { .. })
+                source.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
             )
+            && types
+                .get(&source.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    ) || (argument.path.is_empty() && declaration.shape.is_borrowed_byte_view())
+                })
             && structural_access_can_supply(source.access, argument.access)
             && argument.access == parameter.access
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
@@ -552,6 +558,7 @@ pub(crate) fn structural_arguments_match(
                         if result.place == argument.place)
                     }));
         let actual_multiplicity = if shared_affine_loan
+            || view_loan
             || shared_buffer_presentation
             || record_loan(caller, argument, parameter, types)
         {
@@ -564,7 +571,6 @@ pub(crate) fn structural_arguments_match(
             || unrestricted_mutable_subloan
             || unrestricted_owned_mutable_subloan
             || unrestricted_shared_subloan
-            || element_view_loan
             || (buffer_presentation
                 && source.access == terminal_psi::StructuralAccess::MutableBorrow
                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)

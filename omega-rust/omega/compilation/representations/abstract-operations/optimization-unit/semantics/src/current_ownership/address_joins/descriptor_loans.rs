@@ -13,7 +13,7 @@
 //! Unknown escapes conservatively retain the loan until the activation ends.
 //! Possible origins establish interference only, never permission or equality.
 
-use super::super::storage_regions::storage_cannot_retain_loan;
+use super::super::call_accesses::argument_storage_is_closed;
 use super::borrowed_regions::{BorrowedRegions, Position, Projection, Region};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
@@ -27,11 +27,14 @@ use terminal_semantics::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlo
 struct DescriptorLoan {
     regions: Vec<Region>,
     live: BTreeSet<Position>,
+    access: StructuralAccess,
+    authorized: BTreeMap<Position, BTreeSet<PlaceId>>,
 }
 
 #[derive(Default)]
 pub(super) struct DescriptorLoans {
     loans: Vec<DescriptorLoan>,
+    observations: BTreeMap<Position, Vec<(PlaceId, Vec<Region>)>>,
 }
 
 impl DescriptorLoans {
@@ -48,11 +51,12 @@ impl DescriptorLoans {
                     u32::try_from(index).expect("unit node index fits u32"),
                 );
                 let descriptor = match &node.operation {
-                    O::EstablishElementView { result, source, .. } => Some((
+                    O::EstablishElementView { result, source, .. }
+                        if source.access == StructuralAccess::SharedBorrow => Some((
                         result.place,
                         source.place,
                         Projection::new(&source.path),
-                        source.access == StructuralAccess::SharedBorrow,
+                        source.access,
                     )),
                     O::ElementViewSubslice {
                         result,
@@ -71,12 +75,14 @@ impl DescriptorLoans {
                         result.place,
                         *source,
                         Projection::window(*start, *end, position),
-                        true,
+                        crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                            function, &node.operation,
+                        ).map_or(StructuralAccess::MutableBorrow, |source| source.access),
                     )),
                     _ => None,
                 };
-                if let Some((result, source, projection, true)) = descriptor {
-                    births.push((position, result, source, projection));
+                if let Some((result, source, projection, access)) = descriptor {
+                    births.push((position, result, source, projection, access));
                 }
             }
         }
@@ -85,13 +91,41 @@ impl DescriptorLoans {
         }
         let flow = DescriptorFlow::new(function, types);
         let mut loans = Vec::with_capacity(births.len());
-        for (birth, descriptor, source, projection) in births {
+        for (birth, descriptor, source, projection, access) in births {
             loans.push(DescriptorLoan {
                 regions: borrowed_regions.resolve(source, projection),
                 live: flow.live_positions(birth, descriptor),
+                access,
+                authorized: terminal_semantics::descriptor_lifetimes::descriptor_authorized_places(
+                    &flow.steps,
+                    birth,
+                    descriptor,
+                ),
             });
         }
-        Self { loans }
+        let observations = function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block.nodes.iter().enumerate().map(move |(index, node)| {
+                    let position = (block.id, index as u32);
+                    (
+                        position,
+                        operation_observations(
+                            function,
+                            types,
+                            borrowed_regions,
+                            position,
+                            &node.operation,
+                        ),
+                    )
+                })
+            })
+            .collect();
+        Self {
+            loans,
+            observations,
+        }
     }
 
     pub(super) fn conflicted_operation(
@@ -124,7 +158,29 @@ impl DescriptorLoans {
             .iter()
             .filter(|loan| loan.live.contains(&position))
         {
-            for (place, regions) in borrowed_regions.writes_at(position).iter().chain(&moved) {
+            let observations = (loan.access != StructuralAccess::SharedBorrow)
+                .then(|| self.observations.get(&position))
+                .flatten()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            for (place, regions) in borrowed_regions
+                .writes_at(position)
+                .iter()
+                .chain(observations)
+            {
+                if !loan.authorizes(position, *place, regions)
+                    && regions.iter().any(|region| {
+                        loan.regions.iter().any(|backing| {
+                            borrowed_regions.regions_overlap_at(backing, region, position)
+                        })
+                    })
+                {
+                    return Some(*place);
+                }
+            }
+            // Descendant access never authorizes relocating or disposing its
+            // backing while another live name still observes that backing.
+            for (place, regions) in &moved {
                 if regions.iter().any(|region| {
                     loan.regions.iter().any(|backing| {
                         borrowed_regions.regions_overlap_at(backing, region, position)
@@ -154,7 +210,7 @@ impl DescriptorLoans {
                 .iter()
                 .zip(destination)
                 .filter(|(binding, parameter)| match binding.argument.access {
-                    StructuralAccess::SharedBorrow => false,
+                    StructuralAccess::SharedBorrow => loan.access != StructuralAccess::SharedBorrow,
                     StructuralAccess::Owned => {
                         parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     }
@@ -164,23 +220,27 @@ impl DescriptorLoans {
                     (
                         binding.argument.place,
                         Projection::new(&binding.argument.path),
+                        binding.argument.access == StructuralAccess::Owned,
                     )
                 })
                 .chain(
                     edge.trivial_affine_discards
                         .iter()
-                        .map(|place| (*place, Projection::new(&[]))),
+                        .map(|place| (*place, Projection::new(&[]), true)),
                 )
                 .chain(
                     edge.residual_affine_discards
                         .iter()
-                        .map(|discard| (discard.place, Projection::new(&[]))),
+                        .map(|discard| (discard.place, Projection::new(&[]), true)),
                 );
-            for (place, projection) in disturbed {
-                if borrowed_regions
-                    .resolve(place, projection)
-                    .iter()
-                    .any(|region| loan.regions.iter().any(|backing| backing.overlaps(region)))
+            for (place, projection, forced) in disturbed {
+                let regions = borrowed_regions.resolve(place, projection.at((block, node)));
+                if (forced || !loan.authorizes((block, node), place, &regions))
+                    && regions.iter().any(|region| {
+                        loan.regions.iter().any(|backing| {
+                            borrowed_regions.regions_overlap_at(backing, region, (block, node))
+                        })
+                    })
                 {
                     return Some(place);
                 }
@@ -188,6 +248,208 @@ impl DescriptorLoans {
         }
         None
     }
+}
+
+impl DescriptorLoan {
+    fn authorizes(&self, position: Position, place: PlaceId, regions: &[Region]) -> bool {
+        self.authorized
+            .get(&position)
+            .is_some_and(|places| places.contains(&place))
+            && !regions.is_empty()
+            && regions
+                .iter()
+                .all(|region| region.root.is_some() && !region.projection.indirect)
+    }
+}
+
+/// The common operand inventory supplies conservative observation demand.
+/// Refine only operations retaining exact projection geometry. Metadata does
+/// not read borrowed payload, and selected edge transport is checked separately.
+fn operation_observations(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    borrowed_regions: &BorrowedRegions,
+    position: Position,
+    operation: &O,
+) -> Vec<(PlaceId, Vec<Region>)> {
+    use super::super::storage_regions;
+    use terminal_psi::StructuralPathSegment;
+    if matches!(
+        operation,
+        O::ElementViewLength { .. }
+            | O::ByteSequenceLength { .. }
+            | O::Jump { .. }
+            | O::Conditional { .. }
+    ) {
+        return Vec::new();
+    }
+    let mut remaining = descriptor_inputs(function, types, operation);
+    let mut result = Vec::new();
+    let mut closed_storage = BTreeMap::new();
+    let mut retain = |place, projection: Projection| {
+        if let Some(index) = remaining.iter().position(|input| *input == place) {
+            remaining.remove(index);
+        }
+        result.push((
+            place,
+            borrowed_regions.resolve(place, projection.at(position)),
+        ));
+    };
+    let projected = |place, path: &[StructuralPathSegment], field| {
+        let region = storage_regions::projected(function, types, place, path, field);
+        let mut projection = Projection::new(&region.path);
+        projection.indirect |= region.indirect;
+        let root = crate::unit_validation::operation_contracts::structural_source_contract(
+            function, place, false,
+        );
+        // The shared path owner interprets selectors. A nested view/reference
+        // dereferences storage outside this record; no contained-field alias
+        // has been reconstructed here, so it cannot justify descendant access.
+        projection.indirect |= root.is_none_or(|root| {
+            (0..path.len()).any(|length| {
+                terminal_semantics::runtime_structural_path_tip(
+                    types.values().copied(),
+                    root.structural_type,
+                    &path[..length],
+                )
+                .is_none_or(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference { .. }
+                    ) || (length != 0
+                        && (matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                        ) || declaration.shape.is_borrowed_byte_view()))
+                })
+            })
+        });
+        projection
+    };
+    match operation {
+        O::PrimitiveScalarRead { source, path, .. }
+        | O::StructuralCaseMembership { source, path, .. } => {
+            retain(*source, projected(*source, path, None));
+        }
+        O::StructuralScalarFieldRead {
+            source,
+            path,
+            field,
+            ..
+        } => {
+            let path = storage_regions::canonical_field(function, types, *source, path, *field);
+            retain(*source, projected(*source, &path, None));
+        }
+        O::ElementViewRead {
+            source,
+            index,
+            obligation,
+            path,
+            ..
+        } => {
+            let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                index: *index,
+                obligation: *obligation,
+            }];
+            selected.extend_from_slice(path);
+            retain(*source, projected(*source, &selected, None));
+        }
+        O::ByteSequenceRead {
+            source,
+            index,
+            obligation,
+            ..
+        } => {
+            retain(
+                *source,
+                projected(
+                    *source,
+                    &[StructuralPathSegment::RuntimeIndex {
+                        index: *index,
+                        obligation: *obligation,
+                    }],
+                    None,
+                ),
+            );
+        }
+        O::ElementViewSubslice {
+            source, start, end, ..
+        }
+        | O::ByteSequenceSubslice {
+            source, start, end, ..
+        } => {
+            retain(*source, Projection::window(*start, *end, position));
+        }
+        O::StructuralByteSequenceFieldLength {
+            source,
+            path,
+            field,
+            ..
+        } => {
+            retain(*source, projected(*source, path, Some(*field)));
+        }
+        O::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            ..
+        } => {
+            let mut projection = projected(*source, path, Some(*field));
+            // The field may hold a descriptor whose backing is not the record
+            // slot. Without an exact captured-field alias, keep it indirect.
+            projection.indirect = true;
+            retain(*source, projection);
+        }
+        O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => {
+            for argument in structural_arguments {
+                let mut projection = projected(argument.place, &argument.path, None);
+                // A callee can read through a descriptor stored inside an
+                // otherwise disjoint record. Only closed addressed storage or
+                // a direct view's reconstructed backing bounds that read.
+                projection.indirect |=
+                    !crate::unit_validation::operation_contracts::structural_source_contract(
+                        function,
+                        argument.place,
+                        false,
+                    )
+                    .is_some_and(|source| {
+                        argument_storage_is_closed(
+                            types,
+                            source.structural_type,
+                            &argument.path,
+                            argument.access,
+                            &mut closed_storage,
+                        )
+                    });
+                retain(argument.place, projection);
+            }
+        }
+        O::EstablishReference { source, .. } | O::EstablishElementView { source, .. } => {
+            retain(source.place, projected(source.place, &source.path, None));
+        }
+        _ => {
+            // Reuse the mutation owner's projection inventory rather than
+            // turning a field write into an invented whole-owner read.
+            for (place, region) in
+                storage_regions::written_or_exclusive_regions(function, types, operation)
+            {
+                let mut projection = Projection::new(&region.path);
+                projection.indirect |= region.indirect;
+                retain(place, projection);
+            }
+        }
+    }
+    for place in remaining {
+        result.push((place, borrowed_regions.resolve(place, Projection::new(&[]))));
+    }
+    result
 }
 
 fn known_descriptor_use(
@@ -221,15 +483,14 @@ fn known_descriptor_use(
                     argument.place,
                     false,
                 )
-                .and_then(|source| {
-                    crate::unit_validation::structural_catalog::resolve_structural_path(
+                .is_some_and(|source| {
+                    argument_storage_is_closed(
                         types,
                         source.structural_type,
                         &argument.path,
+                        argument.access,
+                        closed_storage,
                     )
-                })
-                .is_some_and(|structural_type| {
-                    storage_cannot_retain_loan(types, structural_type, closed_storage)
                 })
         }) && dynamic_arguments.is_empty()
             && claim_transfers.is_empty();
@@ -340,9 +601,7 @@ impl DescriptorFlow {
                             Vec::new()
                         },
                         derivations,
-                        inputs: crate::unit_validation::function_structure::operation_place_inputs(
-                            &node.operation,
-                        ),
+                        inputs: descriptor_inputs(function, types, &node.operation),
                         may_escape: !known_descriptor_use(
                             function,
                             types,
@@ -427,3 +686,67 @@ mod authority_tests {
 
 #[cfg(test)]
 mod tests;
+
+/// Carrier disposal keeps its affine debt, but an exact borrowed view has no
+/// payload destructor and therefore does not observe its backing at that point.
+fn descriptor_inputs(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    operation: &O,
+) -> Vec<PlaceId> {
+    let mut inputs = crate::unit_validation::function_structure::operation_place_inputs(operation);
+    let mut dispose = |place: PlaceId| {
+        let descriptor = crate::unit_validation::operation_contracts::structural_source_contract(
+            function, place, false,
+        )
+        .is_some_and(|source| {
+            source.operation_result().is_some()
+                && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && matches!(
+                    source.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                && types
+                    .get(&source.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                        ) || declaration.shape.is_borrowed_byte_view()
+                    })
+        });
+        // Cleanup inputs follow ordinary operands in the common inventory.
+        // Remove only this occurrence, preserving a simultaneous actual use.
+        if descriptor && let Some(position) = inputs.iter().rposition(|input| *input == place) {
+            inputs.remove(position);
+        }
+    };
+    match operation {
+        O::Jump {
+            trivial_affine_discards,
+            ..
+        }
+        | O::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } => {
+            for place in trivial_affine_discards {
+                dispose(*place);
+            }
+        }
+        O::Return {
+            cleanup_actions, ..
+        }
+        | O::ReturnUnit {
+            cleanup_actions, ..
+        } => {
+            for cleanup in cleanup_actions {
+                if let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = cleanup {
+                    dispose(*place);
+                }
+            }
+        }
+        _ => {}
+    }
+    inputs
+}

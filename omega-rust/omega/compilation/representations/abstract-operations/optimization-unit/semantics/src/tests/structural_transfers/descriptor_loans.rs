@@ -392,3 +392,70 @@ fn guarded_window_rejects_duplicate_descriptor_disposal() {
         "an affine descriptor carrier must be disposed exactly once"
     );
 }
+
+fn mutable_field_range_unit() -> optimization_unit::PsiOptimizationUnit {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../../tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg"
+    ));
+    verified_source_machine_unit(source, "main")
+}
+
+/// The same source fixture crosses a mutable call and a mutable state edge;
+/// the caller then reads the backing while descriptor cleanup is still owed.
+#[test]
+fn mutable_field_range_call_restores_backing_access_before_descriptor_cleanup() {
+    validate_psi_optimization_unit(&mutable_field_range_unit())
+        .expect("the completed mutable calls restore the caller's backing access");
+}
+
+#[test]
+fn mutable_field_range_later_observation_prevents_parent_read_restoration() {
+    let mut candidate = mutable_field_range_unit();
+    validate_psi_optimization_unit(&candidate).unwrap();
+    let function = &mut candidate.functions[0];
+    let descriptor = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::ElementViewSubslice { result, .. } => Some(result.place),
+            _ => None,
+        })
+        .expect("the actual caller's narrowed mutable view");
+    let mut observation = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| matches!(node.operation, O::ElementViewLength { .. }))
+        .expect("the existing element-length operation shape")
+        .clone();
+    let O::ElementViewLength {
+        psi_operation,
+        result,
+        source,
+    } = &mut observation.operation
+    else {
+        unreachable!()
+    };
+    *psi_operation = semantic_vocabulary::OperationId::new(10_000).unwrap();
+    result.value = semantic_vocabulary::ValueId::new(10_000).unwrap();
+    *source = descriptor;
+    let (block, insertion) = function.blocks.iter().enumerate().find_map(|(block, body)| {
+        body.nodes.iter().position(|node| matches!(&node.operation,
+            O::ReturnUnit { cleanup_actions, .. }
+                if cleanup_actions.contains(&terminal_psi::TerminalAffineCleanupAction::DiscardRoot(descriptor))
+        )).map(|position| (block, position))
+    }).expect("the caller still owes this descriptor at its normal exit");
+    function.blocks[block].nodes.insert(insertion, observation);
+    for position in insertion..candidate.functions[0].blocks[block].nodes.len() {
+        refresh_node_derivatives(&mut candidate, 0, block, position);
+    }
+    assert!(
+        matches!(
+            validate_address_join_ownership(&candidate),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "a real later descriptor observation keeps its parent's reads suspended"
+    );
+}

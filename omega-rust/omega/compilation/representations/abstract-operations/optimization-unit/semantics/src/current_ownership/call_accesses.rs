@@ -93,10 +93,11 @@ impl CallAccesses {
                     argument.access == StructuralAccess::Owned
                         || !structural_source_contract(function, argument.place, true).is_some_and(
                             |source| {
-                                boundary_storage_is_closed(
+                                argument_storage_is_closed(
                                     types,
                                     source.structural_type,
                                     &argument.path,
+                                    argument.access,
                                     closed_storage,
                                 )
                             },
@@ -209,10 +210,11 @@ impl CallAccesses {
     }
 }
 
-fn boundary_storage_is_closed(
+pub(super) fn argument_storage_is_closed(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     source: StructuralTypeId,
     path: &[StructuralPathSegment],
+    access: StructuralAccess,
     established: &mut BTreeMap<StructuralTypeId, bool>,
 ) -> bool {
     let Some(selected) = resolve_structural_path(types, source, path) else {
@@ -220,7 +222,7 @@ fn boundary_storage_is_closed(
     };
     // A direct descriptor is already a backing alias in BorrowedRegions.
     // A descriptor nested inside a record is not that record's own backing.
-    if path.is_empty() {
+    if path.is_empty() && access != StructuralAccess::Owned {
         match types.get(&selected).map(|declaration| &declaration.shape) {
             Some(StructuralTypeShape::ByteSequence(carrier)) if carrier.is_borrowed() => {
                 return true;
@@ -295,30 +297,51 @@ mod tests {
             (11, false),
         ] {
             assert_eq!(
-                boundary_storage_is_closed(&types, identity(number), &[], &mut established),
+                argument_storage_is_closed(
+                    &types,
+                    identity(number),
+                    &[],
+                    StructuralAccess::MutableBorrow,
+                    &mut established
+                ),
                 closed,
                 "boundary storage type {number}"
             );
         }
         let path = [StructuralPathSegment::Field("payload".into())];
-        assert!(boundary_storage_is_closed(
+        for number in [5, 7] {
+            assert!(
+                !argument_storage_is_closed(
+                    &types,
+                    identity(number),
+                    &[],
+                    StructuralAccess::Owned,
+                    &mut established,
+                ),
+                "owning a descriptor does not make its captured loan closed"
+            );
+        }
+        assert!(argument_storage_is_closed(
             &types,
             identity(2),
             &path,
+            StructuralAccess::MutableBorrow,
             &mut established,
         ));
         for number in [4, 6] {
-            assert!(!boundary_storage_is_closed(
+            assert!(!argument_storage_is_closed(
                 &types,
                 identity(number),
                 &path,
+                StructuralAccess::MutableBorrow,
                 &mut established,
             ));
         }
-        assert!(!boundary_storage_is_closed(
+        assert!(!argument_storage_is_closed(
             &types,
             identity(2),
             &[StructuralPathSegment::Field("missing".into())],
+            StructuralAccess::MutableBorrow,
             &mut established,
         ));
     }
