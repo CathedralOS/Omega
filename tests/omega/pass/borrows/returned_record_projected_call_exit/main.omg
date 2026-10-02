@@ -14,19 +14,19 @@ machine pick(bag: &mut Bag) -> &mut Holder {
 machine replace(child: &mut Child) { child.value = 41; }
 machine read_child(holder: &Holder) -> u64 { holder.child.value }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.holders[0].child.value = 17;
-    let selected: &mut Holder = pick(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.holders[0].child.value = 17;
+    let selected: &mut Holder = pick(&mut main.bag);
     selected.sibling = 29;
     replace(&mut selected.child);
     selected.sibling = 31;
-    let changed: u64 = read_child(&self.bag.holders[1]);
-    let neighbor: u64 = read_child(&self.bag.holders[0]);
+    let changed: u64 = read_child(&main.bag.holders[1]);
+    let neighbor: u64 = read_child(&main.bag.holders[0]);
     transition changed == 41
-        && self.bag.holders[1].sibling == 31
+        && main.bag.holders[1].sibling == 31
         && neighbor == 17 {
-        true -> finish(70)
-        false -> finish(1)
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

@@ -13,31 +13,31 @@ machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
     }
 }
 
-machine Holder::replace(&mut self, value: u64) {
-    self.observed_before = self.sibling;
-    self.value = value;
+machine Holder::replace(holder: &mut Holder, value: u64) {
+    holder.observed_before = holder.sibling;
+    holder.value = value;
 }
 
-machine Main::replace_selected(&mut self, second: bool, value: u64) {
-    let selected: &mut Holder = pick(&mut self.bag, second);
+machine Main::replace_selected(main: &mut Main, second: bool, value: u64) {
+    let selected: &mut Holder = pick(&mut main.bag, second);
     selected.sibling = 29;
-    selected.replace(value);
+    Holder::replace(selected, value);
     selected.sibling = 31;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.holders[2].value = 17;
-    self.replace_selected(true, 41);
-    self.replace_selected(false, 43);
-    transition self.bag.holders[0].value == 43
-        && self.bag.holders[1].value == 41
-        && self.bag.holders[0].sibling == 31
-        && self.bag.holders[1].sibling == 31
-        && self.bag.holders[0].observed_before == 29
-        && self.bag.holders[1].observed_before == 29
-        && self.bag.holders[2].value == 17 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.holders[2].value = 17;
+    Main::replace_selected(main, true, 41);
+    Main::replace_selected(main, false, 43);
+    transition main.bag.holders[0].value == 43
+        && main.bag.holders[1].value == 41
+        && main.bag.holders[0].sibling == 31
+        && main.bag.holders[1].sibling == 31
+        && main.bag.holders[0].observed_before == 29
+        && main.bag.holders[1].observed_before == 29
+        && main.bag.holders[2].value == 17 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

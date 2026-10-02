@@ -62,7 +62,7 @@ data Main {
     packet: RoomPacketValue;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let msg: RoomPacketValue = RoomPacketValue {
         header: RoomHeaderValue {
             room_id: 300
@@ -71,27 +71,27 @@ machine Main::main(&mut self) reaches Console {
         depth: 0 - 64
     };
 
-    RoomPacket::encode(&msg, &mut self.buffer, &mut self.written);
+    RoomPacket::encode(&msg, &mut main.buffer, &mut main.written);
 
-    RoomPacket::decode(&mut self.packet, &self.buffer, &mut self.read, &mut self.verdict);
+    RoomPacket::decode(&mut main.packet, &main.buffer, &mut main.read, &mut main.verdict);
 
-    transition self.verdict == WireVerdict::Sound
-        && self.written == 13
-        && self.read == 13
-        && self.packet.header.room_id == 300
-        && self.packet.samples.length == 2
-        && self.packet.samples.items[0] == 150
-        && self.packet.samples.items[1] == 0 - 2
-        && self.packet.depth == 0 - 64 {
-        true -> good()
-        false -> bad()
+    transition main.verdict == WireVerdict::Sound
+        && main.written == 13
+        && main.read == 13
+        && main.packet.header.room_id == 300
+        && main.packet.samples.length == 2
+        && main.packet.samples.items[0] == 150
+        && main.packet.samples.items[1] == 0 - 2
+        && main.packet.depth == 0 - 64 {
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

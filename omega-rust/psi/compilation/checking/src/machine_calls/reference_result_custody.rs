@@ -1958,6 +1958,27 @@ fn arg_root_data_symbol(
     Some(symbol)
 }
 
+/// Whether a recorded loan denotes exactly the storage `expected_root` names.
+///
+/// One projection has two recordings. Lending a field of a receiver collapses
+/// into the field itself -- root is the field, no segments -- while lending the
+/// same field of a named data parameter keeps the path, so `&mut main.bag`
+/// records the parameter as the root with one `Field` segment selecting `bag`.
+/// Both denote one storage, and comparing only a bare root admitted the first
+/// spelling and refused the second, which omitted the caller's whole unit plan.
+/// A longer path is a different, narrower place and still refuses.
+fn loan_denotes(
+    facts: &CheckFacts,
+    loan: &checked_trees::BorrowLoanFact,
+    expected_root: SymbolHandle,
+) -> bool {
+    match facts.borrow.loan_segments(loan) {
+        [] => loan.root_symbol == expected_root,
+        [facts::PlaceSegment::Field { symbol }] => *symbol == expected_root,
+        _ => false,
+    }
+}
+
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
@@ -2319,9 +2340,8 @@ pub fn result_loan(
     };
     if loans.next().is_some()
         || loan.statement_index != call.statement_index
-        || loan.root_symbol != expected_root
+        || !loan_denotes(facts, loan, expected_root)
         || loan.kind != expected_kind
-        || !facts.borrow.loan_segments(loan).is_empty()
         || !facts.borrow.loan_owner_path(loan).is_empty()
     {
         return None;

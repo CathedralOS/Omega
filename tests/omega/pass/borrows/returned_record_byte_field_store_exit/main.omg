@@ -15,18 +15,18 @@ machine label(short: bool) -> [u8; 16] in Utf8 {
     transition short { true -> "Gate" false -> "Branch Room" }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.holders[0].text = "Neighbor";
-    let selected: &mut Holder = pick(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.holders[0].text = "Neighbor";
+    let selected: &mut Holder = pick(&mut main.bag);
     selected.text = label(false);
     selected.text = label(true);
     selected.sibling = 29;
-    transition self.bag.holders[1].text == "Gate"
-        && self.bag.holders[1].text.len == 4
-        && self.bag.holders[1].sibling == 29
-        && self.bag.holders[0].text == "Neighbor" {
-        true -> finish(70)
-        false -> finish(1)
+    transition main.bag.holders[1].text == "Gate"
+        && main.bag.holders[1].text.len == 4
+        && main.bag.holders[1].sibling == 29
+        && main.bag.holders[0].text == "Neighbor" {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

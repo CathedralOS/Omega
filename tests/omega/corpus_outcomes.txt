@@ -1215,7 +1215,7 @@ pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed2536
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 907ms @2d8ed253669f
-pass/borrow/runtime_method_view_write_after_last_use_exit checked 3319ms @8b265e4e6ad8+wt
+pass/borrow/runtime_method_view_write_after_last_use_exit checked 1283ms @011fd400e8c1+wt
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
 pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
@@ -1223,8 +1223,8 @@ pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
-pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
-pass/borrows/enum_selected_view_reference_exit checked 810ms @be20683757eb+wt
+pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
+pass/borrows/enum_selected_view_reference_exit checked 1343ms @011fd400e8c1+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
@@ -1233,11 +1233,11 @@ pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
-pass/borrows/returned_record_byte_field_store_exit checked 884ms @e7c13a0f55b2+wt
+pass/borrows/returned_record_byte_field_store_exit checked 1496ms @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms @2067346ef4fa+wt
-pass/borrows/returned_record_method_receiver_exit checked 904ms @db98ccdfb56c+wt
-pass/borrows/returned_record_projected_call_exit checked 760ms @e7c13a0f55b2+wt
+pass/borrows/returned_record_method_receiver_exit checked 1304ms @011fd400e8c1+wt
+pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
@@ -2322,7 +2322,7 @@ pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit rejected 364ms @4e4bfed13aee+wt
 	build-time evaluation of `CompactBinary::plan` failed for `CounterMessage`: machine `CompactBinary::plan` takes 2 argument(s); the build-time position supplied 1
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit timeout 123319ms @9b253f5667e5
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms @011fd400e8c1+wt
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1733ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
