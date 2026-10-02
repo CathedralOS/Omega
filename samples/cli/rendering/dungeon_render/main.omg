@@ -38,62 +38,62 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
-    self.grid = [
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
+    main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
         Cell::Wall,  Cell::Floor, Cell::Door,  Cell::Floor, Cell::Floor, Cell::Wall,
         Cell::Wall,  Cell::Floor, Cell::Water, Cell::Floor, Cell::Floor, Cell::Wall,
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall
     ];
-    self.r = 0;
-    transition { _ -> row_loop() }
+    main.r = 0;
+    transition { _ -> row_loop(main) }
 
-    state row_loop(&mut self) {
-        transition self.r < 4 { true -> col_start() _ -> done() }
+    state row_loop(main: &mut Main) {
+        transition main.r < 4 { true -> col_start(main) _ -> done(main) }
     }
-    state col_start(&mut self) {
-        self.c = 0;
-        self.line = "      ";
-        transition { _ -> col_loop() }
+    state col_start(main: &mut Main) {
+        main.c = 0;
+        main.line = "      ";
+        transition { _ -> col_loop(main) }
     }
-    state col_loop(&mut self) {
-        transition self.c < 6 { true -> cell() _ -> emit_row() }
+    state col_loop(main: &mut Main) {
+        transition main.c < 6 { true -> cell(main) _ -> emit_row(main) }
     }
-    state cell(&mut self) {
+    state cell(main: &mut Main) {
         // The DIRECT row-major index (R0 sweep 2026-07-11): one dominating guard on the
         // compound bound, then `grid[r * 6 + c]` as the MATCH SUBJECT -- the free-running
         // `k` counter and its re-guard state are gone (the match-subject position now
         // hoists computed indexes like every other position).
-        transition self.r * 6 + self.c < 24 { true -> match_cell() _ -> emit_row() }
+        transition main.r * 6 + main.c < 24 { true -> match_cell(main) _ -> emit_row(main) }
     }
-    state match_cell(&mut self) {
+    state match_cell(main: &mut Main) {
         // Direct runtime-indexed enum-match subject -- the tilemap classification.
-        transition self.grid[self.r * 6 + self.c] {
-            Cell::Wall  -> put(35)   // '#'
-            Cell::Floor -> put(46)   // '.'
-            Cell::Door  -> put(43)   // '+'
-            Cell::Water -> put(126)  // '~'
+        transition main.grid[main.r * 6 + main.c] {
+            Cell::Wall  -> put(main, 35)   // '#'
+            Cell::Floor -> put(main, 46)   // '.'
+            Cell::Door  -> put(main, 43)   // '+'
+            Cell::Water -> put(main, 126)  // '~'
         }
     }
-    state put(&mut self, ch: u8) {
-        self.lab = ch;
-        transition { _ -> write_cell() }
+    state put(main: &mut Main, ch: u8) {
+        main.lab = ch;
+        transition { _ -> write_cell(main) }
     }
-    state write_cell(&mut self) {
-        self.line[self.c] = self.lab;
-        self.c = self.c + 1;
-        transition { _ -> col_loop() }
+    state write_cell(main: &mut Main) {
+        main.line[main.c] = main.lab;
+        main.c = main.c + 1;
+        transition { _ -> col_loop(main) }
     }
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        self.r = self.r + 1;
-        transition { _ -> row_loop() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.r = main.r + 1;
+        transition { _ -> row_loop(main) }
     }
-    state done(&mut self) {
-        self.console.write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

@@ -38,76 +38,76 @@ data Main {
     meta: [u8; 144];
 }
 
-machine Main::main(&mut self) reaches Console + FilesystemHost {
-    self.dir_mode = 493; // 0o755
+machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
+    main.dir_mode = 493; // 0o755
 
     // Best-effort clean slate so a re-run is deterministic (ignore the results:
     // on a fresh machine these targets do not exist yet).
-    self.rc = self.fs.remove("/tmp/omega_journal_dir/note.txt");
-    self.rc = self.fs.remove("/tmp/omega_journal_dir/renamed.txt");
-    self.rc = self.fs.remove_dir("/tmp/omega_journal_dir");
+    main.rc = main.fs.remove("/tmp/omega_journal_dir/note.txt");
+    main.rc = main.fs.remove("/tmp/omega_journal_dir/renamed.txt");
+    main.rc = main.fs.remove_dir("/tmp/omega_journal_dir");
 
     // Step 1 — create the working directory.
-    self.rc = self.fs.create_dir("/tmp/omega_journal_dir", self.dir_mode);
-    transition self.rc == 0 { true -> made_dir() _ -> done() }
+    main.rc = main.fs.create_dir("/tmp/omega_journal_dir", main.dir_mode);
+    transition main.rc == 0 { true -> made_dir(main) _ -> done(main) }
 
-    state made_dir(&mut self) {
-        self.passed = self.passed + 1;
+    state made_dir(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 2 — create the file through the portable target-format adapter
         // and write a known 17-byte line.
-        self.open_result = Filesystem::create(&mut self.files, "/tmp/omega_journal_dir/note.txt");
-        transition self.open_result { OpenResult::Ok { file } -> opened_for_write(file) _ -> done() }
+        main.open_result = Filesystem::create(&mut main.files, "/tmp/omega_journal_dir/note.txt");
+        transition main.open_result { OpenResult::Ok { file } -> opened_for_write(main, file) _ -> done(main) }
     }
-    state opened_for_write(&mut self, file: File) {
-        self.fd = file.fd;
-        self.n = self.fs.write(self.fd, "omega fs journal\n");
-        self.rc = self.fs.close(self.fd);
-        transition self.n == 17 { true -> wrote_file() _ -> done() }
+    state opened_for_write(main: &mut Main, file: File) {
+        main.fd = file.fd;
+        main.n = main.fs.write(main.fd, "omega fs journal\n");
+        main.rc = main.fs.close(main.fd);
+        transition main.n == 17 { true -> wrote_file(main) _ -> done(main) }
     }
-    state wrote_file(&mut self) {
-        self.passed = self.passed + 1;
+    state wrote_file(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 3 — the file exists (stat succeeds; no read permission needed).
-        self.rc = self.fs.read_metadata("/tmp/omega_journal_dir/note.txt", &mut self.meta);
-        transition self.rc == 0 { true -> confirmed_present() _ -> done() }
+        main.rc = main.fs.read_metadata("/tmp/omega_journal_dir/note.txt", &mut main.meta);
+        transition main.rc == 0 { true -> confirmed_present(main) _ -> done(main) }
     }
-    state confirmed_present(&mut self) {
-        self.passed = self.passed + 1;
+    state confirmed_present(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 4 — reopen read-only through the same adapter and read the 17
         // bytes back byte-exactly.
-        self.open_result = Filesystem::open(&mut self.files, "/tmp/omega_journal_dir/note.txt");
-        transition self.open_result { OpenResult::Ok { file } -> opened_for_read(file) _ -> done() }
+        main.open_result = Filesystem::open(&mut main.files, "/tmp/omega_journal_dir/note.txt");
+        transition main.open_result { OpenResult::Ok { file } -> opened_for_read(main, file) _ -> done(main) }
     }
-    state opened_for_read(&mut self, file: File) {
-        self.fd = file.fd;
-        self.n = self.fs.read(self.fd, &mut self.buffer, 17);
-        self.rc = self.fs.close(self.fd);
-        transition self.n == 17 { true -> read_back() _ -> done() }
+    state opened_for_read(main: &mut Main, file: File) {
+        main.fd = file.fd;
+        main.n = main.fs.read(main.fd, &mut main.buffer, 17);
+        main.rc = main.fs.close(main.fd);
+        transition main.n == 17 { true -> read_back(main) _ -> done(main) }
     }
-    state read_back(&mut self) {
-        self.passed = self.passed + 1;
+    state read_back(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 5 — rename within the directory.
-        self.rc = self.fs.rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
-        transition self.rc == 0 { true -> renamed() _ -> done() }
+        main.rc = main.fs.rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        transition main.rc == 0 { true -> renamed(main) _ -> done(main) }
     }
-    state renamed(&mut self) {
-        self.passed = self.passed + 1;
+    state renamed(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 6 — remove the file.
-        self.rc = self.fs.remove("/tmp/omega_journal_dir/renamed.txt");
-        transition self.rc == 0 { true -> removed_file() _ -> done() }
+        main.rc = main.fs.remove("/tmp/omega_journal_dir/renamed.txt");
+        transition main.rc == 0 { true -> removed_file(main) _ -> done(main) }
     }
-    state removed_file(&mut self) {
-        self.passed = self.passed + 1;
+    state removed_file(main: &mut Main) {
+        main.passed = main.passed + 1;
         // Step 7 — remove the now-empty directory.
-        self.rc = self.fs.remove_dir("/tmp/omega_journal_dir");
-        transition self.rc == 0 { true -> removed_dir() _ -> done() }
+        main.rc = main.fs.remove_dir("/tmp/omega_journal_dir");
+        transition main.rc == 0 { true -> removed_dir(main) _ -> done(main) }
     }
-    state removed_dir(&mut self) {
-        self.passed = self.passed + 1;
-        transition { _ -> done() }
+    state removed_dir(main: &mut Main) {
+        main.passed = main.passed + 1;
+        transition { _ -> done(main) }
     }
 
-    state done(&mut self) {
+    state done(main: &mut Main) {
         // Exit with the number of verified steps: 7 on full success.
-        self.console.exit_process(self.passed as i32);
+        main.console.exit_process(main.passed as i32);
     }
 }
