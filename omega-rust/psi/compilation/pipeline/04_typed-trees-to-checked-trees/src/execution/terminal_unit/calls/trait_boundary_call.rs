@@ -455,9 +455,6 @@ pub(super) fn build(
     }
     phase("call operation: boundary result");
     let signature_return = substituted_formal_type(program, return_type, substitutions.as_slice());
-    if validation::is_closed_primitive_array_type(program, signature_return) {
-        return None;
-    }
     if match expected_call_result {
         None => !is_unit(program, signature_return),
         Some(expected) => {

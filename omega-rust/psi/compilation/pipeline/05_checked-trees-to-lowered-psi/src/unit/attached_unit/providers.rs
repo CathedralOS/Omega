@@ -733,7 +733,9 @@ pub(super) fn checked_unit_provider_candidates(
                     // own contract to them. The provider's declared result
                     // must still be the exact carrier, and any qualifications
                     // it declares itself must be authorized by the requirement.
-                    if *multiplicity != Multiplicity::Affine
+                    // Copyable and affine payloads share this exact result join;
+                    // a linear result additionally needs returned claim custody.
+                    if *multiplicity == Multiplicity::Linear
                         || result.type_identity != *type_identity
                         || result.multiplicity != *multiplicity
                         || result
@@ -742,7 +744,7 @@ pub(super) fn checked_unit_provider_candidates(
                             .any(|domain| !qualifications.contains(domain))
                     {
                         return unsupported(
-                            "provider affine result disagrees with its boundary requirement",
+                            "provider structural result disagrees with its boundary requirement",
                         );
                     }
                     body

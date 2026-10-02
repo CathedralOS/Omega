@@ -47,7 +47,7 @@ fn ordinary_structural_call(
 }
 
 #[test]
-fn boundary_array_results_require_payload_support_even_when_unused_or_empty() {
+fn boundary_array_results_retain_exact_call_custody_when_unused_or_empty() {
     for length in [0, 2] {
         for direct in [false, true] {
             let (declarations, call) = if direct {
@@ -80,12 +80,22 @@ fn boundary_array_results_require_payload_support_even_when_unused_or_empty() {
                     "{declarations}
                      machine selected() reaches Factory {{ {statement} }}"
                 ));
-                reject(
+                checked_trees_to_lowered_psi::lower_machine(
                     &checked,
-                    &format!(
-                        "boundary array payload length {length}, direct {direct}, discard {discard}"
-                    ),
-                );
+                    TerminalMachineSelection::Name("selected"),
+                )
+                .unwrap_or_else(|error| panic!(
+                    "boundary array payload length {length}, direct {direct}, discard {discard}: {error:?}"
+                ));
+                let mut changed = checked.clone();
+                let call = selected(&mut changed)
+                    .operations
+                    .iter_mut()
+                    .find_map(CheckedUnitEffectOperationPlan::call_mut)
+                    .expect("authored boundary call");
+                let (result, _) = call.structural_result_mut().expect("array result custody");
+                result.multiplicity = language_semantics::Multiplicity::Affine;
+                reject(&changed, "boundary array result multiplicity");
             }
         }
     }

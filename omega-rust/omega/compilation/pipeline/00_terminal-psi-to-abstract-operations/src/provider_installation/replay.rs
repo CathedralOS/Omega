@@ -232,9 +232,12 @@ fn replays_result(
             candidate == terminal_candidate
                 && occurrence.structural_type == boundary.structural_type
                 && candidate.structural_type == boundary.structural_type
-                && occurrence.multiplicity == StructuralMultiplicity::Affine
-                && boundary.multiplicity == StructuralMultiplicity::Affine
-                && candidate.multiplicity == StructuralMultiplicity::Affine
+                // Installation preserves the declared carrier's multiplicity,
+                // including copyable payloads. Linear returns need a separate
+                // claim transfer contract that this claim-free join cannot mint.
+                && occurrence.multiplicity != StructuralMultiplicity::Linear
+                && occurrence.multiplicity == boundary.multiplicity
+                && candidate.multiplicity == boundary.multiplicity
                 // Route-authorized ensures mint caller-side result
                 // qualifications at the call occurrence; the mint must equal
                 // the boundary's declared result qualifications exactly. The

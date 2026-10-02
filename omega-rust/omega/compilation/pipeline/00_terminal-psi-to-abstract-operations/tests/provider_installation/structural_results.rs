@@ -1,4 +1,4 @@
-//! Installed affine providers retain the caller's result, not the candidate's.
+//! Installed structural providers retain the caller's result, not the candidate's.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -204,6 +204,97 @@ fn check_source(source: &str) {
             } else {
                 reference_usage = Some(fuel.usage().clone());
             }
+        }
+    }
+}
+
+#[test]
+fn omega_installs_copyable_array_results_with_exact_result_custody() {
+    for (carrier, value) in [
+        ("[u8; 2]", "[30, 40]"),
+        ("[[u8; 1]; 2]", "[[30], [40]]"),
+        ("[u8; 0]", "[]"),
+    ] {
+        let (module, semantic, proof) = artifact(&format!(
+            "boundary trait Factory {{ machine produce() -> {carrier}; }}
+             data Provider {{}}
+             machine Provider::produce() -> {carrier} satisfies Factory::produce {{ {value} }}
+             machine enter() reaches Factory {{ let result: {carrier} = Factory::produce(); }}"
+        ));
+        let profile = AdmissionProfile::default();
+        let plan = lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &profile,
+        )
+        .unwrap()
+        .into_plan();
+        let [candidate] = plan.provider_candidates.as_slice() else {
+            panic!("one checked array provider");
+        };
+        let selected = [SelectedProviderAdapter {
+            requirement_identity: candidate.requirement_identity.clone(),
+            provider_identity: candidate.provider_identity.clone(),
+            machine_identity: candidate.candidate_identity.clone(),
+        }];
+        let installation =
+            admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
+                .expect("copyable array preserves the ordinary structural result contract");
+        let [call] = installation.installed_calls() else {
+            panic!("one installed call");
+        };
+        let caller = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == call.caller())
+            .unwrap();
+        let occurrence = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == call.psi_operation())
+            .unwrap();
+        assert_eq!(call.result(), &occurrence.result);
+        assert_eq!(
+            occurrence.result.structural().unwrap().multiplicity,
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        );
+        for mutation in 0..2 {
+            let mut changed = plan.clone();
+            let operation = changed
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == call.caller())
+                .unwrap()
+                .operations
+                .iter_mut()
+                .find(|operation| {
+                    matches!(operation,
+                    abstract_operations::AbstractOperation::BoundaryCall { psi_operation, .. }
+                        if *psi_operation == call.psi_operation())
+                })
+                .unwrap();
+            let abstract_operations::AbstractOperation::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } = operation
+            else {
+                panic!("structural boundary result");
+            };
+            if mutation == 0 {
+                result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+            } else {
+                result.structural_type =
+                    semantic_vocabulary::StructuralTypeId::new(u32::MAX).unwrap();
+            }
+            assert!(
+                admit_provider_installation(&changed, &semantic, &proof, &profile, &selected)
+                    .is_err(),
+                "result mutation {mutation}, carrier {carrier}"
+            );
         }
     }
 }
