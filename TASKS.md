@@ -750,17 +750,16 @@ the complete product bar; focused successes below do not establish that baseline
   records the last route entered and can misidentify the declining operation.
   Keep the algorithm, storage and observable behavior when migrating syntax.
 
-  At `b7b8d2a448` on macOS ARM64, `sample_native_gate.py --jobs 4 --timeout
-  1200` records 131 of 142 scored samples meeting their documented oracles
+  At `bea3827921` on macOS ARM64, `sample_native_gate.py --jobs 2 --timeout
+  1500` records 135 of 142 scored samples meeting their documented oracles
   (149 samples; 6 document no oracle and `uefi_hello` is not host-runnable).
   None built with a wrong exit or output, and no package review timed out.
-  `collections/matrix_multiply` has since joined them (exit 189): a shared
-  state parameter that receives its source's whole exclusive loan now holds
-  that loan. The 10 that still build no native program are
+  Since `b7b8d2a448` (131), `collections/matrix_multiply` (exit 189),
   `algorithms/horner_eval`, `arithmetic/dot_product` and
-  `collections/array_max`, which loop over a shared fixed-array parameter that
-  trusted `unranked_cycles.rs` refuses (**GENERAL-CYCLIC-EXECUTION**), and the
-  `games/dungeon_crawler_cli`, `systems/{file_journal,note_vault}` and
+  `collections/array_max` joined them. The 7 that still build no native
+  program are `games/dungeon_crawler_cli`, which now checks and stops in
+  Terminal verification at `ControlCycleIneligible` (block 66), and the
+  `systems/{file_journal,note_vault}` and
   `gui/{image_viewer,window_app,window_demo,windowed_calculator}` rows below.
 
   | Customer group | Capability owner and remaining acceptance |
