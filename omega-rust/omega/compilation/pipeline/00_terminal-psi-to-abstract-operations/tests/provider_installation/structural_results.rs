@@ -288,7 +288,7 @@ fn omega_installs_copyable_array_results_with_exact_result_custody() {
                 result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
             } else {
                 result.structural_type =
-                    semantic_vocabulary::StructuralTypeId::new(u32::MAX).unwrap();
+                    semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap();
             }
             assert!(
                 admit_provider_installation(&changed, &semantic, &proof, &profile, &selected)

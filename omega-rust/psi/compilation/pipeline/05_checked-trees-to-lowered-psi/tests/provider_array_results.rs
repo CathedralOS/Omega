@@ -238,7 +238,7 @@ fn array_provider_result_and_conformance_drift_reject_after_reload() {
                 result.multiplicity = StructuralMultiplicity::Affine;
             } else {
                 result.structural_type =
-                    semantic_vocabulary::StructuralTypeId::new(u32::MAX).unwrap();
+                    semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap();
             }
         }
         assert!(
