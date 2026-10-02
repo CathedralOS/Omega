@@ -52,6 +52,13 @@ dead, a local archive is not a confirmed backup, and cleanup is never implicit.
 
 ## Detect the runtime and budget
 
+For a new cloud session or an existing session's native workers, first apply
+the [cloud launch preflight and model defaults](references/cloud-launch.md).
+It also covers a single cloud advance without invoking a swarm. The cloud
+session launch tool selects the environment; `collaboration.spawn_agent`
+starts a worker on the current shared executor. Do not describe a native
+worker as a newly provisioned machine or silently inherit a different model.
+
 Inspect available tools and current handles before starting. The native mapping
 is:
 
@@ -121,8 +128,10 @@ through `claims.py note`. A live conflict is a blocker, never a reason to use
 if the assignment forbids remote writes, do not silently invoke them. A read-only
 wave needs no edit claim; keep its assignments locally and label them read-only.
 A local-only edit exception needs an explicit scope decision and is not a shared
-claim. If registry access is required for implementation but unavailable, pause
-that implementation and continue only independent authorized investigation.
+claim. For an unavailable registry, follow AGENTS.md and tools/claims.md: record
+the intended scope and outage, then continue authorized development in an
+isolated worktree. Reconcile an uncertain mutation before retrying it; a known
+live overlap still requires coordination.
 
 ## Reuse the repository helpers carefully
 

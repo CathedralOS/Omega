@@ -166,6 +166,12 @@ canonical source and evidence identities are byte-sensitive.
 
 ## Delegation
 
+- Dot-created Omega cloud sessions and their native workers default to
+  **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
+  specifies another model or effort. Select them through the runtime's exposed
+  launch fields; a prompt alone cannot change a model. Before launching or
+  resuming cloud work, follow the [cloud launch preflight](.agents/skills/dot-swarm/references/cloud-launch.md).
+  A single advance remains one assignment; it does not authorize a swarm.
 - One edit owner per change; parallelize only independent work.
   Assignments carry the objective, governing design links, ownership
   boundary, dependencies, and the acceptance command.
