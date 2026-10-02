@@ -151,8 +151,8 @@ impl TerminalExecution {
     }
 
     /// Borrowed element views rebind to callee parameter places under the same
-    /// signature checks as borrowed byte views: unrestricted shared-borrow
-    /// `&[T]` places carry their immutable payload across the call.
+    /// signature checks as borrowed byte views. The receiving loan can attenuate
+    /// access while preserving the descriptor window and its pinned backing.
     pub(crate) fn bind_element_view_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
@@ -176,8 +176,11 @@ impl TerminalExecution {
             }
             if parameter.structural_type != resolved.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.access != StructuralAccess::SharedBorrow
-                || argument.access != StructuralAccess::SharedBorrow
+                || parameter.access != argument.access
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
                 || !resolved.path.is_empty()
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
@@ -189,7 +192,10 @@ impl TerminalExecution {
             let view = self.element_view_values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
-            if values.insert(parameter.place, view.clone()).is_some() {
+            let presented = view
+                .subslice(0, view.len(), parameter.access)
+                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            if values.insert(parameter.place, presented).is_some() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
         }

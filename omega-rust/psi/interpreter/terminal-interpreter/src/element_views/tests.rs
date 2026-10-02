@@ -210,6 +210,121 @@ fn runtime_subslice() -> (TerminalExecution, Operation) {
 }
 
 #[test]
+fn element_view_call_binding_preserves_and_attenuates_exact_access() {
+    let (mut execution, _) = runtime_subslice();
+    let source = PlaceId::new(1).unwrap();
+    let mut parameter =
+        execution.program.machines[&execution.current_machine].structural_parameters[0].clone();
+    let mut argument = terminal_psi::StructuralArgument {
+        place: source,
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    };
+    let resolved = execution.structural_values[&source].clone();
+    let bind = |execution: &TerminalExecution,
+                parameter: &terminal_psi::StructuralParameterDeclaration,
+                argument: &terminal_psi::StructuralArgument| {
+        execution.bind_element_view_arguments(
+            std::slice::from_ref(parameter),
+            std::slice::from_ref(argument),
+            std::slice::from_ref(&resolved),
+        )
+    };
+    let mutable = bind(&execution, &parameter, &argument).unwrap();
+    assert_eq!(mutable[&source].access, StructuralAccess::MutableBorrow);
+    parameter.access = StructuralAccess::SharedBorrow;
+    assert!(bind(&execution, &parameter, &argument).is_err());
+    argument.access = StructuralAccess::SharedBorrow;
+    let shared = bind(&execution, &parameter, &argument).unwrap();
+    assert_eq!(shared[&source].access, StructuralAccess::SharedBorrow);
+    assert!(
+        shared[&source]
+            .structural_projection(&[StructuralPathSegment::FixedIndex(0)], true)
+            .is_err()
+    );
+    assert_eq!(
+        execution.element_view_values[&source].access,
+        StructuralAccess::MutableBorrow
+    );
+    execution
+        .element_view_values
+        .insert(source, shared[&source].clone());
+    parameter.access = StructuralAccess::MutableBorrow;
+    argument.access = StructuralAccess::MutableBorrow;
+    assert!(
+        bind(&execution, &parameter, &argument).is_err(),
+        "a shared received descriptor cannot regain exclusive access"
+    );
+}
+
+#[test]
+fn element_view_scalar_home_pins_exact_frame_despite_place_collisions() {
+    let (mut execution, _) = scalar_home_subslice();
+    let source = PlaceId::new(1).unwrap();
+    let backing = PlaceId::new(9).unwrap();
+    let home = execution.element_view_values[&source].home.clone().unwrap();
+    let caller = execution.current_machine;
+    let callee = semantic_vocabulary::MachineId::new(2).unwrap();
+    let mut body = execution.program.machines[&caller].clone();
+    body.structural_parameters.truncate(1);
+    Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .machines
+        .insert(callee, body);
+    let arguments = [terminal_psi::StructuralArgument {
+        place: source,
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    }];
+    let prepared = execution
+        .prepare_structural_call_arguments(callee, &arguments)
+        .unwrap();
+    execution
+        .begin_unit_call(callee, &[], &arguments, prepared, &[], BTreeMap::new())
+        .unwrap();
+    let array_type = execution.call_stack[0].scalar_array_values[&backing].structural_type;
+    execution.scalar_array_values.insert(
+        backing,
+        crate::scalar_array::TerminalScalarArrayValue {
+            structural_type: array_type,
+            elements: vec![TerminalScalarValue::Boolean(false); 4],
+        },
+    );
+    let path = [StructuralPathSegment::FixedIndex(1)];
+    execution
+        .store_primitive_home(home.storage, &path, TerminalScalarValue::Boolean(true))
+        .unwrap();
+    assert_eq!(
+        execution.call_stack[0].scalar_array_values[&backing].elements[1],
+        TerminalScalarValue::Boolean(true)
+    );
+    assert_eq!(
+        execution.scalar_array_values[&backing].elements[1],
+        TerminalScalarValue::Boolean(false),
+        "callee's equal PlaceId is a different activation"
+    );
+    assert_eq!(
+        execution
+            .read_primitive_home(home.storage, &path, ScalarType::Boolean)
+            .unwrap(),
+        TerminalScalarValue::Boolean(true)
+    );
+    let retired = execution.capture_primitive_home(backing).unwrap();
+    execution.call_stack.pop();
+    assert!(
+        execution
+            .read_primitive_home(retired, &path, ScalarType::Boolean)
+            .is_err()
+    );
+    assert!(
+        execution
+            .read_primitive_home(home.storage, &path, ScalarType::Boolean)
+            .is_err(),
+        "the replacement current machine cannot impersonate the captured caller"
+    );
+}
+
+#[test]
 fn terminal_mutable_element_subslice_preserves_backing_and_exact_frontier() {
     let (mut execution, operation) = runtime_subslice();
     execution.execute_element_view_subslice(&operation).unwrap();
@@ -308,11 +423,9 @@ fn terminal_mutable_element_subslice_rejects_forged_permission_and_metadata_atom
     }
 }
 
-#[test]
-fn terminal_mutable_element_subslice_writes_original_scalar_home_and_restored_parent_reads() {
+fn scalar_home_subslice() -> (TerminalExecution, Operation) {
     let (mut execution, operation) = runtime_subslice();
     let source = PlaceId::new(1).unwrap();
-    let child = PlaceId::new(2).unwrap();
     let backing = PlaceId::new(9).unwrap();
     let element_type = StructuralTypeId::new(1).unwrap();
     let array_type = StructuralTypeId::new(3).unwrap();
@@ -368,11 +481,20 @@ fn terminal_mutable_element_subslice_writes_original_scalar_home_and_restored_pa
         ElementView::new_mutable(
             elements,
             ElementViewHome {
-                source: backing,
+                storage: execution.capture_primitive_home(backing).unwrap(),
                 path: Vec::new(),
             },
         ),
     );
+    (execution, operation)
+}
+
+#[test]
+fn terminal_mutable_element_subslice_writes_original_scalar_home_and_restored_parent_reads() {
+    let (mut execution, operation) = scalar_home_subslice();
+    let source = PlaceId::new(1).unwrap();
+    let child = PlaceId::new(2).unwrap();
+    let backing = PlaceId::new(9).unwrap();
     execution.execute_element_view_subslice(&operation).unwrap();
     let value = ValueId::new(4).unwrap();
     let index = ValueId::new(5).unwrap();
