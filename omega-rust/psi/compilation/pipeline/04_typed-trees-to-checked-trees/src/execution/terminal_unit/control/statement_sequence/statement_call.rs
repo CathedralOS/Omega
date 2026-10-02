@@ -16,7 +16,7 @@ use super::{
     ExpectedCallValueResult, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, SymbolHandle, TypedTrees,
     append_call_cleanup, bind_scalar_call_result, bind_structural_call_result,
-    build_call_operation, consume_results, consume_value_places, structural_operands,
+    build_call_operation, consume_results, structural_operands,
 };
 
 /// The sequence state a statement's call reads and extends.
@@ -33,7 +33,6 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
         &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
     pub(super) trace: &'a LocalConstructionTrace,
-    pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
     pub(super) structural_count: &'a mut usize,
     pub(super) call_count: &'a mut usize,
@@ -80,7 +79,6 @@ pub(super) fn plan(
         trivial_affine_locals,
         calls,
         trace,
-        binders,
         operations,
         structural_count,
         call_count,
@@ -134,122 +132,22 @@ pub(super) fn plan(
     }
     *call_count = call_count.checked_add(1)?;
     call_phase("statement sequence: call: structural operands");
-    for operand in structural_operands::operations_for_call(program, facts, machine, state, call)? {
-        let nested = match operand {
-            structural_operands::Operand::Array(array) => {
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: u32::try_from(*structural_count).ok()?,
-                    type_identity: shapes.add_type(array.type_reference, &[], &[])?,
-                    multiplicity: Multiplicity::Unrestricted,
-                };
-                let elements = super::super::scalar_arrays::elements(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    array.source,
-                    array.expression,
-                    array.type_reference,
-                )?;
-                *structural_count = structural_count.checked_add(1)?;
-                structural_results.push((
-                    result.clone(),
-                    facts::PlaceRoot::Expression(array.expression),
-                ));
-                operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                    source: array.source,
-                    result,
-                    elements,
-                });
-                continue;
-            }
-            structural_operands::Operand::Value { root, source } => {
-                // The checker retained this inline case construction as a
-                // structural value; establish it as a state-local operand
-                // before the consuming call, mirroring the local-binding
-                // lane without a source local.
-                let calls = structural_operands::value_calls(
-                    program,
-                    facts,
-                    scalar_callees,
-                    shapes,
-                    machine,
-                    state,
-                    structural_parameters,
-                    trivial_affine_locals,
-                    entry_claims,
-                    structural_results,
-                    &mut *operations,
-                    &mut *structural_count,
-                    root.root,
-                    trace,
-                )?;
-                consume_value_places(facts, root.root, structural_results, &mut *operations)?;
-                for call in &calls {
-                    consume_results(&mut *operations, call.operation())?;
-                }
-                let multiplicity = program.type_multiplicity(root.type_reference);
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: u32::try_from(*structural_count).ok()?,
-                    type_identity: shapes.add_type(root.type_reference, binders, &[])?,
-                    multiplicity,
-                };
-                *structural_count = structural_count.checked_add(1)?;
-                structural_results.push((
-                    result.clone(),
-                    facts::PlaceRoot::Expression(root.expression),
-                ));
-                operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    value: root.root,
-                    calls,
-                    operand_source: Some(source),
-                    discard_result_on_return: multiplicity == Multiplicity::Affine,
-                });
-                continue;
-            }
-            structural_operands::Operand::Call(nested) => nested,
-        };
-        let target = structural_operands::result(
-            program,
-            facts,
-            machine.symbol,
-            nested.authored_expression,
-            shapes,
-        )?;
-        let result = CheckedUnitStructuralResultBindingPlan {
-            statement_index,
-            binding_ordinal: u32::try_from(*structural_count).ok()?,
-            type_identity: target.type_identity,
-            multiplicity: target.multiplicity,
-        };
-        let operation = build_call_operation(
-            program,
-            facts,
-            Some(scalar_callees),
-            machine,
-            state,
-            structural_parameters,
-            trivial_affine_locals,
-            entry_claims,
-            nested,
-            false,
-            Some(ExpectedCallValueResult::Structural(&result)),
-            structural_results,
-            trace,
-        )?;
-        let operation = bind_structural_call_result(operation, result.clone())?;
-        consume_results(&mut *operations, &operation)?;
-        operations.push(operation);
-        structural_results.push((
-            result,
-            facts::PlaceRoot::Expression(nested.authored_expression),
-        ));
-        *structural_count = structural_count.checked_add(1)?;
-    }
+    structural_operands::plan_call_operands(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        trivial_affine_locals,
+        entry_claims,
+        structural_results,
+        operations,
+        structural_count,
+        call,
+        trace,
+    )?;
     if let Some((result, _)) = &mut structural_result {
         let binding_ordinal = u32::try_from(*structural_count).ok()?;
         // Assignment planning reserves the result before operand establishment.

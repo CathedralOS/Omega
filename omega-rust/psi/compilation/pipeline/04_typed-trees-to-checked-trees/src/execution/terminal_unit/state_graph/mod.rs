@@ -1890,10 +1890,9 @@ fn successor_bindings(
             // whole owned operand naming an affine local moves it on this
             // edge alone: the sibling edges still dispose of it, so the
             // state's operations keep their discard flags and the edge's
-            // own move roster (`CheckedStructuralControlSuccessorPlan::
-            // result_moves`) subtracts it from this edge's cleanup. A nested
-            // structural operand would need establishing ahead of the edge's
-            // selection, so it declines.
+            // own move roster subtracts it from this edge's cleanup. Nested
+            // structural operands remain in the edge's operation sequence;
+            // they run after selection through the ordinary call emitter.
             if target.access == CheckedStructuralAccess::Owned
                 && let Some(root) = facts.values.structural_values.root_for_expression(
                     source.symbol,
@@ -1906,7 +1905,11 @@ fn successor_bindings(
             {
                 // Edge-local bindings number after the state's own results,
                 // so no source result ordinal is reused on this edge.
-                let mut operand_calls = Vec::new();
+                // Scratch includes the predecessor's result producers so the
+                // common planner can resolve and consume local operands. Its
+                // changed discard flags never escape into sibling edges;
+                // selected-edge cleanup owns those predecessor moves.
+                let mut operand_calls = operations.to_vec();
                 let mut result_count = returns::next_result_ordinal(operations)?;
                 let calls = control::structural_operands::value_calls(
                     program,
@@ -1925,23 +1928,19 @@ fn successor_bindings(
                     trace,
                 )?;
                 mark(SuccessorGuard::EstablishedArgument);
-                if !operand_calls.is_empty() {
-                    return None;
-                }
-                let establishment = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result: checked_trees::CheckedUnitStructuralResultBindingPlan {
-                        statement_index: ordinal,
-                        binding_ordinal: u32::try_from(result_count).ok()?,
-                        type_identity: target.type_identity.clone(),
-                        multiplicity: target.multiplicity,
-                    },
-                    value: root.root,
-                    calls,
-                    operand_source: None,
-                    discard_result_on_return: false,
+                let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
+                    statement_index: ordinal,
+                    binding_ordinal: u32::try_from(result_count).ok()?,
+                    type_identity: target.type_identity.clone(),
+                    multiplicity: target.multiplicity,
                 };
+                let establishment = control::structural_operands::establish_value(
+                    facts, result, root.root, calls, None, false, &mut operand_calls,
+                )?;
+                let operand_calls = operand_calls.split_off(operations.len());
                 return Some(CheckedStructuralControlTransferPlan {
                     source: checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                        operands: checked_trees::CheckedOperandSequence::new(operand_calls),
                         establishment: Box::new(establishment),
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,

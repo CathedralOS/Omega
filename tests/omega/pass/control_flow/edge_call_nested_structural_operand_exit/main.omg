@@ -1,0 +1,41 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+
+data Counter {
+    calls: i32 in Wrapping;
+}
+
+data Main {
+    console: Binding<Console>;
+    counter: Counter;
+    total: i32 in Wrapping;
+}
+
+machine Main::shift(counter: &mut Counter, pair: Pair, by: i32 in Wrapping) -> Pair {
+    counter.calls = counter.calls + 1;
+    Pair { a: pair.a + by, b: pair.b + by }
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.counter.calls = 0;
+    context.total = 0;
+    transition { _ -> literal(context) }
+
+    state literal(context: &mut Main) {
+        transition { _ -> take(Main::shift(&mut context.counter, Pair { a: 1, b: 2 }, 10), context) }
+    }
+
+    state take(pair: Pair, context: &mut Main) {
+        context.total = context.total + pair.a + pair.b;
+        transition { _ -> finish((context.total + context.counter.calls) as i32, context) }
+    }
+
+    state finish(code: i32, context: &mut Main) {
+        context.console.exit_process(code);
+    }
+}

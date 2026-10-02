@@ -377,12 +377,16 @@ impl OperationFrame<'_, '_> {
             checked,
             machine,
             state,
+            scalar_result,
+            scalar_parameter_count,
             parameters,
             structural_types,
             type_ids,
+            service_ids,
             primitive_locals,
             mut results,
             mut private_places,
+            windows,
             evaluation,
             values,
             next_place,
@@ -392,74 +396,110 @@ impl OperationFrame<'_, '_> {
             calls,
             operations,
             callees,
-            caller,
+            mut caller,
             ..
         } = self;
         let structural_types = structural_types.declarations();
-        let claims = caller.claims.bindings();
-        // The operand closure holds an immutable view of the caller's scalar
-        // namespace while the emitter mutates `values` around it.
-        let operand_values = values.clone();
-        let mut emit_member_call = |operand: &CheckedUnitEffectOperationPlan,
-                                    evaluated: Option<&[ValueDeclaration]>,
-                                    selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
-                                    selector_next_value: &mut u64,
-                                    call_context: &mut CallEmissionContext<'_>,
-                                    output: &mut OperationBuffer,
-                                    place_counter: &mut u64| {
-            // A value operand is an ordinary structural call.
-            let Some((call, result)) = operand
-                .call()
-                .filter(|call| !call.is_boundary())
-                .and_then(|call| Some((call, call.structural_result()?)))
-            else {
-                return unsupported("record operand is not a structural call");
+        // The evaluator supplies its current namespaces at the exact operand
+        // occurrence. Recursive construction and calls share normal frame
+        // publication; no stale snapshot or second result home is introduced.
+        let mut emit_operand =
+            |operand: &CheckedUnitEffectOperationPlan,
+             evaluated: Option<&[ValueDeclaration]>,
+             source_value_count: usize,
+             evaluation: &mut argument_evaluation::Evaluation,
+             values: &mut Vec<ValueDeclaration>,
+             next_value: &mut u64,
+             next_block: &mut u64,
+             next_edge: &mut u64,
+             calls: &mut CallEmissionContext<'_>,
+             operations: &mut OperationBuffer,
+             next_place: &mut u64,
+             temporary_places: &mut Vec<StructuralPlaceDeclaration>| {
+                let result =
+                    operand
+                        .structural_result_binding()
+                        .ok_or(LoweringError::Unsupported(
+                            "structural operand preparation has no result",
+                        ))?;
+                results.require_next(result, "structural operand result binding is not dense")?;
+                let frame = OperationFrame {
+                    checked,
+                    machine,
+                    state,
+                    scalar_result,
+                    scalar_parameter_count,
+                    source_value_count,
+                    parameters,
+                    structural_types: super::StructuralTypeRoster::Published(structural_types),
+                    type_ids,
+                    service_ids,
+                    primitive_locals,
+                    results: match &mut results {
+                        StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+                        StructuralResults::StateGraph { state, places } => {
+                            StructuralResults::StateGraph { state, places }
+                        }
+                    },
+                    private_places: super::PrivatePlaces::Shared(temporary_places),
+                    windows: &mut *windows,
+                    evaluation,
+                    values,
+                    next_place,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    calls,
+                    operations,
+                    callees,
+                    caller: super::CallerCustody {
+                        erased_scalar_parameters: caller.erased_scalar_parameters,
+                        erased_proof_parameters: caller.erased_proof_parameters,
+                        entry_claims: caller.entry_claims,
+                        local_places: caller.local_places,
+                        claims: match &mut caller.claims {
+                            super::ClaimBindings::Fixed(bindings) => {
+                                super::ClaimBindings::Fixed(bindings)
+                            }
+                            super::ClaimBindings::Growable {
+                                bindings,
+                                next_claim,
+                            } => super::ClaimBindings::Growable {
+                                bindings,
+                                next_claim,
+                            },
+                        },
+                    },
+                };
+                if OperationFrame::lowers(operand) {
+                    frame.emit(operand)?;
+                    return Ok(None);
+                }
+                frame.emit_call(
+                    operand,
+                    CallInputs {
+                        evaluated_scalar_arguments: evaluated,
+                        byte_places: &[],
+                        staged: false,
+                    },
+                )?;
+                let place = results.continuation_place(result.binding_ordinal, operations)?;
+                let declaration = match &results {
+                    StructuralResults::Dense(roster) => {
+                        roster.iter().find_map(|(declaration, _)| {
+                            (declaration.id == place).then_some(*declaration)
+                        })
+                    }
+                    StructuralResults::StateGraph { places, .. } => places
+                        .iter()
+                        .find(|declaration| declaration.id == place)
+                        .copied(),
+                }
+                .ok_or(LoweringError::Unsupported(
+                    "structural operand result has no declaration",
+                ))?;
+                Ok(Some(declaration))
             };
-            let target_machine = &call.target.machine;
-            let structural_arguments = &call.structural_arguments;
-            results.require_next(result, "structural operand result binding is not dense")?;
-            let earlier = results.earlier(structural_arguments, output)?;
-            let prepared = ordinary_calls::prepare(
-                checked,
-                callees.plans,
-                operand,
-                signatures::find(callees.signatures, *target_machine)?.call_target(),
-                evaluated,
-                &operand_values,
-                caller.erased_scalar_parameters,
-                caller.erased_proof_parameters,
-                parameters,
-                caller.local_places,
-                &earlier,
-                primitive_locals,
-                type_ids,
-                structural_types,
-                &[],
-                callees.domain_ids,
-                claims,
-                call_context,
-                selector_fields,
-                selector_next_value,
-                output,
-            )?;
-            drop(earlier);
-            let declaration = ordinary_calls::emit_structural(
-                checked,
-                state,
-                operand,
-                prepared,
-                lookup_machine_id(call_context.machine_ids, *target_machine)?,
-                type_ids,
-                structural_types,
-                callees.domain_ids,
-                claims,
-                true,
-                place_counter,
-                output,
-            )?;
-            results.push(declaration, false);
-            Ok(declaration)
-        };
         let declaration = structural_values::emit(
             checked,
             machine,
@@ -470,7 +510,7 @@ impl OperationFrame<'_, '_> {
             callees.domain_ids,
             next_place,
             private_places.temporaries(),
-            &mut emit_member_call,
+            &mut emit_operand,
             calls,
             evaluation,
             values,

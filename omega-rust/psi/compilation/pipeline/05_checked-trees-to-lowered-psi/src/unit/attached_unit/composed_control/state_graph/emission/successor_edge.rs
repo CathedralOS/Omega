@@ -378,7 +378,7 @@ impl StateGraphEmission<'_, '_> {
                 }
                 let mut argument_path = Vec::new();
                 let place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref establishment } => {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment } => {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the
                             // member calls run here, after selection, exactly
@@ -397,11 +397,14 @@ impl StateGraphEmission<'_, '_> {
                                 );
                             };
                             let state_bindings = operations.structural_values.clone();
+                            let selected_operations = operands.iter()
+                                .chain(std::iter::once(establishment.as_ref()))
+                                .cloned().collect::<Vec<_>>();
                             let emitted = super::super::super::emission::emit_call_operations(
                                 checked,
                                 plan.machine,
                                 state,
-                                std::slice::from_ref(establishment.as_ref()),
+                                &selected_operations,
                                 self.catalogs,
                                 state_parameters,
                                 &self.claims.source_claims,

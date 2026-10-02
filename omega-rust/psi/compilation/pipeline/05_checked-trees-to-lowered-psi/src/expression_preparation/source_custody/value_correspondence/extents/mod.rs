@@ -419,7 +419,13 @@ impl Context<'_> {
         } = operation
         {
             for call in calls {
-                self.operation_subslice_views(call.operation(), views);
+                for operand in call
+                    .operands()
+                    .iter()
+                    .chain(std::iter::once(call.operation()))
+                {
+                    self.operation_subslice_views(operand, views);
+                }
             }
             return;
         }

@@ -2,9 +2,10 @@
 //! strongly connected components and control transfers.
 
 use crate::checked_trees::flow::terminal::{
-    CheckedStructuralScalarParameterPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedOperandSequence, CheckedStructuralScalarParameterPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
@@ -242,27 +243,24 @@ pub struct CheckedStructuralControlSuccessorPlan {
 }
 
 impl CheckedStructuralControlSuccessorPlan {
-    /// The establishments of this edge's fresh composite arguments, in
-    /// target-parameter order. They execute after the edge's selection.
-    pub fn operand_establishments(
-        &self,
-    ) -> impl Iterator<Item = &crate::CheckedUnitEffectOperationPlan> {
-        self.transfers
-            .iter()
-            .filter_map(|transfer| match &transfer.source {
-                CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment } => {
-                    Some(establishment.as_ref())
-                }
-                _ => None,
-            })
-    }
-
     /// The calls this edge runs to establish its fresh composite arguments,
     /// in catalog order. They execute after the edge's selection, so their
     /// effects and custody belong to this edge alone.
     pub fn operand_calls(&self) -> impl Iterator<Item = &crate::CheckedUnitEffectOperationPlan> {
-        self.operand_establishments()
-            .flat_map(|establishment| establishment.with_value_calls().skip(1))
+        self.transfers
+            .iter()
+            .filter_map(|transfer| match &transfer.source {
+                CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                    operands,
+                    establishment,
+                } => Some((operands, establishment.as_ref())),
+                _ => None,
+            })
+            .flat_map(|(operands, establishment)| {
+                operands.iter().chain(std::iter::once(establishment))
+            })
+            .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
+            .filter(|operation| operation.call().is_some())
     }
 
     /// How many of this edge's operand calls take the source state's result
@@ -411,14 +409,14 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     },
     /// A fresh composite argument with no prior custody root: an inline
     /// record, case, or fixed-array literal, or a call's structural result,
-    /// supplied directly to the successor. `establishment` is the ordinary
-    /// `EstablishStructuralValue` operation the edge performs after its
-    /// selection, at the transition's statement coordinate: the checked
-    /// value, the call products it embeds exactly as a `let` binding's
-    /// establishment carries them, and a result of the target parameter's
-    /// type. Its binding ordinal is edge-local, numbered after the source
-    /// state's own results.
+    /// supplied directly to the successor. The edge runs `operands` and
+    /// then `establishment` after selection, at the transition's statement
+    /// coordinate. A whole call retains its ordinary call operation; an
+    /// aggregate retains its structural value evaluator. Both publish the
+    /// target parameter's type. Binding ordinals are edge-local, numbered
+    /// after the source state's own results.
     EstablishedValue {
+        operands: CheckedOperandSequence,
         establishment: Box<crate::CheckedUnitEffectOperationPlan>,
     },
     /// An authored `&place` or `&mut place` argument loans the named subtree

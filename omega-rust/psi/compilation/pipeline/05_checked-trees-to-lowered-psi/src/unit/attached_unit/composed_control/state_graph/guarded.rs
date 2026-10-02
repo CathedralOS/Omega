@@ -132,6 +132,13 @@ pub(super) fn validate(
             {
                 result
             }
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !reference_result && call.discard_result_on_return() == Some(false) =>
+            {
+                call.structural_result().ok_or(LoweringError::Unsupported(
+                    "ordered return call has no structural result",
+                ))?
+            }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 result,
                 source: reference_source,
@@ -175,6 +182,15 @@ pub(super) fn validate(
                 plan.machine,
                 state.state,
                 operation,
+            )?;
+        } else if operation.call().is_some() {
+            crate::expression_preparation::source_custody::structural::validate_call_value(
+                checked,
+                plan.machine,
+                state.state,
+                expression,
+                operation,
+                &state.structural_parameters,
             )?;
         } else if matches!(
             operation,
@@ -739,12 +755,11 @@ pub(super) fn emit_return(
         next_edge,
         operations,
     )?;
-    let result = match operation {
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => result,
-        _ => return unsupported("ordered return has no structural producer"),
-    };
+    let result = operation
+        .structural_result_binding()
+        .ok_or(LoweringError::Unsupported(
+            "ordered return has no structural producer",
+        ))?;
     let source = operations
         .structural_values
         .iter()

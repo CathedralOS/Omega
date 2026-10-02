@@ -514,13 +514,15 @@ pub(super) fn return_value_operation(
     };
     *count = count.checked_add(1)?;
     Some((
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        control::structural_operands::establish_value(
+            facts,
             result,
-            value: root.root,
+            root.root,
             calls,
-            operand_source: None,
-            discard_result_on_return: false,
-        },
+            None,
+            false,
+            &mut operand_calls,
+        )?,
         operand_calls,
     ))
 }

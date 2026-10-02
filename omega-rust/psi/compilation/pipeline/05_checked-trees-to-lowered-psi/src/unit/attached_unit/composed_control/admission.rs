@@ -392,10 +392,22 @@ pub(super) fn admit_calls<'a>(
     for state in call_states.iter().copied() {
         let caller = CallerView::state(machine, state);
         let arm_calls = state.arm_calls();
-        let edge_values = state
+        let edge_sequences = state
             .successors()
             .into_iter()
-            .flat_map(|successor| successor.operand_establishments())
+            .flat_map(|successor| &successor.transfers)
+            .filter_map(|transfer| match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                    operands,
+                    establishment,
+                } => Some(
+                    operands
+                        .iter()
+                        .chain(std::iter::once(establishment.as_ref()))
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            })
             .collect::<Vec<_>>();
         for operation in state.operation_dependencies() {
             // A terminal call arm runs after the state's whole operation
@@ -405,9 +417,24 @@ pub(super) fn admit_calls<'a>(
             // point, on its selected edge alone, and its member calls may
             // read or take the state's own results through that sequence.
             let arm_sequence;
-            let caller = if arm_calls
+            let edge_sequence = edge_sequences.iter().find(|sequence| {
+                sequence
+                    .iter()
+                    .any(|selected| std::ptr::eq(*selected, operation))
+            });
+            let caller = if let Some(edge_sequence) = edge_sequence {
+                arm_sequence = state
+                    .operations
+                    .iter()
+                    .chain(edge_sequence.iter().copied())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                CallerView {
+                    operations: &arm_sequence,
+                    ..caller
+                }
+            } else if arm_calls
                 .iter()
-                .chain(&edge_values)
                 .any(|selected| std::ptr::eq(*selected, operation))
             {
                 arm_sequence = state

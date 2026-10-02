@@ -20,15 +20,20 @@ use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 mod copied_place;
 mod dispatch;
 
-pub(super) type StructuralCallEmitter<'a> = dyn FnMut(
+pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
         Option<&[ValueDeclaration]>,
-        &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+        usize,
+        &mut argument_evaluation::Evaluation,
+        &mut Vec<ValueDeclaration>,
+        &mut u64,
+        &mut u64,
         &mut u64,
         &mut CallEmissionContext<'_>,
         &mut OperationBuffer,
         &mut u64,
-    ) -> Result<StructuralPlaceDeclaration, LoweringError>
+        &mut Vec<StructuralPlaceDeclaration>,
+    ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError>
     + 'a;
 
 #[allow(clippy::too_many_arguments)]
@@ -42,7 +47,7 @@ pub(crate) fn emit(
     domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
     next_place: &mut u64,
     temporary_places: &mut Vec<StructuralPlaceDeclaration>,
-    call_emitter: &mut StructuralCallEmitter<'_>,
+    operand_emitter: &mut StructuralOperandEmitter<'_>,
     calls: &mut CallEmissionContext<'_>,
     evaluation: &mut argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
@@ -225,7 +230,7 @@ pub(crate) fn emit(
         temporary_places,
         calls,
         operand_calls,
-        call_emitter,
+        operand_emitter,
         evaluation,
         values,
         next_value,
@@ -566,7 +571,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
     pub(super) calls: &'b mut CallEmissionContext<'calls>,
     pub(super) operand_calls: &'a [checked_trees::CheckedStructuralValueCall],
-    pub(super) call_emitter: &'b mut StructuralCallEmitter<'a>,
+    pub(super) operand_emitter: &'b mut StructuralOperandEmitter<'a>,
     pub(super) evaluation: &'b mut argument_evaluation::Evaluation,
     pub(super) values: &'b mut Vec<ValueDeclaration>,
     pub(super) next_value: &'b mut u64,
@@ -603,6 +608,131 @@ pub(super) struct ProjectedMove {
 }
 
 impl Emission<'_, '_, '_> {
+    /// Execute this call's retained preparation only when the value evaluator
+    /// reaches its node. The ordinary argument schedule interleaves scalar
+    /// observations and structural producers in authored formal order.
+    fn emit_operand_call(
+        &mut self,
+        call: &checked_trees::CheckedStructuralValueCall,
+    ) -> Result<StructuralPlaceDeclaration, LoweringError> {
+        use super::super::argument_schedule::{self, Step};
+        let planned = call
+            .operands()
+            .iter()
+            .chain(std::iter::once(call.operation()))
+            .cloned()
+            .collect::<Vec<_>>();
+        let schedule =
+            argument_schedule::build_operations(self.checked, self.machine, self.state, &planned)?;
+        let mut staged_values = vec![Vec::new(); planned.len()];
+        let mut source_count = None;
+        let mut completed = None;
+        for step in schedule {
+            let (index, staged) = match step {
+                Step::Begin => {
+                    if source_count.replace(self.values.len()).is_some() {
+                        return unsupported("structural operand argument group is already active");
+                    }
+                    continue;
+                }
+                Step::End => {
+                    let count = source_count.take().ok_or(LoweringError::Unsupported(
+                        "structural operand argument group is absent",
+                    ))?;
+                    self.values.truncate(count);
+                    continue;
+                }
+                Step::Argument { operation, ordinal } => {
+                    let count = source_count.ok_or(LoweringError::Unsupported(
+                        "structural operand scalar has no source prefix",
+                    ))?;
+                    if staged_values[operation].len() != ordinal {
+                        return unsupported("structural operand scalar ordinals are not dense");
+                    }
+                    let value = self.evaluation.argument_at(
+                        self.checked,
+                        self.machine,
+                        self.state,
+                        &planned[operation],
+                        ordinal,
+                        count,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                        self.calls,
+                    )?;
+                    staged_values[operation].push(self.values.len());
+                    self.values.push(value);
+                    continue;
+                }
+                Step::Subslice { .. } => {
+                    return unsupported(
+                        "structural value call requires retained slice argument transport",
+                    );
+                }
+                Step::Constructor(index) | Step::Call(index) if source_count.is_some() => {
+                    (index, true)
+                }
+                Step::Ordinary(index) if source_count.is_none() => (index, false),
+                _ => return unsupported("structural operand argument schedule is unbalanced"),
+            };
+            let operation = &planned[index];
+            let count = source_count.unwrap_or(self.values.len());
+            let evaluated = if staged && operation.call().is_some() {
+                Some(
+                    staged_values[index]
+                        .iter()
+                        .map(|slot| {
+                            self.values
+                                .get(*slot)
+                                .copied()
+                                .ok_or(LoweringError::Unsupported(
+                                    "structural operand scalar lost its retained slot",
+                                ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else if operation.call().is_some() {
+                self.evaluation.arguments(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    operation,
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                    self.calls,
+                )?
+            } else {
+                None
+            };
+            let declaration = (self.operand_emitter)(
+                operation,
+                evaluated.as_deref(),
+                count,
+                self.evaluation,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.calls,
+                self.operations,
+                self.next_place,
+                self.temporary_places,
+            )?;
+            if index + 1 == planned.len() {
+                completed = declaration;
+            }
+        }
+        completed.ok_or(LoweringError::Unsupported(
+            "structural operand call did not publish its result",
+        ))
+    }
+
     pub(super) fn record_field_value(
         &mut self,
         value: CheckedStructuralValueHandle,
@@ -746,27 +876,7 @@ impl Emission<'_, '_, '_> {
                 if matching.next().is_some() {
                     return unsupported("structural operand call is duplicated");
                 }
-                let evaluated = self.evaluation.arguments(
-                    self.checked,
-                    self.machine,
-                    self.state,
-                    call.operation(),
-                    self.values,
-                    self.next_value,
-                    self.next_block,
-                    self.next_edge,
-                    self.operations,
-                    self.calls,
-                )?;
-                let declaration = (self.call_emitter)(
-                    call.operation(),
-                    evaluated.as_deref(),
-                    &self.evaluation.structural_fields,
-                    self.next_value,
-                    self.calls,
-                    self.operations,
-                    self.next_place,
-                )?;
+                let declaration = self.emit_operand_call(call)?;
                 let StructuralPlaceKind::OperationResult {
                     structural_type, ..
                 } = declaration.kind
@@ -1695,27 +1805,7 @@ impl Emission<'_, '_, '_> {
                 };
                 let root_type_identity = result.type_identity.clone();
                 let binding_ordinal = result.binding_ordinal;
-                let evaluated = self.evaluation.arguments(
-                    self.checked,
-                    self.machine,
-                    self.state,
-                    call.operation(),
-                    self.values,
-                    self.next_value,
-                    self.next_block,
-                    self.next_edge,
-                    self.operations,
-                    self.calls,
-                )?;
-                let declaration = (self.call_emitter)(
-                    call.operation(),
-                    evaluated.as_deref(),
-                    &self.evaluation.structural_fields,
-                    self.next_value,
-                    self.calls,
-                    self.operations,
-                    self.next_place,
-                )?;
+                let declaration = self.emit_operand_call(call)?;
                 let StructuralPlaceKind::OperationResult {
                     structural_type, ..
                 } = declaration.kind

@@ -16,7 +16,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle, TypedTrees,
-    append_exit_reference_releases, append_reference_releases, base_type_identity, consume_results,
+    append_exit_reference_releases, append_reference_releases, base_type_identity,
     consume_value_places, parameter_qualifications, retain_selected_sources,
     returned_byte_sequence_literal, returned_mutable_view, returned_named_view, returned_parameter,
     returned_reference_leaf, returned_subslice, structural_operands,
@@ -251,22 +251,23 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         } else {
             consume_value_places(facts, root.root, &structural_results, &mut operations)?;
         }
-        for call in &calls {
-            consume_results(&mut operations, call.operation())?;
-        }
+        super::consume_value_call_sources(facts, &structural_results, &mut operations, &calls)?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index: root.statement_ordinal,
             binding_ordinal: u32::try_from(structural_count).ok()?,
             type_identity: shapes.add_type(state.return_type, binders, &[])?,
             multiplicity: program.type_multiplicity(state.return_type),
         };
-        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result: result.clone(),
-            value: root.root,
+        let establishment = structural_operands::establish_value(
+            facts,
+            result.clone(),
+            root.root,
             calls,
-            operand_source: None,
-            discard_result_on_return: false,
-        });
+            None,
+            false,
+            &mut operations,
+        )?;
+        operations.push(establishment);
         let mut returned: CheckedUnitStructuralReturnPlan = result.into();
         if super::super::super::reference_results::is_reference_record(program, state.return_type) {
             returned.reference_sources =

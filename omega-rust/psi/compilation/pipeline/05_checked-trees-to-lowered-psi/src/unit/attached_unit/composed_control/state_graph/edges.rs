@@ -357,6 +357,7 @@ pub(super) fn validate_bindings(
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+            operands,
             establishment,
         } = &transfer.source
         {
@@ -371,16 +372,12 @@ pub(super) fn validate_bindings(
             // coordinate, producing exactly the target's type and
             // multiplicity, and replays as a `let` initializer's does,
             // embedded calls included.
-            let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                value,
-                operand_source: None,
-                discard_result_on_return: false,
-                ..
-            } = establishment.as_ref()
-            else {
-                return unsupported("Unit graph established argument is not a fresh establishment");
-            };
+            let result =
+                establishment
+                    .structural_result_binding()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph established argument has no result",
+                    ))?;
             let argument_position = explicit_argument_position(target.position);
             let expression = arguments
                 .get(argument_position)
@@ -394,8 +391,7 @@ pub(super) fn validate_bindings(
             ) else {
                 return unsupported("Unit graph established argument lost its registration");
             };
-            if root.root != *value
-                || root.machine != plan.machine
+            if root.machine != plan.machine
                 || result.statement_index != edge.statement_ordinal
                 || result.type_identity != target.type_identity
                 || result.multiplicity != target.multiplicity
@@ -412,7 +408,7 @@ pub(super) fn validate_bindings(
                         .values
                         .structural_values
                         .nodes
-                        .get(*value)
+                        .get(root.root)
                         .kind,
                     checked_trees::CheckedStructuralValueKind::Record { .. }
                         | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
@@ -427,12 +423,95 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph established argument custody drifted");
             }
-            crate::expression_preparation::source_custody::structural::validate(
-                checked,
-                plan.machine,
-                state.state,
-                establishment,
-            )?;
+            // Preparation is owned by the exact transition and each
+            // constructor rejoins its consuming call/formal independently.
+            // This cannot import a predecessor's or a sibling edge's work.
+            for operand in operands.iter() {
+                let binding =
+                    operand
+                        .structural_result_binding()
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph operand has no result binding",
+                        ))?;
+                if binding.statement_index != edge.statement_ordinal {
+                    return unsupported("Unit graph operand left its selected transition");
+                }
+                match operand {
+                    checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        operand_source: Some(_),
+                        ..
+                    } => {
+                        crate::expression_preparation::source_custody::structural::validate(
+                            checked,
+                            plan.machine,
+                            state.state,
+                            operand,
+                        )?;
+                    }
+                    checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source,
+                        result,
+                        elements,
+                    } => {
+                        super::super::super::scalar_arrays::validate(
+                            checked,
+                            plan.machine,
+                            state.state,
+                            *source,
+                            result,
+                            elements,
+                        )?;
+                    }
+                    checked_trees::CheckedUnitEffectOperationPlan::Call(_) => {
+                        crate::emission::call_source_custody::validate_operation(
+                            checked,
+                            plan.machine,
+                            state.state,
+                            operand,
+                            &state.structural_parameters,
+                        )?;
+                    }
+                    _ => return unsupported("Unit graph operand is not call preparation"),
+                }
+            }
+            match establishment.as_ref() {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value,
+                    operand_source: None,
+                    discard_result_on_return: false,
+                    ..
+                } if *value == root.root => {
+                    crate::expression_preparation::source_custody::structural::validate(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        establishment,
+                    )?;
+                }
+                checked_trees::CheckedUnitEffectOperationPlan::Call(call) => {
+                    super::super::super::argument_schedule::validate_operand_preparation(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        operands,
+                        establishment,
+                    )?;
+                    if call.discard_result_on_return() != Some(false) {
+                        return unsupported(
+                            "Unit graph call argument is discarded before transfer",
+                        );
+                    }
+                    crate::expression_preparation::source_custody::structural::validate_call_value(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        *expression,
+                        establishment,
+                        &state.structural_parameters,
+                    )?;
+                }
+                _ => return unsupported("Unit graph argument is not a fresh value producer"),
+            }
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {

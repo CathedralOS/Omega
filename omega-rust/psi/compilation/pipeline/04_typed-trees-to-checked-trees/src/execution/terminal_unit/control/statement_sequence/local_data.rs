@@ -15,9 +15,9 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypeReferenceNode, TypedTrees, checked_structural_result_type, consume_results,
-    consume_value_places, is_record_pattern_marker, retain_selected_sources,
-    scalar_computation_local_at, structural_operands,
+    TypeReferenceNode, TypedTrees, checked_structural_result_type, consume_value_places,
+    is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
+    structural_operands,
 };
 use crate::execution::terminal_unit::types::parameter_qualifications;
 
@@ -383,9 +383,7 @@ pub(super) fn plan(
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }
-        for call in &calls {
-            consume_results(&mut *operations, call.operation())?;
-        }
+        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         local_phase("statement sequence: local data: structural value: type shape");
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
@@ -412,13 +410,16 @@ pub(super) fn plan(
         // Only affine values create disposal debt; copy locals
         // retain their result identity without a cleanup action.
         let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        let establishment = structural_operands::establish_value(
+            facts,
             result,
-            value: root.root,
+            root.root,
             calls,
-            operand_source: None,
+            None,
             discard_result_on_return,
-        });
+            operations,
+        )?;
+        operations.push(establishment);
         return Some(LocalPlan::Planned);
     }
     if validation::is_closed_primitive_array_type(program, local.type_reference)
