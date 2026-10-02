@@ -547,6 +547,33 @@ fn validate_trait_effect_ceiling(
     }
 }
 
+/// Whether `actual` fills the position `required` declares, as far as the
+/// subject role goes.
+///
+/// The requirement fixes WHICH position is the subject, so the two directions
+/// ask different things and the test is deliberately asymmetric:
+///
+/// - A subject position (`&mut self`) is filled by a receiver or by an ordinary
+///   parameter declaring the conforming data (`counter: &mut Counter`), which
+///   denotes exactly what the receiver denotes.
+/// - A non-subject position (`rhs: &Self`) is filled by anything that is not a
+///   receiver. Its own type is compared afterwards, where `Self` binds to the
+///   carrier -- so `other: &Point` fills `rhs: &Self` even though `Point` is
+///   also the conforming data. Requiring it NOT to name that data would refuse
+///   every `equals(point: &Point, other: &Point)`.
+fn subject_role_matches(
+    program: &TypedTrees,
+    machine: &Machine,
+    actual: &StateParameter,
+    required: &StateParameter,
+) -> bool {
+    if required.is_self {
+        program.parameter_declares_attached_data(machine, actual)
+    } else {
+        !actual.is_self
+    }
+}
+
 fn validate_trait_parameter_match(
     program: &TypedTrees,
     machine: &Machine,
@@ -560,7 +587,15 @@ fn validate_trait_parameter_match(
     required: &StateParameter,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if actual.is_self != required.is_self || actual.is_mutable != required.is_mutable {
+    // A requirement's `self` position names the SUBJECT, and the satisfier
+    // corresponds to it parameter by parameter rather than by spelling: under
+    // the static-machine contract the subject is an ordinary parameter
+    // declaring the conforming data (`counter: &mut Counter`), which denotes
+    // exactly what `&mut self` denotes. Access still has to agree, so
+    // `is_mutable` is compared either way.
+    if !subject_role_matches(program, machine, actual, required)
+        || actual.is_mutable != required.is_mutable
+    {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: expected `{}`, got `{}`",
             machine.name,
@@ -574,11 +609,14 @@ fn validate_trait_parameter_match(
         return;
     }
 
-    // `&self` establishes receiver shape, not a reusable type-variable
-    // binding. Attached machine self parameters carry the syntax placeholder
-    // `Self`; binding the trait's `Self` to that placeholder makes a later
-    // concrete `other: &Type` spuriously mismatch. The carrier is inferred
-    // from the first non-receiver `Self` occurrence instead.
+    // The subject position establishes shape, not a reusable type-variable
+    // binding. A receiver carries the syntax placeholder `Self` and a named
+    // subject carries the conforming data's own type; binding the trait's
+    // `Self` to either makes a later concrete `other: &Type` spuriously
+    // mismatch. The carrier is inferred from the first non-subject `Self`
+    // occurrence instead. The subject's own type needs no comparison here:
+    // `data_binding_parameter` admitted it only because it declares this
+    // machine's attached data, which is what the `satisfies` edge names.
     if required.is_self {
         return;
     }
