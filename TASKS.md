@@ -145,34 +145,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
 
 ## Immediate product closure
 
-- **STATIC-STATE-DATA-BYTE-FIELDS.** (split-of:STATIC-MACHINE-MIGRATION)
-  `pass/storage/forwarded_context_byte_field_cross_state_store_exit` now builds
-  and exits 66, so a state can fill a byte field through its own named data
-  parameter and a successor state can write one byte of it. Seventeen places on
-  that one route had each re-derived "the destination is the machine's own
-  parameter", which a receiver satisfies for every state and a named data
-  parameter satisfies for none; they now share one arrival-storage answer per
-  representation
-  (`terminal_semantics::arrival_parameter`,
-  `PsiOptimizationFunction::arrival_parameter`,
-  `AbstractFunction::arrival_parameter`,
-  `address_join_input::loan_declaration`), and byte-field content facts follow
-  the edge binding that renames the storage instead of comparing place
-  identities across blocks.
-  The remaining frontier is the proof side for COMPUTED bytes. Three samples —
-  `samples/cli/basics/{print_number,print_squares,multiplication_table}` — build
-  natively in the receiver form and still reach
-  `Lowering(OperationProofUnavailable)` in the static form: their digit chars
-  are computed, so the indexed store's `index < length` leg needs the extent
-  equation and its ASCII leg needs the all-paths content evidence, and both
-  rest on observations made in an earlier state. The literal-sourced fixture
-  above gets its equation from `literal_length_equation` and so does not
-  exercise that. Find which axiom the obligation lacks (the minted obligation
-  ids are `FreshObligations`, so read the reconstructed axioms, not the
-  registered catalog), carry the equation across the edge the same way, and
-  migrate those three samples as acceptance. Do not widen the remaining
-  machine-parameter-only sites without their own customer program.
-
 - **STATIC-NOMINAL-BINDER-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   A NOMINAL machine binder over a receiver-spelled trait requirement cannot take
   a satisfier that names its subject. Not blocking: the structural binder is a

@@ -343,6 +343,104 @@ fn lower_field_loop(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     lowered
 }
 
+const NAMED_LOCKSTEP: &str = r#"
+    data Digits {
+        counter: u64 in Wrapping;
+        divisor: u32 in Wrapping;
+        result: u32 in Wrapping;
+    }
+    machine Digits::run(context: &mut Digits, spare: &mut Digits) {
+        context.counter = 0;
+        context.divisor = 100;
+        spare.counter = 0;
+        spare.divisor = 0;
+        transition { _ -> header(context, spare) }
+        state header(current: &mut Digits, unused: &mut Digits) {
+            transition current.counter < 3 {
+                true -> step(current, unused)
+                _ -> done(current, unused)
+            }
+        }
+        state step(updating: &mut Digits, untouched: &mut Digits) {
+            updating.result = 81 / updating.divisor;
+            updating.divisor = updating.divisor / 10;
+            updating.counter = updating.counter + 1;
+            transition { _ -> header(updating, untouched) }
+        }
+        state done(finished: &mut Digits, spare: &mut Digits) { }
+    }
+"#;
+
+#[test]
+fn named_lockstep_fields_follow_the_exact_backedge_binding() {
+    lower_field_loop(NAMED_LOCKSTEP, "Digits::run");
+}
+
+#[test]
+fn named_lockstep_evidence_rejects_changed_step_and_wrong_backing() {
+    let lowered = lower_field_loop(NAMED_LOCKSTEP, "Digits::run");
+    for wrong_backing in [false, true] {
+        let mut changed = lowered.clone();
+        let entry = changed.semantic_module.entry;
+        let machine = changed
+            .semantic_module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == entry)
+            .unwrap();
+        if wrong_backing {
+            let block = machine
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == machine.entry)
+                .unwrap();
+            let terminal_psi::Terminator::Jump {
+                structural_arguments,
+                ..
+            } = &mut block.terminator
+            else {
+                panic!("entry forwards both initialized contexts to the header");
+            };
+            assert_eq!(structural_arguments.len(), 2);
+            structural_arguments.swap(0, 1);
+        } else {
+            let constant = machine
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::IntegerConstant {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(10),
+                        }
+                    )
+                })
+                .expect("the divisor update has its own literal step");
+            constant.kind = terminal_psi::OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(100),
+            };
+        }
+        terminal_verifier::validate_module(&changed.semantic_module)
+            .expect("the changed arithmetic or whole-context binding remains structurally valid");
+        assert!(
+            terminal_verifier::verify_module(
+                &changed.semantic_module,
+                &changed.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "old evidence cannot justify the changed execution (wrong backing: {wrong_backing})"
+        );
+        changed.semantic_module.scalar_block_invariants.clear();
+        changed.proof_bundle = terminal_verifier::ProofBundle::default();
+        assert!(
+            crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err(),
+            "new candidates cannot authorize division by zero (wrong backing: {wrong_backing})"
+        );
+    }
+}
+
 #[test]
 fn bounded_wrapping_product_retains_digit_bound_across_a_join() {
     let source = r#"
@@ -388,9 +486,7 @@ fn bounded_wrapping_product_retains_digit_bound_across_a_join() {
     assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
 }
 
-#[test]
-fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
-    let source = "
+const NESTED_FIELD_BYTE: &str = "
         domain [u8; 4]::Utf8 requires valid_utf8(self);
         machine narrow(value: i32) -> u8 {
             (value as u8 in Trapping) as u8
@@ -446,6 +542,10 @@ fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
             }
             state done(&mut self) { }
         }";
+
+#[test]
+fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
+    let source = NESTED_FIELD_BYTE;
     let lowered = lower_field_loop(source, "Nested::run");
 
     // Rebuild all evidence against changed Terminal semantics. A weaker loop
@@ -471,6 +571,43 @@ fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
         *value = replacement;
         assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
     }
+}
+
+#[test]
+fn named_nested_loop_preserves_bounds_through_the_byte_choice_join() {
+    let mut source = NESTED_FIELD_BYTE
+        .replace("&mut self", "context: &mut Nested")
+        .replace("self.", "context.");
+    for state in [
+        "outer", "prepare", "inner", "step", "select", "high", "low", "store", "write", "done",
+    ] {
+        source = source.replace(&format!("{state}()"), &format!("{state}(context)"));
+    }
+    let lowered = lower_field_loop(&source, "Nested::run");
+    // A wider outer guard makes the computed byte leave ASCII after the
+    // inner loop. Clearing all evidence requires fresh arrival proofs.
+    let mut changed = lowered.clone();
+    changed.semantic_module.scalar_block_invariants.clear();
+    changed.proof_bundle = terminal_verifier::ProofBundle::default();
+    let constant = changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Signed(40),
+                }
+            )
+        })
+        .expect("the outer loop's upper bound is explicit");
+    constant.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Signed(900),
+    };
+    assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
 }
 
 /// Replace the loop's stored start value and drop every proposal and proof,

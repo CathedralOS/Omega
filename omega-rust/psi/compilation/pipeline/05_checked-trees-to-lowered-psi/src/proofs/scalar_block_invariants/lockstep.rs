@@ -178,6 +178,12 @@ fn update_literal(
         if !terminator_reaches(&block.terminator, header) {
             continue;
         }
+        // The header observes its own parameter, while this predecessor
+        // updates the storage it forwards into that parameter. Resolve that
+        // exact binding before matching both sides of the field update.
+        let Some(root) = terminal_semantics::root_before_edge(machine, header, block, root) else {
+            continue;
+        };
         for store in &block.operations {
             let terminal_psi::OperationKind::StructuralScalarFieldStore {
                 destination,

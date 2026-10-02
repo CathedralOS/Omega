@@ -187,13 +187,13 @@ pub(super) fn candidates(
                 // then drop the guard naming each predicate by comparison.
                 let scoped_guards = guards
                     .iter()
-                    .filter_map(|guard| scope_rooted(guard, &equations, scope))
+                    .filter_map(|guard| scope_rooted(guard, machine, header, scope))
                     .collect::<Vec<_>>();
                 for predicate in &predicates {
                     // The demand's own observation may root at a block this
                     // header cannot name; re-root it onto the observation the
                     // header scopes before proposing anything.
-                    let Some(predicate) = &scope_rooted(predicate, &equations, scope) else {
+                    let Some(predicate) = &scope_rooted(predicate, machine, header, scope) else {
                         continue;
                     };
                     // A bound the site's own path guard already states needs
@@ -328,9 +328,10 @@ pub(super) fn arrival_bounds(
             let Some(predicate) = transport_relation(fact, &equations).map(inclusive_bound) else {
                 continue;
             };
-            if scope.validate(&predicate).is_err()
-                || !proposed.insert((owner, header, predicate.clone()))
-            {
+            let Some(predicate) = scope_rooted(&predicate, machine, header, &scope) else {
+                continue;
+            };
+            if !proposed.insert((owner, header, predicate.clone())) {
                 continue;
             }
             if module.scalar_block_invariants.iter().any(|existing| {
@@ -481,9 +482,11 @@ fn arrival_storage_candidates(
                 else {
                     continue;
                 };
-                if scope.validate(&predicate).is_err()
-                    || !proposed.insert((invariant.header, predicate.clone()))
-                {
+                let Some(predicate) = scope_rooted(&predicate, machine, invariant.header, &scope)
+                else {
+                    continue;
+                };
+                if !proposed.insert((invariant.header, predicate.clone())) {
                     continue;
                 }
                 candidates.push(ScalarBlockInvariant {
@@ -592,95 +595,95 @@ fn literal_comparison(proposition: &Proposition) -> bool {
 /// observation roots at the demand block's parameter and the header rejects it
 /// as an unknown place.
 ///
-/// The site's own equations say which observations are the same storage, so
-/// the root is a CHOICE made where it is decidable — here, against this
-/// header's telescope — not an enumeration of every alias left for the
-/// telescope to reject. One claim goes in and at most one comes out, so the
-/// roster does not grow with the number of aliases.
-///
-/// The substitution is justified by an equation the site already carries, and
-/// it confers nothing: the arrival transaction still proves the chosen
-/// predicate at every arrival, and the demand still proves its original
-/// obligation from whatever is retained.
+/// Whole-storage bindings relate the field's declared block root and the
+/// header in either direction: a demand may read the field after the header,
+/// while an arrival supplies a bound observed before it. A prior scalar read
+/// in the header is not needed to name that storage. Choose only a name the
+/// header's telescope admits. This proposes
+/// one predicate, never a fact: the arrival transaction still establishes it
+/// independently on every incoming edge.
 fn scope_rooted(
     claim: &Proposition,
-    equations: &FieldEquations<'_>,
+    machine: &TerminalMachine,
+    header: BlockId,
     scope: &PropositionContext,
 ) -> Option<Proposition> {
     if scope.validate(claim).is_ok() {
         return Some(claim.clone());
     }
-    equations.equal_observations.iter().find_map(|(from, to)| {
-        let restated = substituted_observation(claim, from, to)?;
-        scope.validate(&restated).is_ok().then_some(restated)
-    })
-}
-
-/// `claim` with every occurrence of the `from` observation replaced by `to`,
-/// or `None` when it names none. Only the relation and connective shapes
-/// `transported` builds are walked; anything else is returned unchanged by
-/// its enclosing arm and reported as no substitution.
-fn substituted_observation(
-    claim: &Proposition,
-    from: &ScalarTerm,
-    to: &ScalarTerm,
-) -> Option<Proposition> {
-    let endpoint = |term: &ScalarTerm| {
-        if term == from {
-            (to.clone(), true)
-        } else {
-            (term.clone(), false)
+    let endpoint = |term: &ScalarTerm| -> Option<ScalarTerm> {
+        let root = match term {
+            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => *root,
+            _ => return Some(term.clone()),
+        };
+        if scope
+            .validate(&Proposition::Equal(term.clone(), term.clone()))
+            .is_ok()
+        {
+            return Some(term.clone());
         }
+        let owner = machine
+            .structural_places
+            .iter()
+            .find_map(|place| match place.kind {
+                StructuralPlaceKind::BlockParameter { block, .. } if place.id == root => {
+                    Some(block)
+                }
+                _ => None,
+            })?;
+        let names = terminal_semantics::storage_names(machine, owner, root);
+        let header_block = machine.blocks.iter().find(|block| block.id == header)?;
+        let incoming_names = header_block
+            .structural_parameters
+            .iter()
+            .filter_map(|parameter| {
+                terminal_semantics::storage_names(machine, header, parameter.place)
+                    .in_block(owner)
+                    .any(|name| name == root)
+                    .then_some(parameter.place)
+            });
+        names
+            .in_block(header)
+            .chain(incoming_names)
+            .find_map(|name| {
+                let mut restated = term.clone();
+                match &mut restated {
+                    ScalarTerm::BooleanField { root, .. }
+                    | ScalarTerm::IntegerField { root, .. } => *root = name,
+                    _ => return None,
+                }
+                scope
+                    .validate(&Proposition::Equal(restated.clone(), restated.clone()))
+                    .is_ok()
+                    .then_some(restated)
+            })
     };
     let members = |members: &[Proposition]| {
-        let substituted = members
+        members
             .iter()
-            .map(|member| substituted_observation(member, from, to))
-            .collect::<Vec<_>>();
-        substituted.iter().any(Option::is_some).then(|| {
-            members
-                .iter()
-                .zip(substituted)
-                .map(|(member, claim)| claim.unwrap_or_else(|| member.clone()))
-                .collect::<Vec<_>>()
-        })
+            .map(|member| scope_rooted(member, machine, header, scope))
+            .collect::<Option<Vec<_>>>()
     };
-    match claim {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            let (left, left_substituted) = endpoint(left);
-            let (right, right_substituted) = endpoint(right);
-            if !left_substituted && !right_substituted {
-                return None;
-            }
-            Some(match claim {
-                Proposition::Equal(..) => Proposition::Equal(left, right),
-                Proposition::LessThan(..) => Proposition::LessThan(left, right),
-                _ => Proposition::LessOrEqual(left, right),
-            })
+    let restated = match claim {
+        Proposition::Equal(left, right) => Proposition::Equal(endpoint(left)?, endpoint(right)?),
+        Proposition::LessThan(left, right) => {
+            Proposition::LessThan(endpoint(left)?, endpoint(right)?)
         }
-        Proposition::Conjunction(parts) => members(parts).map(Proposition::Conjunction),
-        Proposition::Disjunction(parts) => members(parts).map(Proposition::Disjunction),
+        Proposition::LessOrEqual(left, right) => {
+            Proposition::LessOrEqual(endpoint(left)?, endpoint(right)?)
+        }
+        Proposition::Conjunction(parts) => Proposition::Conjunction(members(parts)?),
+        Proposition::Disjunction(parts) => Proposition::Disjunction(members(parts)?),
         Proposition::Implication {
             premise,
             conclusion,
-        } => {
-            let substituted_premise = substituted_observation(premise, from, to);
-            let substituted_conclusion = substituted_observation(conclusion, from, to);
-            (substituted_premise.is_some() || substituted_conclusion.is_some()).then(|| {
-                Proposition::Implication {
-                    premise: Box::new(
-                        substituted_premise.unwrap_or_else(|| premise.as_ref().clone()),
-                    ),
-                    conclusion: Box::new(
-                        substituted_conclusion.unwrap_or_else(|| conclusion.as_ref().clone()),
-                    ),
-                }
-            })
-        }
-        _ => None,
-    }
+        } => Proposition::Implication {
+            premise: Box::new(scope_rooted(premise, machine, header, scope)?),
+            conclusion: Box::new(scope_rooted(conclusion, machine, header, scope)?),
+        },
+        _ => return None,
+    };
+    scope.validate(&restated).is_ok().then_some(restated)
 }
 
 /// Transport one goal's value endpoints through the arrival's exact field-read
@@ -819,19 +822,12 @@ fn same_carrier(left: ScalarTerm, right: ScalarTerm) -> Option<(ScalarTerm, Scal
 struct FieldEquations<'input> {
     fields: BTreeMap<ValueId, &'input ScalarTerm>,
     casts: BTreeMap<ValueId, ValueId>,
-    /// Field observations one value equals through more than one root, in both
-    /// directions. A machine that forwards its data along its state edges
-    /// reads the same field through a fresh block parameter in each block, so
-    /// one read's value carries an equation per root and those observations
-    /// are the same storage.
-    equal_observations: Vec<(&'input ScalarTerm, &'input ScalarTerm)>,
 }
 
 impl<'input> FieldEquations<'input> {
     fn new(axioms: &'input [Proposition], invocation_roots: &BTreeSet<PlaceId>) -> Self {
         let mut fields = BTreeMap::new();
         let mut casts = BTreeMap::new();
-        let mut observations: BTreeMap<ValueId, Vec<&'input ScalarTerm>> = BTreeMap::new();
         let mut pending = axioms.iter().collect::<Vec<_>>();
         while let Some(fact) = pending.pop() {
             match fact {
@@ -846,10 +842,6 @@ impl<'input> FieldEquations<'input> {
                             && invocation_roots.contains(root)
                         {
                             fields.entry(*id).or_insert(field);
-                            let seen = observations.entry(*id).or_default();
-                            if !seen.contains(&field) {
-                                seen.push(field);
-                            }
                         }
                         if let (
                             ScalarTerm::Value { id, .. },
@@ -865,20 +857,7 @@ impl<'input> FieldEquations<'input> {
                 _ => {}
             }
         }
-        let mut equal_observations = Vec::new();
-        for observed in observations.values() {
-            for (position, left) in observed.iter().enumerate() {
-                for right in &observed[position + 1..] {
-                    equal_observations.push((*left, *right));
-                    equal_observations.push((*right, *left));
-                }
-            }
-        }
-        Self {
-            fields,
-            casts,
-            equal_observations,
-        }
+        Self { fields, casts }
     }
 
     fn field(&self, id: ValueId) -> Option<&'input ScalarTerm> {

@@ -468,3 +468,173 @@ fn indexed_descriptor_replacement_retires_the_previous_length() {
         "a replacement can change extent even when the same carrier and selector survive"
     );
 }
+
+/// Isolate current-graph receiving freshness from immutable source provenance.
+/// The declared entry owners dominate two ordinary control arms; each arm then
+/// binds one owner to a named context, followed by an empty-telescope edge.
+fn forwarded_field_observation(
+    different_backing: bool,
+) -> (
+    optimization_unit::PsiOptimizationUnit,
+    optimization_unit::PsiOptimizationFunction,
+    BTreeMap<BlockId, BTreeSet<BlockId>>,
+) {
+    use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+
+    let unit = indexed_field_unit();
+    let mut function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap()
+        .clone();
+    let root = function.structural_parameters[0].place;
+    let other = id(980, PlaceId::new);
+    let context = id(981, PlaceId::new);
+    let left = id(982, BlockId::new);
+    let right = id(983, BlockId::new);
+    let joined = id(984, BlockId::new);
+    let use_block = id(985, BlockId::new);
+    let mut other_parameter = function.structural_parameters[0].clone();
+    other_parameter.place = other;
+    other_parameter.position = 1;
+    other_parameter.is_self = false;
+    function.structural_parameters.push(other_parameter.clone());
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: other,
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+    let mut context_parameter = other_parameter;
+    context_parameter.place = context;
+    context_parameter.position = 0;
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: context,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: joined,
+                position: 0,
+            },
+        });
+    let entry_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == function.entry)
+        .unwrap();
+    let store_position = function.blocks[entry_position]
+        .nodes
+        .iter()
+        .position(|node| {
+            matches!(
+                node.operation,
+                O::StructuralByteSequenceFieldByteStore { .. }
+            )
+        })
+        .unwrap();
+    let mut indexed = function.blocks[entry_position].nodes[store_position].clone();
+    let O::StructuralByteSequenceFieldByteStore { destination, .. } = &mut indexed.operation else {
+        unreachable!()
+    };
+    *destination = context;
+    indexed.successors.clear();
+    let edge = |identity, target, argument: Option<PlaceId>| OptimizationEdge {
+        psi_edge: id(identity, semantic_vocabulary::EdgeId::new),
+        target,
+        bindings: Vec::new(),
+        structural_bindings: argument
+            .map(|place| abstract_operations::AbstractStructuralBinding {
+                parameter: context,
+                argument: terminal_psi::StructuralArgument {
+                    place,
+                    access: StructuralAccess::MutableBorrow,
+                    path: Vec::new(),
+                },
+            })
+            .into_iter()
+            .collect(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        provenance: Vec::new(),
+        fuel: Vec::new(),
+    };
+    let mut control = indexed.clone();
+    control.operation = O::ReturnUnit {
+        psi_edge: id(986, semantic_vocabulary::EdgeId::new),
+        cleanup_actions: Vec::new(),
+    };
+    let mut entry = function.blocks[entry_position].clone();
+    entry.nodes.truncate(store_position);
+    entry.nodes.last_mut().unwrap().successors =
+        vec![edge(987, left, None), edge(988, right, None)];
+    let mut block = |identity, successors| {
+        control.successors = successors;
+        OptimizationBlock {
+            id: identity,
+            structural_parameters: Vec::new(),
+            parameters: Vec::new(),
+            nodes: vec![control.clone()],
+        }
+    };
+    let left_block = block(left, vec![edge(989, joined, Some(root))]);
+    let right_block = block(
+        right,
+        vec![edge(
+            990,
+            joined,
+            Some(if different_backing { other } else { root }),
+        )],
+    );
+    let mut joined_block = block(joined, vec![edge(991, use_block, None)]);
+    joined_block.structural_parameters.push(context_parameter);
+    function.blocks = vec![
+        entry,
+        left_block,
+        right_block,
+        joined_block,
+        OptimizationBlock {
+            id: use_block,
+            structural_parameters: Vec::new(),
+            parameters: Vec::new(),
+            nodes: vec![indexed],
+        },
+    ];
+    let predecessors = BTreeMap::from([
+        (left, BTreeSet::from([function.entry])),
+        (right, BTreeSet::from([function.entry])),
+        (joined, BTreeSet::from([left, right])),
+        (use_block, BTreeSet::from([joined])),
+    ]);
+    (unit, function, predecessors)
+}
+
+#[test]
+fn forwarded_byte_field_observation_crosses_empty_control_edges() {
+    let (unit, function, predecessors) = forwarded_field_observation(false);
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|row| (row.id, row))
+        .collect();
+    validate(&function, &types, &predecessors).expect(
+        "a named context keeps its dominating field observation through ordinary control edges",
+    );
+}
+
+#[test]
+fn forwarded_byte_field_observation_rejects_another_backing_on_one_arrival() {
+    let (unit, function, predecessors) = forwarded_field_observation(true);
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|row| (row.id, row))
+        .collect();
+    assert!(
+        validate(&function, &types, &predecessors).is_err(),
+        "executing the observation on every arrival does not establish another owner's extent"
+    );
+}
