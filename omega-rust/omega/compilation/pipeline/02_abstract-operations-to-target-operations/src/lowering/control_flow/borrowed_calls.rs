@@ -38,11 +38,12 @@ pub(super) fn argument(
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine));
     }
     if live.address_joins.contains(&argument.place)
-        || (!argument.path.is_empty()
-            && prepared
-                .parameters
-                .iter()
-                .any(|source| source.place == argument.place))
+        || prepared.parameters.iter().any(|source| {
+            source.place == argument.place
+                && (!argument.path.is_empty()
+                    || source.access == StructuralAccess::Owned
+                        && live.owned_arrivals.contains(&argument.place))
+        })
     {
         return storage_argument(
             argument,
@@ -262,7 +263,10 @@ pub(super) fn storage_argument(
         StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
         StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
         StructuralAccess::WriteOnlyBorrow => argument.access == StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::Owned => false,
+        // A live by-value arrival owns its completed storage. Borrow its
+        // original home for this call; do not reinterpret its ABI fragments
+        // as the pointer parameter or manufacture a copied referent.
+        StructuralAccess::Owned => live.owned_arrivals.contains(&argument.place),
     };
     let (selected, referent, offset, runs) =
         crate::lowering::structural_layout::runtime_projection(
