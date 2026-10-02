@@ -103,30 +103,6 @@ fn place_loan_declaration(
     {
         return None;
     }
-    let captured = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine,
-        state,
-        Some(index),
-        initializer.target,
-    )
-    .ok()?;
-    let source_type = match checked.expression_table.expression(initializer.target) {
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.result_type,
-        _ => validation::declared_place_type_raw(
-            &checked.typed,
-            authored_machine,
-            Some(authored_state),
-            initializer.target,
-        )?,
-    };
-    let source_type = validation::reference_shell(&checked.typed, source_type)
-        .map_or(source_type, |reference| reference.referee);
-    if checked.typed.normalized_type_identity(reference.referee)
-        != checked.typed.normalized_type_identity(source_type)
-    {
-        return None;
-    }
     let access = match reference.access {
         ReferenceAccess::Shared => BorrowAccessKind::Read,
         ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
@@ -164,6 +140,35 @@ fn place_loan_declaration(
         return crate::emission::call_source_custody::projected_receivers::aliases::parameter_source(
             checked, machine, state, loan.last_use_statement_index, local.symbol, true,
         ).ok().map(|source| source.is_some());
+    }
+    // A direct loan's spelled target must project to the place its ledger
+    // entry records. Derived carriers carry that agreement inside their
+    // lineage evidence instead, spelled against the parent's ultimate root
+    // — asking for it here would refuse every local-rooted projection the
+    // ledger already proved.
+    let captured = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine,
+        state,
+        Some(index),
+        initializer.target,
+    )
+    .ok()?;
+    let source_type = match checked.expression_table.expression(initializer.target) {
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.result_type,
+        _ => validation::declared_place_type_raw(
+            &checked.typed,
+            authored_machine,
+            Some(authored_state),
+            initializer.target,
+        )?,
+    };
+    let source_type = validation::reference_shell(&checked.typed, source_type)
+        .map_or(source_type, |reference| reference.referee);
+    if checked.typed.normalized_type_identity(reference.referee)
+        != checked.typed.normalized_type_identity(source_type)
+    {
+        return None;
     }
     if loan.source_owner_symbol.is_valid()
         || loan.root_symbol != captured.captured_place().root_symbol
