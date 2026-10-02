@@ -215,6 +215,17 @@ pub(super) fn validate_source(
     source: semantic_vocabulary::PlaceId,
     length: Option<semantic_vocabulary::ValueId>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let permitted_access = |access| match operation {
+        AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
+        AbstractOperation::ByteSequenceStore { .. }
+        | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+            access == StructuralAccess::SharedBorrow
+        }
+        _ => matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ),
+    };
     let arrival = function.arrival_parameter(source);
     let structural_type = match source_kind {
         Some(
