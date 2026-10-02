@@ -1461,16 +1461,24 @@ the complete product bar; focused successes below do not establish that baseline
   copies now resolve that storage through one address owner, with independent
   replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
   and derived views. Older unchanged full-game runs remain in allocation
-  recovery. The latest help/exit run (macOS ARM64, `991578229a9` compiler,
-  unchanged source checkout `356d43c6d6`) rejects after 37.11 seconds at
-  `OwnedStructuralFrontierJoinMismatch(BlockId(66))`. The earlier borrowed-view
-  rejection was a type-wide exception that mistook descriptor retirement for
-  backing ownership. Removing it and restoring canonical shared-result
-  multiplicity lets `collections/mutable_slice_view_establishment` execute 181;
-  four related native controls and three invalid-borrow controls also retain
-  their authored outcomes. Trace the conflicting incoming ownership frontiers
-  through ordinary control-flow publication; do not exempt a block or weaken
-  independent verification. Do not substitute the
+  recovery. The latest help/exit run (macOS ARM64, `11e21a0895e` plus the
+  literal-custody correction, unchanged source checkout `356d43c6d6`) passes
+  the former `OwnedStructuralFrontierJoinMismatch(BlockId(66))` rejection
+  and remains in compilation. That join had acquired fictitious affine debt
+  for immutable image literals, not an undisposed local; `eb36ac8f6af`
+  independently corrected their custody. Literal return signatures now retain
+  unrestricted multiplicity, and result validation no longer uses a
+  producer-family allowlist or a literal-only custody exception. The repeated
+  literal/concatenation store regression executes 70; missing establishments,
+  forged multiplicity, and invalid lifetime/domain controls still reject.
+  An OS sample of the full run places all 548 active samples in Omega's
+  `optimization-unit/semantics/src/unit_validation/function_structure/mutable_views.rs`,
+  called during instruction legalization revalidation. Its
+  `current_mutable_borrows` rediscovers incoming edges for every target block
+  in every fixed-point round. Prepare exact edge transfers once or traverse
+  edges once per round while retaining separate definite/possible arrivals,
+  distinct parallel edges, and independent validation; then rerun the same
+  full-game commands. Do not substitute the
   reduced program's result for application acceptance. Independent live-range
   replay visits actual register memberships,
   groups operands by instruction, reconstructs tied components once and walks

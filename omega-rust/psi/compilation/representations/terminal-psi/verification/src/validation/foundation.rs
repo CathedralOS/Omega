@@ -282,14 +282,9 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     let services = services::register_services(module)?;
     boundary_machines::validate_boundary_machines(module, &types, &domains, &services)?;
     provider_candidates::validate_provider_candidates(module, &types)?;
-    let machines = module
-        .machines
-        .iter()
-        .map(|machine| (machine.id, machine))
-        .collect::<BTreeMap<_, _>>();
     for machine in &module.machines {
         machine_foundations::validate_machine_foundation(
-            module, machine, &machines, &types, &domains, &services,
+            module, machine, &types, &domains, &services,
         )?;
     }
     service_binding_custody::validate_service_binding_custody(module, &types)?;

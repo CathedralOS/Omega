@@ -122,6 +122,44 @@ fn literal_length_proves_exact_return_extent() {
 }
 
 #[test]
+fn literal_return_has_no_affine_debt_but_requires_its_establishment() {
+    let (mut module, _) = fixture(b"image storage");
+    let source = PlaceId::new(1).unwrap();
+    let returned = PlaceId::new(2).unwrap();
+    let machine = &mut module.machines[0];
+    machine.contract.ensures.clear();
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: returned,
+        kind: StructuralPlaceKind::Result,
+    });
+    machine.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+        place: returned,
+        structural_type: StructuralTypeId::new(1).unwrap(),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: EdgeId::new(900).unwrap(),
+        source,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    validate_module(&module).expect("returning immutable image storage owes no disposal");
+
+    let mut affine = module.clone();
+    let TerminalMachineResult::Structural(result) = &mut affine.machines[0].result else {
+        panic!("fixture has a structural result");
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    assert!(validate_module(&affine).is_err());
+
+    module.machines[0].blocks[0].operations.remove(0);
+    assert!(validate_module(&module).is_err());
+}
+
+#[test]
 fn changed_literal_cannot_reuse_the_old_extent_proof() {
     let (mut module, bundle) = fixture(b"XXX");
     verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
