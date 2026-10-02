@@ -430,3 +430,203 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
         }
     }
 }
+
+fn mutable_array_execution() -> (TerminalExecution, Operation) {
+    use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+    use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
+    use crate::values::StructuralRuntimePlace;
+    let (mut execution, mut operation) = execution();
+    let OperationResult::Structural(result) = &mut operation.result else {
+        panic!("descriptor result")
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    let OperationKind::ByteSequenceSubslice { end, .. } = &mut operation.kind else {
+        panic!("subslice")
+    };
+    *end = value(2);
+    execution.values.insert(value(2), count(3));
+    let program = std::sync::Arc::get_mut(&mut execution.program).unwrap();
+    program
+        .structural_types
+        .get_mut(&StructuralTypeId::new(1).unwrap())
+        .unwrap()
+        .shape = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::MutableBorrow),
+    });
+    program.structural_types.insert(
+        StructuralTypeId::new(2).unwrap(),
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(2).unwrap(),
+            identity: "backing".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(3).unwrap(),
+                length: 4,
+            },
+        },
+    );
+    program.structural_types.insert(
+        StructuralTypeId::new(3).unwrap(),
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(3).unwrap(),
+            identity: "byte".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        },
+    );
+    let block = program
+        .machines
+        .get_mut(&MachineId::new(1).unwrap())
+        .unwrap()
+        .blocks
+        .get_mut(&BlockId::new(1).unwrap())
+        .unwrap();
+    block.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    block.operations[1] = operation.clone();
+    let referent = execution.structural_values[&place(1)].clone();
+    let backing = StructuralRuntimePlace::from(&referent);
+    execution
+        .structural_byte_arrays
+        .insert(backing.clone(), ByteSequenceView::new(vec![0, 128, 255, 7]));
+    execution.byte_sequence_values.insert(
+        place(1),
+        ByteSequenceBinding::MutableArray {
+            array: ArrayStorage::from(backing),
+            array_type: StructuralTypeId::new(2).unwrap(),
+            offset: 0,
+            length: 4,
+            referent,
+        },
+    );
+    (execution, operation)
+}
+
+#[test]
+fn mutable_byte_range_keeps_original_backing_and_independent_descriptor_custody() {
+    use crate::byte_sequences::binding::ByteSequenceBinding;
+    let (mut execution, operation) = mutable_array_execution();
+    execution
+        .execute_byte_sequence_subslice(&operation)
+        .unwrap();
+    assert_eq!(execution.byte_sequence_length(place(1)).unwrap(), 4);
+    assert_eq!(execution.byte_sequence_length(place(2)).unwrap(), 2);
+    let debt = StructuralAffineDiscard {
+        place: place(2),
+        path: Vec::new(),
+        structural_type: StructuralTypeId::new(1).unwrap(),
+    };
+    assert_eq!(
+        execution.live_affine_frontier,
+        std::collections::BTreeSet::from([debt])
+    );
+    execution.values.insert(value(4), count(2));
+    execution.values.insert(
+        value(5),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: IntegerValue::Unsigned(42),
+        },
+    );
+    let write = Operation {
+        id: OperationId::new(9).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::ByteSequenceWrite {
+            destination: place(2),
+            index: value(1),
+            value: value(5),
+            length: value(4),
+            obligation: ObligationId::new(2).unwrap(),
+        },
+    };
+    execution.execute_byte_sequence_write(&write).unwrap();
+    assert_eq!(execution.byte_sequence_read(place(2), 1).unwrap(), 42);
+    assert_eq!(
+        execution.structural_byte_array(101, &[]).unwrap(),
+        &[0, 128, 42, 7]
+    );
+    let borrowed = &execution.byte_sequence_values[&place(2)];
+    let referent = &execution.structural_values[&place(2)];
+    let shared = execution
+        .reborrow_byte_sequence_binding(borrowed, referent, StructuralAccess::SharedBorrow)
+        .unwrap();
+    assert_eq!(shared.immutable().unwrap().bytes(), &[128, 42]);
+    assert!(
+        execution
+            .reborrow_byte_sequence_binding(&shared, referent, StructuralAccess::MutableBorrow)
+            .is_err()
+    );
+    assert!(matches!(
+        borrowed,
+        ByteSequenceBinding::MutableArray {
+            offset: 1,
+            length: 2,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn mutable_byte_range_rejects_changed_home_extent_and_authority_before_publication() {
+    use crate::byte_sequences::binding::ByteSequenceBinding;
+    for mutation in ["home", "extent", "shared", "linear", "end"] {
+        let (mut execution, mut operation) = mutable_array_execution();
+        match mutation {
+            "home" | "extent" => {
+                let ByteSequenceBinding::MutableArray { array, length, .. } =
+                    execution.byte_sequence_values.get_mut(&place(1)).unwrap()
+                else {
+                    panic!("array")
+                };
+                if mutation == "home" {
+                    array.referent.opaque_identity = 102;
+                } else {
+                    *length = 5;
+                }
+            }
+            "shared" => {
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .machines
+                    .get_mut(&MachineId::new(1).unwrap())
+                    .unwrap()
+                    .blocks
+                    .get_mut(&BlockId::new(1).unwrap())
+                    .unwrap()
+                    .structural_parameters[0]
+                    .access = StructuralAccess::SharedBorrow;
+            }
+            "linear" => {
+                let OperationResult::Structural(result) = &mut operation.result else {
+                    panic!("descriptor")
+                };
+                result.multiplicity = StructuralMultiplicity::Linear;
+            }
+            "end" => {
+                execution.values.insert(value(2), count(5));
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            execution
+                .execute_byte_sequence_subslice(&operation)
+                .is_err(),
+            "{mutation}"
+        );
+        assert!(
+            !execution.structural_values.contains_key(&place(2)),
+            "{mutation}"
+        );
+        assert!(
+            !execution.byte_sequence_values.contains_key(&place(2)),
+            "{mutation}"
+        );
+        assert!(execution.live_affine_frontier.is_empty(), "{mutation}");
+        assert_eq!(
+            execution.structural_byte_array(101, &[]).unwrap(),
+            &[0, 128, 255, 7],
+            "{mutation}"
+        );
+    }
+}

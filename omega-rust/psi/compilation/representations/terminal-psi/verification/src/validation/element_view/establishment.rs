@@ -100,6 +100,43 @@ fn source_root(
         .then_some((structural_type, StructuralAccess::Owned))
 }
 
+/// Both readable loan modes establish the same collection descriptor. Byte
+/// descriptors omit an element field, so their borrowed carrier must rejoin
+/// the exact u8 element declaration. This never converts an existing view
+/// descriptor into another carrier or grants additional source access.
+pub(in crate::validation) fn collection_view_result_matches(
+    module: &TerminalModule,
+    view_type: StructuralTypeId,
+    element: StructuralTypeId,
+) -> bool {
+    module.structural_types.iter().any(|declaration| {
+        declaration.id == view_type
+            && match &declaration.shape {
+                StructuralTypeShape::ElementView {
+                    element: result_element,
+                } => *result_element == element,
+                // A `&[u8]` byte view is this same establishment over `u8`
+                // elements; its carrier keeps no element field, so the op's
+                // minted element must itself resolve to the `u8` scalar row.
+                StructuralTypeShape::ByteSequence(_) => {
+                    declaration.shape.is_borrowed_byte_view()
+                        && module.structural_types.iter().any(|element_declaration| {
+                            element_declaration.id == element
+                                && matches!(
+                                    element_declaration.shape,
+                                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                                        ref integer
+                                    )) if *integer
+                                        == IntegerType::new(IntegerSign::Unsigned, 8)
+                                            .expect("u8 is valid")
+                                )
+                        })
+                }
+                _ => false,
+            }
+    })
+}
+
 pub(in crate::validation) fn validate_establishment(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -133,32 +170,7 @@ pub(in crate::validation) fn validate_establishment(
     {
         return Err(invalid());
     }
-    if !module.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && match &declaration.shape {
-                StructuralTypeShape::ElementView {
-                    element: result_element,
-                } => *result_element == element,
-                // A `&[u8]` byte view is this same establishment over `u8`
-                // elements; its carrier keeps no element field, so the op's
-                // minted element must itself resolve to the `u8` scalar row.
-                StructuralTypeShape::ByteSequence(_) => {
-                    declaration.shape.is_borrowed_byte_view()
-                        && module.structural_types.iter().any(|element_declaration| {
-                            element_declaration.id == element
-                                && matches!(
-                                    element_declaration.shape,
-                                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                                        ref integer
-                                    )) if *integer
-                                        == IntegerType::new(IntegerSign::Unsigned, 8)
-                                            .expect("u8 is valid")
-                                )
-                        })
-                }
-                _ => false,
-            }
-    }) {
+    if !collection_view_result_matches(module, result.structural_type, element) {
         return Err(invalid());
     }
     if source.access != StructuralAccess::SharedBorrow {

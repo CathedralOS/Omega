@@ -230,6 +230,7 @@ pub(in crate::legalization) fn argument_at(
             call,
             parameter_ordinal,
             native,
+            &plan.structural_types,
         );
     }
     if super::primitive_locals::producer(caller, semantic.place).is_some()
@@ -331,6 +332,7 @@ fn view_argument(
     call: &CallPlan,
     parameter_ordinal: usize,
     native: &TargetOperationPlan,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
     let access = optimization_unit_semantics::structural_place_access(caller, semantic.place)
@@ -350,21 +352,26 @@ fn view_argument(
     // Current-graph admission already replayed the exact argument's primitive
     // byte predicates. Reconstruct the original descriptor and placement here;
     // qualification rosters do not change that physical custody.
-    let (structural_type, source) = if let Some((producer, structural_type, element)) =
+    let (structural_type, source) = if let Some((producer, structural_type)) =
         established_view(caller, call_operation, semantic.place)
     {
-        (
-            structural_type,
-            if element {
-                TargetStructuralArgumentSource::EstablishedElementView {
-                    psi_operation: producer,
-                }
-            } else {
-                TargetStructuralArgumentSource::EstablishedByteView {
-                    psi_operation: producer,
-                }
-            },
-        )
+        let shape = &structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .ok_or(LegalizationError::custody())?
+            .shape;
+        let source = if matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. }) {
+            TargetStructuralArgumentSource::EstablishedElementView {
+                psi_operation: producer,
+            }
+        } else if shape.is_borrowed_byte_view() {
+            TargetStructuralArgumentSource::EstablishedByteView {
+                psi_operation: producer,
+            }
+        } else {
+            return Err(LegalizationError::custody());
+        };
+        (structural_type, source)
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
         block
             .structural_parameters
@@ -624,12 +631,14 @@ fn established_view(
 ) -> Option<(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
-    bool,
 )> {
     if let Some(producer) = super::literals::producer(caller, call, place) {
-        return Some((producer.0, producer.1, false));
+        return Some(producer);
     }
-    if !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+    if !matches!(
+        optimization_unit_semantics::structural_place_access(caller, place),
+        Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+    ) || !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
         matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
             | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
@@ -640,56 +649,30 @@ fn established_view(
         .blocks
         .iter()
         .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::ByteSequenceSubslice {
-                psi_operation,
-                result,
-                ..
-            } if result.place == place
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        .find_map(|node| {
+            let (producer, result) = match &node.operation {
+                AbstractOperation::ByteSequenceSubslice {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | AbstractOperation::ElementViewSubslice {
+                    psi_operation,
+                    result,
+                    ..
+                } => (*psi_operation, result),
+                AbstractOperation::EstablishElementView {
+                    psi_operation,
+                    result,
+                    destination,
+                    ..
+                } if *destination == place => (*psi_operation, result),
+                _ => return None,
+            };
+            (result.place == place
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-            {
-                Some((*psi_operation, result.structural_type, false))
-            }
-            AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            } if result.place == place
-                && matches!(
-                    optimization_unit_semantics::structural_place_access(caller, place),
-                    Some(
-                        terminal_psi::StructuralAccess::SharedBorrow
-                            | terminal_psi::StructuralAccess::MutableBorrow
-                    )
-                )
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-            {
-                Some((*psi_operation, result.structural_type, true))
-            }
-            AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                destination,
-                ..
-            } if *destination == place
-                && matches!(
-                    optimization_unit_semantics::structural_place_access(caller, place),
-                    Some(
-                        terminal_psi::StructuralAccess::SharedBorrow
-                            | terminal_psi::StructuralAccess::MutableBorrow
-                    )
-                )
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-            {
-                Some((*psi_operation, result.structural_type, true))
-            }
-            _ => None,
+                && result.claims.is_empty())
+            .then_some((producer, result.structural_type))
         })
 }

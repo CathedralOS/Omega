@@ -2235,17 +2235,15 @@ pub(crate) fn borrowed_element_view_referent(
     element_view_shell(checked, reference).map(|view| view.slice)
 }
 
-/// The carrier a `&mut`-referee binding joins: element-view referees
-/// (`&mut [T]` over non-byte elements) peel to the view carrier — the same
-/// peel `add_type` applies recording the result identity — while named and
-/// primitive referees keep the `ref-mut` borrow shell the verifier checks
-/// against its admitted `Reference` shapes. `None` for non-mutable-reference
-/// types.
+/// The carrier a mutable slice binding joins. Both ByteSequence and ElementView
+/// catalogs identify the slice beneath the reference shell; access and affine
+/// descriptor debt are independently retained on its result. Named and primitive
+/// referees keep their reference shell, so this is not generic dereferencing.
 pub(crate) fn mutable_view_carrier(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    element_view_shell(checked, reference)
+    validation::slice_view_shell(&checked.typed, reference, &[])
         .filter(|view| view.access == language_semantics::ReferenceAccess::Mutable)
         .map(|view| view.slice)
 }

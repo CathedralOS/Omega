@@ -213,8 +213,8 @@ impl TerminalExecution {
     }
 
     /// Both view operations borrow the same collection storage. Only the
-    /// authority and result carrier differ: a shared byte view has a byte
-    /// descriptor, and an exclusive element view retains its write-through home.
+    /// authority and result carrier differ: mutable descriptors retain their
+    /// original storage home, while shared scalar descriptors retain snapshots.
     pub(crate) fn execute_establish_element_view(
         &mut self,
         operation: &Operation,
@@ -292,7 +292,6 @@ impl TerminalExecution {
             } if *view_element == element => {}
             StructuralTypeShape::ByteSequence(_)
                 if descriptor.is_borrowed_byte_view()
-                    && access == StructuralAccess::SharedBorrow
                     && element_scalar
                         == Some(ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
@@ -342,16 +341,36 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
-        let mut elements = Vec::with_capacity(if element_scalar.is_some() { extent } else { 0 });
+        // Byte loans resolve their live ArrayStorage directly. Only consumers
+        // retaining scalar snapshots need to walk and allocate element values.
+        let snapshot_scalar = element_scalar.filter(|_| {
+            access == StructuralAccess::SharedBorrow
+                || matches!(descriptor, StructuralTypeShape::ElementView { .. })
+        });
+        let mut elements = Vec::with_capacity(if snapshot_scalar.is_some() { extent } else { 0 });
         let mut path = source.path.clone();
-        if let Some(element_scalar) = element_scalar {
+        if let Some(element_scalar) = snapshot_scalar {
             for position in 0..collection_length {
                 path.push(StructuralPathSegment::FixedIndex(position));
                 elements.push(self.read_primitive_place(source.place, &path, element_scalar)?);
                 path.pop();
             }
         }
+        let mut descriptor_value = TerminalStructuralValue {
+            opaque_identity: result.place.get(),
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
         match descriptor {
+            StructuralTypeShape::ByteSequence(_) if access == StructuralAccess::MutableBorrow => {
+                let mut cursor = self.local_structural_identities.cursor();
+                let (value, binding) =
+                    self.establish_byte_array_binding(source, result.structural_type, &mut cursor)?;
+                descriptor_value = value;
+                self.local_structural_identities.commit_cursor(cursor);
+                self.byte_sequence_values.insert(result.place, binding);
+            }
             StructuralTypeShape::ByteSequence(_) => {
                 let bytes = elements
                     .into_iter()
@@ -397,15 +416,8 @@ impl TerminalExecution {
                 self.element_view_values.insert(result.place, view);
             }
         }
-        self.structural_values.insert(
-            result.place,
-            TerminalStructuralValue {
-                opaque_identity: result.place.get(),
-                structural_type: result.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            },
-        );
+        self.structural_values
+            .insert(result.place, descriptor_value);
         if multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier
                 .insert(terminal_psi::StructuralAffineDiscard {

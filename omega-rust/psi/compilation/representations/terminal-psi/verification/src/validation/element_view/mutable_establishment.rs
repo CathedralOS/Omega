@@ -1,9 +1,11 @@
 //! Mutable element-view establishment over a contiguous structural collection.
 
-use crate::validation::element_view::establishment::{collection_element, source_collection_type};
+use crate::validation::element_view::establishment::{
+    collection_element, collection_view_result_matches, source_collection_type,
+};
 use crate::validation::{
     BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalModule,
 };
 
 /// A mutable establishment mirrors the immutable sibling's result shape and
@@ -44,15 +46,7 @@ pub(in crate::validation) fn validate_establishment(
     {
         return Err(invalid());
     }
-    if !module.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ElementView {
-                    element: result_element,
-                } if result_element == element
-            )
-    }) {
+    if !collection_view_result_matches(module, result.structural_type, element) {
         return Err(invalid());
     }
     if source.access != StructuralAccess::MutableBorrow {

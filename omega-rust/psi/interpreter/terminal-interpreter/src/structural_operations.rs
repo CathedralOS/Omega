@@ -1731,22 +1731,12 @@ impl TerminalExecution {
         };
         let byte_index = count(index)?;
         let byte_length = count(length)?;
-        let bytes = self
-            .byte_sequence_values
-            .get(&source)
-            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                source,
-            ))?
-            .immutable()?;
-        if u64::try_from(bytes.len()).ok() != Some(byte_length) || byte_index >= byte_length {
+        if self.byte_sequence_length(source)? != byte_length || byte_index >= byte_length {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let byte_index = usize::try_from(byte_index)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-        let byte = bytes
-            .get(byte_index)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let byte = self.byte_sequence_read(source, byte_index)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {

@@ -86,16 +86,20 @@ does not close an item. Keep independent receiving verification.
 - **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
   High priority: finish one checked view-narrowing operation across local
   binding, call argument and state edge, preserving access, captured backing
-  and lifetime. The three `borrow_{domain,guarded,returned}_window_write_and_call`
-  customers and `pass/slices/mutable_field_range_{call_state,scalar_initializer,local_initializer}_exit`
-  execute with native and checked-interpreter exit 0 on macOS ARM64. The scalar
-  and named-local cases also execute the verified Terminal artifact, preserving
-  one helper call, its writes and untouched adjacent storage. Reproduce with
-  `omega run --both tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg`
-  after ordinary package review. Remaining: the same composition with `u8`
-  storage rejects mutable collection-view establishment; carry byte range
-  backing and writes through the common operation, including local descriptors,
-  endpoint binding and cleanup.
+  and lifetime. Remaining: a bounded byte-array reference arrives as a
+  pointer-only `BoundedView`, but stage 05 `view_ranges::storage` peels its
+  reference and searches for an absent raw `FixedArray` type. The existing
+  `fixed_byte_windows_publish_and_execute_repeated_call_loans` test first fails
+  on `put(&mut out[0..0], ...)` for `out: &mut [u8; 3]`, with
+  `range collection has no exact Terminal type`. Resolve the range from the
+  exact emitted carrier and declared extent; adding a raw type cannot repair
+  the pointer/descriptor mismatch. Preserve the test's empty and nonempty
+  ranges, direct/field backing, repeated call loans and neighboring bytes.
+  Inline and named local field ranges now execute with native and both
+  interpreter results agreeing for byte and non-byte elements; reproduce with
+  `omega run --both tests/omega/pass/slices/mutable_byte_field_range_local_initializer_exit/main.omg`
+  after ordinary package review. These preserve one effectful helper call,
+  its writes and untouched adjacent storage.
   Byte/element carrier differences and qualification-preservation obligations
   remain explicit semantic checks. The recorded-red
   `pass/control_flow/guarded_jump_field_view_forward` stops earlier at an

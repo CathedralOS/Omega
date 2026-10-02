@@ -176,68 +176,6 @@ fn bounded_view_capacity(
     }
 }
 
-/// Mutable views are only whole machine or block parameters, never subslices.
-pub(in crate::lowering) fn mutable_parameter_view(
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters: &[TargetStructuralParameter],
-    place: PlaceId,
-) -> Result<(terminal_psi::StructuralParameterDeclaration, TargetByteView), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    if let Some((entry, semantic)) = function.block_entries.iter().find_map(|entry| {
-        entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| (entry, parameter))
-    }) {
-        if entry.block == function.entry
-            || semantic.access != StructuralAccess::MutableBorrow
-            || !is_byte_parameter(semantic, structural_types)
-        {
-            return Err(invalid());
-        }
-        return Ok((
-            semantic.clone(),
-            TargetByteView::BlockParameter {
-                block: entry.block,
-                place,
-                structural_type: semantic.structural_type,
-            },
-        ));
-    }
-    let semantic = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-        .ok_or_else(invalid)?;
-    let parameter = parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-        .ok_or_else(invalid)?;
-    if semantic.access != StructuralAccess::MutableBorrow
-        || !is_byte_parameter(semantic, structural_types)
-        || parameter.structural_type != semantic.structural_type
-        || parameter.access != semantic.access
-        || parameter.multiplicity != semantic.multiplicity
-        || parameter.projected_qualifications != semantic.projected_qualifications
-        || parameter.shape
-            != ValueShape::borrowed_reference(
-                byte_view_referent_size(semantic, structural_types).ok_or_else(invalid)?,
-                8,
-            )
-    {
-        return Err(invalid());
-    }
-    Ok((
-        semantic.clone(),
-        TargetByteView::Parameter {
-            place,
-            placement: parameter.placement.clone(),
-        },
-    ))
-}
-
 /// Unit scalar homes retain residence, while this separate live roster retains
 /// which exact descriptor each already executed length observation measured.
 #[allow(clippy::too_many_arguments)]
@@ -246,6 +184,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    backings: super::element_views::ElementViewBackings<'_>,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     provenance: &mut Vec<OperationId>,
@@ -256,10 +195,11 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         ..
     } = operation
     {
-        view_for_place(
+        resolve_byte_view(
             function,
             structural_types,
             parameters,
+            backings,
             values,
             lengths,
             result.place,
@@ -283,10 +223,11 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         _ => return Ok(false),
     };
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
-    let view = view_for_place(
+    let (view, _) = resolve_byte_view(
         function,
         structural_types,
         parameters,
+        backings,
         values,
         lengths,
         source,
@@ -377,25 +318,29 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn view_for_place(
+pub(in crate::lowering) fn resolve_byte_view(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
+    backings: super::element_views::ElementViewBackings<'_>,
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
     active: &mut Vec<PlaceId>,
-) -> Result<TargetByteView, LoweringError> {
+) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
     }
     if let Some((psi_operation, result)) = owned_byte_result(function, place, structural_types) {
-        return Ok(TargetByteView::Owned {
-            psi_operation,
-            place,
-            structural_type: result.structural_type,
-        });
+        return Ok((
+            TargetByteView::Owned {
+                psi_operation,
+                place,
+                structural_type: result.structural_type,
+            },
+            StructuralAccess::Owned,
+        ));
     }
     if let Some(AbstractOperation::EstablishByteSequenceLiteral {
         psi_operation, place: declaration, structural_type, ..
@@ -409,49 +354,44 @@ pub(in crate::lowering) fn view_for_place(
             || !structural_type.shape.is_borrowed_byte_view()
             || structural_types.get(&structural_type.id).copied() != Some(structural_type)
         { return Err(invalid()); }
-        return Ok(TargetByteView::Literal {
+        return Ok((TargetByteView::Literal {
             psi_operation: *psi_operation, place, structural_type: structural_type.id,
-        });
+        }, StructuralAccess::SharedBorrow));
     }
-    // An established `&[u8]` view stages the same immutable {base, extent}
-    // descriptor a byte literal does — read it through the literal arm.
-    if let Some((psi_operation, structural_type)) =
-        function.operations.iter().find_map(|operation| {
-            let AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                destination,
-                element,
-                ..
-            } = operation
-            else {
-                return None;
-            };
-            (*destination == place
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
-                && structural_types
-                    .get(&result.structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-                && structural_types.get(element).is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(ref integer))
-                            if *integer
-                                == IntegerType::new(IntegerSign::Unsigned, 8)
-                                    .expect("u8 is a valid integer type")
-                    )
-                }))
-            .then_some((*psi_operation, result.structural_type))
-        })
-    {
-        return Ok(TargetByteView::Literal {
-            psi_operation,
+    // Collection establishments already own the exact backing/type/access
+    // join. Byte observations reuse that descriptor geometry and permission.
+    if let Some(AbstractOperation::EstablishElementView {
+        psi_operation,
+        result,
+        ..
+    }) = function.operations.iter().find(|operation| {
+        matches!(operation,
+            AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
+    }) {
+        if !structural_types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+        {
+            return Err(invalid());
+        }
+        let (_, structural_type, access) = super::element_views::resolve_element_view(
+            function,
+            structural_types,
+            parameters,
+            backings,
+            values,
+            lengths,
             place,
-            structural_type,
-        });
+            active,
+        )?;
+        return Ok((
+            TargetByteView::Literal {
+                psi_operation: *psi_operation,
+                place,
+                structural_type,
+            },
+            access,
+        ));
     }
     if let Some(semantic) = function.arrival_parameter(place) {
         let declaration = structural_types
@@ -480,11 +420,14 @@ pub(in crate::lowering) fn view_for_place(
                 .iter()
                 .any(|parameter| parameter.place == place)
         }) {
-            return Ok(TargetByteView::BlockParameter {
-                block: entry.block,
-                place,
-                structural_type: semantic.structural_type,
-            });
+            return Ok((
+                TargetByteView::BlockParameter {
+                    block: entry.block,
+                    place,
+                    structural_type: semantic.structural_type,
+                },
+                semantic.access,
+            ));
         }
         let parameter = parameters
             .iter()
@@ -514,16 +457,21 @@ pub(in crate::lowering) fn view_for_place(
         {
             return Err(invalid());
         }
-        return Ok(TargetByteView::Parameter {
-            place,
-            placement: parameter.placement.clone(),
-        });
+        return Ok((
+            TargetByteView::Parameter {
+                place,
+                placement: parameter.placement.clone(),
+            },
+            semantic.access,
+        ));
     }
     let Some(AbstractOperation::ByteSequenceSubslice { psi_operation, result, source, start, end, length, obligation }) =
         function.operations.iter().find(|operation| matches!(operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
         else { return Err(invalid()); };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !structural_types
@@ -558,25 +506,45 @@ pub(in crate::lowering) fn view_for_place(
         return Err(invalid());
     }
     active.push(place);
-    let source = view_for_place(
+    let (source, source_access) = resolve_byte_view(
         function,
         structural_types,
         parameters,
+        backings,
         values,
         lengths,
         *source,
         active,
     )?;
     active.pop();
-    Ok(TargetByteView::Subslice {
-        psi_operation: *psi_operation,
-        place,
-        source: Box::new(source),
-        start,
-        end,
-        length: *length,
-        obligation: *obligation,
-    })
+    let access = match result.multiplicity {
+        StructuralMultiplicity::Unrestricted
+            if matches!(
+                source_access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::Owned
+            ) =>
+        {
+            StructuralAccess::SharedBorrow
+        }
+        StructuralMultiplicity::Affine if source_access == StructuralAccess::MutableBorrow => {
+            StructuralAccess::MutableBorrow
+        }
+        _ => return Err(invalid()),
+    };
+    Ok((
+        TargetByteView::Subslice {
+            psi_operation: *psi_operation,
+            place,
+            source: Box::new(source),
+            start,
+            end,
+            length: *length,
+            obligation: *obligation,
+        },
+        access,
+    ))
 }
 
 fn owned_byte_result<'a>(

@@ -662,6 +662,7 @@ static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_ELEMENTS_MUTABLE_ESTABLISH,
+        VAL_ELEMENTS_ESTABLISH,
     ],
 );
 static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(

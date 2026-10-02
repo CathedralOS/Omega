@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.28, "load1_start": 3.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.36, "load1_start": 2.36, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2088,6 +2088,8 @@ pass/slices/guarded_slice_parameter_successor_index_compile checked 322ms @2d8ed
 pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669f
 pass/slices/local_array_element_view_exit checked 2015ms @2d8ed253669f
 pass/slices/local_record_array_state_view_exit checked 1337ms @b33d826687a3
+pass/slices/mutable_byte_field_range_local_initializer_exit checked 686ms @a39c093a0400+wt
+pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 693ms @a39c093a0400+wt
 pass/slices/mutable_field_range_call_state_exit checked 563ms @69328a9275ae+wt
 pass/slices/mutable_field_range_local_initializer_exit checked 682ms @c6377e1d529e+wt
 pass/slices/mutable_field_range_scalar_initializer_exit checked 848ms @a76e06629649+wt

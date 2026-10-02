@@ -111,18 +111,12 @@ fn views() -> LegalizedScalarFunction {
 #[test]
 fn mutable_subslice_selection_replays_parent_permission_and_attenuation() {
     let mut function = views();
-    assert_eq!(
-        element_view_access(&function, place(302)),
-        Some(A::MutableBorrow)
-    );
-    assert_eq!(
-        element_view_access(&function, place(303)),
-        Some(A::SharedBorrow)
-    );
+    assert_eq!(view_access(&function, place(302)), Some(A::MutableBorrow));
+    assert_eq!(view_access(&function, place(303)), Some(A::SharedBorrow));
     function.blocks.last_mut().unwrap().structural_parameters[0].access = A::SharedBorrow;
-    assert_eq!(element_view_access(&function, place(302)), None);
+    assert_eq!(view_access(&function, place(302)), None);
     assert_eq!(
-        element_view_access(&function, place(303)),
+        view_access(&function, place(303)),
         None,
         "attenuation cannot conceal an invalid ancestor"
     );
@@ -144,7 +138,7 @@ fn mutable_subslice_selection_rejects_source_type_producer_and_cycle_substitutio
             _ => unreachable!(),
         }
         assert_eq!(
-            element_view_access(&function, place(302)),
+            view_access(&function, place(302)),
             None,
             "mutation {mutation}"
         );
@@ -230,5 +224,159 @@ fn indexed_byte_field_root_cannot_promote_descriptor_custody_to_backing_access()
         crate::selection::field_bytes::root_type(&function, &argument),
         None,
         "an affine child descriptor cannot manufacture exclusive backing permission"
+    );
+}
+
+fn byte_views() -> LegalizedScalarFunction {
+    let mut function = views();
+    let signature = function.structural.as_mut().unwrap();
+    let mut types = signature.structural_types.to_vec();
+    types[0].shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    types[1].shape =
+        StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .unwrap(),
+        ));
+    signature.structural_types = types.into();
+    for row in &mut function.blocks.last_mut().unwrap().instructions {
+        let I::ElementViewSubslice {
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+            accepted_fact,
+        } = row.kind.clone()
+        else {
+            panic!("fixture must contain subslices")
+        };
+        row.kind = I::ByteSequenceSubslice {
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+            accepted_fact,
+        };
+    }
+    function
+}
+
+#[test]
+fn mutable_byte_subslice_selection_replays_parent_and_result_custody() {
+    let function = byte_views();
+    assert_eq!(view_access(&function, place(302)), Some(A::MutableBorrow));
+    assert_eq!(view_access(&function, place(303)), Some(A::SharedBorrow));
+    for mutation in 0..6 {
+        let mut changed = function.clone();
+        let block = changed.blocks.last_mut().unwrap();
+        let row = &mut block.instructions[0];
+        let I::ByteSequenceSubslice { result, source, .. } = &mut row.kind else {
+            panic!()
+        };
+        match mutation {
+            0 => block.structural_parameters[0].access = A::SharedBorrow,
+            1 => *source = place(999),
+            2 => result.structural_type = StructuralTypeId::new(302).unwrap(),
+            3 => row.operation = operation(999),
+            4 => *source = place(303),
+            5 => result.multiplicity = M::Linear,
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            view_access(&changed, place(302)),
+            None,
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            view_access(&changed, place(303)),
+            None,
+            "invalid ancestor {mutation}"
+        );
+    }
+}
+
+#[test]
+fn mutable_byte_subslice_call_replays_exact_receiver_permission() {
+    use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
+    use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
+    let function = byte_views();
+    let shape = ValueShape::borrowed_reference(16, 8);
+    let call = evaluate_call_plan(
+        function.call_plan.policy,
+        &CallSignature {
+            parameters: vec![shape],
+            result: None,
+        },
+    )
+    .unwrap();
+    let argument = TargetStructuralArgument {
+        place: place(302),
+        access: A::MutableBorrow,
+        path: Vec::new(),
+        root_structural_type: StructuralTypeId::new(301).unwrap(),
+        structural_type: StructuralTypeId::new(301).unwrap(),
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: TargetStructuralArgumentSource::EstablishedByteView {
+            psi_operation: operation(302),
+        },
+        destination: call.parameters[0].clone(),
+    };
+    assert!(super::super::accepts(&function, operation(303), &argument).is_some());
+    for mutation in 0..4 {
+        let mut changed = function.clone();
+        let mut actual = argument.clone();
+        match mutation {
+            0 => {
+                changed.blocks.last_mut().unwrap().structural_parameters[0].access = A::SharedBorrow
+            }
+            1 => actual.access = A::Owned,
+            2 => {
+                actual.source = TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: operation(999),
+                }
+            }
+            3 => {
+                actual.source = TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: operation(302),
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            super::super::accepts(&changed, operation(303), &actual).is_none(),
+            "receiver mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn shared_qualified_byte_subslice_preserves_read_only_source_permission() {
+    let mut function = byte_views();
+    let block = function.blocks.last_mut().unwrap();
+    block.structural_parameters[0].access = A::SharedBorrow;
+    block.structural_parameters[0]
+        .qualifications
+        .push(semantic_vocabulary::StructuralDomainId::new(301).unwrap());
+    let I::ByteSequenceSubslice { result, .. } = &mut block.instructions[0].kind else {
+        panic!()
+    };
+    result.multiplicity = M::Unrestricted;
+    assert_eq!(view_access(&function, place(302)), Some(A::SharedBorrow));
+    assert_eq!(view_access(&function, place(303)), Some(A::SharedBorrow));
+    function.blocks.last_mut().unwrap().structural_parameters[0].access = A::MutableBorrow;
+    assert_eq!(
+        view_access(&function, place(302)),
+        None,
+        "mutable qualification preservation needs independent store evidence"
     );
 }

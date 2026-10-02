@@ -1,4 +1,4 @@
-//! Reconstruct element descriptor access from the legalized source chain.
+//! Reconstruct borrowed descriptor access from the legalized source chain.
 //! Descriptor geometry and source permission are separate; affine custody is
 //! required for a mutable result but never supplies its parent's authority.
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind as I};
@@ -14,7 +14,7 @@ fn supplies(actual: A, requested: A) -> bool {
         )
 }
 
-pub(in crate::selection) fn element_view_access(
+pub(in crate::selection) fn view_access(
     function: &LegalizedScalarFunction,
     mut place: PlaceId,
 ) -> Option<A> {
@@ -57,18 +57,38 @@ pub(in crate::selection) fn element_view_access(
                 || declaration.kind != expected_kind
                 || expected_type.is_some_and(|identity| identity != parameter.structural_type)
                 || parameter.multiplicity != M::Unrestricted
-                || !parameter.qualifications.is_empty()
+                || (!parameter.qualifications.is_empty()
+                    && !(parameter.access == A::SharedBorrow
+                        && signature.structural_types.iter().any(|row| {
+                            row.id == parameter.structural_type && row.shape.is_borrowed_byte_view()
+                        })))
                 || !parameter.projected_qualifications.is_empty()
                 || !matches!(parameter.access, A::SharedBorrow | A::MutableBorrow)
                 || !supplies(parameter.access, required)
                 || !signature.structural_types.iter().any(|row| {
                     row.id == parameter.structural_type
-                        && matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                        && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                            || row.shape.is_borrowed_byte_view())
                 })
             {
                 return None;
             }
             return Some(initial.unwrap_or(parameter.access));
+        }
+        if let StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type, ..
+        } = declaration.kind
+        {
+            if required != A::SharedBorrow
+                || expected_type.is_some_and(|expected| expected != structural_type)
+                || !signature.structural_types.iter().any(|row|
+                    row.id == structural_type && row.shape.is_borrowed_byte_view())
+                || !function.blocks.iter().flat_map(|block| &block.instructions).any(|row|
+                    matches!(&row.kind, I::EstablishByteSequenceLiteral { destination, structural_type: actual, .. }
+                        if destination == declaration && actual.id == structural_type)) {
+                return None;
+            }
+            return Some(initial.unwrap_or(A::SharedBorrow));
         }
         let StructuralPlaceKind::OperationResult {
             producer,
@@ -80,7 +100,8 @@ pub(in crate::selection) fn element_view_access(
         if expected_type.is_some_and(|identity| identity != structural_type)
             || !signature.structural_types.iter().any(|row| {
                 row.id == structural_type
-                    && matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                    && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                        || row.shape.is_borrowed_byte_view())
             })
         {
             return None;
@@ -95,9 +116,9 @@ pub(in crate::selection) fn element_view_access(
             return None;
         }
         let result = match &row.kind {
-            I::ElementViewSubslice { result, .. } | I::EstablishElementView { result, .. } => {
-                result
-            }
+            I::ByteSequenceSubslice { result, .. }
+            | I::ElementViewSubslice { result, .. }
+            | I::EstablishElementView { result, .. } => result,
             _ => return None,
         };
         if result.place != place
@@ -119,7 +140,7 @@ pub(in crate::selection) fn element_view_access(
         }
         initial.get_or_insert(access);
         match &row.kind {
-            I::ElementViewSubslice { source, .. } => {
+            I::ByteSequenceSubslice { source, .. } | I::ElementViewSubslice { source, .. } => {
                 required = access;
                 expected_type = Some(structural_type);
                 place = *source;
@@ -132,7 +153,12 @@ pub(in crate::selection) fn element_view_access(
             } => {
                 if *destination != place || source.access != access
                     || source.path.contains(&terminal_psi::StructuralPathSegment::Referent)
-                    || !signature.structural_types.iter().any(|row| row.id == structural_type && matches!(row.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)) {
+                    || !signature.structural_types.iter().any(|row| row.id == structural_type && (
+                        matches!(row.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
+                        || row.shape.is_borrowed_byte_view() && signature.structural_types.iter().any(|leaf|
+                            leaf.id == *element && matches!(leaf.shape,
+                                StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+                                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))))) {
                     return None;
                 }
                 let parent_access = signature

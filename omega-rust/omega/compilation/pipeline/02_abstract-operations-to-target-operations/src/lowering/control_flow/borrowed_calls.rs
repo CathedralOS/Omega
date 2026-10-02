@@ -477,92 +477,105 @@ pub(super) fn byte_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (identity, source) =
-        if let Some((producer, structural_type)) = live.views.get(&argument.place) {
-            let source = if crate::lowering::scalar::element_views::is_element_view_parameter(
-                declaration,
-                types,
-            ) {
-                let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
-                let (_, identity, access) =
-                    crate::lowering::scalar::element_views::resolve_element_view(
-                        function,
-                        types,
-                        &prepared.parameters,
-                        crate::lowering::scalar::element_views::ElementViewBackings::new(
-                            &live.structural_homes,
-                            &live.address_joins,
-                        ),
-                        &values,
-                        &live.lengths,
-                        argument.place,
-                        &mut Vec::new(),
-                    )?;
-                if identity != *structural_type
-                    || !(access == argument.access
-                        || access == StructuralAccess::MutableBorrow && shared)
-                {
-                    return Err(unsupported());
-                }
-                TargetStructuralArgumentSource::EstablishedElementView {
-                    psi_operation: *producer,
-                }
-            } else {
-                // Byte-view producers currently realize immutable descriptors;
-                // byte element-count geometry remains owned by their own resolver.
-                if !shared {
-                    return Err(unsupported());
-                }
-                TargetStructuralArgumentSource::EstablishedByteView {
-                    psi_operation: *producer,
-                }
-            };
-            (*structural_type, source)
-        } else if live.block_views.contains(&argument.place) {
-            let (entry, parameter) = function
-                .block_entries
-                .iter()
-                .find_map(|entry| {
-                    entry
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == argument.place)
-                        .map(|parameter| (entry, parameter))
-                })
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            // The root's own access authorizes the argument, exactly as an
-            // incoming machine parameter does: an exclusive block parameter
-            // lends shared, exclusive or write-only, a shared one only shared.
-            let allowed = match parameter.access {
-                StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
-                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-                StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
-            };
-            if !allowed {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            (
-                parameter.structural_type,
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block: entry.block,
-                    place: parameter.place,
-                },
-            )
-        } else {
-            let source = prepared
-                .parameters
-                .iter()
-                .find(|source| source.place == argument.place)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if source.access != argument.access
-                || source.multiplicity != declaration.multiplicity
-                || !source.projected_qualifications.is_empty()
-                || source.shape != destination.shape
+    let (identity, source) = if let Some((producer, structural_type)) =
+        live.views.get(&argument.place)
+    {
+        let source = if crate::lowering::scalar::element_views::is_element_view_parameter(
+            declaration,
+            types,
+        ) {
+            let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let (_, identity, access) =
+                crate::lowering::scalar::element_views::resolve_element_view(
+                    function,
+                    types,
+                    &prepared.parameters,
+                    crate::lowering::scalar::element_views::ElementViewBackings::new(
+                        &live.structural_homes,
+                        &live.address_joins,
+                    ),
+                    &values,
+                    &live.lengths,
+                    argument.place,
+                    &mut Vec::new(),
+                )?;
+            if identity != *structural_type
+                || !(access == argument.access
+                    || access == StructuralAccess::MutableBorrow && shared)
             {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
+                return Err(unsupported());
             }
-            (source.structural_type, source.placement.clone().into())
+            TargetStructuralArgumentSource::EstablishedElementView {
+                psi_operation: *producer,
+            }
+        } else {
+            let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let (_, access) = crate::lowering::scalar::byte_views::resolve_byte_view(
+                function,
+                types,
+                &prepared.parameters,
+                crate::lowering::scalar::element_views::ElementViewBackings::new(
+                    &live.structural_homes,
+                    &live.address_joins,
+                ),
+                &values,
+                &live.lengths,
+                argument.place,
+                &mut Vec::new(),
+            )?;
+            if access != argument.access && !(access == StructuralAccess::MutableBorrow && shared) {
+                return Err(unsupported());
+            }
+            TargetStructuralArgumentSource::EstablishedByteView {
+                psi_operation: *producer,
+            }
         };
+        (*structural_type, source)
+    } else if live.block_views.contains(&argument.place) {
+        let (entry, parameter) = function
+            .block_entries
+            .iter()
+            .find_map(|entry| {
+                entry
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+                    .map(|parameter| (entry, parameter))
+            })
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        // The root's own access authorizes the argument, exactly as an
+        // incoming machine parameter does: an exclusive block parameter
+        // lends shared, exclusive or write-only, a shared one only shared.
+        let allowed = match parameter.access {
+            StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
+        };
+        if !allowed {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        (
+            parameter.structural_type,
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: entry.block,
+                place: parameter.place,
+            },
+        )
+    } else {
+        let source = prepared
+            .parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if source.access != argument.access
+            || source.multiplicity != declaration.multiplicity
+            || !source.projected_qualifications.is_empty()
+            || source.shape != destination.shape
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        (source.structural_type, source.placement.clone().into())
+    };
     if identity != declaration.structural_type {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

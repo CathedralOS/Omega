@@ -148,6 +148,54 @@ pub(crate) struct StructuralCallArguments {
 }
 
 impl TerminalExecution {
+    /// Reborrow a live byte descriptor, retaining its home for exclusive use
+    /// and exposing only an immutable snapshot when authority is attenuated.
+    pub(crate) fn reborrow_byte_sequence_binding(
+        &self,
+        binding: &ByteSequenceBinding,
+        value: &TerminalStructuralValue,
+        access: StructuralAccess,
+    ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return Err(invalid());
+        }
+        if let ByteSequenceBinding::Immutable(_) = binding {
+            return if access == StructuralAccess::SharedBorrow {
+                Ok(binding.clone())
+            } else {
+                Err(invalid())
+            };
+        }
+        binding.validate_mutable_referent(&self.program.structural_types, value)?;
+        if access == StructuralAccess::MutableBorrow {
+            return Ok(binding.clone());
+        }
+        let snapshot = match binding {
+            ByteSequenceBinding::MutableArray {
+                array,
+                offset,
+                length,
+                ..
+            } => self.stored_byte_array_snapshot(
+                array,
+                usize::try_from(*offset).map_err(|_| invalid())?,
+                usize::try_from(offset.checked_add(*length).ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?,
+            )?,
+            ByteSequenceBinding::MutableField { field, .. } => self
+                .structural_byte_sequence_fields
+                .get(field)
+                .ok_or_else(invalid)?
+                .clone(),
+            ByteSequenceBinding::Immutable(_) => unreachable!(),
+        };
+        Ok(ByteSequenceBinding::Immutable(snapshot))
+    }
+
     pub(crate) fn prepare_structural_call_arguments(
         &self,
         callee: MachineId,

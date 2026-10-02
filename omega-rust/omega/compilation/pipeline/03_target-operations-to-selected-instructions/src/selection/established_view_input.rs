@@ -8,7 +8,7 @@ use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 mod access;
-pub(super) use access::element_view_access;
+pub(super) use access::view_access;
 
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)
@@ -182,11 +182,8 @@ pub(super) fn accepts(
         }
         _ => return None,
     };
-    if !element_view_source && target.access != terminal_psi::StructuralAccess::SharedBorrow {
-        return None;
-    }
-    if element_view_source {
-        let actual = element_view_access(source, target.place)?;
+    {
+        let actual = view_access(source, target.place)?;
         if target.access != actual
             && !(target.access == terminal_psi::StructuralAccess::SharedBorrow
                 && actual == terminal_psi::StructuralAccess::MutableBorrow)
@@ -231,7 +228,6 @@ pub(super) fn accepts(
         LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. } => {
             if result.place != target.place
                 || result.structural_type != target.structural_type
-                || result.multiplicity != StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -287,7 +283,6 @@ pub(super) fn accepts(
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
-                || !element_view_source
                 || !signature.structural_places.iter().any(|place| {
                     place.id == result.place
                         && place.kind
@@ -298,9 +293,11 @@ pub(super) fn accepts(
                 })
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && matches!(declaration.shape,
-                            StructuralTypeShape::ElementView { element: declared }
-                                if declared == *element)
+                        && if element_view_source {
+                            matches!(declaration.shape, StructuralTypeShape::ElementView { element: declared } if declared == *element)
+                        } else {
+                            declaration.shape.is_borrowed_byte_view()
+                        }
                 })
             {
                 return None;
@@ -325,7 +322,7 @@ pub(super) fn accepts_view_loan(
     else {
         return None;
     };
-    let access = element_view_access(source, target.place)?;
+    let access = view_access(source, target.place)?;
     if target.access != access
         && !(access == terminal_psi::StructuralAccess::MutableBorrow
             && matches!(

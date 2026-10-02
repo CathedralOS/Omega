@@ -182,6 +182,106 @@ impl TerminalExecution {
         )
     }
 
+    /// Both array arguments and local descriptor establishments pin the same
+    /// payload home. The cursor is committed only after the caller validates
+    /// the complete operation; no byte payload is copied into another store.
+    fn array_storage_root_staged(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        identity_cursor: &mut Option<u64>,
+        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    ) -> Result<(TerminalStructuralValue, ArrayStorageHome), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let root = if let Some(array) = self.scalar_array_values.get(&place) {
+            if self.structural_values.contains_key(&place)
+                || self.scalar_case_values.contains_key(&place)
+            {
+                return Err(invalid());
+            }
+            // Repeated projections in one argument list share their root
+            // identity, so ordinary alias checks still see the same backing.
+            let root = match local_array_roots.entry(place) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(TerminalStructuralValue {
+                        opaque_identity: self
+                            .local_structural_identities
+                            .allocate_staged(identity_cursor)?,
+                        structural_type: array.structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    })
+                }
+            };
+            (
+                root.clone(),
+                ArrayStorageHome::Frame {
+                    depth: self.call_stack.len(),
+                    place,
+                    structural_type: array.structural_type,
+                },
+            )
+        } else {
+            (
+                self.structural_values
+                    .get(&place)
+                    .ok_or_else(invalid)?
+                    .clone(),
+                ArrayStorageHome::Runtime,
+            )
+        };
+        Ok(root)
+    }
+
+    pub(crate) fn establish_byte_array_binding(
+        &self,
+        source: &StructuralArgument,
+        view_type: StructuralTypeId,
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if source.access != StructuralAccess::MutableBorrow {
+            return Err(invalid());
+        }
+        let (root, home) =
+            self.array_storage_root_staged(source.place, identity_cursor, &mut BTreeMap::new())?;
+        let array_type = array_path_type(
+            &self.program.structural_types,
+            root.structural_type,
+            &source.path,
+        )
+        .ok_or_else(invalid)?;
+        let length =
+            byte_array_length(&self.program.structural_types, array_type).ok_or_else(invalid)?;
+        let values = BTreeMap::from([(source.place, root)]);
+        let mut referent = resolve_structural_arguments(
+            &self.program.structural_types,
+            &values,
+            std::slice::from_ref(source),
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        let array = ArrayStorage {
+            referent: StructuralRuntimePlace::from(&referent),
+            home,
+        };
+        if !referent.qualifications.is_empty()
+            || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
+        {
+            return Err(invalid());
+        }
+        referent.structural_type = view_type;
+        let binding = ByteSequenceBinding::MutableArray {
+            array,
+            array_type,
+            offset: 0,
+            length,
+            referent: referent.clone(),
+        };
+        binding.validate_mutable_referent(&self.program.structural_types, &referent)?;
+        Ok((referent, binding))
+    }
+
     pub(crate) fn prepare_array_view_argument_staged(
         &self,
         parameter: &StructuralParameterDeclaration,
@@ -240,69 +340,15 @@ impl TerminalExecution {
             if value.structural_type != parameter.structural_type {
                 return Err(invalid());
             }
-            binding.validate_mutable_referent(&self.program.structural_types, value)?;
-            if parameter.access == StructuralAccess::SharedBorrow {
-                let ByteSequenceBinding::MutableArray {
-                    array,
-                    offset,
-                    length,
-                    ..
-                } = binding
-                else {
-                    return Err(invalid());
-                };
-                let start = usize::try_from(*offset).map_err(|_| invalid())?;
-                let end = usize::try_from(offset.checked_add(*length).ok_or_else(invalid)?)
-                    .map_err(|_| invalid())?;
-                return Ok(Some((
-                    value.clone(),
-                    ByteSequenceBinding::Immutable(
-                        self.stored_byte_array_snapshot(array, start, end)?,
-                    ),
-                )));
-            }
-            return Ok(Some((value.clone(), binding.clone())));
+            return Ok(Some((
+                value.clone(),
+                self.reborrow_byte_sequence_binding(binding, value, parameter.access)?,
+            )));
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.
-        let (root, home) = if let Some(array) = self.scalar_array_values.get(&argument.place) {
-            if self.structural_values.contains_key(&argument.place)
-                || self.scalar_case_values.contains_key(&argument.place)
-            {
-                return Err(invalid());
-            }
-            // Repeated projections in one argument list share their root
-            // identity, so ordinary alias checks still see the same backing.
-            let root = match local_array_roots.entry(argument.place) {
-                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
-                std::collections::btree_map::Entry::Vacant(entry) => {
-                    entry.insert(TerminalStructuralValue {
-                        opaque_identity: self
-                            .local_structural_identities
-                            .allocate_staged(identity_cursor)?,
-                        structural_type: array.structural_type,
-                        qualifications: Vec::new(),
-                        path: Vec::new(),
-                    })
-                }
-            };
-            (
-                root.clone(),
-                ArrayStorageHome::Frame {
-                    depth: self.call_stack.len(),
-                    place: argument.place,
-                    structural_type: array.structural_type,
-                },
-            )
-        } else {
-            (
-                self.structural_values
-                    .get(&argument.place)
-                    .ok_or_else(invalid)?
-                    .clone(),
-                ArrayStorageHome::Runtime,
-            )
-        };
+        let (root, home) =
+            self.array_storage_root_staged(argument.place, identity_cursor, local_array_roots)?;
         // A window changes the borrowed extent, never the backing's identity.
         // Keep the range out of the storage key so repeated and forwarded calls
         // update the same array and leave bytes outside the loan untouched.

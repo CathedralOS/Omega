@@ -31,10 +31,10 @@ left by an earlier iteration does not authorize a use before its producer.
 | `ByteSequenceLength { source }` | Exact `u64` byte count. | An available shared or exact mutable view, not character count or a field merely named length. |
 | `ByteSequenceRead { source, index, length, obligation }` | Exact `u8`. | `u64` index and length; dominating length observation of the identical view; checked `index < length`. |
 | `ByteSequenceWrite { destination, index, value, length, obligation }` | Unit; replace one byte without changing extent. | Exclusive mutable view; exact `u8` value; `u64` index and current same-view length; checked `index < length`. |
-| `ByteSequenceSubslice { source, start, end, length, obligation }` | Shared view of `[start, end)`. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length`. |
+| `ByteSequenceSubslice { source, start, end, length, obligation }` | Shared or mutable view of `[start, end)` over the identical backing, without increasing access. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length`. |
 
-Sources may be immutable machine/block structural parameters, established
-literals, or dominating subslice results. An arbitrary equal-valued length,
+Sources may be readable machine/block structural parameters, established
+literals or collection views, or dominating subslice results. An arbitrary equal-valued length,
 other view, sibling branch, or future producer supplies no length custody.
 The verifier reconstructs the canonical obligations; the operation cannot
 assert its own bounds or replace proof with admission. Reading length supplies
@@ -43,16 +43,18 @@ no indexing proof.
 Length metadata is also available through an unqualified, claim-free mutable
 byte-view parameter. A write changes only its selected byte in the original
 referent; it creates neither a new owner nor a replacement live length. This
-does not implicitly admit reads or subslices through that mutable parameter.
+does not bypass the separate read or subslice contract for that parameter.
 An intervening operation capable of changing the backing extent invalidates
 an earlier length witness; byte writes themselves preserve extent. A runtime
 length check is a defensive check, not a substitute for verified bounds.
 
 A subslice uses a structural operation-result place with the same borrowed-byte
-type, unrestricted multiplicity, and no claims or qualifications. Equal endpoints,
-including an empty suffix, still require both proof legs. The descriptor becomes
-available after its producer and can be passed whole, measured, read, or
-subsliced again. It creates no owned place on later cleanup frontiers.
+type and no claims or qualifications. Shared descriptors are unrestricted;
+mutable descriptors are affine and retain exact mutable authority through
+every source link. Equal endpoints, including an empty suffix, still require
+both proof legs. The descriptor becomes available after its producer and can
+be passed whole, measured, read, or subsliced again under that access. Its
+disposal debt belongs to the descriptor; it never owns the borrowed backing.
 Primitive byte predicates are reconstructed from the exact source of a
 subslice, without result qualification annotations. `no_nul` and `ascii_only`
 hold for every contiguous window, including empty windows, and survive repeated
@@ -137,8 +139,9 @@ parameters. Each incoming edge supplies exact type/access and a dominating
 available source. A block parameter becomes available on entry; it creates
 neither ownership cleanup nor content-proof authority.
 
-This transfer vocabulary admits whole, unqualified, claim-free, unrestricted
-shared and mutable byte views. A mutable transfer consumes the source's local
+This transfer vocabulary admits whole, unqualified, claim-free byte views.
+Borrowed formals carry unrestricted bindings; an affine descriptor result
+retains its separate disposal debt when lent through a call or state edge. A mutable transfer consumes the source's local
 binding name and establishes its destination name simultaneously; it does not
 duplicate exclusive access or change the underlying owner. Each source must be
 available on every arrival, including backedges. Ordinary calls reborrow and
@@ -193,7 +196,26 @@ literal rules; explicit signed indices cannot silently become unsigned.
 Inclusive ranges, custom range operators, and independently live mutable
 subslice descriptors do not become supported merely by constructing an unchecked
 descriptor. Fixed call-scoped byte windows use the separate checked projection
-rule above; they do not widen the immutable `ByteSequenceSubslice` operation.
+rule above; dynamic subslices still require their own extent evidence and
+source-chain access.
+
+## Collection view establishment
+
+`EstablishElementView` and `EstablishMutableElementView` borrow an initialized
+contiguous collection through its exact declared source path. A `u8` collection
+produces its borrowed byte descriptor; another element type produces an
+`ElementView` with that element identity. Both operations check the same
+collection/result correspondence. The shared operation requires shared source
+access and an unrestricted result; the mutable operation requires mutable
+source access and an affine result. A borrowed byte result must name the exact
+`u8` element declaration and cannot substitute an owned byte carrier.
+
+The original backing and captured window survive local binding, subslicing,
+helper calls and state forwarding. Byte zero of a narrowed view denotes its
+captured start in that backing. Writes update that original storage; descriptor
+cleanup never consumes it. This is collection borrowing, not conversion between
+byte and element descriptors. Ownership of a collection's storage does not
+remove the access checks on references within the source path.
 
 ## Element-typed slice views
 
