@@ -45,10 +45,7 @@ pub(in crate::legalization) fn replacement(
         ..
     } = operation
     {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)?;
+        let parameter = function.arrival_parameter(*destination)?;
         if source == destination
             || !matches!(
                 parameter.access,
@@ -139,11 +136,7 @@ pub(in crate::legalization) fn replacement(
             terminal_psi::StructuralAccess::Owned,
             path.clone(),
         )
-    } else if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)
-    {
+    } else if let Some(parameter) = function.arrival_parameter(*destination) {
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow

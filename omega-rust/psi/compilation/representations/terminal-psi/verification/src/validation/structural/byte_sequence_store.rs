@@ -2,8 +2,7 @@
 
 use crate::validation::{
     ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
-    resolve_structural_path,
+    StructuralTypeShape, TerminalMachine, TerminalModule, resolve_structural_path,
 };
 /// Resolve capacity from the destination declaration, never an operation's
 /// asserted bound. Proof reconstruction repeats this same semantic join.
@@ -30,10 +29,7 @@ pub(crate) fn capacity(
         *destination,
         path,
     );
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination);
+    let parameter = terminal_semantics::arrival_parameter(machine, *destination);
     let (root_type, carrier_path) = if let Some(reference) = reference {
         reference
     } else if let Some(result) =
@@ -61,14 +57,6 @@ pub(crate) fn capacity(
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         ) || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !machine.structural_places.iter().any(|place| {
-                place.id == *destination
-                    && place.kind
-                        == StructuralPlaceKind::Parameter {
-                            position: parameter.position,
-                            is_self: parameter.is_self,
-                        }
-            })
         {
             return Err(invalid());
         }

@@ -3,8 +3,7 @@
 use crate::validation::{
     IntegerSign, IntegerType, ModuleError, OperationKind, OperationResult, PlaceId, ScalarType,
     StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralPathSegment,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
-    resolve_structural_path,
+    StructuralTypeShape, TerminalMachine, TerminalModule, resolve_structural_path,
 };
 mod freshness;
 pub(crate) use freshness::field_content_length_is_current;
@@ -45,9 +44,7 @@ pub(in crate::validation) fn validate(
         matches!(
             access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) && machine.structural_places.iter().any(|place| {
-            place.id == root && matches!(place.kind, StructuralPlaceKind::Parameter { .. })
-        })
+        ) && terminal_semantics::arrival_parameter(machine, root).is_some()
     } else {
         matches!(
             access,
@@ -186,10 +183,7 @@ fn stored_field_predicates(
     else {
         return None;
     };
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)?;
+    let parameter = terminal_semantics::arrival_parameter(machine, *destination)?;
     let carrier = resolve_structural_path(module, parameter.structural_type, path)?;
     let declaration = module
         .structural_types
@@ -288,11 +282,7 @@ fn field_path(
     extent_observation: bool,
 ) -> Option<Vec<StructuralPathSegment>> {
     let structural_type = if writing {
-        machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == root)?
-            .structural_type
+        terminal_semantics::arrival_parameter(machine, root)?.structural_type
     } else {
         terminal_semantics::byte_field_root(machine, root)?.0
     };

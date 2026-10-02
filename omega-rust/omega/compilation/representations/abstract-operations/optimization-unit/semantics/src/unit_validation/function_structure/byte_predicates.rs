@@ -47,18 +47,19 @@ pub(super) fn validate_indexed_byte_stores(
                             function,
                             predecessors,
                             (block_position, node_position),
-                            |_, operation| {
+                            *destination,
+                            |_, operation, root| {
                                 matches!(operation,
                             Operation::EstablishByteSequenceConcatenation { result, .. }
-                                if result.place == *destination
+                                if result.place == root
                                     && concatenation_predicates(unit, function, operation)
                                         .is_some_and(|initial| initial.implies(ascii)))
                             },
-                            |operation| {
+                            |operation, root| {
                                 super::byte_field_freshness::changes_length(
                                     function,
                                     types,
-                                    *destination,
+                                    root,
                                     &[],
                                     operation,
                                 )
@@ -105,11 +106,11 @@ pub(super) fn validate_indexed_byte_stores(
                 *field,
             )
             .ok_or_else(invalid)?;
-            let establishes = |_, operation: &Operation| {
+            let establishes = |_, operation: &Operation, root: PlaceId| {
                 matches!(operation,
                     Operation::StructuralByteSequenceFieldStore {
                         destination: written_root, path: written, field: written_field, source, ..
-                    } if written_root == destination && written == path && written_field == field
+                    } if *written_root == root && written == path && written_field == field
                         && whole_source_predicates(
                             unit.structural_types.iter(),
                             unit.structural_domains.iter(),
@@ -118,18 +119,18 @@ pub(super) fn validate_indexed_byte_stores(
                         )
                         .is_some_and(|available| available.implies(ascii)))
             };
-            let invalidates = |operation: &Operation| match operation {
+            let invalidates = |operation: &Operation, root: PlaceId| match operation {
                 Operation::StructuralByteSequenceFieldByteStore {
                     destination: written_root,
                     path: written,
                     field: written_field,
                     ..
-                } if written_root == destination => {
+                } if *written_root == root => {
                     !(written == path && written_field == field)
                         && super::byte_field_freshness::field_path(
                             function,
                             types,
-                            *destination,
+                            root,
                             written,
                             *written_field,
                         )
@@ -140,7 +141,7 @@ pub(super) fn validate_indexed_byte_stores(
                 _ => super::byte_field_freshness::changes_length(
                     function,
                     types,
-                    *destination,
+                    root,
                     &exact_path,
                     operation,
                 ),
@@ -149,6 +150,7 @@ pub(super) fn validate_indexed_byte_stores(
                 function,
                 predecessors,
                 (block_position, node_position),
+                *destination,
                 establishes,
                 invalidates,
             ) {

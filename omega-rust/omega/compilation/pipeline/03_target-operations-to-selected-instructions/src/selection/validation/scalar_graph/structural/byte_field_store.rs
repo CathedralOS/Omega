@@ -97,23 +97,24 @@ pub(super) fn replace(
         }
         result.structural_type
     } else {
-        let parameter = signature
-            .parameters
-            .iter()
-            .find(|parameter| parameter.semantic.place == destination.place)
-            .ok_or_else(|| replay.invalid())?;
-        if parameter.semantic.access != destination.access
+        let parameter = crate::selection::address_join_input::loan_declaration(
+            function,
+            destination.place,
+            destination.access,
+        )
+        .ok_or_else(|| replay.invalid())?;
+        if parameter.access != destination.access
             || !matches!(
                 destination.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             )
-            || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || (field.is_some() && !parameter.semantic.qualifications.is_empty())
-            || !parameter.semantic.projected_qualifications.is_empty()
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || (field.is_some() && !parameter.qualifications.is_empty())
+            || !parameter.projected_qualifications.is_empty()
         {
             return Err(replay.invalid());
         }
-        parameter.semantic.structural_type
+        parameter.structural_type
     };
     if row.result.is_some()
         || *source == destination.place
@@ -320,26 +321,27 @@ pub(super) fn replace_byte(
         .structural
         .as_ref()
         .ok_or_else(|| replay.invalid())?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == destination.place)
-        .ok_or_else(|| replay.invalid())?;
+    let parameter = crate::selection::address_join_input::loan_declaration(
+        function,
+        destination.place,
+        destination.access,
+    )
+    .ok_or_else(|| replay.invalid())?;
     if row.result.is_some()
-        || parameter.semantic.access != destination.access
+        || parameter.access != destination.access
         || !matches!(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
-        || !parameter.semantic.projected_qualifications.is_empty()
+        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
     {
         return Err(replay.invalid());
     }
     let (metadata_offset, _) =
         crate::structural_inputs::structural_reference_input::byte_field_storage(
-            parameter.semantic.structural_type,
+            parameter.structural_type,
             &destination.path,
             *field,
             &signature.structural_types,

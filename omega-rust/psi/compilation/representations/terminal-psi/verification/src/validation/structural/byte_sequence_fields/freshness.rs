@@ -20,6 +20,31 @@ fn operation_position(machine: &TerminalMachine, identity: OperationId) -> Optio
         })
 }
 
+/// Every operation of the machine, with the name its own block gives the
+/// storage that `root` names at `use_site`. An operation in a block the
+/// storage never reaches is absent: no place there denotes it.
+fn operations_naming<'machine>(
+    machine: &'machine TerminalMachine,
+    use_site: OperationId,
+    root: PlaceId,
+) -> impl Iterator<Item = (PlaceId, &'machine terminal_psi::Operation)> {
+    let names = operation_position(machine, use_site)
+        .map(|(block, _)| machine.blocks[block].id)
+        .map(|block| terminal_semantics::storage_names(machine, block, root));
+    machine.blocks.iter().flat_map(move |block| {
+        let block_names: Vec<_> = names
+            .as_ref()
+            .map(|names| names.in_block(block.id).collect())
+            .unwrap_or_default();
+        block.operations.iter().flat_map(move |operation| {
+            block_names
+                .clone()
+                .into_iter()
+                .map(move |name| (name, operation))
+        })
+    })
+}
+
 /// Every finite execution reaching `use_site` must have passed `producer`
 /// without an invalidating operation. Visiting a graph point twice adds no
 /// additional paths; mutations on cyclic paths are still examined in full.
@@ -27,13 +52,15 @@ fn unchanged_since(
     machine: &TerminalMachine,
     producer: OperationId,
     use_site: OperationId,
-    invalidates: impl Fn(&terminal_psi::Operation) -> bool,
+    root: PlaceId,
+    invalidates: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
 ) -> bool {
     operation_position(machine, producer).is_some()
         && established_on_every_path(
             machine,
             use_site,
-            |candidate| candidate.id == producer,
+            root,
+            |candidate, _| candidate.id == producer,
             invalidates,
         )
 }
@@ -48,30 +75,31 @@ fn unchanged_since(
 fn established_on_every_path(
     machine: &TerminalMachine,
     use_site: OperationId,
-    establishes: impl Fn(&terminal_psi::Operation) -> bool,
-    invalidates: impl Fn(&terminal_psi::Operation) -> bool,
+    root: PlaceId,
+    establishes: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
+    invalidates: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
 ) -> bool {
-    let Some(use_position) = operation_position(machine, use_site) else {
+    let Some((use_block, use_position)) = operation_position(machine, use_site) else {
         return false;
     };
     let outgoing = crate::control_graph::successors(machine);
-    let mut pending = vec![use_position];
+    let mut pending = vec![(use_block, use_position, root)];
     let mut visited = BTreeSet::new();
     let mut established = false;
-    while let Some((block_index, position)) = pending.pop() {
-        if !visited.insert((block_index, position)) {
+    while let Some((block_index, position, root)) = pending.pop() {
+        if !visited.insert((block_index, position, root)) {
             continue;
         }
         let block = &machine.blocks[block_index];
         if position != 0 {
             let previous = &block.operations[position - 1];
-            if establishes(previous) {
+            if establishes(previous, root) {
                 established = true;
             } else {
-                if invalidates(previous) {
+                if invalidates(previous, root) {
                     return false;
                 }
-                pending.push((block_index, position - 1));
+                pending.push((block_index, position - 1, root));
             }
         } else {
             if block.id == machine.entry {
@@ -84,7 +112,15 @@ fn established_on_every_path(
                     .any(|(_, target)| *target == block.id)
                 {
                     has_predecessor = true;
-                    pending.push((predecessor_index, predecessor.operations.len()));
+                    // The predecessor names this storage by whatever it bound
+                    // on the edge. An edge that forwards only part of it, or
+                    // binds payload fields instead, leaves the fact unproven.
+                    let Some(before) =
+                        terminal_semantics::root_before_edge(machine, block.id, predecessor, root)
+                    else {
+                        return false;
+                    };
+                    pending.push((predecessor_index, predecessor.operations.len(), before));
                 }
             }
             if !has_predecessor {
@@ -365,14 +401,18 @@ pub(in crate::validation) fn exact_length_is_current(
     let Some(exact_path) = field_path(module, machine, root, path, field, writing, false) else {
         return false;
     };
-    let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
+    let Some((_, producer)) = operations_naming(machine, operation.id, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if *source == root && measured_path == path && *measured_field == field)
+                if source == name && measured_path == path && *measured_field == field)
     }) else { return false; };
-    unchanged_since(machine, producer.id, operation.id, |candidate| {
-        changes_length(module, machine, root, &exact_path, candidate)
-    })
+    unchanged_since(
+        machine,
+        producer.id,
+        operation.id,
+        root,
+        |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
+    )
 }
 
 /// Whether an indexed store's exact destination field holds only ASCII bytes
@@ -408,29 +448,30 @@ pub(crate) fn field_content_is_ascii(
     established_on_every_path(
         machine,
         operation.id,
-        |candidate| {
+        *root,
+        |candidate, root| {
             matches!(&candidate.kind,
                 OperationKind::StructuralByteSequenceFieldStore {
                     destination, path: written, field: written_field, source, ..
-                } if destination == root && written == path && written_field == field
+                } if *destination == root && written == path && written_field == field
                     && terminal_semantics::byte_sequence_source_predicates(module, machine, *source)
                         .is_some_and(|predicates| predicates.implies(ascii)))
         },
-        |candidate| match &candidate.kind {
+        |candidate, root| match &candidate.kind {
             OperationKind::StructuralByteSequenceFieldByteStore {
                 destination,
                 path: written,
                 field: written_field,
                 ..
-            } if destination == root => {
+            } if *destination == root => {
                 // A store into the identical field is class-preserving; a
                 // store into any other field is disjoint unless its path
                 // cannot be resolved.
                 !(written == path && written_field == field)
-                    && field_path(module, machine, *root, written, *written_field, true, false)
+                    && field_path(module, machine, root, written, *written_field, true, false)
                         .is_none_or(|written| overlaps(&exact_path, &written))
             }
-            _ => changes_length(module, machine, *root, &exact_path, candidate),
+            _ => changes_length(module, machine, root, &exact_path, candidate),
         },
     )
 }
@@ -447,7 +488,8 @@ pub(crate) fn owned_content_is_current(
     established_on_every_path(
         machine,
         use_site,
-        |candidate| {
+        root,
+        |candidate, root| {
             matches!(
                 candidate.kind,
                 OperationKind::EstablishByteSequenceConcatenation { .. }
@@ -456,7 +498,7 @@ pub(crate) fn owned_content_is_current(
                 .structural()
                 .is_some_and(|result| result.place == root)
         },
-        |candidate| changes_length(module, machine, root, &[], candidate),
+        |candidate, root| changes_length(module, machine, root, &[], candidate),
     )
 }
 
@@ -474,7 +516,8 @@ pub(crate) fn owned_content_is_ascii(
     established_on_every_path(
         machine,
         use_site,
-        |candidate| {
+        root,
+        |candidate, root| {
             candidate
                 .result
                 .structural()
@@ -484,7 +527,7 @@ pub(crate) fn owned_content_is_ascii(
                 )
                 .is_some_and(|predicates| predicates.implies(ascii))
         },
-        |candidate| changes_length(module, machine, root, &[], candidate),
+        |candidate, root| changes_length(module, machine, root, &[], candidate),
     )
 }
 
@@ -502,12 +545,12 @@ pub(crate) fn field_content_length_is_current(
     let Some(exact_path) = field_path(module, machine, root, path, field, false, false) else {
         return false;
     };
-    let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
+    let Some((_, producer)) = operations_naming(machine, use_site, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if *source == root && measured_path == path && *measured_field == field)
+                if source == name && measured_path == path && *measured_field == field)
     }) else { return false; };
-    unchanged_since(machine, producer.id, use_site, |candidate| {
+    unchanged_since(machine, producer.id, use_site, root, |candidate, root| {
         changes_content(module, machine, root, &exact_path, candidate)
     })
 }
@@ -569,9 +612,13 @@ pub(crate) fn literal_field_read_bounds(
         if destination != root
             || written != path
             || written_field != field
-            || !unchanged_since(machine, replacement.id, operation.id, |candidate| {
-                changes_content(module, machine, *root, &exact_path, candidate)
-            })
+            || !unchanged_since(
+                machine,
+                replacement.id,
+                operation.id,
+                *root,
+                |candidate, root| changes_content(module, machine, root, &exact_path, candidate),
+            )
             || !machine.structural_places.iter().any(|place| {
                 place.id == *source
                     && matches!(
@@ -597,7 +644,7 @@ pub(crate) fn literal_field_read_bounds(
         };
         if literals.next().is_some()
             || bytes.is_empty()
-            || !unchanged_since(machine, producer, replacement.id, |_| false)
+            || !unchanged_since(machine, producer, replacement.id, *source, |_, _| false)
         {
             continue;
         }
@@ -643,7 +690,7 @@ pub(crate) fn replacement_length_equation(
         return Ok(None);
     };
     let result = operation.result.expect_scalar().id;
-    for replacement in machine.blocks.iter().flat_map(|block| &block.operations) {
+    for (name, replacement) in operations_naming(machine, operation.id, *root) {
         let OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path: written_path,
@@ -655,12 +702,16 @@ pub(crate) fn replacement_length_equation(
         else {
             continue;
         };
-        if destination != root
+        if *destination != name
             || written_path != path
             || written_field != field
-            || !unchanged_since(machine, replacement.id, operation.id, |candidate| {
-                changes_length(module, machine, *root, &exact_path, candidate)
-            })
+            || !unchanged_since(
+                machine,
+                replacement.id,
+                operation.id,
+                *root,
+                |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
+            )
         {
             continue;
         }
@@ -676,12 +727,18 @@ pub(crate) fn replacement_length_equation(
         }
         // A saved source length is a valid snapshot only while that SSA slot
         // has not been rebound along any path since the replacement.
-        if unchanged_since(machine, replacement.id, operation.id, |candidate| {
-            candidate
-                .result
-                .scalar()
-                .is_some_and(|result| result.id == *length)
-        }) {
+        if unchanged_since(
+            machine,
+            replacement.id,
+            operation.id,
+            *root,
+            |candidate, _| {
+                candidate
+                    .result
+                    .scalar()
+                    .is_some_and(|result| result.id == *length)
+            },
+        ) {
             return Ok(Some(Proposition::Equal(
                 value,
                 ScalarTerm::value(*length, scalar_type),
@@ -693,7 +750,7 @@ pub(crate) fn replacement_length_equation(
     // preserves the extent — `unchanged_since` enforces dominance including
     // backedges, so a guard's `i < self.view.len` discharges a later store's
     // index obligation bound against the successor's own observation.
-    for observation in machine.blocks.iter().flat_map(|block| &block.operations) {
+    for (name, observation) in operations_naming(machine, operation.id, *root) {
         let OperationKind::StructuralByteSequenceFieldLength {
             source,
             path: observed_path,
@@ -703,12 +760,16 @@ pub(crate) fn replacement_length_equation(
             continue;
         };
         if observation.id == operation.id
-            || source != root
+            || *source != name
             || observed_path != path
             || observed_field != field
-            || !unchanged_since(machine, observation.id, operation.id, |candidate| {
-                changes_length(module, machine, *root, &exact_path, candidate)
-            })
+            || !unchanged_since(
+                machine,
+                observation.id,
+                operation.id,
+                *root,
+                |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
+            )
         {
             continue;
         }
@@ -732,7 +793,11 @@ pub(crate) fn view_length_is_current(
     operation: OperationId,
     destination: PlaceId,
 ) -> bool {
-    unchanged_since(machine, producer, operation, |candidate| {
-        changes_length(module, machine, destination, &[], candidate)
-    })
+    unchanged_since(
+        machine,
+        producer,
+        operation,
+        destination,
+        |candidate, root| changes_length(module, machine, root, &[], candidate),
+    )
 }

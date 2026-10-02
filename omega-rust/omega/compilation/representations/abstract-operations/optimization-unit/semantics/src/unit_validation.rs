@@ -23,6 +23,7 @@ use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::MachineId;
 
 pub(crate) mod affine_authority;
+pub(crate) mod arrival_storage;
 mod catalogs;
 pub(crate) mod derived_metadata;
 pub(crate) mod function_structure;

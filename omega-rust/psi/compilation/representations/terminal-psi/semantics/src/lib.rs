@@ -15,6 +15,7 @@
 //! proof-bearing scalars, record fields, primitive places, scalar arrays and
 //! structural effects.
 
+mod arrival_storage;
 mod byte_carriers;
 mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
@@ -35,6 +36,7 @@ mod structural_effect;
 mod tests;
 mod zeroed_structural;
 
+pub use arrival_storage::{StorageNames, arrival_parameter, root_before_edge, storage_names};
 pub use byte_carriers::{ByteCarrierLayout, ByteCarrierScalarLeaf, byte_carrier_scalar_layout};
 pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,

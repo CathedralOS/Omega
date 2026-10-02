@@ -33,22 +33,9 @@ pub fn byte_field_root(
         .iter()
         .find(|place| place.id == source)?;
     let parameter = match place.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
-            machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == source
-                    && parameter.position == position
-                    && parameter.is_self == is_self
-            })?
+        StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
+            crate::arrival_storage::arrival_parameter(machine, source)?
         }
-        StructuralPlaceKind::BlockParameter { block, position } => machine
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)?
-            .structural_parameters
-            .get(position as usize)
-            .filter(|parameter| {
-                parameter.place == source && parameter.position == position && !parameter.is_self
-            })?,
         StructuralPlaceKind::OperationResult {
             producer,
             structural_type,
