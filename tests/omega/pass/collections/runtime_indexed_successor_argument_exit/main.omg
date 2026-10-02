@@ -22,18 +22,18 @@ data Main {
     rows: [[i32 in Wrapping; 3]; 2];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.flat = [10, 20, 5];
-    self.rows = [[0, 0, 0], [1, 2, 32]];
-    transition { _ -> dot(0, 0) }
-    state dot(&mut self, k: u64, acc: i32 in Wrapping) requires k <= 2 {
+machine Main::main(main: &mut Main) reaches Console {
+    main.flat = [10, 20, 5];
+    main.rows = [[0, 0, 0], [1, 2, 32]];
+    transition { _ -> dot(main, 0, 0) }
+    state dot(main: &mut Main, k: u64, acc: i32 in Wrapping) requires k <= 2 {
         let next_k: u64 = k + 1;
         transition next_k <= 2 {
-            true -> dot(next_k, acc + self.flat[k] + self.rows[1][k])
-            false -> done(acc + self.flat[k] + self.rows[1][k])
+            true -> dot(main, next_k, acc + main.flat[k] + main.rows[1][k])
+            false -> done(main, acc + main.flat[k] + main.rows[1][k])
         }
     }
-    state done(&mut self, acc: i32 in Wrapping) {
-        self.console.exit_process(acc as i32);
+    state done(main: &mut Main, acc: i32 in Wrapping) {
+        main.console.exit_process(acc as i32);
     }
 }

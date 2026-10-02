@@ -20,36 +20,36 @@ data Main {
     source: Room;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.label = "Gate";
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.label = "Gate";
 
     transition {
-        _ -> render(self.source)
+        _ -> render(main)
     }
 
-    state render(&mut self, source: Room) {
-        transition source.label.len == 4 {
-            true -> contents(source)
-            false -> wrong_extent()
+    state render(main: &mut Main) {
+        transition main.source.label.len == 4 {
+            true -> contents(main, main.source)
+            false -> wrong_extent(main)
         }
     }
 
-    state contents(&mut self, source: Room) {
+    state contents(main: &mut Main, source: Room) {
         transition source.label == "Gate" {
-            true -> good()
-            false -> wrong_bytes()
+            true -> good(main)
+            false -> wrong_bytes(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state wrong_extent(&mut self) {
-        self.console.exit_process(71);
+    state wrong_extent(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state wrong_bytes(&mut self) {
-        self.console.exit_process(72);
+    state wrong_bytes(main: &mut Main) {
+        main.console.exit_process(72);
     }
 }

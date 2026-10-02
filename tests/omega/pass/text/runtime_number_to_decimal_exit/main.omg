@@ -30,54 +30,54 @@ data Main {
     p: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.out = "XXXXX";
-    self.n = 0;
-    self.i = 0;
-    transition { _ -> build() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.out = "XXXXX";
+    main.n = 0;
+    main.i = 0;
+    transition { _ -> build(main) }
 
     // Build n = 12345 at runtime (5 x 2469) so the conversion runs on a real value.
-    state build(&mut self) {
-        transition self.i < 5 { true -> build_step() _ -> itoa_init() }
+    state build(main: &mut Main) {
+        transition main.i < 5 { true -> build_step(main) _ -> itoa_init(main) }
     }
-    state build_step(&mut self) {
-        self.n = self.n + 2469;
-        self.i = self.i + 1;
-        transition { _ -> build() }
+    state build_step(main: &mut Main) {
+        main.n = main.n + 2469;
+        main.i = main.i + 1;
+        transition { _ -> build(main) }
     }
 
     // Convert: for each place (10000, 1000, 100, 10, 1) write the digit char.
-    state itoa_init(&mut self) {
-        self.place = 10000;
-        self.p = 0;
-        transition { _ -> itoa_loop() }
+    state itoa_init(main: &mut Main) {
+        main.place = 10000;
+        main.p = 0;
+        transition { _ -> itoa_loop(main) }
     }
-    state itoa_loop(&mut self) {
-        transition self.p < 5 { true -> digit_div() _ -> check() }
+    state itoa_loop(main: &mut Main) {
+        transition main.p < 5 { true -> digit_div(main) _ -> check(main) }
     }
-    state digit_div(&mut self) {
-        self.d = self.n / self.place;
-        transition { _ -> digit_mod() }
+    state digit_div(main: &mut Main) {
+        main.d = main.n / main.place;
+        transition { _ -> digit_mod(main) }
     }
-    state digit_mod(&mut self) {
-        self.d = self.d % 10;
-        transition { _ -> digit_write() }
+    state digit_mod(main: &mut Main) {
+        main.d = main.d % 10;
+        transition { _ -> digit_write(main) }
     }
-    state digit_write(&mut self) {
-        self.ch = self.d + 48;
-        self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch as u32);
-        self.place = self.place / 10;
-        self.p = self.p + 1;
-        transition { _ -> itoa_loop() }
+    state digit_write(main: &mut Main) {
+        main.ch = main.d + 48;
+        main.out[main.p] = narrow_u32_to_u8_wrapping(main.ch as u32);
+        main.place = main.place / 10;
+        main.p = main.p + 1;
+        transition { _ -> itoa_loop(main) }
     }
 
-    state check(&mut self) {
-        transition self.out == "12345" { true -> ok() _ -> bad() }
+    state check(main: &mut Main) {
+        transition main.out == "12345" { true -> ok(main) _ -> bad(main) }
     }
-    state ok(&mut self) {
-        self.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

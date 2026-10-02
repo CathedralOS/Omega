@@ -22,21 +22,21 @@ data Main {
     b: [[i32 in Wrapping; 3]; 3];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = [[0, 0, 0], [2147483647, 8, 0], [0, 0, 0]];
-    self.b = [[0, 0, 2], [0, 0, 9], [0, 0, 5]];
-    transition { _ -> dot(1, 2, 0, 0) }
-    state dot(&mut self, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = [[0, 0, 0], [2147483647, 8, 0], [0, 0, 0]];
+    main.b = [[0, 0, 2], [0, 0, 9], [0, 0, 5]];
+    transition { _ -> dot(main, 1, 2, 0, 0) }
+    state dot(main: &mut Main, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2
     requires k <= 2 {
         let next_k: u64 = k + 1;
         transition next_k <= 2 {
-            true -> dot(i, j, next_k, acc + self.a[i][k] * self.b[k][j])
-            false -> done(acc + self.a[i][k] * self.b[k][j])
+            true -> dot(main, i, j, next_k, acc + main.a[i][k] * main.b[k][j])
+            false -> done(main, acc + main.a[i][k] * main.b[k][j])
         }
     }
-    state done(&mut self, acc: i32 in Wrapping) {
-        self.console.exit_process(acc as i32);
+    state done(main: &mut Main, acc: i32 in Wrapping) {
+        main.console.exit_process(acc as i32);
     }
 }
