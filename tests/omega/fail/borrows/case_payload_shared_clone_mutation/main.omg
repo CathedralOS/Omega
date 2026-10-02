@@ -1,0 +1,14 @@
+// Returning fresh ownership grants no mutation of a shared source payload.
+data Payload { value: u64; }
+machine Payload::clone(source: &mut Payload) -> Payload {
+    source.value = 7;
+    Payload { value: source.value }
+}
+data Selection { case Found(payload: Payload); }
+machine Selection::clone(source: &Selection) -> Selection {
+    transition source {
+        Selection::Found { payload } -> (Selection::Found {
+            payload: Payload::clone(&mut payload)
+        })
+    }
+}

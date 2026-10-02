@@ -1009,26 +1009,30 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     matches!(
                         segment,
                         CheckedUnitStructuralPathSegment::Field(_)
+                            | CheckedUnitStructuralPathSegment::Case(_)
                             | CheckedUnitStructuralPathSegment::FixedIndex(_)
                             | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
                     )
                 });
+                // Both readable loan kinds share geometry. Runtime selectors
+                // retain their own bounds contract; static case selection keeps
+                // the exact case and field for membership verification.
+                let borrow_path = static_path
+                    || (argument.path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            CheckedUnitStructuralPathSegment::Field(_)
+                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                        )
+                    }) && argument.path.iter().any(|segment| {
+                        matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+                    }));
                 match argument.access {
                     CheckedStructuralAccess::SharedBorrow => {
                         // A shared subloan replays statically or through a
                         // runtime index: the verifier re-proves each
                         // selector's bound against the array it selects in.
-                        let borrow_path = static_path
-                            || (argument.path.iter().all(|segment| {
-                                matches!(
-                                    segment,
-                                    CheckedUnitStructuralPathSegment::Field(_)
-                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                        | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                                )
-                            }) && argument.path.iter().any(|segment| {
-                                matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
-                            }));
                         if source.multiplicity == Multiplicity::Unrestricted {
                             crate::checks::type_multiplicity(program, target.type_reference)
                                 == Multiplicity::Unrestricted
@@ -1057,17 +1061,6 @@ pub(crate) fn ordinary_projected_call_is_supported(
                         // a runtime index over the same element the
                         // verification resolves; the selector's bound is
                         // re-proven against its owning array.
-                        let borrow_path = static_path
-                            || (argument.path.iter().all(|segment| {
-                                matches!(
-                                    segment,
-                                    CheckedUnitStructuralPathSegment::Field(_)
-                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                        | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                                )
-                            }) && argument.path.iter().any(|segment| {
-                                matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
-                            }));
                         source.access == CheckedStructuralAccess::MutableBorrow
                             && ((source.multiplicity == Multiplicity::Unrestricted && borrow_path)
                                 || ((field_path

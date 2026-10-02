@@ -1,0 +1,46 @@
+// A structural-returning call borrows only the selected payload. The result
+// owns fresh contents, the original stays readable, and the empty arm never
+// evaluates the payload call.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Payload { value: u64 in Wrapping; }
+machine Payload::clone(source: &Payload) -> Payload {
+    Payload { value: source.value + 1 }
+}
+machine Payload::read(source: &Payload) -> u64 { source.value as u64 }
+
+data Selection {
+    case Found(payload: Payload);
+    case Empty;
+}
+machine Selection::clone(source: &Selection) -> Selection {
+    transition source {
+        Selection::Found { payload } -> (Selection::Found {
+            payload: Payload::clone(payload)
+        })
+        Selection::Empty -> (Selection::Empty)
+    }
+}
+machine Selection::read(source: &Selection) -> u64 {
+    transition source {
+        Selection::Found { payload } -> (Payload::read(payload))
+        Selection::Empty -> (0)
+    }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let source: Selection = Selection::Found { payload: Payload { value: 41 } };
+    let cloned: Selection = Selection::clone(&source);
+    let empty: Selection = Selection::Empty;
+    let cloned_empty: Selection = Selection::clone(&empty);
+    transition Selection::read(&source) == 41
+        && Selection::read(&cloned) == 42
+        && Selection::read(&cloned_empty) == 0 {
+        true -> done(main)
+        _ -> failed(main)
+    }
+    state done(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
+}

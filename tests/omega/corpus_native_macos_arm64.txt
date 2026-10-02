@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.39, "load1_start": 8.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.8, "load1_start": 6.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -117,9 +117,9 @@ pass/calls/callback_private_materialization rejected 479ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 746ms exit:171 @0f26891d973a+wt
-pass/calls/case_arm_payload_receiver_arg built 1788ms @30260e7900cb
-pass/calls/case_scrutinee_param_clone_exit rejected 645ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
+pass/calls/case_arm_payload_receiver_arg built 1139ms exit:70 @bb878591d2fc+wt
+pass/calls/case_payload_clone_observation_exit built 1215ms exit:70 @bb878591d2fc+wt
+pass/calls/case_scrutinee_param_clone_exit built 1052ms exit:0 @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted built 2322ms exit:70 @bed5f45e9185+wt

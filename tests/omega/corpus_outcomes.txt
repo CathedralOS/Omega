@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.39, "load1_start": 8.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.8, "load1_start": 6.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -150,6 +150,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 789ms expected @2d8ed253669f
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; it is reassigned at statement 3)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
+fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb878591d2fc+wt
+	mutable argument `source` for state `clone` is not writable in this state
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 898ms expected @2d8ed253669f
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 811ms expected @2d8ed253669f
@@ -1279,8 +1281,8 @@ pass/calls/callback_private_materialization rejected 1409ms @2d8ed253669f
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms @2d8ed253669f
 pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
-pass/calls/case_scrutinee_param_clone_exit rejected 758ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
+pass/calls/case_payload_clone_observation_exit checked 938ms @bb878591d2fc+wt
+pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit checked 1513ms @2d8ed253669f
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f

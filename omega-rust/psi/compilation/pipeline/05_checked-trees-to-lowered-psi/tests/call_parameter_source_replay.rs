@@ -234,3 +234,122 @@ fn reference_initializers_preserve_the_parameter_identity_after_reactivation() {
         "changed initializer cannot keep the old backing"
     );
 }
+
+const CASE_RESULT_SOURCE: &str = r#"
+    data Payload { value: u64; }
+    machine Payload::clone(source: &Payload) -> Payload { Payload { value: source.value } }
+    data Choice { case Found(payload: Payload); case Other(payload: Payload); case Empty; }
+    machine Choice::clone(source: &Choice, alternate: &Choice) -> Choice {
+        transition source {
+            Choice::Found { payload } -> (Choice::Found { payload: Payload::clone(payload) })
+            Choice::Other { payload } -> (Choice::Other { payload: Payload::clone(payload) })
+            Choice::Empty -> (Choice::Empty)
+        }
+    }
+"#;
+
+#[test]
+fn case_payload_operand_calls_preserve_authored_occurrence_and_source_custody() {
+    use checked_trees::{
+        CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueCall,
+        CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+    };
+    let original = crate::front_end::checked_program(CASE_RESULT_SOURCE);
+    let selection = TerminalMachineSelection::Name("Choice::clone");
+    let lowered = lower_machine(&original, selection)
+        .expect("case member operands retain their nested call occurrence");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("case payload calls and owned constructor results independently verify");
+    for mutation in ["case", "field", "root"] {
+        let mut changed = original.clone();
+        let machine = changed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Choice::clone")
+            .unwrap()
+            .symbol;
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("owned case result graph");
+        let nested = plan
+            .states
+            .iter_mut()
+            .find_map(|state| {
+                let CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } =
+                    &mut state.terminator
+                else {
+                    return None;
+                };
+                return_values.iter_mut().find_map(|producer| {
+                    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } =
+                        producer
+                    else {
+                        return None;
+                    };
+                    calls.iter_mut().find(|call| {
+                        call.operation().call().is_some_and(|call| {
+                            call.structural_arguments.iter().any(|argument| {
+                                argument.path.iter().any(|segment| {
+                                    matches!(segment, CheckedUnitStructuralPathSegment::Case(case) if case == "Found")
+                                })
+                            })
+                        })
+                    })
+                })
+            })
+            .expect("nested payload clone retains its original Case path");
+        let mut operation = nested.operation().clone();
+        let argument = operation
+            .call_mut()
+            .unwrap()
+            .structural_arguments
+            .iter_mut()
+            .find(|argument| {
+                argument
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Case(_)))
+            })
+            .unwrap();
+        match mutation {
+            "case" => {
+                *argument
+                    .path
+                    .iter_mut()
+                    .find(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Case(_)))
+                    .unwrap() = CheckedUnitStructuralPathSegment::Case("Other".into())
+            }
+            "field" => {
+                *argument
+                    .path
+                    .iter_mut()
+                    .find(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+                    .unwrap() = CheckedUnitStructuralPathSegment::Field("foreign_payload".into())
+            }
+            "root" => {
+                argument.source =
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+            }
+            _ => unreachable!(),
+        }
+        *nested = CheckedStructuralValueCall::with_operands(
+            nested.value,
+            nested.operands().clone(),
+            operation,
+        )
+        .unwrap();
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Choice::clone")).is_err(),
+            "substituted {mutation} must fail source replay"
+        );
+    }
+}

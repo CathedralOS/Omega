@@ -488,18 +488,10 @@ pub(super) fn authored_occurrences(
                 children.push((cast.value, false));
                 None
             }
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                children.push((member.receiver, direct_argument));
-                None
-            }
-            // A case payload read of the computed dispatch subject.
-            ExpressionNode::Member(member)
-                if dispatch_subjects::repeats_subject(
-                    checked,
-                    dispatch_subject,
-                    member.receiver,
-                ) =>
-            {
+            // Member selection adds no call occurrence. Its receiver is
+            // traversed uniformly; the call arm above owns computed dispatch
+            // subject reuse, while source replay owns field and case custody.
+            ExpressionNode::Member(member) => {
                 children.push((member.receiver, direct_argument));
                 None
             }

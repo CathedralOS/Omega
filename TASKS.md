@@ -2011,20 +2011,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 
-- **CASE-PAYLOAD-LOANS.** Finish the owned-result construction around
-  borrowed case-payload calls. `pass/calls/case_scrutinee_param_clone_exit`
-  still omits `ScanResult::clone` at `result ownership`; acceptance is its
-  authored exit 0. Call-scoped loans now retain the original backing through
-  exact `Case`/`Field` paths, current-case verification, codec, interpreter,
-  and native realization: the unchanged
-  `pass/control_flow/case_arm_payload_receiver_call` exits 70 in both engines
-  on macOS ARM64. Preserve that runtime oracle.
-  `pass/calls/case_arm_payload_receiver_arg` now realizes its Linux entry,
-  but its fixture returns the leaf value 69 and compares it to 70; its scalar
-  argument is observed only by the unexercised `Empty` arm. Correct that
-  fixture's runtime assertion and exercise the forwarded argument with a host
-  entry before claiming its intended exit 70.
-
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.
   Empty record-array fields and their nested array extents now lend through the

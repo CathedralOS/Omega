@@ -23,6 +23,9 @@ use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorro
 
 type ArgumentPath = Vec<CheckedUnitStructuralPathSegment>;
 
+#[cfg(test)]
+mod tests;
+
 /// An authored `self.field` argument roots at the `self` parameter's own
 /// symbol, while an implicit receiver place roots at the machine the
 /// parameter is attached to. Both spellings name one parameter.
@@ -103,15 +106,16 @@ enum ArgumentPathShape {
     Whole,
     /// A fixed window closing any prefix, `[.., FixedRange]`.
     FixedRange,
-    /// Field and fixed-index selectors only, at least one.
+    /// Statically selected storage, including exact case payloads.
     Static {
         fields: usize,
         fixed_indexes: usize,
+        case_qualified: bool,
     },
     /// An unnormalized `Index` (a runtime element or an open-ended range)
     /// among field and fixed-index selectors.
     RuntimeIndexed,
-    /// A case segment or an interior range, which no argument path spells.
+    /// An interior range, which no argument path spells.
     Unsupported,
 }
 
@@ -124,20 +128,27 @@ impl ArgumentPathShape {
             Some(_) => {}
         }
         let (mut fields, mut fixed_indexes, mut runtime_indexed) = (0, 0, false);
+        let mut case_qualified = false;
         for segment in segments {
             match segment {
                 Field { .. } => fields += 1,
                 FixedIndex { .. } => fixed_indexes += 1,
                 Index { .. } => runtime_indexed = true,
-                Case { .. } | FixedRange { .. } => return Self::Unsupported,
+                Case { .. } => case_qualified = true,
+                FixedRange { .. } => return Self::Unsupported,
             }
         }
-        if runtime_indexed {
+        if runtime_indexed && case_qualified {
+            // Runtime case selection needs the call's dynamic path evidence;
+            // the ordinary runtime-index presentation has not retained it.
+            Self::Unsupported
+        } else if runtime_indexed {
             Self::RuntimeIndexed
         } else {
             Self::Static {
                 fields,
                 fixed_indexes,
+                case_qualified,
             }
         }
     }
@@ -178,11 +189,14 @@ pub(crate) fn ordinary_parameter_path(
         }
         // A borrowed byte-view formal takes the boundary presentation rule; an
         // unrestricted field path may also lend a fixed byte array as the view.
-        ArgumentPathShape::Static { fixed_indexes, .. }
-            if checked_body
-                && custody.lends_borrow()
-                && matches!(custody.target_access?, MutableBorrow | SharedBorrow)
-                && argument.target_is_byte_view() =>
+        ArgumentPathShape::Static {
+            fixed_indexes,
+            case_qualified: false,
+            ..
+        } if checked_body
+            && custody.lends_borrow()
+            && matches!(custody.target_access?, MutableBorrow | SharedBorrow)
+            && argument.target_is_byte_view() =>
         {
             argument.presented_projection_path(&[], unrestricted && fixed_indexes == 0)
         }
@@ -203,6 +217,12 @@ pub(crate) fn ordinary_parameter_path(
         {
             argument.slice_view_projection_path()
         }
+        // Selecting an active payload lends its original backing. It does not
+        // authorize a partial owned move or a boundary ABI presentation.
+        ArgumentPathShape::Static {
+            case_qualified: true,
+            ..
+        } => None,
         // An owned affine member moves into an owned formal.
         ArgumentPathShape::Static { .. }
             if allow_field_path_projection
@@ -216,6 +236,7 @@ pub(crate) fn ordinary_parameter_path(
         ArgumentPathShape::Static {
             fields: 0,
             fixed_indexes: 1..=3,
+            ..
         } => argument.exact_projection_path(),
         ArgumentPathShape::Static { fields: 0, .. }
             if checked_body
@@ -264,7 +285,11 @@ pub(crate) fn boundary_parameter_path(
         ArgumentPathShape::FixedRange if custody.lends_unrestricted_borrow() => {
             argument.fixed_range_path()
         }
-        ArgumentPathShape::Static { .. } | ArgumentPathShape::RuntimeIndexed => {
+        ArgumentPathShape::Static {
+            case_qualified: false,
+            ..
+        }
+        | ArgumentPathShape::RuntimeIndexed => {
             argument.presented_projection_path(substitutions, true)
         }
         _ => None,
@@ -327,8 +352,13 @@ impl ParameterArgument<'_> {
     /// formal's borrowed slice view.
     fn slice_view_projection_path(self) -> Option<ArgumentPath> {
         let (program, target) = (self.program, self.target);
-        let (projected, path) =
-            projected_argument_path(program, self.state, self.statement_index, self.place)?;
+        let (projected, path) = projected_borrowed_path(
+            program,
+            self.machine,
+            self.state,
+            self.statement_index,
+            self.place,
+        )?;
         (base_type_identity(program, projected, &[])? == self.target_identity
             || (borrowed_slice_view_element(program, target, &[]).is_some()
                 && fixed_array_slice_view_is_admitted(program, projected, target)))
