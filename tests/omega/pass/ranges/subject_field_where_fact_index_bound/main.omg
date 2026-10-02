@@ -1,0 +1,31 @@
+// A data `where` fact bounds a field read through the machine's EXPLICIT
+// SUBJECT, in a successor state, under a computed index.
+//
+// `k` carries no declared range; its interval comes only from `data Main
+// where 0 <= k, k <= 3`, and the index is `main.k + 1`, so the bound is
+// discharged by interval arithmetic over the operand's standing facts. That
+// read is of the machine's own field storage, which enforces the facts on
+// every write, so it holds through a `&mut` subject exactly as it held
+// through a `&mut self` receiver.
+//
+// The entry state is not the interesting one: a literal store makes `k`'s
+// value exactly known there. The successor is, because the value fact does
+// not survive the transition and only the standing fact remains.
+//
+// Expected exit: 0.
+
+data Main where 0 <= k, k <= 3 {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = main.arr[main.k + 1];
+    transition { _ -> successor(main) }
+
+    state successor(main: &mut Main) {
+        main.r = main.arr[main.k + 1];
+    }
+}
