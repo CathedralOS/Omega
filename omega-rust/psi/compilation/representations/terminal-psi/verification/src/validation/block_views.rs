@@ -466,14 +466,18 @@ pub(super) fn validate_successor(
             })
         } else if expected.access == StructuralAccess::Owned {
             // The operation independently establishes its exact result. A whole
-            // owned edge transfers that value regardless of aggregate syntax;
-            // borrowed carriers and retained claims cannot acquire this custody.
+            // owned edge transfers that value regardless of aggregate syntax.
+            // A verified copy may also own descriptor storage while retaining
+            // its source loan lineage; it does not own the borrowed referent.
             // The frontier separately consumes any affine obligation.
             available.contains(&argument.place)
-                && super::structural::result_contracts::has_plain_owned_shape(
+                && (super::structural::result_contracts::has_plain_owned_shape(
                     module,
                     expected.structural_type,
-                )
+                ) || super::structural::leaf_copy::copied_return_source(
+                    machine,
+                    argument.place,
+                ))
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)
                         && block.operations.iter().any(|operation| {
