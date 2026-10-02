@@ -162,6 +162,45 @@ execution and native exit/output. A moved refusal is still unfinished work.
   migrate those three samples as acceptance. Do not widen the remaining
   machine-parameter-only sites without their own customer program.
 
+- **STATIC-ENTRY-RESULT-ARGUMENT.** (split-of:STATIC-MACHINE-MIGRATION)
+  Four fixtures reach one refusal in the static spelling and the same one:
+  `pass/borrows/{branch_selected_record_receiver_exit,enum_selected_view_reference_exit,returned_record_method_receiver_exit,returned_record_projected_call_exit}`
+  report "selected ProgramEntry establishment rejoins 0 Terminal context
+  identities; expected one; the machine's unit plan was omitted at local
+  construction at `call operation: structural arguments: caller structural
+  result`".
+  What the evidence rules out, so it is not searched again. The phase is LOCAL
+  CONSTRUCTION and the arm string is only the last marker recorded inside it,
+  not the failing site. In stage 04
+  `execution/terminal_unit/calls/structural_arguments.rs` neither supply-mode
+  gate in the caller-structural-result block fires, `target_identity` resolves
+  for the named parameter as it does for a receiver, and
+  `result_arguments::argument` returns a plan -- all 40 of its `return None`
+  exits were instrumented and none was taken. So the omission is after that
+  call: the candidates left are the post-loop
+  `explicit_index != explicit_arguments.len()` check and the local-construction
+  caller itself.
+  What the receiver carried that a named parameter does not, both in
+  `calls/result_arguments/mod.rs`: `formal_type` resolves `Self` through
+  `attached_self_application` for `is_self` and keeps the authored type
+  otherwise, so a receiver's formal is the attached application while
+  `main: &mut Main` stays a reference; and `expected_move_kind` settles an
+  owned `is_self` move as `Consume` when the callee's return carries no linear
+  obligation, where a named owned parameter of the same data is classified
+  `Transfer`. Both are `is_self` as an authority input, which the parent item
+  says to remove: under
+  [machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+  qualification "contributes no argument or storage", so the settlement follows
+  the shape -- an owned parameter whose type is this machine's attached data --
+  and not the spelling. That is the same correction
+  `psi: cleanup takes an exclusive loan of its data, however spelled` made for
+  cleanup machines.
+  Next step is to instrument the local-construction phase boundary rather than
+  the arm string, then make those two routes shape-based.
+  Acceptance: the four fixtures build and meet their native oracles in the
+  static spelling; an owned handoff that is not of the machine's own data still
+  classifies as `Transfer`, with a fixture naming that.
+
 - **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
   The receiver population is 1637 declarations in 259 files, down from 3154.
   137 of those are trait requirements and their satisfiers, blocked on
