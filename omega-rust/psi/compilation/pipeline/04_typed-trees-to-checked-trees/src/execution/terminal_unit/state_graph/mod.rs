@@ -1400,30 +1400,6 @@ fn operand_owned_construction(operation: &CheckedUnitEffectOperationPlan) -> boo
     )
 }
 
-/// Whether an owned whole call argument draws on a result this sequence
-/// produced earlier and the call owns. The result custody accounting counts
-/// that call as the result's one consumption with the same rule, so admitting
-/// the argument here and counting it there cannot disagree.
-fn call_consumes_result_argument(
-    argument: &CheckedUnitStructuralArgumentPlan,
-    earlier: &[CheckedUnitEffectOperationPlan],
-) -> bool {
-    let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
-        return false;
-    };
-    argument.path.is_empty()
-        && argument.access == CheckedStructuralAccess::Owned
-        && earlier
-            .iter()
-            .rev()
-            .find(|operation| {
-                operation
-                    .discardable_structural_result()
-                    .is_some_and(|(result, _)| result.binding_ordinal == ordinal)
-            })
-            .is_some_and(call_owns_result)
-}
-
 /// The call sequencer already joined each operand to its loan or consumption.
 /// A state edge does not change that call's argument custody. Boundary and
 /// ordinary calls share this rule; their receipts and claim transfers remain
@@ -1432,48 +1408,33 @@ fn call_argument_admitted(
     argument: &CheckedUnitStructuralArgumentPlan,
     earlier: &[CheckedUnitEffectOperationPlan],
 ) -> bool {
-    // The call sequencer already validated the exact borrowed source and
-    // access. Borrowing transfers no owned value for the selected edge to
-    // dispose; the caller's loan ledger still owns lifetime and restoration.
-    // Reclassifying storage origins here would make a local descriptor differ
-    // from the same descriptor supplied by a parameter.
-    matches!(
-        argument.access,
-        CheckedStructuralAccess::SharedBorrow
-            | CheckedStructuralAccess::MutableBorrow
-            | CheckedStructuralAccess::WriteOnlyBorrow
-    ) || (argument.source_parameter_index().is_some()
-        && argument.path.is_empty()
-        && argument.access == CheckedStructuralAccess::Owned)
-        || call_consumes_result_argument(argument, earlier)
-        || call_copies_result_argument(argument, earlier)
-}
-
-/// Copying an unrestricted local does not retire its statement-owned value.
-/// Keep this separate from consumption: result custody still accounts for the
-/// original at the state exit, and subsequent calls may copy it again.
-fn call_copies_result_argument(
-    argument: &CheckedUnitStructuralArgumentPlan,
-    earlier: &[CheckedUnitEffectOperationPlan],
-) -> bool {
+    if argument.access != CheckedStructuralAccess::Owned {
+        // Loan lifetime and restoration remain the sequencer's obligations;
+        // borrowing does not consume a graph-owned structural result.
+        return true;
+    }
     let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
+        // Parameters, checked local storage and inline operands retain their
+        // sequencer custody. In particular an inline value is established at
+        // the call, not by a fictitious earlier result. Only an explicit result
+        // binding introduces the additional graph disposition checked below.
+        return true;
+    };
+    let mut producers = earlier.iter().filter_map(|operation| {
+        let result = operation.structural_result_binding()?;
+        (result.binding_ordinal == ordinal).then_some((operation, result))
+    });
+    let Some((producer, result)) = producers.next() else {
         return false;
     };
-    // Unrestricted values need no affine-disposal flag. Rejoin their actual
-    // producer identity, including array construction, rather than filtering
-    // the producer roster through unrelated cleanup metadata.
-    let mut results = earlier
-        .iter()
-        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-        .filter(|result| result.binding_ordinal == ordinal);
-    let Some(result) = results.next() else {
-        return false;
-    };
-    results.next().is_none()
+    producers.next().is_none()
         && argument.path.is_empty()
-        && argument.access == CheckedStructuralAccess::Owned
-        && result.multiplicity == Multiplicity::Unrestricted
         && result.type_identity == argument.type_identity
+        && retained_structural_result(producer).is_some()
+        // Copies leave the original for its existing state-exit accounting;
+        // affine/linear transfers use the same consumption rule as that
+        // accounting, which independently requires exactly one disposition.
+        && (result.multiplicity == Multiplicity::Unrestricted || call_owns_result(producer))
 }
 
 /// Name the first unmet call requirement using the same argument admission
@@ -1490,43 +1451,20 @@ fn call_custody_refusal(
         if call_argument_admitted(argument, earlier) {
             continue;
         }
-        if argument.access == CheckedStructuralAccess::Owned {
-            if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
-                let producer = earlier.iter().rev().find_map(|operation| {
-                    operation
-                        .discardable_structural_result()
-                        .map(|(result, _)| result)
-                        .filter(|result| result.binding_ordinal == ordinal)
-                });
-                return match producer.map(|result| result.multiplicity) {
-                    None => "state graph: operation custody: call owned result without a producer",
-                    Some(_) => "state graph: operation custody: call owned local result",
-                };
-            }
-            match argument.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => {
-                    return "state graph: operation custody: call owned structural local";
-                }
-                CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. } => {
-                    return "state graph: operation custody: call owned trivial affine local";
-                }
-                _ => {}
-            }
+        if argument.access == CheckedStructuralAccess::Owned
+            && let Some(ordinal) = argument.source_structural_result_binding_ordinal()
+        {
+            let producer = earlier.iter().rev().find_map(|operation| {
+                operation
+                    .structural_result_binding()
+                    .filter(|result| result.binding_ordinal == ordinal)
+            });
+            return match producer.map(|result| result.multiplicity) {
+                None => "state graph: operation custody: call owned result without a producer",
+                Some(_) => "state graph: operation custody: call owned local result",
+            };
         }
-        return match (
-            argument.access,
-            argument.source_parameter_index().is_some(),
-            argument.path.is_empty(),
-        ) {
-            (CheckedStructuralAccess::Owned, true, false) => {
-                "state graph: operation custody: call owned parameter field argument"
-            }
-            (CheckedStructuralAccess::Owned, false, _) => {
-                "state graph: operation custody: call owned non-parameter argument"
-            }
-            (_, false, _) => "state graph: operation custody: call non-parameter argument",
-            _ => "state graph: operation custody: unit call arguments",
-        };
+        return "state graph: operation custody: unit call arguments";
     }
     "state graph: operation custody: unit call arguments"
 }
