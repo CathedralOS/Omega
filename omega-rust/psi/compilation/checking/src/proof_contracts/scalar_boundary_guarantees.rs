@@ -5,9 +5,10 @@
 //! applications with exact result and formal custody contribute such facts.
 
 use checked_trees::{
-    CheckedBooleanExpression as Boolean, CheckedFloatProjectionSource as Source,
-    CheckedFloatSemanticApplicationOperand as Operand, CheckedIeeeFloatComparisonKind as Compare,
-    CheckedScalarExpression as Scalar, ClosedScalarContractValue,
+    CheckedBooleanExpression as Boolean, CheckedBoundaryScalarGuarantee as Guarantee,
+    CheckedFloatProjectionSource as Source, CheckedFloatSemanticApplicationOperand as Operand,
+    CheckedIeeeFloatComparisonKind as Compare, CheckedScalarExpression as Scalar,
+    ClosedScalarContractValue,
 };
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 use typed_trees::{TypedTrees, machine::Machine, types::PrimitiveType};
@@ -17,7 +18,7 @@ pub fn derive_scalar_boundary_guarantees(
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     contract: &checked_trees::MachineContractPlan,
-) -> Vec<ClosedScalarContractValue> {
+) -> Vec<Guarantee> {
     contract
         .closed_scalar_values
         .ensures()
@@ -25,10 +26,11 @@ pub fn derive_scalar_boundary_guarantees(
         .flatten()
         .filter_map(|clause| {
             match clause {
-                ClosedScalarContractValue::Predicate(_) => Some(clause.clone()),
+                ClosedScalarContractValue::Predicate(predicate) => {
+                    Some(Guarantee::Predicate(predicate.clone()))
+                }
                 ClosedScalarContractValue::FloatMeaningEquality { expression, .. } => {
                     meaning_consequence(program, facts, machine, *expression)
-                        .map(ClosedScalarContractValue::Predicate)
                 }
                 // Content and other proof-only contracts have separate owners. A
                 // consequence this runtime vocabulary cannot express grants no fact.
@@ -43,7 +45,7 @@ fn meaning_consequence(
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<Boolean> {
+) -> Option<Guarantee> {
     let mut equalities = facts
         .proof
         .float_meaning_equalities
@@ -168,9 +170,9 @@ fn meaning_consequence(
             Boolean::Not(Box::new(compare(Compare::Equal, right, zero))),
         );
     }
-    Some(Boolean::Or {
-        left: Box::new(Boolean::Not(Box::new(condition))),
-        right: Box::new(compare(Compare::Equal, result.clone(), result)),
+    Some(Guarantee::Implication {
+        premise: condition,
+        conclusion: compare(Compare::Equal, result.clone(), result),
     })
 }
 

@@ -50,6 +50,18 @@ pub struct CheckedProviderAttachmentRequirementPlan {
     pub boundary: SymbolHandle,
 }
 
+/// A normal-return fact in the boundary's input/result scalar namespace.
+/// Conditional consequences retain their premise as proof structure rather
+/// than converting it into executable Boolean control or losing it in a union.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBoundaryScalarGuarantee {
+    Predicate(crate::CheckedBooleanExpression),
+    Implication {
+        premise: crate::CheckedBooleanExpression,
+        conclusion: crate::CheckedBooleanExpression,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryMachinePlan {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
@@ -77,7 +89,7 @@ pub struct CheckedBoundaryMachinePlan {
     pub scalar_requires: Vec<crate::ClosedScalarContractValue>,
     /// Retained normal-return scalar guarantees. The result follows all inputs
     /// in the same dense scalar namespace.
-    pub scalar_ensures: Vec<crate::ClosedScalarContractValue>,
+    pub scalar_ensures: Vec<CheckedBoundaryScalarGuarantee>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,

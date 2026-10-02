@@ -44,7 +44,7 @@ pub use affine_cleanup_plans::{
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedBoundaryScalarGuarantee,
     CheckedProviderAttachmentRequirementPlan,
 };
 pub use composed_unit_control_plans::{
