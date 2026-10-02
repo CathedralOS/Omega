@@ -825,46 +825,20 @@ pub(super) fn written_or_exclusive_regions(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     operation: &O,
-) -> Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)> {
-    use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+) -> Vec<(PlaceId, terminal_semantics::StorageRegion)> {
     mutation_regions(operation)
         .into_iter()
         .map(|region| {
-            let static_length = region
-                .path
-                .iter()
-                .position(|segment| {
-                    matches!(
-                        segment,
-                        StructuralPathSegment::RuntimeIndex { .. }
-                            | StructuralPathSegment::Referent
-                    )
-                })
-                .unwrap_or(region.path.len());
-            let mut path = region.path[..static_length].to_vec();
-            // Crossing a reference loses the direct backing relation even if
-            // an earlier dynamic selector already widened its projection.
-            if region.path.contains(&StructuralPathSegment::Referent) {
-                path.push(StructuralPathSegment::Referent);
-            }
-            if static_length == region.path.len()
-                && let Some(field) = region.field
-                && let Some(root) = structural_source_contract(function, region.place, false)
-                && let Some(carrier) =
-                    crate::unit_validation::structural_catalog::resolve_structural_path(
-                        types,
-                        root.structural_type,
-                        &path,
-                    )
-                && let Some(declaration) = types.get(&carrier)
-                && let StructuralTypeShape::Record { fields } = &declaration.shape
-                && let Some(field) = fields
-                    .iter()
-                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-            {
-                path.push(StructuralPathSegment::Field(field.identity.clone()));
-            }
-            (region.place, path)
+            (
+                region.place,
+                super::storage_regions::projected(
+                    function,
+                    types,
+                    region.place,
+                    region.path,
+                    region.field,
+                ),
+            )
         })
         .collect()
 }

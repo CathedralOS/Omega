@@ -716,6 +716,167 @@ fn branch_selected_record_return_keeps_one_permission_until_release() {
     rejects_custody(&released);
 }
 
+fn selected_reference_with_sibling_access() -> TerminalModule {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId,
+    };
+    use terminal_psi::{BindingRelevance, StructuralCaseDeclaration};
+
+    let mut module = branch_selected_record_return();
+    let status_type = structural_type_id(6);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: status_type,
+        identity: "Status".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![StructuralCaseDeclaration {
+                id: StructuralCaseId::new(1).unwrap(),
+                identity: "Ready".into(),
+                fields: Vec::new(),
+            }],
+        },
+    });
+    for owner in [structural_type_id(1), structural_type_id(5)] {
+        let StructuralTypeShape::Record { fields } = &mut module
+            .structural_types
+            .iter_mut()
+            .find(|row| row.id == owner)
+            .unwrap()
+            .shape
+        else {
+            unreachable!()
+        };
+        fields.push(StructuralFieldDeclaration {
+            id: StructuralFieldId::new(4).unwrap(),
+            identity: "status".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(status_type),
+        });
+    }
+    let unrelated_element = vec![
+        StructuralPathSegment::Field("holders".into()),
+        StructuralPathSegment::FixedIndex(2),
+    ];
+    let operations = &mut module.machines[0].blocks[0].operations;
+    operations.splice(
+        1..1,
+        [
+            Operation {
+                id: operation_id(70),
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(70),
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::StructuralCaseMembership {
+                    source: place_id(1),
+                    path: vec![StructuralPathSegment::Field("status".into())],
+                    case: StructuralCaseId::new(1).unwrap(),
+                },
+            },
+            Operation {
+                id: operation_id(71),
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(71),
+                    scalar_type: signed_i8(),
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::IntegerStructuralField {
+                    source: place_id(1),
+                    path: vec![
+                        CanonicalStructuralPathSegment::Field(StructuralFieldId::new(3).unwrap()),
+                        CanonicalStructuralPathSegment::FixedIndex(2),
+                    ],
+                    field: StructuralFieldId::new(1).unwrap(),
+                },
+            },
+            Operation {
+                id: operation_id(72),
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Unit,
+                kind: OperationKind::StructuralScalarFieldStore {
+                    destination: place_id(1),
+                    path: unrelated_element,
+                    field: StructuralFieldId::new(1).unwrap(),
+                    value: value_id(1),
+                    range_obligation: None,
+                },
+            },
+        ],
+    );
+    module
+}
+
+#[test]
+fn selected_reference_allows_disjoint_sibling_observations_and_stores() {
+    verify_module(
+        &selected_reference_with_sibling_access(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("root.status and holders[2] are disjoint from both possible selected holders");
+}
+
+#[test]
+fn selected_reference_regions_reject_any_overlapping_candidate_and_whole_root() {
+    use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId};
+
+    let original = selected_reference_with_sibling_access();
+    for selected_index in [0, 1] {
+        for operation_index in [1, 2, 3] {
+            let mut changed = original.clone();
+            let operation = &mut changed.machines[0].blocks[0].operations[operation_index];
+            let selected_path = vec![
+                StructuralPathSegment::Field("holders".into()),
+                StructuralPathSegment::FixedIndex(selected_index),
+            ];
+            match &mut operation.kind {
+                OperationKind::StructuralCaseMembership { path, .. } => {
+                    *path = selected_path;
+                    path.push(StructuralPathSegment::Field("status".into()));
+                }
+                OperationKind::StructuralScalarFieldStore { path, .. } => *path = selected_path,
+                OperationKind::IntegerStructuralField { path, .. } => {
+                    *path = vec![
+                        CanonicalStructuralPathSegment::Field(StructuralFieldId::new(3).unwrap()),
+                        CanonicalStructuralPathSegment::FixedIndex(selected_index),
+                    ];
+                }
+                _ => unreachable!(),
+            }
+            // Either one of the two candidates is enough to forbid access;
+            // they describe alternative origins, not a chosen first origin.
+            rejects_custody(&changed);
+        }
+    }
+
+    let mut enclosing = original.clone();
+    let caller = &mut enclosing.machines[0];
+    let mut second_call = caller.blocks[0].operations[0].clone();
+    second_call.id = operation_id(73);
+    second_call.result = reference_result(6);
+    caller.structural_places.push(reference_place(6, 73));
+    caller.blocks[0].operations.insert(1, second_call);
+    caller.blocks[0].operations.insert(2, release(74, 6));
+    rejects_custody(&enclosing);
+
+    let mut released = original;
+    // Sibling access remains legal after release, but the existing write
+    // through the returned carrier itself must still reject.
+    let operations = &mut released.machines[0].blocks[0].operations;
+    let release = operations.pop().unwrap();
+    assert!(matches!(
+        release.kind,
+        OperationKind::ReleaseReference { .. }
+    ));
+    operations.insert(1, release);
+    rejects_custody(&released);
+}
+
 #[test]
 fn branch_selected_record_return_requires_exact_candidate_coverage() {
     validate_module(&branch_selected_record_return()).expect("honest candidate roster");

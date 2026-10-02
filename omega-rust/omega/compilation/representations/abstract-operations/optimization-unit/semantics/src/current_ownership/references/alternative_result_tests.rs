@@ -12,7 +12,7 @@ use terminal_psi::{
     StructuralReferenceResultSource, StructuralResultDeclaration, StructuralTypeShape,
 };
 
-fn selected_record() -> (
+pub(super) fn selected_record() -> (
     PsiOptimizationFunction,
     Vec<StructuralTypeDeclaration>,
     StructuralOperationResult,
@@ -96,7 +96,7 @@ fn selected_record() -> (
     (function, declarations, result)
 }
 
-fn call(function: &PsiOptimizationFunction, result: &StructuralOperationResult) -> O {
+pub(super) fn call(function: &PsiOptimizationFunction, result: &StructuralOperationResult) -> O {
     O::CallStructural {
         psi_operation: id(9210, OperationId::new),
         callee: function.machine,

@@ -1,0 +1,38 @@
+// A selected mutable room loan suspends its possible rooms, not siblings.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Marker [copy] { case First; case Second; }
+data Room [copy] { value: u64; flag: bool; }
+data Level [copy] { rooms: [Room; 3]; start: Marker; counter: u64; }
+data Main { console: Binding<Console>; level: Level; }
+
+machine choose(level: &mut Level, first: bool) -> &mut Room {
+    transition first {
+        true -> &mut level.rooms[0]
+        false -> &mut level.rooms[1]
+    }
+}
+
+machine update(level: &mut Level, first: bool) {
+    let room: &mut Room = choose(level, first);
+    room.flag = level.start == Marker::First;
+    room.value = level.counter;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.level.counter = 37;
+    self.level.start = Marker::First;
+    update(&mut self.level, true);
+    self.level.start = Marker::Second;
+    update(&mut self.level, false);
+    transition self.level.rooms[0].value == 37
+        && self.level.rooms[1].value == 37
+        && self.level.counter == 37
+        && self.level.rooms[0].flag
+        && !self.level.rooms[1].flag {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

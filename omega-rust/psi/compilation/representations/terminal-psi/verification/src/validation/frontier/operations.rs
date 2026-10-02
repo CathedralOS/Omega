@@ -31,6 +31,12 @@ pub(super) fn apply_operation(
     // An operation touching an open borrowed-storage window's absent subtree
     // rejects before any custody effect of its own is applied.
     super::super::borrowed_windows::check_operation(walk, operation, frontier)?;
+    // A new result may reuse its static place on the next traversal, but it
+    // cannot overwrite storage or a carrier still held by a live reference.
+    // Check before applying effects, which may publish this result's loans.
+    if let Some(result) = operation.result.structural() {
+        super::super::references::check_root_access(machine, &frontier.references, result.place)?;
+    }
     // A projected reference establishment selects its carrier's leaf: the
     // carrier is consumed whole by that move, so detect it before the
     // reference transaction re-homes the leaf under the result.

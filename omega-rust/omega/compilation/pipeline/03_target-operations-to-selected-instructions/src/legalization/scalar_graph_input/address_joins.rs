@@ -224,7 +224,7 @@ pub(in crate::legalization) fn edge_bindings(
                 ) {
                     return true;
                 }
-                if abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                if abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
                     declaration,
                     &plan.structural_types,
                 ) {
@@ -263,8 +263,8 @@ pub(in crate::legalization) fn edge_bindings(
 }
 
 /// A bounded owner loan is forwarded whole from a signature parameter or a
-/// dominating owner-loan join with the identical declaration: its frozen
-/// referent carries exactly the qualifications the target declares.
+/// dominating owner-loan join with the identical declaration. This retains
+/// access and predicates; it does not treat a mutable referent as frozen.
 fn forwarded_owner_loan(
     function: &PsiOptimizationFunction,
     block: BlockId,

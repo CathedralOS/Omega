@@ -889,6 +889,7 @@ pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
 pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
+pass/references/selected_record_loan_disjoint_fields_exit built 2096ms exit:70 @af2064a33110+wt
 pass/relevance/erased_case_payload_field_exit built 1408ms exit:70 @fb2178def922
 pass/relevance/erased_formal_before_borrowed_argument_exit built 1482ms exit:70 @7552efd7b9fc+wt
 pass/relevance/erased_parameter_named_transition_forward checked 195ms
@@ -1072,6 +1073,7 @@ pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c1
 pass/text/local_bounded_text_case_result_loan_exit built 1698ms exit:70 @48008365d839
 pass/text/local_bounded_text_scalar_loan_exit built 6611ms exit:70 @48008365d839
 pass/text/local_record_byte_field_copy_exit built 1021ms exit:70 stdout:match @9484e48a74ff+wt
+pass/text/mutable_bounded_byte_state_exit built 1993ms exit:70 @af2064a33110+wt
 pass/text/nested_mutable_receiver_byte_result_exit built 1214ms exit:70 @f7deb06aff79+wt
 pass/text/nested_owned_byte_record_literal_exit built 1189ms exit:70 @ae42075f1dcc+wt
 pass/text/owned_arrival_view_descriptor_forwarded_exit built 1713ms exit:70 @ef2ef25a3ab8+wt
@@ -1106,6 +1108,7 @@ pass/text/runtime_string_stored_suffix_exit rejected 752ms @5676dbe78a95+wt
 pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
+pass/text/state_parameter_byte_replacement_exit built 2570ms exit:70 @af2064a33110+wt
 pass/text/utf8_boundary_established checked 211ms
 pass/text/view_field_literal_store_outlives_helper_exit built 1409ms exit:70 @5676dbe78a95+wt
 pass/text/zii_default_string_equality_exit built 1614ms exit:70 @5715dd4d97f7+wt

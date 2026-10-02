@@ -28,15 +28,13 @@ pub(super) fn replace(
             obligation,
             accepted_fact,
         } => {
-            let parameter = signature
-                .parameters
-                .iter()
-                .find(|parameter| parameter.semantic.place == *destination)
-                .ok_or_else(|| invalid())?;
+            let parameter =
+                crate::selection::primitive_local_input::read_parameter(function, *destination)
+                    .ok_or_else(|| invalid())?;
             (
                 terminal_psi::StructuralArgument {
                     place: *destination,
-                    access: parameter.semantic.access,
+                    access: parameter.access,
                     path: Vec::new(),
                 },
                 None,

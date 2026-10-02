@@ -30,6 +30,7 @@ mod mutations;
 mod references;
 mod replay;
 mod residuals;
+mod storage_regions;
 mod structural;
 
 use block_parameters::bind_owned_parameters;

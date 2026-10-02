@@ -110,8 +110,9 @@ fn address_join_argument(
         return false;
     }
     // A bounded owner loan is forwarded whole from an identically qualified
-    // signature or join parameter: its frozen referent carries the roster.
-    if abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+    // signature or live join parameter. Forwarding retains the precise access
+    // and predicate roster; a mutable loan does not promise frozen contents.
+    if abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
         parameter,
         |identity| structural_types.get(&identity).copied(),
     ) {

@@ -1,8 +1,8 @@
 //! Admit whole shared or exclusive byte views, address joins over plain
-//! referents or shared bounded byte owners, and plain owned structural
+//! referents or borrowed bounded byte owners, and plain owned structural
 //! arrivals. An owner loan, a shared byte view, or a whole owned bounded-byte
-//! value may carry qualifications. Borrowed carriers keep their frozen
-//! referent; an owned arrival moves its complete `{length, bytes}` payload and
+//! value may carry qualifications. Loans retain their declared access;
+//! only shared loans freeze their referent. An owned arrival moves its complete `{length, bytes}` payload and
 //! exact predicate roster, which Terminal verification replayed at every edge.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
@@ -38,7 +38,7 @@ pub(super) fn validate_structural_block_bindings(
                         || parameter.position as usize != position
                         || parameter.is_self
                         || (!parameter.qualifications.is_empty()
-                            && !abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                            && !abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
                                 parameter,
                                 &module.structural_types,
                             )

@@ -1658,18 +1658,74 @@ pub(super) fn check_root_access(
     Ok(())
 }
 
+/// Ordinary storage access suspends the region actually borrowed, not every
+/// sibling under its owner. Use the same canonical operation regions as
+/// restoration windows, and compare all candidates of a selected origin.
+/// An unresolved path conservatively covers the whole root. This query grants
+/// no access through a reference carrier; those reads need live permission.
+fn check_operation_root_access(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    operation: &terminal_psi::Operation,
+    place: PlaceId,
+) -> Result<(), ModuleError> {
+    if live.is_empty() {
+        return Ok(());
+    }
+    let regions = super::structural::access_regions::operation_regions(module, machine, operation);
+    let unresolved = !regions.iter().any(|(root, _)| *root == place);
+    let overlaps_path = |path: &[StructuralPathSegment]| {
+        let borrowed = super::structural::operations::structural_argument_canonical_prefix(
+            module,
+            machine,
+            &StructuralArgument {
+                place,
+                path: path.to_vec(),
+                // Geometry only: this admits a final bounded-byte field in
+                // the canonical prefix query, never a mutable permission.
+                access: StructuralAccess::MutableBorrow,
+            },
+        )
+        .unwrap_or_default();
+        unresolved
+            || regions.iter().any(|(root, observed)| {
+                *root == place
+                    && (observed.starts_with(&borrowed) || borrowed.starts_with(observed))
+            })
+    };
+    if live.iter().any(|reference| {
+        (reference.carrier == place && overlaps_path(&reference.carrier_path))
+            || (origin_root(&reference.root) == place
+                && match &reference.root {
+                    ReferenceOrigin::Primitive(_) => true,
+                    ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
+                    ReferenceOrigin::Alternatives { paths, .. } => {
+                        paths.iter().any(|path| overlaps_path(path))
+                    }
+                })
+    }) {
+        return Err(invalid(
+            machine,
+            "operation accesses suspended referent or treats reference carrier as owned data",
+        ));
+    }
+    Ok(())
+}
+
 /// Reading a referent is not reading the carrier as owned storage. The type
 /// supplies access, but only the current frontier supplies live permission.
 fn check_field_read(
     module: &TerminalModule,
     machine: &TerminalMachine,
     live: &[LiveReference],
+    operation: &terminal_psi::Operation,
     source: PlaceId,
 ) -> Result<(), ModuleError> {
     let access = super::structural::result_contracts::source_signature(machine, source)
         .and_then(|signature| reference_access(module, signature.structural_type));
     let Some(access) = access else {
-        return check_root_access(machine, live, source);
+        return check_operation_root_access(module, machine, live, operation, source);
     };
     if !matches!(
         access,
@@ -1714,13 +1770,13 @@ pub(super) fn apply_operation(
         }
         OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {
-            check_root_access(machine, live, *source)?
+            check_operation_root_access(module, machine, live, operation, *source)?
         }
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralByteSequenceFieldRead { source, .. } => {
-            check_field_read(module, machine, live, *source)?
+            check_field_read(module, machine, live, operation, *source)?
         }
         OperationKind::StructuralScalarFieldStore {
             destination, path, ..
@@ -1734,18 +1790,13 @@ pub(super) fn apply_operation(
             if live_mutable_record_field_destination(module, machine, live, *destination, path)?
                 .is_none()
             {
-                check_root_access(machine, live, *destination)?;
+                check_operation_root_access(module, machine, live, operation, *destination)?;
             }
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
         | OperationKind::AtomicAccess {
             place: destination, ..
-        } => check_root_access(machine, live, *destination)?,
-        OperationKind::EstablishPrimitiveLocal { .. } => {
-            if let Some(result) = operation.result.structural() {
-                check_root_access(machine, live, result.place)?;
-            }
-        }
+        } => check_operation_root_access(module, machine, live, operation, *destination)?,
         OperationKind::StructuralLeafCopy { source, .. }
         | OperationKind::StructuralCaseLeafCopy { source, .. } => {
             // A `&`-leaf copy relocates the source parameter's existing loan

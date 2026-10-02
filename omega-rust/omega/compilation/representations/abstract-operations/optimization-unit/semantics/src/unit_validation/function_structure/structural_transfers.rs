@@ -98,10 +98,12 @@ pub(super) fn validate(
                 let exact_source = if qualified_shared_view(parameter, types) {
                     qualified_shared_view_source(function, &binding.argument, parameter)
                 } else if owner_loan(parameter, types) || qualified_owned_bytes(parameter, types) {
-                    // A bounded owner or its shared loan is forwarded whole
+                    // A bounded owner or its loan is forwarded whole
                     // from an identically declared signature or block
                     // parameter. Owned transfer moves the value and roster;
-                    // the loan instead retains its frozen referent.
+                    // the loan instead retains its exact access. Only shared
+                    // access freezes contents; mutable arrival changes no
+                    // declared predicate or currentness requirement.
                     binding.argument.path.is_empty()
                         && function
                             .structural_parameters
@@ -205,10 +207,9 @@ fn owner_loan(
     parameter: &StructuralParameterDeclaration,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
-        parameter,
-        |identity| types.get(&identity).copied(),
-    )
+    abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(parameter, |identity| {
+        types.get(&identity).copied()
+    })
 }
 
 /// A shared borrow of a record whose runtime members are plain storage or

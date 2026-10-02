@@ -215,26 +215,46 @@ impl PsiOptimizationFunction {
     /// a program and refuses the identical program spelled statically.
     /// Callers still read the returned access, multiplicity and
     /// qualifications themselves; this answers only which storage it is.
+    /// Duplicate identities or inconsistent kind/position metadata fail closed.
     pub fn arrival_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        let declaration = self.structural_places.iter().find(|row| row.id == place)?;
-        match declaration.kind {
-            StructuralPlaceKind::Parameter { position, is_self } => {
-                self.structural_parameters.iter().find(|parameter| {
-                    parameter.place == place
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })
-            }
-            StructuralPlaceKind::BlockParameter { block, position } => self
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)?
-                .structural_parameters
-                .get(position as usize)
-                .filter(|parameter| {
-                    parameter.place == place && parameter.position == position && !parameter.is_self
-                }),
-            _ => None,
+        let mut declarations = self.structural_places.iter().filter(|row| row.id == place);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
         }
+        let mut parameters = self
+            .structural_parameters
+            .iter()
+            .chain(
+                self.blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .filter(|parameter| parameter.place == place);
+        let parameter = parameters.next()?;
+        if parameters.next().is_some() {
+            return None;
+        }
+        match declaration.kind {
+            StructuralPlaceKind::Parameter { position, is_self }
+                if position == parameter.position
+                    && is_self == parameter.is_self
+                    && self
+                        .structural_parameters
+                        .iter()
+                        .any(|row| row.place == place) => {}
+            StructuralPlaceKind::BlockParameter { block, position }
+                if block != self.entry
+                    && position == parameter.position
+                    && !parameter.is_self
+                    && self
+                        .blocks
+                        .iter()
+                        .find(|row| row.id == block)
+                        .and_then(|block| block.structural_parameters.get(position as usize))
+                        .is_some_and(|row| row.place == place) => {}
+            _ => return None,
+        }
+        Some(parameter)
     }
 }

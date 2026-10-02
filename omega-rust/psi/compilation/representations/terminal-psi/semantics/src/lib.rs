@@ -31,6 +31,7 @@ mod scalar_representation_view;
 mod semantic_rows;
 mod service_binding;
 mod static_path;
+mod storage_regions;
 mod structural_effect;
 #[cfg(test)]
 mod tests;
@@ -96,6 +97,9 @@ pub use static_path::{
     canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
     runtime_index_bound, runtime_index_selects, runtime_structural_path_tip,
     structural_paths_may_overlap,
+};
+pub use storage_regions::{
+    StorageRegion, canonical_field_storage_region, projected_storage_region,
 };
 pub use structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,

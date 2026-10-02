@@ -1,33 +1,10 @@
 //! Scalar-field mutation and observation under exact structural authority.
 use crate::validation::{
     ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralAccess,
-    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, TerminalModule,
+    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 use terminal_psi::is_structural_scalar_store_path;
-
-fn parameter_for(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<&StructuralParameterDeclaration> {
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)?;
-    machine
-        .structural_places
-        .iter()
-        .any(|declaration| {
-            declaration.id == place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::Parameter { position, is_self }
-                        if position == parameter.position && is_self == parameter.is_self
-                )
-        })
-        .then_some(parameter)
-}
 
 /// A relevant scalar field stored directly in `structural_type`: a record
 /// field, or a mixed shape's common field. A common field occupies the same
@@ -98,7 +75,7 @@ pub(in crate::validation) fn has_empty_structural_custody(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> bool {
-    readable_parameter_for(machine, place).is_some_and(|parameter| {
+    terminal_semantics::arrival_parameter(machine, place).is_some_and(|parameter| {
         parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
     }) && machine
         .entry_claims
@@ -108,14 +85,6 @@ pub(in crate::validation) fn has_empty_structural_custody(
             .content_entry_claims
             .iter()
             .all(|claim| claim.input.root != place)
-}
-
-pub(in crate::validation) fn readable_parameter_for(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<&StructuralParameterDeclaration> {
-    parameter_for(machine, place)
-        .or_else(|| crate::validation::block_views::parameter(machine, place))
 }
 
 /// Recover the invariant of the exact field observed by a validated read.
@@ -225,7 +194,8 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
         // the indexed path resolves inside the referent `ElementView`.
         view_type
     } else {
-        let parameter = readable_parameter_for(machine, destination).ok_or_else(invalid)?;
+        let parameter =
+            terminal_semantics::arrival_parameter(machine, destination).ok_or_else(invalid)?;
         if !matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -331,7 +301,7 @@ pub(in crate::validation) fn validate_integer_structural_field(
         }
         return Err(invalid());
     }
-    if let Some(parameter) = readable_parameter_for(machine, source) {
+    if let Some(parameter) = terminal_semantics::arrival_parameter(machine, source) {
         if !matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -458,7 +428,7 @@ pub(in crate::validation) fn validate_boolean_structural_field(
             Err(invalid())
         };
     }
-    let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
+    let parameter = terminal_semantics::arrival_parameter(machine, source).ok_or_else(invalid)?;
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
     }

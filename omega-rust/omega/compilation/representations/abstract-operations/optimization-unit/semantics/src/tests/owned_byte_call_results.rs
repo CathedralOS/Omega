@@ -1,11 +1,136 @@
 //! Ordinary byte completions retain their owned carrier and declared predicates
 //! when the optimizer independently replays the current graph.
 use crate::tests::indexed_byte_fields::indexed_field_source_unit;
-use crate::tests::support::refresh_node_derivatives;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
+use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
+
+fn mutable_byte_arrival_unit() -> PsiOptimizationUnit {
+    indexed_field_source_unit(
+        r#"
+        domain [u8;16]::Utf8 requires valid_utf8(self);
+        data Record { text: [u8;16] in Utf8; }
+        machine fill(output: &mut [u8;16] in Utf8) ensures output in Utf8 {
+            transition { _ -> first(output) }
+            state first(output: &mut [u8;16] in Utf8) {
+                output = "Gate";
+                transition { _ -> second(output) }
+            }
+            state second(output: &mut [u8;16] in Utf8) { output = "é"; }
+        }
+        machine Record::replace(&mut self) { fill(&mut self.text); }
+        "#,
+    )
+}
+
+#[test]
+fn mutable_byte_arrivals_replay_whole_store_contracts() {
+    let unit = mutable_byte_arrival_unit();
+    validate_psi_optimization_unit(&unit).expect("qualified mutable byte arrivals replay");
+    let stores = unit.functions.iter().flat_map(|function| &function.blocks)
+        .flat_map(|block| block.nodes.iter().filter(move |node| {
+            matches!(node.operation, AbstractOperation::ByteSequenceStore { destination, .. }
+                if block.structural_parameters.iter().any(|parameter| parameter.place == destination))
+        })).count();
+    assert_eq!(
+        stores, 2,
+        "both state-local owners receive whole replacements"
+    );
+}
+
+#[test]
+fn mutable_byte_arrivals_reject_wrong_declaration_and_store_evidence() {
+    let baseline = mutable_byte_arrival_unit();
+    let (function_index, block_index, node_index, destination) = baseline
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(function_index, function)| {
+            function
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(block_index, block)| {
+                    block
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .find_map(|(node_index, node)| {
+                            let AbstractOperation::ByteSequenceStore { destination, .. } =
+                                node.operation
+                            else {
+                                return None;
+                            };
+                            block
+                                .structural_parameters
+                                .iter()
+                                .any(|parameter| parameter.place == destination)
+                                .then_some((function_index, block_index, node_index, destination))
+                        })
+                })
+        })
+        .expect("whole store through a block declaration");
+    for corruption in [
+        "shared access",
+        "qualification",
+        "position",
+        "duplicate",
+        "source",
+        "length",
+    ] {
+        let mut unit = baseline.clone();
+        if matches!(corruption, "source" | "length") {
+            let other_length = unit.functions[function_index]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .find_map(|node| match node.operation {
+                    AbstractOperation::ByteSequenceStore {
+                        destination: other,
+                        length,
+                        ..
+                    } if other != destination => Some(length),
+                    _ => None,
+                })
+                .expect("second replacement has its own current length");
+            let AbstractOperation::ByteSequenceStore { source, length, .. } =
+                &mut unit.functions[function_index].blocks[block_index].nodes[node_index].operation
+            else {
+                panic!("selected whole store");
+            };
+            if corruption == "source" {
+                *source = destination;
+            } else {
+                *length = other_length;
+            }
+            refresh_node_derivatives(&mut unit, function_index, block_index, node_index);
+        } else {
+            let parameters =
+                &mut unit.functions[function_index].blocks[block_index].structural_parameters;
+            let position = parameters
+                .iter()
+                .position(|parameter| parameter.place == destination)
+                .unwrap();
+            match corruption {
+                "shared access" => parameters[position].access = StructuralAccess::SharedBorrow,
+                "qualification" => {
+                    assert!(!parameters[position].qualifications.is_empty());
+                    parameters[position].qualifications.clear();
+                }
+                "position" => parameters[position].position += 1,
+                "duplicate" => parameters.push(parameters[position].clone()),
+                _ => unreachable!(),
+            }
+            refresh_identity(&mut unit);
+        }
+        assert!(
+            validate_psi_optimization_unit(&unit).is_err(),
+            "{corruption}"
+        );
+    }
+}
 
 fn owned_byte_call_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(

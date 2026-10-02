@@ -70,8 +70,13 @@ pub(super) fn lower_operation(
             // carrier reads through the loan's own authority — the referent
             // observation the borrow exists to serve, not owned-data use of
             // the carrier place. A write-only loan has no read authority.
-            let referent_read = live.references.iter().any(|((carrier, _), custody)| {
+            let referent_read = live.references.iter().any(|((carrier, path), custody)| {
                 *carrier == *source
+                    && path.is_empty()
+                    && !live
+                        .references
+                        .values()
+                        .any(|child| child.parent.as_ref() == Some(&custody.identity))
                     && structural_types
                         .get(&custody.result.structural_type)
                         .is_some_and(|declaration| {
@@ -121,7 +126,15 @@ pub(super) fn lower_operation(
         _ => (None, false),
     };
     if !referent_access
-        && accessed_root.is_some_and(|place| super::references::check_root_access(live, place))
+        && accessed_root.is_some_and(|place| {
+            super::references::check_operation_access(
+                function,
+                live,
+                structural_types,
+                operation,
+                place,
+            )
+        })
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

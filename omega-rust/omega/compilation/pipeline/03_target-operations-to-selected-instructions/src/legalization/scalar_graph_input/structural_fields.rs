@@ -113,6 +113,8 @@ pub(in crate::legalization) fn replacement(
                 })
             })
     });
+    // An owned record, an arrival loan and a returned-reference carrier retain
+    // distinct custody. Only the reference route crosses into its referent.
     let (root, root_type, access, path) = if let Some((producer, result)) = owned_result {
         if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
@@ -214,11 +216,22 @@ pub(in crate::legalization) fn view_replacement(
     else {
         return None;
     };
-    let (root_type, access, projected_path) = if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *destination)
-    {
+    // A returned reference owns its carrier while lending mutable authority
+    // to this path, so custody must resolve the crossing before declaration.
+    let (root_type, access, projected_path) = if let Some(resolved) =
+        super::reference_custody::writable_referent_destination(
+            custody,
+            function,
+            types,
+            *destination,
+            path,
+        ) {
+        (
+            resolved.referent,
+            terminal_psi::StructuralAccess::MutableBorrow,
+            resolved.path,
+        )
+    } else if let Some(parameter) = function.arrival_parameter(*destination) {
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow
@@ -231,18 +244,7 @@ pub(in crate::legalization) fn view_replacement(
         }
         (parameter.structural_type, parameter.access, path.clone())
     } else {
-        let resolved = super::reference_custody::writable_referent_destination(
-            custody,
-            function,
-            types,
-            *destination,
-            path,
-        )?;
-        (
-            resolved.referent,
-            terminal_psi::StructuralAccess::MutableBorrow,
-            resolved.path,
-        )
+        return None;
     };
     if source == destination
         || super::literals::declaration_producer(function, *source).is_none()

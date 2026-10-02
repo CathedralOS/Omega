@@ -2,13 +2,13 @@
 //!
 //! A domain-qualified fixed byte array is a bounded owner: a live length
 //! word at offset 0 and up to `N` bytes after it (wiki/spec/language/domains.md,
-//! "Byte containers and encoding domains"). A shared loan of that owner is
+//! "Byte containers and encoding domains"). A loan of that owner is
 //! carried as the owner's address, exactly the layout an owned bounded
 //! concatenation result has in its own activation: the length is read at
-//! offset 0 and the bytes start at offset 8. The loan freezes its referent,
-//! so the length observed once stays current and the declared byte
-//! predicates, which Terminal verification already replayed, need no
-//! transport beyond the declaration.
+//! offset 0 and the bytes start at offset 8. Shared and mutable loans have the
+//! same address carrier, not the same effects: only a shared loan freezes its
+//! referent. Mutable stores must retain current lengths and preserve declared
+//! predicates, which verification replays independently of this layout rule.
 //!
 //! This is a type rule, not producer evidence. Each stage still replays its
 //! own edge sources, availability and origin custody.
@@ -30,8 +30,20 @@ pub fn is_shared_bounded_owner_loan<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
 ) -> bool {
-    parameter.access == StructuralAccess::SharedBorrow
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    parameter.access == StructuralAccess::SharedBorrow && is_bounded_owner_loan(parameter, lookup)
+}
+
+/// A shared or mutable loan addresses the complete bounded owner's storage.
+/// This classifies transport only; callers requiring a frozen referent must
+/// use [`is_shared_bounded_owner_loan`] or check access explicitly.
+pub fn is_bounded_owner_loan<'a>(
+    parameter: &StructuralParameterDeclaration,
+    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+) -> bool {
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
@@ -40,6 +52,22 @@ pub fn is_shared_bounded_owner_loan<'a>(
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
             )
         })
+}
+
+/// [`is_bounded_owner_loan`] over independently unique type declarations.
+pub fn is_bounded_owner_loan_in(
+    parameter: &StructuralParameterDeclaration,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    is_bounded_owner_loan(parameter, |identity| {
+        let mut declarations = types
+            .iter()
+            .filter(|declaration| declaration.id == identity);
+        match (declarations.next(), declarations.next()) {
+            (Some(declaration), None) => Some(declaration),
+            _ => None,
+        }
+    })
 }
 
 /// Whether this parameter is a shared `&[u8]` view, with or without a declared

@@ -1,5 +1,5 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
-//! complete record establishments under ordinary field and custody replay,
+//! unrestricted value construction and complete records under ordinary custody,
 //! trivial affine local establishments, unrestricted plain leaf copies,
 //! field-replacement window pairs whose displaced value is disposed before
 //! re-entry, affine structural call results with call-scoped loans that are
@@ -596,29 +596,71 @@ fn cycle_operation_eligible(
     operation: &terminal_psi::Operation,
 ) -> bool {
     match &operation.kind {
-        // An unrestricted scalar case is a copy payload, like the
-        // unrestricted structural case below: re-entering the establishment
-        // replaces a custody-free value each traversal and no disposal
-        // obligation exists. An affine scalar case uses the same custody
-        // lifetime as a call result: dispatch/return, disposal, owned transfer,
-        // or consumption by a field repair. Construction need not be adjacent
-        // to its consumer, and frontier replay still proves every arrival.
-        OperationKind::EstablishScalarCase { .. } => {
-            crate::validation::scalar::case::fields(module, machine, operation).is_ok()
-                && operation.result.structural().is_some_and(|result| {
-                    matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
-                                    if *source == result.place)
-                        || case_source == Some(result.place)
-                        || result.multiplicity == StructuralMultiplicity::Unrestricted
-                        || (result.multiplicity == StructuralMultiplicity::Affine
-                            && result.qualification_establishments.is_empty()
-                            && result_disposed_before_reentry(
-                                machine,
-                                block,
-                                cyclic_blocks,
-                                result.place,
-                            ))
-                })
+        // All unrestricted constructors have one lifetime: their ordinary
+        // validator authenticates the payload, and each traversal publishes
+        // a fresh value without disposal debt. Dominance checks require this
+        // traversal's operands; frontier replay prevents rebinding a result
+        // still pinned by a shared loan. No source-arrangement roster belongs
+        // here. Affine construction retains its separate disposal rules.
+        OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishZeroedStructural { .. }
+        | OperationKind::EstablishByteSequenceConcatenation { .. } => {
+            let Some(result) = operation.result.structural() else {
+                return false;
+            };
+            let lifetime_valid = result.multiplicity == StructuralMultiplicity::Unrestricted
+                || match &operation.kind {
+                    OperationKind::EstablishScalarCase { .. } => {
+                        matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
+                            if *source == result.place)
+                            || case_source == Some(result.place)
+                            || (result.multiplicity == StructuralMultiplicity::Affine
+                                && result.qualification_establishments.is_empty()
+                                && result_disposed_before_reentry(
+                                    machine,
+                                    block,
+                                    cyclic_blocks,
+                                    result.place,
+                                ))
+                    }
+                    // A complete record transfers its children's custody into
+                    // the parent. Ordinary field validation and frontier replay
+                    // check every move, selected cleanup and exact arrival;
+                    // neither empty fields nor unrestricted contents are an
+                    // extra requirement for the same transaction in a cycle.
+                    OperationKind::EstablishRecord { .. } => true,
+                    _ => false,
+                };
+            lifetime_valid && match &operation.kind {
+                OperationKind::EstablishScalarCase { .. } => {
+                    crate::validation::scalar::case::fields(module, machine, operation).is_ok()
+                }
+                OperationKind::EstablishRecord { .. } => {
+                    crate::validation::record::fields(module, machine, operation).is_ok()
+                }
+                OperationKind::EstablishStructuralCase { .. } => {
+                    crate::validation::structural::case::fields(module, machine, operation).is_ok()
+                }
+                OperationKind::EstablishScalarArray { .. } => {
+                    crate::validation::scalar::array::shape(module, machine, operation).is_ok()
+                }
+                OperationKind::EstablishZeroedStructural { .. } => {
+                    crate::validation::structural::operations::validate_establish_zeroed_structural(
+                        module, machine, operation,
+                    )
+                    .is_ok()
+                }
+                OperationKind::EstablishByteSequenceConcatenation { .. } => {
+                    crate::validation::byte_sequence::concatenation::validate(
+                        module, machine, operation,
+                    )
+                    .is_ok()
+                }
+                _ => false,
+            }
         }
         // A confined result — the same block's affine dispatch or return
         // source — keeps its per-traversal disposal roster, while an
@@ -675,56 +717,6 @@ fn cycle_operation_eligible(
         OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
         OperationKind::EstablishPrimitiveLocal { .. } => {
             primitive_storage::validate_establishment(module, machine, operation).is_ok()
-        }
-        // Complete construction has the same custody transaction inside and
-        // outside a cycle. Ordinary record validation checks every exact field
-        // and result; frontier replay consumes affine children once before
-        // publishing the parent. Each edge then transfers or disposes that
-        // parent explicitly, and every arrival must agree on the live frontier.
-        // An empty-field exception duplicates none of those guarantees: scalar
-        // fields add no debt, while nested affine fields move existing debt.
-        // Neither a preceding iteration nor a consumer on another branch can
-        // authorize re-establishing a still-live result.
-        OperationKind::EstablishRecord { .. } => {
-            crate::validation::record::fields(module, machine, operation).is_ok()
-        }
-        // An unrestricted case establishment re-arms like its record sibling:
-        // re-entering hands the place a fresh payload each traversal. Its
-        // affine form always carries non-scalar children, so the fence stays
-        // closed until its active-case custody route is independently admitted.
-        OperationKind::EstablishStructuralCase { .. } => {
-            operation
-                .result
-                .structural()
-                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
-                && crate::validation::structural::case::fields(module, machine, operation).is_ok()
-        }
-        // A complete unrestricted scalar-array establishment is the record
-        // arm's primitive-leaf sibling: `crate::validation::scalar::array::shape` proves the fresh
-        // `OperationResult` place, the element count against the declared
-        // leaf shape, and a claim-free result, while the unrestricted payload
-        // never carries a per-iteration disposal obligation. Re-entering the
-        // establishment hands the place a fresh payload each traversal — the
-        // interpreter replaces the stored elements, and no custody moves.
-        // The ordinary operand, availability, and frontier checks still run
-        // after this fence.
-        OperationKind::EstablishScalarArray { .. } => {
-            crate::validation::scalar::array::shape(module, machine, operation).is_ok()
-        }
-        // Zero initialization is another plain construction, not a loan or
-        // custody transfer. Its ordinary validator reconstructs zero-valid
-        // storage recursively and requires a fresh, claim-free result. An
-        // unrestricted result has no disposal debt on re-entry; affine
-        // storage still needs the separately checked lifetime routes.
-        OperationKind::EstablishZeroedStructural { .. } => {
-            operation
-                .result
-                .structural()
-                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
-                && crate::validation::structural::operations::validate_establish_zeroed_structural(
-                    module, machine, operation,
-                )
-                .is_ok()
         }
         // A trivial affine local establishment is the direct spelling of
         // the empty-record arm's declaration: the destination is a

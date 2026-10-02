@@ -90,7 +90,7 @@ pub(super) fn leaf_type(
     // The root is a structural parameter whose access grants the event:
     // readable to observe, writable to modify, both for an event that does
     // both. Its custody is plain: no claims or qualifications ride on it.
-    let parameter = super::structural::scalar_fields::readable_parameter_for(machine, place)
+    let parameter = terminal_semantics::arrival_parameter(machine, place)
         .ok_or_else(|| refuse(AtomicAccessRefusal::UnreadableLocation))?;
     let readable = matches!(
         parameter.access,
