@@ -115,7 +115,22 @@ fn boundary_array_parameter_forwarding_rejoins_the_authored_source() {
 
 #[test]
 fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
-    let checked = crate::front_end::checked_program(ARRAY_READER_SOURCE);
+    check_array_provider_subject(ARRAY_READER_SOURCE, true);
+}
+
+#[test]
+fn checked_array_provider_preserves_explicit_subject_and_mixed_arguments() {
+    check_array_provider_subject(
+        &ARRAY_READER_SOURCE.replace(
+            "ArrayReaderProvider::inspect(&mut self,",
+            "ArrayReaderProvider::inspect(provider: &mut ArrayReaderProvider,",
+        ),
+        false,
+    );
+}
+
+fn check_array_provider_subject(source: &str, receiver_spelling: bool) {
+    let checked = crate::front_end::checked_program(source);
     let provider = checked
         .machines()
         .iter()
@@ -127,11 +142,12 @@ fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
         .terminal_scalar_graphs
         .for_machine(provider.symbol)
         .expect("ordinary provider body retains receiver custody");
-    assert!(
+    assert_eq!(
         graph.states[0]
             .structural_parameters
             .iter()
-            .any(|parameter| parameter.is_self)
+            .any(|parameter| parameter.is_self),
+        receiver_spelling,
     );
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -167,12 +183,14 @@ fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
         .iter()
         .find(|machine| machine.id == callee)
         .unwrap();
-    assert!(
+    assert_eq!(
         ordinary
             .structural_parameters
             .iter()
-            .any(|parameter| parameter.is_self)
+            .any(|parameter| parameter.is_self),
+        receiver_spelling,
     );
+    assert_eq!(ordinary.attachment.is_some(), receiver_spelling);
     let mut redirected = module.clone();
     redirected.provider_candidates[0].candidate = callee;
     assert!(
@@ -236,7 +254,15 @@ fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
 
 #[test]
 fn checked_provider_adapter_does_not_invent_stateful_receiver_storage() {
-    let checked = crate::front_end::checked_program(&ARRAY_READER_SOURCE.replace(
+    check_stateful_provider_subject(ARRAY_READER_SOURCE);
+    check_stateful_provider_subject(&ARRAY_READER_SOURCE.replace(
+        "ArrayReaderProvider::inspect(&mut self,",
+        "ArrayReaderProvider::inspect(provider: &mut ArrayReaderProvider,",
+    ));
+}
+
+fn check_stateful_provider_subject(source: &str) {
+    let checked = crate::front_end::checked_program(&source.replace(
         "data ArrayReaderProvider {}",
         "data ArrayReaderProvider { counter: i32; }",
     ));

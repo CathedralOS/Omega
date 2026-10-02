@@ -65,11 +65,31 @@ impl<'program> Evaluator<'program> {
             .ok_or_else(|| {
                 Halt::Trap("selected boundary adapter lost its exact entry state".into())
             })?;
+        let subject = self.program.traits().iter().find_map(|definition| {
+            self.program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.symbol == dispatch.requirement)
+                .and_then(|signature| {
+                    self.program
+                        .state_signature_parameters(signature)
+                        .iter()
+                        .position(|parameter| parameter.is_self)
+                })
+                .and_then(|position| self.program.state_parameters(state).get(position))
+                .filter(|parameter| {
+                    self.program
+                        .parameter_declares_attached_data(machine, parameter)
+                })
+        });
         let destinations = self
             .program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
+            .filter(|parameter| {
+                !parameter.is_self
+                    && !subject.is_some_and(|subject| subject.symbol == parameter.symbol)
+            })
             .map(|parameter| parameter.type_reference)
             .collect::<Vec<_>>();
         let offset = usize::from(dispatch.forward_receiver);
@@ -84,6 +104,41 @@ impl<'program> Evaluator<'program> {
         evaluated.extend(receiver);
         for (argument, destination) in arguments.iter().zip(&destinations[offset..]) {
             evaluated.push(self.eval_state_argument(*argument, *destination, frame)?);
+        }
+        if let Some(subject) = subject {
+            // Installation supplies a plain empty provider, independently of
+            // the caller's data. Bind it explicitly for both subject spellings;
+            // a named static parameter does not inherit the caller's instance.
+            let data = self
+                .program
+                .attached_data_definition(machine)
+                .ok_or_else(|| {
+                    Halt::Trap("selected provider subject has no exact data declaration".into())
+                })?;
+            if self.program.data_members(data).iter().any(|member| {
+                matches!(
+                    member,
+                    typed_trees::data::DataMember::Field(_)
+                        | typed_trees::data::DataMember::Variant(_)
+                )
+            }) {
+                return trap("selected provider subject requires installation storage");
+            }
+            let provider = self.allocate_cell(Value::Struct {
+                type_symbol: data.symbol,
+                type_name: data.name.as_str().into(),
+                fields: Default::default(),
+            })?;
+            let argument = EvaluatedArgument::plain(self.allocate_cell(Value::Ref(provider))?);
+            let position = self
+                .program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| parameter.symbol == subject.symbol)
+                .ok_or_else(|| {
+                    Halt::Trap("selected provider subject lost its parameter position".into())
+                })?;
+            evaluated.insert(position, argument);
         }
         let guard_depth = self.guard_depth;
         self.guard_depth = 0;

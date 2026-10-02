@@ -339,13 +339,19 @@ pub(crate) fn resolve_selected_adapter_row(
         )));
     }
 
-    // ServiceMethod arity excludes the language receiver. A concrete
-    // provider's `self` is therefore part of its exact realization, not the
-    // explicit boundary binding that adapter dispatch may forward.
+    // The provider subject belongs to its realization, not the boundary's
+    // forwarded arguments. Its declared binding has the same role whether
+    // the satisfier names it explicitly or retains receiver spelling.
+    let subject = typed
+        .state_signature_parameters(signature)
+        .iter()
+        .position(|parameter| parameter.is_self)
+        .and_then(|position| typed.state_parameters(entry).get(position))
+        .filter(|parameter| typed.parameter_declares_attached_data(adapter, parameter));
     let actual_parameters = typed
         .state_parameters(entry)
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| !subject.is_some_and(|subject| subject.symbol == parameter.symbol))
         .collect::<Vec<_>>();
     // A trait requirement's receiver is never the adapter's leading
     // parameter: the adapter's own `self` belongs to the provider, so a

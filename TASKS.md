@@ -126,78 +126,38 @@ execution and native exit/output. A moved refusal is still unfinished work.
   checked-interpreter exit 1, while incompatible carrier or access still rejects.
 
 - **STATIC-SUBJECT-IN-CALLABLE-IDENTITY.** (split-of:STATIC-MACHINE-MIGRATION)
-  A boundary provider's satisfier cannot name its subject, because the
-  normalized callable identity records the SPELLING `self` rather than the
-  subject role. Nine samples, and it is what actually blocks the case
-  OWNER_QUESTIONS Q4 calls its widest.
-  Measured 2026-10-02. `pub boundary trait Clock { machine sleep(&mut self,
-  milliseconds: u32) invokes DarwinClock; }` with
-  `macos_arm64 machine PacingClockProvider::sleep(pacing_clock_provider: &mut
-  PacingClockProvider, milliseconds: u32) satisfies Clock::sleep` now passes
-  CONFORMANCE -- 972d5894a30 made the subject match by role -- and then fails
-  provider selection with "selected checked adapter
-  `named-callable(path(PacingClockProvider::sleep),parameters(parameter\(self\(no\)...".
-  `type_identity.rs:560` builds each parameter's identity with
-  `atom("self", if parameter.is_self { "yes" } else { "no" })`, so a named
-  subject reads `self(no)` where the requirement's adapter expects `self(yes)`
-  and the identities cannot match.
-  Customers. The nine `samples/cli/{algorithms/binary_search_viz,
-  algorithms/sort_visualizer,rendering/bouncing_console,rendering/ripple_field,
-  rendering/tick_marquee,simulation/cellular_automaton,
-  simulation/game_of_life_glider,simulation/langtons_ant,simulation/random_walk}`
-  are migrated apart from their satisfier and meet their native oracles
-  (e827c44563ab), so each now holds exactly the two `self` spellings this item
-  and Q4 own -- they are the acceptance set and need no further migration first.
-  Three CORPUS customers reach the same refusal, which is better evidence than
-  the samples because the corpus gate scores them:
-  `pass/providers/{runtime_boundary_array_construction_exit,
-  runtime_boundary_primitive_array_argument_exit,
-  runtime_foreign_leaf_borrowed_byte_argument_exit}` report
-  "selected checked adapter `named-callable(..self\(no\)..)`" once their
-  `ArrayReaderProvider::inspect` / `MeasureProvider::measure` satisfier names its
-  subject.
-  `samples/gui/{window_app,window_demo,windowed_calculator}` hold 60 more across
-  30 satisfiers and are NOT partially migratable the way the nine were: their
-  satisfier bodies read the data, so keeping the receiver on the signature alone
-  reports "uses `window_gui_provider`, which is not a declared local, parameter,
-  field, or type in this state". They migrate with this item or not at all.
-  **Three sites in a chain, the first two measured as fixable and digest-safe,
-  the third a real semantics question. Attempted and reverted 2026-10-02 because
-  the first two alone leave no green customer.**
-  1. `type_identity.rs:560` writes `atom("self", parameter.is_self)`. Answering
-     it from `data_binding_position` instead -- keeping the atom's NAME -- makes
-     a named subject read `self(yes)` and leaves every receiver-form identity
-     byte-identical, so recorded digests do not move. Measured: the identity then
-     matches and the refusal advances.
-  2. `realization/selected-dispatch/.../adapter_rows.rs` filters the provider's
-     entry parameters with `!parameter.is_self`, so a named subject is counted as
-     a forwarded boundary parameter and the row reports "has 2 non-self entry
-     parameters". Excluding the subject POSITION instead advances it again, and
-     `langtons_ant` then CHECKS with a named-subject `Clock` provider -- the Q4
-     widest case, admitted.
-  3. What remains is `validation/foundation/provider_candidates.rs`, which
-     requires `row.signature.parameters` to equal BOTH the boundary's and the
-     candidate's `provider_signature_parameter` list, and that record carries
-     `is_self`. Here the difference is not a spelling: at the Terminal level a
-     static machine genuinely has NO attachment -- the contract says a carrier
-     qualification "contributes no argument or storage" -- so the boundary's
-     `self(yes, Clock)` and the candidate's `subject(no, PacingClockProvider)`
-     differ in both flag and type. Making them correspond is a provider
-     REFINEMENT rule (the provider's own subject standing in for the boundary
-     receiver, at the provider's type), which is realization semantics rather
-     than a keyed-to-`self` slip.
-  Setting the structural parameter's `is_self` true for a named subject at
-  lowering is NOT the answer: `AttachmentStorage::AuthoredReceiver` already
-  distinguishes a machine that retains a receiver, and a static machine
-  deliberately has no attachment, so that flag would contradict the
-  representation.
-  Two smaller blockers sit behind the same nine samples once this clears:
-  `rendering/bouncing_particles` and `text/substring_search` report "cannot prove
-  index ... is within length" for `main.b * 20 + main.a` and a plain `main.j`,
-  and `rendering/dungeon_render` reports "state `put` receives `main` while local
-  borrow `__hoist_1` is still active" -- a hoisted index temp's loan conflicting
-  with passing the record, which 64b8f4c5db03 made reachable for data-rooted
-  indices.
+  Remaining acceptance is customer migration and matching-host execution:
+  replace the provider satisfier receivers in the nine
+  `samples/cli/{algorithms/binary_search_viz,algorithms/sort_visualizer,
+  rendering/bouncing_console,rendering/ripple_field,rendering/tick_marquee,
+  simulation/cellular_automaton,simulation/game_of_life_glider,
+  simulation/langtons_ant,simulation/random_walk}` and the two remaining corpus
+  customers `pass/providers/{runtime_boundary_array_construction_exit,
+  runtime_foreign_leaf_borrowed_byte_argument_exit}` with named subjects, and
+  preserve their authored native and checked-interpreter results. Requirement
+  receiver syntax remains OWNER_QUESTIONS Q4's decision.
+  Measured 2026-10-02 on Linux x86_64, main `e5034ea5d47` plus the explicit
+  provider-subject repair: `omega run --both
+  tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg`
+  now returns native 70 and interpreter 70 with
+  `ArrayReaderProvider::inspect(provider: &mut ArrayReaderProvider, ...)`.
+  Callable identity already corresponded at this base; the witnessed failure
+  counted the named subject as a fourth forwarded adapter parameter. Selected
+  dispatch now uses the requirement's subject position. Checked-to-Terminal
+  lowering joins that position through the checked structural roster and
+  provisions empty provider storage in an ordinary installation adapter call;
+  direct named-subject machines retain ordinary parameters and no attachment.
+  Independent installation signature and custody checks remain exact.
+  The checked interpreter provisions the same empty provider subject.
+  Owners: `selected-dispatch/.../boundary_dispatch/adapter_rows.rs`,
+  `05_checked-trees-to-lowered-psi/.../attached_unit/providers.rs`, and
+  `checked-interpreter/.../execution/boundary_adapter_dispatch.rs`.
+  Nonempty providers still need persistent installation storage:
+  `samples/gui/{window_app,window_demo,windowed_calculator}` have 30 satisfiers
+  whose bodies read provider fields; do not substitute per-call empty storage.
+  Smaller separate blockers remain in `rendering/bouncing_particles` and
+  `text/substring_search` (index bounds proofs) and `rendering/dungeon_render`
+  (a hoisted index temporary's loan conflicts with passing the record).
 
 - **STATIC-DERIVED-ACCESSOR-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   The three `PlacedField` accessors in `source/library/core/layout.omg` cannot
