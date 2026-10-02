@@ -440,3 +440,60 @@ fn selected_preparation_rejects_another_arguments_call() {
         "{error:?}"
     );
 }
+
+#[test]
+fn owned_parameter_call_results_reach_states_without_duplicate_disposal() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        boundary trait Sink { machine finish(value: u32); }
+        data Payload { value: u32; }
+        machine identity(payload: Payload) -> Payload reaches Sink {
+            Sink::finish(payload.value);
+            payload
+        }
+        machine route(payload: Payload, selected: bool) -> u32 reaches Sink {
+            transition selected {
+                true -> take(identity(payload))
+                false -> take(Payload { value: 71 })
+            }
+            state take(payload: Payload) -> u32 { payload.value }
+        }
+        machine enter(selected: bool) -> u32 reaches Sink {
+            let payload: Payload = Payload { value: 70 };
+            route(payload, selected)
+        }
+    "#,
+    );
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("enter"))
+        .expect("owned parameter input and result have separate exact custody");
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    terminal_verifier::verify_module(
+        &terminal_codec::decode_module(&semantic_bytes).unwrap(),
+        &terminal_codec::decode_proof_bundle(&proof_bytes).unwrap(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+    for (selected, expected) in [(true, 70), (false, 71)] {
+        let execution = interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &proof_admission::AdmissionProfile::default(),
+            &[TerminalScalarValue::Boolean(selected)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
+        )
+        .unwrap();
+        assert!(matches!(execution.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                value: IntegerValue::Unsigned(value), ..
+            }) if value == expected));
+        assert_eq!(
+            execution.effects().len(),
+            usize::from(selected),
+            "only the selected identity call runs, exactly once"
+        );
+    }
+}

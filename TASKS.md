@@ -339,10 +339,7 @@ the complete product bar; focused successes below do not establish that baseline
     a top-level requirement that publishes a service ceiling; keep
     `pass/boundary/static_foreign_scalar_result_locals_exit` and
     `pass/boundary/later_state_requirement_scalar_result_exit` at native exit
-    70. Scalar returns from borrowed service calls still stop in stage 04:
-    `pass/time/runtime_time_host_native_darwin_exit`'s
-    `context.host.monotonic_ticks()` omits its plan at `call operation:
-    boundary receiver`. Selected case edges retain the invocation
+    70. Selected case edges retain the invocation
     receiver and local ownership. Preserve source evaluation order even when
     the physical signature drops an unread reference `self`:
     `Random::next_u32(&mut self, state: &mut RandomState)` needs the exact
@@ -1976,7 +1973,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `jump successor: parameter transfer`; represent and independently replay
   owned scalar-array block parameters with
   **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**.
-  Keep `control_flow/{composite_state_parameter,shared_state_disjoint_receiver_store_exit,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit,nested_affine_record_state_cycle_exit}`
+  Keep `control_flow/{composite_state_parameter,shared_state_disjoint_receiver_store_exit,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit,nested_affine_record_state_cycle_exit,affine_call_result_state_transfer_exit}`
   and `collections/runtime_initialized_array_state_loan_exit` as controls.
   Acceptance: each remaining source delivers its value natively and through
   Terminal reload, selected operands execute once after selection, and

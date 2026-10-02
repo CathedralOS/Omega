@@ -588,6 +588,55 @@ fn build_state_plan(
             }
             transferred.insert(*position);
         }
+        // Selected operand calls consume their inputs before the successor
+        // receives their results. The input still dies on sibling edges, so
+        // conserve its lexical exit row and account this exact call only here.
+        for (symbol, position) in &discard_parameters {
+            let operand_moves = validation::transition_operand_moves(
+                program,
+                facts,
+                machine.symbol,
+                state,
+                statement_index,
+                *symbol,
+            )?;
+            if operand_moves.len() > 1
+                || (!operand_moves.is_empty() && transferred.contains(position))
+            {
+                return None;
+            }
+            for source in operand_moves {
+                let mut transfers = facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .iter()
+                    .filter(|(_, event)| {
+                        event.machine_symbol == machine.symbol
+                            && event.state_symbol == state.symbol
+                            && event.root == facts::PlaceRoot::Symbol(*symbol)
+                            && event.kind == PermissionEventKind::Transfer
+                            && event.source == source
+                    });
+                let (_, transfer) = transfers.next()?;
+                if transfers.next().is_some()
+                    || transfer.access != PermissionAccess::Owned
+                    || transfer.multiplicity != Multiplicity::Affine
+                    || transfer.claim_identity != PermissionClaimIdentity::Unknown
+                    || transfer.provenance != PermissionProvenance::Unknown
+                    || transfer.obligation_live
+                    || !facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(transfer.segments)
+                        .is_empty()
+                {
+                    return None;
+                }
+                transferred.insert(*position);
+            }
+        }
         let trivial_affine_discard_parameter_positions = discard_parameters
             .iter()
             .filter_map(|(symbol, position)| {
