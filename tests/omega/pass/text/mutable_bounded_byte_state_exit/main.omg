@@ -21,13 +21,13 @@ ensures output in Utf8
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.line = "old contents";
-    self.sibling = 29;
-    replace(&mut self.line);
-    transition self.line == "é" && self.line.len == 2 && self.sibling == 29 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.line = "old contents";
+    main.sibling = 29;
+    replace(&mut main.line);
+    transition main.line == "é" && main.line.len == 2 && main.sibling == 29 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

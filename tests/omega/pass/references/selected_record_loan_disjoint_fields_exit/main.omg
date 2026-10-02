@@ -20,19 +20,19 @@ machine update(level: &mut Level, first: bool) {
     room.value = level.counter;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.level.counter = 37;
-    self.level.start = Marker::First;
-    update(&mut self.level, true);
-    self.level.start = Marker::Second;
-    update(&mut self.level, false);
-    transition self.level.rooms[0].value == 37
-        && self.level.rooms[1].value == 37
-        && self.level.counter == 37
-        && self.level.rooms[0].flag
-        && !self.level.rooms[1].flag {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.level.counter = 37;
+    main.level.start = Marker::First;
+    update(&mut main.level, true);
+    main.level.start = Marker::Second;
+    update(&mut main.level, false);
+    transition main.level.rooms[0].value == 37
+        && main.level.rooms[1].value == 37
+        && main.level.counter == 37
+        && main.level.rooms[0].flag
+        && !main.level.rooms[1].flag {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

@@ -30,15 +30,15 @@ data Bag { rooms: [Room; 3]; }
 data CommandSource { tag: u64; }
 data Main { console: Binding<Console>; bag: Bag; commands: CommandSource; }
 
-machine Bag::pick(&mut self, marker: Direction, second: bool) -> &mut Room {
-    let room_view: &mut [Room] = self.rooms.as_mut_slice();
+machine Bag::pick(bag: &mut Bag, marker: Direction, second: bool) -> &mut Room {
+    let room_view: &mut [Room] = bag.rooms.as_mut_slice();
     transition second {
         true -> &mut room_view[1]
         false -> &mut room_view[0]
     }
 }
 
-machine CommandSource::next(&mut self, direction: Direction) -> [u8; 8] in Utf8 {
+machine CommandSource::next(command_source: &mut CommandSource, direction: Direction) -> [u8; 8] in Utf8 {
     transition direction {
         Direction::East -> "east"
         Direction::West -> "west"
@@ -46,22 +46,22 @@ machine CommandSource::next(&mut self, direction: Direction) -> [u8; 8] in Utf8 
 }
 
 machine Room::install(
-    &mut self,
+    room: &mut Room,
     command: [u8; 8] in Utf8,
     direction: Direction,
     destination: CellId
 ) {
-    transition { _ -> write(command, direction, destination) }
+    transition { _ -> write(room, command, direction, destination) }
 
     state write(
-        &mut self,
+        room: &mut Room,
         command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
-        self.observed_before = self.neighbor;
-        self.neighbor = 31;
-        self.exits[0] = Exit {
+        room.observed_before = room.neighbor;
+        room.neighbor = 31;
+        room.exits[0] = Exit {
             command: command,
             direction: direction,
             destination: destination,
@@ -70,35 +70,35 @@ machine Room::install(
 }
 
 machine CommandSource::connect(
-    &mut self,
+    command_source: &mut CommandSource,
     bag: &mut Bag,
     direction: Direction,
     destination: CellId,
     second: bool
 ) {
-    let selected: &mut Room = bag.pick(direction, second);
-    selected.install(self.next(direction), direction, destination);
+    let selected: &mut Room = Bag::pick(bag, direction, second);
+    Room::install(selected, CommandSource::next(command_source, direction), direction, destination);
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.commands.connect(&mut self.bag, Direction::East, CellId::First, true);
-    self.commands.connect(&mut self.bag, Direction::West, CellId::Second, false);
-    transition self.bag.rooms[0].exits[0].command == "west"
-        && self.bag.rooms[0].exits[0].command.len == 4
-        && self.bag.rooms[0].exits[0].direction == Direction::West
-        && self.bag.rooms[0].exits[0].destination == CellId::Second
-        && self.bag.rooms[1].exits[0].command == "east"
-        && self.bag.rooms[1].exits[0].command.len == 4
-        && self.bag.rooms[1].exits[0].direction == Direction::East
-        && self.bag.rooms[1].exits[0].destination == CellId::First
-        && self.bag.rooms[0].neighbor == 31
-        && self.bag.rooms[1].neighbor == 31
-        && self.bag.rooms[0].observed_before == 0
-        && self.bag.rooms[1].observed_before == 0
-        && self.bag.rooms[2].neighbor == 0 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    CommandSource::connect(&mut main.commands, &mut main.bag, Direction::East, CellId::First, true);
+    CommandSource::connect(&mut main.commands, &mut main.bag, Direction::West, CellId::Second, false);
+    transition main.bag.rooms[0].exits[0].command == "west"
+        && main.bag.rooms[0].exits[0].command.len == 4
+        && main.bag.rooms[0].exits[0].direction == Direction::West
+        && main.bag.rooms[0].exits[0].destination == CellId::Second
+        && main.bag.rooms[1].exits[0].command == "east"
+        && main.bag.rooms[1].exits[0].command.len == 4
+        && main.bag.rooms[1].exits[0].direction == Direction::East
+        && main.bag.rooms[1].exits[0].destination == CellId::First
+        && main.bag.rooms[0].neighbor == 31
+        && main.bag.rooms[1].neighbor == 31
+        && main.bag.rooms[0].observed_before == 0
+        && main.bag.rooms[1].observed_before == 0
+        && main.bag.rooms[2].neighbor == 0 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
 
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

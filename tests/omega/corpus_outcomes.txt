@@ -1190,10 +1190,10 @@ pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
-pass/borrows/branch_selected_record_composed_receiver_exit checked 1102ms @ae42075f1dcc+wt
+pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
 pass/borrows/enum_selected_view_reference_exit checked 810ms @be20683757eb+wt
-pass/borrows/interleaved_parameter_field_replacement_exit checked 800ms @7779c69781b9
+pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
@@ -1287,7 +1287,7 @@ pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
 pass/calls/nested_call_tail_roots_exit checked 6210ms @922ccf420927+wt
-pass/calls/nested_indexed_scalar_arguments_exit checked 1419ms @a3bac00e54bb+wt
+pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
 pass/calls/nested_value_call_arg_compile checked 1255ms @2d8ed253669f
@@ -1300,7 +1300,7 @@ pass/calls/retained_receiver_argument_order_exit checked 719ms @be20683757eb+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382792161+wt
-pass/calls/runtime_call_statement_before_state_return_exit checked 1642ms @ca8c127c90c5
+pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms @63377f7122bb+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f
@@ -1315,7 +1315,7 @@ pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
 pass/calls/runtime_fixed_element_view_field_loan_exit checked 718ms @9472a7c10267+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
-pass/calls/runtime_indexed_scalar_calls_exit checked 2511ms @2d8ed253669f
+pass/calls/runtime_indexed_scalar_calls_exit checked 1536ms @63377f7122bb+wt
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms @2d8ed253669f
 pass/calls/runtime_local_scalar_array_element_loan_exit checked 868ms @54b18fcb782e+wt
@@ -1343,13 +1343,13 @@ pass/calls/runtime_trailing_state_mut_param_phase_exit checked 970ms @765e6c5162
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms @2d8ed253669f
 pass/calls/runtime_value_call_dispatch_results_exit checked 1550ms @2d8ed253669f
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 1412ms @2d8ed253669f
-pass/calls/runtime_value_call_nested_entry_call_exit checked 1534ms @2d8ed253669f
+pass/calls/runtime_value_call_nested_entry_call_exit checked 1388ms @63377f7122bb+wt
 pass/calls/runtime_value_call_return_types_exit checked 3338ms @2d8ed253669f
 pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms @ff6d0c077d78+wt
-pass/calls/scalar_return_after_unit_call_exit checked 1178ms @ca8c127c90c5
+pass/calls/scalar_return_after_unit_call_exit checked 1343ms @63377f7122bb+wt
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt
@@ -1578,7 +1578,7 @@ pass/dependent/data_where_standing_bound_exit checked 1223ms @2d8ed253669f
 pass/dependent/local_alias_forwards_entry_origin checked 286ms @2d8ed253669f
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 283ms @2d8ed253669f
 pass/dependent/runtime_dependent_subtract_exit checked 1263ms @2d8ed253669f
-pass/dependent/runtime_requires_guarded_call_exit checked 1721ms @2d8ed253669f
+pass/dependent/runtime_requires_guarded_call_exit checked 1408ms @63377f7122bb+wt
 pass/dependent/runtime_sibling_len_index_exit rejected 583ms @4e4bfed13aee+wt
 	state `read` receives `main` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 3)
 pass/dependent/state_arrival_contract_guarded_compile checked 291ms @2d8ed253669f
@@ -2131,7 +2131,7 @@ pass/targets/single_target_internal_package_same_target_caller checked 1208ms @2
 pass/targets/single_target_internal_same_target_caller checked 1238ms @2d8ed253669f
 pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f
 pass/targets/target_body_call_contracts_exit checked 708ms @2d8ed253669f
-pass/targets/target_machine_gating_exit checked 1378ms @2d8ed253669f
+pass/targets/target_machine_gating_exit checked 675ms @63377f7122bb+wt
 pass/tasks/task_runtime_machine_selection_compile checked 309ms @2d8ed253669f
 pass/terminal_psi/content_custody_exit checked 301ms @2d8ed253669f
 pass/terminal_psi/integer_control_contract checked 735ms @2d8ed253669f
@@ -2316,3 +2316,9 @@ run/borrows/shared_runtime_index_borrow checked 3050ms @2d8ed253669f
 run/borrows/transition_shared_borrow checked 604ms @4e4bfed13aee+wt
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
 run/nested_mut_alias_assignment_return checked 783ms @2d8ed253669f
+
+pass/borrows/loop_descriptor_reformation_exit checked 1879ms @63377f7122bb+wt
+pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
+pass/references/selected_record_loan_disjoint_fields_exit checked 741ms @63377f7122bb+wt
+pass/text/mutable_bounded_byte_state_exit checked 712ms @63377f7122bb+wt
+pass/text/state_parameter_byte_replacement_exit checked 967ms @63377f7122bb+wt

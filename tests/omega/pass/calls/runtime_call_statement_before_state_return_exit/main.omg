@@ -5,8 +5,8 @@ data Counter { value: i32 in Wrapping; }
 data Store { counters: [Counter; 2]; count: u64; }
 data Main { console: Binding<Console>; store: Store; }
 
-machine Counter::add(&mut self, amount: i32 in Wrapping) {
-    self.value = self.value + amount;
+machine Counter::add(counter: &mut Counter, amount: i32 in Wrapping) {
+    counter.value = counter.value + amount;
 }
 
 machine advance(store: &mut Store) -> bool {
@@ -15,7 +15,7 @@ machine advance(store: &mut Store) -> bool {
         false -> (false)
     }
     state mutate(store: &mut Store) -> bool {
-        store.counters[store.count].add(40);
+        Counter::add(&mut store.counters[store.count], 40);
         store.count = store.count + 1;
         true
     }
