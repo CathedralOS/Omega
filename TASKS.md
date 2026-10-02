@@ -2040,23 +2040,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 
-- **CASE-PAYLOAD-LOANS.** (new-scope) Lend an arm-bound case payload in
-  place instead of copying it out: as a method receiver
-  (`Sum::Found { p } -> (p.read_at(position))`, the Squalr API
-  `PrivilegedCommandResponse::ScanResults { response } -> (response.get_*(position))`
-  shape) or as a borrowed structural argument
-  (`ScanResultValued::clone(&valued_result)` inside `ScanResult::clone`).
-  Customers: `pass/calls/case_arm_payload_receiver_arg` and
-  `pass/control_flow/case_arm_payload_receiver_call` (exit 70 each), and
-  `pass/calls/case_scrutinee_param_clone_exit`. The binding canonicalizes to
-  `subject.[Case, Field]`, but neither `CheckedUnitStructuralPathSegment` nor
-  Terminal `StructuralPathSegment` has a case step, so the receiver shape stops
-  in stage 05 at "scalar computation needs one checked expression and one
-  source binding" and the clone at `result ownership` in `ScanResult::clone`.
-  Terminal needs a case path segment whose verification requires the exact
-  subject place's case membership before the loan forms (a trusted-surface
-  extension: path vocabulary, verifier rule, codec), then stage 04/05 plans
-  that name it. Owned payloads keep the existing `CasePayload` copy-out.
+- **CASE-PAYLOAD-LOANS.** Finish the owned-result construction around
+  borrowed case-payload calls. `pass/calls/case_scrutinee_param_clone_exit`
+  still omits `ScanResult::clone` at `result ownership`; acceptance is its
+  authored exit 0. Call-scoped loans now retain the original backing through
+  exact `Case`/`Field` paths, current-case verification, codec, interpreter,
+  and native realization: the unchanged
+  `pass/control_flow/case_arm_payload_receiver_call` exits 70 in both engines
+  on macOS ARM64. Preserve that runtime oracle.
+  `pass/calls/case_arm_payload_receiver_arg` now realizes its Linux entry,
+  but its fixture returns the leaf value 69 and compares it to 70; its scalar
+  argument is observed only by the unexercised `Empty` arm. Correct that
+  fixture's runtime assertion and exercise the forwarded argument with a host
+  entry before claiming its intended exit 70.
 
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.

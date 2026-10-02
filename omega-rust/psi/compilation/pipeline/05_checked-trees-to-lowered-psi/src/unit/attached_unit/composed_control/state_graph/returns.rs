@@ -661,21 +661,12 @@ pub(super) fn result(
     let mut reference_sources = reference_sources
         .iter()
         .map(|reference| {
-            let arguments = crate::unit::attached_unit::parameters::lower_structural_arguments(
-                std::slice::from_ref(&reference.source),
-                &catalogs.structural_types,
-                parameters,
-                &[],
-                &[],
-                &[],
-                &[],
-                None,
-                &mut std::iter::empty(),
-                None,
+            let source = crate::unit::attached_unit::parameters::lower_reference_source(
+                &reference.source, &catalogs.structural_types, parameters, &[], &[], &[],
             )?;
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&reference.path)?,
-                sources: arguments,
+                sources: vec![source],
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

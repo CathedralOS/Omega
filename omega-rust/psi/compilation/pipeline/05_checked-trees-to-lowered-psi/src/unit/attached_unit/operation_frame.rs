@@ -617,20 +617,14 @@ impl OperationFrame<'_, '_> {
             .require_next(result, "reference result binding is not dense")?;
         let slice = std::slice::from_ref(source);
         let earlier = self.results.earlier(slice, self.operations)?;
-        let arguments = parameters::lower_structural_arguments(
-            slice,
+        let argument = parameters::lower_reference_source(
+            source,
             self.structural_types.declarations(),
             self.parameters,
             self.caller.local_places,
             &earlier,
-            &[],
             self.primitive_locals,
-            None,
-            &mut std::iter::empty(),
-            None,
         )?;
-        let [argument] = <[terminal_psi::StructuralArgument; 1]>::try_from(arguments)
-            .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
         let declaration = reference_results::emit(
             result,
             argument,

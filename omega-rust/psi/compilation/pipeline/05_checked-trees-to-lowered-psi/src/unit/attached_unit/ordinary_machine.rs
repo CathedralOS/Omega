@@ -708,21 +708,17 @@ pub(super) fn emit(
                         .reference_sources
                         .iter()
                         .map(|reference| {
-                            let arguments = parameters::lower_structural_arguments(
-                                std::slice::from_ref(&reference.source),
+                            let source = parameters::lower_reference_source(
+                                &reference.source,
                                 structural_types,
                                 parameters,
                                 &[],
                                 &[],
                                 &[],
-                                &[],
-                                None,
-                                &mut std::iter::empty(),
-                                None,
                             )?;
                             Ok(terminal_psi::StructuralReferenceResultSource {
                                 path: lower_structural_path(&reference.path)?,
-                                sources: arguments,
+                                sources: vec![source],
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()
