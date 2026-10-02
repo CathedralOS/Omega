@@ -106,29 +106,27 @@ does not close an item. Keep independent receiving verification.
   reservation; reconcile it rather than landing a second local-only mechanism.
 
 - **NATIVE-LIVE-HOME-RESOLUTION.** (split-of:STRUCTURAL-BORROW-IDENTITY)
-  High priority: give native view construction the existing live storage-home
-  context instead of reconstructing a second producer catalog. Omega stage 02
-  `lowering/control_flow/operations.rs` has `LiveDefinitions` but calls
-  `lowering/scalar/element_views.rs::element_view_for_place` without its homes;
-  `local_aggregate_home` scans every operation and enumerates array/zeroed/record/
-  copy/call producers. Each new producer therefore needs another list entry,
-  and the lookup describes existence rather than availability at this point.
-  Thread or prepare the applicable home context at the graph owner, use one
-  exact place-to-home resolution contract, and remove that producer scan.
-  Preserve legitimate descriptor, ingress and owned-home distinctions; do not
-  substitute a copied aggregate for lent backing or turn an optimization cache
-  into authority. Independent target and image checks still reconstruct
-  dominance, geometry and custody from their own inputs.
-  Acceptance: retain native/interpreter outcomes for
+  Finish the write-through acceptance for a local record's array after a state
+  transfer. A zeroed local `Packet { items: [u8; 4] }` lent as `&mut Packet`
+  to a state, then lent to `stamp(&mut packet.items)`, reaches
+  `OwnedStructuralPlaceNotLiveAtOperation { operation: 4, place: 4 }` during
+  Terminal production on macOS ARM64 at `54ea05a360a`. The owning join is
+  `terminal-psi/verification/src/validation/block_views/mutable_records.rs`:
+  authenticate the fresh affine mutable view's producer and ancestry to the
+  current state parameter, retaining availability, conflicting-loan rejection
+  and descriptor disposal. Do not widen shared-subslice classification to
+  erase the affine descriptor's cleanup debt. This is an implementation
+  dependency, not a language-design question.
+  Acceptance: the caller observes writes to the same local backing after the
+  transfer; native and interpreted exits agree. Keep
+  `pass/slices/local_record_array_state_view_exit` (owned state-arrival view),
   `pass/calls/local_fixed_byte_array_loan_exit`,
   `pass/slices/local_array_element_view_exit` and
-  `pass/calls/local_array_direct_read_exit`; exercise a view over a local record's
-  array after an intervening state transfer and show writes reach that backing.
-  Reject a non-dominating producer, an ended home and substituted home/extent.
-  Inspect the whole caller chain, not just replace the scan with a fresh map
-  per lookup. This task is independently available on existing Terminal inputs;
-  it need not wait for new Psi mutable-window support. No performance claim is
-  required without measurement.
+  `pass/calls/local_array_direct_read_exit` at native/interpreter exit 70.
+  Native view construction must keep using the graph's storage-home context,
+  with distinct ingress, owned arrival and descriptor identities. Independent
+  target and physical replay reject non-dominating or consumed backing and
+  substituted homes/extents; no producer-scan fallback may return.
 
 - **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
   High priority: use the common Unit callee catalog to assemble scalar-machine
@@ -253,8 +251,8 @@ execution and native exit/output. A moved refusal is still unfinished work.
   On macOS ARM64 at `bbd0a9fdb8` plus namespace-call interpretation,
   `omega run --both samples/cli/basics/generic_counters/main.omg` exits **16**
   in both engines. Matching-host execution on the other declared targets
-  remains open. **NATIVE-LIVE-HOME-RESOLUTION** owns removing stage 02's
-  producer-scan fallback for local view backing.
+  remains open. **NATIVE-LIVE-HOME-RESOLUTION** owns the remaining mutable
+  view custody after a record crosses a state boundary.
   A domain-qualified byte local built from a shorter literal (`let text: [u8;
   8] in Utf8 = "150";`) is a bounded owner with its own backing and live
   length ([encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)):

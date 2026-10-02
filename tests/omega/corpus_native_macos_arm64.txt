@@ -886,6 +886,7 @@ pass/slices/guarded_slice_parameter_min_length_tail_compile checked 187ms
 pass/slices/guarded_slice_parameter_successor_index_compile checked 193ms
 pass/slices/inclusive_subslice_literal_bounds_compile checked 207ms
 pass/slices/local_array_element_view_exit built 1877ms exit:70 @48008365d839
+pass/slices/local_record_array_state_view_exit built 1512ms exit:70 @b33d826687a3
 pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @ad4cf8611e36+wt
