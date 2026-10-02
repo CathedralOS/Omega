@@ -390,10 +390,9 @@ fn source_contract(
         .map(|leaf| (leaf.structural_type, leaf.multiplicity))
 }
 
-/// Resolve one exact borrowed ingress projection. Only statically declared
-/// field and fixed-index hops beneath a clean borrowed parameter qualify;
-/// dynamic selectors and local/result storage require their existing routes.
-fn static_ingress_type(
+/// A result's formal origin must belong to the callee's input telescope.
+/// Unlike an actual call operand, it cannot name callee-local storage.
+fn formal_projection_type(
     function: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
@@ -460,12 +459,17 @@ fn normalized_source(
                 }
             })
         }
-    } else if source.path.is_empty() {
-        Some(Root::Place(source.place))
-    } else if static_ingress_type(function, declarations, source).is_some() {
-        Some(Root::Ingress(source.place, source.path.clone()))
     } else {
-        None
+        // Reconstruct the actual storage coordinate from the currently live
+        // contract. A projected local and a projected parameter denote the
+        // same custody operation; neither is a callee-local formal origin.
+        let (contract, _) = source_contract(function, custody, source.place)?;
+        leaf_type(declarations, contract, &source.path)?;
+        Some(if source.path.is_empty() {
+            Root::Place(source.place)
+        } else {
+            Root::Ingress(source.place, source.path.clone())
+        })
     }
 }
 
@@ -511,7 +515,7 @@ fn formal_origin(
         )
     {
         Some(Root::Ingress(source.place, carrier_path.to_vec()))
-    } else if static_ingress_type(function, declarations, source).is_some() {
+    } else if formal_projection_type(function, declarations, source).is_some() {
         Some(Root::Ingress(source.place, source.path.clone()))
     } else {
         None

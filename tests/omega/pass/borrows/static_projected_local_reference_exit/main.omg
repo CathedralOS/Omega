@@ -1,0 +1,27 @@
+// Returned loans retain distinct projected backing within one local owner.
+use omega_language_std::console;
+
+data Node { value: i32; }
+data Holder { node: Node; }
+data Pair { left: Holder; right: Holder; }
+
+machine first(holder: &Holder) -> &Node {
+    transition { _ -> &holder.node }
+}
+
+machine main() reaches Console {
+    let pair: Pair = Pair {
+        left: Holder { node: Node { value: 37 } },
+        right: Holder { node: Node { value: 43 } }
+    };
+    let left: &Node = first(&pair.left);
+    let left_value: i32 = left.value;
+    let right: &Node = first(&pair.right);
+    let right_value: i32 = right.value;
+    transition left_value == 37 && right_value == 43 {
+        true -> success()
+        _ -> failure()
+    }
+    state success() { Console::exit_process(0); }
+    state failure() { Console::exit_process(71); }
+}

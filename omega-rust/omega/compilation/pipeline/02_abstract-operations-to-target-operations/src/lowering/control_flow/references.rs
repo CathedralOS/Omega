@@ -501,67 +501,69 @@ fn source_contract(
         .map(|leaf| (leaf.result.structural_type, leaf.result.multiplicity))
 }
 
-fn primitive_scalar_type(
-    types: &StructuralTypeLookup<'_>,
-    structural_type: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    matches!(
-        types
-            .get(&structural_type)
-            .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::PrimitiveScalar(_))
-    )
-    .then_some(structural_type)
-}
-
-fn primitive_local_result(
+/// Borrow storage through its published contract, regardless of whether it
+/// arrived as a parameter or was constructed in this activation. An affine
+/// owner may lend storage without copying it; a reference crossing is a
+/// different operation and must resolve live carrier custody instead.
+fn direct_storage_type(
     function: &AbstractFunction,
-    place: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
-    function
-        .operations
-        .iter()
-        .find_map(|operation| match operation {
-            AbstractOperation::EstablishPrimitiveLocal { result, .. } if result.place == place => {
-                Some(result)
-            }
-            _ => None,
-        })
-}
-
-fn static_ingress_type(
-    function: &AbstractFunction,
+    live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if source.path.is_empty()
-        || source
-            .path
-            .iter()
-            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
-    {
+    if !source.path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
         return None;
     }
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let (structural_type, multiplicity, access, unqualified) = if let Some(parameter) =
+        function.arrival_parameter(source.place)
+    {
+        (
+            parameter.structural_type,
+            parameter.multiplicity,
+            parameter.access,
+            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
+        )
+    } else {
+        let home = live.structural_homes.get(&source.place)?;
+        (
+            home.structural_type(),
+            home.multiplicity(),
+            home.access(),
+            home.qualifications().is_empty()
+                && home.projected_qualifications().is_empty()
+                && !home.has_claims()
+                && home
+                    .operation_result()
+                    .is_none_or(|(_, result)| result.qualification_establishments.is_empty()),
+        )
+    };
     let access_is_compatible = match source.access {
         StructuralAccess::SharedBorrow => matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
         ),
-        StructuralAccess::MutableBorrow => parameter.access == StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow => matches!(
+            access,
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        ),
         StructuralAccess::WriteOnlyBorrow => matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            access,
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ),
         StructuralAccess::Owned => false,
     };
     if !access_is_compatible
-        || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+        || multiplicity == StructuralMultiplicity::Linear
+        || !unqualified
         || function
             .entry_claims
             .iter()
@@ -569,7 +571,7 @@ fn static_ingress_type(
     {
         return None;
     }
-    leaf_type(types, parameter.structural_type, &source.path)
+    leaf_type(types, structural_type, &source.path)
 }
 
 /// The referent type an establishment or projection may name. An empty path
@@ -589,36 +591,11 @@ pub(super) fn reference_source_type(
     ) {
         return None;
     }
-    if !source.path.is_empty() {
-        if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-            let carrier = source_contract(function, live, source.place)?.0;
-            return leaf_referent(types, carrier, fields);
-        }
-        return static_ingress_type(function, types, source);
+    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
+        let carrier = source_contract(function, live, source.place)?.0;
+        return leaf_referent(types, carrier, fields);
     }
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
-    {
-        if parameter.access != StructuralAccess::MutableBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claims
-                .iter()
-                .any(|claim| claim.input == source.place)
-        {
-            return None;
-        }
-        // Empty and nonempty ingress projections name storage alike. The
-        // reference result's independent referent check still limits the
-        // carrier to primitive or plain-record storage.
-        return leaf_type(types, parameter.structural_type, &source.path);
-    }
-    let result = primitive_local_result(function, source.place)?;
-    primitive_scalar_type(types, result.structural_type)
+    direct_storage_type(function, live, types, source)
 }
 
 /// A `.., Referent` source names a suspended child of the located carrier
@@ -669,7 +646,7 @@ fn normalized_source(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((ReferenceRoot::Place(source.place), None))
-    } else if static_ingress_type(function, types, source).is_some() {
+    } else if direct_storage_type(function, live, types, source).is_some() {
         let root = ReferenceRoot::Ingress(source.place, source.path.clone());
         if live
             .references
@@ -726,7 +703,30 @@ fn formal_origin(
         )
     {
         Some(ReferenceRoot::Ingress(source.place, path.to_vec()))
-    } else if static_ingress_type(function, types, source).is_some() {
+    } else if source.access == StructuralAccess::SharedBorrow
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+        || source.access == StructuralAccess::MutableBorrow
+            && parameter.access == StructuralAccess::MutableBorrow
+        || source.access == StructuralAccess::WriteOnlyBorrow
+            && matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+    {
+        if parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || function
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == source.place)
+            || leaf_type(types, parameter.structural_type, &source.path).is_none()
+        {
+            return None;
+        }
         Some(ReferenceRoot::Ingress(source.place, source.path.clone()))
     } else {
         None

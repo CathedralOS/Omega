@@ -651,20 +651,6 @@ fn leaf_type(
     Some(current)
 }
 
-fn primitive_scalar_type(
-    types: &[StructuralTypeDeclaration],
-    structural_type: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    matches!(
-        types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::PrimitiveScalar(_))
-    )
-    .then_some(structural_type)
-}
-
 /// The structural contract a place currently carries: a signature parameter, a
 /// block parameter, an operation-produced home, or a live bare carrier.
 fn source_contract(
@@ -695,39 +681,65 @@ fn source_contract(
         .map(|leaf| leaf.result.structural_type)
 }
 
-fn static_ingress_type(
+/// Resolve direct storage from its declared contract, rather than requiring
+/// that the owner originated in the machine's input telescope. Reference
+/// crossings still require the separately reconstructed live loan.
+fn direct_storage_type(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if source.path.is_empty()
-        || source
-            .path
-            .iter()
-            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
-    {
+    if !source.path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
         return None;
     }
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let (structural_type, multiplicity, access, unqualified) = if let Some(parameter) =
+        function.arrival_parameter(source.place)
+    {
+        (
+            parameter.structural_type,
+            parameter.multiplicity,
+            parameter.access,
+            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
+        )
+    } else {
+        let (_, result) = super::structural_case::source_result(function, source.place).ok()?;
+        (
+            result.structural_type,
+            result.multiplicity,
+            StructuralAccess::Owned,
+            result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && result.qualification_establishments.is_empty(),
+        )
+    };
     let access_is_compatible = match source.access {
         StructuralAccess::SharedBorrow => matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
         ),
-        StructuralAccess::MutableBorrow => parameter.access == StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow => matches!(
+            access,
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        ),
         StructuralAccess::WriteOnlyBorrow => matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            access,
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ),
         StructuralAccess::Owned => false,
     };
     if !access_is_compatible
-        || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+        || multiplicity == StructuralMultiplicity::Linear
+        || !unqualified
         || function
             .entry_claim_declarations
             .iter()
@@ -739,7 +751,7 @@ fn static_ingress_type(
     {
         return None;
     }
-    leaf_type(types, parameter.structural_type, &source.path)
+    leaf_type(types, structural_type, &source.path)
 }
 
 /// The referent type an establishment or projection may name. An empty path
@@ -759,36 +771,11 @@ fn reference_source_type(
     ) {
         return None;
     }
-    if !source.path.is_empty() {
-        if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-            let carrier = source_contract(function, custody, source.place)?;
-            return leaf_referent(types, carrier, fields);
-        }
-        return static_ingress_type(function, types, source);
+    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
+        let carrier = source_contract(function, custody, source.place)?;
+        return leaf_referent(types, carrier, fields);
     }
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
-    {
-        if parameter.access != StructuralAccess::MutableBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == source.place)
-        {
-            return None;
-        }
-        // Empty and nonempty ingress projections name storage alike. The
-        // reference result's independent referent check still limits the
-        // carrier to primitive or plain-record storage.
-        return leaf_type(types, parameter.structural_type, &source.path);
-    }
-    let (_, result, _) = super::primitive_locals::producer(function, source.place)?;
-    primitive_scalar_type(types, result.structural_type)
+    direct_storage_type(function, types, source)
 }
 
 /// A `.., Referent` source names a suspended child of the located carrier
@@ -837,7 +824,7 @@ fn normalized_source(
             return Err(invalid());
         }
         Ok((Root::Place(source.place), None))
-    } else if static_ingress_type(function, types, source).is_some() {
+    } else if direct_storage_type(function, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
         if custody
             .leaves
@@ -894,7 +881,7 @@ fn formal_origin(
         )
     {
         Some(Root::Ingress(source.place, path.to_vec()))
-    } else if static_ingress_type(function, types, source).is_some() {
+    } else if direct_storage_type(function, types, source).is_some() {
         Some(Root::Ingress(source.place, source.path.clone()))
     } else {
         None
@@ -1555,9 +1542,14 @@ pub(in crate::legalization) fn apply_terminator(
     }
     // Every edge cleanup roster declares the same places; a `&` carrier's
     // own leaf ends once, however many edges carry the discard.
-    places.sort_unstable();
-    places.dedup();
+    // Keep action order: a preceding carrier release may make its backing
+    // discardable. Deduplicate sibling-edge repeats without sorting away
+    // that dependency.
+    let mut visited = BTreeSet::new();
     for place in places {
+        if !visited.insert(place) {
+            continue;
+        }
         // A suspended referent root cannot be discarded while its loan lives.
         if is_suspended_root(custody, place) {
             return Err(invalid());

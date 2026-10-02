@@ -106,6 +106,73 @@ fn local_record_returned_loan_replays_exact_root_path_and_access() {
 }
 
 #[test]
+fn returned_local_record_loans_execute_without_source() {
+    for argument in ["&outer.left", "&outer.right"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Node {{ value: i32; }}
+             data Holder {{ node: Node; }}
+             data Outer {{ left: Holder; right: Holder; }}
+             machine first(holder: &Holder) -> &Node {{
+                 transition {{ _ -> &holder.node }}
+             }}
+             machine exercise() -> i32 {{
+                 let outer: Outer = Outer {{
+                     left: Holder {{ node: Node {{ value: 37 }} }},
+                     right: Holder {{ node: Node {{ value: 43 }} }}
+                 }};
+                 let seen: &Node = first({argument});
+                 seen.value
+             }}",
+        ));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("exercise"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("a local field supplies the returned loan")
+        .into_artifact();
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .expect("independently verify local reference origins");
+        let mut meter = TerminalFuelMeter::with_allowance(1_000);
+        let expected = if argument == "&outer.left" { 37 } else { 43 };
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(expected))),
+        );
+
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        for mutation in 0..2 {
+            let mut changed = module.clone();
+            for declaration in &mut changed.structural_types {
+                if let terminal_psi::StructuralTypeShape::Reference { access, .. } =
+                    &mut declaration.shape
+                {
+                    *access = if mutation == 0 {
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    } else {
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    };
+                }
+            }
+            assert!(
+                terminal_verifier::validate_module(&changed).is_err(),
+                "local storage cannot make a returned shared loan writable or write-only"
+            );
+        }
+    }
+}
+
+#[test]
 fn returned_shared_record_field_reads_replay_without_source() {
     execute_returned_record_field_read("", "");
 }
