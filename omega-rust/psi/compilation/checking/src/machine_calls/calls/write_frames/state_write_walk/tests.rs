@@ -13,6 +13,66 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn returned_carrier_preserves_origins_after_parameter_reborrow() {
+    let program = crate::front_end::typed_program(
+        "data Carrier { destination: &mut u64; count: u64; }
+         machine initialize(destination: &mut u64) { destination = 7; }
+         machine make(destination: &mut u64) -> Carrier {
+             initialize(&mut destination);
+             Carrier { destination: destination, count: 0 }
+         }
+         data Root { scratch: u64; }
+         machine Root::write(&mut self) {
+             let carrier: Carrier = make(&mut self.scratch);
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::write")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["self.scratch".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn returned_carrier_does_not_export_a_replaced_parameter_origin() {
+    // The explicit borrow replaces the reference; a bare primitive reference
+    // RHS would instead copy the referred value through the destination.
+    let program = crate::front_end::typed_program(
+        "data Carrier { destination: &mut u64; }
+         machine initialize(destination: &mut u64) { destination = 7; }
+         machine make(destination: &mut u64, replacement: &mut u64) -> Carrier {
+             initialize(&mut destination);
+             destination = &mut replacement;
+             Carrier { destination: destination }
+         }
+         data Root { scratch: u64; other: u64; }
+         machine Root::write(&mut self) {
+             let carrier: Carrier = make(&mut self.scratch, &mut self.other);
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::write")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    if let Some(paths) = frames[0].complete_paths() {
+        assert!(paths.contains(&"self.other".to_owned()), "{paths:?}");
+    }
+}
+
+#[test]
 fn scalar_method_preserves_carrier_reference_origins() {
     let program = crate::front_end::typed_program(
         "data Carrier { destination: &mut u64; count: u64; }
