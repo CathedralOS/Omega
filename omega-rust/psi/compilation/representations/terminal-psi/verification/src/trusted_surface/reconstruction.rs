@@ -177,6 +177,7 @@ static TERMINATOR_RETURN: TrustedSurfaceEntry = TrustedSurfaceEntry {
     premises: "a validated scalar return with a value and nominal cleanup actions",
     conclusion: "the exit set gains the result-equals-value equation and one cleanup-requires obligation per nominal cleanup requires clause",
     dependencies: &[
+        "scope:borrowed-storage-observations",
         "fact:return-result-binding",
         "owner:nominal-cleanup-requires",
     ],
@@ -189,8 +190,11 @@ static TERMINATOR_RETURN_UNIT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: terminator(),
     premises: "a validated unit return with trivial affine discards",
-    conclusion: "the exit set carries exactly the incoming axioms",
-    dependencies: &["fact:semantic-axiom-roster"],
+    conclusion: "the exit set carries incoming axioms plus exact current-storage facts rejoined to invocation parameters",
+    dependencies: &[
+        "scope:borrowed-storage-observations",
+        "fact:semantic-axiom-roster",
+    ],
     implementation: &[TERMINATOR_FACTS, TERMINATION],
     soundness: TRUSTED,
 };
@@ -200,8 +204,11 @@ static TERMINATOR_RETURN_UNIT_PARTIAL_AFFINE: TrustedSurfaceEntry = TrustedSurfa
     family: LedgerFamily::ReconstructedFactKind,
     binding: terminator(),
     premises: "a validated unit return with trivial and residual affine discards",
-    conclusion: "the exit set carries exactly the incoming axioms",
-    dependencies: &["fact:semantic-axiom-roster"],
+    conclusion: "the exit set carries incoming axioms plus exact current-storage facts rejoined to invocation parameters",
+    dependencies: &[
+        "scope:borrowed-storage-observations",
+        "fact:semantic-axiom-roster",
+    ],
     implementation: &[TERMINATOR_FACTS, TERMINATION],
     soundness: TRUSTED,
 };
@@ -212,7 +219,10 @@ static TERMINATOR_RETURN_UNIT_NOMINAL_AFFINE: TrustedSurfaceEntry = TrustedSurfa
     binding: terminator(),
     premises: "a validated unit return whose nominal affine cleanups each target a cleanup machine with requires clauses",
     conclusion: "the exit set carries the incoming axioms and one cleanup-requires obligation per clause under the cleanup receiver substitution",
-    dependencies: &["owner:nominal-cleanup-requires"],
+    dependencies: &[
+        "scope:borrowed-storage-observations",
+        "owner:nominal-cleanup-requires",
+    ],
     implementation: &[TERMINATOR_FACTS, TERMINATION],
     soundness: TRUSTED,
 };
@@ -223,7 +233,11 @@ static TERMINATOR_RETURN_STRUCTURAL: TrustedSurfaceEntry = TrustedSurfaceEntry {
     binding: terminator(),
     premises: "a validated structural return of a source place with its ordered live claims",
     conclusion: "the exit set gains the axioms rewritten through the result-place substitution plus the returned claims' content-identity reshuffle propositions",
-    dependencies: &["scope:place-substitution", "fact:return-result-binding"],
+    dependencies: &[
+        "scope:borrowed-storage-observations",
+        "scope:place-substitution",
+        "fact:return-result-binding",
+    ],
     implementation: &[TERMINATOR_FACTS, SUBSTITUTION, TERMINATION],
     soundness: TRUSTED,
 };
@@ -776,7 +790,7 @@ static FACT_CRASH_SITE_RETENTION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "the axiom set reconstructed before a crash terminator or a crash-capable operation",
-    conclusion: "only facts whose observed storage keeps entry meaning survive; cyclic operation questions retain entry-only facts; primitive failure predicates are independently reconstructed before their normal-return equations, and producer site guards or ceilings are never imported",
+    conclusion: "only facts whose observed storage keeps entry meaning survive; cyclic coverage retains entry-only facts, while call-time refutation excludes mutable entry observations; primitive failure predicates are independently reconstructed before their normal-return equations, and producer site guards or ceilings are never imported",
     dependencies: &["scope:crash-origin-filter"],
     implementation: &[
         CRASH_FIELD_ORIGINS,

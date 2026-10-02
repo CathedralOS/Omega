@@ -119,20 +119,25 @@ pub fn produce_crash_obligation_evidence(
     let roster: Vec<CrashObligationEvidence> = questions
         .iter()
         .map(|question| {
-            let produce =
-                |goal: &Proposition, semantic_axioms: &[Proposition]| -> Vec<CrashCertificate> {
-                    question.context.as_ref().map_or_else(Vec::new, |context| {
-                        produce_entry_requirement_certificates(
-                            context,
-                            goal,
-                            &question.requirements,
-                            semantic_axioms,
-                        )
-                        .into_iter()
-                        .map(EntryRequirementCertificate::into_certificate)
-                        .collect()
-                    })
-                };
+            let produce_with_requirements = |goal: &Proposition,
+                                             semantic_axioms: &[Proposition],
+                                             requirements: &[Proposition]|
+             -> Vec<CrashCertificate> {
+                question.context.as_ref().map_or_else(Vec::new, |context| {
+                    produce_entry_requirement_certificates(
+                        context,
+                        goal,
+                        requirements,
+                        semantic_axioms,
+                    )
+                    .into_iter()
+                    .map(EntryRequirementCertificate::into_certificate)
+                    .collect()
+                })
+            };
+            let produce = |goal: &Proposition, axioms: &[Proposition]| {
+                produce_with_requirements(goal, axioms, &question.requirements)
+            };
             let (coverage, refutation) = match &question.question {
                 // One coverage roster per asserted guard, holding the
                 // certificates produced under every reconstructed path's
@@ -156,6 +161,7 @@ pub fn produce_crash_obligation_evidence(
                 CrashObligationQuestion::Continuation {
                     coverage_goals,
                     refutation_goal,
+                    refutation_requirements,
                     paths,
                 } => (
                     coverage_goals
@@ -172,7 +178,9 @@ pub fn produce_crash_obligation_evidence(
                         .map(|goal| {
                             paths
                                 .iter()
-                                .flat_map(|axioms| produce(goal, axioms))
+                                .flat_map(|axioms| {
+                                    produce_with_requirements(goal, axioms, refutation_requirements)
+                                })
                                 .collect()
                         })
                         .collect(),

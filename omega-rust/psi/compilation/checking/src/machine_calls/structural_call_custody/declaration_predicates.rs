@@ -33,9 +33,9 @@
 //! `P` again over the consequence intervals decides `true`, so the rows imply
 //! the fact. Only a carried definition's storage accepts Terminal stores,
 //! because then the rows Terminal re-proves before relying on the facts are
-//! the complete default domain. A machine that cannot carry a row through its
-//! body publishes none (`machine_declaration_predicates`), so Terminal relies
-//! on nothing it did not re-prove.
+//! the complete default domain. Machines publish this roster independently of
+//! their body topology. Failure to establish a row at a state arrival, call,
+//! or normal return rejects the proof instead of weakening the contract.
 //! A zero-gated definition stays out entirely: its zero image violates its
 //! facts, so its construction owns them. Descent continues beneath it, and
 //! through literal-length fixed arrays once per element at its exact index.
@@ -157,50 +157,13 @@ fn parameter_data_definition<'program>(
 /// The roster of a machine's entry state: its invocation-entry requirements
 /// and, for exclusive borrows, its normal-return guarantees.
 ///
-/// A machine whose named state transitions loop drops its exclusive rows:
-/// Terminal admits no unranked control cycle whose requirements observe a
-/// mutable borrow, and no state-arrival rows yet carry the facts around a
-/// loop. An acyclic machine keeps them as entry requirements, and restores
-/// them at return only when every machine it calls with exclusive rows also
-/// restores its own (`restores_exclusive_rows`); otherwise such a call
-/// invalidates the facts with nothing to rebuild them from. A machine without
-/// a row neither assumes nor restores it, so its caller loses the fact across
-/// the call and re-proves it where needed; nothing in Terminal relies on an
-/// unproved row.
+/// These rows describe obligations, independently of the body's topology or
+/// call graph. An authored state transition proves its destination rows, and
+/// every normal return proves the exclusive rows again. A loop therefore needs
+/// checked arrival invariants; neither its first entry nor a callee's name can
+/// manufacture restoration. Missing proof rejects publication instead of
+/// silently deleting a machine's declared-domain contract.
 pub fn machine_declaration_predicates(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<DeclarationPredicateRow> {
-    let mut rows = entry_rows(program, operators, machine);
-    if !rows.iter().any(|row| row.restored_on_return) {
-        return rows;
-    }
-    if !named_states_acyclic(program, machine) {
-        rows.retain(|row| !row.restored_on_return);
-    } else if !restores_exclusive_rows(
-        program,
-        operators,
-        machine,
-        &mut Vec::new(),
-        &mut Vec::new(),
-    ) {
-        for row in &mut rows {
-            row.restored_on_return = false;
-        }
-    }
-    rows
-}
-
-fn named_states_acyclic(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> bool {
-    program.machine_states(machine).first().is_none_or(|entry| {
-        crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
-            program, machine, entry,
-        )
-    })
-}
-
-fn entry_rows(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
@@ -210,66 +173,6 @@ fn entry_rows(
         .first()
         .map(|entry| state_declaration_predicates(program, operators, machine, entry))
         .unwrap_or_default()
-}
-
-/// Whether a machine restores its exclusive rows at normal return: its named
-/// state transitions are acyclic, and every machine it calls with exclusive
-/// rows of its own restores them too. A recursive call cannot be relied on.
-/// `memo` records settled machines, `active` the current call path.
-fn restores_exclusive_rows(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
-    active: &mut Vec<SymbolHandle>,
-    memo: &mut Vec<(SymbolHandle, bool)>,
-) -> bool {
-    if let Some((_, settled)) = memo.iter().find(|(symbol, _)| *symbol == machine.symbol) {
-        return *settled;
-    }
-    if active.contains(&machine.symbol) {
-        return false;
-    }
-    if !named_states_acyclic(program, machine) {
-        memo.push((machine.symbol, false));
-        return false;
-    }
-    active.push(machine.symbol);
-    let restored = crate::machine_call_dependency_symbols(program, machine)
-        .into_iter()
-        .filter_map(|symbol| called_machine(program, machine, symbol))
-        .all(|callee| {
-            !entry_rows(program, operators, callee)
-                .iter()
-                .any(|row| row.restored_on_return)
-                || restores_exclusive_rows(program, operators, callee, active, memo)
-        });
-    active.pop();
-    memo.push((machine.symbol, restored));
-    restored
-}
-
-/// The machine a call dependency symbol names: another machine, or its entry
-/// state. A state of `caller` itself is a transition, not a call.
-fn called_machine<'program>(
-    program: &'program TypedTrees,
-    caller: &typed_trees::machine::Machine,
-    symbol: SymbolHandle,
-) -> Option<&'program typed_trees::machine::Machine> {
-    if program
-        .machine_states(caller)
-        .iter()
-        .skip(1)
-        .any(|state| state.symbol == symbol)
-    {
-        return None;
-    }
-    program.machines().iter().find(|candidate| {
-        candidate.symbol == symbol
-            || program
-                .machine_states(candidate)
-                .first()
-                .is_some_and(|entry| entry.symbol == symbol)
-    })
 }
 
 /// Whether every `where` fact of `definition` is carried by roster rows that

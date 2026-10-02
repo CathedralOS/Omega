@@ -68,19 +68,10 @@ pub(super) fn ineligibility(
     if !machine.content_partition_compositions.is_empty() {
         return Some(ControlCycleIneligibility::ContentPartitionCompositions);
     }
-    if machine.contract.requires.iter().any(|requirement| {
-        crate::validation::proposition_observes_places(
-            requirement,
-            &machine
-                .structural_parameters
-                .iter()
-                .filter(|parameter| parameter.access == StructuralAccess::MutableBorrow)
-                .map(|parameter| parameter.place)
-                .collect::<Vec<_>>(),
-        )
-    }) {
-        return Some(ControlCycleIneligibility::RequiresObservesMutableBorrow);
-    }
+    // Invocation storage requirements are entry facts, not loop invariants.
+    // Reconstruction invalidates them on writes and drops them at feedback
+    // cuts; only independently proved destination arrival rows reintroduce
+    // current-storage facts. Cyclic shape alone supplies no proof authority.
     if let Some(index) = machine.structural_parameters.iter().position(|parameter| {
         !plain_owned(parameter)
             && !(parameter.access == StructuralAccess::Owned

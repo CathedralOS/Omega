@@ -36,9 +36,9 @@ pub(crate) fn proposition_observes_write(
 
 /// `Some` projects the exact canonical leaf path; `None` is a whole-root
 /// observation whose finer structure this judgment cannot yet name.
-type ObservationSite = (PlaceId, Option<Vec<CanonicalStructuralPathSegment>>);
+pub(crate) type ObservationSite = (PlaceId, Option<Vec<CanonicalStructuralPathSegment>>);
 
-fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSite> {
+pub(crate) fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSite> {
     fn collect_term(term: &ScalarTerm, sites: &mut Vec<ObservationSite>) {
         match term {
             ScalarTerm::BooleanField { root, path }
@@ -189,7 +189,7 @@ pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
     }
 }
 
-pub(super) fn proposition_boolean_field_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
+pub(crate) fn proposition_boolean_field_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     proposition_observation_sites(proposition)
         .into_iter()
         .filter(|(_, path)| path.is_some())

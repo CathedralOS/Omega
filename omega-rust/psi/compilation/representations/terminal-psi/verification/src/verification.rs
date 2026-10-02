@@ -31,6 +31,7 @@ mod field_snapshots;
 mod float_meaning_projection;
 mod proof_bundle;
 mod reconstruction;
+mod storage_observations;
 pub(crate) use reconstruction::reconstruct_validated_control_edge_axioms;
 mod substitution;
 
@@ -467,16 +468,23 @@ pub fn crash_obligation_discharged(
     let Some(context) = &question.context else {
         return false;
     };
+    let check_with_requirements =
+        |goal: &Proposition,
+         semantic_axioms: &[Proposition],
+         requirements: &[Proposition],
+         certificate: &terminal_psi::CrashCertificate| {
+            proof_admission::check_denotation_certificate(
+                context,
+                goal,
+                requirements,
+                semantic_axioms,
+                certificate,
+            )
+        };
     let check = |goal: &Proposition,
-                 semantic_axioms: &[Proposition],
+                 axioms: &[Proposition],
                  certificate: &terminal_psi::CrashCertificate| {
-        proof_admission::check_denotation_certificate(
-            context,
-            goal,
-            &question.requirements,
-            semantic_axioms,
-            certificate,
-        )
+        check_with_requirements(goal, axioms, &question.requirements, certificate)
     };
     match &question.question {
         CrashObligationQuestion::Site { guards, paths } => {
@@ -505,6 +513,7 @@ pub fn crash_obligation_discharged(
         CrashObligationQuestion::Continuation {
             coverage_goals,
             refutation_goal,
+            refutation_requirements,
             paths,
         } => {
             if paths.is_empty()
@@ -527,9 +536,14 @@ pub fn crash_obligation_discharged(
                         });
                 covered
                     || refutation_goal.as_ref().is_some_and(|goal| {
-                        evidence.refutation[0]
-                            .iter()
-                            .any(|certificate| check(goal, axioms, certificate))
+                        evidence.refutation[0].iter().any(|certificate| {
+                            check_with_requirements(
+                                goal,
+                                axioms,
+                                refutation_requirements,
+                                certificate,
+                            )
+                        })
                     })
             })
         }

@@ -298,3 +298,81 @@ fn a_stored_true_field_does_not_prove_it_was_true_at_invocation_entry() {
         "{owner:?}"
     );
 }
+
+/// The callee's shared field guard observes storage at this invocation. The
+/// caller's identical-looking ceiling refers to the caller's earlier entry.
+fn loop_call_after_mutation(entry_value: bool, publish_guard: bool) -> TerminalModule {
+    let mut checked = module(true, true);
+    let mut callee = module(false, true).machines.remove(0);
+    callee.id = id(2);
+    callee.contract.id = id(2);
+    callee.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let caller = &mut checked.machines[0];
+    caller.contract.requires = vec![
+        predicate(ScalarTerm::boolean_field(id(1), id(1)), entry_value)
+            .proposition()
+            .clone(),
+    ];
+    if !publish_guard {
+        caller.contract.crash_routes.clear();
+    }
+    caller.blocks.truncate(1);
+    caller.blocks[0].operations.truncate(2);
+    let jump = |edge| Terminator::Jump {
+        edge: id(edge),
+        target: id(4),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    caller.blocks[0].terminator = jump(5);
+    caller.blocks.push(Block {
+        id: id(4),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        operations: vec![Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(4),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: id(1),
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: callee.contract.crash_routes.clone(),
+            },
+        }],
+        terminator: jump(6),
+    });
+    checked.machines.push(callee);
+    checked
+}
+
+#[test]
+fn loop_call_time_field_cannot_reuse_the_callers_entry_fact_or_ceiling_identity() {
+    for publish_guard in [false, true] {
+        let checked = loop_call_after_mutation(false, publish_guard);
+        let owner = rejects_site(&checked);
+        assert!(
+            matches!(owner, CrashObligationOwner::Continuation { machine, operation, .. }
+            if machine == id(1) && operation == id(4)),
+            "{owner:?}"
+        );
+    }
+    // Caller-entry truth really does authorize the published caller ceiling,
+    // even though the call-time guard belongs to another observation window.
+    verify(&loop_call_after_mutation(true, true)).unwrap();
+}

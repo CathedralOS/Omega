@@ -300,7 +300,7 @@ fn an_ieee_range_fact_is_one_row_of_exact_format_comparisons() {
 }
 
 #[test]
-fn a_looping_machine_drops_exclusive_rows_and_its_caller_stops_restoring() {
+fn looping_machines_and_callers_retain_their_declared_restoration_obligations() {
     let program = program(&format!(
         "{CELLS_VALID}
          data Grid where cells_valid(&board) == true {{ board: [i32; 4]; }}
@@ -320,10 +320,10 @@ fn a_looping_machine_drops_exclusive_rows_and_its_caller_stops_restoring() {
             .map(|row| row.restored_on_return)
             .collect::<Vec<_>>()
     };
-    // The loop can neither assume nor restore the exclusive rows.
-    assert!(rows("Main::scan").is_empty());
-    // Its caller still requires them at entry but cannot restore them.
-    assert_eq!(rows("Main::run"), vec![false; 4]);
+    // Topology does not delete the contract: every actual arrival and normal
+    // return must prove these obligations before the artifact is admitted.
+    assert_eq!(rows("Main::scan"), vec![true; 4]);
+    assert_eq!(rows("Main::run"), vec![true; 4]);
     // A caller of only shared-row callees restores its own.
     assert_eq!(rows("Main::seed"), vec![true; 4]);
 }

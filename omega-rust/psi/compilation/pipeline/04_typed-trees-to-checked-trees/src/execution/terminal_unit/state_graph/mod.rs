@@ -237,6 +237,20 @@ pub(super) fn build_traced(
                 predicate,
             )));
         }
+        // An authored state transition closes the declared-domain window of
+        // each readable argument. These are destination arrival obligations,
+        // not facts inherited from the machine's first invocation or a loop's
+        // previous iteration. Synthetic expression continuations are not
+        // authored state boundaries and receive no such rows here.
+        requires.extend(
+            validation::state_declaration_predicates(program, &facts.operators, machine, state)
+                .into_iter()
+                .map(|row| {
+                    Some(checked_trees::ClosedScalarContractValue::Predicate(
+                        row.predicate,
+                    ))
+                }),
+        );
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if has_receiver {
