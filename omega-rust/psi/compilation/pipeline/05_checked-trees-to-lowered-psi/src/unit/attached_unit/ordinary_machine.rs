@@ -1263,7 +1263,8 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::Call(_) => {

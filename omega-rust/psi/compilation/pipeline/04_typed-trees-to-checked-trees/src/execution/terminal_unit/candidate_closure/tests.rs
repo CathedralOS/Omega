@@ -266,14 +266,13 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                         | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                        | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(
-                            _,
-                        )
+                        | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                         | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                         | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                         | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                         | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                         | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                         | CheckedUnitEffectOperationPlan::Complete { .. } => true,
                     })
@@ -314,7 +313,8 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => true,
+                        | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => true,
                         _ => false,
                     })
         });

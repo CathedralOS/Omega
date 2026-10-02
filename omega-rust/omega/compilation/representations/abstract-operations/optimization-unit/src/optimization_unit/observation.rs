@@ -421,6 +421,7 @@ fn operation_observations(
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }

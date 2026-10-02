@@ -459,6 +459,53 @@ pub(super) fn completed_source<'a>(
     completed_source_where(module, machine, place, plain_type, false)
 }
 
+/// An owned local under memberwise establishment is a writable destination
+/// root before its members complete: the establishment declares the root's
+/// type and custody, and the member operations finish it. It is not a
+/// completed source — nothing may read or move a member the stores have not
+/// established — but every member store resolves its root through here.
+pub(super) fn established_local_source<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?;
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        return None;
+    };
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            if operation.id != producer
+                || !matches!(
+                    operation.kind,
+                    OperationKind::EstablishStructuralLocal { .. }
+                )
+            {
+                return None;
+            }
+            operation.result.structural().filter(|result| {
+                result.place == place
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    )
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                    && module
+                        .structural_types
+                        .iter()
+                        .any(|row| row.id == result.structural_type)
+            })
+        })
+}
+
 /// The `completed_source` producer set under the constructible-type gate: a
 /// record carrying borrowed-view members is no plain payload but a locally
 /// constructed record still answers member reads — reading a scalar member
@@ -521,6 +568,7 @@ fn completed_source_where<'a>(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::MoveStructuralField { .. }
                     | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::CallStructural { .. }

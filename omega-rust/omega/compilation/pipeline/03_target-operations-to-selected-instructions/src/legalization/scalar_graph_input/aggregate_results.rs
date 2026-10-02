@@ -60,6 +60,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::StoreStructuralField { .. }
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::EstablishZeroedStructural { .. }
+                        | AbstractOperation::EstablishStructuralLocal { .. }
                         | AbstractOperation::CallStructural {
                             result: AbstractStructuralCallResult::Structural { .. },
                             ..

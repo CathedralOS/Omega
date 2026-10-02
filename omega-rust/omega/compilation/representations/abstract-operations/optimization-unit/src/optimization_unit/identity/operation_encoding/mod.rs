@@ -35,6 +35,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::MoveStructuralField { .. }

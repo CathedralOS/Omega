@@ -6,8 +6,8 @@
 //! evidence. Only the test-only crash-inspection mode omits crash admission.
 
 pub(crate) mod call_acknowledgements;
-mod deferred_constants;
 mod default_domain_zero;
+mod deferred_constants;
 mod exact_input_memo;
 mod opaque_property_receipts;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};

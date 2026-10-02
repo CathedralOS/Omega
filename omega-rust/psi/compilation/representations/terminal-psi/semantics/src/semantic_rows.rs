@@ -181,6 +181,7 @@ operation_semantic_rows! {
     EstablishStructuralCase => ("schema:operation:establish-structural-case", LeafDenotation, None),
     EstablishScalarArray => ("schema:operation:establish-scalar-array", LeafDenotation, None),
     EstablishZeroedStructural => ("schema:operation:establish-zeroed-structural", LeafDenotation, None),
+    EstablishStructuralLocal => ("schema:operation:establish-structural-local", LeafDenotation, None),
     EstablishByteSequenceConcatenation => ("schema:operation:establish-byte-sequence-concatenation", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),

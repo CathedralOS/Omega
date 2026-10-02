@@ -362,6 +362,14 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: StructuralOperationResult,
     },
+    /// Establish one declared structural local's home as this operation's
+    /// structural result. The storage begins unwritten — member operations
+    /// fill each leaf — so no operand roster exists and no shape constraint
+    /// applies. Target lowering assigns its physical home.
+    EstablishStructuralLocal {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+    },
     /// Atomically establish a complete record from declaration-ordered scalar
     /// values and owned child records. The result retains exact semantic custody;
     /// target lowering assigns its physical home before use.
@@ -719,6 +727,7 @@ impl AbstractOperation {
             | Self::EstablishCase { result, .. }
             | Self::EstablishByteSequenceConcatenation { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
+            | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::CallStructural {
@@ -820,6 +829,7 @@ impl AbstractOperation {
             | Self::EstablishByteSequenceConcatenation { psi_operation, .. }
             | Self::EstablishTrivialAffineLocal { psi_operation, .. }
             | Self::EstablishZeroedStructural { psi_operation, .. }
+            | Self::EstablishStructuralLocal { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }

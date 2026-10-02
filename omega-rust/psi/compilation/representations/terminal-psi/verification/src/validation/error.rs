@@ -662,6 +662,7 @@ pub enum ModuleError {
     ScalarCaseResultMismatch(OperationId),
     ScalarArrayResultMismatch(OperationId),
     ZeroedStructuralResultMismatch(OperationId),
+    StructuralLocalEstablishmentMismatch(OperationId),
     ScalarCaseRequiresSum {
         operation: OperationId,
         structural_type: semantic_vocabulary::StructuralTypeId,

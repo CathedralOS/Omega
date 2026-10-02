@@ -1174,6 +1174,7 @@ fn scan_operation(
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
         | O::DynamicDescriptorParameter { .. }
         | O::PortWrite { .. }
         | O::Crash { .. }

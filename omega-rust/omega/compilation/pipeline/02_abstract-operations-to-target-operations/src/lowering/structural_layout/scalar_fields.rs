@@ -53,11 +53,16 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         if candidate.field_type.scalar_type() != Some(expected_type) {
             return Err(LoweringError::UnknownStructuralType(structural_type));
         }
-        return super::structural_sum_layout(structural_type, declarations, &mut cache, &mut active)?
-            .common_fields
-            .get(position)
-            .map(|common| common.byte_offset)
-            .ok_or(LoweringError::UnknownStructuralType(structural_type));
+        return super::structural_sum_layout(
+            structural_type,
+            declarations,
+            &mut cache,
+            &mut active,
+        )?
+        .common_fields
+        .get(position)
+        .map(|common| common.byte_offset)
+        .ok_or(LoweringError::UnknownStructuralType(structural_type));
     }
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return Err(LoweringError::UnknownStructuralType(structural_type));

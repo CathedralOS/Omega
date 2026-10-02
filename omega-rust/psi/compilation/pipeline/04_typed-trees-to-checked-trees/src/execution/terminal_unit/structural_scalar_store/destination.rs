@@ -282,26 +282,27 @@ fn owned_local_root<'a>(
             local,
         )
         .is_some();
-    // A declared-zeroed local has no initializer but owns its zeroed shape:
-    // the declaration established the affine root, so the store resolves its
-    // live home place the same way an initialized owned local does. `mut`
-    // grants whole-binding replacement; member writes do not rebind that root.
-    let declared_zeroed = !local.initial_value.is_valid()
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::Generic { .. }
-                | TypeReferenceNode::FixedArray { .. }
-        )
-        && validation::zeroed_structural_parts(program, local.type_reference);
+    // A declared local roots memberwise fills through its structural type
+    // alone: the declaration supplies the home each member operation
+    // establishes into, whether the source wrote an initializer or leaves
+    // the shape to per-member establishment. The member store's leaf
+    // dispatch validates each field's own shape; which members reads may
+    // rely on is the custody ledger's question, not this root's. Indexed
+    // whole-root writes stay on the bounded byte lane.
+    let declared_home = matches!(
+        program
+            .type_reference_table
+            .type_reference(local.type_reference),
+        TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray { .. }
+    );
     if local_ordinal >= ordinal
         || (dynamic_index.is_some() && !bounded_byte_local)
         || !(program
             .expression_table
             .expression_is_valid(local.initial_value)
-            || declared_zeroed)
+            || declared_home)
         || program
             .primitive_type_reference(local.type_reference)
             .is_some()
@@ -311,10 +312,20 @@ fn owned_local_root<'a>(
                 local.type_reference,
             )
             // A completed copy record owns its byte members as well as its
-            // scalar members. This admits its storage root, not a new value:
-            // establishment and each field's write obligations still apply.
-            && !(program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
+            // scalar members, and a memberwise fill owns each leaf it writes
+            // the same way — shared-view members included, whose descriptor
+            // stores are their own leaf operations. This admits its storage
+            // root, not a new value: establishment and each field's write
+            // obligations still apply. The record's own multiplicity is the
+            // establishment plan's business — the field-wise predicate
+            // already excludes linear declarations and drop carriers.
+            && !((program.type_multiplicity(local.type_reference)
+                == Multiplicity::Unrestricted
                 && validation::has_plain_owned_contents_with_represented_constraints(
+                    program,
+                    local.type_reference,
+                ))
+                || validation::has_owned_or_shared_view_fields(
                     program,
                     local.type_reference,
                 )))

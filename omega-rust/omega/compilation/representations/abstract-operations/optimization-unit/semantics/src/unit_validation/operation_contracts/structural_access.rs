@@ -548,6 +548,7 @@ pub(crate) fn structural_arguments_match(
                     }
                         | O::EstablishRecord { result, .. }
                         | O::EstablishZeroedStructural { result, .. }
+                        | O::EstablishStructuralLocal { result, .. }
                         | O::EstablishCase { result, .. }
                         if result.place == argument.place)
                     }));
@@ -906,6 +907,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
+                | O::EstablishStructuralLocal { result, .. }
                 | O::EstablishReference { result, .. }
                 // The moved subtree leaves the window as an owned whole value;
                 // the repair store consumes it with exactly that custody.

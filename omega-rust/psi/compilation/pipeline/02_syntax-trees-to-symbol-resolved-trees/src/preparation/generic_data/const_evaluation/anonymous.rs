@@ -221,9 +221,9 @@ fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorSpelling) ->
     // did (`boundary machine % Math::remainder` is that slot's new spelling),
     // and a trait requirement may bind one too, so machine items and trait
     // member signatures join the fence alongside the two legacy lanes.
-    !syntax.root_items().any(|item| {
-        authored_spelling_parameters(syntax, item, spelling).is_some()
-    })
+    !syntax
+        .root_items()
+        .any(|item| authored_spelling_parameters(syntax, item, spelling).is_some())
 }
 
 /// The declared parameter carriers of one item's authored `spelling`, or
@@ -243,9 +243,7 @@ fn authored_spelling_parameters(
         // Operator declarations, domain-attached operators and trait member
         // signatures author the spelling through shapes this pass does not
         // read into parameter carriers; they conservatively may bind.
-        Item::Operator(operator) if operator.spelling == Some(spelling) => {
-            Some(vec![None, None])
-        }
+        Item::Operator(operator) if operator.spelling == Some(spelling) => Some(vec![None, None]),
         Item::Domain(domain) => syntax
             .items
             .operators(domain.operators)
@@ -337,9 +335,7 @@ fn parameter_binds(
     };
     use super::fact_values::ConstFactValue;
     match operand {
-        ConstFactValue::DeclaredInteger { integer_type, .. } => {
-            name == integer_type.name()
-        }
+        ConstFactValue::DeclaredInteger { integer_type, .. } => name == integer_type.name(),
         ConstFactValue::Integer(_) | ConstFactValue::Anonymous(_) => {
             numerics::literals::LandedIntegerType::from_name(name).is_some()
         }

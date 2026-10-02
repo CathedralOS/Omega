@@ -481,6 +481,7 @@ impl OperationFrame<'_, '_> {
             operation,
             CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
@@ -591,6 +592,9 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 self.establish_structural_value(operation)
+            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
+                self.establish_structural_local(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
                 self.establish_reference(result, source)
@@ -2460,6 +2464,80 @@ impl OperationFrame<'_, '_> {
             StructuralResults::Dense(roster) => roster.push((declaration, false)),
             StructuralResults::StateGraph { places, .. } => places.push(declaration),
         }
+        self.evaluation.establish_structural_result(
+            self.checked,
+            self.state,
+            result,
+            true,
+            produced,
+            self.structural_types.declarations(),
+            self.operations,
+        )
+    }
+
+    /// Establish one declared structural local's home as an operation result
+    /// place. Member stores and borrows rejoin the local through the binding
+    /// the result registration publishes; the home itself has no contents
+    /// until member operations establish them.
+    fn establish_structural_local(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+            result,
+            discard_result_on_return,
+            ..
+        } = operation
+        else {
+            return unsupported("structural local establishment has no result");
+        };
+        self.results
+            .require_next(result, "structural local result binding is not dense")?;
+        let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        let multiplicity = match result.multiplicity {
+            language_semantics::Multiplicity::Affine => {
+                terminal_psi::StructuralMultiplicity::Affine
+            }
+            language_semantics::Multiplicity::Unrestricted => {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            }
+            language_semantics::Multiplicity::Linear => {
+                terminal_psi::StructuralMultiplicity::Linear
+            }
+        };
+        let home = place_id(allocate_dense(self.next_place)?);
+        let producer = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: producer,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: home,
+                structural_type,
+                multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishStructuralLocal {},
+        });
+        let declaration = StructuralPlaceDeclaration {
+            id: home,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        };
+        self.results.push(declaration, *discard_result_on_return);
+        let produced = self
+            .operations
+            .operations
+            .last()
+            .and_then(|produced| produced.result.structural().cloned())
+            .ok_or(LoweringError::Unsupported(
+                "structural local established no result",
+            ))?;
         self.evaluation.establish_structural_result(
             self.checked,
             self.state,

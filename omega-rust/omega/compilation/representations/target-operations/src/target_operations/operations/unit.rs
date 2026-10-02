@@ -422,6 +422,12 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: crate::target_operations::TargetStructuralHomeRequirement,
     },
+    /// Establish a structural local's exact aggregate home for memberwise
+    /// establishment: subsequent field stores write the members.
+    EstablishStructuralLocal {
+        psi_operation: OperationId,
+        result_home: crate::target_operations::TargetStructuralHomeRequirement,
+    },
     /// A complete record established in its exact operation-result home.
     EstablishRecord {
         psi_operation: OperationId,
@@ -583,6 +589,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishZeroedStructural {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishStructuralLocal {
                 psi_operation,
                 result_home,
                 ..

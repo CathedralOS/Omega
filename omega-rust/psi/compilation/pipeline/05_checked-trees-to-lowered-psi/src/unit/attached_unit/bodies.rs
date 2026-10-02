@@ -326,4 +326,60 @@ impl<'a> UnitBody<'a> {
             }
         }
     }
+
+    /// The operations planned for one state: an ordinary body's own roster,
+    /// or the matching state row inside a state graph.
+    pub(crate) fn state_operations(
+        self,
+        state: symbols::SymbolHandle,
+    ) -> Option<&'a [CheckedUnitEffectOperationPlan]> {
+        match self {
+            Self::Ordinary(plan) => (plan.state == state).then_some(plan.operations.as_slice()),
+            Self::Composed(plan) => plan
+                .states
+                .iter()
+                .find(|candidate| candidate.state == state)
+                .map(|state| state.operations.as_slice()),
+        }
+    }
+}
+
+/// An authored declaration statement mints the local's storage establishment:
+/// an attached value construction, a per-member structural establishment, or
+/// the scalar/array storage op at that exact statement. The scan is by
+/// operation, not initializer kind — every declaration whose unit plan
+/// establishes storage admits, regardless of which op family minted it.
+pub(crate) fn statement_establishes_local(
+    plans: UnitPlans<'_>,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    let Some(operations) = UnitBody::find(plans, machine)
+        .ok()
+        .and_then(|body| body.state_operations(state))
+    else {
+        return false;
+    };
+    operations.iter().any(|operation| match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+            statement_index,
+            symbol: established,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            statement_index,
+            symbol: established,
+            ..
+        } => *established == symbol && *statement_index as usize == statement,
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+            result.statement_index as usize == statement
+        }
+        CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            statement_index, ..
+        } => *statement_index as usize == statement,
+        _ => false,
+    })
 }

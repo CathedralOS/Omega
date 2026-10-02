@@ -333,6 +333,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_result::encode_operation_result(bytes, result);
                     super::calling::encode_shape(bytes, *shape);
                 }
+                LegalizedScalarInstructionKind::EstablishStructuralLocal { result, shape } => {
+                    bytes.push(93);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
                     place,
                     structural_type,

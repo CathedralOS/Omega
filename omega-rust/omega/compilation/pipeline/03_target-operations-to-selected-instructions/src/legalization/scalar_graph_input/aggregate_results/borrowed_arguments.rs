@@ -96,6 +96,7 @@ pub(super) fn reconstruct(
                 AbstractOperation::EstablishRecord { psi_operation, .. }
                 | AbstractOperation::EstablishScalarArray { psi_operation, .. }
                 | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
+                | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
                 | AbstractOperation::EstablishCase { psi_operation, .. }
                 | AbstractOperation::CallStructural {
                     psi_operation,
