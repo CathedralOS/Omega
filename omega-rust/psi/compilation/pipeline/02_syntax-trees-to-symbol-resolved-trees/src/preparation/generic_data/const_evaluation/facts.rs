@@ -251,9 +251,7 @@ fn evaluate_const_fact_expression_at(
             else {
                 return Ok(None);
             };
-            if !builtin
-                && authored_operator_can_bind(syntax, binary.operator, &left, &right)
-            {
+            if !builtin && authored_operator_can_bind(syntax, binary.operator, &left, &right) {
                 return Ok(None);
             }
             evaluate_const_fact_binary(syntax, expression, binary.operator, left, right, warnings)

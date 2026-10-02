@@ -273,6 +273,37 @@ pub(super) fn validate_establish_zeroed_structural(
     Ok(())
 }
 
+pub(super) fn validate_establish_structural_local(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let _ = module;
+    let OperationKind::EstablishStructuralLocal {} = &operation.kind else {
+        unreachable!("dispatched validate_establish_structural_local")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("structural local establishment has no structural result");
+    };
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !matches!(
+            machine.structural_places.iter().find(|place| place.id == result.place),
+            Some(StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
+            }) if *producer == operation.id && *structural_type == result.structural_type
+        )
+    {
+        return malformed("structural local establishment has an invalid result shape");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_establish_trivial_affine_local(
     module: &TerminalModule,
     machine: &TerminalMachine,

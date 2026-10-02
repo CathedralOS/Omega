@@ -37,7 +37,10 @@ pub fn record_local_disposition(
         return None;
     };
     if !local.symbol.is_valid()
-        || program.state_parameters(source).iter().any(|parameter| parameter.symbol == local.symbol)
+        || program
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| parameter.symbol == local.symbol)
         || program
             .state_local_declaration(source, local.symbol)
             .is_none()

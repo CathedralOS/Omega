@@ -111,6 +111,7 @@ pub(super) fn lower_operation(
             .is_some(),
         ),
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => (Some(result.place), false),
+        AbstractOperation::EstablishStructuralLocal { result, .. } => (Some(result.place), false),
         AbstractOperation::MoveStructuralField {
             source: root, path, ..
         }
@@ -452,6 +453,16 @@ pub(super) fn lower_operation(
         ),
         AbstractOperation::EstablishZeroedStructural { .. } => {
             super::records::establish_zeroed_structural(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::EstablishStructuralLocal { .. } => {
+            super::records::establish_structural_local(
                 operation,
                 function,
                 structural_types,

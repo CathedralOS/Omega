@@ -185,6 +185,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StoreStructuralField { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
+            | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
             | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
@@ -317,6 +318,12 @@ pub enum LegalizedScalarInstructionKind {
     /// Establish a whole zero-constructible structural value: every scalar
     /// leaf begins zero and the op carries no element roster.
     EstablishZeroedStructural {
+        result: terminal_psi::StructuralOperationResult,
+        shape: calling_conventions::ValueShape,
+    },
+    /// Establish a structural local's home for memberwise establishment:
+    /// the home begins stale and subsequent field stores write the members.
+    EstablishStructuralLocal {
         result: terminal_psi::StructuralOperationResult,
         shape: calling_conventions::ValueShape,
     },
@@ -800,6 +807,7 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
+            | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishCase { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }

@@ -298,6 +298,7 @@ impl OperationKind {
             // future operations from silently escaping this inventory.
             Self::EstablishScalarArray { .. }
             | Self::EstablishZeroedStructural { .. }
+            | Self::EstablishStructuralLocal { .. }
             | Self::EstablishPrimitiveLocal { .. }
             | Self::EstablishScalarCase { .. }
             | Self::EstablishByteSequenceLiteral { .. }
@@ -450,6 +451,7 @@ impl OperationKind {
             Self::ReleaseReference { .. }
             | Self::EstablishScalarArray { .. }
             | Self::EstablishZeroedStructural { .. }
+            | Self::EstablishStructuralLocal { .. }
             | Self::EstablishPrimitiveLocal { .. }
             | Self::EstablishScalarCase { .. }
             | Self::StructuralCaseLeafCopy { .. }

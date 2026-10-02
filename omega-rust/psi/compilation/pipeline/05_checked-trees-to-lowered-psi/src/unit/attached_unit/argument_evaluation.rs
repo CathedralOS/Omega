@@ -385,10 +385,6 @@ impl Evaluation {
                 checked.type_multiplicity(local.type_reference)
             };
             if !local.symbol.is_valid()
-                || !(checked
-                    .expression_table
-                    .expression_is_valid(local.initial_value)
-                    || validation::zeroed_structural_parts(checked, local.type_reference))
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || expected_multiplicity != result.multiplicity
                 || self

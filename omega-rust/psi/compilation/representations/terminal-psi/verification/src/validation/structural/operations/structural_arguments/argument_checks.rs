@@ -406,7 +406,8 @@ pub(in crate::validation) fn validate_structural_argument(
                                         // result source map rejoins the exact
                                         // leaf loans under that edge.
                                         OperationKind::EstablishRecord { .. }
-                                        | OperationKind::EstablishStructuralCase { .. } => {
+                                        | OperationKind::EstablishStructuralCase { .. }
+                                        | OperationKind::EstablishStructuralLocal { .. } => {
                                             (reference_result_call
                                                 && argument.access == StructuralAccess::Owned
                                                 && expected.access == argument.access
@@ -423,6 +424,9 @@ pub(in crate::validation) fn validate_structural_argument(
                                                 || (matches!(
                                                     operation.kind,
                                                     OperationKind::EstablishRecord { .. }
+                                                        | OperationKind::EstablishStructuralLocal {
+                                                            ..
+                                                        }
                                                 ) && argument.access
                                                     == StructuralAccess::SharedBorrow
                                                     && expected.access == argument.access

@@ -549,6 +549,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                     result,
                                     ..
                                 }
+                                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                                    result,
+                                    ..
+                                }
                                 // A state's closed scalar-array local owns its
                                 // array type alone, exactly as the ordinary
                                 // unit route retains it below.
@@ -663,6 +667,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
             }

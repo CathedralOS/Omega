@@ -334,7 +334,10 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
     let destination = store.0.parameter().expect("borrowed array parameter");
     assert_eq!(destination, &function.structural_parameters[0]);
     assert_eq!(destination.access, StructuralAccess::MutableBorrow);
-    assert_eq!(destination.multiplicity, StructuralMultiplicity::Unrestricted);
+    assert_eq!(
+        destination.multiplicity,
+        StructuralMultiplicity::Unrestricted
+    );
     let [terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. }] = store.1.as_slice()
     else {
         panic!("the store path is one runtime element: {:?}", store.1)

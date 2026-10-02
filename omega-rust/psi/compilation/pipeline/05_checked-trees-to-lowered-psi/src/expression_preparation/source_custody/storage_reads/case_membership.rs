@@ -82,7 +82,8 @@ pub(crate) fn authored(
                     } => reference = *referee,
                     TypeReferenceNode::Named { symbol, .. }
                     | TypeReferenceNode::Generic {
-                        base_symbol: symbol, ..
+                        base_symbol: symbol,
+                        ..
                     } => break *symbol,
                     _ => return Ok(None),
                 }
@@ -294,9 +295,7 @@ pub(crate) fn authored(
         .iter()
         .flat_map(|data| checked.data_members(data))
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(case) if case.symbol == selected => {
-                Some(case)
-            }
+            checked_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
             _ => None,
         })
         .ok_or(LoweringError::Unsupported(

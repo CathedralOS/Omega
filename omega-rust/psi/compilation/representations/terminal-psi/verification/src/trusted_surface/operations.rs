@@ -752,6 +752,13 @@ static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     EFFECT_DEPS,
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_PARTIAL_AFFINE],
 );
+static OP_ESTABLISH_STRUCTURAL_LOCAL: TrustedSurfaceEntry = entry(
+    "operation:establish-structural-local",
+    "a validated declared structural local home establishment",
+    "the home establishment observation; member contents carry their own observations and no scalar equation is published",
+    EFFECT_DEPS,
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_UNIT_OPERATION],
+);
 static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
     "operation:establish-record",
     "a validated complete record establishment in declaration field order; owned bounded-byte operands are live unrestricted whole values of the exact capacity whose independently interpreted source predicates imply the member predicates, never evidence supplied by the destination declaration",
@@ -1334,6 +1341,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_ELEMENT_VIEW_WRITE,
     OP_ELEMENT_VIEW_SUBSLICE,
     OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL,
+    OP_ESTABLISH_STRUCTURAL_LOCAL,
     OP_ESTABLISH_RECORD,
     OP_STORE_DYNAMIC_DESCRIPTOR,
     OP_CALL,
@@ -1422,6 +1430,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,
         OperationSemanticTag::EstablishScalarArray => &OP_ESTABLISH_SCALAR_ARRAY,
         OperationSemanticTag::EstablishZeroedStructural => &OP_ESTABLISH_ZEROED_STRUCTURAL,
+        OperationSemanticTag::EstablishStructuralLocal => &OP_ESTABLISH_STRUCTURAL_LOCAL,
         OperationSemanticTag::EstablishByteSequenceConcatenation => {
             &OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION
         }

@@ -3851,6 +3851,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             } => (result.place, result.structural_type, result.multiplicity, plain_loan(result), true),
             AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::EstablishStructuralLocal { result, .. }
             | AbstractOperation::StructuralLeafCopy { result, .. }
             // Extraction transfers the field into a distinct owned root;
             // its later call operand is not the borrowed source root.

@@ -714,6 +714,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishPrimitiveLocal { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishScalarCase { .. }
                     | OperationKind::EstablishStructuralCase { .. }

@@ -45,6 +45,9 @@ pub(super) fn home_available(
                             result_home: home,
                             ..
                         }
+                        | TargetUnitOperation::EstablishStructuralLocal {
+                            result_home: home, ..
+                        }
                         | TargetUnitOperation::EstablishScalarArray {
                             result_home: home, ..
                         }

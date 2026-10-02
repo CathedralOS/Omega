@@ -197,55 +197,54 @@ pub(super) fn target_bounds(
     // replay: the ordered operations resume only at their left operand,
     // while a bitwise and resumes at either operand with the other landing
     // as the mask literal.
-    let Some((definition_axiom, bitwise, candidates)) =
-        semantic_axioms
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(index, proposition)| {
-                let Proposition::Equal(left, right) = proposition else {
-                    return None;
-                };
-                let expression = if left == target {
-                    right
-                } else if right == target {
-                    left
-                } else {
-                    return None;
-                };
-                let candidates: Vec<(&ScalarTerm, &ScalarTerm)> = match expression {
-                    ScalarTerm::ExactIntegerMultiply {
-                        left: root,
-                        right: sibling,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerDivide {
-                        left: root,
-                        right: sibling,
-                        ..
-                    }
-                    | ScalarTerm::ExactIntegerRemainder {
-                        left: root,
-                        right: sibling,
-                        ..
-                    }
-                    | ScalarTerm::WrappingIntegerRemainder {
-                        left: root,
-                        right: sibling,
-                        ..
-                    } => vec![(root.as_ref(), sibling.as_ref())],
-                    ScalarTerm::IntegerBitwiseAnd { left, right, .. } => vec![
-                        (left.as_ref(), right.as_ref()),
-                        (right.as_ref(), left.as_ref()),
-                    ],
-                    _ => return None,
-                };
-                Some((
-                    index,
-                    matches!(expression, ScalarTerm::IntegerBitwiseAnd { .. }),
-                    candidates,
-                ))
-            })
+    let Some((definition_axiom, bitwise, candidates)) = semantic_axioms
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, proposition)| {
+            let Proposition::Equal(left, right) = proposition else {
+                return None;
+            };
+            let expression = if left == target {
+                right
+            } else if right == target {
+                left
+            } else {
+                return None;
+            };
+            let candidates: Vec<(&ScalarTerm, &ScalarTerm)> = match expression {
+                ScalarTerm::ExactIntegerMultiply {
+                    left: root,
+                    right: sibling,
+                    ..
+                }
+                | ScalarTerm::ExactIntegerDivide {
+                    left: root,
+                    right: sibling,
+                    ..
+                }
+                | ScalarTerm::ExactIntegerRemainder {
+                    left: root,
+                    right: sibling,
+                    ..
+                }
+                | ScalarTerm::WrappingIntegerRemainder {
+                    left: root,
+                    right: sibling,
+                    ..
+                } => vec![(root.as_ref(), sibling.as_ref())],
+                ScalarTerm::IntegerBitwiseAnd { left, right, .. } => vec![
+                    (left.as_ref(), right.as_ref()),
+                    (right.as_ref(), left.as_ref()),
+                ],
+                _ => return None,
+            };
+            Some((
+                index,
+                matches!(expression, ScalarTerm::IntegerBitwiseAnd { .. }),
+                candidates,
+            ))
+        })
     else {
         return Vec::new();
     };

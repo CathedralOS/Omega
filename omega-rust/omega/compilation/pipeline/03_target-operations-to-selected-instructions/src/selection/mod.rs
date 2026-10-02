@@ -29,6 +29,7 @@ mod record_input;
 mod reference_input;
 mod scalar_array_input;
 mod scalar_call_abi;
+mod structural_local_input;
 mod validation;
 pub(crate) mod value_transport;
 mod zeroed_structural_input;

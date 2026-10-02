@@ -77,6 +77,7 @@ pub(super) fn argument(
         matches!(operation,
             AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
             | AbstractOperation::EstablishZeroedStructural { psi_operation, result: actual }
+            | AbstractOperation::EstablishStructuralLocal { psi_operation, result: actual }
             | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
             | AbstractOperation::CallStructural {
                 psi_operation,

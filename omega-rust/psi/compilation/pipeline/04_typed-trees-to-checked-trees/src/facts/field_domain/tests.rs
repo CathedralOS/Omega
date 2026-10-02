@@ -66,7 +66,11 @@ fn closed_const_record_store_uses_the_substituted_owner() {
                 .is_some(),
             "{} retains its indexed store: {:?}",
             machine.name.as_str(),
-            checked.facts.flow.terminal_unit_effects.omission_for_machine(machine.symbol)
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .omission_for_machine(machine.symbol)
         );
     }
     assert_eq!(owners.len(), 2);

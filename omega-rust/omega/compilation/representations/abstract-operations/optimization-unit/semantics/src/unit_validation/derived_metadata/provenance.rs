@@ -44,6 +44,7 @@ pub(crate) fn expected_provenance(
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::EstablishZeroedStructural { psi_operation, .. }
+        | O::EstablishStructuralLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }
         | O::ReleaseReference { psi_operation, .. }
         | O::MoveStructuralField { psi_operation, .. }
