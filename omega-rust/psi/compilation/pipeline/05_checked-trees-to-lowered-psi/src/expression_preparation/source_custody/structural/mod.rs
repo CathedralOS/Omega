@@ -1627,7 +1627,7 @@ pub(crate) fn operand_source(
 
 /// Recover the value's original establishment, not the destination place's.
 /// The operation/edge receivers independently check each transfer schedule.
-fn local_value_provenance(
+pub(crate) fn local_value_provenance(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
