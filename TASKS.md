@@ -252,9 +252,61 @@ execution and native exit/output. A moved refusal is still unfinished work.
   Baselines for attribution: `sample_gate` is 23/149 on Darwin arm64, and those
   15 receiver-using green samples are 15/15 on `sample_native_gate` before any
   migration.
+  **Root cause, measured 2026-10-02 with `OMEGA_DUMP_OBLIGATIONS=1`.** That env
+  var already dumps each site's proposition, requirements and axioms; no
+  instrumentation is needed. A 33-line reproducer is enough -- a static entry
+  storing `place = 100`, a `p < 3` loop head, and `d = sq / place` in the body;
+  its receiver spelling runs at exit 7 and its static spelling reports
+  `OperationProofUnavailable`. Deleting only the `sq / place` division makes the
+  static spelling run, so the lost proof is the DIVISOR-NONZERO one.
+  Diffing the two dumps for that obligation: the goal is `1 <= ValueId(8)` with
+  empty `requirements` in both. In the receiver spelling every `IntegerField`
+  axiom shares `root: PlaceId(1)` -- one place for the whole machine, because the
+  receiver is `StructuralPlaceKind::Parameter { position: 0, is_self: true }` --
+  and the axiom set includes the entry's `Unsigned(100)` literal, so `p < 3`
+  and `place` are relatable on one root. In the static spelling the fields split
+  across `PlaceId(2)` and `PlaceId(3)`, one per state, because each state
+  receives the record as its own `StructuralPlaceKind::BlockParameter { block,
+  position }`. The `100` axiom is absent and there are 4 implications instead
+  of 5.
+  So this is not a proof-search budget problem: a fact established through one
+  state's data parameter is about a DIFFERENT structural place than the
+  successor's, and the receiver happened to give the whole machine one identity.
+  The answer already exists and is not consulted here:
+  `terminal-psi/semantics/src/arrival_storage.rs` (landed for the byte-field
+  work) maps a block parameter back to the place it arrived as --
+  `root_before_edge(machine, block, predecessor, place)` and
+  `storage_names(machine, block, root)`. The axiom/fact transport feeding
+  `operation_proofs` needs the same arrival relation, so a block parameter and
+  its predecessor's place are one storage identity for citation.
+  What is already ruled out, so it is not retried. The origin relation IS
+  computed correctly for the static spelling: all three block-parameter places
+  resolve to `PlaceId(1)` with one alternative and `exact=true`, while the
+  receiver spelling has no borrowed origins at all (its data is a machine
+  parameter, not a block parameter). So this is not ambiguous-origin loss.
+  That was measured with a temporary dump of `origins` in
+  `StorageObservations::new`, printed before its single-origin filter. Worth
+  re-adding while working here, but NOT worth landing: that file is inside the
+  trusted surface under `scope:borrowed-storage-observations`, so even an
+  env-gated `eprintln` fails
+  `terminal-verifier trusted_surface::recorded_digests_match_the_working_tree`
+  and asks for that justification to be revalidated.
+  `storage_observations.rs::append_invocation_facts` already rewrites axioms
+  rooted at a block parameter to that invocation origin, and
+  `reconstruction.rs` calls it ONLY for a `Return*` terminator. Calling it for
+  every block was measured and does NOT fix the reproducer, so the missing
+  axioms are not transported facts awaiting a rename.
+  What the remaining difference is: a loop-cut target starts from an EMPTY
+  roster by design ("Facts from its first arrival are not invariants"), so the
+  `p < N -> 1 <= place` implications in the dump are SYNTHESIZED, and the
+  synthesis produces 5 of them plus the entry's `100` literal under one place
+  identity and only 4 under per-block identities. The next step is that
+  synthesizer -- not the fact transport -- and whether it can relate two block
+  parameters that `invocation_origins` already says are one storage.
   Acceptance: `print_squares` migrates its entry and meets its documented oracle
   (`Expected output contains: 081`, exit 0) through `sample_native_gate`, with
-  the other twelve measured after it.
+  the other twelve measured after it; the 33-line reproducer is the fast inner
+  loop and belongs in `tests/omega/pass/` as a fixture when it runs.
 
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is

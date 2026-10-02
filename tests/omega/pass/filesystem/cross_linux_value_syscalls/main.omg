@@ -77,7 +77,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition kind { ErrorKind::NotFound -> classify_bad_fd(main) _ -> fail_error_kind(main) }
     }
     state classify_bad_fd(main: &mut Main) {
-        let result: IoResult = main.semantic_fs.read(File { fd: -1 }, &mut main.buffer, 1);
+        let result: IoResult = Filesystem::read(&mut main.semantic_fs, File { fd: -1 }, &mut main.buffer, 1);
         transition result {
             IoResult::Error { kind } -> check_bad_fd(main, kind)
             _ -> fail_error_kind(main)
@@ -87,7 +87,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition kind { ErrorKind::BadDescriptor -> remove_missing(main) _ -> fail_error_kind(main) }
     }
     state remove_missing(main: &mut Main) {
-        let result: UnitResult = main.semantic_fs.remove("/omega_definitely_absent_linux");
+        let result: UnitResult = Filesystem::remove(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_remove_missing(main, kind)
             _ -> fail_error_kind(main)

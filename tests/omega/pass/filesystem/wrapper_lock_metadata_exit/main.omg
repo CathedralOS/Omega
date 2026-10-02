@@ -25,11 +25,11 @@ data Main {
     close_rc: i32;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    main.open_result = main.fs.create("omega_lock_probe.txt");
+    main.open_result = Filesystem::create(&mut main.fs, "omega_lock_probe.txt");
     transition main.open_result { OpenResult::Ok { file } -> seed(main, file) _ -> bad(main, 71) }
     state seed(main: &mut Main, file: File) {
         main.file_fd = file.fd;
-        main.io_result = main.fs.write(File { fd: main.file_fd }, "hello");
+        main.io_result = Filesystem::write(&mut main.fs, File { fd: main.file_fd }, "hello");
         transition main.io_result { IoResult::Ok { count } -> seeded(main, count) _ -> bad(main, 72) }
     }
     state seeded(main: &mut Main, count: u64) {
@@ -72,8 +72,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state un4(main: &mut Main) {
         main.unit_result = Filesystem::unlock(&mut main.fs, File { fd: main.file_fd });
-        main.close_rc = main.fs.close(File { fd: main.file_fd });
-        main.unit_result = main.fs.remove("omega_lock_probe.txt");
+        main.close_rc = Filesystem::close(&mut main.fs, File { fd: main.file_fd });
+        main.unit_result = Filesystem::remove(&mut main.fs, "omega_lock_probe.txt");
         transition main.unit_result { UnitResult::Ok -> good(main) _ -> bad(main, 81) }
     }
     state good(main: &mut Main) { main.console.exit_process(70); }

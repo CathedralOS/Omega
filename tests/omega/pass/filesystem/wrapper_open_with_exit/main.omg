@@ -37,8 +37,8 @@ machine Main::main(main: &mut Main) reaches Console {
     transition main.open_result { OpenResult::Ok { file } -> writeit(main, file) _ -> bad(main, 71) }
     state writeit(main: &mut Main, file: File) {
         main.file_fd = file.fd;
-        main.io_result = main.fs.write(File { fd: main.file_fd }, "abc");
-        main.close_rc = main.fs.close(File { fd: main.file_fd });
+        main.io_result = Filesystem::write(&mut main.fs, File { fd: main.file_fd }, "abc");
+        main.close_rc = Filesystem::close(&mut main.fs, File { fd: main.file_fd });
         transition main.io_result { IoResult::Ok { count } -> wrote(main, count) _ -> bad(main, 72) }
     }
     state wrote(main: &mut Main, count: u64) {
@@ -52,8 +52,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state readit(main: &mut Main, file: File) {
         main.file_fd = file.fd;
-        main.io_result = main.fs.read(File { fd: main.file_fd }, &mut main.back, 16);
-        main.close_rc = main.fs.close(File { fd: main.file_fd });
+        main.io_result = Filesystem::read(&mut main.fs, File { fd: main.file_fd }, &mut main.back, 16);
+        main.close_rc = Filesystem::close(&mut main.fs, File { fd: main.file_fd });
         transition main.back[0] == 97 { true -> read_tail(main) _ -> bad(main, 74) }
     }
     state read_tail(main: &mut Main) {
@@ -67,8 +67,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state trunced(main: &mut Main, file: File) {
         main.file_fd = file.fd;
-        main.io_result = main.fs.write(File { fd: main.file_fd }, "wxyz");
-        main.close_rc = main.fs.close(File { fd: main.file_fd });
+        main.io_result = Filesystem::write(&mut main.fs, File { fd: main.file_fd }, "wxyz");
+        main.close_rc = Filesystem::close(&mut main.fs, File { fd: main.file_fd });
         main.meta_result = Filesystem::metadata_path(&mut main.fs, "omega_ow_probe.txt");
         transition main.meta_result { MetadataResult::Ok { meta } -> ck3(main, meta) _ -> bad(main, 75) }
     }
@@ -83,8 +83,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state appended(main: &mut Main, file: File) {
         main.file_fd = file.fd;
-        main.io_result = main.fs.write(File { fd: main.file_fd }, "tail");
-        main.close_rc = main.fs.close(File { fd: main.file_fd });
+        main.io_result = Filesystem::write(&mut main.fs, File { fd: main.file_fd }, "tail");
+        main.close_rc = Filesystem::close(&mut main.fs, File { fd: main.file_fd });
         main.io_result = Filesystem::read_all(&mut main.fs, "omega_ow_probe.txt", &mut main.back, 16);
         transition main.io_result { IoResult::Ok { count } -> ck4(main, count) _ -> bad(main, 76) }
     }
@@ -129,7 +129,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state cleanup(main: &mut Main) {
-        main.unit_result = main.fs.remove("omega_ow_probe.txt");
+        main.unit_result = Filesystem::remove(&mut main.fs, "omega_ow_probe.txt");
         transition main.unit_result { UnitResult::Ok -> good(main) _ -> bad(main, 79) }
     }
     state good(main: &mut Main) { main.console.exit_process(70); }

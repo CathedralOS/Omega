@@ -66,7 +66,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition main.canon[0] == 111 { true -> make_dir(main) _ -> bad(main, 73) }
     }
     state make_dir(main: &mut Main) {
-        main.unit_result = main.fs.create_dir("omega_wcanon_dir");
+        main.unit_result = Filesystem::create_dir(&mut main.fs, "omega_wcanon_dir");
         transition main.unit_result { UnitResult::Ok -> resolve_dir(main) _ -> bad(main, 76) }
     }
     state resolve_dir(main: &mut Main) {
@@ -88,11 +88,11 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition kind { ErrorKind::NotFound -> cleanup(main) _ -> bad(main, 75) }
     }
     state cleanup(main: &mut Main) {
-        main.unit_result = main.fs.remove("omega_wcanon_probe.txt");
+        main.unit_result = Filesystem::remove(&mut main.fs, "omega_wcanon_probe.txt");
         transition { _ -> cleanup_dir(main) }
     }
     state cleanup_dir(main: &mut Main) {
-        main.unit_result = main.fs.remove_dir("omega_wcanon_dir");
+        main.unit_result = Filesystem::remove_dir(&mut main.fs, "omega_wcanon_dir");
         transition { _ -> good(main) }
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
