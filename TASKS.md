@@ -279,11 +279,43 @@ execution and native exit/output. A moved refusal is still unfinished work.
   [field]) denote one place, rather than the places being normalized to agree.
   `canonical_place_for_loan` and `captured_place_compatibility` are where that
   comparison lives.
-  Then: the subject's own argument must be excluded from the arguments the
-  footprint judges, or it is compared against itself; and `conflicts.rs` must
-  stop refusing a pair the footprint judgment owns. The suspension obligation
-  must still be enforced inside the successor -- accepting the pair without it
-  would let the successor reach `main.inner` through `main` while `loan` is live.
+  **The two obvious gate changes are UNSOUND on their own; measured 2026-10-02
+  with this program, which must reject and must be the acceptance fixture:**
+
+      data Inner { tag: i32; }
+      data Main { inner: Inner; seen: i32; }
+      machine Main::main(main: &mut Main) {
+          main.inner.tag = 1;
+          transition true { _ -> next(main, &mut main.inner) }
+          state next(main: &mut Main, loan: &mut Inner) {
+              main.inner.tag = 7;
+              main.seen = loan.tag;
+          }
+      }
+
+  Opening `receiver_is_mutable_reference` to the subject and dropping the
+  subject's access from `conflicts.rs`'s pairwise loop makes
+  `projected_mut_member_loan` check -- and makes the program above check too,
+  which is two live exclusive paths to `main.inner`. Its receiver spelling
+  rejects with "state `next` receives `self.inner` as mutable while its mutable
+  receiver writes `self.inner.tag`", so the obligation exists and those two
+  changes alone silently drop it.
+  Why the footprint still does not engage: `whole_mutable_receiver_machine` has a
+  THIRD condition past the two gates -- it resolves the receiver PLACE through
+  `canonical_receiver_place_for_call_site` and requires it to carry no segments.
+  A static jump has no receiver expression, so that returns `None` and the
+  judgment bails however the gates are set. The parent place has to come from
+  the ARGUMENT at the subject's position instead.
+  Then the summaries the judgment reads are receiver-keyed too:
+  `flow/receiver_reads.rs` tests `parameter.is_self` at two sites (one for
+  whether the state has a receiver at all, one matching a place root), and
+  `StateMutationSummaryCache` is its write-side twin. Those decide "what the
+  successor reads/writes through the parent", so a named subject reads as
+  touching nothing -- which is exactly why the unsound program passed.
+  Five coordinated sites, in that order: the two gates, the parent place from the
+  subject argument, the subject argument excluded from both the pairwise loop and
+  the footprint's judged arguments, and the two summaries. The soundness test
+  above is the gate on the whole thing.
   Acceptance: the 13 fixtures check and the `*_exit` ones meet their native
   oracles in the static spelling; the three `receiver_jump_loans` refusals keep
   rejecting, with a static-spelling fixture for each of the two obligations

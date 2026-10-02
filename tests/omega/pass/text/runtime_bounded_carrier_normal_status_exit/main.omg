@@ -21,35 +21,35 @@ data Main {
     reading: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.label = "temp";
-    self.reading = 85;
+machine Main::main(main: &mut Main) reaches Console {
+    main.label = "temp";
+    main.reading = 85;
 
-    transition self.reading > 90 {
-        true -> high()
-        _ -> normal()
+    transition main.reading > 90 {
+        true -> high(main)
+        _ -> normal(main)
     }
 
-    state high(&mut self) {
-        self.message = "ALERT " + self.label;
-        self.console.write_line(self.message);
-        self.console.exit_process(71);
+    state high(main: &mut Main) {
+        main.message = "ALERT " + main.label;
+        main.console.write_line(main.message);
+        main.console.exit_process(71);
     }
 
-    state normal(&mut self) {
-        self.message = "ok " + self.label;
-        self.console.write_line(self.message);
-        transition self.message == "ok temp" {
-            true -> good()
-            _ -> bad()
+    state normal(main: &mut Main) {
+        main.message = "ok " + main.label;
+        main.console.write_line(main.message);
+        transition main.message == "ok temp" {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

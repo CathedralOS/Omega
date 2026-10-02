@@ -1,9 +1,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 // The builder pattern over NESTED-field owned `[u8; N] in Utf8` carriers (#66):
-// `self.line.text = "Room " + self.room.label` materializes the concat into the
+// `main.line.text = "Room " + main.room.label` materializes the concat into the
 // nested target carrier's inline `{len, bytes}` storage, then a later state
-// `write_line`s it. The nested fields `self.room.label` / `self.line.text` have
+// `write_line`s it. The nested fields `main.room.label` / `main.line.text` have
 // their declared `in Utf8` domain forwarded through the multi-level field-path
 // resolver -- enforced at the write and trusted at the host-call read -- so this
 // owns its bytes end to end with no `String` and no `{ptr, len}` descriptor.
@@ -31,17 +31,17 @@ data Main {
     line: Line;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.room.label = "A1";
-    self.line.text = "Room " + self.room.label;
+machine Main::main(main: &mut Main) reaches Console {
+    main.room.label = "A1";
+    main.line.text = "Room " + main.room.label;
 
     transition {
-        _ -> shutdown()
+        _ -> shutdown(main)
     }
 
 
-    state shutdown(&mut self) {
-        self.console.write_line(self.line.text);
-        self.console.exit_process(0);
+    state shutdown(main: &mut Main) {
+        main.console.write_line(main.line.text);
+        main.console.exit_process(0);
     }
 }

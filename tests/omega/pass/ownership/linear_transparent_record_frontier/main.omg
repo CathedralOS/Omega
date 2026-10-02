@@ -18,7 +18,7 @@ data Pair {
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
     let pair: Pair = Pair { left: left, right: right };
@@ -27,5 +27,5 @@ machine Main::main(&mut self) reaches Console {
     let extracted_right: Receipt = forwarded.right;
     Receipt::ack(extracted_left);
     Receipt::ack(extracted_right);
-    self.console.exit_process(0);
+    main.console.exit_process(0);
 }

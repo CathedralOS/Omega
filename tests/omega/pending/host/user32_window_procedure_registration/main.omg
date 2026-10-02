@@ -361,92 +361,92 @@ data Main {
     window: u64;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console + User32 + WindowProcedure
 invokes User32;
 invokes Console;
 {
-    self.class.style = 3;
-    self.class.context = 77;
-    self.class.class_name[0] = 79;
-    self.class.class_name[1] = 109;
-    self.class.class_name[2] = 101;
-    self.class.class_name[3] = 103;
-    self.class.class_name[4] = 97;
-    self.class.class_name[5] = 87;
-    self.class.class_name[6] = 105;
-    self.class.class_name[7] = 110;
-    self.class.class_name[8] = 100;
-    self.class.class_name[9] = 111;
-    self.class.class_name[10] = 119;
-    self.class.class_name[11] = 80;
-    self.class.class_name[12] = 0;
+    main.class.style = 3;
+    main.class.context = 77;
+    main.class.class_name[0] = 79;
+    main.class.class_name[1] = 109;
+    main.class.class_name[2] = 101;
+    main.class.class_name[3] = 103;
+    main.class.class_name[4] = 97;
+    main.class.class_name[5] = 87;
+    main.class.class_name[6] = 105;
+    main.class.class_name[7] = 110;
+    main.class.class_name[8] = 100;
+    main.class.class_name[9] = 111;
+    main.class.class_name[10] = 119;
+    main.class.class_name[11] = 80;
+    main.class.class_name[12] = 0;
     let registration_capacity: Registration = Registration { slot: 0 };
     let mut outcome: RegisterClassOutcome;
     User32::register_class<WindowMessages::window_procedure>(
-        &self.class,
+        &main.class,
         registration_capacity,
         &mut outcome
     );
     transition outcome {
-        RegisterClassOutcome::Registered { registration } -> self.created(registration)
-        RegisterClassOutcome::Rejected { capacity } -> self.reject_observed(capacity)
+        RegisterClassOutcome::Registered { registration } -> created(main, registration)
+        RegisterClassOutcome::Rejected { capacity } -> reject_observed(main, capacity)
     }
-    state created(&mut self, registration: Registration in Registration::Live) {
+    state created(main: &mut Main, registration: Registration in Registration::Live) {
         let geometry: WindowGeometry = WindowGeometry {
             x: 10,
             y: 10,
             width: 64,
             height: 64,
         };
-        self.window = User32::create_window(&registration, 0, &geometry);
-        transition self.window != 0 {
-            true -> self.pump(registration)
-            _ -> self.release(registration)
+        main.window = User32::create_window(&registration, 0, &geometry);
+        transition main.window != 0 {
+            true -> pump(main, registration)
+            _ -> release(main, registration)
         }
     }
-    state pump(&mut self, registration: Registration in Registration::Live) {
-        self.message[0] = self.window;
-        self.message[1] = 2;
-        let answer: u64 = User32::dispatch_message(&registration, &self.message);
+    state pump(main: &mut Main, registration: Registration in Registration::Live) {
+        main.message[0] = main.window;
+        main.message[1] = 2;
+        let answer: u64 = User32::dispatch_message(&registration, &main.message);
         transition answer == 0 {
-            true -> self.destroy(registration)
-            _ -> self.bad(registration)
+            true -> destroy(main, registration)
+            _ -> bad(main, registration)
         }
     }
-    state destroy(&mut self, registration: Registration in Registration::Live) {
-        let destroyed: u32 = User32::destroy_window(&registration, self.window);
+    state destroy(main: &mut Main, registration: Registration in Registration::Live) {
+        let destroyed: u32 = User32::destroy_window(&registration, main.window);
         transition destroyed != 0 {
-            true -> self.release(registration)
-            _ -> self.bad(registration)
+            true -> release(main, registration)
+            _ -> bad(main, registration)
         }
     }
-    state release(&mut self, registration: Registration in Registration::Live) {
-        self.capacity = User32::unregister_class(registration);
-        self.console.exit_process(70);
+    state release(main: &mut Main, registration: Registration in Registration::Live) {
+        main.capacity = User32::unregister_class(registration);
+        main.console.exit_process(70);
     }
     // The rejected leg keeps the capacity and retries once on a renamed
     // class before conceding — the observed-rejection path the acceptance
     // names.
-    state reject_observed(&mut self, capacity: Registration) {
-        self.class.class_name[0] = 82;
+    state reject_observed(main: &mut Main, capacity: Registration) {
+        main.class.class_name[0] = 82;
         let mut retry: RegisterClassOutcome;
         User32::register_class<WindowMessages::window_procedure>(
-            &self.class,
+            &main.class,
             capacity,
             &mut retry
         );
         transition retry {
-            RegisterClassOutcome::Registered { registration } -> self.created(registration)
-            RegisterClassOutcome::Rejected { capacity } -> self.concede(capacity)
+            RegisterClassOutcome::Registered { registration } -> created(main, registration)
+            RegisterClassOutcome::Rejected { capacity } -> concede(main, capacity)
         }
     }
-    state concede(&mut self, capacity: Registration) {
-        self.capacity = capacity;
-        self.console.exit_process(71);
+    state concede(main: &mut Main, capacity: Registration) {
+        main.capacity = capacity;
+        main.console.exit_process(71);
     }
-    state bad(&mut self, registration: Registration in Registration::Live) {
-        self.capacity = User32::unregister_class(registration);
-        self.console.exit_process(72);
+    state bad(main: &mut Main, registration: Registration in Registration::Live) {
+        main.capacity = User32::unregister_class(registration);
+        main.console.exit_process(72);
     }
 }

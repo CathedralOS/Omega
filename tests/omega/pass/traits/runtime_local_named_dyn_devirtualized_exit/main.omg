@@ -11,7 +11,7 @@ data Item [copy] {
 
 // Deliberate look-alike: the selected conformance row below, not this ambient
 // attached machine, owns dynamic dispatch.
-machine Item::code(&self) -> i32 {
+machine Item::code(item: &Item) -> i32 {
     transition {
         _ -> 4
     }
@@ -30,12 +30,12 @@ data Main {
     item: Item;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+machine Main::main(main: &mut Main) reaches Console {
+    let erased: &dyn Shape = &main.item as &dyn Item::Primary;
     let result: i32 = erased.code();
     transition result == 0 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

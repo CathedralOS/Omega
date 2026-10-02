@@ -8,7 +8,7 @@ boundary requirement ImageHandle::release(self);
 
 pub data Main {}
 
-boundary machine Main::main(&mut self, handle: ImageHandle) -> i32 {
+boundary machine Main::main(handle: ImageHandle) -> i32 {
     let raw: addr = handle.raw;
     ImageHandle::release(handle);
     transition raw == 0 {

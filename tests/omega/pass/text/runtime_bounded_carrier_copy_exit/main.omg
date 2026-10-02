@@ -21,68 +21,68 @@ data Main {
     bucket: Bucket;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.greeting = "Hello, " + "Ada!";
-    self.source = "Longer source";
-    self.bucket.sibling = "keep";
-    transition self.greeting == "Hello, Ada!" {
-        true -> copy()
-        false -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.greeting = "Hello, " + "Ada!";
+    main.source = "Longer source";
+    main.bucket.sibling = "keep";
+    transition main.greeting == "Hello, Ada!" {
+        true -> copy(main)
+        false -> bad(main)
     }
 
-    state copy(&mut self) {
-        self.bucket.text = self.source;
-        transition self.bucket.text == "Longer source" {
-            true -> preserved()
-            false -> bad()
+    state copy(main: &mut Main) {
+        main.bucket.text = main.source;
+        transition main.bucket.text == "Longer source" {
+            true -> preserved(main)
+            false -> bad(main)
         }
     }
 
-    state preserved(&mut self) {
-        transition self.source == "Longer source" && self.bucket.sibling == "keep" {
-            true -> shorter()
-            false -> bad()
+    state preserved(main: &mut Main) {
+        transition main.source == "Longer source" && main.bucket.sibling == "keep" {
+            true -> shorter(main)
+            false -> bad(main)
         }
     }
 
-    state shorter(&mut self) {
-        self.source = "Ada";
-        transition self.bucket.text == "Longer source" {
-            true -> copy_shorter()
-            false -> bad()
+    state shorter(main: &mut Main) {
+        main.source = "Ada";
+        transition main.bucket.text == "Longer source" {
+            true -> copy_shorter(main)
+            false -> bad(main)
         }
     }
 
-    state copy_shorter(&mut self) {
-        self.bucket.text = self.source;
-        transition self.bucket.text == "Ada" && self.bucket.text.len == 3 {
-            true -> empty()
-            false -> bad()
+    state copy_shorter(main: &mut Main) {
+        main.bucket.text = main.source;
+        transition main.bucket.text == "Ada" && main.bucket.text.len == 3 {
+            true -> empty(main)
+            false -> bad(main)
         }
     }
 
-    state empty(&mut self) {
-        self.source = "";
-        transition self.bucket.text == "Ada" {
-            true -> copy_empty()
-            false -> bad()
+    state empty(main: &mut Main) {
+        main.source = "";
+        transition main.bucket.text == "Ada" {
+            true -> copy_empty(main)
+            false -> bad(main)
         }
     }
 
-    state copy_empty(&mut self) {
-        self.bucket.text = self.source;
-        transition self.bucket.text == "" && self.bucket.text.len == 0 && self.bucket.sibling == "keep" {
-            true -> good()
-            false -> bad()
+    state copy_empty(main: &mut Main) {
+        main.bucket.text = main.source;
+        transition main.bucket.text == "" && main.bucket.text.len == 0 && main.bucket.sibling == "keep" {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line(self.greeting);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line(main.greeting);
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

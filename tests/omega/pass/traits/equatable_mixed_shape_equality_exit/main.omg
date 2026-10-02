@@ -28,30 +28,30 @@ data Main {
     right: RoomEvent;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.left = RoomEvent::Treasure { consumed: true, gold: 5 };
-    self.right = RoomEvent::Treasure { consumed: true, gold: 5 };
-    let equal: bool = self.left == self.right;
+machine Main::main(main: &mut Main) reaches Console {
+    main.left = RoomEvent::Treasure { consumed: true, gold: 5 };
+    main.right = RoomEvent::Treasure { consumed: true, gold: 5 };
+    let equal: bool = main.left == main.right;
     transition equal {
-        false -> bad()
-        true -> diverge()
+        false -> bad(main)
+        true -> diverge(main)
     }
 
-    state diverge(&mut self) {
+    state diverge(main: &mut Main) {
         // Same case and payload, different COMMON field: must compare unequal.
-        self.right = RoomEvent::Treasure { gold: 5 };
-        let still_equal: bool = self.left == self.right;
+        main.right = RoomEvent::Treasure { gold: 5 };
+        let still_equal: bool = main.left == main.right;
         transition still_equal {
-            true -> bad()
-            false -> done()
+            true -> bad(main)
+            false -> done(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

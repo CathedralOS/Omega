@@ -5,14 +5,14 @@ data Helper {}
 machine Helper::measure(bytes: &[u8]) -> u64 { bytes.len }
 
 data Main { console: Binding<Console>; bytes: [u8; 41]; }
-machine Main::main(&mut self) reaches Console {
-    let observed: u64 = Helper::measure(&self.bytes[1..41]);
-    self.report(observed);
+machine Main::main(main: &mut Main) reaches Console {
+    let observed: u64 = Helper::measure(&main.bytes[1..41]);
+    Main::report(main, observed);
 }
-machine Main::report(&mut self, observed: u64) reaches Console {
+machine Main::report(main: &mut Main, observed: u64) reaches Console {
     transition observed == 40 {
-        true -> finish(70)
-        false -> finish(71)
+        true -> finish(main, 70)
+        false -> finish(main, 71)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

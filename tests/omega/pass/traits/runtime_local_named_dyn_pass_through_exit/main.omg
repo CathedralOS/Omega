@@ -23,15 +23,15 @@ data Main {
     selected: Item;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.decoy.value = 4;
-    self.selected.value = 99;
-    let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
-    erased = &self.selected as &dyn Item::Primary;
+machine Main::main(main: &mut Main) reaches Console {
+    main.decoy.value = 4;
+    main.selected.value = 99;
+    let mut erased: &dyn Shape = &main.decoy as &dyn Item::Primary;
+    erased = &main.selected as &dyn Item::Primary;
     let result: i32 = dispatch(erased);
     transition result == 99 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {
