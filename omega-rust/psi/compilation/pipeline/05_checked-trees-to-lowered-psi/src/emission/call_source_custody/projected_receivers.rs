@@ -11,6 +11,8 @@ use symbols::SymbolHandle;
 pub(crate) mod aliases;
 mod locals;
 
+pub(crate) use locals::declaration as owned_local_declaration;
+
 pub(crate) struct ReceiverSource {
     pub(crate) root: SymbolHandle,
     pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,

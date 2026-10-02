@@ -742,7 +742,8 @@ fn parameter_binding_is_unique(
 }
 
 /// The one authored local of `state` that binds `symbol`, declared before
-/// statement `before` with a valid initializer. `missing` is the lane's
+/// statement `before` with an initializer or authenticated default storage.
+/// `missing` is the lane's
 /// diagnostic when no local binds `symbol`; `unestablished` covers a second
 /// binding, a declaration at or after `before`, and a stale initializer.
 fn preceding_local<'a>(
@@ -765,9 +766,16 @@ fn preceding_local<'a>(
     let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(missing))?;
     if locals.next().is_some()
         || ordinal >= before
-        || !checked
-            .expression_table
-            .expression_is_valid(local.initial_value)
+        || if local.initial_value.is_valid() {
+            !checked
+                .expression_table
+                .expression_is_valid(local.initial_value)
+        } else {
+            crate::emission::call_source_custody::projected_receivers::owned_local_declaration(
+                checked, state, before, symbol,
+            )
+            .is_none()
+        }
     {
         return unsupported(unestablished);
     }

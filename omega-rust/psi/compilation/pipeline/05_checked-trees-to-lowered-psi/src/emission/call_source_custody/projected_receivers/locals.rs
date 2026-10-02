@@ -62,7 +62,7 @@ pub(super) fn returned_reference<'a>(
     .then_some((ordinal, local))
 }
 
-pub(super) fn declaration<'a>(
+pub(crate) fn declaration<'a>(
     checked: &'a CheckedTrees,
     state: &checked_trees::state::State,
     statement: usize,

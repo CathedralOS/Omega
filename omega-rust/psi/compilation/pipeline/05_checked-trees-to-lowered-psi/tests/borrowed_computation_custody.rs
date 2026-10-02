@@ -160,6 +160,42 @@ fn mutable_range_computation_rejects_access_source_and_occurrence_drift() {
             "computed mutable range accepted changed {mutation} custody"
         );
     }
+    let (establishment, value) = original
+        .facts
+        .values
+        .structural_values
+        .roots
+        .iter()
+        .find_map(|(handle, root)| {
+            matches!(
+                original
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(root.root)
+                    .kind,
+                checked_trees::CheckedStructuralValueKind::ZeroedStructural {}
+            )
+            .then_some((handle, root.root))
+        })
+        .expect("the default WindowBuffer has an explicit storage establishment");
+    for mutation in ["missing establishment", "substituted establishment"] {
+        let mut changed = original.clone();
+        let plans = &mut changed.facts.values.structural_values;
+        if mutation == "missing establishment" {
+            plans.roots.get_mut(establishment).statement_ordinal = u32::MAX;
+        } else {
+            plans.nodes.get_mut(value).kind = checked_trees::CheckedStructuralValueKind::Record {
+                data_symbol: symbols::SymbolHandle::invalid(),
+                fields: HandleSpan::default(),
+            };
+        }
+        assert!(
+            lower(&changed).is_err(),
+            "computed range borrowed storage with {mutation}"
+        );
+    }
 }
 
 #[test]
