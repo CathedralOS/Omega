@@ -33,14 +33,13 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, BoundaryMachineResult, ByteSequenceCarrier,
-    CompletionReceipt, EntryClaim, MachineContract, Operation, OperationKind, ServiceDeclaration,
-    StructuralAccess, StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration,
+    Block, ByteSequenceCarrier, CompletionReceipt, EntryClaim, MachineContract, Operation,
+    OperationKind, ServiceDeclaration, StructuralAccess, StructuralArgument,
+    StructuralCaseDeclaration, StructuralDomainDeclaration, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 use terminal_verifier::ProofBundle;
 
@@ -61,10 +60,9 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::{
-    RESULT_STRUCTURAL_PLACE_ID, lower_boundary_content_guarantees,
-    lower_content_identity_reshuffles,
+    RESULT_STRUCTURAL_PLACE_ID, lower_content_identity_reshuffles,
 };
-use crate::proofs::crash_routes::{lower_boundary_crash_routes, lower_checked_crash_route_buckets};
+use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::returns::affine_return::lower_affine_return_machine;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
@@ -86,9 +84,9 @@ use crate::terminal_identities::{
 use crate::unit::attached_unit::{
     checked_unit_boundary_identity, checked_unit_target_reach_matches,
     collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, lower_installation_machine_service_ceiling,
-    lower_published_service_ceiling, lower_root_service_reach, lower_structural_arguments,
-    lower_unit_parameters, mint_runtime_index_selectors, validate_transfer_shape,
+    collect_service_summary, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
+    validate_transfer_shape,
 };
 use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 
