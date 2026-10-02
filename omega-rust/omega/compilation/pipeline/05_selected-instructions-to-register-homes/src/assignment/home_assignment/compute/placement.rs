@@ -22,13 +22,13 @@ pub(crate) fn compute_function(
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
     let domains = build_domains(function, legality, ranges)?;
-    let conflicts = PreparedConflicts::new(&domains, ranges, physical);
     let mut domain_of = BTreeMap::<VirtualRegisterId, usize>::new();
     for (domain_index, domain) in domains.iter().enumerate() {
         for member in &domain.members {
             domain_of.insert(member.virtual_register, domain_index);
         }
     }
+    let conflicts = PreparedConflicts::new(&domains, &domain_of, ranges, physical);
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     // Preserve the original first selection's domain/candidate validation order.

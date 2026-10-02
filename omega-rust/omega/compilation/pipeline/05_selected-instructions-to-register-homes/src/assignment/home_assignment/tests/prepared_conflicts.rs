@@ -109,3 +109,50 @@ fn prepared_constraints_preserve_directional_writes_and_tied_domains() {
         }
     }
 }
+
+#[test]
+fn prepared_constraints_accumulate_sparse_early_clobber_relationships() {
+    let mut model = physical().model().clone();
+    model.views[0].write_units = vec![RegisterUnitId(0), RegisterUnitId(1)];
+    model.views[0].write_semantics = RegisterWriteSemantics::InstructionDefined;
+    let physical = validate_physical_register_model(model).unwrap();
+
+    let mut sparse = early_clobber_ranges();
+    let mut first_defines_second = sparse.early_clobbers[0].clone();
+    first_defines_second.def_virtual_register = VirtualRegisterId(0);
+    first_defines_second
+        .uses
+        .retain(|used| used.virtual_register == VirtualRegisterId(1));
+    let mut second_defines_first = sparse.early_clobbers[0].clone();
+    second_defines_first.def_virtual_register = VirtualRegisterId(1);
+    second_defines_first
+        .uses
+        .retain(|used| used.virtual_register == VirtualRegisterId(0));
+    sparse.early_clobbers.push(first_defines_second);
+    sparse.early_clobbers.push(second_defines_first);
+
+    for first_view in 0..2 {
+        for second_view in 0..2 {
+            for third_view in 0..2 {
+                let mut fixed = legality(&[(0, 1), (2, 3), (4, 5)]);
+                for (register, view) in [first_view, second_view, third_view]
+                    .into_iter()
+                    .enumerate()
+                {
+                    set_candidates(&mut fixed, register, &[view]);
+                }
+                let expected = scan_reference::compute_function(0, &fixed, &sparse, &physical);
+                assert_eq!(
+                    compute_function(0, &fixed, &sparse, &physical),
+                    expected,
+                    "fixed views {first_view}/{second_view}/{third_view}",
+                );
+                assert_eq!(
+                    validate::replay_function(0, &fixed, &sparse, &physical),
+                    expected,
+                    "fixed views {first_view}/{second_view}/{third_view}",
+                );
+            }
+        }
+    }
+}
