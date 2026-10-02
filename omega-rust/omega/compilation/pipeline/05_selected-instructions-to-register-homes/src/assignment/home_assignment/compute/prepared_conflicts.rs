@@ -17,6 +17,7 @@ struct DomainPair {
 
 pub(super) struct PreparedConflicts<'a> {
     pairs: Vec<Vec<DomainPair>>,
+    neighbors: Vec<Vec<usize>>,
     views: Vec<Vec<(RegisterViewId, Option<&'a RegisterView>)>>,
 }
 
@@ -53,6 +54,22 @@ impl<'a> PreparedConflicts<'a> {
                 pairs[used_domain][definition].right_defines = true;
             }
         }
+        // Ascending domain order matches the remaining-domain roster during placement.
+        // The chosen domain is never its own neighbor, including tied self-constraints.
+        let neighbors = pairs
+            .iter()
+            .enumerate()
+            .map(|(domain, row)| {
+                row.iter()
+                    .enumerate()
+                    .filter_map(|(other, pair)| {
+                        (other != domain
+                            && (pair.interferes || pair.left_defines || pair.right_defines))
+                            .then_some(other)
+                    })
+                    .collect()
+            })
+            .collect();
         let views = domains
             .iter()
             .map(|domain| {
@@ -68,7 +85,15 @@ impl<'a> PreparedConflicts<'a> {
                     .collect()
             })
             .collect();
-        Self { pairs, views }
+        Self {
+            pairs,
+            neighbors,
+            views,
+        }
+    }
+
+    pub(super) fn get_constrained_neighbors(&self, domain: usize) -> &[usize] {
+        &self.neighbors[domain]
     }
 
     pub(super) fn constrained(&self, left: usize, right: usize) -> bool {

@@ -1,9 +1,67 @@
 use register_model::{RegisterUnitId, RegisterWriteSemantics, validate_physical_register_model};
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{
+    CopyAffinity, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 
 use super::super::compute::scan_reference;
 use super::fixtures::*;
 use super::{compute_function, validate};
+
+#[test]
+fn prepared_neighbors_preserve_sparse_placement_and_copy_preferences() {
+    // Interleave two disconnected interference chains and an isolated copy partner.
+    // Placement removes domains out of roster order; neighbor walks must skip those
+    // already assigned while keeping the original tie and coalescing decisions.
+    let pairs = [(0, 3), (1, 4), (3, 6), (4, 7)];
+    let mut sparse = ranges(9, &pairs);
+    sparse.copy_affinities = [(0, 1), (1, 2), (2, 6), (3, 4), (5, 7), (6, 8)]
+        .into_iter()
+        .enumerate()
+        .map(|(instruction, (source, destination))| CopyAffinity {
+            block: SelectedBlockId(0),
+            instruction: SelectedInstructionId(instruction as u32),
+            source: VirtualRegisterId(source),
+            destination: VirtualRegisterId(destination),
+        })
+        .collect();
+    for physical in [physical(), aliased_physical()] {
+        let candidates = physical
+            .model()
+            .views
+            .iter()
+            .map(|view| view.id.0)
+            .collect::<Vec<_>>();
+        for reverse_points in [false, true] {
+            let points = (0..9)
+                .map(|register| {
+                    let start = if reverse_points {
+                        8 - register
+                    } else {
+                        register
+                    } * 2;
+                    (start, start + 1)
+                })
+                .collect::<Vec<_>>();
+            for fixed_register in 0..9 {
+                for fixed_view in 0..2 {
+                    let mut legality = legality(&points);
+                    for register in 0..9 {
+                        set_candidates(&mut legality, register, &candidates);
+                    }
+                    set_candidates(&mut legality, fixed_register, &[fixed_view]);
+                    let expected =
+                        scan_reference::compute_function(0, &legality, &sparse, &physical);
+                    assert!(expected.is_ok(), "the disconnected chains are colorable");
+                    assert_eq!(compute_function(0, &legality, &sparse, &physical), expected);
+                    assert_eq!(
+                        validate::replay_function(0, &legality, &sparse, &physical),
+                        expected
+                    );
+                }
+            }
+        }
+    }
+}
 
 #[test]
 fn prepared_constraints_match_original_scans_for_candidate_and_interference_rosters() {
