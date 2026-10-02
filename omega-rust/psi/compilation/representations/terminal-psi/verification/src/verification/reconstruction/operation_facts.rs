@@ -268,6 +268,18 @@ pub(super) fn append_operation(
         // the fresh result place has no prior observations to invalidate.
         return Ok(());
     }
+    if matches!(
+        operation.kind,
+        OperationKind::EstablishStructuralLocal { .. }
+    ) {
+        crate::validation::structural::operations::validate_establish_structural_local(
+            module, machine, operation,
+        )?;
+        // Home establishment is a total validation judgment; members carry
+        // their own establishment observations and the fresh result place
+        // has no prior observations to invalidate.
+        return Ok(());
+    }
     if matches!(purpose, OperationFactPurpose::ProofObligations) {
         // Payload observations through `Case` steps read an overlay that is
         // live only while its case is active (`case_hops`).
@@ -826,6 +838,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishZeroedStructural { .. }
+        | OperationKind::EstablishStructuralLocal { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::MoveStructuralField { .. }

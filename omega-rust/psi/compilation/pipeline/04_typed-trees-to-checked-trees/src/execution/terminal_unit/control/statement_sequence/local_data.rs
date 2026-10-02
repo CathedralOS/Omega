@@ -124,6 +124,16 @@ pub(super) fn plan(
                 multiplicity: program.type_multiplicity(local.type_reference),
             };
             *structural_count = structural_count.checked_add(1)?;
+            // The declaration supplies the home each member operation
+            // establishes into; publishing its binding here lets borrows and
+            // writers rejoin by ordinal the same way established values do.
+            operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                statement_index,
+                declaration_ordinal: u32::try_from(index).ok()?,
+                symbol: local.symbol,
+                result: result.clone(),
+                discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+            });
             structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
             structural_local_symbols.push(local.symbol);
             return Some(LocalPlan::Planned);

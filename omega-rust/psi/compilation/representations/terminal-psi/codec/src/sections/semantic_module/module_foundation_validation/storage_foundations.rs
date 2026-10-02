@@ -1193,6 +1193,7 @@ fn borrowed_field_store_root_type(
                 producer.kind,
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }
@@ -1377,6 +1378,7 @@ pub(super) fn validate_integer_structural_field(
                 producer.kind,
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }

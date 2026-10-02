@@ -253,6 +253,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
         }
+        O::EstablishStructuralLocal {
+            psi_operation,
+            result,
+        } => {
+            bytes.u8(103);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+        }
         O::EstablishRecord {
             psi_operation,
             result,

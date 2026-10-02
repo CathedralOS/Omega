@@ -106,6 +106,50 @@ pub(crate) fn validate_establish_zeroed_structural(
     Ok(())
 }
 
+/// A declared structural local establishment declares no operands: its
+/// structural result must be an unrestricted or affine operation result over
+/// the local's declared type. Unlike the zeroed establishment, the home
+/// needs no authored content — member operations establish each member's
+/// contents against this home after it exists.
+pub(crate) fn validate_establish_structural_local(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Result<(), ModuleError> {
+    let OperationKind::EstablishStructuralLocal {} = &operation.kind else {
+        unreachable!("dispatched validate_establish_structural_local")
+    };
+    let Some(result) = operation.result.structural() else {
+        return Err(ModuleError::StructuralLocalEstablishmentMismatch(
+            operation.id,
+        ));
+    };
+    if !matches!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !module
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.id == result.structural_type)
+        || !matches!(
+            machine.structural_places.iter().find(|place| place.id == result.place),
+            Some(terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::OperationResult { producer, structural_type },
+                ..
+            }) if *producer == operation.id && *structural_type == result.structural_type
+        )
+    {
+        return Err(ModuleError::StructuralLocalEstablishmentMismatch(
+            operation.id,
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_establish_trivial_affine_local(
     module: &TerminalModule,
     machine: &TerminalMachine,

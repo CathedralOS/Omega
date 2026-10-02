@@ -302,6 +302,7 @@ impl TerminalExecution {
                     OperationKind::EstablishRecord { .. }
                         | OperationKind::EstablishStructuralCase { .. }
                         | OperationKind::EstablishZeroedStructural { .. }
+                        | OperationKind::EstablishStructuralLocal { .. }
                         | OperationKind::MoveStructuralField { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }

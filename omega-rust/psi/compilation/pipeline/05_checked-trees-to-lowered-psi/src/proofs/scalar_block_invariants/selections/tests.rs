@@ -10,9 +10,11 @@ const CLAMPED_MIDPOINT: &str = "
 #[test]
 fn clamped_selections_bound_an_exact_sum_of_their_results() {
     let checked = crate::front_end::checked_program(CLAMPED_MIDPOINT);
-    let lowered =
-        crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name("midpoint"))
-            .expect("the clamped operands prove the exact sum");
+    let lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("midpoint"),
+    )
+    .expect("the clamped operands prove the exact sum");
     let predicates = lowered
         .semantic_module
         .scalar_block_invariants
@@ -21,7 +23,9 @@ fn clamped_selections_bound_an_exact_sum_of_their_results() {
         .collect::<Vec<_>>();
     for literal in ["Signed(0)", "Signed(31)", "Signed(-1)", "Signed(30)"] {
         assert!(
-            predicates.iter().any(|predicate| predicate.contains(literal)),
+            predicates
+                .iter()
+                .any(|predicate| predicate.contains(literal)),
             "a selection interval names {literal}: {predicates:?}"
         );
     }
@@ -36,9 +40,11 @@ fn clamped_selections_bound_an_exact_sum_of_their_results() {
 #[test]
 fn a_selection_interval_is_proved_on_both_arms_before_it_is_retained() {
     let checked = crate::front_end::checked_program(CLAMPED_MIDPOINT);
-    let mut lowered =
-        crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name("midpoint"))
-            .unwrap();
+    let mut lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("midpoint"),
+    )
+    .unwrap();
     // Widening one retained interval past what an arm forwards leaves the
     // module's evidence unable to replay that arrival.
     let row = lowered

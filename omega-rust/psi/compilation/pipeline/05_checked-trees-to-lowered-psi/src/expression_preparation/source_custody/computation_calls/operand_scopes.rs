@@ -132,7 +132,9 @@ pub(super) fn value(
                 || cast.form.is_recast()
                 || cast_requires_custody(checked, machine, state, cast)?
                 || !matches!(
-                    checked.type_reference_table.type_reference(cast.target_type),
+                    checked
+                        .type_reference_table
+                        .type_reference(cast.target_type),
                     checked_trees::types::TypeReferenceNode::Named { .. }
                 )
                 || operand_type.is_none()

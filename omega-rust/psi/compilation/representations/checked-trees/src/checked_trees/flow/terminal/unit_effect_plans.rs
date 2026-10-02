@@ -191,6 +191,18 @@ pub enum CheckedUnitEffectOperationPlan {
         declaration_ordinal: u32,
         type_identity: String,
     },
+    /// Establish one declared structural local's home at its authored
+    /// declaration, publishing the binding that member operations and
+    /// borrows rejoin by ordinal. The declaration supplies the home each
+    /// member operation establishes into; which members reads may rely on
+    /// is the custody ledger's question, not this root's.
+    EstablishStructuralLocal {
+        statement_index: u32,
+        declaration_ordinal: u32,
+        symbol: SymbolHandle,
+        result: CheckedUnitStructuralResultBindingPlan,
+        discard_result_on_return: bool,
+    },
     /// Establish one immutable primitive local from a retained pure expression
     /// or selective computation. The result coordinate names the
     /// same dense scalar namespace used by result-bearing calls; later
@@ -382,6 +394,7 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishViewSubslice { result, .. }
             | Self::EstablishStructuralValue { result, .. }
             | Self::EstablishScalarArray { result, .. }
+            | Self::EstablishStructuralLocal { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result),
             Self::Call(call) => call.structural_result(),
             _ => None,
@@ -448,6 +461,11 @@ impl CheckedUnitEffectOperationPlan {
                 result,
                 discard_result_on_return,
                 ..
+            }
+            | Self::EstablishStructuralLocal {
+                result,
+                discard_result_on_return,
+                ..
             } => Some((result, *discard_result_on_return)),
             Self::Call(call) => call
                 .structural_result()
@@ -462,6 +480,11 @@ impl CheckedUnitEffectOperationPlan {
     ) -> Option<(&mut CheckedUnitStructuralResultBindingPlan, &mut bool)> {
         match self {
             Self::EstablishStructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | Self::EstablishStructuralLocal {
                 result,
                 discard_result_on_return,
                 ..

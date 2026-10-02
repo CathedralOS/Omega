@@ -7,16 +7,16 @@
 //! a `&mut` parameter, the `*self` authority, or a `self` member.
 use super::argument_borrow_loan_place;
 use super::helper_call_borrow_loan_place;
-use crate::borrow::accesses::borrow_access_place;
 use crate::borrow::accesses::BorrowAccessPlace;
-use validation::reference_result_custody::mutable_borrowed_parts;
+use crate::borrow::accesses::borrow_access_place;
 use crate::semantic::calls::find_state_with_machine;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
-use typed_trees::TypedTrees;
+use validation::reference_result_custody::mutable_borrowed_parts;
 
 /// The caller-side place a `&mut` structural-view result loans: the call
 /// receiver when the callee's returned borrows root inside `*self`, or the
@@ -99,9 +99,7 @@ fn mutable_view_source(
                     _ => return None,
                 }
             }
-            StatementNode::Expression(expression) if ordinal + 1 == statements.len() => {
-                *expression
-            }
+            StatementNode::Expression(expression) if ordinal + 1 == statements.len() => *expression,
             StatementNode::Transition(_) => return None,
             _ => continue,
         };
@@ -134,13 +132,7 @@ fn mutable_view_source(
                     .count(),
             )
         } else if root == callee_machine.symbol
-            || view_self_member_symbol(
-                program,
-                callee_state,
-                callee_machine.symbol,
-                root,
-            )
-            .is_some()
+            || view_self_member_symbol(program, callee_state, callee_machine.symbol, root).is_some()
         {
             MutableViewSource::SelfReceiver
         } else {
@@ -180,23 +172,19 @@ fn mutable_view_caller_root(
         if view_source_root_is_caller_storage(program, state, machine, place.root_symbol) {
             return Some(place.root_symbol);
         }
-        let (index, local) = statements
-            .iter()
-            .take(ordinal)
-            .enumerate()
-            .find_map(|(index, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == place.root_symbol => {
-                    Some((index, local))
-                }
-                _ => None,
-            })?;
-        let next = initializer_borrow_place(
-            program,
-            state.symbol,
-            index,
-            machine,
-            local.initial_value,
-        )?;
+        let (index, local) =
+            statements
+                .iter()
+                .take(ordinal)
+                .enumerate()
+                .find_map(|(index, statement)| match statement {
+                    StatementNode::LocalData(local) if local.symbol == place.root_symbol => {
+                        Some((index, local))
+                    }
+                    _ => None,
+                })?;
+        let next =
+            initializer_borrow_place(program, state.symbol, index, machine, local.initial_value)?;
         let mut segments = next.segments;
         segments.extend(place.segments);
         place = BorrowAccessPlace {
@@ -267,8 +255,7 @@ fn view_source_parameter_is_mutable(
     program: &TypedTrees,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    parameter.is_mutable
-        || mutable_borrowed_parts(program, parameter.type_reference).is_some()
+    parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
 }
 
 /// The field symbol `root` names inside the `*self` receiver's attached data,
@@ -301,8 +288,13 @@ fn view_self_member_symbol(
         .data_definitions()
         .iter()
         .find(|data| data.symbol == symbol)?;
-    program.data_members(data).iter().find_map(|member| match member {
-        typed_trees::data::DataMember::Field(field) if field.symbol == root => Some(field.symbol),
-        _ => None,
-    })
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
 }

@@ -494,6 +494,10 @@ impl TerminalExecution {
                         self.execute_establish_zeroed_structural(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::EstablishStructuralLocal { .. } => {
+                        self.execute_establish_structural_local(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::EstablishScalarArray { ref elements } => {
                         self.execute_scalar_array_establishment(operation, elements)?;
                         OperationFlow::Advance

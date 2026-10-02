@@ -211,3 +211,6 @@ pub(super) const SCALAR_REPRESENTATION_VIEW: u8 = 101;
 /// `OperationKind::ScalarRepresentationView` with its `{0, 1}` landing
 /// obligation: an 8-bit integer re-viewed as `bool`.
 pub(super) const LANDED_SCALAR_REPRESENTATION_VIEW: u8 = 102;
+
+/// `OperationKind::EstablishStructuralLocal`.
+pub(super) const ESTABLISH_STRUCTURAL_LOCAL: u8 = 103;

@@ -1203,6 +1203,7 @@ fn write_destination(
                 let result = match operation {
                     AbstractOperation::EstablishRecord { result, .. }
                     | AbstractOperation::EstablishZeroedStructural { result, .. }
+                    | AbstractOperation::EstablishStructuralLocal { result, .. }
                     | AbstractOperation::StructuralLeafCopy { result, .. }
                     | AbstractOperation::CallStructural {
                         result: AbstractStructuralCallResult::Structural { result, .. },

@@ -497,6 +497,9 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                // A declared structural local's establishment mints
+                // frame-local storage at its statement the same way.
+                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),

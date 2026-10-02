@@ -208,6 +208,12 @@ pub enum OperationKind {
     /// arrays), so no element roster exists to spell. This is a semantic
     /// ownership event over zeroed storage, not a composed value.
     EstablishZeroedStructural {},
+    /// Establish one declared structural local's home as this operation's
+    /// structural result. No operands: the declaration supplies the home each
+    /// member operation establishes into, and the produced place records that
+    /// home — which members reads may rely on is the custody ledger's
+    /// question, tracked per member operation.
+    EstablishStructuralLocal {},
     /// Establish initialized, unrestricted primitive storage as this operation's
     /// structural result. Later borrows name this place, not a copied SSA value.
     EstablishPrimitiveLocal {
@@ -1096,6 +1102,7 @@ impl OperationKind {
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
             | Self::EstablishZeroedStructural { .. }
+            | Self::EstablishStructuralLocal { .. }
             | Self::BooleanStructuralField { .. }
             | Self::IntegerStructuralField { .. } => {}
         }

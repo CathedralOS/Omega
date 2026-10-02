@@ -330,7 +330,8 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        if let AbstractOperation::EstablishZeroedStructural { result, .. } = &node.operation
+        if let AbstractOperation::EstablishZeroedStructural { result, .. }
+        | AbstractOperation::EstablishStructuralLocal { result, .. } = &node.operation
             && (!plan
                 .structural_types
                 .iter()

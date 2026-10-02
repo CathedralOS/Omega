@@ -292,6 +292,21 @@ pub(super) fn validate_operation(
                 plan.structural_types.iter(),
                 result.structural_type,
             ) => {}
+        // A memberwise-established local names any structural home the
+        // aggregate layout describes; its stores arrive as their own rows.
+        (
+            TargetUnitOperation::EstablishStructuralLocal {
+                psi_operation,
+                result_home,
+            },
+            AbstractOperation::EstablishStructuralLocal {
+                psi_operation: expected_operation,
+                result,
+            },
+        ) if psi_operation == expected_operation
+            && *result_home
+                == super::super::aggregate_results::result_home(optimized, result.place, plan)?
+            && super::super::aggregate_results::home_layout(result, plan).is_ok() => {}
         (
             _,
             AbstractOperation::MoveStructuralField { .. }

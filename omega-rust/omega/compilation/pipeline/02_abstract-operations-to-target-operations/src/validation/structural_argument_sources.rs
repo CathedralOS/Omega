@@ -172,6 +172,10 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 psi_operation,
                 result,
             }
+            | AbstractOperation::EstablishStructuralLocal {
+                psi_operation,
+                result,
+            }
             // A leaf copy establishes fresh owned storage, just like a record
             // constructor; subsequent calls must name the copy's producer,
             // never the borrowed source from which its bytes were read.

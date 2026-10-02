@@ -779,9 +779,17 @@ mod tests {
         let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
         let formal = |raw: u64| ScalarTerm::value(ValueId::new(raw).expect("formal"), float);
         for (guard, kind, [left, right]) in [
-            ("!(left < right)", IeeeFloatComparisonKind::NotLessThan, [1, 2]),
+            (
+                "!(left < right)",
+                IeeeFloatComparisonKind::NotLessThan,
+                [1, 2],
+            ),
             ("left > right", IeeeFloatComparisonKind::LessThan, [2, 1]),
-            ("left <= right", IeeeFloatComparisonKind::LessOrEqual, [1, 2]),
+            (
+                "left <= right",
+                IeeeFloatComparisonKind::LessOrEqual,
+                [1, 2],
+            ),
             ("left != right", IeeeFloatComparisonKind::NotEqual, [1, 2]),
         ] {
             let checked = checked(&format!(

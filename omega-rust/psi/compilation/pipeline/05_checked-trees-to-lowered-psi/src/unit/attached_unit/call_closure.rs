@@ -322,6 +322,11 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index,
                 declaration_ordinal,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                statement_index,
+                declaration_ordinal,
+                ..
             } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,
                 call_ordinal: *declaration_ordinal,

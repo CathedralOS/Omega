@@ -43,6 +43,7 @@ mod record;
 pub(super) mod reference;
 mod scalar_array;
 mod scalar_case;
+mod structural_local;
 mod zeroed;
 pub(super) use primitive_locals::read;
 pub(super) mod runtime_address;
@@ -323,6 +324,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
     ) {
         zeroed::establish(source, node, replay)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
+    ) {
+        structural_local::establish(source, node, replay)?;
         return Ok(true);
     }
     if matches!(

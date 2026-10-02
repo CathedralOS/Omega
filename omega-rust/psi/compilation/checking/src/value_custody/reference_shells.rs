@@ -12,7 +12,9 @@
 use language_semantics::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// The first borrow beneath a type's constraint shells.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,4 +116,99 @@ fn peel_carrier_shells(
         }
     }
     None
+}
+
+/// The byte carrier a type realizes when its leaves are `u8`: a borrowed byte
+/// view's `BorrowedView` keeps the reference's access, a fixed byte array
+/// behind that same loan is a `BoundedView` whose extent stays in the caller's
+/// frame, and a domain-qualified fixed array owned inline is a `BoundedOwned`
+/// with a live extent. Constraint shells qualify the carrier without changing
+/// it and bound type parameters stand for their actuals; a plain owned array
+/// is scalar storage and names no carrier.
+pub fn byte_sequence_carrier(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<checked_trees::CheckedByteSequenceCarrier> {
+    let mut borrowed = None;
+    let mut has_domain = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, replacement)) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)
+                else {
+                    break;
+                };
+                // A substitution can bind a parameter to its own reference;
+                // rewriting it again only loops.
+                if *replacement == type_reference {
+                    break;
+                }
+                type_reference = *replacement;
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                has_domain |= program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                type_reference = *base_type;
+            }
+            // The reference's access is the carrier's access: a `&mut [u8]`
+            // field and a `&[u8]` one are distinguishable here and nowhere
+            // downstream, so it is recorded rather than discarded.
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if borrowed.is_none() => {
+                borrowed = Some(*access);
+                type_reference = *referee;
+            }
+            _ => break,
+        }
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Slice { element_type }
+            if borrowed.is_some()
+                && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
+        {
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                access: Some(borrowed?.into()),
+            })
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(capacity),
+        } if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) => {
+            match borrowed {
+                // A domain-qualified fixed byte carrier owns a live extent. A
+                // reference loans that same owner; access remains on the formal.
+                Some(_) if has_domain => {
+                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                        capacity: u64::try_from(*capacity).ok()?,
+                    })
+                }
+                // A borrowed reference to a fixed array keeps the referent in
+                // the caller's frame; its extent is the declaration's literal
+                // length rather than a stored descriptor field.
+                Some(access) => Some(checked_trees::CheckedByteSequenceCarrier::BoundedView {
+                    access: Some(access.into()),
+                    capacity: u64::try_from(*capacity).ok()?,
+                }),
+                None if has_domain => {
+                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                        capacity: u64::try_from(*capacity).ok()?,
+                    })
+                }
+                None => None,
+            }
+        }
+        _ => None,
+    }
 }

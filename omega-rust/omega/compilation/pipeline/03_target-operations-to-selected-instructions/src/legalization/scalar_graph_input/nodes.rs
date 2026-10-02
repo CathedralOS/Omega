@@ -98,6 +98,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::MoveStructuralField { psi_operation, .. }
     | AbstractOperation::StoreStructuralField { psi_operation, .. }
     | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
+    | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
     | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
@@ -723,6 +724,7 @@ pub(super) fn validate(
                 | AbstractOperation::StoreStructuralField { .. }
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
+                | AbstractOperation::EstablishStructuralLocal { .. }
                 | AbstractOperation::CallStructural {
                     result: AbstractStructuralCallResult::Structural { .. },
                     ..

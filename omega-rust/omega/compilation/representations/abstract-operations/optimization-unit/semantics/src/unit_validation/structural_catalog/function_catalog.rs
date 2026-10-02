@@ -165,6 +165,7 @@ pub(crate) fn validate_function_structural_catalog(
                                     ..
                                 }
                                 | O::EstablishZeroedStructural { psi_operation, result }
+                                | O::EstablishStructuralLocal { psi_operation, result }
                                 | O::EstablishReference {
                                     psi_operation,
                                     result,

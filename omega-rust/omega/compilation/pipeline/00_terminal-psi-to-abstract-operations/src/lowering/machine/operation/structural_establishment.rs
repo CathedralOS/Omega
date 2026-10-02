@@ -183,6 +183,22 @@ pub(super) fn lower(
                 result,
             }
         }
+        OperationKind::EstablishStructuralLocal { .. } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedStructuralReturn {
+                    machine: machine.id,
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
+                });
+            };
+            AbstractOperation::EstablishStructuralLocal {
+                psi_operation: operation.id,
+                result,
+            }
+        }
         OperationKind::EstablishRecord { fields } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralReturn {

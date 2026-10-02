@@ -280,7 +280,7 @@ pub(super) fn write_fields(
 // copying eight bytes merely because eight remain can select an impossible
 // AArch64 store. Keep wide chunks when both offsets permit them, and never
 // round the live extent up into a neighboring field.
-fn chunk(remaining: u32, source_offset: u32, destination_offset: u32) -> u8 {
+pub(super) fn chunk(remaining: u32, source_offset: u32, destination_offset: u32) -> u8 {
     [8u8, 4, 2, 1]
         .into_iter()
         .find(|width| {
@@ -292,7 +292,7 @@ fn chunk(remaining: u32, source_offset: u32, destination_offset: u32) -> u8 {
         .unwrap_or(1)
 }
 #[allow(clippy::too_many_arguments)]
-fn store(
+pub(super) fn store(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,

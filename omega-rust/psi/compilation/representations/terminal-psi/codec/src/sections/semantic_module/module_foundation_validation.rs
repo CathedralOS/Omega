@@ -590,6 +590,9 @@ fn validate_operation_foundation(
         OperationKind::EstablishZeroedStructural { .. } => {
             value_foundations::validate_establish_zeroed_structural(module, machine, operation)?
         }
+        OperationKind::EstablishStructuralLocal { .. } => {
+            value_foundations::validate_establish_structural_local(module, machine, operation)?
+        }
         OperationKind::EstablishTrivialAffineLocal { .. } => {
             value_foundations::validate_establish_trivial_affine_local(module, machine, operation)?
         }

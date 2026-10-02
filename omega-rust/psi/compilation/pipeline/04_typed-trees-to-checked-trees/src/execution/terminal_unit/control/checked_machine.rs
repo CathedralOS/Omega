@@ -448,6 +448,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

@@ -301,7 +301,10 @@ fn a_mixed_common_field_is_observed_without_a_case_step() {
     let payload = crate::observed_field_declaration(
         types.iter(),
         root,
-        &[carrier.clone(), CanonicalStructuralPathSegment::Case(treasure)],
+        &[
+            carrier.clone(),
+            CanonicalStructuralPathSegment::Case(treasure),
+        ],
         id,
     )
     .expect("the payload field resolves beneath its case");
