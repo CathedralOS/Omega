@@ -13,7 +13,9 @@ pub(super) fn proves(
     required: &Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = required.payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = required.payload
+    else {
         return false;
     };
     let FactPlace::Place(place) = required.place else {

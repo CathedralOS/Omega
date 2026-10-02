@@ -47,6 +47,15 @@ pub(crate) fn build_contract_call_facts(
                 &mut calls,
                 call_site.as_ref().is_some_and(|site| {
                     !crate::semantic::calls::call_site_evidence_arguments(site).is_empty()
+                        || !crate::semantic::calls::call_parameter_domains(
+                            program,
+                            state.machine_symbol,
+                            state.state_symbol,
+                            target_machine_symbol,
+                            target_state_symbol,
+                            site,
+                        )
+                        .is_empty()
                 }),
                 ContractCallSite {
                     caller_machine_symbol: state.machine_symbol,
@@ -98,7 +107,7 @@ fn append_contract_call(
     contract_facts: &arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
     calls: &mut arena::Arena<ContractCallFact>,
-    has_authored_evidence_arguments: bool,
+    has_call_obligations: bool,
     site: ContractCallSite,
 ) {
     let requires = append_contract_fact_refs(
@@ -126,7 +135,7 @@ fn append_contract_call(
         )
     };
 
-    if requires.is_empty() && ensures.is_empty() && !has_authored_evidence_arguments {
+    if requires.is_empty() && ensures.is_empty() && !has_call_obligations {
         return;
     }
 

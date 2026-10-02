@@ -10,7 +10,7 @@ use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::StaticMachineArgument;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn call_type_arguments(
+pub fn call_type_arguments(
     program: &TypedTrees,
     caller: &Machine,
     state: Option<&State>,

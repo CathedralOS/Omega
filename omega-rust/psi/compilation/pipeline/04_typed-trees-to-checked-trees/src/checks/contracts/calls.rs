@@ -139,7 +139,8 @@ pub(super) fn check_call_requires(
                 );
             if !satisfied {
                 let detail = match fact.payload {
-                    FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                    FactPayload::ContractDomainMembership { domain_symbol, .. }
+                    | FactPayload::DomainMembership { domain_symbol, .. } => {
                         let FactPlace::Place(place) = fact.place else {
                             unreachable!("contract domain membership already handled above")
                         };
@@ -194,7 +195,9 @@ fn subslice_grants_domain(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    else {
         return false;
     };
     let FactPlace::Place(place_handle) = place else {
@@ -278,7 +281,9 @@ fn parameter_domain_grants(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    else {
         return false;
     };
     let FactPlace::Place(place_handle) = place else {
@@ -327,7 +332,9 @@ fn string_literal_grants_domain(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    else {
         return false;
     };
     let FactPlace::Place(place_handle) = place else {
@@ -362,7 +369,9 @@ fn value_call_return_domain_grants(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    else {
         return false;
     };
     let FactPlace::Place(place_handle) = place else {
@@ -436,7 +445,9 @@ fn proven_predicates_grant_domain(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
+    else {
         return false;
     };
     let Some(predicate_expressions) = predicate_only_domain_predicates(program, domain_symbol)
@@ -1451,7 +1462,7 @@ fn transition_guard_proves_requires(
                 expression,
             )
         }
-        FactPayload::ContractDomainMembership { .. } => {
+        FactPayload::ContractDomainMembership { .. } | FactPayload::DomainMembership { .. } => {
             semantic_fact_requirement_label(program, &facts.semantic, fact)
         }
         _ => return false,
@@ -2287,7 +2298,9 @@ fn predicate_only_domain_labels(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<Vec<String>> {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
+    else {
         return None;
     };
     let FactPlace::Place(place_handle) = fact.place else {
@@ -2320,7 +2333,9 @@ fn predicate_only_domain_interval(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
+    else {
         return None;
     };
     let FactPlace::Place(place_handle) = fact.place else {

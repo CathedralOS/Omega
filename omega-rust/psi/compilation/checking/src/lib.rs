@@ -15,9 +15,10 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    named_conformance_target_requirement, nested_boundary_applications_compose,
-    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
-    unit_return_call_is_supported, unit_statement_call_is_supported,
+    call_type_arguments, named_conformance_target_requirement,
+    nested_boundary_applications_compose, result_initializer_call_is_supported,
+    unit_result_initializer_call_is_supported, unit_return_call_is_supported,
+    unit_statement_call_is_supported,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
@@ -46,6 +47,9 @@ pub use proof_contracts::contract_results::{
 pub use proof_contracts::domains::{
     scalar_interval_domains, scalar_membership_carrier, scalar_membership_predicates,
     scalar_state_contracts_are_qualifications, scalar_type_tags,
+};
+pub use proof_contracts::parameter_domains::{
+    parameter_domain_constraints, parameter_domain_constraints_with_substitutions,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use value_custody::claim_frontier::{

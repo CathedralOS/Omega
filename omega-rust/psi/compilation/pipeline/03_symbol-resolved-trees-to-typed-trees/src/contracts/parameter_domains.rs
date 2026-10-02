@@ -1,61 +1,7 @@
 use crate::lowerer::Lowerer;
 use typed_trees as typed;
 
-/// Every normalized declared domain on a parameter type, looking through a
-/// leading reference. Arithmetic policy is represented by a distinct
-/// constraint node and does not become a membership contract.
-pub(crate) fn domain_constraints(
-    typed_trees: &typed::TypedTrees,
-    type_reference: typed::types::TypeReferenceHandle,
-) -> Vec<(
-    symbols::SymbolHandle,
-    String,
-    Vec<typed::types::TypeReferenceHandle>,
-    language_semantics::SemanticDomainId,
-)> {
-    match typed_trees
-        .type_reference_table
-        .type_reference(type_reference)
-    {
-        typed::types::TypeReferenceNode::Reference { referee, .. } => {
-            domain_constraints(typed_trees, *referee)
-        }
-        typed::types::TypeReferenceNode::Constrained { constraints, .. } => typed_trees
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .filter_map(|constraint| match constraint {
-                typed::types::TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                    typed_trees
-                        .domain_definitions()
-                        .iter()
-                        .find(|definition| definition.symbol == domain.symbol)
-                        .map(|definition| {
-                            (
-                                domain.symbol,
-                                definition.name.as_str().to_owned(),
-                                domain.arguments.clone(),
-                                domain.semantic_id,
-                            )
-                        })
-                }
-                typed::types::TypeConstraintNode::Domain(domain)
-                    if language_semantics::CarryPermission::from_name(domain.name.as_str())
-                        .is_some() =>
-                {
-                    Some((
-                        symbols::SymbolHandle::invalid(),
-                        domain.name.as_str().to_owned(),
-                        Vec::new(),
-                        language_semantics::SemanticDomainId::NULL,
-                    ))
-                }
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
+pub(crate) use validation::parameter_domain_constraints as domain_constraints;
 
 /// Build the implicit `requires <param> in <domain>` membership contract for a
 /// normalized declared-domain constraint. The caller attaches the contract at

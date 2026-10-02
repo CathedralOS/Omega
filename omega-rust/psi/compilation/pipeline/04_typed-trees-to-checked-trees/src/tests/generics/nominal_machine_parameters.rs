@@ -802,3 +802,45 @@ fn generic_reference_forwarding_preserves_access_in_both_positions() {
         }
     }
 }
+
+#[test]
+fn generic_reference_forwarding_preserves_selected_qualification_obligations() {
+    // The generic body is deliberately never instantiated: a later concrete
+    // call must not be needed to discover its missing membership obligation.
+    for value_position in [false, true] {
+        for qualified_subject in [false, true] {
+            let (result, body, terminator) = if value_position {
+                ("-> i32", "0", "")
+            } else {
+                ("", "", ";")
+            };
+            let subject = if qualified_subject {
+                "&i32 in Ten"
+            } else {
+                "&i32"
+            };
+            let source = format!(
+                "domain i32::Ten(value) requires 0 <= value && value <= 10;
+                 machine sink<Selected>(subject: &Selected) {result} {{ {body} }}
+                 machine forward<Unused>(subject: {subject}) {result} {{
+                     sink<i32 in Ten>(subject){terminator}
+                 }}"
+            );
+            let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled());
+            if qualified_subject {
+                checked
+                    .expect("existing caller membership discharges the instantiated requirement");
+            } else {
+                let diagnostics =
+                    checked.expect_err("selecting a qualified type does not prove membership");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("cannot prove requires contract")
+                        && diagnostic.message.contains("Ten")),
+                    "{diagnostics:?}"
+                );
+            }
+        }
+    }
+}
