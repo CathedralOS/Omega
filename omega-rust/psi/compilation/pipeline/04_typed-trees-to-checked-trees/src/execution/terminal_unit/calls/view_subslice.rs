@@ -164,10 +164,23 @@ pub(in crate::execution) fn admit(
             expression,
             subslice.range.access,
         ),
-        // The call-argument overlap judgment, not a ledger loan, keeps the
-        // backing unwritten for the call (module header).
+        // Call overlap owns the temporary loan for the invocation.
         CheckedSubsliceSite::CallArgument { .. } | CheckedSubsliceSite::Expression { .. } => true,
-        CheckedSubsliceSite::TransitionArgument { .. } => false,
+        // An incoming loan's backing survives the source state. A local or
+        // owned array instead needs retained backing transport on the edge;
+        // constructing a descriptor does not supply that lifetime evidence.
+        CheckedSubsliceSite::TransitionArgument { .. } => match subslice.range.root {
+            CheckedStorageRoot::Parameter { index } => {
+                parameters.get(index as usize).is_some_and(|parameter| {
+                    matches!(
+                        parameter.access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    )
+                })
+            }
+            _ => false,
+        },
     };
     established.then_some(subslice)
 }
@@ -310,16 +323,6 @@ pub(in crate::execution) fn admit_replayed(
         expression,
         statement_index,
     )?;
-    if range.storage == ViewStorage::FixedArray
-        && !match site {
-            CheckedSubsliceSite::LocalBinding
-            | CheckedSubsliceSite::CallArgument { .. }
-            | CheckedSubsliceSite::Expression { .. } => true,
-            CheckedSubsliceSite::TransitionArgument { .. } => false,
-        }
-    {
-        return None;
-    }
     let operation = validation::subslice_expression(program, expression)?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
         return None;

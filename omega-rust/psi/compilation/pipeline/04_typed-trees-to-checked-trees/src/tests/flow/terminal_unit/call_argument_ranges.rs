@@ -432,3 +432,135 @@ fn non_preserving_domain_narrows_only_into_a_plain_formal() {
         "the domain requirement is reported: {diagnostics:?}"
     );
 }
+
+#[test]
+fn fixed_array_field_ranges_retain_access_and_projection_on_state_edges() {
+    for (borrow, access) in [
+        ("&", CheckedStructuralAccess::SharedBorrow),
+        ("&mut ", CheckedStructuralAccess::MutableBorrow),
+    ] {
+        for explicit in [false, true] {
+            let operand_borrow = if explicit { borrow } else { "" };
+            let checked = checked(&format!(
+                "data Root {{ items: [i32; 4]; }}
+                 machine forward(root: &mut Root) {{
+                     transition {{ _ -> narrowed({operand_borrow}root.items[1..3]) }}
+                     state narrowed(values: {borrow}[i32]) {{
+                         let length: u64 = values.len;
+                     }}
+                 }}"
+            ));
+            let machine = machine_named(&checked, "forward");
+            let plan = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{borrow} explicit={explicit}: {:?}",
+                        checked
+                            .facts
+                            .flow
+                            .terminal_unit_effects
+                            .omission_for_machine(machine)
+                    )
+                });
+            let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+                &plan.states[0].terminator
+            else {
+                panic!("range is a state edge");
+            };
+            let [transfer] = successor.transfers.as_slice() else {
+                panic!("one range operand");
+            };
+            assert!(matches!(&transfer.source,
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                    root: CheckedStorageRoot::Parameter { index: 0 }, path, ..
+                } if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::Field(_)])
+            ));
+            let target = plan
+                .states
+                .iter()
+                .find(|state| state.state == successor.target_state)
+                .expect("the exact edge target");
+            assert_eq!(
+                target.structural_parameters[transfer.target_parameter_index as usize].access,
+                access
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_array_field_range_edges_require_surviving_backing_and_source_access() {
+    for (label, signature, prefix, operand, target) in [
+        (
+            "owned parameter",
+            "root: Root",
+            "",
+            "&root.items[1..3]",
+            "&[i32]",
+        ),
+        (
+            "owned local",
+            "",
+            "let root: Root;",
+            "&root.items[1..3]",
+            "&[i32]",
+        ),
+        (
+            "shared escalation",
+            "root: &Root",
+            "",
+            "&mut root.items[1..3]",
+            "&mut [i32]",
+        ),
+    ] {
+        let source = format!(
+            "data Root {{ items: [i32; 4]; }}
+             machine forward({signature}) {{
+                 {prefix}
+                 transition {{ _ -> narrowed({operand}) }}
+                 state narrowed(values: {target}) {{
+                     let length: u64 = values.len;
+                 }}
+             }}"
+        );
+        let result = crate::tests::front_end::typed_program_result(&source)
+            .and_then(|typed| crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()));
+        match result {
+            Ok(checked) => {
+                let machine = machine_named(&checked, "forward");
+                assert!(
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .composed_for_machine(machine)
+                        .is_none(),
+                    "{label} must not acquire a state range plan without backing custody"
+                );
+                assert!(
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                        .is_some(),
+                    "{label} retains its refused admission frontier"
+                );
+            }
+            Err(diagnostics) => assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    let message = diagnostic.message.to_lowercase();
+                    message.contains("borrow")
+                        || message.contains("loan")
+                        || message.contains("mutable")
+                        || message.contains("outlive")
+                }),
+                "{label} must reject ownership or access, not unrelated source: {diagnostics:?}"
+            ),
+        }
+    }
+}

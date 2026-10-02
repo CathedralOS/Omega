@@ -2060,7 +2060,8 @@ fn successor_bindings(
             }
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
-            if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+            if let Some(range_expression) = validation::subslice_expression(program, expression)
+                && let ExpressionNode::Indexed(indexed) = program.expression_table.expression(range_expression)
                 && matches!(program.expression_table.expression(indexed.index), ExpressionNode::Range(_))
             {
                 mark(SuccessorGuard::SubsliceTransfer);
