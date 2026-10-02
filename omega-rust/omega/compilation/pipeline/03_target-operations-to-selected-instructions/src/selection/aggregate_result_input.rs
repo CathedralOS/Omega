@@ -4,6 +4,10 @@
 //! the aggregate ABI, not a borrowed pointer/length descriptor. Its primitive
 //! predicate roster changes no layout, but must still match the declared normal
 //! result exactly; equal byte widths cannot substitute semantic custody.
+//!
+//! `operation_result` joins produced storage to its exact declaration once.
+//! Consumers add their ownership and layout checks; producer computation is
+//! validated at its own instruction, not recognized again by each consumer.
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -855,11 +859,11 @@ pub(super) fn indirect_result(
     (canonical.result.as_ref() == Some(placement)).then_some(*register)
 }
 
-/// Locate a nominal aggregate's original operation-result home. This is a
-/// declaration/layout rejoin; source replay separately establishes availability.
-/// A copied aggregate owns the same readable home as a constructed value;
-/// how its bytes were initialized does not change primitive-read geometry.
-pub(super) fn home(
+/// Join one produced value to its unique instruction and exact place catalog
+/// entry. The operation validates its own computation during construction and
+/// replay; storage consumers must not recognize that computation again. This
+/// query grants no ownership, qualification, projection or layout authority.
+pub(super) fn operation_result(
     source: &LegalizedScalarFunction,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<(
@@ -876,8 +880,39 @@ pub(super) fn home(
         });
     let (row, result) = selected.next()?;
     let operation = row.operation;
+    let mut declarations = source
+        .structural
+        .as_ref()?
+        .structural_places
+        .iter()
+        .filter(|declaration| declaration.id == place);
+    let declaration = declarations.next()?;
     if selected.next().is_some()
-        || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || declarations.next().is_some()
+        || declaration.kind
+            != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: result.structural_type,
+            })
+    {
+        return None;
+    }
+    Some((operation, result))
+}
+
+/// Locate a nominal aggregate's original operation-result home. This is a
+/// declaration/layout rejoin; source replay separately establishes availability.
+/// A copied aggregate owns the same readable home as a constructed value;
+/// how its bytes were initialized does not change primitive-read geometry.
+pub(super) fn home(
+    source: &LegalizedScalarFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    &terminal_psi::StructuralOperationResult,
+)> {
+    let (operation, result) = operation_result(source, place)?;
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
         // Primitive predicates do not change a bounded owner's `{length,
         // bytes}` home. Producer replay already authenticated the exact result
@@ -916,16 +951,6 @@ pub(super) fn home(
     }) && (result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.qualification_establishments.is_empty())
     {
-        return None;
-    }
-    if !signature.structural_places.iter().any(|declaration| {
-        declaration.id == place
-            && declaration.kind
-                == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: result.structural_type,
-                }
-    }) {
         return None;
     }
     crate::structural_inputs::structural_reference_input::shape(
@@ -986,35 +1011,5 @@ pub(super) fn owned_store_destination(
     producer: semantic_vocabulary::OperationId,
     expected: &terminal_psi::StructuralOperationResult,
 ) -> bool {
-    let Some(signature) = source.structural.as_ref() else {
-        return false;
-    };
-    let mut declarations = signature
-        .structural_places
-        .iter()
-        .filter(|place| place.id == expected.place);
-    let Some(declaration) = declarations.next() else {
-        return false;
-    };
-    if declarations.next().is_some()
-        || declaration.kind
-            != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type: expected.structural_type,
-            })
-    {
-        return false;
-    }
-    let mut producers = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|row| {
-            let result = row.kind.get_structural_result()?;
-            (result.place == expected.place).then_some((row.operation, result))
-        });
-    producers
-        .next()
-        .is_some_and(|(operation, result)| operation == producer && result == expected)
-        && producers.next().is_none()
+    operation_result(source, expected.place) == Some((producer, expected))
 }

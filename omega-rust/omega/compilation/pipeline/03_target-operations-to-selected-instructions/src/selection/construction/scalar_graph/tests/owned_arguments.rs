@@ -17,6 +17,7 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 enum InputStorage {
     Parameter,
     Constructed,
+    Zeroed,
 }
 
 /// Reuse the scalar-array fixture, adding one ordinary aggregate-result call.
@@ -39,7 +40,14 @@ fn owned_call(
     };
     let producer = row.operation;
     let input_source = match storage {
-        InputStorage::Constructed => {
+        InputStorage::Constructed | InputStorage::Zeroed => {
+            if matches!(storage, InputStorage::Zeroed) {
+                source.blocks[0].instructions[2].kind =
+                    LegalizedScalarInstructionKind::EstablishZeroedStructural {
+                        result: input.clone(),
+                        shape,
+                    };
+            }
             target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,
             }
@@ -426,7 +434,11 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
         };
-        for storage in [InputStorage::Parameter, InputStorage::Constructed] {
+        for storage in [
+            InputStorage::Parameter,
+            InputStorage::Constructed,
+            InputStorage::Zeroed,
+        ] {
             let source = owned_call(native, storage, 8, 24);
             let selected = build(
                 0,
@@ -458,9 +470,24 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
                 "copy offset",
                 "copy alignment",
                 "pointer offset",
+                "missing declaration",
+                "duplicate declaration",
+                "wrong declaration producer",
+                "duplicate result",
             ] {
-                if matches!(storage, InputStorage::Constructed)
+                if !matches!(storage, InputStorage::Parameter)
                     && matches!(mutation, "parameter access" | "parameter type")
+                {
+                    continue;
+                }
+                if matches!(storage, InputStorage::Parameter)
+                    && matches!(
+                        mutation,
+                        "missing declaration"
+                            | "duplicate declaration"
+                            | "wrong declaration producer"
+                            | "duplicate result"
+                    )
                 {
                     continue;
                 }
@@ -487,7 +514,12 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
                                 psi_operation: OperationId::new(99).unwrap(),
                             }
                     }
-                    "parameter access" | "parameter type" => {}
+                    "parameter access"
+                    | "parameter type"
+                    | "missing declaration"
+                    | "duplicate declaration"
+                    | "wrong declaration producer"
+                    | "duplicate result" => {}
                     _ => {
                         let [
                             ValueLocation::Indirect {
@@ -521,6 +553,35 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
                         // reconstruction must reject the substitution, not just their inequality.
                         *call.call_plan.parameters.last_mut().unwrap() = target.destination.clone();
                     }
+                }
+                match mutation {
+                    "missing declaration" => {
+                        changed
+                            .structural
+                            .as_mut()
+                            .unwrap()
+                            .structural_places
+                            .remove(0);
+                    }
+                    "duplicate declaration" => {
+                        let declarations =
+                            &mut changed.structural.as_mut().unwrap().structural_places;
+                        declarations.push(declarations[0].clone());
+                    }
+                    "wrong declaration producer" => {
+                        let StructuralPlaceKind::OperationResult { producer, .. } =
+                            &mut changed.structural.as_mut().unwrap().structural_places[0].kind
+                        else {
+                            panic!("produced input declaration");
+                        };
+                        *producer = OperationId::new(99).unwrap();
+                    }
+                    "duplicate result" => {
+                        let mut duplicate = changed.blocks[0].instructions[2].clone();
+                        duplicate.operation = OperationId::new(99).unwrap();
+                        changed.blocks[0].instructions.insert(3, duplicate);
+                    }
+                    _ => {}
                 }
                 if matches!(mutation, "parameter access" | "parameter type") {
                     let parameter = &mut changed.structural.as_mut().unwrap().parameters[0];
