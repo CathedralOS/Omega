@@ -36,6 +36,31 @@ pub fn collection_length_receiver(
     .then_some(member.receiver)
 }
 
+/// Resolve the range operation of a shared subslice occurrence. Explicit
+/// shared borrowing changes access, not the indexed operation whose meaning
+/// and endpoints must be checked. Never erase exclusive or write-only access.
+/// The caller retains the original occurrence for its custody checks.
+pub fn shared_subslice_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let operation = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            borrow.target
+        }
+        ExpressionNode::Borrow(_) => return None,
+        _ => expression,
+    };
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
+        return None;
+    };
+    matches!(program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(range) if !range.end_inclusive)
+    .then_some(operation)
+}
+
 /// Recognize exclusive builtin subslicing without granting bounds, source
 /// custody, or permission to use the resulting view.
 pub fn has_builtin_subslice_meaning(
