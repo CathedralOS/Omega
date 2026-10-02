@@ -329,8 +329,7 @@ the complete product bar; focused successes below do not establish that baseline
     as a state argument, such as `vending_machine`'s
     `report(context, Main::make_change(100, 55), 17)`, is an ordinary
     `EstablishStructuralValue` performed on the selected edge; the static
-    sample exits **70** natively. **COMPOSITE-TRANSITION-ARGUMENT** owns the
-    composite sources that still decline.
+    sample exits **70** natively.
 
     Finish mixed scalar/structural operands, effectful arguments/returns,
     nested mutable-receiver calls, dependent/public-trait results and boundary
@@ -1967,18 +1966,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
   and interpreter/native legs; leaving an omission cluster is not execution.
 
-- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the remaining
-  composite internal state transfers. A by-value fixed array
-  (`handle([30, 40])`, or a transferred `[i32; 2]` local) stops at
-  `jump successor: parameter transfer`; represent and independently replay
-  owned scalar-array block parameters with
-  **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**.
-  Keep `control_flow/{composite_state_parameter,shared_state_disjoint_receiver_store_exit,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit,nested_affine_record_state_cycle_exit,affine_call_result_state_transfer_exit}`
-  and `collections/runtime_initialized_array_state_loan_exit` as controls.
-  Acceptance: each remaining source delivers its value natively and through
-  Terminal reload, selected operands execute once after selection, and
-  unselected operands have no effects.
-
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
   [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `ec784d4d82e`
@@ -2892,8 +2879,6 @@ completion syntax or other terminal service is a prerequisite.
   `runtime_double_indexed_rmw_exit` at native exit **1** on macOS ARM64:
   plain array loans now follow the same exclusive state-name and address
   transfer as record loans, including backing created in a non-entry state.
-  This borrows original storage; it does not implement
-  **COMPOSITE-TRANSITION-ARGUMENT**'s owned array block transfer.
   Source checking does not establish native store correctness. The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;
