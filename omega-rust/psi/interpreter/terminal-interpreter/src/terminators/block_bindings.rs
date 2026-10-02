@@ -16,6 +16,7 @@ use crate::custody::remove_affine_root;
 use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
+use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 
 #[cfg(test)]
@@ -25,6 +26,7 @@ pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
     scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
+    scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     affine_sources: BTreeSet<PlaceId>,
     /// Roots whose projected children moved on this edge. Their whole-root
@@ -53,17 +55,25 @@ impl BlockBindings {
         for source in self.affine_sources {
             execution.structural_values.remove(&source);
             execution.scalar_case_values.remove(&source);
+            execution.scalar_array_values.remove(&source);
             remove_affine_root(&mut execution.live_affine_frontier, source);
         }
         for destination in self.structural.keys() {
             execution.scalar_case_values.remove(destination);
+            execution.scalar_array_values.remove(destination);
         }
         for destination in self.scalar_cases.keys() {
             execution.structural_values.remove(destination);
+            execution.scalar_array_values.remove(destination);
+        }
+        for destination in self.scalar_arrays.keys() {
+            execution.structural_values.remove(destination);
+            execution.scalar_case_values.remove(destination);
         }
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
         execution.scalar_case_values.extend(self.scalar_cases);
+        execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
         execution
             .live_affine_frontier
@@ -123,6 +133,7 @@ impl BlockBindings {
             .structural
             .keys()
             .chain(self.scalar_cases.keys())
+            .chain(self.scalar_arrays.keys())
             .any(|place| {
                 execution
                     .live_affine_frontier
@@ -151,13 +162,10 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
         allow_projected: bool,
     ) -> Result<BlockBindings, TerminalInterpretError> {
-        let block = self
-            .program
-            .machines
-            .get(&self.current_machine)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                self.current_machine,
-            ))?
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
+            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+        )?;
+        let block = machine
             .blocks
             .get(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
@@ -178,12 +186,14 @@ impl TerminalExecution {
             });
         }
         let mut resolved_arguments = Vec::with_capacity(structural_arguments.len());
-        let contains_cases = structural_arguments
-            .iter()
-            .any(|argument| self.scalar_case_values.contains_key(&argument.place));
+        let contains_payloads = structural_arguments.iter().any(|argument| {
+            self.scalar_case_values.contains_key(&argument.place)
+                || self.scalar_array_values.contains_key(&argument.place)
+        });
         let mut descriptor_parameters = Vec::new();
         let mut descriptor_arguments = Vec::new();
         let mut scalar_cases = BTreeMap::new();
+        let mut scalar_arrays = BTreeMap::new();
         let mut case_destinations = BTreeSet::new();
         let mut affine_sources = BTreeSet::new();
         let mut projected_sources = BTreeSet::new();
@@ -206,6 +216,20 @@ impl TerminalExecution {
                 })
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+            if self.scalar_array_values.contains_key(&argument.place) {
+                // Arrays already have a complete value carrier. Capture it by
+                // the same rules as call operands before replacing any slots.
+                let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
+                if !self.block_parameter_is_declared(target, parameter)
+                    || self.live_affine_frontier.iter().any(|entry| {
+                        entry.place == argument.place || entry.place == parameter.place
+                    })
+                    || scalar_arrays.insert(parameter.place, value).is_some()
+                {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+                continue;
             }
             let value = self.structural_values.get(&argument.place);
             let case = self.scalar_case_values.get(&argument.place);
@@ -236,21 +260,7 @@ impl TerminalExecution {
                     if !matches!(
                         parameter.multiplicity,
                         StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                    ) || self.owned_block_source(parameter.place) != Some(parameter)
-                        || !self
-                            .program
-                            .machines
-                            .get(&self.current_machine)
-                            .is_some_and(|machine| {
-                                machine.structural_places.iter().any(|declaration| {
-                                    declaration.id == parameter.place
-                                        && declaration.kind
-                                            == StructuralPlaceKind::BlockParameter {
-                                                block: target,
-                                                position: parameter.position,
-                                            }
-                                })
-                            })
+                    ) || !self.block_parameter_is_declared(target, parameter)
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
@@ -435,7 +445,7 @@ impl TerminalExecution {
                     });
                 }
             } else {
-                if contains_cases {
+                if contains_payloads {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
                 }
@@ -446,12 +456,12 @@ impl TerminalExecution {
         }
         // Existing descriptor-only edges reuse their original declaration and
         // argument slices. Only mixed representations need a selected roster.
-        let descriptor_parameters = if contains_cases {
+        let descriptor_parameters = if contains_payloads {
             descriptor_parameters.as_slice()
         } else {
             &block.structural_parameters
         };
-        let descriptor_arguments = if contains_cases {
+        let descriptor_arguments = if contains_payloads {
             descriptor_arguments.as_slice()
         } else {
             structural_arguments
@@ -476,6 +486,7 @@ impl TerminalExecution {
             scalars,
             structural,
             scalar_cases,
+            scalar_arrays,
             byte_sequences,
             affine_sources,
             projected_sources,
@@ -483,6 +494,28 @@ impl TerminalExecution {
             record_payload,
             identity_cursor,
         })
+    }
+
+    fn block_parameter_is_declared(
+        &self,
+        target: BlockId,
+        parameter: &StructuralParameterDeclaration,
+    ) -> bool {
+        self.owned_block_source(parameter.place) == Some(parameter)
+            && self
+                .program
+                .machines
+                .get(&self.current_machine)
+                .is_some_and(|machine| {
+                    machine.structural_places.iter().any(|declaration| {
+                        declaration.id == parameter.place
+                            && declaration.kind
+                                == StructuralPlaceKind::BlockParameter {
+                                    block: target,
+                                    position: parameter.position,
+                                }
+                    })
+                })
     }
 
     pub(crate) fn owned_result_matches(
