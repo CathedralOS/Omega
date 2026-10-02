@@ -135,7 +135,7 @@ pub struct PlacedInternalMachineCallResolution {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub owner: target_operations::CallSiteOwner,
     pub callee: MachineId,
     pub call_function_offset: u64,
     pub call_section_offset: u64,

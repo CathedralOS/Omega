@@ -93,16 +93,22 @@ pub(super) fn check(
                     if !matches!(input, TextPlacementInput::InternalCalls(_)) {
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
-                    let FunctionFragmentControlProvenance::DirectInternalCall { callee } =
+                    let FunctionFragmentControlProvenance::DirectInternalCall { callee, owner } =
                         source_row.control
                     else {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     };
-                    // Zero-payload construction is an ordered prefix checked
-                    // by source replay; the final operation owns this call fixup.
-                    let Some(operation) = source_row.provenance.operations.last() else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
-                    };
+                    // Retain operation-owned prefixes and return-owned action
+                    // coordinates without inventing an operation for an edge.
+                    match owner {
+                        target_operations::CallSiteOwner::Operation(operation)
+                            if source_row.provenance.operations.last() == Some(&operation) => {}
+                        target_operations::CallSiteOwner::CleanupAction { edge, .. }
+                            if source_row.provenance.operations.is_empty()
+                                && source_row.provenance.edges.as_slice() == [edge]
+                                && source_row.provenance.fuel.is_empty() => {}
+                        _ => return Err(TextPlacementError::SourceShapeMismatch),
+                    }
                     let candidate = resolutions
                         .next()
                         .ok_or(TextPlacementError::ArtifactMismatch)?;
@@ -111,7 +117,7 @@ pub(super) fn check(
                             caller: source.machine,
                             block: source_block.block,
                             instruction: source_row.instruction,
-                            operation: *operation,
+                            owner,
                             callee,
                             offset: source_row.offset,
                             bytes: &source_row.bytes,

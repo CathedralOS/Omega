@@ -81,7 +81,7 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         {
             let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
             local_peak = local_peak.max(caller_live_bytes);
-            let owner = target_operations::CallSiteOwner::Operation(call.operation);
+            let owner = call.owner;
             let text_offset = host(call.field_section_offset)?;
             if unit {
                 unit_call_stacks.push(ObjectUnitCallStack {

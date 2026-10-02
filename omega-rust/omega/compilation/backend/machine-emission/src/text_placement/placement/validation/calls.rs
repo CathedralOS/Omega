@@ -17,7 +17,7 @@ pub(super) struct Call<'a> {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub owner: target_operations::CallSiteOwner,
     pub callee: MachineId,
     pub offset: u64,
     pub bytes: &'a [u8],
@@ -80,7 +80,7 @@ pub(super) fn check(
         || row.caller != call.caller
         || row.block != call.block
         || row.instruction != call.instruction
-        || row.operation != call.operation
+        || row.owner != call.owner
         || row.callee != call.callee
         || row.call_function_offset != call.offset
         || row.call_section_offset != add(section_offset, call.offset)?

@@ -11,6 +11,7 @@ use machine_code::{
 use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn check(
+    function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
     selected: &SelectedInstruction,
     row: &ResolvedSelectedFormRow,
@@ -23,7 +24,7 @@ pub(super) fn check(
             && span.bytes == row.bytes
             && span.provenance == selected.provenance,
     )?;
-    control::check(block, selected, &span.control)?;
+    control::check(function, block, selected, &span.control)?;
     let literal = match selected.kind {
         SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
             Some(machine_code::ByteLiteralReference { operation, place })

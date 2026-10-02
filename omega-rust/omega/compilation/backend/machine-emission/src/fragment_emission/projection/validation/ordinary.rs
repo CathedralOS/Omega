@@ -67,7 +67,7 @@ pub(super) fn check(
                         row.instruction,
                     ))?;
                 require(row.offset == offset)?;
-                instruction::check(selected_block, selected_instruction, row, span)?;
+                instruction::check(source, selected_block, selected_instruction, row, span)?;
                 byte_span(&claimed.bytes, offset, &span.bytes)?;
                 offset = offset
                     .checked_add(

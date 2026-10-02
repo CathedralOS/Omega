@@ -50,7 +50,7 @@ pub(super) fn validate(
         }));
     for ((owner, target, text_offset, caller_live_bytes), call) in edges.zip(calls) {
         if !contains_call
-            || owner != target_operations::CallSiteOwner::Operation(call.operation)
+            || owner != call.owner
             || target != call.callee
             || text_offset != host(call.field_section_offset)?
             || u64::from(caller_live_bytes)
@@ -115,7 +115,7 @@ mod tests {
             callee: MachineId::new(2).unwrap(),
             block: SelectedBlockId(0),
             instruction: SelectedInstructionId(3),
-            operation: OperationId::new(3).unwrap(),
+            owner: target_operations::CallSiteOwner::Operation(OperationId::new(3).unwrap()),
             call_function_offset: opcode,
             call_section_offset: opcode,
             call_byte_count: next - opcode,
@@ -173,7 +173,7 @@ mod tests {
                 stack_alignment: 16,
             };
             let row = ObjectScalarCallStack {
-                owner: target_operations::CallSiteOwner::Operation(call.operation),
+                owner: call.owner,
                 target: call.callee,
                 text_offset: call.field_section_offset as usize,
                 caller_live_bytes: peak,
@@ -245,7 +245,7 @@ mod tests {
                 stack_alignment: 16,
             };
             let row = ObjectUnitCallStack {
-                owner: target_operations::CallSiteOwner::Operation(call.operation),
+                owner: call.owner,
                 target: call.callee,
                 text_offset: call.field_section_offset as usize,
                 active_frame_bytes: frame_bytes,

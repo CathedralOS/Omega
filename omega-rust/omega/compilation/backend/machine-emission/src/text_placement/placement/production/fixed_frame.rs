@@ -71,7 +71,7 @@ pub(in crate::text_placement::placement) fn place(
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if let Some(fixup) = instruction.internal_machine_fixup {
-                    let FunctionFragmentControlProvenance::DirectInternalCall { callee } =
+                    let FunctionFragmentControlProvenance::DirectInternalCall { callee, owner } =
                         instruction.control
                     else {
                         return Err(TextPlacementError::SourceShapeMismatch);
@@ -79,7 +79,16 @@ pub(in crate::text_placement::placement) fn place(
                     if callee != fixup.callee {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
-                    let operation = exact_operation(&instruction.provenance.operations)?;
+                    match owner {
+                        target_operations::CallSiteOwner::Operation(operation)
+                            if exact_operation(&instruction.provenance.operations)?
+                                == operation => {}
+                        target_operations::CallSiteOwner::CleanupAction { edge, .. }
+                            if instruction.provenance.operations.is_empty()
+                                && instruction.provenance.edges.as_slice() == [edge]
+                                && instruction.provenance.fuel.is_empty() => {}
+                        _ => return Err(TextPlacementError::SourceShapeMismatch),
+                    }
                     let callee_section_offset = *offsets
                         .get(&callee)
                         .ok_or(TextPlacementError::MissingInternalMachineTarget(callee))?;
@@ -88,7 +97,7 @@ pub(in crate::text_placement::placement) fn place(
                         function.machine,
                         block.block,
                         instruction.instruction,
-                        operation,
+                        owner,
                         instruction.offset,
                         &instruction.bytes,
                         section_offset,
@@ -279,7 +288,7 @@ fn resolve(
     caller: MachineId,
     block: selected_instructions::SelectedBlockId,
     instruction: selected_instructions::SelectedInstructionId,
-    operation: OperationId,
+    owner: target_operations::CallSiteOwner,
     instruction_offset: u64,
     instruction_bytes: &[u8],
     function_section_offset: u64,
@@ -378,7 +387,7 @@ fn resolve(
         caller,
         block,
         instruction,
-        operation,
+        owner,
         callee: fixup.callee,
         call_function_offset: instruction_offset,
         call_section_offset,

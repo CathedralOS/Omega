@@ -23,7 +23,7 @@ pub(super) fn emit(
         .ok_or(ResolvedFragmentEmissionError::MissingBlock(resolved.block))?;
     let mut instructions = Vec::with_capacity(resolved.instructions.len());
     for row in &resolved.instructions {
-        instructions.push(instruction::emit(selected_block, row, bytes)?);
+        instructions.push(instruction::emit(selected, selected_block, row, bytes)?);
     }
     let block_end =
         u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
