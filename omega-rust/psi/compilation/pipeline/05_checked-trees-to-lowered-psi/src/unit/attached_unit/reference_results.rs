@@ -325,37 +325,65 @@ pub(super) fn validate_composed_establishment(
     )
     .is_some()
     {
-        // A shared `&'a V` return forwards the whole borrowed ingress under
-        // the same reference convention `&mut` uses: the tail names the
-        // parameter itself, so there is no projected path to rejoin — only
-        // the parameter position, access, and type identities.
-        let position =
+        if let Some(position) =
             validation::reference_result_custody::source_parameter(&checked.typed, authored)
+        {
+            // A shared `&'a V` return can forward the whole borrowed ingress
+            // under the same reference convention `&mut` uses: the tail names
+            // the parameter itself, so there is no projected path to rejoin —
+            // only the parameter position, access, and type identities.
+            let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+                source.source
+            else {
+                return unsupported("shared reference return requires retained ingress custody");
+            };
+            let parameter = state
+                .structural_parameters
+                .get(parameter_index as usize)
                 .ok_or(LoweringError::Unsupported(
-                    "shared reference return has no exact ingress source",
+                    "shared reference ingress parameter is absent",
                 ))?;
-        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-        else {
-            return unsupported("shared reference return requires retained ingress custody");
-        };
-        let parameter = state
-            .structural_parameters
-            .get(parameter_index as usize)
+            let (referee, _) = validation::reference_result_custody::shared_borrowed_parts(
+                &checked.typed,
+                authored.return_type,
+            )
             .ok_or(LoweringError::Unsupported(
-                "shared reference ingress parameter is absent",
+                "shared reference return lost its declared referee",
             ))?;
-        let (referee, _) = validation::reference_result_custody::shared_borrowed_parts(
+            if parameter.position as usize != position
+                || parameter.access != CheckedStructuralAccess::SharedBorrow
+                || source.access != parameter.access
+                || !source.path.is_empty()
+                || checked.normalized_type_identity(referee).as_str() != source.type_identity
+                || checked
+                    .normalized_type_identity(authored.return_type)
+                    .as_str()
+                    != result.type_identity
+                || result.multiplicity != Multiplicity::Affine
+                || result.statement_index as usize + 1
+                    != checked
+                        .statement_table
+                        .statements(authored.statement_nodes)
+                        .len()
+            {
+                return unsupported("shared reference return differs from its exact ingress");
+            }
+            return Ok(());
+        }
+        // A projected shared tail — `&self.count`, `&receiver.field[i]` —
+        // rejoins the same reconstruction the ordinary completion path runs:
+        // one `Parameter` source, the member and literal-index hops, and the
+        // trailing `Referent` segment, compared whole against the minted plan.
+        let expected = validation::reference_result_custody::borrowed_initializer_source(
             &checked.typed,
+            authored,
+            expression,
             authored.return_type,
         )
         .ok_or(LoweringError::Unsupported(
-            "shared reference return lost its declared referee",
+            "shared reference return has no exact ingress source",
         ))?;
-        if parameter.position as usize != position
-            || parameter.access != CheckedStructuralAccess::SharedBorrow
-            || source.access != parameter.access
-            || !source.path.is_empty()
-            || checked.normalized_type_identity(referee).as_str() != source.type_identity
+        if expected != *source
             || checked
                 .normalized_type_identity(authored.return_type)
                 .as_str()
