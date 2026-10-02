@@ -38,7 +38,8 @@ pub use optimization::{
     BlockLocalEvidence, ControlFlowCleanupRewriteError, CopyPropagationRewriteError,
     DeadScalarRewriteError, GlobalValueNumberingRewriteError, ProofCheckElisionRewriteError,
     SparseConditionalConstantPropagationRewriteError, block_local_evidence, machine_evidence_bound,
-    retained_machines, retained_machines_with_roots, validate_control_flow_cleanup,
+    retained_machines, retained_machines_with_roots, transport_copy_propagation_evidence,
+    transport_dead_scalar_elimination_evidence, validate_control_flow_cleanup,
     validate_copy_propagation, validate_dead_scalar_elimination, validate_global_value_numbering,
     validate_proof_check_elision, validate_sparse_conditional_constant_propagation,
 };

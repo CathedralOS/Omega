@@ -1,12 +1,12 @@
 //! Optimizer module role: stage group. Dead total scalar elimination.
 //!
 //! Liveness proposes removals; the independent verifier checks the exact
-//! before/after relation and proof questions. Inside a proof-bearing module a
-//! removal survives only while the reconstructed question is unchanged; a
-//! removal the question cannot carry verbatim refuses, leaving the complete
-//! closure as authored until proof-context transport lets the question move
-//! with the rewrite — never silently re-proved. The refusal is recorded as a
-//! `PsiRewriteRefusal` on the stage result.
+//! before/after relation and proof questions. Goals, ordered requirements and
+//! retained invariants stay exact; citations in existing certificates move by
+//! reconstructed axiom identity. Both bundles replay independently. A removed
+//! material premise refuses, leaving the complete closure as authored rather
+//! than silently searching for another proof. The refusal is recorded on the
+//! stage result.
 //! Unused scalar block parameters are removed together with their dead
 //! results, dropping the matching edge-argument positions. Ranking evidence
 //! names exact values and covered member parameter tables: those stay live
@@ -21,7 +21,7 @@ use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_dead_scalar_elimination,
+    reconstruct_optimizable_terminal_obligations, transport_dead_scalar_elimination_evidence,
     validate_module_for_optimization,
 };
 
@@ -70,35 +70,47 @@ pub(super) fn eliminate(
             }
         }
     }
+    // Join predicates remain the same proof questions. A value explicitly
+    // named by a retained header is a semantic use, even when no executable
+    // operation reads it after the selected rewrite.
+    for invariant in &before.semantic_module.scalar_block_invariants {
+        invariant.predicate.visit_value_ids(|value| {
+            retained_values.push(value);
+        });
+    }
     for machine in &mut after.semantic_module.machines {
         liveness::eliminate(machine, &before.source_call_occurrences, &retained_values);
     }
-    if let Err(error) =
-        validate_dead_scalar_elimination(&before.semantic_module, &after.semantic_module)
-    {
-        // Without proof-context transport a proof-bearing input keeps only a
-        // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored and is reported as a
-        // decision, so the identity output is not mistaken for "nothing to
-        // remove".
-        let reason = match error {
-            terminal_verifier::DeadScalarRewriteError::ChangedProofQuestion => {
-                Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+    let transported = match transport_dead_scalar_elimination_evidence(
+        &before.semantic_module,
+        &after.semantic_module,
+        &before.proof_bundle,
+    ) {
+        Ok(proof) => proof,
+        Err(error) => {
+            // The proposal cannot carry the existing evidence through its exact
+            // reconstructed question. Preserve the complete input and record
+            // the refusal; a new proof search must not turn this into a rewrite.
+            let reason = match error {
+                terminal_verifier::DeadScalarRewriteError::ChangedProofQuestion => {
+                    Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+                }
+                terminal_verifier::DeadScalarRewriteError::InvalidModule(_) => {
+                    Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
+                }
+                _ => None,
+            };
+            if let Some(reason) = reason.filter(|_| proof_bearing) {
+                refusals.push(PsiRewriteRefusal::new(
+                    PsiOptimization::DeadPureScalarElimination,
+                    reason,
+                ));
+                return Ok(before);
             }
-            terminal_verifier::DeadScalarRewriteError::InvalidModule(_) => {
-                Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
-            }
-            _ => None,
-        };
-        if let Some(reason) = reason.filter(|_| proof_bearing) {
-            refusals.push(PsiRewriteRefusal::new(
-                PsiOptimization::DeadPureScalarElimination,
-                reason,
-            ));
-            return Ok(before);
+            return Err(PsiOptimizationStageError::InvalidDeadScalarRewrite(error));
         }
-        return Err(PsiOptimizationStageError::InvalidDeadScalarRewrite(error));
-    }
+    };
+    after.proof_bundle = transported;
     if let Some(debug) = after.debug_map.as_mut() {
         let operations = after
             .semantic_module

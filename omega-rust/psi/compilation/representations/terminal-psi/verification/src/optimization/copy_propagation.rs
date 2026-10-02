@@ -32,6 +32,24 @@ pub fn validate_copy_propagation(
     before: &TerminalModule,
     after: &TerminalModule,
 ) -> Result<(), CopyPropagationRewriteError> {
+    checked_substitutions(before, after).map(|_| ())
+}
+
+/// Carry existing evidence only through the independently reconstructed copy relation.
+pub fn transport_copy_propagation_evidence(
+    before: &TerminalModule,
+    after: &TerminalModule,
+    proof: &crate::ProofBundle,
+) -> Result<crate::ProofBundle, CopyPropagationRewriteError> {
+    let substitutions = checked_substitutions(before, after)?;
+    super::proof_context_transport::transport(before, after, proof, &substitutions)
+        .ok_or(CopyPropagationRewriteError::ChangedProofQuestion)
+}
+
+fn checked_substitutions(
+    before: &TerminalModule,
+    after: &TerminalModule,
+) -> Result<BTreeMap<ValueId, semantic_vocabulary::ScalarTerm>, CopyPropagationRewriteError> {
     let before_valid = validate_module_for_optimization(before)
         .map_err(CopyPropagationRewriteError::InvalidModule)?;
     let after_valid = validate_module_for_optimization(after)
@@ -40,6 +58,7 @@ pub fn validate_copy_propagation(
         return Err(CopyPropagationRewriteError::ChangedProgramStructure);
     }
     let mut expected = before.clone();
+    let mut proof_substitutions = BTreeMap::new();
     for ((old, new), expected_machine) in before
         .machines
         .iter()
@@ -162,6 +181,10 @@ pub fn validate_copy_propagation(
                     ));
                 }
                 substitution.insert(parameter.id, source);
+                proof_substitutions.insert(
+                    parameter.id,
+                    semantic_vocabulary::ScalarTerm::value(source, parameter.scalar_type),
+                );
             }
         }
         for expected_block in &mut expected_machine.blocks {
@@ -203,7 +226,11 @@ pub fn validate_copy_propagation(
         .map_err(CopyPropagationRewriteError::InvalidModule)?;
     let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
         .map_err(CopyPropagationRewriteError::InvalidModule)?;
-    if old_question != new_question {
+    if !super::proof_context_transport::questions_match(
+        &old_question,
+        &new_question,
+        &proof_substitutions,
+    ) {
         return Err(CopyPropagationRewriteError::ChangedProofQuestion);
     }
     // The crash-obligation roster is a second reconstructed question: a
@@ -218,7 +245,7 @@ pub fn validate_copy_propagation(
     if old_crash != new_crash {
         return Err(CopyPropagationRewriteError::ChangedProofQuestion);
     }
-    Ok(())
+    Ok(proof_substitutions)
 }
 
 /// The identity `value` keeps after all justified copies collapse: the unique

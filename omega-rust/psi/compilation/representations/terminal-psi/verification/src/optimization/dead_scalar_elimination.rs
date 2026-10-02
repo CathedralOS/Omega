@@ -21,8 +21,9 @@ pub enum DeadScalarRewriteError {
 
 /// Check an operation-removal subsequence, not the producer's liveness result.
 /// Output validation independently rejects surviving uses of a removed value.
-/// Exact reconstruction preserves assumptions and their numbering, so every
-/// unchanged proof bundle is asked exactly the same questions after the rewrite.
+/// Goals and ordered requirements stay exact; an output axiom must already
+/// belong to the input question. Existing certificates move through the checked
+/// axiom correspondence and replay before the producer commits the removal.
 pub fn validate_dead_scalar_elimination(
     before: &TerminalModule,
     after: &TerminalModule,
@@ -152,7 +153,11 @@ pub fn validate_dead_scalar_elimination(
         .map_err(DeadScalarRewriteError::InvalidModule)?;
     let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
         .map_err(DeadScalarRewriteError::InvalidModule)?;
-    if old_question != new_question {
+    if !super::proof_context_transport::questions_match(
+        &old_question,
+        &new_question,
+        &BTreeMap::new(),
+    ) {
         return Err(DeadScalarRewriteError::ChangedProofQuestion);
     }
     // The crash-obligation roster is a second reconstructed question: a
@@ -168,6 +173,17 @@ pub fn validate_dead_scalar_elimination(
         return Err(DeadScalarRewriteError::ChangedProofQuestion);
     }
     Ok(())
+}
+
+/// Carry existing evidence through checked total-scalar removal, without proof search.
+pub fn transport_dead_scalar_elimination_evidence(
+    before: &TerminalModule,
+    after: &TerminalModule,
+    proof: &crate::ProofBundle,
+) -> Result<crate::ProofBundle, DeadScalarRewriteError> {
+    validate_dead_scalar_elimination(before, after)?;
+    super::proof_context_transport::transport(before, after, proof, &BTreeMap::new())
+        .ok_or(DeadScalarRewriteError::ChangedProofQuestion)
 }
 
 /// Drop the listed old positions from one edge's scalar arguments.

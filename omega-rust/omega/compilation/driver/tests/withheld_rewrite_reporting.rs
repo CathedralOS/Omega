@@ -1,13 +1,6 @@
-//! A rewrite a pass proposed and then withheld has to reach the person
-//! compiling, or the decision is indistinguishable from the pass finding
-//! nothing to do.
-//!
-//! Stage 06 already records the decision on its own result. This witnesses the
-//! rest of the route: production reads the decisions off the stage result
-//! before publication consumes it, projects them onto the shared optimization
-//! reason vocabulary, and the compile report carries them out for the CLI to
-//! name. The published artifact is identical either way, so nothing here
-//! asserts a difference in bytes — only that the explanation survived.
+//! Selected scalar rewrites must carry independently replayable proof contexts.
+//! The consumed join customer now transports its certificates and reports no
+//! withheld rewrite. A selection control guards the same reporting route.
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -61,38 +54,21 @@ fn withheld_rewrites_of(
     withheld
 }
 
-/// The proof-bearing customer. Its runtime index site gives the machine a
-/// reconstructed obligation, so the two-arm literal join retains an interval
-/// invariant naming the values both selected passes would rewrite. Each pass
-/// proposes a complete rewrite and its own validator reconstructs a different
-/// proof question from the proposal, so each withholds — and the report names
-/// the exact rule and the reason.
+/// Both selected rewrites retain the consumed interval question and transport
+/// their certificates, so no withheld decision remains in the customer report.
 #[test]
-fn a_consumed_join_invariant_reports_both_withheld_rewrites() {
+fn a_consumed_join_invariant_transports_both_selected_rewrites() {
     let withheld = withheld_rewrites_of(
         "omega-rust/omega/compilation/driver/tests/fixtures/withheld_rewrite_report/main.omg",
         "macos_arm64",
     );
-    assert!(
-        withheld.contains(&(
-            PsiOptimization::CopyPropagation,
-            OptimizationReasonCode::ValidationFailed
-        )),
-        "copy propagation's withheld rewrite must reach the report: {withheld:?}"
-    );
-    assert!(
-        withheld.contains(&(
-            PsiOptimization::DeadPureScalarElimination,
-            OptimizationReasonCode::ValidationFailed
-        )),
-        "dead scalar elimination's withheld rewrite must reach the report: {withheld:?}"
-    );
+    assert!(withheld.is_empty(), "transported rewrites: {withheld:?}");
 }
 
 /// The control. This fixture selects the same passes with no consumed join
 /// invariant to refuse at, so the passes either rewrite or find nothing and
 /// the report carries no decision. Without it, a route that reported every
-/// selected pass would pass the test above for the wrong reason.
+/// selected pass would fail both empty-report checks.
 #[test]
 fn a_selection_without_a_consumed_invariant_reports_no_withheld_rewrite() {
     let withheld = withheld_rewrites_of(
