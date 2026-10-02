@@ -3951,16 +3951,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   interpreter agreement remain under **RECORD-LITERAL-ARRAY-FIELD**.
 
   Remaining joins:
-  - Retain the primitive `u8` child of a byte view through stage 04's
-    `types/shape_collector.rs::retain_transitive`. Stage 05's
-    `unit/attached_unit/catalog.rs` requires that child when building the
-    view catalog, but pruning currently treats byte views as childless.
-    On base `8c94d85412`, three `byte_sequence_write` library tests reject
-    with `Unit closure references a missing structural type`; the focused
-    `owned_byte_boundary_loan_replays_whole_local_and_shared_access` test
-    reaches the same missing dependency. Acceptance is complete lowering of
-    those programs without requiring an unrelated `u8` consumer to retain
-    the missing type.
   - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
