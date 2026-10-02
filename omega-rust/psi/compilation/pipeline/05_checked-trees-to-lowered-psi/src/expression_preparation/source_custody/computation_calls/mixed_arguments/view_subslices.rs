@@ -16,8 +16,8 @@ pub(super) fn captured_range(
     statement: u32,
     expression: ExpressionHandle,
 ) -> Result<checked_trees::CapturedPlace, LoweringError> {
-    let operation = validation::shared_subslice_expression(&checked.typed, expression).ok_or(
-        LoweringError::Unsupported("computed subslice lost its shared range expression"),
+    let operation = validation::subslice_expression(&checked.typed, expression).ok_or(
+        LoweringError::Unsupported("computed subslice lost its readable range expression"),
     )?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("computed subslice lost its indexed source");
@@ -86,7 +86,17 @@ pub(super) fn validate(
     )?;
     let (caller, _) = super::super::authored_state(checked, state.symbol)?;
     let captured = captured_range(checked, caller.symbol, state.symbol, statement, expression)?;
-    super::borrow_rows::validate_shared_place_argument_at(checked, call, position, &captured)
+    super::borrow_rows::validate_place_argument_at(
+        checked,
+        call,
+        position,
+        &captured,
+        match argument.access {
+            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+            _ => return unsupported("subslice call has unreadable access"),
+        },
+    )
 }
 
 /// Replay the range operation independently of its consumer. A call additionally
@@ -116,13 +126,17 @@ pub(crate) fn validate_operand(
         } => (*root, *expression, start, end, false),
         _ => return unsupported("computed subslice has no retained range"),
     };
-    if retained_expression != expression || argument.access != CheckedStructuralAccess::SharedBorrow
+    if retained_expression != expression
+        || !matches!(
+            argument.access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
     {
         return unsupported("computed subslice changed its expression or view custody");
     }
     let (caller, _) = super::super::authored_state(checked, state.symbol)?;
-    let operation = validation::shared_subslice_expression(&checked.typed, expression).ok_or(
-        LoweringError::Unsupported("computed subslice lost its shared range expression"),
+    let operation = validation::subslice_expression(&checked.typed, expression).ok_or(
+        LoweringError::Unsupported("computed subslice lost its readable range expression"),
     )?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("computed subslice lost its indexed source");
@@ -138,7 +152,7 @@ pub(crate) fn validate_operand(
         return unsupported("computed subslice substituted its projected path");
     }
     let parameters = checked.state_parameters(state);
-    let (symbol, reference, mutable_binding) = match root {
+    let (symbol, reference, mutable_local_binding) = match root {
         CheckedStorageRoot::Parameter { index } => {
             let parameter = super::super::structural_parameter_at(
                 checked,
@@ -151,11 +165,10 @@ pub(crate) fn validate_operand(
             {
                 return unsupported("computed subslice source parameter changed custody");
             }
-            (
-                parameter.symbol,
-                parameter.type_reference,
-                parameter.is_mutable,
-            )
+            // `is_mutable` also describes a parameter's mutable referent;
+            // its current descriptor is selected by the activation bindings.
+            // It is not evidence that the parameter binding was reassigned.
+            (parameter.symbol, parameter.type_reference, false)
         }
         CheckedStorageRoot::ViewLocal { symbol } | CheckedStorageRoot::OwnedLocal { symbol } => {
             if parameters
@@ -177,13 +190,17 @@ pub(crate) fn validate_operand(
     };
     let view_type = |reference| {
         let TypeReferenceNode::Reference {
-            access: language_core::ReferenceAccess::Shared,
-            referee,
-            ..
+            access, referee, ..
         } = checked.type_reference_table.type_reference(reference)
         else {
             return None;
         };
+        if !matches!(
+            access,
+            language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+        ) {
+            return None;
+        }
         let TypeReferenceNode::Slice { element_type } =
             checked.type_reference_table.type_reference(*referee)
         else {
@@ -194,17 +211,31 @@ pub(crate) fn validate_operand(
             TypeReferenceNode::Named { .. }
         ) && checked.primitive_type_reference(*element_type)
             == Some(checked_trees::types::PrimitiveType::U8);
-        Some((*referee, *element_type, is_bytes))
+        Some((*referee, *element_type, is_bytes, *access))
     };
-    let (target_slice, target_element, target_bytes) = view_type(target_type).ok_or(
-        LoweringError::Unsupported("computed subslice formal is not a shared view"),
-    )?;
-    let source_element = if let Some((_, element, _)) = view_type(reference) {
-        if mutable_binding
+    let (target_slice, target_element, target_bytes, target_access) = view_type(target_type)
+        .ok_or(LoweringError::Unsupported(
+            "computed subslice formal is not a readable view",
+        ))?;
+    let expected_access = match target_access {
+        language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+        language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        _ => return unsupported("range target access is unreadable"),
+    };
+    if argument.access != expected_access {
+        return unsupported("range changed its formal access");
+    }
+    let source_element = if let Some((_, element, _, source_access)) = view_type(reference) {
+        if target_access == language_core::ReferenceAccess::Mutable
+            && source_access != target_access
+        {
+            return unsupported("range escalated shared descriptor authority");
+        }
+        if mutable_local_binding
             || !source.path.is_empty()
             || matches!(root, CheckedStorageRoot::OwnedLocal { .. })
         {
-            return unsupported("computed subslice has no immutable view descriptor");
+            return unsupported("computed subslice has no current view descriptor");
         }
         element
     } else {
@@ -213,7 +244,9 @@ pub(crate) fn validate_operand(
         }
         match validation::reference_shell(&checked.typed, reference) {
             Some(shell)
-                if matches!(root, CheckedStorageRoot::Parameter { .. })
+                if (target_access != language_core::ReferenceAccess::Mutable
+                    || shell.access == target_access)
+                    && matches!(root, CheckedStorageRoot::Parameter { .. })
                     && matches!(
                         shell.access,
                         language_core::ReferenceAccess::Shared

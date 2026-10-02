@@ -1,48 +1,17 @@
-//! One admission for shared, exclusive-end collection ranges.
+//! Admit one checked collection range with its exact access and endpoints.
 //!
-//! A call argument, a transition argument and a `let` initializer narrow a
-//! view with the same builtin range. They differ only in where the range sits
-//! (`CheckedSubsliceSite`) and in what consumes the admitted range: a call
-//! argument plan, an edge transfer, or a view-local binding. Byte views
-//! (`&[u8]`) and element views (`&[T]`, T != u8) differ only in their carrier
-//! check and source variant, so both kinds share this admission as well.
+//! Local bindings, calls and state transfers carry the same range operation.
+//! Source storage and the requested reference determine authority; a type or
+//! endpoint equation cannot amplify a shared loan into a mutable one. Local
+//! array ranges additionally rejoin the exact checked loan, including access,
+//! formation statement and captured projection. Call-scoped ranges retain
+//! their ordinary call-argument overlap judgment.
 //!
-//! The narrowed view must be an established view place: a whole immutable
-//! view parameter of the state, or an immutable view local that an earlier
-//! statement of the same body declared. Admission names the local by its `let`
-//! symbol only; the producer that sequences the body decides whether that
-//! local was actually established before this statement, and lowering
-//! resolves the symbol to its published place or refuses.
-//!
-//! Qualifications stay with the source. A byte view parameter may carry
-//! primitive byte domains (`path: &[u8] in Path`); its range is the same
-//! fresh, unqualified subslice an unqualified view's is, so it can supply
-//! only an unqualified formal. A range into a domain-qualified formal
-//! (`prefix: &[u8] in Path`) would need the subslice result itself to carry
-//! the domain, which the Terminal byte-view vocabulary does not define, even
-//! where the checker proved the range in that domain (`no_nul` is
-//! subslice-preserving). Call planners name that boundary
-//! (`narrows_into_qualified_formal`) rather than admit a plan the verifier
-//! must reject.
-//!
-//! A fixed array has no established descriptor to narrow. Its source is the
-//! resolved storage root and projection, whether the array is a whole local,
-//! a parameter or a record field. Lowering must first establish a whole view
-//! of that backing and then narrow it through the ordinary subslice operation.
-//! Element identity, not byte spelling or literal endpoints, determines that
-//! relationship; empty arrays retain the same backing and zero extent.
-//!
-//! A view local's binding and a call argument admit array backing; edge
-//! transfers do not yet carry backing establishment. The admitting sites differ in who
-//! keeps the array unwritten while the view lives. A local's view outlives
-//! its statement, so the checked borrow ledger must already hold the local's
-//! shared loan of exactly that range, and later writes stay rejected there. A
-//! call argument's view dies with its call: the checker's call-argument
-//! overlap judgment (a callee that writes the lent array through its own
-//! receiver rejects, `fail/borrows/whole_mut_receiver_write_under_argument_view`)
-//! already covers the only interval the view is live, and the ledger records
-//! no loan for it. Explicit shared borrows keep their authored occurrence for
-//! custody while operator and endpoint evidence belongs to the range inside.
+//! Arrays first lend a whole descriptor; established views narrow directly.
+//! This is a carrier distinction, not a local-versus-parameter alternative.
+//! Present endpoints retain their checked site and evaluation order. Byte and
+//! element counts remain separate. Qualification transfer still requires the
+//! narrowed result's own evidence; a source domain alone grants none.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
@@ -91,6 +60,7 @@ pub(in crate::execution) struct ViewRange {
     /// have an empty path; storage kind comes from the declared type.
     pub(in crate::execution) collection: Vec<CheckedUnitStructuralPathSegment>,
     pub(in crate::execution) kind: ViewKind,
+    pub(in crate::execution) access: CheckedStructuralAccess,
     pub(in crate::execution) type_identity: String,
 }
 
@@ -105,7 +75,7 @@ pub(crate) struct ViewSubslice {
 }
 
 impl ViewSubslice {
-    /// The shared-borrow argument plan a call, a return or a view-local
+    /// The access-preserving argument plan a call, a return or a view-local
     /// binding carries for this range.
     pub(crate) fn argument(self) -> CheckedUnitStructuralArgumentPlan {
         let ViewSubslice {
@@ -133,7 +103,7 @@ impl ViewSubslice {
             },
             path: range.collection,
             type_identity: range.type_identity,
-            access: CheckedStructuralAccess::SharedBorrow,
+            access: range.access,
         }
     }
 
@@ -183,9 +153,15 @@ pub(in crate::execution) fn admit(
     )?;
     let established = match site {
         _ if subslice.range.storage == ViewStorage::Established => true,
-        CheckedSubsliceSite::LocalBinding => {
-            lends_collection(program, facts, machine, state, statement_index, expression)
-        }
+        CheckedSubsliceSite::LocalBinding => lends_collection(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            expression,
+            subslice.range.access,
+        ),
         // The call-argument overlap judgment, not a ledger loan, keeps the
         // backing unwritten for the call (module header).
         CheckedSubsliceSite::CallArgument { .. } | CheckedSubsliceSite::Expression { .. } => true,
@@ -219,7 +195,7 @@ pub(crate) fn admit_resolved(
     statement_index: usize,
     site: CheckedSubsliceSite,
 ) -> Option<ViewSubslice> {
-    let operation = validation::shared_subslice_expression(program, expression)?;
+    let operation = validation::subslice_expression(program, expression)?;
     let spelling = language_core::OperatorSpelling::Range;
     if operators.expression_use(operation).is_some_and(|selected| {
         selected.spelling != spelling
@@ -247,9 +223,10 @@ pub(crate) fn admit_resolved(
 }
 
 /// Whether checked borrow admission recorded the `let` at `statement_index`
-/// as the sole shared loan of exactly the fixed-array range `expression`
+/// as the sole loan, with matching access, of the fixed-array range `expression`
 /// narrows. The view the range establishes is that loan: the ledger, not
 /// the authored spelling, is what keeps the array unwritten while it lives.
+#[allow(clippy::too_many_arguments)]
 fn lends_collection(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -257,6 +234,7 @@ fn lends_collection(
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
+    access: CheckedStructuralAccess,
 ) -> bool {
     let Some(StatementNode::LocalData(local)) = program
         .statement_table
@@ -298,7 +276,12 @@ fn lends_collection(
     };
     crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut lent);
     loan.statement_index == statement_index
-        && loan.kind == checked_trees::BorrowAccessKind::Read
+        && loan.kind
+            == match access {
+                CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+                CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+                _ => return false,
+            }
         && lent == place
 }
 
@@ -335,7 +318,7 @@ pub(in crate::execution) fn admit_replayed(
     {
         return None;
     }
-    let operation = validation::shared_subslice_expression(program, expression)?;
+    let operation = validation::subslice_expression(program, expression)?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
         return None;
     };
@@ -370,7 +353,7 @@ pub(in crate::execution) fn admit_replayed(
     })
 }
 
-/// Range admission without endpoints: the target is an exact immutable
+/// Range admission without endpoints: the target is an exact readable
 /// borrowed view, the authored range is exclusive and builtin, and the
 /// collection either holds an established view of the same kind and identity
 /// or names readable array storage with exactly the view's element type.
@@ -440,7 +423,24 @@ fn shape_of_kind(
     expression: ExpressionHandle,
     statement_index: usize,
 ) -> Option<ViewRange> {
-    let expression = validation::shared_subslice_expression(program, expression)?;
+    let access = structural_access_for_type_reference(program, target)?;
+    if !matches!(
+        access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        let authored = match borrow.access {
+            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+            language_core::ReferenceAccess::WriteOnly => return None,
+        };
+        if authored != access {
+            return None;
+        }
+    }
+    let expression = validation::subslice_expression(program, expression)?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -469,6 +469,7 @@ fn shape_of_kind(
                 storage: ViewStorage::FixedArray,
                 collection,
                 kind,
+                access,
                 type_identity,
             });
     }
@@ -490,9 +491,6 @@ fn shape_of_kind(
         .iter()
         .position(|parameter| parameter.symbol == path.symbol)
     {
-        if authored[position].is_mutable {
-            return None;
-        }
         let parameter_index = parameters
             .iter()
             .position(|parameter| parameter.position as usize == position)?;
@@ -507,7 +505,7 @@ fn shape_of_kind(
             domain_qualified_byte_view(program, authored[position].type_reference)
                 .then_some(ViewKind::Bytes)
         };
-        if parameter.access != CheckedStructuralAccess::SharedBorrow
+        if parameter.access != access
             || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
             || parameter.type_identity != type_identity
@@ -520,7 +518,8 @@ fn shape_of_kind(
         }
     } else {
         let local = view_local_before(program, state, statement_index, path.symbol)?;
-        if view_kind(program, local.type_reference) != Some(kind)
+        if structural_access_for_type_reference(program, local.type_reference) != Some(access)
+            || view_kind(program, local.type_reference) != Some(kind)
             || view_identity(program, kind, local.type_reference)? != type_identity
         {
             return None;
@@ -537,6 +536,7 @@ fn shape_of_kind(
         storage: ViewStorage::Established,
         collection: Vec::new(),
         kind,
+        access,
         type_identity,
     })
 }
@@ -557,7 +557,9 @@ fn array_collection(
     collection: ExpressionHandle,
     statement_index: usize,
 ) -> Option<(CheckedStorageRoot, Vec<CheckedUnitStructuralPathSegment>)> {
-    let element = validation::slice_view_shell(program, target, &[])?.element;
+    let target_view = validation::slice_view_shell(program, target, &[])?;
+    let element = target_view.element;
+    let mutable = target_view.access == language_core::ReferenceAccess::Mutable;
     let mut place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
@@ -586,6 +588,9 @@ fn array_collection(
         ) {
             return None;
         }
+        if mutable && parameters[parameter_index].access == CheckedStructuralAccess::SharedBorrow {
+            return None;
+        }
         CheckedStorageRoot::Parameter {
             index: u32::try_from(parameter_index).ok()?,
         }
@@ -596,8 +601,9 @@ fn array_collection(
         // The earlier declaration owns its storage whether its establishment
         // was explicit or zero-initialized. Body sequencing publishes that
         // backing; an initializer expression is not storage authority.
-        if structural_access_for_type_reference(program, local.type_reference)
-            != Some(CheckedStructuralAccess::Owned)
+        if (mutable && !local.is_mutable)
+            || structural_access_for_type_reference(program, local.type_reference)
+                != Some(CheckedStructuralAccess::Owned)
         {
             return None;
         }
@@ -701,7 +707,7 @@ fn domain_qualified_byte_view(program: &TypedTrees, reference: TypeReferenceHand
         && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
 }
 
-/// The borrowed view family of an exact immutable `&[u8]` or `&[T]` type.
+/// The borrowed view family of an exact shared or mutable slice type.
 pub(in crate::execution) fn view_kind(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -716,9 +722,10 @@ pub(in crate::execution) fn view_kind(
     else {
         return None;
     };
-    if structural_access_for_type_reference(program, reference)
-        != Some(CheckedStructuralAccess::SharedBorrow)
-    {
+    if !matches!(
+        structural_access_for_type_reference(program, reference),
+        Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow)
+    ) {
         return None;
     }
     if matches!(
@@ -747,3 +754,6 @@ pub(in crate::execution) fn view_identity(
         )),
     }
 }
+
+#[cfg(test)]
+mod tests;

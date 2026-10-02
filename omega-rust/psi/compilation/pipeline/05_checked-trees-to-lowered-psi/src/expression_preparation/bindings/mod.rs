@@ -803,15 +803,16 @@ impl ScalarBindings {
         )
     }
 
-    /// Resolve an independently replayed immutable view to the activation's
+    /// Resolve an independently replayed borrowed view to the activation's
     /// live descriptor. A range never substitutes an equal-typed backing.
-    pub(crate) fn shared_view_source(
+    pub(crate) fn borrowed_view_source(
         &self,
         root: checked_trees::CheckedStorageRoot,
         parameters: &[checked_trees::signature::StateParameter],
         checked: &CheckedTrees,
         structural_type: StructuralTypeId,
         bytes: bool,
+        access: StructuralAccess,
     ) -> Result<(symbols::SymbolHandle, PlaceId), LoweringError> {
         match root {
             checked_trees::CheckedStorageRoot::Parameter { index } => {
@@ -837,19 +838,32 @@ impl ScalarBindings {
                 ))?;
                 if matching.next().is_some()
                     || source.structural_type != structural_type
-                    || source.access != StructuralAccess::SharedBorrow
+                    || !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                    || !(source.access == access
+                        || source.access == StructuralAccess::MutableBorrow
+                            && access == StructuralAccess::SharedBorrow)
                     || source.multiplicity != StructuralMultiplicity::Unrestricted
                     || (!bytes && !source.qualifications.is_empty())
                     || !source.projected_qualifications.is_empty()
                     || bytes == self.element_views.contains_key(&structural_type)
                 {
-                    return unsupported("computed view source changed type or shared custody");
+                    return unsupported("computed view source changed type or borrowed custody");
                 }
                 Ok((parameter.symbol, source.place))
             }
             checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                 let local = view_locals::resolve(&self.view_locals, symbol)?;
                 if local.structural_type != structural_type
+                    || !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                    || !(local.access == access
+                        || local.access == StructuralAccess::MutableBorrow
+                            && access == StructuralAccess::SharedBorrow)
                     || bytes != (local.carrier == view_locals::ViewCarrier::Bytes)
                 {
                     return unsupported("computed view local changed type or family");

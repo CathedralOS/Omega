@@ -447,6 +447,13 @@ impl Evaluation {
                         place: produced.place(),
                         structural_type: produced.structural_type(),
                         carrier,
+                        access: if mutable_borrow.is_some() {
+                            StructuralAccess::MutableBorrow
+                        } else if shared_borrow.is_some() {
+                            StructuralAccess::SharedBorrow
+                        } else {
+                            StructuralAccess::Owned
+                        },
                     },
                 );
             }

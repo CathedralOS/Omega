@@ -161,6 +161,7 @@ pub(super) fn effects(
     effects.push(if bytes {
         LoweredScalarEffect::ByteSequenceSubslice {
             source: source.place,
+            access: source.access,
             start,
             end,
             place: slot.place,
@@ -169,6 +170,7 @@ pub(super) fn effects(
     } else {
         LoweredScalarEffect::ElementViewSubslice {
             source: source.place,
+            access: source.access,
             start,
             end,
             place: slot.place,
@@ -187,6 +189,7 @@ pub(crate) fn declarations(
             terminal_psi::OperationKind::ByteSequenceSubslice { .. }
                 | terminal_psi::OperationKind::ElementViewSubslice { .. }
                 | terminal_psi::OperationKind::EstablishElementView { .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { .. }
         ) {
             return None;
         }

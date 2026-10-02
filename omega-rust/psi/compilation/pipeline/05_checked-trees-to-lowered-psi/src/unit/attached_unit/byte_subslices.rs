@@ -82,7 +82,11 @@ fn locate<'a>(
     {
         return unsupported("subslice disagrees with its authored call argument");
     }
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+    if !matches!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+            | checked_trees::CheckedStructuralAccess::MutableBorrow
+    ) {
         return unsupported("subslice source or result changed immutable view custody");
     }
     let argument_ordinal = u32::try_from(authored_ordinal)

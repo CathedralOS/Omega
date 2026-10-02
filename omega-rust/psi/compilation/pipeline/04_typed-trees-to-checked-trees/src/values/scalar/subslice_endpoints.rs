@@ -26,7 +26,7 @@ pub(crate) fn subslice_endpoints(
     CheckedScalarExpressionRole,
     CheckedScalarExpression,
 )> {
-    let Some(expression) = validation::shared_subslice_expression(program, expression) else {
+    let Some(expression) = validation::subslice_expression(program, expression) else {
         return Vec::new();
     };
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {

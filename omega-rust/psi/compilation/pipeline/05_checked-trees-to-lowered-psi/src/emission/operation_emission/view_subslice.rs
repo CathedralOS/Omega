@@ -39,6 +39,7 @@ pub(crate) enum ViewFamily {
 pub(crate) fn emit(
     family: ViewFamily,
     source: PlaceId,
+    access: terminal_psi::StructuralAccess,
     start: Option<&LoweredDirectExpression>,
     end: Option<&LoweredDirectExpression>,
     destination: PlaceId,
@@ -47,6 +48,11 @@ pub(crate) fn emit(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let multiplicity = match access {
+        terminal_psi::StructuralAccess::SharedBorrow => StructuralMultiplicity::Unrestricted,
+        terminal_psi::StructuralAccess::MutableBorrow => StructuralMultiplicity::Affine,
+        _ => return unsupported("view subslice requires readable borrowed access"),
+    };
     let count_type = terminal_scalar_type(PrimitiveType::U64)?;
     let types = values
         .iter()
@@ -106,7 +112,7 @@ pub(crate) fn emit(
             qualification_establishments: Vec::new(),
             place: destination,
             structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
+            multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
             claims: Vec::new(),

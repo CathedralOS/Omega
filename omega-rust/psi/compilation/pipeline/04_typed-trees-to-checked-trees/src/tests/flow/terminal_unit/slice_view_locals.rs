@@ -259,8 +259,7 @@ fn literal_binding_precedes_guarded_structural_result_ordinals() {
         .iter()
         .find_map(|operation| match operation {
             checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                result,
-                ..
+                result, ..
             } => Some(result),
             _ => None,
         })
@@ -366,4 +365,44 @@ fn forwarding_a_nonliteral_view_still_requires_its_source_loan() {
         rebuilt.for_machine(machine).is_none(),
         "a missing loan cannot become literal custody"
     );
+}
+
+#[test]
+fn view_range_parameter_preserves_shared_and_mutable_access() {
+    for (borrow, access) in [
+        ("&", CheckedStructuralAccess::SharedBorrow),
+        ("&mut ", CheckedStructuralAccess::MutableBorrow),
+    ] {
+        let checked = checked(&format!(
+            "machine measure(values: {borrow}[u64]) -> u64 requires values.len >= 1; {{ let tail: {borrow}[u64] = values[1..]; tail.len }}"
+        ));
+        let symbol = machine_named(&checked, "measure");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(symbol)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{borrow} range omitted: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(symbol)
+                )
+            });
+        let range = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                    source,
+                    ..
+                } => Some(source),
+                _ => None,
+            })
+            .expect("ordinary view range");
+        assert_eq!(range.access, access);
+    }
 }

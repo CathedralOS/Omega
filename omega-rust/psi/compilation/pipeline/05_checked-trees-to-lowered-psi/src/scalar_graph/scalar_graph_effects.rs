@@ -137,6 +137,7 @@ pub(crate) fn emit(
             }
             LoweredScalarEffect::ByteSequenceSubslice {
                 source,
+                access,
                 start,
                 end,
                 place,
@@ -145,6 +146,7 @@ pub(crate) fn emit(
                 view_subslice::emit(
                     view_subslice::ViewFamily::Bytes,
                     *source,
+                    *access,
                     Some(start),
                     end.as_ref(),
                     *place,
@@ -156,6 +158,7 @@ pub(crate) fn emit(
             }
             LoweredScalarEffect::ElementViewSubslice {
                 source,
+                access,
                 start,
                 end,
                 place,
@@ -164,6 +167,7 @@ pub(crate) fn emit(
                 view_subslice::emit(
                     view_subslice::ViewFamily::Elements,
                     *source,
+                    *access,
                     Some(start),
                     end.as_ref(),
                     *place,

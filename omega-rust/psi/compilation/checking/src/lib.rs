@@ -86,7 +86,7 @@ pub use value_custody::places::{
     declaration_storage_label, exact_attached_field, exact_attached_storage_field,
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
     has_builtin_subslice_meaning, local_scalar_record_field, place_has_builtin_coordinates,
-    shared_subslice_expression,
+    subslice_expression,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
