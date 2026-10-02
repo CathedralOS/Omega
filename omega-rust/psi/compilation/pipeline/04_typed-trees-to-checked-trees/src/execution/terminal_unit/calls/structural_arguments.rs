@@ -963,17 +963,28 @@ pub(crate) fn call_claim_transfers(
             }
             continue;
         }
-        if argument.byte_sequence_literal().is_some() || view_subslice::is_view_subslice(argument) {
+        if argument.byte_sequence_literal().is_some() {
             // Literal admission reconstructs either an immutable shared view
             // or a fresh unrestricted bounded owner with plain byte domains.
-            // A range is a fresh shared view of its resolved collection.
-            // None supplies a claim. Any ownership event must still be
-            // accounted for by the complete event-roster check below.
-            let owned_literal = argument.byte_sequence_literal().is_some()
-                && argument.access == CheckedStructuralAccess::Owned;
-            if (argument.byte_sequence_literal().is_some() && !argument.path.is_empty())
-                || (!owned_literal && argument.access != CheckedStructuralAccess::SharedBorrow)
+            if !argument.path.is_empty()
+                || !matches!(
+                    argument.access,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned
+                )
             {
+                return None;
+            }
+            continue;
+        }
+        if view_subslice::is_view_subslice(argument) {
+            // Range admission already authenticates the borrowed backing and
+            // requested access. Exclusive descriptor custody is not an owned
+            // backing claim. Every actual linear transfer must still occur in
+            // the complete event roster accounted for below.
+            if !matches!(
+                argument.access,
+                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            ) {
                 return None;
             }
             continue;
@@ -1123,4 +1134,94 @@ pub(crate) fn exact_integer_at(
     (range.minimum == range.maximum)
         .then(|| range.minimum.to_u64())
         .flatten()
+}
+
+#[cfg(test)]
+mod range_claim_tests {
+    use super::*;
+
+    #[test]
+    fn borrowed_ranges_never_supply_or_hide_owned_claim_transfers() {
+        let call = checked_trees::FlowCallFact::default();
+        let source = PermissionEventSource::Call {
+            statement_index: call.statement_index,
+            call_ordinal: call.call_ordinal,
+            target_symbol: call.target_symbol,
+        };
+        for bytes in [false, true] {
+            for access in [
+                CheckedStructuralAccess::SharedBorrow,
+                CheckedStructuralAccess::MutableBorrow,
+                CheckedStructuralAccess::WriteOnlyBorrow,
+                CheckedStructuralAccess::Owned,
+            ] {
+                let root = checked_trees::CheckedStorageRoot::Parameter { index: 0 };
+                let argument = CheckedUnitStructuralArgumentPlan {
+                    source: if bytes {
+                        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                            root,
+                            expression: Default::default(),
+                            start: None,
+                            end: None,
+                        }
+                    } else {
+                        CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                            root,
+                            expression: Default::default(),
+                            start: None,
+                            end: None,
+                        }
+                    },
+                    path: Vec::new(),
+                    access,
+                    type_identity: String::new(),
+                };
+                let transfers = |facts: &CheckFacts| {
+                    call_claim_transfers(
+                        facts,
+                        SymbolHandle::invalid(),
+                        SymbolHandle::invalid(),
+                        &call,
+                        &[],
+                        &[],
+                        &[],
+                        std::slice::from_ref(&argument),
+                        PermissionEventKind::Transfer,
+                    )
+                };
+                let mut facts = CheckFacts::default();
+                assert_eq!(
+                    transfers(&facts),
+                    matches!(
+                        access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    )
+                    .then(Vec::new),
+                    "range family bytes={bytes}, access={access:?}",
+                );
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .insert(checked_trees::FlowPermissionEventFact {
+                        source,
+                        multiplicity: Multiplicity::Linear,
+                        access: PermissionAccess::Owned,
+                        obligation_live: true,
+                        claim_identity: PermissionClaimIdentity::Established {
+                            machine_symbol: SymbolHandle::invalid(),
+                            state_symbol: SymbolHandle::invalid(),
+                            source,
+                            ordinal: 0,
+                        },
+                        ..Default::default()
+                    });
+                assert!(
+                    transfers(&facts).is_none(),
+                    "range cannot account for an owned claim"
+                );
+            }
+        }
+    }
 }
