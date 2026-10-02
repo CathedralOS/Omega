@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": null, "load1_end": 1.58, "load1_start": 1.56, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 5.29, "load1_start": 5.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -347,8 +347,7 @@ pass/dependent/local_alias_forwards_entry_origin checked 319ms @2d8ed253669f+wt
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 318ms @2d8ed253669f+wt
 pass/dependent/runtime_dependent_subtract_exit built 986ms exit:2 @2d8ed253669f+wt
 pass/dependent/runtime_requires_guarded_call_exit built 1348ms exit:6 @2d8ed253669f+wt
-pass/dependent/runtime_sibling_len_index_exit rejected 818ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 2)
+pass/dependent/runtime_sibling_len_index_exit built 1336ms exit:7 @e459ca044a2c
 pass/dependent/state_arrival_contract_guarded_compile checked 370ms @2d8ed253669f+wt
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 368ms @2d8ed253669f+wt
 pass/dependent/valuation_order_cycle checked 387ms @2d8ed253669f+wt
@@ -766,8 +765,8 @@ pass/relevance/erased_parameter_named_transition_forward checked 277ms @2d8ed253
 pass/relevance/erased_parameter_proof_only built 794ms @2d8ed253669f+wt
 pass/relevance/erased_receiver_proof_machine_call checked 287ms @2d8ed253669f+wt
 pass/relevance/erased_record_parameter_exit built 797ms exit:70 @2d8ed253669f+wt
-pass/slices/byte_sequence_literal_tail_return_compile rejected 339ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
+pass/slices/byte_sequence_literal_tail_return_compile rejected 398ms @e459ca044a2c
+	terminal-artifact production failed: Lowering(Unsupported("structural call result disagrees with its declared carrier"))
 pass/slices/callee_non_byte_view_len_index_subslice built 1330ms exit:9 @9baafc0ace88
 pass/slices/disjoint_mut_subslice_windows_compile checked 278ms @2d8ed253669f+wt
 pass/slices/domained_runtime_end_subslice_exit built 1356ms exit:70 @2c44d70118d1+wt
@@ -779,8 +778,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 280ms @2d8ed253669
 pass/slices/local_array_element_view_exit built 1375ms exit:70 @2d8ed253669f+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/slices/requires_field_count_alias_index_compile checked 281ms @2d8ed253669f+wt
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 724ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 0, statement 0)
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1353ms exit:3 @e459ca044a2c
 pass/slices/runtime_join_meet_bound_exit built 826ms exit:70 @2d8ed253669f+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 801ms exit:21 @2d8ed253669f+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit built 904ms exit:215 @2d8ed253669f+wt
@@ -804,8 +802,7 @@ pass/slices/termination_slice_length_compile checked 289ms @2d8ed253669f+wt
 pass/slices/window_shrink_min_length_tail_index_compile checked 286ms @2d8ed253669f+wt
 pass/storage/runtime_alias_field_binary checked 290ms @2d8ed253669f+wt
 pass/storage/runtime_alias_integer_write checked 288ms @2d8ed253669f+wt
-pass/storage/runtime_local_slice_forward_exit rejected 725ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
+pass/storage/runtime_local_slice_forward_exit built 1357ms exit:70 @e459ca044a2c
 pass/storage/runtime_machine_owned_indexed_integer_write_exit built 802ms exit:79 @2d8ed253669f+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 803ms exit:85 @2d8ed253669f+wt
 pass/storage/runtime_primitive_local_literal_composition_exit built 809ms exit:70 @2d8ed253669f+wt
