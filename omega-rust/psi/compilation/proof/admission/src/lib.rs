@@ -52,7 +52,9 @@ pub use admission::recursion::{
     RecursiveEdgeObligation, verify_recursive_component,
     verify_recursive_component_with_machine_parameters,
 };
-pub use certificate_search::produce_denotation_certificates;
+pub use certificate_search::{
+    produce_denotation_certificates, produce_predicate_proof, retain_original_predicate_citations,
+};
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,

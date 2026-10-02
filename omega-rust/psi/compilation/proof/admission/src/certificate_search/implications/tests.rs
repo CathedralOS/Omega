@@ -115,6 +115,28 @@ fn conditional_chains_cannot_manufacture_a_missing_seed() {
 }
 
 #[test]
+fn ordinary_predicate_proof_keeps_original_equations_and_contract_citations() {
+    let context = context();
+    let goal = bounds(1);
+    let axioms = [
+        Proposition::Equal(value(1), value(3)),
+        implies(ordered(2), bounds(3)),
+        ordered(2),
+    ];
+    let proof = crate::produce_predicate_proof(&context, &goal, &[], &axioms)
+        .expect("conditional range crosses an exact result alias");
+    crate::check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+    for changed in [
+        vec![Proposition::Truth, axioms[1].clone(), axioms[2].clone()],
+        vec![axioms[0].clone(), Proposition::Truth, axioms[2].clone()],
+        vec![axioms[0].clone(), axioms[1].clone(), ordered(1)],
+    ] {
+        assert!(crate::check_certificate(&context, &goal, &[], &changed, &proof).is_err());
+        assert!(crate::produce_predicate_proof(&context, &goal, &[], &changed).is_none());
+    }
+}
+
+#[test]
 fn conditional_search_keeps_the_enclosing_step_and_depth_limits() {
     let goal = ordered(2);
     let requirements = [ordered(1)];

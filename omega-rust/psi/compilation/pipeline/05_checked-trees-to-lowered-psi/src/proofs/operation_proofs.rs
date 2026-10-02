@@ -170,13 +170,14 @@ fn finalize_operation_proofs_inner(
                     &site.semantic_axioms,
                 )
             })
-            // A goal over storage the body last wrote, such as an IEEE range
-            // row restored by a store, holds once its observations follow
-            // the store and value equations to closed literals.
+            // General predicate evidence composes retained contracts after the
+            // same value and field transport used by crash certificates.
+            // Every converted citation remains explicit in the ordinary proof.
             .or_else(|| {
-                proof_by_value_equality_transport(
+                proof_admission::produce_predicate_proof(
                     context,
                     &site.obligation.proposition,
+                    assumptions,
                     &site.semantic_axioms,
                 )
             });
@@ -343,59 +344,6 @@ fn proof_from_available_facts(
     Some(ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ConjunctionIntroduction(proofs),
-    })
-}
-
-/// Prove `goal` by transporting it along the site's value and field
-/// definition equations until the kernel's predicate denotation decides it
-/// `true`: the premise is plain truth, and every cited equation is one of
-/// the site's own semantic axioms. The kernel re-runs the same transport.
-fn proof_by_value_equality_transport(
-    context: &semantic_vocabulary::PropositionContext,
-    goal: &Proposition,
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    use semantic_vocabulary::ScalarTerm;
-    let equalities = semantic_axioms
-        .iter()
-        .enumerate()
-        .filter(|(_, axiom)| {
-            matches!(
-                axiom,
-                Proposition::Equal(
-                    ScalarTerm::Value { .. }
-                        | ScalarTerm::IntegerField { .. }
-                        | ScalarTerm::BooleanField { .. }
-                        | ScalarTerm::IeeeFloatField { .. },
-                    _,
-                )
-            )
-        })
-        .collect::<Vec<_>>();
-    if equalities.is_empty() {
-        return None;
-    }
-    let transported = proof_admission::check_value_equality_denotation(
-        context,
-        goal,
-        equalities.iter().map(|(_, equality)| *equality),
-    )
-    .ok()?;
-    (transported == Proposition::Truth).then(|| ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(ProofNode {
-                conclusion: Proposition::Truth,
-                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-            }),
-            equalities: equalities
-                .into_iter()
-                .map(|(index, equality)| ProofNode {
-                    conclusion: equality.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
-                .collect(),
-        },
     })
 }
 
