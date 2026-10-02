@@ -54,35 +54,35 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
-    self.ints[0] = 8;
-    self.ints[1] = 12;
-    self.ints[2] = 10;
-    self.ints[3] = 5;
-    self.ints[4] = 15;
-    self.ints[5] = 10;
-    self.ints[6] = 10;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
+    main.ints[0] = 8;
+    main.ints[1] = 12;
+    main.ints[2] = 10;
+    main.ints[3] = 5;
+    main.ints[4] = 15;
+    main.ints[5] = 10;
+    main.ints[6] = 10;
 
-    self.entries[0].value = 8;
-    self.entries[1].value = 12;
-    self.entries[2].value = 10;
-    self.entries[3].value = 5;
-    self.entries[4].value = 15;
-    self.entries[5].value = 10;
-    self.entries[6].value = 10;
+    main.entries[0].value = 8;
+    main.entries[1].value = 12;
+    main.entries[2].value = 10;
+    main.entries[3].value = 5;
+    main.entries[4].value = 15;
+    main.entries[5].value = 10;
+    main.entries[6].value = 10;
 
     // Probe A.
-    let si: &[i32 in Wrapping] = self.ints.as_slice();
-    let a: i32 = Walker::sum_ints(&mut self.walker, si, 0);
+    let si: &[i32 in Wrapping] = main.ints.as_slice();
+    let a: i32 = Walker::sum_ints(&mut main.walker, si, 0);
 
     // Probe B.
-    let se: &[Entry] = self.entries.as_slice();
-    let b: i32 = Walker::sum_entries(&mut self.walker, se, 0);
+    let se: &[Entry] = main.entries.as_slice();
+    let b: i32 = Walker::sum_entries(&mut main.walker, se, 0);
 
     transition a == 70 {
-        true -> check_b(&mut self, b)
-        _ -> bad_a(&mut self)
+        true -> check_b(main, b)
+        _ -> bad_a(main)
     }
 
     state bad_a(main: &mut Main) {

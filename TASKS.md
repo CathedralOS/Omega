@@ -210,6 +210,52 @@ execution and native exit/output. A moved refusal is still unfinished work.
   Acceptance: a fixture spelling the nominal binder over a static satisfier
   checks and runs, and the structural form keeps working.
 
+- **STATIC-ENTRY-PROOF-REACH.** (split-of:STATIC-MACHINE-MIGRATION)
+  Naming a program entry's data loses operation proofs at LOWERING, while
+  checking still passes. 13 of the 15 green samples that use a receiver regress
+  this way, which is the largest measured migration blocker.
+  Minimal reproducer, five lines, measured 2026-10-02.
+  `samples/cli/basics/print_squares` is already static in every state -- they all
+  take `main: &mut Main`. Changing ONLY its entry from
+
+      machine Main::main(&mut self) reaches Console {
+          self.console.write_line("...");  self.out = "XXX";  self.k = 1;
+          transition { _ -> outer(&mut self) }
+
+  to `machine Main::main(main: &mut Main)` with `outer(main)` turns
+  `sample_native_gate` from pass to
+  "terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(25)))".
+  `sample_gate` still reports it checked, so this is a Psi-to-Omega handoff, not
+  an admission change -- another instance of `--check` green not meaning green.
+  Not loan-versus-forward: spelling the edge `outer(&mut main)` instead of
+  `outer(main)` fails identically, so the entry's PARAMETER shape is what moves
+  it. A static entry is not broken in general -- `runtime_shrinking_slice_recursion_exit`
+  has a static entry and exits 70 -- so this is about which obligations stay in
+  reach, not about the shape itself.
+  The two refusals are one cause. `proofs/mod.rs::unproved_obligation_error`
+  reports `ProofSearchCapacityExhausted` when a named capacity declined during
+  finalization and `OperationProofUnavailable` otherwise, so the 10 samples
+  reporting the latter and the 3 reporting "stopped at the private
+  `proof_search_integer_certificate_work`/`proof_search_result_guarantee_work`"
+  differ only in whether a budget declined first. The static spelling puts these
+  obligations out of the lowering search's reach.
+  Measured customers: `samples/cli/{basics/print_squares,basics/print_number,
+  basics/multiplication_table,arithmetic/smallest_prime_factor,games/dice_histogram,
+  rendering/bouncing_ball_2d,rendering/mandelbrot,rendering/mandelbrot_zoom,
+  text/caesar_cipher}` report unavailable;
+  `samples/cli/{algorithms/maze_flood,arithmetic/prime_sieve,simulation/calendar}`
+  report capacity; `samples/cli/systems/atomics_cross` is a separate
+  `UnsupportedAtomicAccess`. The same `OperationProofUnavailable` appears for
+  `pass/{proofs/nested_loop_digit_bytes_keep_utf8_exit,
+  storage/forwarded_context_byte_field_read_store_exit,text/runtime_number_to_decimal_exit}`
+  when those migrate, so the cluster spans samples and fixtures.
+  Baselines for attribution: `sample_gate` is 23/149 on Darwin arm64, and those
+  15 receiver-using green samples are 15/15 on `sample_native_gate` before any
+  migration.
+  Acceptance: `print_squares` migrates its entry and meets its documented oracle
+  (`Expected output contains: 081`, exit 0) through `sample_native_gate`, with
+  the other twelve measured after it.
+
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is
   refused as two overlapping loans, where the receiver form was judged by what

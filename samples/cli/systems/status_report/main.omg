@@ -32,14 +32,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("status_report: builds an ALERT/ok status string in conditional arms");
-    self.label = "temp";
-    self.reading = 95;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("status_report: builds an ALERT/ok status string in conditional arms");
+    main.label = "temp";
+    main.reading = 95;
 
-    transition self.reading > 90 {
-        true -> high(&mut self)
-        _ -> normal(&mut self)
+    transition main.reading > 90 {
+        true -> high(main)
+        _ -> normal(main)
     }
 
     state high(main: &mut Main) {
