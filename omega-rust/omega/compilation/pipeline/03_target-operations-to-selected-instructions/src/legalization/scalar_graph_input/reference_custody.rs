@@ -1511,10 +1511,22 @@ pub(in crate::legalization) fn apply_terminator(
             cleanup_actions, ..
         } => {
             for action in cleanup_actions {
-                let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-                    return Err(invalid());
+                let place = match action {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        if cleanup.requirement_obligations.is_empty()
+                            && source_contract(function, custody, cleanup.place)
+                                == Some(cleanup.structural_type) =>
+                    {
+                        // The call's exact callee, borrowed receiver and action
+                        // ordinal are independently reconstructed by cleanup_calls.
+                        // Its normal completion retires this same owned root and
+                        // must release embedded loans under the usual checks.
+                        cleanup.place
+                    }
+                    _ => return Err(invalid()),
                 };
-                places.push(*place);
+                places.push(place);
             }
         }
         AbstractOperation::ReturnStructural {
