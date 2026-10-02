@@ -167,6 +167,16 @@ execution and native exit/output. A moved refusal is still unfinished work.
   137 of those are trait requirements and their satisfiers, blocked on
   OWNER_QUESTIONS Q4 `trait-requirement-subject-binding` rather than on any
   compiler gap; 1448 are ordinary declarations.
+  `source/library`'s remaining 271 are attributed: 221 belong to the
+  `Filesystem` wrapper and its five target implementations, which no gate on
+  this host can verify because every one of the 21 `pass/filesystem` fixtures
+  is refused on main for one reason -- "selected ProgramEntry Binding field
+  `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`"
+  -- and supplying a complete Darwin provider needs the
+  `filesystem-host-platform-coverage` decision already recorded under
+  SAMPLE-WORKFLOWS. Migrating that surface before then would land an
+  unverifiable change to the most-used library in the repository. The other 50
+  are 21 UEFI-target, 19 macOS GUI and 10 trait requirements.
   `tests/omega/packages` is at zero, `tests/omega/fail` has 85 left in 39 files
   (7 of them pinning the receiver rejection itself, which retires with the
   syntax), and what remains is 737 in corpus `pass/run`, 529 in samples and 271
