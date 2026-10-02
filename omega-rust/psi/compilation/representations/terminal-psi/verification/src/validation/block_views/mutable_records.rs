@@ -239,7 +239,12 @@ fn usable_source(
     // rather than giving arbitrary shared parameters the same permission.
     let live_descriptor = available.contains(&source)
         && (super::super::byte_sequence::subslice::borrowed_result(machine, source).is_some()
-            || super::super::element_view::subslice::borrowed_result(machine, source).is_some());
+            || super::super::element_view::subslice::borrowed_result(machine, source).is_some()
+            // A descriptor that crossed a state edge arrives as a block
+            // parameter, not an operation result: its recorded origins
+            // authenticate it the same way the freshly established
+            // descriptors below do.
+            || aliases.contains_key(&source));
     !machine
         .blocks
         .iter()

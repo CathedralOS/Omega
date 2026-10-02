@@ -201,6 +201,14 @@ impl EntryOperands<'_> {
                     }
                 };
             }
+            // A whole-view extent already names its entry operand: the
+            // parameter root counts authored state positions and an empty
+            // path selects the declared view itself, so `requires i < v.len`
+            // rides the same boundary a state's identical clause does.
+            // Member extents and any local root still decline.
+            CheckedScalarExpression::StructuralParameterByteLength { root, path }
+                if path.is_empty()
+                    && matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) => {}
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IntegerTrappingCast { .. }
