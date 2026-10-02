@@ -1,15 +1,17 @@
-// The receiver check is a RUNTIME check: a call whose target is a proof
-// machine is proof computation, so an erased binding may be its receiver.
+// The subject check is a RUNTIME check: a call whose target is a proof
+// machine is proof computation, so an erased binding may be its subject.
 // `P` is recursive data with no layout (proof-only by computed
-// classification), `P::touch` takes `self` by value and is therefore a proof
-// machine, and the erased local `p` legally supplies its proof-term receiver.
+// classification), `P::touch` takes its subject BY VALUE and is therefore a
+// proof machine, and the erased local `p` legally supplies that proof term.
+// By value is load-bearing: a `&P` subject would be a runtime consumption
+// attempt, since proof-only data has no storage to borrow.
 // Checked-only: proof machines emit no runtime code (contracts.md).
 data P {
     case Z;
     case S(prev: P);
 }
 
-machine P::touch(p: &P) {
+machine P::touch(p: P) {
 }
 
 machine main() {

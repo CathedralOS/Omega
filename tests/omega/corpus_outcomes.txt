@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.63, "load1_start": 4.63, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.11, "load1_start": 3.11, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -470,8 +470,9 @@ fail/data/property_copy_violation rejected 253ms expected @2d8ed253669f
 	data `Point` declares `[copy]` but field `inner` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
 fail/data/record_pattern_missing_field rejected 350ms expected @2d8ed253669f
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
-fail/data/recursive_data_infinite_size rejected 320ms expected @2d8ed253669f
+fail/data/recursive_data_infinite_size rejected 68ms expected @8de7a3a05c0a+wt
 	machine `Main::main` runs on data `Main`, but `Main` is proof-only: field `n` holds proof-only `Node`; proof-only data lives in facts and lemmas, never at runtime
+	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
 fail/data/struct_literal_duplicate_field_rejected rejected 303ms expected @2d8ed253669f
 	data `Point` literal has duplicate field `x`
 fail/data/unbounded_integer_field rejected 276ms expected @2d8ed253669f
@@ -815,8 +816,9 @@ fail/proofs/congruence_false_twin rejected 283ms expected @2d8ed253669f
 	machine `false_add_congruence` ensures contract proof fact `embed(a) + 1 == embed(b) + 2` is disproved by constant arithmetic
 fail/proofs/constant_equation_refuted rejected 256ms expected @2d8ed253669f
 	machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic
-fail/proofs/core_nat_runtime_consumption_rejected rejected 311ms expected @2d8ed253669f
+fail/proofs/core_nat_runtime_consumption_rejected rejected 68ms expected @8de7a3a05c0a+wt
 	machine `Main::main` runs on data `Main`, but `Main` is proof-only: field `n` holds proof-only `Nat`; proof-only data lives in facts and lemmas, never at runtime
+	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
 fail/proofs/higher_order_machine_schema_contract_mismatch rejected 117ms expected @2d8ed253669f
 	nested machine parameter `Chosen` of machine argument `bad_schema` for `forward_schema` does not refine `Inner`: expected return `Index`, got `bool`
 fail/proofs/inductive_climbing_sum_step_false_twin rejected 133ms expected @c08960bee2b1+wt
