@@ -41,31 +41,31 @@ machine Main::main(main: &mut Main) reaches Console {
         // O_CREAT|O_EXCL carries DARWIN flag values, which mean different bits
         // to msvcrt (0x200 = darwin O_CREAT = windows O_TRUNC!) -- the flag
         // portability question rides the portable-fs design (TASKS_FS #6).
-        main.unit_result = main.fs.create_dir("omega_wrapper_probe_dir");
+        main.unit_result = Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition main.unit_result { UnitResult::Ok -> exists_again(main) _ -> bad(main, 72) }
     }
     state exists_again(main: &mut Main) {
-        let result: UnitResult = main.fs.create_dir("omega_wrapper_probe_dir");
+        let result: UnitResult = Filesystem::create_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition result {
             UnitResult::Error { kind } -> exists_kind(main, kind)
             _ -> bad(main, 81)
         }
     }
     state exists_kind(main: &mut Main, kind: ErrorKind) {
-        main.unit_result = main.fs.remove_dir("omega_wrapper_probe_dir");
+        main.unit_result = Filesystem::remove_dir(&mut main.fs, "omega_wrapper_probe_dir");
         transition kind { ErrorKind::AlreadyExists -> open_it(main) _ -> bad(main, 73) }
     }
 
     state open_it(main: &mut Main) {
-        main.open_result = main.fs.open("omega_wrapper_probe.txt");
+        main.open_result = Filesystem::open(&mut main.fs, "omega_wrapper_probe.txt");
         transition main.open_result {
             OpenResult::Ok { file } -> read_it(main, file)
             _ -> bad(main, 74)
         }
     }
     state read_it(main: &mut Main, file: File) {
-        main.io_result = main.fs.read(file, &mut main.buffer, 32);
-        main.rc = main.fs.close(file);
+        main.io_result = Filesystem::read(&mut main.fs, file, &mut main.buffer, 32);
+        main.rc = Filesystem::close(&mut main.fs, file);
         transition main.rc == 0 { true -> read_checked(main) _ -> bad(main, 82) }
     }
     state read_checked(main: &mut Main) {
@@ -82,11 +82,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state remove_it(main: &mut Main) {
-        main.unit_result = main.fs.remove("omega_wrapper_probe.txt");
+        main.unit_result = Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
         transition main.unit_result { UnitResult::Ok -> remove_missing(main) _ -> bad(main, 78) }
     }
     state remove_missing(main: &mut Main) {
-        let result: UnitResult = main.fs.remove("omega_wrapper_probe.txt");
+        let result: UnitResult = Filesystem::remove(&mut main.fs, "omega_wrapper_probe.txt");
         transition result {
             UnitResult::Error { kind } -> missing_kind(main, kind)
             _ -> bad(main, 79)
