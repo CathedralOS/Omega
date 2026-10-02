@@ -163,30 +163,40 @@ execution and native exit/output. A moved refusal is still unfinished work.
   machine-parameter-only sites without their own customer program.
 
 - **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
-  85 of 97 screen-clean `tests/omega/{pass,run}` fixtures are refused in the
-  static spelling, and the largest group is one shape: a call that lends the
-  data parameter and mentions it again in a later argument. A receiver hid
-  this, because the receiver was not an ordinary argument; written statically,
-  `Main::verify(main, main.k)` evaluates `main` into a mutable loan and then
-  reads `main.k` through it, which
+  The receiver population is 1637 declarations in 259 files, down from 3154.
+  `tests/omega/packages` is at zero, `tests/omega/fail` has 85 left in 39 files
+  (7 of them pinning the receiver rejection itself, which retires with the
+  syntax), and what remains is 737 in corpus `pass/run`, 529 in samples and 271
+  in `source/library`.
+  Those are not tool-limited any more. The migration tool screens 102 of 149
+  corpus candidates clean and the compiler refuses 87 of them, so the work left
+  is compiler work with a measured shape. The dominant refusal is one call
+  shape: a call that lends the data parameter and mentions it again. A receiver
+  hid this, because the receiver was not an ordinary argument; written
+  statically, `Main::verify(main, main.k)` evaluates `main` into a mutable loan
+  and then reads `main.k` through it, which
   [expressions](wiki/spec/language/expressions.md#evaluation-schedule) orders
   left to right and [ownership](wiki/spec/language/ownership.md) refuses:
   "Exclusivity prevents reading old contents through a second alias." The
-  refusal is correct; the authored program is what has to change.
-  Measured across those candidates, 22 call sites mention the lent root again:
-  9 pass `&mut main.field` beside `main`, 5 pass a bare field projection, 4 an
-  indexed projection, 2 a shared projection and 2 a computed expression. The
-  5 bare and 4 indexed are source-mechanical — read the projection into a local
-  before the call, which is also what the migration item asks for ("pass only
-  genuinely live values across states"). The 9 `&mut` ones are a second
-  exclusive loan of the same storage and need the call restructured so only the
-  projection is passed, or the callee to reach the field through the data it
-  already holds.
+  refusal is correct; the authored program changes.
+  Of 22 such call sites measured across the candidates, 9 pass `&mut
+  main.field` beside `main`, 5 a bare field projection, 4 an indexed
+  projection, 2 a shared projection and 2 a computed expression. The bare and
+  indexed ones the tool now reads into a local before the call, which recovered
+  one fixture. The `&mut` ones are a second exclusive loan and need the call
+  restructured so only the projection is passed, or the callee to reach the
+  field through the data it already holds.
+  Dropping the projected argument instead, so the callee projects it from the
+  data it already receives, was tried and measured WORSE: screen-clean
+  candidates rose 96 to 102 and fixtures that previously checked stopped
+  checking, 0 of 102 surviving against 2 before. Do not retry that without a
+  per-callee reason; the parameter is positional and other arms supply it.
+  A second measured finding: of 14 candidates that pass `--check`, 12 fail
+  their native oracle. Checking is not the oracle for an `_exit` fixture, so a
+  batch gated only on the checked leg will land programs that do not run.
   Acceptance: those fixtures build and meet their native oracles in the static
   spelling with no exclusivity exception added to checking; a genuine second
-  exclusive loan still rejects, with a fixture naming that. This is source and
-  migration-tool work, not a checker change: do not widen call-argument
-  exclusivity to admit a live alias.
+  exclusive loan still rejects, with a fixture naming that.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
