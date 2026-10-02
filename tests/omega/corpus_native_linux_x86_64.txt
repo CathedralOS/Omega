@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 2.77, "load1_start": 2.77, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.09, "load1_start": 1.09, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -61,7 +61,7 @@ pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
-pass/borrows/shared_recast_loan_member_read built 794ms @2d8ed253669f+wt
+pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
 pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb
@@ -117,7 +117,7 @@ pass/calls/negated_edge_guard_requires_exit built 1136ms exit:70 @2d8ed253669f+w
 pass/calls/nested_call_init_transition built 1197ms @2d8ed253669f+wt
 pass/calls/nested_call_runtime_index_arg_exit built 1182ms exit:71 @2d8ed253669f+wt
 pass/calls/nested_call_tail_roots_exit built 6121ms exit:0 @2d8ed253669f+wt
-pass/calls/nested_indexed_scalar_arguments_exit built 1124ms exit:70 @2d8ed253669f+wt
+pass/calls/nested_indexed_scalar_arguments_exit built 1395ms exit:70 @a3bac00e54bb+wt
 pass/calls/nested_machine_continuation built 1256ms @2d8ed253669f+wt
 pass/calls/nested_self_call_argument_exit built 1133ms exit:70 @2d8ed253669f+wt
 pass/calls/nested_value_call_arg_compile built 947ms @2d8ed253669f+wt
@@ -239,7 +239,7 @@ pass/collections/runtime_frame_indexed_param_read_exit built 919ms exit:1 @2d8ed
 pass/collections/runtime_hoisted_index_write_exit built 1072ms exit:7 @2d8ed253669f+wt
 pass/collections/runtime_indexed_bounded_element_read_exit built 967ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_indexed_record_field_read_exit built 1085ms exit:70 @2d8ed253669f+wt
-pass/collections/runtime_indexed_struct_field_rmw_exit built 1091ms exit:1 @2d8ed253669f+wt
+pass/collections/runtime_indexed_struct_field_rmw_exit built 1305ms exit:1 @a3bac00e54bb+wt
 pass/collections/runtime_indexed_successor_argument_exit built 1434ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_maze_pathfind_exit built 3324ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_nested_const_row_indexed_read_exit built 1178ms exit:1 @2d8ed253669f+wt
@@ -349,7 +349,7 @@ pass/data/runtime_mixed_shape_exit built 1063ms exit:70 @2d8ed253669f+wt
 pass/data/runtime_proof_only_data_declared_exit built 886ms exit:70 @2d8ed253669f+wt
 pass/data/runtime_record_field_value_pattern_exit rejected 862ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 3)
-pass/dependent/boundary_equality_recast_witness_compile checked 396ms @2d8ed253669f+wt
+pass/dependent/boundary_equality_recast_witness_compile checked 423ms @a3bac00e54bb
 pass/dependent/boundary_requires_caller_field_extent_compile checked 346ms @2d8ed253669f+wt
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 332ms @2d8ed253669f+wt
 pass/dependent/case_where_common_field_window checked 348ms @2d8ed253669f+wt
@@ -775,31 +775,28 @@ pass/providers/token_machine_family_override_exit built 847ms exit:70 @2d8ed2536
 pass/range/runtime_funnel_guard_agreement_exit built 861ms exit:7 @2d8ed253669f+wt
 pass/range/runtime_guarded_runtime_index_increment_exit built 864ms exit:1 @2d8ed253669f+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit built 858ms exit:70 @2d8ed253669f+wt
-pass/recast/nested_operand_view_compile checked 296ms @2d8ed253669f+wt
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 754ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
-pass/recast/runtime_bool_representation_recast_exit rejected 727ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/recast/runtime_float_range_representation_recast_exit rejected 2475ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/recast/runtime_guarded_offset_recast_exit built 959ms exit:70 @2d8ed253669f+wt
-pass/recast/runtime_integer_bit_view_recast_exit built 980ms exit:70 @2d8ed253669f+wt
-pass/recast/runtime_interior_slice_congruent_offset_exit rejected 734ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
-pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 733ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/recast/runtime_mutable_equivalent_domain_recast_exit built 802ms exit:70 @2d8ed253669f+wt
-pass/recast/runtime_mutable_equivalent_range_recast_exit rejected 730ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
-pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 2441ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/recast/runtime_offset_byte_recast_mutable_write_exit rejected 775ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 6)
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 820ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
-pass/recast/runtime_shared_domain_weakening_recast_exit built 870ms exit:70 @2d8ed253669f+wt
-pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2380ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/nested_operand_view_compile checked 400ms @a3bac00e54bb
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 851ms @a3bac00e54bb
+	state `inspect` receives `main` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
+	state `write_values` receives `main` while local borrow `write` is still active (borrowed at statement 0; its last use is at statement 1)
+	statement 5 mutates `main.source[1].unsigned_value` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
+pass/recast/runtime_bool_representation_recast_exit built 1909ms exit:70 @a3bac00e54bb
+pass/recast/runtime_float_range_representation_recast_exit built 4207ms exit:70 @a3bac00e54bb
+pass/recast/runtime_guarded_offset_recast_exit built 1728ms exit:70 @a3bac00e54bb
+pass/recast/runtime_integer_bit_view_recast_exit built 1761ms exit:70 @a3bac00e54bb
+pass/recast/runtime_interior_slice_congruent_offset_exit rejected 1017ms @a3bac00e54bb
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 1041ms @a3bac00e54bb
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1148ms exit:70 @a3bac00e54bb
+pass/recast/runtime_mutable_equivalent_range_recast_exit built 1193ms exit:70 @a3bac00e54bb
+pass/recast/runtime_mutable_equivalent_record_recast_exit built 6027ms exit:70 @a3bac00e54bb
+pass/recast/runtime_nested_record_byte_store_exit built 1403ms exit:70 @a3bac00e54bb
+pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1841ms exit:70 @a3bac00e54bb
+pass/recast/runtime_record_array_view_mutable_write_exit rejected 1020ms @a3bac00e54bb
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_shared_domain_weakening_recast_exit built 1130ms exit:70 @a3bac00e54bb
+pass/recast/runtime_shared_record_float_range_weakening_exit built 3421ms exit:70 @a3bac00e54bb
 pass/references/runtime_shared_ref_param_guard_exit built 818ms exit:1 @2d8ed253669f+wt
 pass/relevance/erased_case_payload_field_exit built 805ms exit:70 @2d8ed253669f+wt
 pass/relevance/erased_formal_before_borrowed_argument_exit built 804ms exit:70 @2d8ed253669f+wt
@@ -1055,14 +1052,14 @@ run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
 run/borrows/local_mut_borrow built 1464ms exit:0 @2d8ed253669f+wt
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
 run/borrows/probe_shared_len built 1823ms exit:0 @2d8ed253669f+wt
-run/borrows/recast_mut_borrow built 1768ms exit:0 @2d8ed253669f+wt
+run/borrows/recast_mut_borrow built 1191ms exit:0 @a3bac00e54bb
 run/borrows/reference_local_binding_routes built 1686ms exit:0 stdout:match @2d8ed253669f+wt
 run/borrows/reference_result_call_binding built 1659ms exit:0 stdout:match @2d8ed253669f+wt
 run/borrows/runtime_index_bounded_borrow built 1760ms exit:0 @2d8ed253669f+wt
 run/borrows/shared_field_borrow built 1898ms exit:0 @2d8ed253669f+wt
 run/borrows/shared_indexed_read built 1949ms exit:0 @2d8ed253669f+wt
 run/borrows/shared_local_borrow built 1971ms exit:0 @2d8ed253669f+wt
-run/borrows/shared_recast_borrow built 1592ms exit:0 @2d8ed253669f+wt
+run/borrows/shared_recast_borrow built 1091ms exit:0 @a3bac00e54bb
 run/borrows/shared_record_loan_member_read built 1849ms exit:0 @2d8ed253669f+wt
 run/borrows/shared_runtime_index_borrow built 1976ms exit:0 @2d8ed253669f+wt
 run/borrows/transition_shared_borrow built 1448ms exit:0 @2d8ed253669f+wt
