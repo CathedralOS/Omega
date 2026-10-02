@@ -1,6 +1,6 @@
-// A `&self.<field>` successor argument loans the projected field into the
-// successor's borrowed parameter: the loan's root is the `&mut self`
-// receiver, and the state reads the field through the view.
+// A `&main.<field>` successor argument loans the projected field into the
+// successor's borrowed parameter: the loan's root is the `main: &mut Main`
+// data parameter, and the state reads the field through the view.
 // exits: view.a, which the entry stores as 11.
 
 use omega_language_std::console;
@@ -13,11 +13,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.pair = Pair { a: 11 };
-    transition { _ -> inspect(&self.pair) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.pair = Pair { a: 11 };
+    transition { _ -> inspect(main, &main.pair) }
 
-    state inspect(&mut self, view: &Pair) {
-        self.console.exit_process(view.a);
+    state inspect(main: &mut Main, view: &Pair) {
+        main.console.exit_process(view.a);
     }
 }

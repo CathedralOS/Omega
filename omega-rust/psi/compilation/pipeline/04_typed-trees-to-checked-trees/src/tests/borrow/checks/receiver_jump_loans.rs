@@ -764,3 +764,106 @@ fn ordinary_static_call_does_not_transport_a_suspended_parent() {
         "both mutable and read-only",
     );
 }
+
+#[test]
+fn named_parent_keeps_local_shared_child_and_disjoint_successor_access() {
+    for (body, accepts) in [
+        ("main.other = loan.tag; (main.inner.tag)", true),
+        ("main.inner.tag = 7; (loan.tag)", false),
+    ] {
+        let source = format!(
+            "data Inner {{ tag: u64; }}
+             data Main {{ inner: Inner; other: u64; }}
+             machine Main::run(main: &mut Main) -> u64 {{
+                 let view: &Inner = &main.inner;
+                 transition {{ _ -> next(main, view) }}
+                 state next(main: &mut Main, loan: &Inner) -> u64 {{ {body} }}
+             }}"
+        );
+        if accepts {
+            assert_accepted(&source);
+        } else {
+            assert_rejected(&source, "while local borrow `view` is still active");
+        }
+    }
+}
+
+#[test]
+fn named_parent_rejects_access_under_a_forwarded_local_exclusive_child() {
+    for (child_type, projection, read_body, write_body) in [
+        (
+            "Inner",
+            "main.inner",
+            "loan.tag = 9; (main.inner.tag)",
+            "main.inner.tag = 7; (loan.tag)",
+        ),
+        (
+            "u64",
+            "main.inner.tag",
+            "loan = 9; (main.inner.tag)",
+            "main.inner.tag = 7; (loan)",
+        ),
+    ] {
+        for (body, expected) in [
+            (read_body, "while its mutable receiver reads"),
+            (write_body, "while local borrow `view` is still active"),
+        ] {
+            let source = format!(
+                "data Inner {{ tag: u64; }}
+                 data Main {{ inner: Inner; other: u64; }}
+                 machine Main::run(main: &mut Main) -> u64 {{
+                     let view: &mut {child_type} = &mut {projection};
+                     transition {{ _ -> next(main, view) }}
+                     state next(main: &mut Main, loan: &mut {child_type}) -> u64 {{
+                         {body}
+                     }}
+                 }}"
+            );
+            assert_rejected(&source, expected);
+        }
+    }
+}
+
+#[test]
+fn named_parent_restores_a_local_exclusive_child_after_its_last_forward() {
+    for (child_type, projection, write) in [
+        ("Inner", "main.inner", "loan.tag = 9;"),
+        ("u64", "main.inner.tag", "loan = 9;"),
+    ] {
+        let source = format!(
+            "data Inner {{ tag: u64; }}
+             data Main {{ inner: Inner; other: u64; }}
+             machine Main::run(main: &mut Main) -> u64 {{
+                 let view: &mut {child_type} = &mut {projection};
+                 transition {{ _ -> next(main, view) }}
+                 state next(main: &mut Main, loan: &mut {child_type}) -> u64 {{
+                     {write}
+                     main.other = 3;
+                     transition {{ _ -> done(main) }}
+                 }}
+                 state done(main: &mut Main) -> u64 {{
+                     main.inner.tag = 10;
+                     (main.inner.tag)
+                 }}
+             }}"
+        );
+        assert_accepted(&source);
+    }
+}
+
+#[test]
+fn ordinary_static_call_keeps_local_child_exclusivity() {
+    assert_rejected(
+        "data Main { count: u64; other: u64; }
+         machine Main::observe(main: &mut Main, child: &u64) -> u64 {
+             main.other = 3;
+             (child)
+         }
+         machine Main::run(main: &mut Main) -> u64 {
+             let view: &u64 = &main.count;
+             let seen: u64 = Main::observe(main, view);
+             (seen)
+         }",
+        "while local borrow `view` is still active",
+    );
+}

@@ -410,8 +410,10 @@ pub(super) fn check_statement_borrows<'p>(
 /// A named same-machine jump is different from a returning call: its successor
 /// writes happen after source-state scope exit. Replayed local-loan closure can
 /// discharge that conflict when no argument carries a loan into the successor.
-/// Guard/argument calls, carried references and reborrow lineages keep their
-/// existing checks; a syntactic jump alone is not release evidence.
+/// With authenticated source-binding closure, a forwarded child's held summary
+/// instead follows its remaining successor lifetime. Guard/argument calls and
+/// unclosed or stored carriers retain the full run; a syntactic jump alone is
+/// not release evidence.
 ///
 /// The same live loans bound what a returning whole `&mut` receiver call
 /// reads through `self`: a live exclusive loan suspends its storage for the
@@ -436,6 +438,7 @@ fn check_call_mutation_borrows<'p>(
             &facts.borrow,
             borrow_call,
             summary_cache,
+            None,
         );
         // A call that writes nothing can still read, through its receiver,
         // storage one of its exclusive arguments suspends.
@@ -491,11 +494,50 @@ fn check_call_mutation_borrows<'p>(
 
         // One diagnostic per (call, loan) is enough: a loan the callee's
         // writes already conflict with is not judged again for its reads.
+        let exiting_source = local_jump(program, state_flow, borrow_call).and_then(|_| {
+            find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
+        });
         let mut unreported_loans = Vec::with_capacity(live_loans.len());
         for &loan_handle in &live_loans {
             let loan = facts.borrow.loans.get(loan_handle);
+            // A local jump may carry this child beyond the source binding's
+            // closure. First authenticate that exact closure, then use the
+            // held footprint to follow the child's successor lifetime. Missing
+            // closure and stored carrier leaves retain the complete write run;
+            // spatial forwarding alone cannot prove their authority ended.
+            let held_writes = exiting_source
+                .filter(|source| {
+                    local_loan_ends_before_successor(
+                        program,
+                        facts,
+                        state_flow,
+                        source,
+                        loan_handle,
+                    )
+                })
+                .map(|_| {
+                    let mut captured = crate::flow::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+                        segments: facts.borrow.loan_segments(loan).to_vec(),
+                    };
+                    crate::flow::normalize_attached_place_root(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        &mut captured,
+                    );
+                    call_write_accesses(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        &facts.borrow,
+                        borrow_call,
+                        summary_cache,
+                        Some(&captured),
+                    )
+                });
             let mut reported = false;
-            for mutated_place in &mutated_places {
+            for mutated_place in held_writes.as_ref().unwrap_or(&mutated_places) {
                 if canonical_place_loan_compatibility(
                     program,
                     mutated_place,
@@ -757,3 +799,7 @@ pub(super) fn local_loan_ends_before_successor(
                 }
         })
 }
+
+#[cfg(test)]
+#[path = "statements_tests.rs"]
+mod tests;

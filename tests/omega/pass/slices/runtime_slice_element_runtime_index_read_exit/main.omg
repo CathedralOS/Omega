@@ -1,5 +1,5 @@
 // RUNTIME-index slice-descriptor element read into a machine field
-// (`self.got = s[i]`, i a ranged param) -- the runtime twin of the fixed
+// (`main.got = s[i]`, i a ranged param) -- the runtime twin of the fixed
 // copy, same width-0 history. Report shows the indexed copy op. -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -8,26 +8,26 @@ data Main {
     arr: [i32; 4];
     got: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.arr[1] = 11;
-    let s: &[i32] = self.arr.as_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    main.arr[1] = 11;
+    let s: &[i32] = main.arr.as_slice();
     transition s.len == 4 {
-        true -> pick(s, 1)
-        false -> no()
+        true -> pick(main, s, 1)
+        false -> no(main)
     }
-    state pick(&mut self, s: &[i32], i: u64) requires i <= 3 {
+    state pick(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
         transition i < s.len {
-            true -> go(s, i)
-            false -> no()
+            true -> go(main, s, i)
+            false -> no(main)
         }
     }
-    state go(&mut self, s: &[i32], i: u64) requires i <= 3 {
-        self.got = s[i];
-        transition self.got == 11 {
-            true -> yes()
-            false -> no()
+    state go(main: &mut Main, s: &[i32], i: u64) requires i <= 3 {
+        main.got = s[i];
+        transition main.got == 11 {
+            true -> yes(main)
+            false -> no(main)
         }
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

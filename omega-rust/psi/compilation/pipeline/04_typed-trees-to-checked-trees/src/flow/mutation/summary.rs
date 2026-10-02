@@ -69,10 +69,18 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     cache: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
-    let summary_places =
-        state_mutation_summary_places(program, borrow, cache, target_state, call_frames)?;
+    let summary = state_mutation_summary(program, borrow, cache, target_state, call_frames)?;
+    let run = target_run(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+    );
+    let summary_places = run.accesses(program, &summary.writes, &summary.held_writes, loan);
 
     let mut instantiated = Vec::new();
     for write in summary_places {
@@ -160,17 +168,6 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
     }
 
     Some(instantiated)
-}
-
-fn state_mutation_summary_places<'cache>(
-    program: &typed_trees::TypedTrees,
-    borrow: &BorrowFacts,
-    cache: &'cache StateMutationSummaryCache,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<&'cache [MutationWrite]> {
-    state_mutation_summary(program, borrow, cache, state, call_frames)
-        .map(|entry| entry.writes.as_slice())
 }
 
 fn state_mutation_summary<'cache>(
