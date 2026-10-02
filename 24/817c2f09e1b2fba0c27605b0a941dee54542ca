@@ -1,0 +1,4 @@
+owner: Codex / codex30 slot28 directed IEEE arithmetic
+provenance: agent=Codex model=unverified effort=unverified wave=codex30-20261002 slot=28 executor=e559a83af3f2 directed-native=70 directed-interpreter=70 baseline-failures=10-verified-on-cb6
+ticket: e6c45d6ea3bd44218ea2caa33e76f2d5
+published_utc: 2026-10-02T23:21:32.975607+00:00
