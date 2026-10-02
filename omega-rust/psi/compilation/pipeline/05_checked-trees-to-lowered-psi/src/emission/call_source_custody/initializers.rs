@@ -274,14 +274,19 @@ pub(crate) fn validate_structural(
     // A completing transition mints its structural result on the transition
     // statement itself: `result.statement_index` names the `_ -> Named(..)`
     // call, not a binding. `locate_source` rejoins the named target's exact
-    // authored signature the same way it does for every call site.
+    // authored signature the same way it does for every call site. Each arm
+    // of an ordered `transition` is its own guarded statement, so a result
+    // in an earlier arm is not the last statement; it must still belong to
+    // the state's trailing transition chain, which completes the machine.
     if let Some(StatementNode::Transition(_)) = statements.get(result.statement_index as usize) {
         let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
         let target =
             super::authored::target_signature(checked, caller_machine, authored.source_target)?;
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
-            || result.statement_index as usize + 1 != statements.len()
+            || !statements[result.statement_index as usize..]
+                .iter()
+                .all(|statement| matches!(statement, StatementNode::Transition(_)))
             || coordinate.call_ordinal != 0
             || checked
                 .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(

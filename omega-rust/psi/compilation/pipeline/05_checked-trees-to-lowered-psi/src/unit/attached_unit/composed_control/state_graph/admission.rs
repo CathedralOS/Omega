@@ -704,6 +704,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             ..
                         },
                     ) => result.statement_index as usize,
+                    // A structural value spelled as a call publishes the call
+                    // itself; its result binding sits on the arm's transition.
+                    checked_trees::CheckedConditionalReturnArm::Structural(
+                        checked_trees::CheckedUnitEffectOperationPlan::Call(call),
+                    ) if matches!(
+                        call.result(),
+                        checked_trees::CheckedUnitCallResult::Structural { .. }
+                    ) =>
+                    {
+                        call.coordinate.statement_index as usize
+                    }
                     checked_trees::CheckedConditionalReturnArm::Call(operation) => {
                         validate_arm_call(
                             checked,
