@@ -620,6 +620,11 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .chain(crate::scalar_graph::scalar_computations::cases::declarations(&all_operations))
         .chain(crate::scalar_graph::scalar_computations::copies::declarations(&all_operations))
         .chain(
+            crate::scalar_graph::scalar_computations::subslices::declarations(
+                &all_operations.operations,
+            ),
+        )
+        .chain(
             crate::scalar_graph::scalar_graph_lowering::structural_values::declarations(
                 &all_operations,
             ),

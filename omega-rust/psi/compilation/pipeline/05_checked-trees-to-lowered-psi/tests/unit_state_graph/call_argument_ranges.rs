@@ -275,10 +275,10 @@ fn a_rebound_call_argument_endpoint_rejects() {
     );
 }
 
-/// An ordinary single-state body has no roster for the whole-field view a
-/// field range establishes, so it refuses the range by name.
+/// Changing the surrounding control flow does not change collection-view
+/// establishment. The unchanged field range also lowers in an ordinary body.
 #[test]
-fn ordinary_body_refuses_a_field_range_by_name() {
+fn ordinary_body_establishes_the_same_field_range() {
     let source = FIELD_RANGE.replace(
         "machine Root::enter(&mut self) reaches Output {",
         "machine Root::measure(&mut self, lo: u64, hi: u64) reaches Output
@@ -289,9 +289,51 @@ fn ordinary_body_refuses_a_field_range_by_name() {
         machine Root::enter(&mut self) reaches Output {
             self.measure(1, 4);",
     );
-    let error = lower(&source).expect_err("the ordinary route declines the field range");
+    let lowered = lower(&source).expect("the ordinary route shares range establishment");
+    verify(&lowered);
+}
+
+/// The descriptor's backing is resolved storage, including a prior local in a
+/// scalar-result body. Empty storage needs the same operation and no read.
+#[test]
+fn local_array_ranges_compose_with_scalar_results() {
+    let source = r#"
+        boundary trait Output { machine count(value: u64) reaches Output; }
+        data Root {}
+        machine Root::length(values: &[i32]) -> u64 { values.len }
+        machine Root::compute() -> u64 {
+            let values: [i32; 2] = [31, 39];
+            let empty: [i32; 0] = [];
+            match Root::length(&empty[..]) == 0 {
+                true -> Root::length(&values[..]),
+                false -> 99,
+            }
+        }
+        machine Root::enter() reaches Output { Output::count(Root::compute()); }
+    "#;
+    let lowered = lower(source).expect("local backing composes with scalar calls");
+    verify(&lowered);
+    let mut changed = lowered.clone();
+    let source = changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::EstablishElementView { source, .. } => Some(source),
+            _ => None,
+        })
+        .expect("array-backed view producer");
+    source.access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
     assert!(
-        error.contains("an ordinary body declares no whole-field view for a field range"),
-        "{error}"
+        terminal_verifier::verify_module(
+            &changed.semantic_module,
+            &changed.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a write-only backing cannot manufacture a readable view"
     );
+    assert_eq!(counts(&lowered), [2]);
 }

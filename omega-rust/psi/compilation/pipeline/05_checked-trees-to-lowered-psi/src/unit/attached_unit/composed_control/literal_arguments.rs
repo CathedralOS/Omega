@@ -5,7 +5,6 @@
 //! range staging both Unit routes share (`byte_subslices`), so a terminal
 //! call in a guarded transition arm stages it inside the arm, where only the
 //! selected arm evaluates it.
-use super::super::super::StructuralParameterDeclaration;
 use super::super::{
     CheckedUnitEffectOperationPlan, PlaceId, ValueDeclaration, lookup_type_id, unsupported,
 };
@@ -27,7 +26,6 @@ pub(super) fn evaluate(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    parameters: &[StructuralParameterDeclaration],
     operation: &CheckedUnitEffectOperationPlan,
     staged: Option<StagedArguments<'_>>,
     catalogs: &mut catalogs::ComposedCatalogs,
@@ -130,7 +128,6 @@ pub(super) fn evaluate(
                     stage_range(
                         checked,
                         state_plan,
-                        parameters,
                         operation,
                         structural_ordinal,
                         source_value_count,
@@ -196,7 +193,6 @@ pub(super) fn evaluate(
 pub(super) fn stage_range(
     checked: &CheckedTrees,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    parameters: &[StructuralParameterDeclaration],
     operation: &CheckedUnitEffectOperationPlan,
     ordinal: usize,
     source_value_count: usize,
@@ -227,20 +223,13 @@ pub(super) fn stage_range(
         .with_structural_locals(&evaluation.structural_locals)
         .with_view_locals(&evaluation.view_locals)
         .with_element_views(&evaluation.element_views);
-    let current = |place| evaluation.current_structural_place(place);
     let context = byte_subslices::StagingContext {
         state: state.state,
-        parameters: byte_subslices::SourceParameters {
-            plans: &state.structural_parameters,
-            declarations: parameters,
-            current: &current,
-        },
-        view_locals: &evaluation.view_locals,
         structural_types: &catalogs.structural_types,
         type_ids: &catalogs.type_ids,
         bindings: &bindings,
     };
-    byte_subslices::emit_staged(
+    byte_subslices::emit(
         checked,
         &context,
         operation,

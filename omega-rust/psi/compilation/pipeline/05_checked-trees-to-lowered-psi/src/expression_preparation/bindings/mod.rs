@@ -783,7 +783,7 @@ impl ScalarBindings {
                     || source.structural_type != structural_type
                     || source.access != StructuralAccess::SharedBorrow
                     || source.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !source.qualifications.is_empty()
+                    || (!bytes && !source.qualifications.is_empty())
                     || !source.projected_qualifications.is_empty()
                     || bytes == self.element_views.contains_key(&structural_type)
                 {

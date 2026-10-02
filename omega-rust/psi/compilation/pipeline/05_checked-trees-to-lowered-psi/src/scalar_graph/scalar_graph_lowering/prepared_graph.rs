@@ -163,6 +163,7 @@ pub(crate) enum LoweredScalarEffect {
         multiplicity: StructuralMultiplicity,
     },
     EstablishScalarArray(LoweredScalarArrayConstruction),
+    EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
     EstablishScalarCase(scalar_computations::cases::Construction),
     /// Establish an immutable byte-view literal in its reserved place ahead of
     /// the computed call that borrows it.

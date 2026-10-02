@@ -137,9 +137,8 @@ pub(crate) fn structural_call_arguments(
                 output.push(literal);
                 continue;
             }
-            // Borrowed element views take the same exclusive-range lane as
-            // byte views, without the byte lane's unit-result restriction:
-            // scalar-returning callees receive `s[a..b]` too.
+            // Range admission depends on storage and view custody, not on the
+            // callee's result. Both families stage at their argument position.
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
                 && let Some(subslice) = view_subslice::admit(
                     program,
@@ -155,8 +154,6 @@ pub(crate) fn structural_call_arguments(
                         argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                     },
                 )
-                && (subslice.range.kind == view_subslice::ViewKind::Elements
-                    || is_unit(program, target_state.return_type))
             {
                 output.push(subslice.argument());
                 continue;
