@@ -169,6 +169,93 @@ execution and native exit/output. A moved refusal is still unfinished work.
   migrate those three samples as acceptance. Do not widen the remaining
   machine-parameter-only sites without their own customer program.
 
+- **STATIC-SUBJECT-BOUND-DISPATCH.** (split-of:STATIC-MACHINE-MIGRATION)
+  A generic body dispatching through a trait bound does not supply the subject
+  to a satisfier that names it. `subject.increment()` under
+  `machine step<T>(subject: &mut T) where T satisfies Incrementable` reports
+  "state `increment` expects 1 argument(s), got 0" once
+  `Counter::increment(counter: &mut Counter)` spells its subject; the same
+  satisfier called directly as `Counter::increment(&mut main.counter)` checks
+  and runs (`pass/traits/static_subject_satisfies_receiver_requirement_exit`,
+  exit 1). So conformance matching is done and only bound dispatch is left.
+  Measured customers: `pass/traits/{trait_generic_bound_static_dispatch,
+  runtime_inherited_trait_default_exit,equatable_record_equality_exit}` reach
+  this once migrated, out of a 13-fixture trait cluster whose other 6 are
+  migration-tool residue (a trait declared in another file, so the tool cannot
+  read its requirement arity) and are not compiler work.
+  `machine_calls/calls.rs::report_argument_count_mismatch` is the arity contract
+  and says so in its own doc: a receiver call binds `self` "through the receiver
+  place (the callee's `self` parameter is not an authored argument)", counted as
+  `filter(|parameter| self_is_argument || !parameter.is_self)`. A named subject
+  has `is_self` false, so it is counted as an authored argument the receiver
+  call never writes. The fix is the same correspondence already landed for
+  conformance: a receiver-style call binds the callee's SUBJECT, so the
+  parameter at the subject position is not an authored argument.
+  `TypedTrees::parameter_declares_attached_data` is the positional predicate for
+  it; `data_binding_parameter` is the wrong one here, because `equals(point:
+  &Point, other: &Point)` has no single data binding and its position 0 is still
+  the subject.
+  Scope note, unverified: a direct receiver call on a static machine
+  (`main.fill_literal(&mut main.bag, fresh)`) is reported as already checking, so
+  measure whether that path shares this counter before widening it -- if it does,
+  this is narrower than the arity contract and the generic specialization route
+  is what differs.
+  Acceptance: the three fixtures check and the `*_exit` ones meet their native
+  oracles with their satisfiers spelling the subject; a bound call supplying the
+  wrong argument count still rejects, with a fixture naming that.
+
+- **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
+  A state jump that supplies both the data record and a projection of it is
+  refused as two overlapping loans, where the receiver form was judged by what
+  the successor actually does through the parent. 13 fixtures, measured.
+  `pass/borrows/projected_mut_member_loan` jumps
+  `transition true { _ -> next(main, &mut main.inner) }` and reports "state
+  `next` receives `main` as mutable more than once"; spelled `next(&mut
+  self.inner)` with the receiver implicit, it checks. The fixture's own comment
+  states the shape it exists for: the loan "writes and reads the `self.inner`
+  storage exclusively while the ambient receiver is bound too".
+  Eight more report "receives `X` as both mutable and read-only"
+  (`projected_indexed_member_loan`, `projected_param_member_loan`,
+  `projected_scalar_member_loan`, `runtime_released_loan_with_forwarded_view_exit`,
+  `calls/borrowed_case_dispatch_member_leaf_reads`,
+  `collections/runtime_frame_indexed_param_read_exit`,
+  `relevance/erased_formal_before_borrowed_argument_exit`,
+  `slices/runtime_saturating_array_element_guard_exit`) and four more
+  "as mutable more than once" (`borrows/runtime_cyclic_field_loan_release_exit`,
+  `calls/runtime_guarded_effectful_transition_argument_exit`,
+  `calls/runtime_reference_returned_slice_element_write_exit`,
+  `dungeon/runtime_threaded_mut_arg_interrupt_soak_exit`).
+  This is not a decision. [ownership](wiki/spec/language/ownership.md) says
+  "Reborrowing retains exact immediate parent lineage. Shared children freeze
+  the parent's mutation; exclusive children suspend the corresponding parent
+  branch" -- so a projection of a supplied record is a reborrow that suspends
+  that branch, not a second independent loan.
+  The judgment already exists and is already callee-aware, including for state
+  jumps: `checks/borrows/calls/receiver/footprint.rs` says so in its own header
+  ("A named jump into a `&mut self` sibling state is judged here too, with the
+  successor as callee and the caller's `self` as its receiver"), and
+  `tests/borrow/checks/receiver_jump_loans.rs` pins it. It is keyed to the
+  receiver: `whole_mutable_receiver_machine` gates on
+  `call_passes_receiver` and `receiver_is_mutable_reference`, both of which
+  answer no for a named data parameter, so the crude pairwise overlap in
+  `calls/conflicts.rs` fires instead. `TypedTrees::data_binding_parameter`
+  (landed 125b05ae494) is the query that names the parameter to key it on.
+  The caller-side fixtures already carry the static form and already pass:
+  `fail/borrows/whole_mut_receiver_write_under_argument_view` has a
+  `value_receiver_form(main: &mut Main)` beside its receiver form, and the
+  recorded diagnostic names `main.arr[0..2]`. So the machine-call route handles
+  the named parent; only the jump route does not.
+  Scope: generalize the footprint gate to accept the argument that supplies the
+  successor's data binding whole and mutably as the parent, and keep
+  `conflicts.rs` from refusing a pair the footprint judgment owns. The
+  suspension obligation must still be enforced inside the successor -- accepting
+  the pair without it would let the successor reach `main.inner` through `main`
+  while `loan` is live.
+  Acceptance: the 13 fixtures check and the `*_exit` ones meet their native
+  oracles in the static spelling; the three `receiver_jump_loans` refusals keep
+  rejecting, with a static-spelling fixture for each of the two obligations
+  (a successor write and a successor read of the suspended branch).
+
 - **STATIC-ENTRY-RESULT-ARGUMENT.** (split-of:STATIC-MACHINE-MIGRATION)
   Four fixtures reach one refusal in the static spelling and the same one:
   `pass/borrows/{branch_selected_record_receiver_exit,enum_selected_view_reference_exit,returned_record_method_receiver_exit,returned_record_projected_call_exit}`

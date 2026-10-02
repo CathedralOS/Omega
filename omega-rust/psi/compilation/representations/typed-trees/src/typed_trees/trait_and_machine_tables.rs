@@ -425,12 +425,9 @@ impl TypedTrees {
         if !machine.attached_data_symbol.is_valid() {
             return None;
         }
-        let mut declared = parameters.iter().filter(|parameter| {
-            self.type_reference_names_attached_data(
-                parameter.type_reference,
-                machine.attached_data_symbol,
-            )
-        });
+        let mut declared = parameters
+            .iter()
+            .filter(|parameter| self.parameter_declares_attached_data(machine, parameter));
         let parameter = declared.next()?;
         declared.next().is_none().then_some(parameter)
     }
@@ -454,6 +451,30 @@ impl TypedTrees {
     ) -> Option<&crate::name::Identifier> {
         let entry = self.machine_states(machine).first()?;
         self.state_data_binding(machine, entry)
+    }
+
+    /// Whether `parameter` is declared as this machine's exact attached data,
+    /// looking through the reference and constraint shells a `&mut Main`
+    /// binding carries.
+    ///
+    /// This answers "could this position be the subject", which is what a
+    /// caller holding a position already knows it wants: a trait requirement
+    /// names the subject's position, so its satisfier's parameter there needs
+    /// only to declare the conforming data. `data_binding_parameter` is the
+    /// stronger question -- WHICH parameter is the subject -- and refuses when
+    /// two could be. `equals(point: &Point, other: &Point)` is exactly that
+    /// difference: no single data binding, yet position 0 is the subject
+    /// because the requirement says so.
+    pub fn parameter_declares_attached_data(
+        &self,
+        machine: &machine::Machine,
+        parameter: &signature::StateParameter,
+    ) -> bool {
+        parameter.is_self
+            || self.type_reference_names_attached_data(
+                parameter.type_reference,
+                machine.attached_data_symbol,
+            )
     }
 
     /// Whether `type_reference` names `attached_data_symbol` once references

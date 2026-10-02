@@ -1,0 +1,30 @@
+// FAIL CANARY. A requirement's subject position is filled by the receiver or by
+// an ordinary parameter declaring the CONFORMING data -- not by any parameter
+// that happens to sit first. `Counter::increment` here takes `&mut Other`, so
+// nothing in it denotes what `&mut self` denotes and the conformance is refused.
+//
+// Admitting a static subject by position alone would accept this, silently
+// satisfying `Counter satisfies Incrementable` with a machine that never
+// touches a `Counter`.
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32 in Wrapping;
+}
+
+data Other {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(other: &mut Other) satisfies Incrementable::increment {
+    other.value = other.value + 1;
+}
+CounterIncrementable: Counter satisfies Incrementable;
+
+data Main { counter: Counter; }
+
+machine Main::main(main: &mut Main) {
+    main.counter.value = 0;
+}

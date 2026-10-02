@@ -1142,6 +1142,9 @@ fail/traits/inherited_default_ambiguous rejected 16ms expected @2d8ed253669f
 	data `Counter` inherits conflicting default machine `Counter::reset` from traits `LeftReset`, `RightReset`; write an override
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
 	ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`
+fail/traits/static_subject_wrong_data_rejected rejected 59ms expected @125b05ae4947+wt
+	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter 0: expected `&mut self`, got `other: &mut Other`
+	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter 0: expected `&mut self`, got `other: &mut Other`
 fail/traits/trait_contract_undeclared_self_member rejected 256ms expected @2d8ed253669f
 	trait `BrokenCounter` state `increment` ensures contract references undeclared structural member `value`; abstract `Self` has no field namespace -- use an explicit proposition parameter or a declared accessor requirement
 fail/traits/trait_requirement_cycle rejected 237ms expected @2d8ed253669f
@@ -2303,6 +2306,7 @@ pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1537ms @2d8ed253
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1801ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms @2d8ed253669f
+pass/traits/static_subject_satisfies_receiver_requirement_exit checked 638ms @125b05ae4947+wt
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms @2d8ed253669f
 pass/types/runtime_addr_algebra_exit checked 1286ms @ca8c127c90c5

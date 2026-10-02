@@ -1,0 +1,35 @@
+// A trait requirement spells its subject `&mut self`; its satisfier spells the
+// same subject as an ordinary parameter. Both name one exclusive loan of the
+// conforming data, so they correspond -- a requirement and its satisfier match
+// parameter by parameter, not spelling by spelling
+// ([machines](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state):
+// "Trait requirements and satisfiers use the same explicit parameter
+// correspondence").
+//
+// Before the correspondence rule the conformance reported "parameter 0:
+// expected `&mut self`, got `counter: &mut Counter`" and no static satisfier of
+// a receiver-spelled requirement could compile at all.
+//
+// Exits 1: `increment` ran exactly once through the named subject.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(counter: &mut Counter) satisfies Incrementable::increment {
+    counter.value = counter.value + 1;
+}
+CounterIncrementable: Counter satisfies Incrementable;
+
+data Main { console: Binding<Console>; counter: Counter; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    Counter::increment(&mut main.counter);
+    main.console.exit_process(main.counter.value as i32);
+}

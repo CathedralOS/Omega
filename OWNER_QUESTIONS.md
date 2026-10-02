@@ -237,11 +237,19 @@ stop at `room.label = source.label`, the store this decision governs.
 
 Named decision: `trait-requirement-subject-binding`.
 
-**Customers:** 137 declarations in 55 files, measured across `tests`,
-`samples` and `source`: 74 trait requirements in 38 files and 63 satisfiers in
-27. That is every remaining receiver the static-machine migration cannot
-mechanically remove for want of a spelling, against 1448 ordinary ones that
-are compiler or source work.
+**Customers:** 74 trait requirements in 38 files, measured across `tests`,
+`samples` and `source`. That is every remaining receiver the static-machine
+migration cannot mechanically remove for want of a spelling.
+
+The 63 satisfiers in 27 files that were counted here are no longer blocked.
+Conformance now matches a requirement's subject position by role rather than by
+spelling, so a receiver-spelled requirement accepts a satisfier that names its
+subject (`machine Counter::increment(counter: &mut Counter) satisfies
+Incrementable::increment`); `pass/traits/static_subject_satisfies_receiver_requirement_exit`
+runs it at exit 1 and `fail/traits/static_subject_wrong_data_rejected` keeps a
+parameter of another data type from filling the position. Those satisfiers can
+migrate ahead of this decision, one at a time, leaving only the requirement side
+here.
 
 `source/library/core/layout.omg` is the smallest case: `pub trait Readable<T>
 { machine read(&self) -> T; }` with `boundary machine PlacedField::read<T>(&self)
@@ -255,9 +263,9 @@ The widest is the boundary-trait clock in the samples. Thirteen of them --
 `pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes
 DarwinClock; }` with a provider satisfier `macos_arm64 machine
 PacingClockProvider::sleep(&mut self, milliseconds: u32) satisfies
-Clock::sleep`. The satisfier could migrate on its own reading of
-conformances, but it must match the requirement's shape, so the requirement
-blocks it. Their call sites are unaffected either way: `main.clock.sleep(180)`
+Clock::sleep`. The satisfier may now migrate independently -- the requirement's
+shape no longer binds its spelling -- so what remains here is the requirement's
+own subject. Their call sites are unaffected either way: `main.clock.sleep(180)`
 dispatches through a `Binding<Clock>`, which is boundary dispatch and not a
 machine receiver.
 
