@@ -1,5 +1,5 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
-//! unrestricted record establishments, affine empty-record establishments,
+//! complete record establishments under ordinary field and custody replay,
 //! trivial affine local establishments, unrestricted plain leaf copies,
 //! field-replacement window pairs whose displaced value is disposed before
 //! re-entry, affine structural call results with call-scoped loans that are
@@ -673,36 +673,22 @@ fn cycle_operation_eligible(
         OperationKind::EstablishPrimitiveLocal { .. } => {
             primitive_storage::validate_establishment(module, machine, operation).is_ok()
         }
-        // A complete unrestricted record establishment is pure structural
-        // construction: `record::fields` proves the fresh `OperationResult`
-        // place, the declaration-paired field initializers, and a claim-free
-        // result, while the unrestricted result never carries a per-iteration
-        // disposal obligation — scalar fields read values and structural
-        // fields copy unrestricted sources, so re-establishing the same place
-        // each iteration moves no custody. An empty-field affine
-        // establishment is the composed-control spelling of a trivial affine
-        // local: it carries no field custody, and its only disposal
-        // obligation is the affine result place. The frontier replay
-        // enforces that lifecycle exactly — the place enters `owned_places`
-        // at the establishment, leaves it only through an edge's discard
-        // roster, an owned-argument move, or a return's ordered cleanup, the
-        // result insert refuses to produce an already-owned place, and the
-        // fixed-point join demands identical custody on every arrival — so a
-        // member-block establishment re-arms once per traversal while an
-        // entry-block establishment can stay live for the whole cyclic
-        // lifetime. An affine record with fields and any claim-bearing
-        // result keep the fence closed; the ordinary operand, liveness, and
-        // frontier checks still run after eligibility.
-        OperationKind::EstablishRecord { fields } => {
-            operation.result.structural().is_some_and(|result| {
-                result.multiplicity == StructuralMultiplicity::Unrestricted
-                    || (result.multiplicity == StructuralMultiplicity::Affine && fields.is_empty())
-            }) && crate::validation::record::fields(module, machine, operation).is_ok()
+        // Complete construction has the same custody transaction inside and
+        // outside a cycle. Ordinary record validation checks every exact field
+        // and result; frontier replay consumes affine children once before
+        // publishing the parent. Each edge then transfers or disposes that
+        // parent explicitly, and every arrival must agree on the live frontier.
+        // An empty-field exception duplicates none of those guarantees: scalar
+        // fields add no debt, while nested affine fields move existing debt.
+        // Neither a preceding iteration nor a consumer on another branch can
+        // authorize re-establishing a still-live result.
+        OperationKind::EstablishRecord { .. } => {
+            crate::validation::record::fields(module, machine, operation).is_ok()
         }
         // An unrestricted case establishment re-arms like its record sibling:
         // re-entering hands the place a fresh payload each traversal. Its
         // affine form always carries non-scalar children, so the fence stays
-        // closed the way an affine record with fields does.
+        // closed until its active-case custody route is independently admitted.
         OperationKind::EstablishStructuralCase { .. } => {
             operation
                 .result

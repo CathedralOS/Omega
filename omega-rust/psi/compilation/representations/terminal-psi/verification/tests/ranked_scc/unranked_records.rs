@@ -333,25 +333,148 @@ fn cyclic_record_structural_field_copies_an_unrestricted_member_place() {
     validate_module(&module).expect("an unrestricted record copy stays custody-quiet in a cycle");
 }
 
-/// `record::fields` still accepts an affine result as an owned result, so the
-/// affine rejection is exactly the cyclic-eligibility fence: an affine record
-/// could carry a per-iteration disposal obligation, and re-establishing its
-/// place each iteration is not custody-free.
-#[test]
-fn cyclic_record_affine_result_keeps_the_cycle_fence() {
+fn affine_record_cycle() -> TerminalModule {
     let mut module = scalar_record_cycle();
-    let Operation {
-        result: OperationResult::Structural(result),
-        ..
-    } = &mut module.machines[0].blocks[0].operations[0]
-    else {
+    let machine = &mut module.machines[0];
+    let OperationResult::Structural(result) = &mut machine.blocks[0].operations[0].result else {
         panic!("the establishment is structural")
     };
     result.multiplicity = StructuralMultiplicity::Affine;
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::ControlCycleIneligible { block, .. }) if block == id(1, BlockId::new)
-    ));
+    let terminal_psi::Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        panic!("the fixture selects re-entry or normal return")
+    };
+    when_true.trivial_affine_discards = vec![id(5, PlaceId::new)];
+    when_false.trivial_affine_discards = vec![id(5, PlaceId::new)];
+    module
+}
+
+fn nested_affine_record_cycle() -> TerminalModule {
+    let mut module = affine_record_cycle();
+    let holder = id(2, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: holder,
+        identity: "test::OwnedHolder".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: id(3, StructuralFieldId::new),
+                identity: "inner".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(id(1, StructuralTypeId::new)),
+            }],
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(record_place(6, 21, holder));
+    let mut operation = record_establishment(
+        21,
+        6,
+        holder,
+        vec![RecordFieldInitializer {
+            field: id(3, StructuralFieldId::new),
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: id(5, PlaceId::new),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }),
+        }],
+    );
+    let OperationResult::Structural(result) = &mut operation.result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    machine.blocks[0].operations.push(operation);
+    let terminal_psi::Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.trivial_affine_discards = vec![id(6, PlaceId::new)];
+    when_false.trivial_affine_discards = vec![id(6, PlaceId::new)];
+    module
+}
+
+#[test]
+fn cyclic_affine_record_with_fields_rearms_after_selected_cleanup() {
+    for module in [affine_record_cycle(), nested_affine_record_cycle()] {
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("complete affine records rearm only after exact cleanup");
+        verify_module_for_optimization(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("ordinary cyclic custody remains optimizer admissible");
+    }
+}
+
+#[test]
+fn cyclic_affine_record_missing_backedge_cleanup_rejects_at_frontier() {
+    let mut module = affine_record_cycle();
+    let terminal_psi::Terminator::Conditional { when_true, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.trivial_affine_discards.clear();
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::OwnedStructuralFrontierJoinMismatch(id(
+            1,
+            BlockId::new
+        )))
+    );
+}
+
+#[test]
+fn cyclic_affine_record_cannot_dispose_a_child_consumed_by_its_parent() {
+    let mut module = nested_affine_record_cycle();
+    let terminal_psi::Terminator::Conditional { when_true, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.trivial_affine_discards.push(id(5, PlaceId::new));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::EdgeAffineDiscardsInvalid {
+            edge: id(10, semantic_vocabulary::EdgeId::new),
+        })
+    );
+}
+
+#[test]
+fn cyclic_affine_record_cannot_reuse_a_consumed_child() {
+    let mut module = nested_affine_record_cycle();
+    let machine = &mut module.machines[0];
+    let mut second_parent = machine.blocks[0].operations[1].clone();
+    second_parent.id = id(22, OperationId::new);
+    let OperationResult::Structural(result) = &mut second_parent.result else {
+        unreachable!()
+    };
+    result.place = id(7, PlaceId::new);
+    machine
+        .structural_places
+        .push(record_place(7, 22, result.structural_type));
+    machine.blocks[0].operations.push(second_parent);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: id(22, OperationId::new),
+            place: id(5, PlaceId::new),
+        })
+    );
 }
 
 /// `record::fields` runs during ordinary per-operation validation before the
