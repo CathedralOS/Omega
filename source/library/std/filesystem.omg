@@ -700,8 +700,8 @@ invokes
 // the one caveat, which the windows impl documents: the composition is not
 // atomic against concurrent access to the same fd.
 //
-//   machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
-//   machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+//   machine Filesystem::read_at(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+//   machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
 // ---------------------------------------------------------------------------
 
 // Close a file handle, returning the raw rc (0 on success).
@@ -1248,13 +1248,13 @@ reaches FilesystemHost
 // Callers compose these exactly like any other Filesystem machine --
 // `read_dir_is_empty` below stays portable by composing `read_dir_nth`.
 //
-//   machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
-//   machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult
-//   machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
-//   machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult
-//   machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
-//   machine Filesystem::rda_drain(&mut self, fuel: u64)   (the measured drain core)
-//   machine Filesystem::rda_step(&mut self, step: u64)    (one drain step)
+//   machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
+//   machine Filesystem::read_dir_stats(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult
+//   machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
+//   machine Filesystem::read_dir_entry_fd(filesystem: &mut Filesystem, dfd: i32, n: u64) -> DirEntryResult
+//   machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
+//   machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64)   (the measured drain core)
+//   machine Filesystem::rda_step(filesystem: &mut Filesystem, step: u64)    (one drain step)
 // ---------------------------------------------------------------------------
 
 // Is a directory empty (Rust `read_dir(path)?.next().is_none()`)? Composes
@@ -1341,7 +1341,7 @@ invokes
 // Failed acquisition returns its captured error without querying or closing;
 // successful acquisition queries and closes before returning the query verdict.
 //
-//   machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+//   machine Filesystem::canonicalize(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
 // ---------------------------------------------------------------------------
 
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
@@ -1384,7 +1384,7 @@ invokes
 // security-attributes arg, BOOL result). Its immediate GetLastError capture
 // maps common Win32 codes into the same portable ErrorKind sum.
 //
-//   machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+//   machine Filesystem::hard_link(filesystem: &mut Filesystem, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 // ---------------------------------------------------------------------------
 
 // Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
