@@ -5,7 +5,8 @@
 
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
-    Replay, SourceArm, SymbolHandle, TypeReferenceHandle, unsupported, validate_operand,
+    Replay, SourceArm, SymbolHandle, TypeReferenceHandle, ValueOccurrence, unsupported,
+    validate_operand,
 };
 use arena::HandleSpan;
 use checked_trees::CheckedStructuralRecordField;
@@ -144,7 +145,7 @@ pub(super) fn validate(
                     statement_index,
                     role,
                     value,
-                    initializer.value,
+                    ValueOccurrence::Authored(initializer.value),
                 )?;
                 let expected = validation::unwrapped_type_reference(
                     &checked.typed,
@@ -165,7 +166,7 @@ pub(super) fn validate(
             checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                 pending.push((
                     value,
-                    initializer.value,
+                    ValueOccurrence::Authored(initializer.value),
                     declaration.type_reference,
                     source_arm,
                     None,

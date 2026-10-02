@@ -499,8 +499,8 @@ fn owned_array_state_arguments_preserve_record_erased_declarations() {
         boundary trait Output { machine write(marker: i32) reaches Output; }
         data Payload { values: [i32; 2]; }
         data Root {}
-        machine Root::enter() reaches Output {
-            transition { _ -> take(Payload { values: [30, 40] }) }
+        machine Root::enter(payload: Payload) reaches Output {
+            transition { _ -> take(payload) }
             state take(payload: Payload) {
                 Output::write(payload.values[0]);
                 Output::write(payload.values[1]);
