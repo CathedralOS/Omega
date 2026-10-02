@@ -1973,6 +1973,7 @@ pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms @2d8ed253669f
 pass/providers/runtime_boundary_array_construction_exit checked 1070ms @f250efa457cf+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 1567ms @2d8ed253669f
+pass/providers/runtime_boundary_array_result_exit checked 713ms @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 1521ms @2d8ed253669f
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 5321ms @a9f373809a48+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 1345ms @2d8ed253669f

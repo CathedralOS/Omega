@@ -855,6 +855,7 @@ pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 1086ms exit:70 @f250efa457cf+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 1591ms exit:70 @48008365d839
+pass/providers/runtime_boundary_array_result_exit built 1437ms exit:70 @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 1199ms exit:70 @a9f373809a48+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 613ms exit:70
