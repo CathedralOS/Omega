@@ -696,7 +696,7 @@ impl ScalarBindings {
         parameters: &[(u32, StructuralParameterDeclaration)],
     ) -> Self {
         self.structural_parameters = parameters.to_vec();
-        self.structural_fields.clear();
+        self.structural_fields.clear_parameters();
         self.structural_cases.clear();
         // Element views are keyed by structural type, not by parameter: a
         // type's view family stays true under a rebound parameter list, so a

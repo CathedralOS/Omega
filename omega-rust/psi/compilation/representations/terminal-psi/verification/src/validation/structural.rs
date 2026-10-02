@@ -7,6 +7,7 @@ pub(crate) mod byte_sequence_store;
 pub(crate) mod byte_view_field_store;
 pub(crate) mod case;
 pub(crate) mod case_membership;
+mod field_stores;
 pub(crate) mod leaf_copy;
 pub(crate) mod operations;
 pub(crate) mod qualification_rosters;

@@ -53,22 +53,11 @@ pub(in crate::validation) fn validate(
                 | StructuralAccess::MutableBorrow
         ) || (!element_result && access == StructuralAccess::WriteOnlyBorrow)
     };
-    // Observations compose through the complete static path resolver below:
-    // each field and fixed index must match its declaration and extent. The
-    // narrower store grammar is not a restriction on reading nested storage.
-    // The general resolver also handles view-backed indices for other
-    // operations. Newly admitted deep observations require fixed storage;
-    // they do not acquire those operations' runtime-bound authority.
-    let bounded_path = terminal_psi::is_bounded_structural_scalar_store_path(path);
+    // Geometry does not discharge selectors: dynamic paths participate in
+    // the ordinary runtime-index operand and certificate inventories.
     if !access_admitted
-        || (!bounded_path
-            && (writing
-                || terminal_semantics::runtime_structural_path_tip(
-                    module.structural_types.iter(),
-                    structural_type,
-                    path,
-                )
-                .is_none()))
+        || (writing && !terminal_psi::is_bounded_structural_scalar_store_path(path))
+        || super::runtime_indexes::checked_projection_type(module, structural_type, path).is_none()
     {
         return Err(invalid());
     }
@@ -130,7 +119,8 @@ pub(crate) fn length_capacity_bound(
     let invalid = || ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id);
     let (structural_type, _) =
         terminal_semantics::byte_field_root(machine, *source).ok_or_else(invalid)?;
-    let carrier = resolve_structural_path(module, structural_type, path).ok_or_else(invalid)?;
+    let carrier = super::runtime_indexes::checked_projection_type(module, structural_type, path)
+        .ok_or_else(invalid)?;
     let declaration = module
         .structural_types
         .iter()
@@ -286,7 +276,7 @@ fn field_path(
     } else {
         terminal_semantics::byte_field_root(machine, root)?.0
     };
-    let carrier = resolve_structural_path(module, structural_type, path)?;
+    let carrier = super::runtime_indexes::checked_projection_type(module, structural_type, path)?;
     let declaration = module
         .structural_types
         .iter()

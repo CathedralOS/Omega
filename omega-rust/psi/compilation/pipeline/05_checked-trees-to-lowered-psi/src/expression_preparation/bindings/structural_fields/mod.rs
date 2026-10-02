@@ -53,6 +53,10 @@ impl std::ops::DerefMut for StructuralFieldBindings {
 }
 
 impl StructuralFieldBindings {
+    pub(crate) fn clear_parameters(&mut self) {
+        self.roots.clear();
+    }
+
     pub(crate) fn register_local(
         &mut self,
         symbol: symbols::SymbolHandle,

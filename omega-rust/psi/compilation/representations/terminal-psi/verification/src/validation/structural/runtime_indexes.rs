@@ -70,9 +70,37 @@ fn admits_runtime_indexes(kind: &OperationKind) -> bool {
             | OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::StructuralByteViewFieldStore { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::MoveStructuralField { .. }
             | OperationKind::StoreStructuralField { .. }
     )
+}
+
+/// A dynamic view never proves a literal selector from its type. Such a
+/// selector still needs a RuntimeIndex operation obligation; downgrading it
+/// to FixedIndex must not erase its bound while preserving the same geometry.
+pub(super) fn checked_projection_type(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    for (position, segment) in path.iter().enumerate() {
+        if matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)) {
+            let container = crate::validation::foundation::resolve_runtime_projection(
+                module,
+                root,
+                &path[..position],
+            )?;
+            if module.structural_types.iter().any(|row| {
+                row.id == container && matches!(row.shape, StructuralTypeShape::ElementView { .. })
+            }) {
+                return None;
+            }
+        }
+    }
+    crate::validation::foundation::resolve_runtime_projection(module, root, path)
 }
 
 /// The operand side of every runtime index the operation carries.
