@@ -183,6 +183,7 @@ fn known_descriptor_use(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     operation: &O,
+    closed_storage: &mut BTreeMap<StructuralTypeId, bool>,
 ) -> bool {
     if let O::CallStructural {
         result,
@@ -217,7 +218,7 @@ fn known_descriptor_use(
                     )
                 })
                 .is_some_and(|structural_type| {
-                    storage_cannot_retain_loan(types, structural_type, &mut BTreeMap::new())
+                    storage_cannot_retain_loan(types, structural_type, closed_storage)
                 })
         }) && dynamic_arguments.is_empty()
             && claim_transfers.is_empty();
@@ -242,7 +243,8 @@ fn known_descriptor_use(
 /// This is a storage property, not a constructor whitelist. Every case and
 /// nested element must be closed owned data; missing or recursive declarations
 /// cannot prove absence of an alias. Mark an in-progress declaration false so
-/// cycles fail conservatively, and memoize shared substructure within a query.
+/// cycles fail conservatively. Reuse the result across this function's calls;
+/// storage declarations do not change while the descriptor flow is built.
 fn storage_cannot_retain_loan(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
@@ -341,6 +343,7 @@ impl DescriptorFlow {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let mut steps = BTreeMap::new();
+        let mut closed_storage = BTreeMap::new();
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
                 let position = (
@@ -397,7 +400,12 @@ impl DescriptorFlow {
                         inputs: crate::unit_validation::function_structure::operation_place_inputs(
                             &node.operation,
                         ),
-                        may_escape: !known_descriptor_use(function, types, &node.operation),
+                        may_escape: !known_descriptor_use(
+                            function,
+                            types,
+                            &node.operation,
+                            &mut closed_storage,
+                        ),
                         successors,
                     },
                 );
