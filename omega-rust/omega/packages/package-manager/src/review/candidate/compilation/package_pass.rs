@@ -720,6 +720,20 @@ impl ClosurePass<'_> {
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
                 let obligation_ledger_bytes = record.obligation_ledger_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
+                // A persisted entailment discharge replays inert: recovery
+                // keeps its obligation open by design, so a record carrying
+                // one can never stand in for the fresh compile that closed it.
+                if !review
+                    .projection()
+                    .contract_entailment_exit_membership_discharges()
+                    .is_empty()
+                    || !review
+                        .projection()
+                        .contract_entailment_assumption_discharges()
+                        .is_empty()
+                {
+                    return None;
+                }
                 let occurrence = OccurrenceCompile::Cached(Box::new(facts));
                 if occurrence.tolerated_unsettled_service_fields() {
                     return None;
@@ -1196,8 +1210,19 @@ impl ClosurePass<'_> {
         // component descriptions, so an occurrence that required the
         // publication retry never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
+        // A review carrying entailment discharges never replays faithfully:
+        // recovery keeps their obligations open, so the record cannot
+        // represent this compile's closed results.
         if key != closure.graph().root()
             && !checked.execution().tolerated_unsettled_service_fields()
+            && review
+                .projection()
+                .contract_entailment_exit_membership_discharges()
+                .is_empty()
+            && review
+                .projection()
+                .contract_entailment_assumption_discharges()
+                .is_empty()
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
