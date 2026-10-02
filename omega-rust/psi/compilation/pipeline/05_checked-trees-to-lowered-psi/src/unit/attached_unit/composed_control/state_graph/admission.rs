@@ -352,7 +352,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         // arrives as a whole copy; its views keep their
                         // source loans' lineage and gain no predicate.
                         && !(parameter.multiplicity == Multiplicity::Unrestricted
-                            && validation::has_owned_or_qualified_shared_view_fields(
+                            && validation::has_owned_or_shared_view_fields(
                                 &checked.typed,
                                 crate::unit::attached_unit::parameters::structural_carrier_type(
                                     checked,

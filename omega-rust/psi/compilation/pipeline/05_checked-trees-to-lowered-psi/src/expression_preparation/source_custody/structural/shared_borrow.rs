@@ -173,11 +173,13 @@ pub(super) fn validate_copied_place(
     };
     // Storage identities may name the unwrapped carrier: a `&[T]` view uses
     // its referee and an arithmetic-policy-qualified value uses its layout.
-    // Independently require the complete source and destination types to
-    // match; equal storage alone cannot erase policy or confer ownership.
+    // Independently require the source and destination declared carriers to
+    // match modulo `Constrained` shells; equal storage alone cannot erase
+    // policy or confer ownership, and which qualifications a declaration
+    // asserts was decided by the checker's weakening law upstream.
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
         && checked.normalized_type_identity(unwrapped).as_str() != argument.type_identity
-        || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)
+        || !validation::declared_carriers_match(&checked.typed, leaf, reference)
     {
         return unsupported("copied place does not project the result type");
     }

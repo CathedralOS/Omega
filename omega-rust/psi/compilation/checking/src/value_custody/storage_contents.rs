@@ -81,9 +81,13 @@ enum ContentsRequirement {
     StructuralConstruction,
     /// `NumericOwned` contents that may carry shared-view members at any
     /// depth: a `&[T]` or `&'a V` member resolves to a terminal
-    /// [`ContentType::View`] descriptor instead of declining. Every other
-    /// obligation is `NumericOwned`'s — no loans that mutate, no erased or
-    /// generic members, no linear declarations, no drop carriers.
+    /// [`ContentType::View`] descriptor instead of declining, and a view
+    /// carrying declared domains on its referee (`&[u8] in Utf8`)
+    /// classifies the same — the descriptor leaf rides its source loan's
+    /// lineage and this classification neither proves nor extends the
+    /// domain. Every other obligation is `NumericOwned`'s — no loans that
+    /// mutate, no erased or generic members, no linear declarations, no
+    /// drop carriers.
     OwnedOrSharedView,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
@@ -210,11 +214,14 @@ pub fn has_service_seam_contents(program: &TypedTrees, reference: TypeReferenceH
 /// them — the whole-contents form of [`has_owned_or_shared_view_fields`]. A
 /// `&[T]` or `&'a V` member is a terminal view descriptor at any depth:
 /// copying its enclosing carrier copies the descriptor, while the referent's
-/// loan stays with the view's owner. Sums whose payloads are plain records or
-/// view-carrying records therefore classify beside plain records. Exclusive
-/// borrows, erased members, linear declarations, drop carriers, and genuinely
-/// generic members keep the type unclassified, as does a member with no shared
-/// view of the `&[T]`/`&'a V` shape.
+/// loan stays with the view's owner. Declared domains on the view's referee
+/// (`&[u8] in Utf8`) classify identically — the constraint shells ride the
+/// declared type and change neither the descriptor shape nor the loan.
+/// Sums whose payloads are plain records or view-carrying records therefore
+/// classify beside plain records. Exclusive borrows, erased members, linear
+/// declarations, drop carriers, and genuinely generic members keep the type
+/// unclassified, as does a member with no shared view of the `&[T]`/`&'a V`
+/// shape.
 pub fn has_owned_or_shared_view_contents(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -230,36 +237,24 @@ pub fn has_owned_or_shared_view_contents(
 /// Classify a record whose fields are each either plain owned contents or a
 /// shared view — a `&[T]` or `&'a V` member whose `&` shell carries the
 /// field's `Unrestricted` multiplicity while its referent's loan stays with
-/// the view's owner. The record itself remains an owned carrier: copying it
-/// copies its scalars and its view descriptors whole, the same way a stored
-/// view leaf copies out of a `&self` projection. Exclusive/`&mut` members,
-/// erased members, and genuinely generic fields keep the record on its own
-/// custody family.
+/// the view's owner. Declared domains on the view's referee (`&[u8] in Utf8`)
+/// classify identically — a whole copy duplicates each view descriptor with
+/// its source loan's lineage, and the domains hold because every write into
+/// the source preserved them. The record itself remains an owned carrier:
+/// copying it copies its scalars and its view descriptors whole, the same way
+/// a stored view leaf copies out of a `&self` projection. Exclusive/`&mut`
+/// members, erased members, and genuinely generic fields keep the record on
+/// its own custody family. Copy permission neither establishes the declared
+/// predicates nor extends the loan, so this answers only whether a whole copy
+/// is a value transfer.
 pub fn has_owned_or_shared_view_fields(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
-    owned_or_shared_view_fields(program, reference, false)
+    owned_or_shared_view_fields(program, reference)
 }
 
-/// [`has_owned_or_shared_view_fields`], where a shared view may also carry
-/// declared domains on its referee (`&[u8] in Utf8`). A whole copy of such a
-/// record duplicates each view descriptor with its source loan's lineage; the
-/// domains hold because every write into the source preserved them. Copy
-/// permission neither establishes those predicates nor extends the loan, so
-/// this answers only whether a whole copy is a value transfer.
-pub fn has_owned_or_qualified_shared_view_fields(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    owned_or_shared_view_fields(program, reference, true)
-}
-
-fn owned_or_shared_view_fields(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    admit_view_domains: bool,
-) -> bool {
+fn owned_or_shared_view_fields(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     let symbol = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         // A lifetime-parameterized record is a `Generic` node whose type
@@ -299,15 +294,10 @@ fn owned_or_shared_view_fields(
         else {
             return false;
         };
-        let mut referee = *referee;
-        while admit_view_domains
-            && let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(referee)
-        {
-            referee = *base_type;
-        }
         matches!(
-            program.type_reference_table.type_reference(referee),
+            program
+                .type_reference_table
+                .type_reference(peeled_referee(program, *referee)),
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
         )
     };
@@ -473,7 +463,9 @@ fn resolve(
             ..
         } if matches!(requirement, ContentsRequirement::OwnedOrSharedView)
             && matches!(
-                program.type_reference_table.type_reference(*referee),
+                program
+                    .type_reference_table
+                    .type_reference(peeled_referee(program, *referee,)),
                 TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
             ) =>
         {
@@ -558,6 +550,19 @@ fn resolve(
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
+}
+
+/// A view referee's declared-domain shells peeled exactly as
+/// `owned_or_shared_view_fields` peels them one record deep: constraint
+/// wrappers ride the loan's declared type and change neither the viewed
+/// shape nor which owner keeps the backing.
+fn peeled_referee(program: &TypedTrees, mut referee: TypeReferenceHandle) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(referee)
+    {
+        referee = *base_type;
+    }
+    referee
 }
 
 pub(crate) fn is_plain_value_domain(

@@ -610,6 +610,108 @@ pub fn unwrapped_type_reference(
     }
 }
 
+/// The declared carrier beneath a type's `Constrained` shells: a predicate
+/// qualification constrains what a place's contents satisfy, never the shape
+/// of the storage that carries it. Which qualifications a declaration asserts
+/// or discards is the weakening law's question —
+/// `proof_contracts::domain_weakening` — already adjudicated by the checker
+/// before a custody join asks what storage a copy, move, or borrow
+/// reproduces.
+pub fn peel_declared_constraints(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *base_type;
+    }
+    type_reference
+}
+
+/// Two declared types name the same storage carrier when they differ only by
+/// `Constrained` shells, at any depth: a `&[u8] in Utf8` leaf and a `&[u8]`
+/// destination both describe the 16-byte shared-view descriptor. Reference
+/// access, fixed extents, and generic arguments stay strict — they change
+/// layout or custody, which no qualification erases. A pair that differs in
+/// any other way keeps its full normalized-identity comparison.
+pub fn declared_carriers_match(
+    program: &TypedTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    let left = peel_declared_constraints(program, left);
+    let right = peel_declared_constraints(program, right);
+    match (
+        program.type_reference_table.type_reference(left),
+        program.type_reference_table.type_reference(right),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: left_referee,
+                access: left_access,
+                ..
+            },
+            TypeReferenceNode::Reference {
+                referee: right_referee,
+                access: right_access,
+                ..
+            },
+        ) => {
+            left_access == right_access
+                && declared_carriers_match(program, *left_referee, *right_referee)
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: left_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: right_element,
+            },
+        ) => declared_carriers_match(program, *left_element, *right_element),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: left_element,
+                length: left_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: right_element,
+                length: right_length,
+            },
+        ) => {
+            left_length == right_length
+                && declared_carriers_match(program, *left_element, *right_element)
+        }
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: left_symbol,
+                arguments: left_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: right_symbol,
+                arguments: right_arguments,
+                ..
+            },
+        ) => {
+            let left_handles = program
+                .type_reference_table
+                .type_reference_handles(*left_arguments);
+            let right_handles = program
+                .type_reference_table
+                .type_reference_handles(*right_arguments);
+            left_symbol == right_symbol
+                && left_handles.len() == right_handles.len()
+                && left_handles.iter().zip(right_handles.iter()).all(
+                    |(left_argument, right_argument)| {
+                        declared_carriers_match(program, *left_argument, *right_argument)
+                    },
+                )
+        }
+        _ => program.normalized_type_identity(left) == program.normalized_type_identity(right),
+    }
+}
+
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,
 /// a fixed array of literal extent whose element qualifies, a named record
 /// whose fields all qualify recursively, or a named sum whose first declared

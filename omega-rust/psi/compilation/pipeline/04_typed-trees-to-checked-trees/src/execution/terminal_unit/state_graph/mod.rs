@@ -815,10 +815,7 @@ fn build_traced_with(
                             reference(),
                         )
                         && !(parameter.multiplicity == Multiplicity::Unrestricted
-                            && validation::has_owned_or_qualified_shared_view_fields(
-                                program,
-                                reference(),
-                            ))
+                            && validation::has_owned_or_shared_view_fields(program, reference()))
                     {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: owned non-linear record contents",
@@ -2780,7 +2777,7 @@ fn projected_copy_subject(
         // and copy permission neither establishes a field's predicates nor
         // extends the loan.
         || !(validation::has_plain_owned_contents_with_represented_constraints(program, projected_type)
-            || validation::has_owned_or_qualified_shared_view_fields(
+            || validation::has_owned_or_shared_view_fields(
                 program,
                 projected_type,
             ))

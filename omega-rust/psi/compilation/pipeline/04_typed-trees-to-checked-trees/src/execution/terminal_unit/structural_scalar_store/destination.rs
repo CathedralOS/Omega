@@ -314,11 +314,12 @@ fn owned_local_root<'a>(
             // A completed copy record owns its byte members as well as its
             // scalar members, and a memberwise fill owns each leaf it writes
             // the same way — shared-view members included, whose descriptor
-            // stores are their own leaf operations. This admits its storage
-            // root, not a new value: establishment and each field's write
-            // obligations still apply. The record's own multiplicity is the
-            // establishment plan's business — the field-wise predicate
-            // already excludes linear declarations and drop carriers.
+            // stores are their own leaf operations and whose declared domains
+            // each write proves separately. This admits its storage root, not
+            // a new value: establishment and each field's write obligations
+            // still apply. The record's own multiplicity is the establishment
+            // plan's business — the field-wise predicate already excludes
+            // linear declarations and drop carriers.
             && !((program.type_multiplicity(local.type_reference)
                 == Multiplicity::Unrestricted
                 && validation::has_plain_owned_contents_with_represented_constraints(
