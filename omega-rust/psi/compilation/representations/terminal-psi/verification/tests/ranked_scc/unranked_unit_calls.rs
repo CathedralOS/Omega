@@ -10,8 +10,14 @@ use super::{
 };
 use terminal_psi::{
     ByteSequenceCarrier, ClaimTransfer, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    StructuralArgument,
+    StructuralArgument, StructuralCaseDeclaration, StructuralOperationResult,
 };
+
+#[derive(Clone, Copy)]
+pub(super) enum NoStructuralResult {
+    Unit,
+    Scalar,
+}
 
 fn shared_parameter(place: u64) -> StructuralParameterDeclaration {
     StructuralParameterDeclaration {
@@ -143,6 +149,146 @@ fn literal_cycle() -> TerminalModule {
     });
     let call = helper_call(&mut module, 1);
     module.machines[0].blocks[2].operations.push(call);
+    module
+}
+
+/// One whole shared record crosses a cyclic call. The operation's result kind
+/// changes no structural custody: the ordinary argument validator retains the
+/// exact record type and shared access in both forms.
+pub(super) fn shared_record_call_cycle(result: NoStructuralResult) -> TerminalModule {
+    let mut module = literal_cycle();
+    module.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    let caller = &mut module.machines[0];
+    caller.attachment = Some(id(1, StructuralTypeId::new));
+    caller.structural_parameters = vec![StructuralParameterDeclaration {
+        is_self: true,
+        access: StructuralAccess::MutableBorrow,
+        ..shared_parameter(1)
+    }];
+    caller.structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 0,
+        is_self: true,
+    };
+    caller.blocks[2].operations.remove(0);
+
+    let callee = &mut module.machines[1];
+    callee.structural_parameters[0].structural_type = id(1, StructuralTypeId::new);
+    callee.blocks[0].operations.clear();
+    if matches!(result, NoStructuralResult::Scalar) {
+        let value = id(100, ValueId::new);
+        callee.result = terminal_psi::TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+        });
+        callee.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(100, OperationId::new),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value,
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::BooleanConstant { value: true },
+        });
+        callee.blocks[0].terminator = Terminator::Return {
+            edge: id(100, EdgeId::new),
+            value,
+            cleanup_actions: Vec::new(),
+        };
+
+        let call = &mut module.machines[0].blocks[2].operations[0];
+        let OperationKind::CallUnit {
+            callee,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } = call.kind.clone()
+        else {
+            unreachable!()
+        };
+        call.result = OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(40, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+        });
+        call.kind = OperationKind::CallStructuralScalar {
+            callee,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        };
+    }
+    module
+}
+
+/// An unrestricted constructed case is an owned copy payload. Passing it
+/// whole into either non-structural-result call moves no affine custody, while
+/// its producer and dominance remain independently checked.
+pub(super) fn owned_case_call_cycle(result: NoStructuralResult) -> TerminalModule {
+    let mut module = shared_record_call_cycle(result);
+    let case = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![StructuralCaseDeclaration {
+            id: case,
+            identity: "Only".into(),
+            fields: Vec::new(),
+        }],
+    };
+    let caller = &mut module.machines[0];
+    caller.attachment = None;
+    caller.structural_parameters.clear();
+    caller.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: id(30, OperationId::new),
+        structural_type: id(1, StructuralTypeId::new),
+    };
+    caller.blocks[2].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(30, OperationId::new),
+            result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: id(1, PlaceId::new),
+                structural_type: id(1, StructuralTypeId::new),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishScalarCase {
+                result_case: case,
+                fields: Vec::new(),
+            },
+        },
+    );
+    let call = caller.blocks[2]
+        .operations
+        .last_mut()
+        .expect("the cyclic block retains its call");
+    match &mut call.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        } => structural_arguments[0].access = StructuralAccess::Owned,
+        _ => unreachable!(),
+    }
+    let callee = &mut module.machines[1];
+    callee.structural_parameters[0].access = StructuralAccess::Owned;
     module
 }
 
@@ -380,24 +526,61 @@ fn cyclic_unit_call_keeps_claim_transfers_outside_bounded_eligibility() {
 }
 
 #[test]
-fn immutable_byte_call_extension_does_not_admit_shared_record_calls() {
-    let mut module = literal_cycle();
-    module.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+fn cyclic_shared_record_unit_call_uses_ordinary_argument_validation() {
+    validate_module(&shared_record_call_cycle(NoStructuralResult::Unit))
+        .expect("a whole shared record loan closes with the Unit call");
+}
+
+#[test]
+fn cyclic_owned_constructed_case_unit_call_is_frontier_safe() {
+    validate_module(&owned_case_call_cycle(NoStructuralResult::Unit))
+        .expect("an unrestricted constructed case is copied into a Unit call");
+}
+
+#[test]
+fn cyclic_affine_owned_call_cannot_reenter_without_replenishment() {
+    let mut module = shared_record_call_cycle(NoStructuralResult::Unit);
     let caller = &mut module.machines[0];
-    caller.attachment = Some(id(1, StructuralTypeId::new));
-    caller.structural_parameters = vec![StructuralParameterDeclaration {
-        is_self: true,
-        access: StructuralAccess::MutableBorrow,
-        ..shared_parameter(1)
-    }];
+    caller.attachment = None;
+    caller.structural_parameters[0].is_self = false;
+    caller.structural_parameters[0].access = StructuralAccess::Owned;
+    caller.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     caller.structural_places[0].kind = StructuralPlaceKind::Parameter {
         position: 0,
-        is_self: true,
+        is_self: false,
     };
-    caller.blocks[2].operations.remove(0);
-    module.machines[1].blocks[0].operations.clear();
+    for block in &mut caller.blocks {
+        if let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &mut block.terminator
+        {
+            trivial_affine_discards.push(id(1, PlaceId::new));
+        }
+    }
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[2].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::Owned;
+
+    let callee = &mut module.machines[1];
+    callee.structural_parameters[0].access = StructuralAccess::Owned;
+    callee.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut callee.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.push(id(100, PlaceId::new));
+
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::ControlCycleIneligible { .. })
+        Err(ModuleError::OwnedStructuralFrontierJoinMismatch(_))
     ));
 }

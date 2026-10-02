@@ -1,0 +1,53 @@
+// Unit and scalar calls consume the same copy payload in a cycle, whether
+// the payload is constructed here or returned by another ordinary call.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Kind [copy] { case First; case Second; }
+data Counter { observed: u64; total: u64 in Wrapping; }
+data Main { console: Binding<Console>; counter: Counter; }
+
+machine choose(position: u64) -> Kind {
+    transition position < 2 { true -> Kind::First false -> Kind::Second }
+}
+
+machine observe(counter: &mut Counter, kind: Kind) {
+    transition kind {
+        Kind::First -> first(counter)
+        Kind::Second -> second(counter)
+    }
+    state first(counter: &mut Counter) { counter.observed = 1; }
+    state second(counter: &mut Counter) { counter.observed = 2; }
+}
+
+machine value(kind: Kind) -> u64 in Wrapping {
+    transition kind { Kind::First -> 1 Kind::Second -> 2 }
+}
+
+machine Counter::count(&mut self) {
+    transition { _ -> scan(0) }
+    state scan(&mut self, position: u64) {
+        transition position < 4 {
+            true -> step(position)
+            false -> done()
+        }
+    }
+    state step(&mut self, position: u64) {
+        observe(&mut self, Kind::First);
+        self.total = self.total + value(Kind::First);
+        let kind: Kind = choose(position);
+        observe(&mut self, kind);
+        self.total = self.total + value(kind);
+        transition { _ -> scan(position + 1) }
+    }
+    state done(&mut self) {}
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.counter.count();
+    transition self.counter.total == 10 && self.counter.observed == 2 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

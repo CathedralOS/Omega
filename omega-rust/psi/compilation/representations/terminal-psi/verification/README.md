@@ -180,16 +180,18 @@ scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
 Ordinary scalar `Call` operations retain full callee/result and operand validation,
 invocation requirement evidence, and surviving crash-continuation checks. Their
 admission supplies no termination witness or facts from a preceding iteration.
-Persistent unrestricted mutable record receivers additionally admit independently
-typed integer/Boolean field observations, ordered scalar-field stores, and whole
-mutable `CallUnit` arguments with empty claims, requirements, and crash continuations.
-The same Unit-call fence admits whole immutable borrowed byte views from machine
-or block parameters, established literals, and subslice results. Exact source
-type/access and full-graph establishment dominance remain independently checked;
-a previous iteration's literal cannot authorize a call before its producer.
-The receiver remains a machine parameter; it is not a structural block parameter
-or an owned transfer. Mutable-field entry requirements remain outside this slice:
-the unversioned field vocabulary does not establish a loop-entry snapshot.
+Unit and structural-scalar calls share one custody rule: neither returns
+structural storage or a reference, so their arguments use the ordinary call
+transaction. Borrowed arguments close at return; owned arguments transfer their
+exact live custody. Admission does not depend on whether an argument came from
+a parameter, constructor, field projection or prior call. Ordinary call checks
+retain source/type/access, positional pairing, requirements and crash coverage;
+reference replay retains exclusivity, and full-graph dominance prevents a prior
+iteration's producer from authorizing an unavailable value. Frontier agreement
+rejects consuming an affine input around a backedge without replenishing it.
+Claim transfers remain fenced separately. Mutable receivers retain ordinary
+integer/Boolean observations and scalar-field stores; eligibility itself supplies
+no entry snapshot or loop-invariant facts about their mutable fields.
 Plain whole Owned Affine/Unrestricted inputs may transfer into exact structural
 block parameters. Integer/Boolean field reads and ordinary Unit/structural-scalar
 calls observe those current bindings; affine reads after consumption reject.
@@ -211,10 +213,8 @@ reference-free affine structural call result is an owned value whose borrowed
 arguments, whole or projected, close when the call returns: outside every
 cycle it runs once per activation, and inside a cycle an in-cycle edge must
 discard it or move it into an owned successor parameter, or a window store must
-reseat a hole with it. Structural-scalar calls may also lend a produced result
-and copy an unrestricted plain payload into an unrestricted owned parameter,
-and Unit calls may lend a borrowed block parameter whole, no wider than the
-view's own access.
+reseat a hole with it. Structural results retain these independent lifetime
+restrictions; Unit/scalar call admission does not grant structural-result custody.
 These additions preserve the existing full-graph checks and cuts; they
 establish no termination or loop-invariant authority.
 Qualified or partial owned cyclic custody, loop-carried structural results,
