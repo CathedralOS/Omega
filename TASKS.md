@@ -414,6 +414,23 @@ execution and native exit/output. A moved refusal is still unfinished work.
   subject argument, the subject argument excluded from both the pairwise loop and
   the footprint's judged arguments, and the two summaries. The soundness test
   above is the gate on the whole thing.
+  A second customer shape, measured 2026-10-02 while migrating
+  `source/library/std/targets/*/filesystem_impl.omg`: the `remove_dir_all` drain
+  states report "state `rda_err` receives `filesystem` as both mutable and
+  read-only". `rda_run` does
+
+      filesystem.rda_rc = Filesystem::rda_drain(filesystem, 4096);
+      transition filesystem.rda_rc == 0 { true -> rda_rmdir(filesystem, path) _ -> rda_err(filesystem, path) }
+
+  A guard read plus a mutable arm argument is NOT the problem on its own --
+  `handoff.omg` does exactly that and checks, as do the landed `dependent/`
+  fixtures -- so what distinguishes this is the preceding value-call that took
+  `filesystem` mutably as an ARGUMENT. Under the receiver spelling that call was
+  `self.rda_drain(4096)` and took no argument loan at all. See
+  [[call-argument exclusivity]]: a call argument enforces loan exclusivity where
+  a plain operand read does not, so migrating a receiver call onto the static
+  spelling moves it onto the strict route. Those five files are otherwise
+  mechanically migratable; this one state cluster per target is what holds them.
   Acceptance: the 13 fixtures check and the `*_exit` ones meet their native
   oracles in the static spelling; the three `receiver_jump_loans` refusals keep
   rejecting, with a static-spelling fixture for each of the two obligations
