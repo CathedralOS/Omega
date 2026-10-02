@@ -2050,47 +2050,35 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
-  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `ec784d4d82e`
-  plus the array-call repair on macOS ARM64,
-  `python3 tools/corpus_gate.py --native --filter
-  providers/runtime_boundary_array_construction_exit,providers/runtime_boundary_array_forwarding_exit,providers/runtime_boundary_primitive_array_argument_exit,collections/runtime_whole_array_value_copy_exit`
-  executes all four programs with exit **70**. Literal and mutable local nested
-  arrays reach the selected provider between scalar arguments; the provider
-  reads every element, and the caller observes the result and unchanged source.
-  Ordinary and composed calls share the authored-position operand schedule:
-  copied arrays snapshot between earlier and later scalar argument mutations.
-  Psi04 retains exact call/formal construction custody; Psi05 independently
-  rejoins it and publishes initialized local storage without an immutable-only
-  fence. Terminal reload tests preserve argument order and nested projection
-  order; changed call/formal, contents, access, carrier, or missing construction
-  reject. Interpreter array loans address the original suspended-frame payload.
-  Field projections retain `StructuralLeafCopy`.
-  The outer command `omega run --target macos_arm64
-  tests/omega/pass/providers/runtime_boundary_array_construction_exit/main.omg`
-  still exits **200** before compilation at pending package-review decisions; those
-  decisions were not accepted by this compiler repair.
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `020c1dd8933`
+  on macOS ARM64, `omega run --both
+  tests/omega/pass/providers/runtime_boundary_array_result_exit/main.omg`
+  delivers the selected checked provider's `[30, 40]` into the caller and exits
+  **70** natively and in the interpreter. Ordinary and installed calls share
+  concrete result transport; exact result multiplicity, conformance, source
+  custody and native home identities are independently replayed. Nested and
+  empty array results survive artifact reload and fuel suspension. Missing or
+  substituted installation and result custody reject; opaque host effects
+  cannot fabricate array payloads. Existing boundary argument programs retain
+  scalar/structural interleave and snapshots around neighboring mutations.
 
-  Remaining: complete direct-boundary argument routes, scalar/reference
-  controls, and array results across trait and direct boundary calls.
-  Direct calls retain array gates in `calls/structural_arguments.rs`.
-  Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
-  Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
-  boundary array results, including empty/discarded ones. Native result
-  forwarding must rejoin boundary producers; the Terminal interpreter still
-  needs concrete array payload transfer through installed-provider calls.
+  Remaining: complete direct-boundary argument routes and scalar/reference
+  controls. Direct calls retain array gates in `calls/structural_arguments.rs`.
+  Trait and direct array result declarations now lower, including empty and
+  discarded results; installed trait-provider execution is covered above.
   Harden/promote `tests/omega/pending/providers/boundary_primitive_array_argument`
-  with element-reading provider and observable caller result, preserving its
+  with an element-reading provider and observable caller result, preserving its
   valid Build identity, selected provider and demanded entry. Acceptance must
   cover exact payload and scalar/structural interleave through Terminal
   reload/verification and native execution; ordinary-array support alone is
   insufficient.
 
   Customers `samples/gui/{window_app,window_demo,image_viewer}` retain their
-  by-value class/title signatures. The complete `window_demo` now stops at
-  stage 05's local-array element loan into `ObjectiveC::get_class`
-  (**SAMPLE-CORPUS** GUI row);
-  **SAMPLE-CORPUS** retains full GUI execution. Domain/reference rewrites or a
-  changed omission label do not satisfy this task.
+  by-value class/title signatures. The complete `window_demo` stops at stage
+  05's local-array element loan into `ObjectiveC::get_class`
+  (**SAMPLE-CORPUS** GUI row); **SAMPLE-CORPUS** retains full GUI execution.
+  Domain/reference rewrites or a changed omission label do not satisfy this
+  task.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
   Finish requirement-level calls and Omega stage 00 installation for legacy
