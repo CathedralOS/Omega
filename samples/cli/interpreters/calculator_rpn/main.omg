@@ -41,47 +41,47 @@ data Main {
 // push(value): write value at slots[sp], then sp++.
 // Dispatches on sp so we can use const-indexed writes.
 // ---------------------------------------------------------------------------
-machine Main::push(&mut self, value: i32 in Saturating) {
-    let s: i32 in Saturating = self.stack.sp;
-    self.stack.sp = s + 1;
-    self.write_slot(s, value);
+machine Main::push(main: &mut Main, value: i32 in Saturating) {
+    let s: i32 in Saturating = main.stack.sp;
+    main.stack.sp = s + 1;
+    Main::write_slot(main, s, value);
 }
 
-machine Main::write_slot(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
+machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
     transition idx == 0 {
-        true -> w0(value)
-        _ -> try_w1(idx, value)
+        true -> w0(main, value)
+        _ -> try_w1(main, idx, value)
     }
 
-    state w0(&mut self, value: i32 in Saturating) { self.stack.slots[0] = value; }
+    state w0(main: &mut Main, value: i32 in Saturating) { main.stack.slots[0] = value; }
 
-    state try_w1(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
+    state try_w1(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 1 {
-            true -> w1(value)
-            _ -> try_w2(idx, value)
+            true -> w1(main, value)
+            _ -> try_w2(main, idx, value)
         }
     }
 
-    state w1(&mut self, value: i32 in Saturating) { self.stack.slots[1] = value; }
+    state w1(main: &mut Main, value: i32 in Saturating) { main.stack.slots[1] = value; }
 
-    state try_w2(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
+    state try_w2(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 2 {
-            true -> w2(value)
-            _ -> w3(value)
+            true -> w2(main, value)
+            _ -> w3(main, value)
         }
     }
 
-    state w2(&mut self, value: i32 in Saturating) { self.stack.slots[2] = value; }
-    state w3(&mut self, value: i32 in Saturating) { self.stack.slots[3] = value; }
+    state w2(main: &mut Main, value: i32 in Saturating) { main.stack.slots[2] = value; }
+    state w3(main: &mut Main, value: i32 in Saturating) { main.stack.slots[3] = value; }
 }
 
 // ---------------------------------------------------------------------------
 // pop_result(): extract the single remaining value into self.stack.result.
 // Only called when sp == 1 (one element on the stack).
 // ---------------------------------------------------------------------------
-machine Main::pop_result(&mut self) {
-    self.stack.result = self.stack.slots[0];
-    self.stack.sp = 0;
+machine Main::pop_result(main: &mut Main) {
+    main.stack.result = main.stack.slots[0];
+    main.stack.sp = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,82 +92,82 @@ machine Main::pop_result(&mut self) {
 // reads and the push computation. For this sample sp is always 2 when
 // add/sub/mul is called, so only the sp==2 arm fires.
 // ---------------------------------------------------------------------------
-machine Main::add(&mut self) {
-    transition self.stack.sp == 2 {
-        true -> add_sp2()
-        _ -> done()
+machine Main::add(main: &mut Main) {
+    transition main.stack.sp == 2 {
+        true -> add_sp2(main)
+        _ -> done(main)
     }
 
-    state add_sp2(&mut self) {
-        let a: i32 in Saturating = self.stack.slots[0];
-        let b: i32 in Saturating = self.stack.slots[1];
-        self.stack.sp = 1;
-        self.stack.slots[0] = a + b;
+    state add_sp2(main: &mut Main) {
+        let a: i32 in Saturating = main.stack.slots[0];
+        let b: i32 in Saturating = main.stack.slots[1];
+        main.stack.sp = 1;
+        main.stack.slots[0] = a + b;
     }
 
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
 // sub(): a - b where a = slots[sp-2], b = slots[sp-1].
 // ---------------------------------------------------------------------------
-machine Main::sub(&mut self) {
-    transition self.stack.sp == 2 {
-        true -> sub_sp2()
-        _ -> done()
+machine Main::sub(main: &mut Main) {
+    transition main.stack.sp == 2 {
+        true -> sub_sp2(main)
+        _ -> done(main)
     }
 
-    state sub_sp2(&mut self) {
-        let a: i32 in Saturating = self.stack.slots[0];
-        let b: i32 in Saturating = self.stack.slots[1];
-        self.stack.sp = 1;
-        self.stack.slots[0] = a - b;
+    state sub_sp2(main: &mut Main) {
+        let a: i32 in Saturating = main.stack.slots[0];
+        let b: i32 in Saturating = main.stack.slots[1];
+        main.stack.sp = 1;
+        main.stack.slots[0] = a - b;
     }
 
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
 // mul(): a * b where a = slots[sp-2], b = slots[sp-1].
 // ---------------------------------------------------------------------------
-machine Main::mul(&mut self) {
-    transition self.stack.sp == 2 {
-        true -> mul_sp2()
-        _ -> done()
+machine Main::mul(main: &mut Main) {
+    transition main.stack.sp == 2 {
+        true -> mul_sp2(main)
+        _ -> done(main)
     }
 
-    state mul_sp2(&mut self) {
-        let a: i32 in Saturating = self.stack.slots[0];
-        let b: i32 in Saturating = self.stack.slots[1];
-        self.stack.sp = 1;
-        self.stack.slots[0] = a * b;
+    state mul_sp2(main: &mut Main) {
+        let a: i32 in Saturating = main.stack.slots[0];
+        let b: i32 in Saturating = main.stack.slots[1];
+        main.stack.sp = 1;
+        main.stack.slots[0] = a * b;
     }
 
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
 // ---------------------------------------------------------------------------
 // main: evaluate "32 4 + 2 * 2 -" = 70.
 // ---------------------------------------------------------------------------
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
-    self.push(32);
-    self.push(4);
-    self.add();       // stack: [36], sp=1
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
+    Main::push(main, 32);
+    Main::push(main, 4);
+    Main::add(main);       // stack: [36], sp=1
 
-    self.push(2);
-    self.mul();       // stack: [72], sp=1
+    Main::push(main, 2);
+    Main::mul(main);       // stack: [72], sp=1
 
-    self.push(2);
-    self.sub();       // stack: [70], sp=1
+    Main::push(main, 2);
+    Main::sub(main);       // stack: [70], sp=1
 
     // Extract result from slot 0.
-    self.pop_result();
+    Main::pop_result(main);
 
     // Verify the result is 70.
-    transition self.stack.result == 70 {
-        true -> check_sp(&mut self)
-        _ -> bad_result(&mut self)
+    transition main.stack.result == 70 {
+        true -> check_sp(main)
+        _ -> bad_result(main)
     }
 
     state check_sp(main: &mut Main) {

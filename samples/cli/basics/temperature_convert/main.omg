@@ -17,13 +17,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
-    self.celsius = 20.0;
-    self.fahrenheit = self.celsius * 1.8 + 32.0;
-    self.result = (self.fahrenheit as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
+    main.celsius = 20.0;
+    main.fahrenheit = main.celsius * 1.8 + 32.0;
+    main.result = (main.fahrenheit as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
 
-    transition { _ -> done(&mut self) }
+    transition { _ -> done(main) }
 
     state done(main: &mut Main) {
         main.console.write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");

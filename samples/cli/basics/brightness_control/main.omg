@@ -32,15 +32,15 @@ data Main {
     command: Command;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("brightness_control: applying a bounded SetLevel command");
-    self.brightness = 80;
-    self.command = Command::SetLevel { level: 65 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("brightness_control: applying a bounded SetLevel command");
+    main.brightness = 80;
+    main.command = Command::SetLevel { level: 65 };
 
-    transition self.command {
-        Command::SetLevel { level } -> apply(&mut self, level)
-        Command::Dim { amount }     -> apply(&mut self, amount * 10)
-        Command::Off                -> apply(&mut self, 0)
+    transition main.command {
+        Command::SetLevel { level } -> apply(main, level)
+        Command::Dim { amount }     -> apply(main, amount * 10)
+        Command::Off                -> apply(main, 0)
     }
 
     state apply(main: &mut Main, target: i32 [0..=100]) {
