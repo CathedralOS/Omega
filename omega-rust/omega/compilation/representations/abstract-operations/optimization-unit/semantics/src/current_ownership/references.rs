@@ -265,10 +265,7 @@ fn window_hole(
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
-    let Some(field) = field else {
-        return path.is_empty().then(Vec::new);
-    };
-    let (root, suffix) = if matches!(
+    let (geometry_root, suffix) = if matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
@@ -278,33 +275,14 @@ fn window_hole(
     } else {
         (root, path)
     };
-    let parent =
-        crate::unit_validation::structural_catalog::resolve_structural_path(types, root, suffix)?;
-    if matches!(
-        path.last(),
-        Some(
-            terminal_psi::StructuralPathSegment::FixedIndex(_)
-                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-        )
-    ) {
-        // The structural catalog has rejoined the array field and element
-        // type. An element window's path is already the complete vacancy;
-        // appending the array field would test loans against a different place.
-        return Some(path.to_vec());
-    }
-    let declaration = types.get(&parent)?;
-    let fields = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields }
-        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
-        _ => return None,
-    };
-    let identity = fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
-        .identity
-        .clone();
-    let mut hole = path.to_vec();
-    hole.push(terminal_psi::StructuralPathSegment::Field(identity));
+    let projection = terminal_semantics::structural_window_projection(
+        types.values().copied(),
+        geometry_root,
+        suffix,
+        field,
+    )?;
+    let mut hole = path[..path.len() - suffix.len()].to_vec();
+    hole.extend(projection.path);
     Some(hole)
 }
 

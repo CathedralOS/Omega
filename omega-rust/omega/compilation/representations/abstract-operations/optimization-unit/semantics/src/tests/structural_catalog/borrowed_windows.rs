@@ -30,7 +30,6 @@ fn element_window_unit(nested: bool) -> PsiOptimizationUnit {
     let StructuralFieldType::Structural(element) = fields[0].field_type else {
         unreachable!()
     };
-    let field = fields[0].id;
     let array = id(4_800, StructuralTypeId::new);
     fields[0].field_type = StructuralFieldType::Structural(array);
     let mut sibling = fields[0].clone();
@@ -85,13 +84,13 @@ fn element_window_unit(nested: bool) -> PsiOptimizationUnit {
         result: result.clone(),
         source: StructuralWindowRoot::BorrowedParameter(parameter.clone()),
         path: path.clone(),
-        field: Some(field),
+        field: None,
     };
     function.blocks[0].nodes[1].operation = O::StoreStructuralField {
         psi_operation: id(4_822, OperationId::new),
         destination: StructuralWindowRoot::BorrowedParameter(parameter),
         path,
-        field: Some(field),
+        field: None,
         value: StructuralArgument {
             place: result.place,
             path: Vec::new(),

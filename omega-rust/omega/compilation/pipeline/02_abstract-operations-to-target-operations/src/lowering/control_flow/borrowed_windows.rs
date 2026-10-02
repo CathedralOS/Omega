@@ -34,9 +34,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::StructuralFieldId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
 pub(super) fn move_field(
     operation: &AbstractOperation,
@@ -60,7 +58,7 @@ pub(super) fn move_field(
     };
     let referent = window_referent(function, live, types, source, path)?;
     if !window_root(function, prepared, live, source)
-        || !root_window_loan(source, *field)
+        || !root_window_loan(source, path, *field)
         || super::references::contains_reference(types, result.structural_type)
     {
         return Err(invalid());
@@ -110,7 +108,7 @@ pub(super) fn store_field(
     };
     let referent = window_referent(function, live, types, destination, path)?;
     if !window_root(function, prepared, live, destination)
-        || !root_window_loan(destination, *field)
+        || !root_window_loan(destination, path, *field)
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
@@ -221,14 +219,16 @@ pub(super) fn window_referent(
     Ok(Some(referent))
 }
 
-/// A root window (`field: None`) replaces a loan's whole referent, so its
+/// A root window (`field: None`, empty path) replaces a loan's whole referent, so its
 /// root must be a borrowed parameter; an owned home's whole value never
 /// moves through a window.
 fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,
+    path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> bool {
     field.is_some()
+        || !path.is_empty()
         || matches!(
             root,
             abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
@@ -276,59 +276,15 @@ fn window_root(
     }
 }
 
-/// The spelled window path extended by the vacated field's own segment, so
-/// the byte copy resolves the field's offset and extent like any projection.
-/// A path already ending in an element selection is complete as spelled —
-/// `field` then names the array's own declaration in the last record the
-/// path crosses, not a further member. A root window is the whole referent:
-/// the empty path.
+/// Resolve the exact window subtree; an index may select a field's parent
+/// just as a record field can. The optional field is never inferred from the
+/// final path segment.
 fn field_path(
     types: &StructuralTypeLookup<'_>,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> Option<Vec<StructuralPathSegment>> {
-    let Some(field) = field else {
-        return path.is_empty().then(Vec::new);
-    };
-    if matches!(
-        path.last(),
-        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
-    ) {
-        let field_position = path
-            .iter()
-            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
-        // The owner prefix may itself cross runtime elements — resolve it
-        // through the projection that carries them.
-        let (owner, ..) = crate::lowering::structural_layout::runtime_projection(
-            root,
-            &path[..field_position],
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )
-        .ok()?;
-        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
-            &types.get(&owner)?.shape
-        else {
-            return None;
-        };
-        fields
-            .iter()
-            .any(|declaration| declaration.id == field && !declaration.relevance.is_erased())
-            .then_some(())?;
-        return Some(path.to_vec());
-    }
-    let parent = types.subtree(root, path)?;
-    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
-        &types.get(&parent)?.shape
-    else {
-        return None;
-    };
-    let declaration = fields
-        .iter()
-        .find(|declaration| declaration.id == field && !declaration.relevance.is_erased())?;
-    let mut full = path.to_vec();
-    full.push(StructuralPathSegment::Field(declaration.identity.clone()));
-    Some(full)
+    terminal_semantics::structural_window_projection(types.values().copied(), root, path, field)
+        .map(|projection| projection.path)
 }

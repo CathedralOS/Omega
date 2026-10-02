@@ -1,0 +1,30 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Tag [copy] { case Empty; case First; case Second; }
+data Slot [copy] { tag: Tag; sentinel: u64; }
+data Main { console: Binding<Console>; slots: [Slot; 3]; }
+
+machine replace(slots: &mut [Slot; 3], position: u64, value: Tag)
+requires position < 3 {
+    slots[position].tag = value;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.slots[0].sentinel = 17;
+    main.slots[1].sentinel = 29;
+    main.slots[2].sentinel = 37;
+    main.slots[0].tag = Tag::First;
+    main.slots[1] = Slot { tag: Tag::Second, sentinel: 41 };
+    replace(&mut main.slots, 2, Tag::First);
+    transition main.slots[0].tag == Tag::First
+        && main.slots[0].sentinel == 17
+        && main.slots[1].tag == Tag::Second
+        && main.slots[1].sentinel == 41
+        && main.slots[2].tag == Tag::First
+        && main.slots[2].sentinel == 37 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

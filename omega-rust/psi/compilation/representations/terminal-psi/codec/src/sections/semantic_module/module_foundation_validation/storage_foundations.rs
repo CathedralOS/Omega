@@ -1116,7 +1116,7 @@ pub(super) fn validate_move_structural_field(
     {
         return malformed("structural field move result carries attached custody");
     }
-    let Some(root_type) = window_root_type(machine, *source, *field) else {
+    let Some(root_type) = window_root_type(machine, *source, path, *field) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -1146,7 +1146,7 @@ pub(super) fn validate_store_structural_field(
     if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = window_root_type(machine, *destination, *field) else {
+    let Some(root_type) = window_root_type(machine, *destination, path, *field) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -1158,17 +1158,19 @@ pub(super) fn validate_store_structural_field(
 
 /// The declared root type a window operation may name. A field window may
 /// open beneath a mutable-borrowed parameter or a completed owned home; a
-/// root window (`field: None`) vacates a whole referent, which only an
+/// root window (`field: None`, empty path) vacates a whole referent, which only an
 /// exclusive loan lends — an owned home's whole value moves by ordinary
 /// transfer instead.
 fn window_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    match field {
-        Some(_) => borrowed_field_store_root_type(machine, place),
-        None => mutable_borrowed_parameter_type(machine, place),
+    if field.is_none() && path.is_empty() {
+        mutable_borrowed_parameter_type(machine, place)
+    } else {
+        borrowed_field_store_root_type(machine, place)
     }
 }
 
@@ -1250,87 +1252,23 @@ fn mutable_borrowed_parameter_type(
         .map(|parameter| parameter.structural_type)
 }
 
-/// The declared hole type a window operation opens: a root window is the
-/// whole referent and spells no path; a field leaf resolves through the
-/// walked parent record; an element leaf (the path ends in an index step)
-/// names the array's own field declaration in the enclosing record, and the
-/// hole's type is the element the spelled path selects.
+/// Resolve the same exact storage projection the operation encodes. Bounds
+/// evidence and restoration custody remain independent verifier obligations.
 fn window_field_type(
     module: &TerminalModule,
     root_type: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
-    let Some(field) = field else {
-        if !path.is_empty() {
-            return malformed("structural root window spells a projection path");
-        }
-        return Ok(root_type);
-    };
-    if matches!(
-        path.last(),
-        Some(terminal_psi::StructuralPathSegment::FixedIndex(_))
-            | Some(terminal_psi::StructuralPathSegment::RuntimeIndex { .. })
-    ) {
-        let field_position = path
-            .iter()
-            .rposition(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)));
-        let Some(field_position) = field_position else {
-            return malformed("structural field move does not select a structural field");
-        };
-        let owner = validate_structural_path(module, root_type, &path[..field_position])?;
-        let fields = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == owner)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. } => Some(fields),
-                _ => None,
-            });
-        let Some(fields) = fields else {
-            return malformed("structural field move does not select a structural field");
-        };
-        if !fields.iter().any(|candidate| {
-            candidate.id == field
-                && !candidate.relevance.is_erased()
-                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
-        }) {
-            return malformed("structural field move does not select a structural field");
-        }
-        return validate_structural_path(module, root_type, path);
-    }
-    let parent_type = validate_structural_path(module, root_type, path)?;
-    let Some(field_type) = declared_structural_field_type(module, parent_type, field) else {
+    let Some(projection) = terminal_semantics::structural_window_projection(
+        module.structural_types.iter(),
+        root_type,
+        path,
+        field,
+    ) else {
         return malformed("structural field move does not select a structural field");
     };
-    Ok(field_type)
-}
-
-fn declared_structural_field_type(
-    module: &TerminalModule,
-    parent_type: semantic_vocabulary::StructuralTypeId,
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
-    module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)
-        .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields.iter().find_map(|candidate| {
-                    (candidate.id == field && !candidate.relevance.is_erased())
-                        .then_some(&candidate.field_type)
-                        .and_then(|field_type| match field_type {
-                            StructuralFieldType::Structural(structural_type) => {
-                                Some(*structural_type)
-                            }
-                            _ => None,
-                        })
-                })
-            }
-            _ => None,
-        })
+    Ok(projection.structural_type)
 }
 
 pub(super) fn validate_integer_structural_field(

@@ -37,6 +37,7 @@ mod service_binding;
 mod static_path;
 mod storage_regions;
 mod structural_effect;
+mod structural_window;
 #[cfg(test)]
 mod tests;
 mod zeroed_structural;
@@ -117,6 +118,7 @@ pub use structural_effect::{
     structural_effect_semantic_row, subslice_length_equation,
     validate_structural_effect_semantic_rows,
 };
+pub use structural_window::{StructuralWindowProjection, structural_window_projection};
 pub use zeroed_structural::{
     ZeroedStructuralLeaf, zeroed_structural_leaves, zeroed_structural_shape,
 };

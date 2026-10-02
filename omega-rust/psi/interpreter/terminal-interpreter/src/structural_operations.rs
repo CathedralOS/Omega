@@ -1039,10 +1039,8 @@ impl TerminalExecution {
     /// hole's declared type. A root window (no field, empty path) is the
     /// loan's whole referent: the resolved root place itself. A field leaf
     /// resolves `path` to the containing record, then the hole sits one
-    /// `Field` segment deeper under the field's spelled identity. An element
-    /// leaf ends `path` in an element selection, so the resolved place
-    /// already is the hole and `field` names the array's field declaration in
-    /// the last record the path crosses.
+    /// `Field` segment deeper under the field's declared identity. Without
+    /// a field, the path already names the hole, including an array element.
     fn structural_window_hole(
         &self,
         root: semantic_vocabulary::PlaceId,
@@ -1050,107 +1048,40 @@ impl TerminalExecution {
         field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let Some(field) = field else {
-            if !path.is_empty() {
-                return Err(invalid());
-            }
-            let referent = resolve_structural_arguments(
-                &self.program.structural_types,
-                &self.structural_values,
-                &[StructuralArgument {
-                    place: root,
-                    path: Vec::new(),
-                    access: StructuralAccess::MutableBorrow,
-                }],
-            )?
-            .pop()
-            .ok_or_else(invalid)?;
-            let declared = referent.structural_type;
-            return Ok((StructuralRuntimePlace::from(&referent), declared));
-        };
-        if matches!(
-            path.last(),
-            Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
-        ) {
-            let hole = resolve_structural_arguments(
-                &self.program.structural_types,
-                &self.structural_values,
-                &[StructuralArgument {
-                    place: root,
-                    path: path.to_vec(),
-                    access: StructuralAccess::MutableBorrow,
-                }],
-            )?
-            .pop()
-            .ok_or_else(invalid)?;
-            let field_position = path
-                .iter()
-                .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-                .ok_or_else(invalid)?;
-            let owner = resolve_structural_arguments(
-                &self.program.structural_types,
-                &self.structural_values,
-                &[StructuralArgument {
-                    place: root,
-                    path: path[..field_position].to_vec(),
-                    access: StructuralAccess::MutableBorrow,
-                }],
-            )?
-            .pop()
-            .ok_or_else(invalid)?;
-            let StructuralFieldType::Structural(_) = self
-                .program
-                .structural_types
-                .get(&owner.structural_type)
-                .and_then(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Record { fields }
-                    | StructuralTypeShape::Mixed { fields, .. } => {
-                        fields.iter().find(|candidate| {
-                            candidate.id == field && !candidate.relevance.is_erased()
-                        })
-                    }
-                    _ => None,
-                })
-                .ok_or_else(invalid)?
-                .field_type
-            else {
-                return Err(invalid());
-            };
-            let declared = hole.structural_type;
-            return Ok((StructuralRuntimePlace::from(&hole), declared));
-        }
-        let parent = resolve_structural_arguments(
-            &self.program.structural_types,
-            &self.structural_values,
-            &[StructuralArgument {
+        let storage = self.structural_values.get(&root).ok_or_else(invalid)?;
+        // Resolve a reference crossing against its live runtime referent first;
+        // the shared window geometry receives storage, never carrier ownership.
+        let prefix_length = usize::from(matches!(
+            path.first(),
+            Some(StructuralPathSegment::Referent)
+        ));
+        let base = if prefix_length == 0 {
+            storage.clone()
+        } else {
+            self.resolve_reference_call_arguments(&[StructuralArgument {
                 place: root,
-                path: path.to_vec(),
+                path: path[..prefix_length].to_vec(),
                 access: StructuralAccess::MutableBorrow,
-            }],
-        )?
-        .pop()
+            }])?
+            .pop()
+            .ok_or_else(invalid)?
+        };
+        let projection = terminal_semantics::structural_window_projection(
+            self.program.structural_types.values(),
+            base.structural_type,
+            &path[prefix_length..],
+            field,
+        )
         .ok_or_else(invalid)?;
-        let (identity, field_type) = self
-            .program
-            .structural_types
-            .get(&parent.structural_type)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. } => fields
-                    .iter()
-                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased()),
-                _ => None,
-            })
-            .and_then(|declaration| match declaration.field_type {
-                StructuralFieldType::Structural(field_type) => {
-                    Some((declaration.identity.clone(), field_type))
-                }
-                _ => None,
-            })
-            .ok_or_else(invalid)?;
-        let mut hole = StructuralRuntimePlace::from(&parent);
-        hole.path.push(StructuralPathSegment::Field(identity));
-        Ok((hole, field_type))
+        let hole = crate::custody::project_structural_value(
+            &self.program.structural_types,
+            &base,
+            &projection.path,
+        )?;
+        Ok((
+            StructuralRuntimePlace::from(&hole),
+            projection.structural_type,
+        ))
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under

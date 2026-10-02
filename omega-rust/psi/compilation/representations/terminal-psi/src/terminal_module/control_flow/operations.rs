@@ -329,6 +329,9 @@ pub enum OperationKind {
     /// parameters reach the same storage through alias expansion, and shared
     /// or write-only loans never admit extraction.
     ///
+    /// `field: None` selects the complete `path`, including array elements;
+    /// `Some(field)` selects that declared member of the record at `path`.
+    /// An index at the end of `path` never changes the field's meaning.
     /// `field: None` with an empty `path` vacates the whole referent of an
     /// exclusive `MutableBorrow` loan (machine or block parameter): the window
     /// is the root itself, the result carries the referent's own type and its

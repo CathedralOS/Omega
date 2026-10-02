@@ -232,86 +232,47 @@ pub(crate) fn structural_field_store_write_path(
         } => (*source, path, *field, true),
         _ => return None,
     };
-    // A root window writes the whole referent: its hole is the empty
-    // canonical path, which every observation of the root overlaps.
-    let Some(field) = field else {
-        return (window && path.is_empty()).then_some((root, Vec::new()));
-    };
-    let (root_type, path) = if window {
-        crate::validation::references::mutable_record_field_destination(module, machine, root, path)
-            .unwrap_or((caller_structural_root_type(machine, root)?, path.as_slice()))
-    } else {
-        (caller_structural_root_type(machine, root)?, path.as_slice())
-    };
-    // A window operation whose spelled path crosses a runtime element names
-    // no canonical place beneath it: the hole is the statically known prefix
-    // — the whole array subtree the runtime step selects in — which the
-    // region rule treats as overlapping every element. The other store kinds
-    // keep canonical_field_path's own refusal of runtime segments.
-    let first_runtime = path
-        .iter()
-        .position(|segment| segment.runtime_index().is_some());
-    let statically = match (window, first_runtime) {
-        (true, Some(position)) => &path[..position],
-        _ => path,
-    };
-    let mut written = canonical_field_path_from_type(module, root_type, statically)?;
-    match path.last() {
-        // An element leaf: the path ends in an element selection and `field`
-        // names the last field segment's own declaration — the array the
-        // element rides in. The hole is the spelled element, or the whole
-        // array prefix when a runtime step selected it.
-        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
-            if window =>
-        {
-            let field_position = path
-                .iter()
-                .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
-            let owner = crate::validation::foundation::resolve_runtime_projection(
-                module,
-                root_type,
-                &path[..field_position],
-            )?;
-            let declaration = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == owner)?;
-            let fields = match &declaration.shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
-                _ => return None,
-            };
-            fields
-                .iter()
-                .any(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-                .then_some((root, written))
-        }
-        _ => {
-            let structural_type = if window {
-                crate::validation::foundation::resolve_runtime_projection(module, root_type, path)?
-            } else {
-                crate::validation::foundation::resolve_structural_path(module, root_type, path)?
-            };
-            let carrier = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)?;
-            match &carrier.shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. }
-                    if fields.iter().any(|candidate| {
-                        candidate.id == field && !candidate.relevance.is_erased()
-                    }) =>
-                {
-                    // Beneath a runtime crossing the leaf field is only a type
-                    // check — the hole already stops at the array prefix.
-                    if first_runtime.is_none() {
-                        written.push(CanonicalStructuralPathSegment::Field(field));
-                    }
-                    Some((root, written))
-                }
-                _ => None,
-            }
-        }
+    let root_type = caller_structural_root_type(machine, root)?;
+    if window {
+        let (geometry_type, geometry_path) =
+            crate::validation::references::mutable_record_field_destination(
+                module, machine, root, path,
+            )
+            .unwrap_or((root_type, path.as_slice()));
+        let projection = terminal_semantics::structural_window_projection(
+            module.structural_types.iter(),
+            geometry_type,
+            geometry_path,
+            field,
+        )?;
+        // Runtime selection bounds interference by the array prefix; it does
+        // not authorize a more precise hole without a proved selector.
+        let length = projection
+            .path
+            .iter()
+            .position(|segment| segment.runtime_index().is_some())
+            .unwrap_or(projection.path.len());
+        let written =
+            canonical_field_path_from_type(module, geometry_type, &projection.path[..length])?;
+        return Some((root, written));
     }
+    let field = field?;
+    let mut written = canonical_field_path_from_type(module, root_type, path)?;
+    let structural_type =
+        crate::validation::foundation::resolve_structural_path(module, root_type, path)?;
+    let carrier = module
+        .structural_types
+        .iter()
+        .find(|row| row.id == structural_type)?;
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &carrier.shape
+    else {
+        return None;
+    };
+    fields
+        .iter()
+        .any(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+        .then_some(())?;
+    written.push(CanonicalStructuralPathSegment::Field(field));
+    Some((root, written))
 }
