@@ -202,13 +202,30 @@ impl OperationFrame<'_, '_> {
                         .iter()
                         .any(|binding| binding.symbol == local.symbol)
                 {
+                    let access = if crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                        self.checked,
+                        local.type_reference,
+                    )
+                    .is_some()
+                    {
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    } else if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+                        self.checked,
+                        local.type_reference,
+                    )
+                    .is_some()
+                    {
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    } else {
+                        terminal_psi::StructuralAccess::Owned
+                    };
                     self.evaluation.view_locals.push(
                         crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
                             symbol: local.symbol,
                             place: declaration.id,
                             structural_type: produced.structural_type,
                             carrier,
-                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                            access,
                         },
                     );
                 }

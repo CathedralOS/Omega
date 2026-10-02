@@ -233,6 +233,19 @@ pub(super) fn validate_current_ownership_cfg(
                     StructuralMultiplicity::Affine,
                 )?;
             }
+            // The literal storage is an owned affine carrier like any trivial
+            // local: its establishment produces no structural result row, so
+            // the frontier installs it by declaration like the local above.
+            if let O::EstablishByteSequenceLiteral { place, .. } = &node.operation {
+                insert_owned_result(
+                    function,
+                    block_id,
+                    node_index,
+                    &mut frontier,
+                    place.id,
+                    StructuralMultiplicity::Affine,
+                )?;
+            }
             if let O::ReturnStructural {
                 trivial_affine_locals,
                 ..

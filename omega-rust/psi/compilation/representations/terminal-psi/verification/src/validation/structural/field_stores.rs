@@ -30,7 +30,7 @@ pub(super) fn parent_type(
     {
         result.structural_type
     } else if let Some(result) =
-        super::super::element_view::write::mutable_result(machine, destination).filter(|result| {
+        super::super::element_view::write::mutable_result(module, machine, destination).filter(|result| {
             module.structural_types.iter().any(|row| {
                 row.id == result.structural_type
                     && matches!(row.shape, StructuralTypeShape::ElementView { .. })

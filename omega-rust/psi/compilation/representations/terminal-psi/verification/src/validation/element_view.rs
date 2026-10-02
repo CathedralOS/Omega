@@ -8,7 +8,9 @@ pub(crate) mod read;
 pub(crate) mod subslice;
 pub(crate) mod write;
 
-use crate::validation::{StructuralAccess, StructuralPlaceKind, TerminalMachine};
+use crate::validation::{
+    StructuralAccess, StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+};
 
 /// The operation result a live view binding occupies, paired with the
 /// access its establishment minted: a shared view lends only shared; a
@@ -21,7 +23,31 @@ pub(crate) fn view_loan_result<'a>(
     &'a terminal_psi::StructuralOperationResult,
     StructuralAccess,
 )> {
-    let access = view_access(caller, place)?;
+    view_loan_result_in_access(None, caller, place)
+}
+
+/// The module-aware view-loan lookup: registers every producer the module's
+/// type declarations can authenticate, including call results.
+pub(crate) fn view_loan_result_in_module<'a>(
+    module: &TerminalModule,
+    caller: &'a TerminalMachine,
+    place: crate::validation::PlaceId,
+) -> Option<(
+    &'a terminal_psi::StructuralOperationResult,
+    StructuralAccess,
+)> {
+    view_loan_result_in_access(Some(module), caller, place)
+}
+
+fn view_loan_result_in_access<'a>(
+    module: Option<&TerminalModule>,
+    caller: &'a TerminalMachine,
+    place: crate::validation::PlaceId,
+) -> Option<(
+    &'a terminal_psi::StructuralOperationResult,
+    StructuralAccess,
+)> {
+    let access = view_access(module, caller, place)?;
     let StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
@@ -48,6 +74,7 @@ pub(crate) fn view_loan_result<'a>(
 /// Every step consumes a distinct declaration in a valid chain, so the place
 /// count bounds malformed cycles without using the host stack.
 fn view_access(
+    module: Option<&TerminalModule>,
     machine: &TerminalMachine,
     mut place: crate::validation::PlaceId,
 ) -> Option<StructuralAccess> {
@@ -120,6 +147,32 @@ fn view_access(
                         mutable_required = access == StructuralAccess::MutableBorrow;
                         place = *source;
                         continue;
+                    }
+                    OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. } => {
+                        // A view-typed call result is always shared: `&mut`
+                        // and `&write` results mint reference-carrier types and
+                        // never reach a view shape, so this producer needs no
+                        // access evidence beyond the declared view family.
+                        let Some(module) = module else {
+                            return None;
+                        };
+                        if !module.structural_types.iter().any(|declaration| {
+                            declaration.id == structural_type
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            ..
+                                        } | terminal_psi::ByteSequenceCarrier::BoundedView {
+                                            ..
+                                        }
+                                    ) | StructuralTypeShape::ElementView { .. }
+                                )
+                        }) {
+                            return None;
+                        }
+                        StructuralAccess::SharedBorrow
                     }
                     _ => return None,
                 }
@@ -247,14 +300,15 @@ mod tests {
 
     #[test]
     fn view_subrange_authority_reconstructs_each_parent() {
+        let module = TerminalModule::for_entry(MachineId::new(1).unwrap());
         let mut machine = fixture(StructuralAccess::MutableBorrow);
         let destination = PlaceId::new(3).unwrap();
         assert_eq!(
-            view_loan_result(&machine, destination).unwrap().1,
+            view_loan_result_in_module(&module, &machine, destination).unwrap().1,
             StructuralAccess::MutableBorrow
         );
         machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
-        assert!(view_loan_result(&machine, destination).is_none());
+        assert!(view_loan_result_in_module(&module, &machine, destination).is_none());
         for operation in &mut machine.blocks[0].operations {
             let OperationResult::Structural(result) = &mut operation.result else {
                 unreachable!()
@@ -262,7 +316,7 @@ mod tests {
             result.multiplicity = StructuralMultiplicity::Unrestricted;
         }
         assert_eq!(
-            view_loan_result(&machine, destination).unwrap().1,
+            view_loan_result_in_module(&module, &machine, destination).unwrap().1,
             StructuralAccess::SharedBorrow
         );
         let OperationResult::Structural(result) = &mut machine.blocks[0].operations[1].result
@@ -270,11 +324,12 @@ mod tests {
             unreachable!()
         };
         result.multiplicity = StructuralMultiplicity::Affine;
-        assert!(view_loan_result(&machine, destination).is_none());
+        assert!(view_loan_result_in_module(&module, &machine, destination).is_none());
     }
 
     #[test]
     fn view_subrange_authority_rejects_replaced_results_and_cycles() {
+        let module = TerminalModule::for_entry(MachineId::new(1).unwrap());
         let baseline = fixture(StructuralAccess::MutableBorrow);
         let destination = PlaceId::new(3).unwrap();
         for mutation in 0..3 {
@@ -306,7 +361,7 @@ mod tests {
                 }
             }
             assert!(
-                view_loan_result(&machine, destination).is_none(),
+                view_loan_result_in_module(&module, &machine, destination).is_none(),
                 "mutation {mutation}"
             );
         }

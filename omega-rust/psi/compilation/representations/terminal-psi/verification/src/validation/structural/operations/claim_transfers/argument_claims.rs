@@ -96,7 +96,7 @@ pub(in crate::validation) fn validate_argument_claims(
         // the descriptor keeps its own custody and the projected element
         // rides the same borrow path the access check validated.
         let claim_free_element_view_loan =
-            crate::validation::element_view::view_loan_result(caller, argument.place).is_some_and(
+            crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place).is_some_and(
                 |(_, source_access)| {
                     structural_access_can_supply(source_access, argument.access)
                         && argument.access == parameter.access

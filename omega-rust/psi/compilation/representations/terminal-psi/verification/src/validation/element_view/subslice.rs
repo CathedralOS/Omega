@@ -5,11 +5,21 @@ use crate::validation::{
     TerminalMachine, TerminalModule, ValueId,
 };
 
-pub(in crate::validation) fn borrowed_result(
-    machine: &TerminalMachine,
+pub(in crate::validation) fn borrowed_result<'a>(
+    machine: &'a TerminalMachine,
     place: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
     crate::validation::element_view::view_loan_result(machine, place).map(|(result, _)| result)
+}
+
+/// The module-aware variant: registers call-produced view results alongside
+/// the parameter and establishment producers.
+pub(in crate::validation) fn borrowed_result_in_module<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    crate::validation::element_view::view_loan_result_in_module(module, machine, place).map(|(result, _)| result)
 }
 
 pub(in crate::validation) fn validate(
@@ -21,7 +31,7 @@ pub(in crate::validation) fn validate(
 ) -> Result<(), ModuleError> {
     let invalid = || ModuleError::InvalidElementViewSubslice(operation.id);
     let result = operation.result.structural().ok_or_else(invalid)?;
-    if borrowed_result(machine, result.place) != Some(result)
+    if borrowed_result_in_module(module, machine, result.place) != Some(result)
         || !matches!(machine.structural_places.iter().find(|row| row.id == result.place).map(|row| row.kind),
             Some(StructuralPlaceKind::OperationResult { producer, .. }) if producer == operation.id)
         || result.place == source
@@ -78,13 +88,13 @@ pub(in crate::validation) fn validate(
 /// keep their separate per-block availability. Other structural operations
 /// retain their existing ownership/frontier admission rules.
 pub(in crate::validation) fn validate_uses(
-    _module: &TerminalModule,
+    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let require = |place: PlaceId| {
-        if borrowed_result(machine, place).is_some() && !available.contains(&place) {
+        if borrowed_result_in_module(module, machine, place).is_some() && !available.contains(&place) {
             Err(ModuleError::ElementViewNotEstablished {
                 operation: operation.id,
                 place,

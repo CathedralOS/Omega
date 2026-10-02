@@ -20,11 +20,12 @@ use crate::validation::{
 /// `ElementViewSubslice` publish immutable custody; any other producer of an
 /// `ElementView`-typed result place publishes the mutability its own
 /// establishment checked. Returns that result.
-pub(in crate::validation) fn mutable_result(
-    machine: &TerminalMachine,
+pub(in crate::validation) fn mutable_result<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
     place: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
-    if let Some((result, access)) = super::view_loan_result(machine, place) {
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    if let Some((result, access)) = super::view_loan_result_in_module(module, machine, place) {
         return (access == StructuralAccess::MutableBorrow).then_some(result);
     }
     let declaration = machine
@@ -126,7 +127,7 @@ fn mutable_view_type(
             }
             Ok(parameter.structural_type)
         }
-        StructuralPlaceKind::OperationResult { .. } => Ok(mutable_result(machine, destination)
+        StructuralPlaceKind::OperationResult { .. } => Ok(mutable_result(module, machine, destination)
             .ok_or_else(invalid)?
             .structural_type),
         _ => Err(invalid()),
