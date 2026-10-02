@@ -13,9 +13,20 @@ fn typed(text: &str, relative: &str, origin: SourceOrigin) -> TypedTrees {
 }
 
 const CALLING: &str = r#"
-trait CallingPolicy {}
-trait Calling<C> {}
+data BoundarySignature {}
+data BoundaryPlanResult {}
+trait CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
+}
+trait Calling<C> where C satisfies CallingPolicy {}
 data Policy {}
+PolicyCalling: Policy satisfies CallingPolicy;
+machine Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    let result: BoundaryPlanResult;
+    result
+}
 boundary trait Native: Calling<Policy> {
     machine send(value: &[u8]);
 }
@@ -46,13 +57,50 @@ machine send(value: &Vec<u8>) satisfies Native::send via send_binding();
 "#;
 
 #[test]
-fn public_calling_vocabulary_is_recognized_by_content_not_package_filename() {
+fn public_calling_vocabulary_uses_its_contract_not_package_filename() {
     let vocabulary = include_str!("../../../../../source/library/std/calling.omg");
     let program = typed(vocabulary, "public_abi.omg", SourceOrigin::User);
     assert!(validation::standard_calling_traits(&program).is_some());
     let changed = vocabulary.replace("trait Calling<C>", "trait Calling<C, Extra>");
     assert_ne!(changed, vocabulary);
     let program = typed(&changed, "calling.omg", SourceOrigin::User);
+    assert!(validation::standard_calling_traits(&program).is_none());
+}
+
+#[test]
+fn empty_calling_lookalikes_do_not_enable_private_native_carriers() {
+    let text = CALLING
+        .replace(
+            "machine plan(signature: BoundarySignature) -> BoundaryPlanResult;",
+            "",
+        )
+        .replace("    satisfies CallingPolicy::plan", "");
+    let program = typed(&text, "calling.omg", SourceOrigin::Toolchain);
+    assert!(validation::standard_calling_traits(&program).is_none());
+    let errors = validation::validate_program(&program)
+        .expect_err("source origin cannot admit a private native carrier");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("cannot use safe slice")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn calling_interface_requires_its_resolved_bound_and_owned_signature() {
+    let wrong_bound = CALLING.replace(
+        "where C satisfies CallingPolicy",
+        "where Policy satisfies CallingPolicy",
+    );
+    let program = typed(&wrong_bound, "calling.omg", SourceOrigin::Toolchain);
+    assert!(validation::standard_calling_traits(&program).is_none());
+
+    let borrowed_signature = CALLING.replace(
+        "signature: BoundarySignature",
+        "signature: &BoundarySignature",
+    );
+    let program = typed(&borrowed_signature, "calling.omg", SourceOrigin::Toolchain);
     assert!(validation::standard_calling_traits(&program).is_none());
 }
 

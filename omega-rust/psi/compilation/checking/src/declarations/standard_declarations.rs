@@ -1,8 +1,16 @@
 //! Identify standard declarations by resolved symbol and retained source owner.
+//!
+//! Calling vocabulary recognition enables policy evaluation, not ABI admission.
+//! Recognize its resolved interface rather than the bundled file's bytes: a
+//! dependency may retain the same contract across source refactors. The policy
+//! evaluator still constructs the normalized input, decodes the closed result
+//! vocabulary, and independently validates the resulting plan.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Both checking and policy evaluation use the same exact declarations. A local
 /// trait with the same spelling cannot change foreign-carrier admission.
@@ -18,7 +26,7 @@ pub fn standard_calling_traits(
 
 /// Every standard calling vocabulary the program loads, paired per declaring
 /// source file. The toolchain copy and a dependency-supplied public copy are
-/// each one exact vocabulary; a second byte-identical copy under a different
+/// each one exact vocabulary; another copy under a different
 /// file is still a distinct declaration pair, so consumers that must select
 /// the vocabulary a boundary references join on the relationship symbol
 /// rather than the first match.
@@ -30,7 +38,7 @@ pub fn standard_calling_vocabularies(
         (Option<&TraitDefinition>, Option<&TraitDefinition>),
     > = std::collections::BTreeMap::new();
     for definition in program.traits().iter() {
-        if definition.is_boundary || !has_calling_vocabulary_source(program, definition.symbol) {
+        if definition.is_boundary || definition.refines.is_some() {
             continue;
         }
         let Some(file) = program
@@ -50,16 +58,16 @@ pub fn standard_calling_vocabularies(
     per_file
         .into_values()
         .filter_map(|vocabulary| match vocabulary {
-            (Some(calling), Some(policy)) => (program.trait_type_parameters(calling).len() == 1
-                && program.trait_machine_signatures(calling).is_empty())
-            .then_some((calling, policy)),
+            (Some(calling), Some(policy)) => {
+                has_calling_interface(program, calling, policy).then_some((calling, policy))
+            }
             _ => None,
         })
         .collect()
 }
 
 /// The standard calling vocabulary is a singleton per program. The same file
-/// may load into separate scopes legally, but a second byte-identical copy
+/// may load into separate scopes legally, but a second compatible copy
 /// under a different path is a duplicate declaration of every name the
 /// vocabulary publishes; report each colliding `data` with the ordinary
 /// duplicate-declaration diagnostic.
@@ -68,13 +76,7 @@ pub fn validate_calling_vocabulary_uniqueness(
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     let mut paths = std::collections::BTreeSet::new();
-    for definition in program.traits() {
-        if definition.name.as_str() != "Calling"
-            || definition.is_boundary
-            || !has_calling_vocabulary_source(program, definition.symbol)
-        {
-            continue;
-        }
+    for (definition, _) in standard_calling_vocabularies(program) {
         if let Some(source) = program
             .symbols
             .symbol_source_span(definition.symbol)
@@ -102,21 +104,77 @@ pub fn validate_calling_vocabulary_uniqueness(
     }
 }
 
-fn has_calling_vocabulary_source(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-    if has_toolchain_declaration_source(program, symbol, "calling.omg") {
-        return true;
+fn has_calling_interface(
+    program: &TypedTrees,
+    calling: &TraitDefinition,
+    policy: &TraitDefinition,
+) -> bool {
+    let [parameter] = program.trait_type_parameters(calling) else {
+        return false;
+    };
+    if parameter.kind != TypeParameterKind::Type
+        || !program.trait_machine_signatures(calling).is_empty()
+        || !program.trait_type_parameters(policy).is_empty()
+        || !calling.conformance_bounds.iter().any(|bound| {
+            bound.subject == parameter.symbol
+                && bound.carrier == policy.symbol
+                && bound.arguments.is_empty()
+        })
+    {
+        return false;
     }
-    // Package-aware compilation can supply the public vocabulary as an ordinary
-    // dependency rather than a toolchain source. Recognize that exact vocabulary,
-    // not a package's filename or a similarly named pair of empty traits. The
-    // selected policy body still runs and its complete result is checked.
-    const CALLING_VOCABULARY: &str =
-        include_str!("../../../../../../source/library/std/calling.omg");
-    program
-        .symbols
-        .symbol_source_span(symbol)
-        .and_then(|span| program.symbols.source_file(span))
-        .is_some_and(|source| source.source.as_ref() == CALLING_VOCABULARY)
+    let [plan] = program.trait_machine_signatures(policy) else {
+        return false;
+    };
+    let [signature] = program.state_signature_parameters(plan) else {
+        return false;
+    };
+    plan.name.as_str() == "plan"
+        && program.state_signature_type_parameters(plan).is_empty()
+        && plan.native_callback_parameters.is_empty()
+        && !signature.is_self
+        && !signature.is_const
+        && signature.relevance == language_core::BindingRelevance::Relevant
+        && is_calling_interface_data(
+            program,
+            policy.symbol,
+            signature.type_reference,
+            "BoundarySignature",
+        )
+        && is_calling_interface_data(
+            program,
+            policy.symbol,
+            plan.return_type,
+            "BoundaryPlanResult",
+        )
+}
+
+fn is_calling_interface_data(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    type_reference: TypeReferenceHandle,
+    name: &str,
+) -> bool {
+    // The evaluator passes and receives owned nominal values. Unwrapping a
+    // reference, array, or generic application to its base symbol would erase
+    // that callable contract. Match the declaration, not the reference spelling.
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    let Some(definition) = program.unique_data_definition_by_symbol(*symbol) else {
+        return false;
+    };
+    let declaring_source = |symbol| {
+        program
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| program.symbols.source_file(span))
+            .map(|source| source.source_id)
+    };
+    definition.name.as_str() == name
+        && declaring_source(owner).is_some_and(|owner| declaring_source(*symbol) == Some(owner))
 }
 
 pub(crate) fn is_core_vector(program: &TypedTrees, symbol: SymbolHandle) -> bool {
