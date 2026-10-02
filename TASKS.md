@@ -352,18 +352,6 @@ the complete product bar; focused successes below do not establish that baseline
     self.get_name(), .. }`) still decline at `outer calls: ordered statement
     call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
-    Regression since `b3fd53a84d8` (bisected over `e8ed051cf62..9472a7c1026`):
-    `calls/nested_call_runtime_index_arg_exit` (golden native exit 70) and
-    `calls/nested_call_tail_roots_exit` (exit 0) reject, while the checked
-    interpreter still agrees on 70 and 0. A call as an earlier arm's result
-    (`true -> (Item::clone(&list.items[i]))`) now reaches the transition branch of
-    `emission/call_source_custody/initializers.rs`, which requires the result's
-    statement to be the state's last, but each arm of an ordered `transition` is
-    its own guarded statement. Accepting any statement of the trailing transition
-    chain there moves the refusal to `structural_calls/result_uses.rs`
-    `validate_consumer` ("structural result consumer has no operation position"):
-    the arm's call is not in the state's operation list.
-
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
     state forwarding; **RECAST-SOURCE-POSITIONS** owns typed recasts. Preserve

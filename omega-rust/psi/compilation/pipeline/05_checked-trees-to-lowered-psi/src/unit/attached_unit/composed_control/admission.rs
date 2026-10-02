@@ -436,6 +436,14 @@ pub(super) fn admit_calls<'a>(
             } else if arm_calls
                 .iter()
                 .any(|selected| std::ptr::eq(*selected, operation))
+                // A structural arm whose value is a call publishes that call
+                // as its producer; it runs on its selected arm exactly as a
+                // terminal call arm does.
+                || (operation.call().is_some()
+                    && !state
+                        .operations
+                        .iter()
+                        .any(|body| std::ptr::eq(body, operation)))
             {
                 arm_sequence = state
                     .operations

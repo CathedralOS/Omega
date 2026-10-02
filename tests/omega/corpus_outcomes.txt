@@ -1300,8 +1300,8 @@ pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
 pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
-pass/calls/nested_call_runtime_index_arg_exit checked 4446ms @48d34a64a938+wt
-pass/calls/nested_call_tail_roots_exit checked 6248ms @2d8ed253669f
+pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
+pass/calls/nested_call_tail_roots_exit checked 6210ms @922ccf420927+wt
 pass/calls/nested_indexed_scalar_arguments_exit checked 1419ms @a3bac00e54bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
@@ -2098,7 +2098,7 @@ pass/storage/runtime_local_slice_forward_exit rejected 752ms @2d8ed253669f
 pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 947ms @2d8ed253669f
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 1242ms @2d8ed253669f
 pass/storage/runtime_primitive_local_literal_composition_exit checked 1234ms @2d8ed253669f
-pass/structs/affine_record_state_clone checked 1711ms @2d8ed253669f
+pass/structs/affine_record_state_clone checked 1482ms @922ccf420927+wt
 pass/structs/affine_result_constructor checked 514ms @4b33596b9ee1+wt
 pass/structs/case_field_type_store_shapes checked 1240ms @2d8ed253669f
 pass/structs/copied_array_field_shared_record checked 1310ms @2d8ed253669f
