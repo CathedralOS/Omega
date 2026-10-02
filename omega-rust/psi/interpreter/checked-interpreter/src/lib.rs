@@ -36,7 +36,7 @@
 //! transition whose guard holds determines the next state (or the returned value /
 //! terminal). Host-boundary calls (`exit_process`, `write`, `write_line`) on a
 //! `boundary trait` machine drive exit code / stdout. Virtual waits instead
-//! require an explicit [`VirtualClockWaitBinding`] from the embedding owner;
+//! require an explicit [`VirtualClockBinding`] from the embedding owner;
 //! the engine never grants sleep behavior from a requirement's spelling.
 //!
 //! ## Scope
@@ -98,7 +98,9 @@
 mod front_end;
 
 mod virtual_clock;
-pub use virtual_clock::{VirtualClockWaitBinding, VirtualClockWaitOperand};
+pub use virtual_clock::{
+    VirtualClockBinding, VirtualClockOperand, VirtualClockOperation, VirtualClockResult,
+};
 
 mod build_evaluation_sponsor;
 mod build_evaluation_usage;

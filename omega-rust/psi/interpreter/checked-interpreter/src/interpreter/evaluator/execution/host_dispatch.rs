@@ -90,7 +90,7 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if let Some(value) = self.try_virtual_clock_wait(
+        if let Some(value) = self.try_virtual_clock_operation(
             call.target_symbol,
             self.program
                 .statement_table
@@ -172,16 +172,16 @@ impl<'program> Evaluator<'program> {
     /// The caller supplied this exact wait binding after provider selection.
     /// Evaluate in source order before changing time; neither an operand failure
     /// nor an unsupported request becomes a successful zero/default wait.
-    pub(in crate::interpreter::evaluator) fn try_virtual_clock_wait(
+    pub(in crate::interpreter::evaluator) fn try_virtual_clock_operation(
         &mut self,
         requirement: SymbolHandle,
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         let Some(binding) = self
-            .virtual_clock_wait_bindings
+            .virtual_clock_bindings
             .iter()
-            .find(|binding| binding.call_target == requirement)
+            .find(|binding| binding.matches_target(requirement))
             .cloned()
         else {
             return Ok(None);
@@ -205,24 +205,55 @@ impl<'program> Evaluator<'program> {
                 return unsupported("virtual wait expects integer operands".to_owned());
             };
             match operand {
-                crate::VirtualClockWaitOperand::Milliseconds => {
-                    if *integer < 0 || *integer > binding.maximum_milliseconds {
+                crate::VirtualClockOperand::Milliseconds => {
+                    let crate::VirtualClockOperation::Wait {
+                        maximum_milliseconds,
+                        ..
+                    } = binding.operation
+                    else {
+                        return unsupported("virtual clock read has a duration operand".to_owned());
+                    };
+                    if *integer < 0 || *integer > maximum_milliseconds {
                         return unsupported(
                             "virtual wait duration is outside its finite range".to_owned(),
                         );
                     }
                     milliseconds = *integer;
                 }
-                crate::VirtualClockWaitOperand::Zero if *integer != 0 => {
+                crate::VirtualClockOperand::ExactInteger(expected) if *integer != *expected => {
                     return unsupported(
-                        "virtual wait requires a zero capability operand".to_owned(),
+                        "virtual clock requires its exact capability operand".to_owned(),
                     );
                 }
-                crate::VirtualClockWaitOperand::Zero | crate::VirtualClockWaitOperand::Ignored => {}
+                crate::VirtualClockOperand::ExactInteger(_)
+                | crate::VirtualClockOperand::Ignored => {}
             }
         }
-        self.advance_virtual_clock(milliseconds)?;
-        Ok(Some(Value::Unit))
+        let value = match binding.operation {
+            crate::VirtualClockOperation::Wait { result, .. } => {
+                self.advance_virtual_clock(milliseconds)?;
+                match result {
+                    crate::VirtualClockResult::Unit => Value::Unit,
+                    crate::VirtualClockResult::Integer(_) => Value::Int(0),
+                }
+            }
+            crate::VirtualClockOperation::Read {
+                units_per_millisecond,
+                ..
+            } => {
+                let scaled = self
+                    .virtual_ticks
+                    .checked_mul(units_per_millisecond)
+                    .ok_or_else(|| Halt::Unsupported("virtual clock read overflowed".to_owned()))?;
+                if scaled < 0 {
+                    return unsupported(
+                        "virtual clock read cannot return negative elapsed time".to_owned(),
+                    );
+                }
+                Value::Int(scaled)
+            }
+        };
+        Ok(Some(value))
     }
 
     pub(in crate::interpreter::evaluator) fn advance_virtual_clock(

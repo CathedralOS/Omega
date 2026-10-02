@@ -512,7 +512,7 @@ impl<'program> Evaluator<'program> {
         // An explicitly bound bodyless wait is a host call even when its
         // top-level requirement has a resolvable entry state. Checked adapters
         // above still execute before their external leaf reaches this route.
-        if let Some(value) = self.try_virtual_clock_wait(
+        if let Some(value) = self.try_virtual_clock_operation(
             call.target_symbol,
             self.program
                 .expression_table
