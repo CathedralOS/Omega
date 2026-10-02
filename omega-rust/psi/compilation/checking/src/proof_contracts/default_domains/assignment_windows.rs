@@ -4,7 +4,7 @@
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, domain_definition_by_name,
-    fact_mentions_any_field, fact_span_mentions_field, field_is_where_mentioned, is_self_rooted,
+    fact_mentions_any_field, fact_span_mentions_field, field_is_where_mentioned, is_data_rooted,
     is_subplace, membership_field_name, place_spelling_covers, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
@@ -24,13 +24,14 @@ use typed_trees::state::State;
 /// leave the default domain true. Preserve that monotone fact before clearing
 /// the more precise tracked valuation.
 pub(crate) fn preserve_proven_establishment(
+    data_binding: Option<&str>,
     tracked: &[TrackedPlace<'_>],
     established: &mut Vec<String>,
 ) {
     established.extend(
         tracked
             .iter()
-            .filter(|place| place.established && is_self_rooted(&place.spelling))
+            .filter(|place| place.established && is_data_rooted(data_binding, &place.spelling))
             .map(|place| place.spelling.clone()),
     );
 }
@@ -81,6 +82,12 @@ pub(crate) fn handle_assignment<'program>(
     born_zero: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The binding naming the record this state's places are rooted at; see
+    // `place_queries::is_data_rooted`.
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str().to_owned());
+    let data_binding = data_binding.as_deref();
     // A whole-place store of a struct literal reseeds the valuation (the
     // literal itself was proven at construction, rung 2b). A wildcard
     // position (`self.maps[i] = ...`) is different: the literal proves only
@@ -123,7 +130,7 @@ pub(crate) fn handle_assignment<'program>(
             .collect();
         tracked
             .retain(|place| place.spelling != spelling && !is_subplace(&place.spelling, &spelling));
-        let place_born_zero = born_zero && is_self_rooted(&spelling);
+        let place_born_zero = born_zero && is_data_rooted(data_binding, &spelling);
         tracked.push(TrackedPlace {
             spelling,
             definition,
@@ -220,6 +227,7 @@ pub(crate) fn handle_assignment<'program>(
         poisoned_all,
         poisoned_paths,
         born_zero,
+        data_binding,
     );
     let place = &mut tracked[position];
     place.fields.retain(|(name, _)| *name != field_name);
@@ -424,6 +432,7 @@ pub(super) fn tracked_receiver<'program>(
     poisoned_all: bool,
     poisoned_paths: &[String],
     born_zero: bool,
+    data_binding: Option<&str>,
 ) -> usize {
     if let Some(position) = tracked
         .iter()
@@ -447,7 +456,7 @@ pub(super) fn tracked_receiver<'program>(
             .map(|(_, fields, active_case)| (fields.clone(), *active_case))
             .unwrap_or_default()
     };
-    let self_rooted = is_self_rooted(&receiver_spelling);
+    let data_rooted = is_data_rooted(data_binding, &receiver_spelling);
     tracked.push(TrackedPlace {
         spelling: receiver_spelling,
         definition,
@@ -460,8 +469,8 @@ pub(super) fn tracked_receiver<'program>(
         // (the caller's net enforced its domain), so it counts as
         // established for the access gate; its VALUATION stays unknown.
         established: !crate::value_custody::data::data_requires_establishment(program, definition)
-            || !self_rooted,
-        born_zero: born_zero && self_rooted && !poisoned,
+            || !data_rooted,
+        born_zero: born_zero && data_rooted && !poisoned,
         window_open: false,
         elements: Vec::new(),
         element_windows: Vec::new(),

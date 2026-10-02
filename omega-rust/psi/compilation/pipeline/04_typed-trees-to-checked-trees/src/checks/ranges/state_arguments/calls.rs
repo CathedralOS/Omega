@@ -11,7 +11,7 @@ use crate::checks::ranges::expressions::{
 };
 use crate::checks::ranges::facts::{RangeFacts, ReceiverLength};
 use crate::checks::ranges::proofs::unknown_length_index_is_proven;
-use language_core::is_receiver_rooted;
+use language_core::is_rooted_at;
 
 pub(super) fn collect_state_argument_facts_for_call(
     program: &typed_trees::TypedTrees,
@@ -281,14 +281,18 @@ pub(super) fn collect_state_argument_facts_for_call(
                 });
             }
         }
-        // A pair can also ride machine storage on the index side: `self.field`
-        // names the same place in every state of this machine, so a proven
-        // `(argument, self.field)` pair re-keys onto the destination parameter.
+        // A pair can also ride machine storage on the index side: a place
+        // rooted at the data binding names the same storage in every state of
+        // this machine, so a proven `(argument, main.field)` pair re-keys onto
+        // the destination parameter.
+        let data_binding = program
+            .state_data_binding(machine, state)
+            .map(|name| name.as_str());
         let collection_label = program.expression_table.display_name(collection);
         index_proofs.extend(
             facts
                 .proven_index_labels(&collection_label)
-                .filter(|index| is_receiver_rooted(index))
+                .filter(|index| data_binding.is_some_and(|root| is_rooted_at(root, index)))
                 .map(|index| ParameterIndexProof {
                     collection: ParameterIndexProofSide::Parameter(collection_parameter),
                     index: ParameterIndexProofSide::Storage(index.clone()),
@@ -296,13 +300,18 @@ pub(super) fn collect_state_argument_facts_for_call(
         );
     }
     for (index_parameter, index) in parameter_arguments.iter().copied() {
-        // The mirror: `(self.field, argument)` -- machine storage on the
-        // collection side (`self.slice[index_arg]`).
+        // The mirror: `(main.field, argument)` -- machine storage on the
+        // collection side (`main.slice[index_arg]`).
+        let data_binding = program
+            .state_data_binding(machine, state)
+            .map(|name| name.as_str());
         let index_label = program.expression_table.display_name(index);
         index_proofs.extend(
             facts
                 .proven_collections_for_index(&index_label)
-                .filter(|collection| is_receiver_rooted(collection))
+                .filter(|collection| {
+                    data_binding.is_some_and(|root| is_rooted_at(root, collection))
+                })
                 .map(|collection| ParameterIndexProof {
                     collection: ParameterIndexProofSide::Storage(collection.clone()),
                     index: ParameterIndexProofSide::Parameter(index_parameter),

@@ -52,7 +52,7 @@ use crate::proof_contracts::default_domains::data_reads::attached_value_establis
 use crate::proof_contracts::default_domains::data_reads::scan_statement_reads;
 use call_summaries::{StateToMachine, collect_call_summaries, state_to_machine_index};
 use place_queries::{
-    is_self_rooted, transition_evaluated_expressions, write_target_index_expressions,
+    is_data_rooted, transition_evaluated_expressions, write_target_index_expressions,
 };
 use state_flow::{PlaceValuation, canonicalize_valuations, meet_valuations, state_edges};
 use symbolic_values::{SymbolicValue, expression_contains_call};
@@ -278,13 +278,18 @@ fn analyze_default_domain_writes(
                     .collect(),
             });
         }
-        let self_rooted: Vec<String> = definite
+        // A callee's per-invocation parameters do not outlive it; only the
+        // places rooted at its own data binding are what a caller may rely on.
+        let callee_binding = program
+            .machine_data_binding(machine)
+            .map(|name| name.as_str().to_owned());
+        let data_rooted: Vec<String> = definite
             .unwrap_or_default()
             .into_iter()
-            .filter(|spelling| is_self_rooted(spelling))
+            .filter(|spelling| is_data_rooted(callee_binding.as_deref(), spelling))
             .collect();
-        if !self_rooted.is_empty() {
-            summaries.insert(machine.symbol, self_rooted);
+        if !data_rooted.is_empty() {
+            summaries.insert(machine.symbol, data_rooted);
         }
     }
 
@@ -526,6 +531,14 @@ fn walk_state(
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
     record_crash_sites: bool,
 ) -> (Vec<String>, Vec<PlaceValuation>, Vec<InvariantWindow>) {
+    // The binding that names the record this state's field places are rooted
+    // at: `self` under the receiver spelling, an ordinary parameter name under
+    // the static one. Resolved once here -- every rootedness question in this
+    // walk is about this one name.
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str().to_owned());
+    let data_binding = data_binding.as_deref();
     let mut tracked: Vec<TrackedPlace> = Vec::new();
     // Known calls poison only transported valuations they may write. An
     // opaque call poisons every valuation; establishment survives either
@@ -573,7 +586,7 @@ fn walk_state(
                         .any(|index| expression_contains_call(program, *index))
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(&tracked, &mut call_established);
+                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -620,7 +633,7 @@ fn walk_state(
             // R5 summaries preserve exact valuations outside known writes.
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                preserve_proven_establishment(&tracked, &mut call_established);
+                preserve_proven_establishment(data_binding, &tracked, &mut call_established);
                 let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
                 if let Some(written) = written {
                     tracked.retain(|place| {
@@ -654,7 +667,7 @@ fn walk_state(
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(&tracked, &mut call_established);
+                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -671,7 +684,7 @@ fn walk_state(
                     && expression_contains_call(program, local.initial_value)
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(&tracked, &mut call_established);
+                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -725,7 +738,7 @@ fn walk_state(
                     .any(|expression| expression_contains_call(program, *expression))
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(&tracked, &mut call_established);
+                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     for expression in &evaluated {
@@ -758,17 +771,20 @@ fn walk_state(
             .iter()
             // Slice 6: parameters are per-invocation -- only machine-owned
             // places transport across states.
-            .filter(|place| place.established && is_self_rooted(&place.spelling))
+            .filter(|place| place.established && is_data_rooted(data_binding, &place.spelling))
             .map(|place| place.spelling.clone()),
     );
-    if attached_value_established(
-        program,
-        machine,
-        &tracked,
-        entry_established,
-        &call_established,
-    ) {
-        exit_established.push("self".to_owned());
+    if let Some(data_binding) = data_binding
+        && attached_value_established(
+            program,
+            machine,
+            state,
+            &tracked,
+            entry_established,
+            &call_established,
+        )
+    {
+        exit_established.push(data_binding.to_owned());
     }
     exit_established.sort();
     exit_established.dedup();
@@ -777,7 +793,7 @@ fn walk_state(
     // known write overlaps. An opaque call poisons every untouched entry.
     let mut exit_valuations: Vec<PlaceValuation> = tracked
         .iter()
-        .filter(|place| is_self_rooted(&place.spelling))
+        .filter(|place| is_data_rooted(data_binding, &place.spelling))
         .map(|place| {
             (
                 place.spelling.clone(),
@@ -802,7 +818,7 @@ fn walk_state(
     let mut exit_windows = inherited_windows;
     for place in tracked
         .iter()
-        .filter(|place| place.any_window_open() && is_self_rooted(&place.spelling))
+        .filter(|place| place.any_window_open() && is_data_rooted(data_binding, &place.spelling))
     {
         if !exit_windows
             .iter()

@@ -1,0 +1,26 @@
+// FAIL CANARY (static-machine rootedness). A machine's data binding is the
+// one parameter carrying its attached data, and born-zero valuations apply
+// only to places rooted there. `ambiguous` declares TWO parameters of `Main`:
+// they are distinct storage, so neither is "the" data binding and no place in
+// that body is data-rooted. `first.high = 5` therefore gets no born-zero
+// valuation for the co-field `low` and cannot prove `low <= high`.
+//
+// `entry` is the contrast, and must keep compiling: with one data parameter,
+// `main.high = 5` reads the boot-state born zero for `low` and proves the
+// coupling. Picking either parameter in `ambiguous` instead of refusing would
+// analyze one record's write against the other's valuation.
+data Main
+where
+    low <= high,
+{
+    low: i32;
+    high: i32;
+}
+
+machine Main::ambiguous(first: &mut Main, second: &mut Main) {
+    first.high = 5;
+}
+
+machine Main::entry(main: &mut Main) {
+    main.high = 5;
+}

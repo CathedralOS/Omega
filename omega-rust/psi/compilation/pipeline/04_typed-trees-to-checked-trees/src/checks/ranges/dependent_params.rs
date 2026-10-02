@@ -12,7 +12,7 @@
 //! (types.rs) independently carries the tight bound either way.
 
 use super::facts::RangeFacts;
-use language_core::receiver_place_label;
+use language_core::place_label;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -51,13 +51,20 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
         }
         // The atom is only mintable when the machine's own attached-data
         // field is the named one -- the same binding the declaration gate
-        // validated. (A trait-signature state has no attached data; skip.)
+        // validated. A trait-signature state has no attached data, and a
+        // declaration reaching no single data record has no spelling for the
+        // place; neither can mint the atom.
         if machine.attached_data.is_none() {
             continue;
         }
+        let Some(data_binding) = program.state_data_binding(machine, state) else {
+            continue;
+        };
+        // The proof checker reads this atom back through the same binding, so
+        // both sides spell the place from `place_label`.
         facts.prove_at_most(
             parameter.name.as_str().to_owned(),
-            receiver_place_label(field.as_str()),
+            place_label(data_binding.as_str(), field.as_str()),
         );
     }
 }

@@ -1,6 +1,6 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
-use language_core::{is_self_receiver, receiver_place_field};
+use language_core::place_field;
 use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
@@ -47,8 +47,12 @@ impl RangeFacts<'_> {
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(machine, state, &preserved);
         let statement_index = self.statement_index;
+        let data_binding = program
+            .state_data_binding(machine, state)
+            .map(|name| name.as_str());
         let string_fallback = |name: &str| {
-            !preserved.iter().any(|label| label == name) && write_affects_bound(name, &target)
+            !preserved.iter().any(|label| label == name)
+                && write_affects_bound(data_binding, name, &target)
         };
         let overlaps =
             |name: &str| affected.iter().any(|label| label == name) || string_fallback(name);
@@ -197,10 +201,16 @@ impl RangeFacts<'_> {
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let affected = self.affected_expression_labels(machine, state, &preserved);
         let statement_index = self.statement_index;
+        let data_binding = program
+            .state_data_binding(machine, state)
+            .map(|name| name.as_str());
         let string_fallback = |name: &str| {
             !preserved.iter().any(|label| label == name)
-                && paths
-                    .is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
+                && paths.is_none_or(|paths| {
+                    paths
+                        .iter()
+                        .any(|path| write_affects_bound(data_binding, name, path))
+                })
         };
         let overlaps = |name: &str| {
             !scalar_preserved.iter().any(|label| label == name)
@@ -351,7 +361,13 @@ fn write_covers_place(
         )
 }
 
-fn write_affects_bound(name: &str, path: &str) -> bool {
+/// Whether a write to `path` expires the bound labelled `name`.
+///
+/// `data_binding` is the name of the writing state's data record, so a write
+/// spelled through it (`main.i`) expires a bound spelled plainly (`i`), and a
+/// write of the whole record expires every unqualified bound. A state with no
+/// data binding writes no such place.
+fn write_affects_bound(data_binding: Option<&str>, name: &str, path: &str) -> bool {
     // Without a complete, disjoint typed read set, computed labels and dynamic
     // selectors must expire on writes. A separately named value snapshot keeps
     // its own numeric facts; this predicate never parses a computation's reads.
@@ -361,9 +377,10 @@ fn write_affects_bound(name: &str, path: &str) -> bool {
                 .chars()
                 .all(|character| character.is_alphanumeric() || character == '_')
     }) || validation::frame_paths_overlap(name, path)
-        || receiver_place_field(path)
+        || data_binding
+            .and_then(|root| place_field(root, path))
             .is_some_and(|path| validation::frame_paths_overlap(name, path))
-        || (is_self_receiver(path) && !name.contains('.'))
+        || (data_binding == Some(path) && !name.contains('.'))
 }
 
 #[cfg(test)]

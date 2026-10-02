@@ -1,5 +1,6 @@
 //! Wording for every obligation the checker cannot prove.
 
+use crate::checker::dependent_bounds::obligation_data_binding;
 use crate::checker::float_ranges::float_range_display;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
@@ -7,9 +8,25 @@ use crate::obligations::{
     ProofPlan,
 };
 pub(crate) use diagnostics::Diagnostic;
-use language_core::receiver_place_label;
+use language_core::place_label;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
+
+/// Render a field of the reported state's data record as that state spells it.
+///
+/// A declaration that reaches no single data record has no rooted spelling for
+/// the field, so the bare field name is what the wording can honestly quote.
+fn data_place(
+    proof_plan: &ProofPlan,
+    machine_name: &str,
+    state_name: &str,
+    field: &Identifier,
+) -> String {
+    match obligation_data_binding(proof_plan, machine_name, state_name) {
+        Some(root) => place_label(root, field.as_str()),
+        None => field.as_str().to_owned(),
+    }
+}
 
 pub(crate) fn cannot_prove_dependent_call_bound(
     proof_plan: &ProofPlan,
@@ -18,7 +35,12 @@ pub(crate) fn cannot_prove_dependent_call_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
-    let max_field_place = receiver_place_label(max_field.as_str());
+    let max_field_place = data_place(
+        proof_plan,
+        &obligation.machine,
+        &obligation.state,
+        max_field,
+    );
     let bound_spelling = match max_offset {
         0 => max_field_place,
         offset if offset < 0 => format!("{max_field_place} - {}", -offset),
@@ -41,7 +63,12 @@ pub(crate) fn cannot_prove_dependent_transition_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
-    let max_field_place = receiver_place_label(max_field.as_str());
+    let max_field_place = data_place(
+        proof_plan,
+        &obligation.machine,
+        &obligation.state,
+        max_field,
+    );
     let bound_spelling = match max_offset {
         0 => max_field_place,
         offset if offset < 0 => format!("{max_field_place} - {}", -offset),

@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A relational default-domain fact crosses calls in
 // Terminal: `start <= end` is `Main`'s declaration predicate row, so
 // `widen` requires it at entry and restores it at return through the
-// `&mut self` receiver. Its first store opens a window (`end` = 15 below
+// `&mut Main` data binding. Its first store opens a window (`end` = 15 below
 // `start` = 20 is never observed) and the second closes it. `main`
 // establishes the row from its own stores before the call and exits on the
 // restored span.
@@ -17,21 +17,21 @@ where
     end: i32;
 }
 
-machine Main::widen(&mut self) {
-    self.start = 20;
-    self.end = 30;
+machine Main::widen(main: &mut Main) {
+    main.start = 20;
+    main.end = 30;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.start = 10;
-    self.end = 15;
-    self.widen();
-    transition self.end == 30 {
-        true -> good()
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.start = 10;
+    main.end = 15;
+    Main::widen(main);
+    transition main.end == 30 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
 
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

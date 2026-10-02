@@ -1,9 +1,10 @@
 //! Source-semantics vocabulary that resolution and typing consult:
 //! multiplicities, relevance, carry policies, domain classification, and, in
-//! `receiver_binding` and `contract_result`, the `self` receiver and reserved
-//! `result` binder spellings.
+//! `receiver_binding`, `place_root` and `contract_result`, the `self` receiver
+//! keyword, rendered place roots, and the reserved `result` binder spelling.
 
 pub mod contract_result;
+pub mod place_root;
 pub mod receiver_binding;
 
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
