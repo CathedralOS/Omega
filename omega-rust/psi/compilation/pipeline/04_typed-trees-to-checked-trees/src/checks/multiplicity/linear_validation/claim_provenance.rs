@@ -19,12 +19,11 @@ pub(crate) fn written_linear_targets(
     let (target, value) = match statement {
         StatementNode::LocalData(local) => {
             if !local.initial_value.is_valid() {
-                // A zero-constructible local is established by its
+                // A deferred structural local is established by its
                 // declaration alone — there is no value expression to read,
-                // so the root place gets a plain establishment target.
-                if !validation::zeroed_structural_parts(program, local.type_reference) {
-                    return Vec::new();
-                }
+                // so the root place gets a plain establishment target. The
+                // place roster admits only affine structural declarations,
+                // which every deferred local mint is.
                 return places
                     .iter()
                     .enumerate()

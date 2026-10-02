@@ -336,6 +336,7 @@ fn operation_effect(
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
+        | O::EstablishStructuralLocal { .. }
         | O::EstablishRecord { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }

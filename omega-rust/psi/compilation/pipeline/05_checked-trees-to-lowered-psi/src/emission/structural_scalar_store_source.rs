@@ -1059,6 +1059,7 @@ pub(crate) fn local_destination<'a>(
                 &checked.typed,
                 local.type_reference,
             ))
+            && !validation::has_owned_or_shared_view_fields(&checked.typed, local.type_reference)
             && validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
                 local.type_reference,

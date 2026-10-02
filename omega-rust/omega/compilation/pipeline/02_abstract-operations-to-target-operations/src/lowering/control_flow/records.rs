@@ -391,6 +391,41 @@ pub(super) fn establish_trivial_affine_local(
     Ok(())
 }
 
+/// A structural local establishment names its whole aggregate home — the
+/// memberwise stores that complete it arrive as their own operations, so
+/// lowering only registers the exact home.
+pub(super) fn establish_structural_local(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &mut LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let AbstractOperation::EstablishStructuralLocal {
+        psi_operation,
+        result,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
+    if live
+        .structural_homes
+        .insert(result.place, result_home.clone())
+        .is_some()
+    {
+        return Err(invalid());
+    }
+    operations.push(TargetUnitOperation::EstablishStructuralLocal {
+        psi_operation: *psi_operation,
+        result_home,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
 /// A zeroed establishment names its whole aggregate home — the verified op
 /// carries no element roster, so lowering only registers the exact home.
 pub(super) fn establish_zeroed_structural(

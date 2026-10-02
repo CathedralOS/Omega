@@ -86,25 +86,23 @@ pub(crate) fn declaration<'a>(
     let (ordinal, local) = checked
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement)?;
-    // An uninitialized `let mut` whose statement carries a checked
-    // `ZeroedStructural` establishment is the same owned home an
-    // initialized local is: its storage exists and begins zero.
-    let zeroed_establishment = !local.initial_value.is_valid()
-        && checked
-            .facts
-            .values
-            .structural_values
-            .root_at(state.symbol, ordinal as u32)
-            .is_some_and(|root| {
-                matches!(
-                    checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(root.root)
-                        .kind,
-                    checked_trees::CheckedStructuralValueKind::ZeroedStructural {}
+    // An uninitialized declaration's home is the establishment the unit
+    // plan minted at its statement. Every declared structural local owns
+    // its declared shape — the declaration itself establishes the root and
+    // member operations fill each leaf — so the roster scans operations,
+    // not initializer kinds.
+    let establishment = !local.initial_value.is_valid()
+        && crate::expression_preparation::source_custody::authored_state(checked, state.symbol)
+            .ok()
+            .is_some_and(|(machine, _)| {
+                crate::unit::attached_unit::bodies::statement_establishes_local(
+                    crate::unit::attached_unit::bodies::UnitPlans::published(
+                        &checked.facts.flow.terminal_unit_effects,
+                    ),
+                    machine.symbol,
+                    state.symbol,
+                    ordinal,
+                    symbol,
                 )
             });
     // Primitive defaults use a scalar initializer, not a structural-value
@@ -139,11 +137,11 @@ pub(crate) fn declaration<'a>(
     // Establishment already owns the declaration's represented byte predicates.
     // Resolving its home must retain them, not exclude byte-bearing records or
     // recover the initializer as if subsequent mutable calls had not happened.
-    ((local.initial_value.is_valid() || zeroed_establishment || primitive_zero)
-        && validation::has_plain_owned_contents_with_represented_constraints(
+    ((local.initial_value.is_valid() || establishment || primitive_zero)
+        && (validation::has_plain_owned_contents_with_represented_constraints(
             &checked.typed,
             local.type_reference,
-        ))
+        ) || validation::has_owned_or_shared_view_fields(&checked.typed, local.type_reference)))
     .then_some((ordinal, local))
 }
 

@@ -108,8 +108,14 @@ pub(crate) fn validate(
             return unsupported("owned byte value changed its authored carrier");
         }
         crate::emission::structural_byte_sequence_store::validate_value(
-            checked, owner.symbol, state, result.statement_index as usize,
-            expression, value, value.root, 0,
+            checked,
+            owner.symbol,
+            state,
+            result.statement_index as usize,
+            expression,
+            value,
+            value.root,
+            0,
         )?;
         return Ok(());
     }

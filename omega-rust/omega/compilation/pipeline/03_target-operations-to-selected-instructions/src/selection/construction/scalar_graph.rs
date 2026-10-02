@@ -405,6 +405,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
+                    | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }

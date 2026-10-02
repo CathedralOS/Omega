@@ -78,6 +78,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         }
         O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishZeroedStructural { result, .. }
+        | O::EstablishStructuralLocal { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::CallStructural {
             result: AbstractStructuralCallResult::Structural { result, .. },
@@ -247,6 +248,7 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::EstablishZeroedStructural { psi_operation, result }
+        | AbstractOperation::EstablishStructuralLocal { psi_operation, result }
         | AbstractOperation::EstablishReference {
             psi_operation,
             result,

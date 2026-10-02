@@ -73,6 +73,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
         | AbstractOperation::EstablishTrivialAffineLocal { .. }
         | AbstractOperation::EstablishZeroedStructural { .. }
+        | AbstractOperation::EstablishStructuralLocal { .. }
         | AbstractOperation::EstablishRecord { .. }
         // Reference establishment/release are compile-time custody markers;
         // they carry no call, boundary, or physical edge of their own.

@@ -1756,20 +1756,23 @@ pub(crate) fn local_value_provenance(
     let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
         return unsupported("owned local origin has no declaration");
     };
-    // A `let mut` local with no initializer keys its zeroed establishment
-    // on the invalid initializer handle; the expression walk has nothing to
-    // read, so the recorded events carry the declaration's own provenance.
+    // A declared local with no initializer keys its establishment on the
+    // statement itself: the unit plan minted the home there, so the
+    // expression walk has nothing to read and the recorded events carry
+    // the declaration's own provenance.
     if !checked
         .typed
         .expression_table
         .expression_is_valid(local.initial_value)
-        && let Ok(ordinal) = u32::try_from(statement)
-        && checked
-            .facts
-            .values
-            .structural_values
-            .root_at(state, ordinal)
-            .is_some_and(|root| root.expression == local.initial_value)
+        && crate::unit::attached_unit::bodies::statement_establishes_local(
+            crate::unit::attached_unit::bodies::UnitPlans::published(
+                &checked.facts.flow.terminal_unit_effects,
+            ),
+            machine,
+            state,
+            statement,
+            local.symbol,
+        )
     {
         return Ok(PermissionProvenance::Established {
             machine_symbol: machine,

@@ -57,7 +57,7 @@ pub use value_custody::owned_value_source::{
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::reference_shells::{
-    ReferenceShell, SliceViewShell, reference_shell, slice_view_shell,
+    ReferenceShell, SliceViewShell, byte_sequence_carrier, reference_shell, slice_view_shell,
 };
 pub use value_custody::scalar_case_constructor::{
     ScalarCaseConstructor, StructuralCaseConstructor, is_scalar_case_value,

@@ -721,12 +721,19 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
     .unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit(verified.unit())
         .expect("replay mirrors the verifier's referent compare");
-    assert!(verified.unit().functions.iter().flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+    assert!(
+        verified
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .any(|node| matches!(&node.operation,
             AbstractOperation::StructuralLeafCopy {
                 path: abstract_operations::StructuralCopyPath::Case(_),
                 result, ..
-            } if result.structural_type == reference)));
+            } if result.structural_type == reference))
+    );
 }
 
 #[test]

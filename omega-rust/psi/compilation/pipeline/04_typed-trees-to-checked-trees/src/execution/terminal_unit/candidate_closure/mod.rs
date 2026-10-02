@@ -257,6 +257,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
@@ -390,6 +391,10 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                     | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                    // A declared structural local's establishment mints
+                    // frame-local storage at the authored statement as well;
+                    // member fills name no callee.
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                     // A borrowed-window move/restore pair carries no callee:
                     // the move's result binding and the restore's stored value
                     // are already custody rows inside this same state.

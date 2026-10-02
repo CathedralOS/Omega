@@ -255,6 +255,9 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+            statement_index, ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
             Some(coordinate.statement_index)

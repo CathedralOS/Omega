@@ -239,7 +239,10 @@ pub(super) fn validate(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
+            // A declared structural local's establishment mints its home in
+            // the same structural binding namespace as a value construction.
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. } => {
                 check_structural_binding(result)?;
             }
             CheckedUnitEffectOperationPlan::AtomicAccess(checked_trees::CheckedAtomicAccessPlan {
@@ -900,6 +903,13 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
             }
+            // A deferred structural local's establishment consumes its own
+            // declaration: the authored `let` is exactly the statement the
+            // storage begins at, and member stores rejoin that home later.
+            (
+                CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. },
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {}
             // The shared replay rejoins either the declaration or the exact
             // call/formal that owns this array's elements. A call operand is
             // part of that call's statement, not an additional body effect.
@@ -1327,6 +1337,9 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             statement_index, ..
         }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
             statement_index, ..
         }
         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {

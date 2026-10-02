@@ -687,6 +687,53 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
+    /// Establish a declared structural local's home: the place materializes
+    /// as the operation's structural result with no leaf storage — member
+    /// operations write each field's backing as they execute.
+    pub(crate) fn execute_establish_structural_local(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::EstablishStructuralLocal {} = operation.kind else {
+            unreachable!("dispatched execute_establish_structural_local")
+        };
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        if !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(result.place))
+        {
+            return Err(invalid());
+        }
+        self.structural_values.insert(
+            result.place,
+            TerminalStructuralValue {
+                opaque_identity: self.local_structural_identities.allocate()?,
+                structural_type: result.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            },
+        );
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: result.place,
+                path: Vec::new(),
+                structural_type: result.structural_type,
+            });
+        }
+        Ok(OperationFlow::Advance)
+    }
+
     pub(crate) fn execute_establish_trivial_affine_local(
         &mut self,
         operation: &terminal_psi::Operation,

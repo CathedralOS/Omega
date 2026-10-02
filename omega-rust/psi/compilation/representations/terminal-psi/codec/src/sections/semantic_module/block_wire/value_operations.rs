@@ -129,6 +129,18 @@ pub(super) fn decode_establish_zeroed_structural(
     Ok(OperationKind::EstablishZeroedStructural {})
 }
 
+pub(super) fn encode_establish_structural_local(writer: &mut Writer) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_STRUCTURAL_LOCAL);
+    Ok(())
+}
+
+pub(super) fn decode_establish_structural_local(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let _ = reader;
+    Ok(OperationKind::EstablishStructuralLocal {})
+}
+
 pub(super) fn encode_establish_trivial_affine_local(
     writer: &mut Writer,
     destination: PlaceId,

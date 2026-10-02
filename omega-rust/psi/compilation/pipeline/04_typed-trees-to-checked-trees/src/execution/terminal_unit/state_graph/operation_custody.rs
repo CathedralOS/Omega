@@ -58,6 +58,10 @@ pub(super) fn admit(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            // A declared structural local's establishment mints storage at
+            // its authored statement the same way: each member operation's
+            // loans and the binding's disposal carry the custody, not the op.
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             // A reference pair's custody is the loan's: the establishment is
             // the authored production and the release the authored weakening
             // boundary. Selected edges carry the loan itself; neither op

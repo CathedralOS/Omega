@@ -434,6 +434,7 @@ pub(super) fn lower(
         | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishZeroedStructural { .. }
+        | OperationKind::EstablishStructuralLocal { .. }
         | OperationKind::EstablishRecord { .. } => structural_establishment::lower(
             operation,
             block,

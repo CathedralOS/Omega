@@ -201,6 +201,7 @@ pub(super) fn register_custody_operation(
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::EstablishZeroedStructural { .. }
+            | OperationKind::EstablishStructuralLocal { .. }
     ) {
         validate_unit_operation_static(module, machine, machines, operation)?;
         return Ok(true);

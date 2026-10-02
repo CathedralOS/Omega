@@ -620,6 +620,23 @@ fn producer(
                     construction_source: None,
                 })
             }
+            // A declared structural local's establishment is the same kind
+            // of producer: its binding publishes the home member operations
+            // fill, and its authored discard flag rides with the result.
+            CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                result,
+                discard_result_on_return,
+                ..
+            } if result.binding_ordinal == binding_ordinal => Some(Producer {
+                operation_index,
+                coordinate: checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                },
+                result,
+                discard: *discard_result_on_return,
+                construction_source: None,
+            }),
             // Any call with a structural result, ordinary or boundary.
             CheckedUnitEffectOperationPlan::Call(call) => {
                 let result = call

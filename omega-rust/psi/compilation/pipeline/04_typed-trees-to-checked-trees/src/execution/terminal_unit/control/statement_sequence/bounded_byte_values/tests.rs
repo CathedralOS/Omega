@@ -32,9 +32,7 @@ fn literal_establishments(checked: &CheckedTrees, name: &str) -> Vec<(u32, Strin
                 .iter()
                 .filter_map(|operation| match operation {
                     CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                        result,
-                        value,
-                        ..
+                        result, value, ..
                     } => Some((
                         result.statement_index,
                         result.type_identity.clone(),
@@ -104,9 +102,9 @@ fn mutable_bounded_literals_keep_their_declared_qualification_roster() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                qualifications, ..
-            } => Some(qualifications),
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { qualifications, .. } => {
+                Some(qualifications)
+            }
             _ => None,
         })
         .expect("one bounded literal establishment among the local's operations");

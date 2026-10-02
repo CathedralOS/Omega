@@ -43,6 +43,6 @@ pub(crate) use structural_paths::{
     structural_argument_canonical_prefix, structural_field_store_write_path,
 };
 pub(crate) use unit_operation::{
-    validate_establish_trivial_affine_local, validate_establish_zeroed_structural,
-    validate_unit_operation_static,
+    validate_establish_structural_local, validate_establish_trivial_affine_local,
+    validate_establish_zeroed_structural, validate_unit_operation_static,
 };

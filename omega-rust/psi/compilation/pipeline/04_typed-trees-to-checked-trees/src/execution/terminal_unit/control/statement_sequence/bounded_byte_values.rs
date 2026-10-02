@@ -90,7 +90,9 @@ pub(in crate::execution::terminal_unit) fn expression_octets(
     else {
         return None;
     };
-    let typed_trees::expression::ExpressionNode::String(bytes) = program.expression_table.expression(expression) else {
+    let typed_trees::expression::ExpressionNode::String(bytes) =
+        program.expression_table.expression(expression)
+    else {
         return None;
     };
     if u64::try_from(bytes.len()).ok()? > capacity {

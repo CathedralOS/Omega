@@ -103,19 +103,34 @@ impl SourceTypes<'_> {
         if self.active.contains(&identity) {
             return unsupported("owned type custody contains a recursive source shape");
         }
-        let mut candidates = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .structural_types
-            .iter()
-            .filter(|plan| plan.identity == identity);
-        let retained = candidates.next().ok_or(LoweringError::Unsupported(
+        // A borrowed referent's declaration is the scalar graph's business:
+        // the graph retains the shapes it reads. An owned local may instead
+        // enroll its declaration in the unit roster — a memberwise
+        // establishment describes storage no scalar value names — so owned
+        // custody joins both catalogs. Each lane still admits one row per
+        // identity; a row that repeats across lanes must agree on the plan.
+        let catalogs: [&[_]; 2] = [
+            &checked.facts.flow.terminal_scalar_graphs.structural_types,
+            &checked.facts.flow.terminal_unit_effects.structural_types,
+        ];
+        let mut retained = None;
+        for catalog in catalogs[..usize::from(!self.borrowed_referent) + 1].iter() {
+            let mut candidates = catalog.iter().filter(|plan| plan.identity == identity);
+            let lane = candidates.next();
+            if candidates.next().is_some() {
+                return unsupported("owned type custody has duplicate structural declarations");
+            }
+            match (retained, lane) {
+                (Some(existing), Some(candidate)) if existing != candidate => {
+                    return unsupported("owned type custody has duplicate structural declarations");
+                }
+                (None, next) => retained = next,
+                _ => {}
+            }
+        }
+        let retained = retained.ok_or(LoweringError::Unsupported(
             "owned type custody lost a source structural declaration",
         ))?;
-        if candidates.next().is_some() {
-            return unsupported("owned type custody has duplicate structural declarations");
-        }
         self.active.push(identity.clone());
         let expected = if let Some(primitive) = checked.primitive_type_reference(reference) {
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
@@ -227,6 +242,32 @@ impl SourceTypes<'_> {
             }
         } else if let Some(provider) = self.provider_field(field.type_reference, substitutions)? {
             provider
+        } else if let Some(carrier) =
+            validation::byte_sequence_carrier(&self.checked.typed, reference, substitutions)
+        {
+            // A byte member carries its own view or bounded storage shape; the
+            // retained catalog records it under the same ByteSequence family
+            // the type collector writes.
+            let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
+                &self.checked.typed,
+                reference,
+            );
+            let mut predicates =
+                language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
+            for (_, predicate) in declared {
+                let Some(predicate) = predicate else {
+                    return unsupported("owned byte field has an unrecognized domain predicate");
+                };
+                predicates.insert(predicate);
+            }
+            if predicates.is_empty() {
+                CheckedUnitStructuralFieldType::ByteSequence(carrier)
+            } else {
+                CheckedUnitStructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                }
+            }
         } else if let Some(primitive) = self.checked.primitive_type_reference(reference) {
             scalar_fields::reconstruct(self.checked, field.type_reference, substitutions, primitive)
                 .ok_or(LoweringError::Unsupported(
