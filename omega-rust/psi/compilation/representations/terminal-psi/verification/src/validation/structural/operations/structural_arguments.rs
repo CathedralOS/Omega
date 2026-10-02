@@ -501,13 +501,25 @@ pub(crate) fn is_unrestricted_shared_subloan(
 ) -> bool {
     // The argument's root is the place the projection borrows from: a
     // machine-level parameter or a block parameter that rebinder edges fill
-    // with it. Source signatures already resolve both channels.
-    let Some(actual) = caller
+    // with it. Source signatures already resolve both channels; a completed
+    // local presents the same checked root through its synthesized backing.
+    let owned_backing;
+    let declared = caller
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
-        .or_else(|| crate::validation::block_views::parameter(caller, argument.place))
-    else {
+        .or_else(|| crate::validation::block_views::parameter(caller, argument.place));
+    let Some(actual) = (match declared {
+        Some(declaration) => Some(declaration),
+        None => {
+            // Shared observation keeps the result's own multiplicity: this
+            // arm's owned channel admits an affine root outright, and an
+            // unrestricted completed local carries the authority affine
+            // backing already proves.
+            owned_backing = completed_local_backing(module, caller, argument);
+            owned_backing.as_ref()
+        }
+    }) else {
         return false;
     };
     if argument.access == StructuralAccess::SharedBorrow
@@ -568,10 +580,9 @@ fn completed_local_backing(
         position: 0,
         is_self: false,
         structural_type: result.structural_type,
-        // A completed local lends with unrestricted presentation: the
-        // producing result's own affine lifecycle is already discharged,
-        // and availability plus paired-loan replay keep custody honest.
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        // The backing presents the result's own multiplicity; each caller
+        // re-presents whatever its loan arm admits.
+        multiplicity: result.multiplicity,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -588,7 +599,7 @@ pub(crate) fn is_unrestricted_mutable_subloan(
     // machine-level parameter or a block parameter that rebinder edges fill
     // with it. Source signatures already resolve both channels; a completed
     // local presents the same checked root through its synthesized backing.
-    let owned_backing;
+    let mut owned_backing;
     let declared = caller
         .structural_parameters
         .iter()
@@ -598,6 +609,13 @@ pub(crate) fn is_unrestricted_mutable_subloan(
         Some(declaration) => Some(declaration),
         None => {
             owned_backing = completed_local_backing(module, caller, argument);
+            // Mutable lending has no affine-owned channel, so a discharged
+            // completed local presents unrestricted instead: the producing
+            // result's own affine lifecycle is already over, and availability
+            // plus paired-loan replay keep custody honest.
+            if let Some(backing) = owned_backing.as_mut() {
+                backing.multiplicity = StructuralMultiplicity::Unrestricted;
+            }
             owned_backing.as_ref()
         }
     }) else {

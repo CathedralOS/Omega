@@ -3,7 +3,8 @@
 // other, and the returned `Report` holds only plain numeric fields, so both
 // loans end with the call. A completed local record also lends one element
 // of its record array through the same calls: `&mut board.tallies[1]` is the
-// projected exclusive loan. Exits 70 only when the reports and every local
+// projected exclusive loan and `&board.tallies[1]` the projected shared
+// observation. Exits 70 only when the reports and every local
 // show exactly the writes made through the exclusive loans.
 
 use omega_language_std::console;
@@ -14,6 +15,10 @@ data Report { total: i32 in Wrapping; }
 
 machine Tally::bump(tally: &mut Tally, by: i32 in Wrapping) {
     tally.hits = tally.hits + by;
+}
+
+machine Tally::peek(tally: &Tally) -> i32 in Wrapping {
+    tally.hits
 }
 
 machine Tally::absorb(into: &mut Tally, from: &Tally) -> Report {
@@ -31,9 +36,10 @@ machine main() reaches Console {
     Tally::bump(&mut board.tallies[0], 30);
     Tally::bump(&mut board.tallies[1], 40);
     let projected: Report = Tally::absorb(&mut board.tallies[1], &right);
+    let peeked: i32 in Wrapping = Tally::peek(&board.tallies[1]);
     transition merged.total == 70 && left.hits == 70 && right.hits == 40
         && projected.total == 80 && board.tallies[1].hits == 80
-        && board.tallies[0].hits == 30 {
+        && board.tallies[0].hits == 30 && peeked == 80 {
         true -> done(70)
         _ -> done(71)
     }
