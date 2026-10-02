@@ -605,7 +605,13 @@ fn established_view(
                 result,
                 ..
             } if result.place == place
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && matches!(
+                    optimization_unit_semantics::structural_place_access(caller, place),
+                    Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    )
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>
@@ -618,7 +624,13 @@ fn established_view(
                 destination,
                 ..
             } if *destination == place
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && matches!(
+                    optimization_unit_semantics::structural_place_access(caller, place),
+                    Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    )
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>

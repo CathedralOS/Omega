@@ -997,6 +997,16 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    /// An access interfered with backing pinned by an observable local descriptor.
+    BorrowedDescriptorLoanDisturbed {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    /// A state transfer or its cleanup disturbed a descriptor surviving that edge.
+    BorrowedDescriptorLoanDisturbedAtEdge {
+        edge: EdgeId,
+        place: PlaceId,
+    },
     ClaimFrontierJoinMismatch(BlockId),
     OwnedStructuralFrontierJoinMismatch(BlockId),
     LiveLinearClaimAtUnitReturn {

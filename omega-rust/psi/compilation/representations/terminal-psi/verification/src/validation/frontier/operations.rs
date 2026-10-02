@@ -77,6 +77,15 @@ pub(super) fn apply_operation(
             place,
         });
     }
+    if let Some(place) =
+        walk.descriptor_loans
+            .disturbed(module, machine, operation, &consumed_places)
+    {
+        return Err(ModuleError::BorrowedDescriptorLoanDisturbed {
+            operation: operation.id,
+            place,
+        });
+    }
     for place in &consumed_places {
         if frontier.partial_custody_paths.contains_key(place) {
             return Err(

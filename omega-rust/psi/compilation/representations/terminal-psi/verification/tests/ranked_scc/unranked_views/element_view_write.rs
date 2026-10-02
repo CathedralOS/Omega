@@ -9,7 +9,7 @@ use super::super::{
     validate_module_for_interpretation,
 };
 use super::{
-    AdmissionProfile, IntegerSign, IntegerType, ObligationId, Operation, OperationId,
+    AdmissionProfile, IntegerSign, IntegerType, ModuleError, ObligationId, Operation, OperationId,
     OperationKind, OperationResult, PlaceId, ProofBundle, ScalarType, StructuralAccess,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalModule,
     ValueDeclaration, ValueId, VerificationError, id, validate_module,
@@ -132,4 +132,264 @@ fn element_write_rejects_shared_destination_wrong_witness_and_value_type() {
         }
         assert!(validate_module(&module).is_err(), "mutation {mutation}");
     }
+}
+
+/// The guard makes both the parent write and the nonempty `[index..length]`
+/// children provable. Reordering child uses changes custody, never these bounds.
+fn mutable_child_fixture() -> TerminalModule {
+    use semantic_vocabulary::{BlockId, EdgeId, StructuralPlaceKind};
+    use terminal_psi::{
+        StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+        SuccessorEdge, Terminator,
+    };
+    let mut module = fixture();
+    let machine = &mut module.machines[0];
+    // Keep this local-loan regression independent of descriptor handoff facts.
+    // The entry view and its exact dominating length survive the guard.
+    machine.structural_places.truncate(1);
+    machine.blocks[1].structural_parameters.clear();
+    machine.blocks[1].operations[0].kind = OperationKind::ElementViewLength {
+        source: id(1, PlaceId::new),
+    };
+    if let OperationKind::ElementViewWrite {
+        destination,
+        length,
+        ..
+    } = &mut machine.blocks[1].operations[1].kind
+    {
+        *destination = id(1, PlaceId::new);
+        *length = id(21, ValueId::new);
+    }
+    let mut exit = machine.blocks[1].clone();
+    exit.id = id(60, BlockId::new);
+    exit.structural_parameters.clear();
+    exit.operations.clear();
+    let Terminator::ReturnUnit { edge, .. } = &mut exit.terminator else {
+        unreachable!()
+    };
+    *edge = id(60, EdgeId::new);
+    machine.blocks.push(exit);
+    machine.blocks[0].operations.push(Operation {
+        id: id(50, OperationId::new),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: id(50, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::IntegerLessThan {
+            left: id(1, ValueId::new),
+            right: id(21, ValueId::new),
+        },
+    });
+    let Terminator::Jump { edge, target, .. } = machine.blocks[0].terminator.clone() else {
+        unreachable!()
+    };
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: id(50, ValueId::new),
+        when_true: SuccessorEdge {
+            edge,
+            target,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+        when_false: SuccessorEdge {
+            edge: id(61, EdgeId::new),
+            target: id(60, BlockId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    for ordinal in [40, 42] {
+        let place = id(ordinal, PlaceId::new);
+        let producer = id(ordinal, OperationId::new);
+        let structural_type = machine.structural_parameters[0].structural_type;
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
+        machine.blocks[1].operations.push(Operation {
+            id: producer,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::ElementViewSubslice {
+                source: id(1, PlaceId::new),
+                start: id(1, ValueId::new),
+                end: id(21, ValueId::new),
+                length: id(21, ValueId::new),
+                obligation: id(ordinal, ObligationId::new),
+            },
+        });
+        machine.blocks[1].operations.push(Operation {
+            id: id(ordinal + 1, OperationId::new),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(ordinal + 1, ValueId::new),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::ElementViewLength { source: place },
+        });
+    }
+    module
+}
+
+fn mutable_child_bounds(module: &TerminalModule) -> ProofBundle {
+    use proof_admission::{CertificateEnvelope, EvidenceRoute, ProofSystemMarker};
+    use semantic_vocabulary::EvidenceIdentity;
+    let obligations = reconstruct_interpretable_operation_obligations(
+        validate_module_for_interpretation(module).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(obligations.len(), 3);
+    ProofBundle {
+        evidence: obligations
+            .into_iter()
+            .enumerate()
+            .map(|(position, reconstructed)| {
+                let proof = mutable_child_bound_certificate(
+                    &reconstructed.obligation.proposition,
+                    &reconstructed.semantic_axioms,
+                );
+                terminal_verifier::ObligationEvidence {
+                    obligation: reconstructed.obligation.id,
+                    route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                        identity: id(position as u64 + 70, EvidenceIdentity::new),
+                        proof_system_marker: ProofSystemMarker::CURRENT,
+                        proof,
+                    }),
+                }
+            })
+            .collect(),
+        ..ProofBundle::default()
+    }
+}
+
+/// The fixture needs only the exact selected guard, weakening, and reflexivity.
+/// Full verification below checks every citation against the reconstructed site.
+fn mutable_child_bound_certificate(
+    goal: &Proposition,
+    axioms: &[Proposition],
+) -> proof_admission::ProofNode {
+    use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
+    let rule = if let Some(index) = axioms.iter().position(|axiom| axiom == goal) {
+        ProofRule::SemanticAxiom { index }
+    } else {
+        match goal {
+            Proposition::Conjunction(children) => ProofRule::ConjunctionIntroduction(
+                children
+                    .iter()
+                    .map(|child| mutable_child_bound_certificate(child, axioms))
+                    .collect(),
+            ),
+            Proposition::LessOrEqual(left, right) => {
+                let relation = if left == right {
+                    ProofNode {
+                        conclusion: Proposition::Equal(left.clone(), right.clone()),
+                        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                    }
+                } else {
+                    mutable_child_bound_certificate(
+                        &Proposition::LessThan(left.clone(), right.clone()),
+                        axioms,
+                    )
+                };
+                ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(relation),
+                }
+            }
+            _ => panic!("missing exact guard for {goal:?}; axioms={axioms:#?}"),
+        }
+    };
+    ProofNode {
+        conclusion: goal.clone(),
+        rule,
+    }
+}
+
+#[test]
+fn mutable_child_sequential_windows_have_valid_bounds_and_restoration() {
+    let module = mutable_child_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+}
+
+#[test]
+fn mutable_child_rejects_parent_write_before_last_child_use() {
+    let mut module = mutable_child_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+    // Same write, source, index and witness; only its position moves inside
+    // the first child's interval, before that child's final observation.
+    module.machines[0].blocks[1].operations.swap(1, 2);
+    assert!(
+        matches!(
+            validate_module(&module),
+            Err(ModuleError::BorrowedDescriptorLoanDisturbed { .. })
+        ),
+        "a live mutable child must suspend an overlapping parent write"
+    );
+}
+
+#[test]
+fn mutable_child_rejects_overlapping_windows_with_both_children_live() {
+    let mut module = mutable_child_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+    // Both children select the same nonempty range. Delay the first child's
+    // observation past the second child's birth; all operands still dominate.
+    module.machines[0].blocks[1].operations.swap(3, 4);
+    assert!(
+        matches!(
+            validate_module(&module),
+            Err(ModuleError::BorrowedDescriptorLoanDisturbed { .. })
+        ),
+        "two simultaneously live mutable children cannot capture overlapping ranges"
+    );
+}
+
+#[test]
+fn mutable_child_write_uses_its_own_live_authority() {
+    let mut module = mutable_child_fixture();
+    let mut write = module.machines[0].blocks[1].operations[1].clone();
+    write.id = id(70, OperationId::new);
+    if let OperationKind::ElementViewWrite {
+        destination,
+        length,
+        obligation,
+        ..
+    } = &mut write.kind
+    {
+        *destination = id(40, PlaceId::new);
+        *length = id(41, ValueId::new);
+        *obligation = id(70, ObligationId::new);
+    } else {
+        unreachable!()
+    }
+    // The receiving structural check authenticates the child access; the
+    // independent bounds obligation remains required by proof admission.
+    module.machines[0].blocks[1].operations.insert(4, write);
+    validate_module(&module).unwrap();
 }

@@ -12,21 +12,23 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
-        self.element_view_access(view, source, aliases, |access| {
-            matches!(
-                access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
-            )
-        })
+        self.element_view_access(
+            view,
+            source,
+            aliases,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )
     }
 
     /// A mutable element view admits only the exclusive loan — an indexed
     /// element store's destination may never name a shared descriptor.
     pub(super) fn mutable_element_view(&self, view: &TargetElementView, source: PlaceId) -> bool {
-        self.element_view_access(view, source, &[], |access| {
-            access == terminal_psi::StructuralAccess::MutableBorrow
-        })
+        self.element_view_access(
+            view,
+            source,
+            &[],
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
     }
 
     fn element_view_access(
@@ -34,8 +36,24 @@ impl Checker<'_> {
         view: &TargetElementView,
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
-        access: impl Fn(terminal_psi::StructuralAccess) -> bool,
+        requested: terminal_psi::StructuralAccess,
     ) -> bool {
+        use terminal_psi::StructuralAccess as Access;
+        let Some(actual) =
+            optimization_unit_semantics::structural_place_access(self.optimized, source)
+        else {
+            return false;
+        };
+        if !matches!(
+            (actual, requested),
+            (
+                Access::SharedBorrow | Access::MutableBorrow,
+                Access::SharedBorrow
+            ) | (Access::MutableBorrow, Access::MutableBorrow)
+        ) {
+            return false;
+        }
+        let access = |access| access == actual;
         match view {
             TargetElementView::BlockParameter {
                 block,
@@ -213,7 +231,12 @@ impl Checker<'_> {
                                 })
                                 && length == expected_length
                                 && obligation == expected_obligation
-                                && self.element_view(original, *expected_source, aliases)
+                                && self.element_view_access(
+                                    original,
+                                    *expected_source,
+                                    aliases,
+                                    actual,
+                                )
                                 && self.integer_source(start, *expected_start, aliases)
                                 && self.integer_source(end, *expected_end, aliases)
                         })

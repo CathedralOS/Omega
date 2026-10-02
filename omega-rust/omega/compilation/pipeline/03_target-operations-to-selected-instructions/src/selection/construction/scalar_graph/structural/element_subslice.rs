@@ -31,7 +31,8 @@ pub(super) fn create(
     if row.result.is_some()
         || crate::selection::established_view_input::element_view_type(function, *source)
             != Some(result.structural_type)
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || crate::selection::established_view_input::element_view_access(function, result.place)
+            .is_none()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
