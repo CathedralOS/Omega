@@ -102,6 +102,7 @@ pub(super) fn append_contract_semantic_facts(
             },
             &mut requires,
         );
+        append_parameter_domain_requirements(program, facts, call, &mut requires);
         combined_ref_values.extend(facts.refs.span_or_empty(requires).iter().copied());
         if !requires.is_empty() {
             facts.append_context(
@@ -838,5 +839,93 @@ fn append_semantic_contract_refs(
             continue;
         };
         facts.append_ref(refs, *fact);
+    }
+}
+
+/// Instantiated parameter qualifications join the same requires context as
+/// authored contracts. They carry no proof evidence and never become entry
+/// premises merely because a caller selected a qualified type.
+fn append_parameter_domain_requirements(
+    program: &typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    refs: &mut HandleSpan<FactRef>,
+) {
+    let Some(site) = crate::semantic::calls::find_call_site(
+        program,
+        call.caller_machine_symbol,
+        call.caller_state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return;
+    };
+    for (argument, payload) in crate::semantic::calls::call_parameter_domains(
+        program,
+        call.caller_machine_symbol,
+        call.caller_state_symbol,
+        call.target_machine_symbol,
+        call.target_state_symbol,
+        &site,
+    ) {
+        let place = crate::semantic::places::canonical_place_to_fact_place_in_state(
+            program,
+            facts,
+            call.caller_state_symbol,
+            call.statement_index,
+            argument,
+        )
+        .unwrap_or_else(|| facts.append_place_from_expression(program, argument));
+        let duplicate = facts.refs.span_or_empty(*refs).iter().any(|reference| {
+            let fact = facts.facts.get(reference.fact);
+            facts.fact_place_equals(fact.place, place)
+                && match (fact.payload, payload) {
+                    (
+                        FactPayload::DomainMembership {
+                            domain_symbol: left,
+                            semantic_domain: left_instance,
+                            ..
+                        }
+                        | FactPayload::ContractDomainMembership {
+                            domain_symbol: left,
+                            semantic_domain: left_instance,
+                            ..
+                        },
+                        FactPayload::DomainMembership {
+                            domain_symbol: right,
+                            semantic_domain: right_instance,
+                            ..
+                        },
+                    ) => left == right && left_instance == right_instance,
+                    (
+                        FactPayload::CarryPermission {
+                            permission: left, ..
+                        }
+                        | FactPayload::ContractCarryPermission {
+                            permission: left, ..
+                        },
+                        FactPayload::CarryPermission {
+                            permission: right, ..
+                        },
+                    ) => left == right,
+                    _ => false,
+                }
+        });
+        if duplicate {
+            continue;
+        }
+        let fact = facts.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point: ProgramPoint::CallRequires {
+                machine_symbol: call.caller_machine_symbol,
+                state_symbol: call.caller_state_symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            },
+            origin: FactOrigin::CallRequires,
+            evidence: QualificationEvidence::default(),
+            payload,
+        });
+        facts.append_ref(refs, fact);
     }
 }

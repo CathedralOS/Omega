@@ -13,6 +13,7 @@ pub(crate) mod domains;
 pub(crate) mod float_projection_bindings;
 pub(crate) mod float_projection_invocations;
 pub(crate) mod immutable_integer_bounds;
+pub(crate) mod parameter_domains;
 pub(crate) mod parameter_expression_meaning;
 pub(crate) mod proof_embeddings;
 pub(crate) mod proof_facts;

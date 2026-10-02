@@ -6,6 +6,8 @@ use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(crate) mod dispatch_subjects;
 mod lookup;
+mod parameter_domains;
+pub(crate) use parameter_domains::call_parameter_domains;
 mod traversal;
 
 use crate::lookup::machine_by_symbol;
