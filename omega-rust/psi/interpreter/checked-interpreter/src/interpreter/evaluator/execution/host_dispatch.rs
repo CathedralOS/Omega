@@ -15,7 +15,6 @@ enum HostOperation {
     WriteByte,
     ReadLine,
     VirtualTimeRead(&'static str),
-    Sleep,
     TickCount,
 }
 
@@ -49,7 +48,6 @@ impl HostOperation {
             "wall_clock_epoch_offset_seconds" => {
                 Self::VirtualTimeRead("wall_clock_epoch_offset_seconds")
             }
-            "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             _ => return None,
         })
@@ -71,7 +69,9 @@ impl<'program> Evaluator<'program> {
         match target {
             "monotonic_ticks" => Some(Value::Int(self.virtual_ticks)),
             "monotonic_ticks_per_second" => Some(Value::Int(1000)),
-            "wall_clock_raw" => Some(Value::Int(1767225600000 + self.virtual_ticks)),
+            "wall_clock_raw" => 1_767_225_600_000_i64
+                .checked_add(self.virtual_ticks)
+                .map(Value::Int),
             "wall_clock_units_per_second" => Some(Value::Int(1000)),
             "wall_clock_epoch_offset_seconds" => Some(Value::Int(0)),
             _ => None,
@@ -90,6 +90,15 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
+        if let Some(value) = self.try_virtual_clock_wait(
+            call.target_symbol,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(Some(value));
+        }
         let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol)?;
         let intrinsic_method = if filesystem_operation.is_none() {
             self.exact_console_intrinsic_host_method(call.target_symbol)
@@ -158,6 +167,73 @@ impl<'program> Evaluator<'program> {
             .to_vec();
         self.serve_host_operation(operation, call.target_symbol, &arguments, frame)
             .map(Some)
+    }
+
+    /// The caller supplied this exact wait binding after provider selection.
+    /// Evaluate in source order before changing time; neither an operand failure
+    /// nor an unsupported request becomes a successful zero/default wait.
+    pub(in crate::interpreter::evaluator) fn try_virtual_clock_wait(
+        &mut self,
+        requirement: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        let Some(binding) = self
+            .virtual_clock_wait_bindings
+            .iter()
+            .find(|binding| binding.call_target == requirement)
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        self.host_boundary_touched = true;
+        self.non_fs_host_boundary_touched = true;
+        if arguments.len() != binding.operands.len() {
+            return unsupported("virtual wait argument count differs from its binding".to_owned());
+        }
+        let mut values = Vec::with_capacity(arguments.len());
+        for (argument, primitive) in arguments.iter().zip(&binding.parameter_types) {
+            values.push(self.eval_expression_with_destination(
+                *argument,
+                Some(*primitive),
+                frame,
+            )?);
+        }
+        let mut milliseconds = 0;
+        for (value, operand) in values.iter().zip(&binding.operands) {
+            let Value::Int(integer) = value else {
+                return unsupported("virtual wait expects integer operands".to_owned());
+            };
+            match operand {
+                crate::VirtualClockWaitOperand::Milliseconds => {
+                    if *integer < 0 || *integer > binding.maximum_milliseconds {
+                        return unsupported(
+                            "virtual wait duration is outside its finite range".to_owned(),
+                        );
+                    }
+                    milliseconds = *integer;
+                }
+                crate::VirtualClockWaitOperand::Zero if *integer != 0 => {
+                    return unsupported(
+                        "virtual wait requires a zero capability operand".to_owned(),
+                    );
+                }
+                crate::VirtualClockWaitOperand::Zero | crate::VirtualClockWaitOperand::Ignored => {}
+            }
+        }
+        self.advance_virtual_clock(milliseconds)?;
+        Ok(Some(Value::Unit))
+    }
+
+    pub(in crate::interpreter::evaluator) fn advance_virtual_clock(
+        &mut self,
+        milliseconds: i64,
+    ) -> EvalResult<()> {
+        self.virtual_ticks = self
+            .virtual_ticks
+            .checked_add(milliseconds)
+            .ok_or_else(|| Halt::Unsupported("virtual clock duration overflowed".to_owned()))?;
+        Ok(())
     }
 
     /// Serve one host operation whose authority the caller already selected
@@ -304,30 +380,12 @@ impl<'program> Evaluator<'program> {
             HostOperation::VirtualTimeRead(name) => self
                 .virtual_time_host_value(name)
                 .ok_or_else(|| Halt::Unsupported(format!("virtual time read `{name}`"))),
-            HostOperation::Sleep => {
-                // Frame pacing: no REAL delay in the interpreter (real time has no
-                // effect on the deterministic state the differential oracle
-                // compares), but the VIRTUAL clock advances by the slept
-                // milliseconds -- so tick-paced programs observe the same elapsed
-                // arithmetic natively (where GetTickCount64 advances across a real
-                // Sleep) and virtually.
-                let slept = arguments
-                    .first()
-                    .and_then(|argument| self.eval_expression(*argument, frame).ok())
-                    .and_then(|value| match value {
-                        Value::Int(ms) => Some(ms.max(1)),
-                        _ => None,
-                    })
-                    .unwrap_or(1);
-                self.virtual_ticks += slept;
-                Ok(Value::Unit)
-            }
             HostOperation::TickCount => {
                 // A VIRTUAL monotonic millisecond counter: deterministic (the
                 // differential oracle compares exit codes, and tick-based
                 // programs must assert MONOTONICITY, not values), advancing on
                 // every read and every sleep.
-                self.virtual_ticks += 1;
+                self.advance_virtual_clock(1)?;
                 Ok(Value::Int(self.virtual_ticks))
             }
         }
@@ -1038,3 +1096,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod virtual_clock_tests;

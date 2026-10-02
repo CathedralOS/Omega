@@ -24,6 +24,8 @@ use typed_trees::TypedTrees;
 /// metadata layout explicitly.
 #[derive(Clone, Debug, Default)]
 pub struct InterpretOptions {
+    /// Exact externally selected wait requirements, served only by virtual time.
+    pub virtual_clock_wait_bindings: Vec<crate::VirtualClockWaitBinding>,
     pub filesystem: FilesystemAccess,
     pub filesystem_metadata_layout: FilesystemMetadataLayout,
     pub filesystem_service_binding: Option<FilesystemServiceBinding>,
@@ -437,6 +439,12 @@ fn evaluate_granted_arguments(
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
+                if !options.virtual_clock_wait_bindings.is_empty() {
+                    return Err(BuildMachineEvaluationFailure::without_evidence(
+                        BuildMachineEvaluationFailureKind::Unsupported,
+                        "runtime virtual wait bindings cannot enter build evaluation".to_owned(),
+                    ));
+                }
                 if options.filesystem_service_binding.is_some() {
                     return Err(BuildMachineEvaluationFailure::without_evidence(
                         BuildMachineEvaluationFailureKind::Unsupported,
@@ -631,6 +639,27 @@ fn interpret_on_current_thread(
             evaluator.usage,
         );
     }
+    for (position, binding) in options.virtual_clock_wait_bindings.iter().enumerate() {
+        let validity = binding.validate_for(checked).and_then(|()| {
+            if options.virtual_clock_wait_bindings[..position]
+                .iter()
+                .any(|earlier| earlier.requirement == binding.requirement)
+            {
+                Err("virtual wait requirement has duplicate bindings")
+            } else {
+                Ok(())
+            }
+        });
+        if let Err(message) = validity {
+            return InterpretOutcome::error(
+                message,
+                evaluator.stdout,
+                evaluator.stderr,
+                evaluator.usage,
+            );
+        }
+    }
+    evaluator.virtual_clock_wait_bindings = options.virtual_clock_wait_bindings;
     evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
     evaluator.filesystem_service_symbol = match options.filesystem_service_binding {
         Some(binding) => match binding.declaration_symbol_for(checked) {

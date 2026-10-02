@@ -273,23 +273,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
   Acceptance: both fixtures keep their current outcome with the three accessors
   naming their subject.
 
-- **STATIC-ENTRY-PROOF-REACH.** (split-of:STATIC-MACHINE-MIGRATION)
-  Remaining acceptance: checked-interpreter agreement for
-  `samples/cli/rendering/{bouncing_ball_2d,mandelbrot_zoom}`. Both named entries
-  now run natively on macOS ARM64 with exit 0 and exact full animation output
-  (70 ball frames and 12 zoom frames). `omega run --both <sample>/main.omg`
-  still declines interpretation at the bodyless `ClockNativeProvider::poll`
-  requirement; CLI exit 0 reflects native success, not interpreter agreement.
-  The checked `ClockNativeProvider::sleep` adapter must remain executable.
-  Carry the selected wait provider's exact identity into checked interpretation
-  through an explicit receiving contract; no `poll` spelling match or bypass
-  of the adapter. The CLI interpreter uses virtual host state before native
-  admission, so preserve that policy, exact duration (including zero), and
-  host-effect accounting. Owners: checked-interpreter `execution/host_dispatch.rs`
-  and CLI `execution/compilation.rs`. Acceptance: both engines exit 0 for these
-  unchanged programs, retain the complete native frame oracles, and reject
-  substituted provider identities or unsupported wait operands.
-
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is
   refused as two overlapping loans, where the receiver form was judged by what
