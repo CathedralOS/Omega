@@ -152,6 +152,62 @@ fn mutable_subslice_selection_rejects_source_type_producer_and_cycle_substitutio
 }
 
 #[test]
+fn mutable_view_call_receiver_preserves_exact_whole_descriptor_authority() {
+    use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
+    use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
+
+    let function = views();
+    let shape = ValueShape::borrowed_reference(16, 8);
+    let call = evaluate_call_plan(
+        function.call_plan.policy,
+        &CallSignature {
+            parameters: vec![shape],
+            result: None,
+        },
+    )
+    .unwrap();
+    let argument = TargetStructuralArgument {
+        place: place(302),
+        access: A::MutableBorrow,
+        path: Vec::new(),
+        root_structural_type: StructuralTypeId::new(301).unwrap(),
+        structural_type: StructuralTypeId::new(301).unwrap(),
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: TargetStructuralArgumentSource::EstablishedElementView {
+            psi_operation: operation(302),
+        },
+        destination: call.parameters[0].clone(),
+    };
+    // The next retained occurrence supplies the use position. Full graph
+    // admission separately checks the actual call and its formal signature.
+    assert!(super::super::accepts(&function, operation(303), &argument).is_some());
+    for mutation in 0..3 {
+        let mut changed = function.clone();
+        let mut actual = argument.clone();
+        match mutation {
+            0 => {
+                changed.blocks.last_mut().unwrap().structural_parameters[0].access = A::SharedBorrow
+            }
+            1 => actual.access = A::Owned,
+            2 => {
+                actual.source = TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: operation(999),
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            super::super::accepts(&changed, operation(303), &actual).is_none(),
+            "receiver mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn indexed_byte_field_root_cannot_promote_descriptor_custody_to_backing_access() {
     let mut function = views();
     let mut argument = terminal_psi::StructuralArgument {

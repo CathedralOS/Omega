@@ -119,7 +119,16 @@ pub(super) fn block_location(
     if declarations.next().is_some()
         || place != argument.place
         || parameter.structural_type != argument.structural_type
-        || parameter.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            (parameter.access, argument.access),
+            (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            ) | (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+        )
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
@@ -147,7 +156,10 @@ fn local_location(
     let invalid = || Error::Mismatch("local view differs from current descriptor custody");
     // A whole forward ships the descriptor as the argument; an element loan
     // ships the projected element's address, so its access, projection and
-    // shape differ — the descriptor residence it checks is identical.
+    // shape differ — the descriptor residence it checks is identical. Shared
+    // and mutable whole views use the same two-word home. The admitted pipeline
+    // already checked the exact source authority; publication rejoins physical
+    // residence without converting the borrowed descriptor into an owned value.
     let element_loan = !argument.path.is_empty();
     if element_loan {
         if argument.access == StructuralAccess::Owned
@@ -165,8 +177,10 @@ fn local_location(
         {
             return Err(invalid());
         }
-    } else if argument.access != StructuralAccess::SharedBorrow
-        || argument.root_structural_type != argument.structural_type
+    } else if !matches!(
+        argument.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || argument.root_structural_type != argument.structural_type
         || argument.shape != ValueShape::borrowed_reference(16, 8)
         || argument.source_byte_offset != 0
         || argument.fixed_array_length.is_some()
