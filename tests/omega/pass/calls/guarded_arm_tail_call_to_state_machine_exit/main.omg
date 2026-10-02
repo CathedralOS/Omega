@@ -16,32 +16,33 @@ data Main {
     k: u64;
 }
 
-machine Main::main(&mut self) {
-    self.k = 5;
+machine Main::main(main: &mut Main) {
+    main.k = 5;
     transition {
-        _ -> self.check(7)
+        _ -> Main::check(main, 7)
     }
 }
 
-machine Main::check(&mut self, limit: u64) reaches Console {
-    transition self.k < limit {
-        true -> self.verify(self.k)
-        false -> bad()
+machine Main::check(main: &mut Main, limit: u64) reaches Console {
+    let k_value: u64 = main.k;
+    transition main.k < limit {
+        true -> Main::verify(main, k_value)
+        false -> bad(main)
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
 
-machine Main::verify(&mut self, length: u64) reaches Console {
+machine Main::verify(main: &mut Main, length: u64) reaches Console {
     transition length == 5 {
-        true -> good()
-        false -> wrong()
+        true -> good(main)
+        false -> wrong(main)
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state wrong(&mut self) {
-        self.console.exit_process(71);
+    state wrong(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
