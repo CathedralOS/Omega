@@ -6,11 +6,24 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
 };
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use selected_instructions::{SelectedCallContract, SelectedInstructionId};
-use semantic_vocabulary::{ClaimId, MachineId, ObligationId, OperationId, ValueId};
+use semantic_vocabulary::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ValueId};
 use terminal_psi::ClaimTransfer;
 pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
     bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-    bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+    match row.owner {
+        target_operations::CallSiteOwner::Operation(operation) => {
+            bytes.push(0);
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+        }
+        target_operations::CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+        }
+    }
     let call = &row.call;
     encode_call_source(bytes, &call.source, true);
     bytes.extend_from_slice(&call.callee.get().to_le_bytes());
@@ -80,7 +93,14 @@ pub(super) fn decode_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedCallContract, FixedViewCopyDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let operation = decode_id(cursor, OperationId::new)?;
+    let owner = match cursor.byte()? {
+        0 => target_operations::CallSiteOwner::Operation(decode_id(cursor, OperationId::new)?),
+        1 => target_operations::CallSiteOwner::CleanupAction {
+            edge: decode_id(cursor, EdgeId::new)?,
+            action_ordinal: cursor.u32()?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     let source = decode_call_source(cursor, true)?;
     let callee = decode_id(cursor, MachineId::new)?;
     let call_plan = decode_call_plan(cursor)?;
@@ -147,7 +167,7 @@ pub(super) fn decode_call(
         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashContinuations)?;
     Ok(SelectedCallContract {
         instruction,
-        operation,
+        owner,
         call: LegalizedScalarCall {
             source,
             callee,

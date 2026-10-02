@@ -59,7 +59,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.calls.len());
     for row in &function.calls {
         bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+        match row.owner {
+            target_operations::CallSiteOwner::Operation(operation) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+            }
+            target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+            }
+        }
         blob(
             bytes,
             &row.call

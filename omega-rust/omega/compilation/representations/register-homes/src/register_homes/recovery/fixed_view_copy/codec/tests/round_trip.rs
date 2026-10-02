@@ -5,6 +5,15 @@ use semantic_vocabulary::MachineId;
 use super::{plan, with_stale_version};
 
 #[test]
+fn cleanup_call_owner_wire_requires_the_new_envelope() {
+    let original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&with_stale_version(&original, 40)),
+        Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(40))
+    );
+}
+
+#[test]
 fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let function = &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0];
@@ -146,7 +155,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 40);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 41);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     for encoded in [
         with_stale_version(&plan, 10),
@@ -154,6 +163,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         with_stale_version(&plan, 23),
         with_stale_version(&plan, 25),
         with_stale_version(&plan, 39),
+        with_stale_version(&plan, 40),
     ] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
         assert_eq!(

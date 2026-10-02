@@ -100,7 +100,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
     }
     if installed_call.caller() != entry.machine
         || !matches!(installed_call.result(), terminal_psi::OperationResult::Unit)
-        || installed_call.psi_operation() != call_contract.operation
+        || Some(installed_call.psi_operation()) != call_contract.owner.operation()
         || installed_call.boundary() != *boundary
         || installed_call.structural_arguments() != semantic_arguments
         || installed_call.completion_claim_sources() != completion_claim_sources

@@ -114,6 +114,23 @@ pub(super) fn place_pointer(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    place_pointer_at_site(
+        builder,
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
+        place,
+        byte_offset,
+    )
+}
+
+pub(super) fn place_pointer_at_site(
+    builder: &mut Builder<'_>,
+    provenance: SelectedInstructionProvenance,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let incoming = builder
         .transport
         .pointers
@@ -133,7 +150,41 @@ pub(super) fn place_pointer(
         if homes.next().is_some() {
             return Err(invalid());
         }
-        local_storage::address(builder, row, home.id, 0, home.byte_size, false)?
+        let pointer = transport_register(builder, place, 0)?;
+        let origin = match (
+            provenance.operations.as_slice(),
+            provenance.edges.as_slice(),
+        ) {
+            ([operation], []) => {
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(*operation)
+            }
+            ([], [edge]) => selected_instructions::SelectedMemoryAccessOrigin::Edge(*edge),
+            _ => return Err(invalid()),
+        };
+        builder.transport.memory.push(SelectedMemoryAccess {
+            instruction: selected_instructions::SelectedInstructionId(
+                builder
+                    .instructions
+                    .len()
+                    .try_into()
+                    .map_err(|_| invalid())?,
+            ),
+            origin,
+            place,
+            byte_offset: 0,
+            byte_count: home.byte_size,
+            role: SelectedMemoryAccessRole::AddressLocal { slot: home.id },
+        });
+        builder.emit(
+            SelectedInstructionKind::FrameAddress {
+                slot: selected_instructions::FrameStorageSlotId::Local(home.id),
+                byte_offset: 0,
+            },
+            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            &[pointer],
+            provenance.clone(),
+        )?;
+        pointer
     };
     let output = transport_register(builder, place, byte_offset)?;
     builder.emit(
@@ -152,13 +203,7 @@ pub(super) fn place_pointer(
                 .ok_or_else(|| invalid())?
         },
         &[input, output],
-        SelectedInstructionProvenance {
-            // Pointer staging belongs to this call, not to the operation that
-            // originally produced the referent. Keep its physical interval
-            // contiguous with the call's other argument transport.
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        provenance,
     )?;
     Ok(output)
 }
@@ -623,7 +668,7 @@ pub(super) fn operation(
                 .try_into()
                 .map_err(|_| invalid())?,
         ),
-        operation: row.operation,
+        owner: target_operations::CallSiteOwner::Operation(row.operation),
         call: call.clone(),
         effect: row.effect,
         ownership: row.ownership.clone(),

@@ -35,7 +35,7 @@ pub(super) fn result(
                 ..
             } if dynamic_arguments.is_empty()
                 && installed_boundary.is_none()
-                && *psi_operation == contract.operation
+                && Some(*psi_operation) == contract.owner.operation()
                 && *callee == contract.call.callee =>
             {
                 Some(*result)
@@ -45,7 +45,9 @@ pub(super) fn result(
                 result: abstract_operations::AbstractBoundaryResult::Scalar(result),
                 boundary,
                 ..
-            } if installed_boundary == Some(*boundary) && *psi_operation == contract.operation => {
+            } if installed_boundary == Some(*boundary)
+                && Some(*psi_operation) == contract.owner.operation() =>
+            {
                 Some(*result)
             }
             _ => None,

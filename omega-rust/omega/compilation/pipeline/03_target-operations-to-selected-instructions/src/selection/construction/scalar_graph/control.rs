@@ -25,10 +25,20 @@ pub(super) fn build(
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {
-        LegalizedScalarTerminator::ReturnCleanup { .. } => {
-            // Edge-owned calls require selected ABI transport and independent
-            // native receipt replay before this return can be selected.
-            Err(SelectedInstructionError::custody())
+        LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
+            if calls.is_empty()
+                || calls
+                    .iter()
+                    .any(|(owner, _)| owner.edge() != Some(returned.edge))
+            {
+                return Err(invalid());
+            }
+            for (owner, call) in calls {
+                super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+            }
+            let mut normal = block.clone();
+            normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
+            build(function, source, &normal, order, builder, environment)
         }
         LegalizedScalarTerminator::Crash {
             psi_edge,

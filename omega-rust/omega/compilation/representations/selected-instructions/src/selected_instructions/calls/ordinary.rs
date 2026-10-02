@@ -1,4 +1,5 @@
-//! Semantic call and memory contracts attached to ordinary selected instructions.
+//! Semantic call and memory contracts attached to selected instructions.
+//! Calls retain their real operation owner or exact cleanup edge/action owner.
 use crate::{SelectedBlockId, SelectedInstructionId};
 use optimization_unit::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
@@ -151,7 +152,7 @@ pub struct SelectedOutgoingArgumentSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCallContract {
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub owner: target_operations::CallSiteOwner,
     pub call: legalized_operations::LegalizedScalarCall,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,

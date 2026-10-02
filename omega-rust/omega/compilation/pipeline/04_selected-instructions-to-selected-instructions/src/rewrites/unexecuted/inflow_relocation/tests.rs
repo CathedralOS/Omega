@@ -902,7 +902,7 @@ fn barrier_kinds_and_call_roster_reject() {
     }
     let call_contract = |instruction: SelectedInstructionId| SelectedCallContract {
         instruction,
-        operation: OperationId::new(41).unwrap(),
+        owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: legalized_operations::LegalizedScalarCall {
             source: legalized_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(42).unwrap(),

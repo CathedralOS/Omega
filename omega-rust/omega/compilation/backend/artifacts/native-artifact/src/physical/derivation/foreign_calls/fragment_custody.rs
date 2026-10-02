@@ -816,12 +816,10 @@ fn fragment_durable_home_offsets(
 ) -> Vec<(semantic_vocabulary::OperationId, u32)> {
     let mut producers = Vec::new();
     for contract in &function.calls {
-        if let Some(placement) = &contract.call.result_placement {
-            producers.push((
-                contract.instruction,
-                contract.operation,
-                placement.shape.byte_size,
-            ));
+        if let Some(placement) = &contract.call.result_placement
+            && let Some(operation) = contract.owner.operation()
+        {
+            producers.push((contract.instruction, operation, placement.shape.byte_size));
         }
     }
     for record in &function.normalized_foreign_calls {
@@ -839,7 +837,12 @@ fn fragment_durable_home_offsets(
                 let Some(instruction) = function
                     .calls
                     .iter()
-                    .map(|contract| (contract.operation, contract.instruction))
+                    .filter_map(|contract| {
+                        contract
+                            .owner
+                            .operation()
+                            .map(|operation| (operation, contract.instruction))
+                    })
                     .chain(
                         function
                             .normalized_foreign_calls
@@ -896,7 +899,7 @@ fn fragment_scalar_call_result_producer(
     let mut internal = function
         .calls
         .iter()
-        .filter(|contract| contract.operation == home.defining_operation);
+        .filter(|contract| contract.owner.operation() == Some(home.defining_operation));
     let mut foreign = function
         .normalized_foreign_calls
         .iter()

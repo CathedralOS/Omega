@@ -28,6 +28,7 @@ mod boolean_value;
 mod byte_input;
 mod byte_output;
 mod call_arguments;
+mod cleanup_call;
 mod control;
 mod float_result_policy;
 mod ieee_comparison;
