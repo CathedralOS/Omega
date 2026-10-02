@@ -776,7 +776,8 @@ pub(super) fn validate_unit_operation_sequence(
         let nested_consumer =
             structural_call || (call_result.is_some() && coordinate.call_ordinal == 0);
         // A whole-record replacement decomposes into one ordered field store
-        // per member, and a whole array-literal replacement into one
+        // per member -- a scalar store, or a descriptor store for a shared
+        // view member -- and a whole array-literal replacement into one
         // primitive store per element. Each store keeps the statement's own
         // coordinate, so consecutive same-coordinate stores stay canonical
         // only by operation order; the exact roster is rejoined against the
@@ -784,19 +785,27 @@ pub(super) fn validate_unit_operation_sequence(
         let previous_operation = operation_index
             .checked_sub(1)
             .and_then(|previous| machine.operations.get(previous));
+        let record_member_store = |operation: &CheckedUnitEffectOperationPlan| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            ) || matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+            if matches!(
+                store.destination,
+                checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+            ))
+        };
         let repeated_literal_store = previous == Some(key)
-            && matches!(
-                (operation, previous_operation),
-                (
-                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_),
-                    Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-                        _
-                    ))
-                ) | (
-                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
-                    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
-                )
-            );
+            && previous_operation.is_some_and(|previous_operation| {
+                (record_member_store(operation) && record_member_store(previous_operation))
+                    || matches!(
+                        (operation, previous_operation),
+                        (
+                            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
+                            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                        )
+                    )
+            });
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in
         // structural result consumer validation after this shape check.

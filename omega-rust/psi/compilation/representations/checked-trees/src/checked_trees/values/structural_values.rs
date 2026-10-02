@@ -62,6 +62,18 @@ pub enum CheckedStructuralValueKind {
     /// source instead constructs fresh bounded owned storage at its declared
     /// carrier, never transferring ownership of immutable image bytes.
     Place(crate::CheckedUnitStructuralArgumentPlan),
+    /// A quoted literal as the shared `&[u8]` view member of a record
+    /// literal. The view denotes immutable image storage: nothing is
+    /// established, no owner transfers, and the octets are the whole value.
+    /// Its one consumer is a record literal assigned through an exclusive
+    /// root, which decomposes into one store per member; this member takes
+    /// the `StructuralByteViewFieldStore` a direct `place.field = "literal"`
+    /// would (structural_access.md, Store vocabulary). Establishing a whole
+    /// record around it is not admitted: `EstablishRecord` has no shared view
+    /// operand, so every construction consumer rejects this kind.
+    ByteLiteralView {
+        bytes: Vec<u8>,
+    },
     /// A borrowed `&[T]` view of the contiguous elements an owned collection
     /// place holds. `source` is that lent place under its shared loan, taken
     /// from checked borrow admission rather than from the authored view

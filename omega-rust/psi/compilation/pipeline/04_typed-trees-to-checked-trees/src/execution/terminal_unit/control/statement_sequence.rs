@@ -1970,6 +1970,9 @@ pub(super) fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
+            // Establishing a record around a literal view member is not an
+            // admitted construction (`ByteLiteralView`).
+            checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => return None,
         }
     }
     Some(())

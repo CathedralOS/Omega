@@ -599,6 +599,11 @@ pub(crate) fn validate(
                     operand_roles.push(role);
                 }
             }
+            // A literal view member is decomposed into member stores by the
+            // record literal's assignment; no construction establishes it.
+            CheckedStructuralValueKind::ByteLiteralView { .. } => {
+                return unsupported("structural construction has a literal view member");
+            }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 // The synthesized zero's whole contract is the declared
                 // member carrier itself being zero-constructible.

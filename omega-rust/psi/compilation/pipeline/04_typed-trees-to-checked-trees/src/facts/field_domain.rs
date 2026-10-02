@@ -988,6 +988,36 @@ pub(crate) fn string_literal_expression_grants_domain(
     predicate.holds_for(literal)
 }
 
+/// Whether the string literal `expression` may become the stored value of a
+/// shared view declared as `type_reference`: every declared domain must be a
+/// plain byte-predicate domain -- no establishment route or semantic role,
+/// whose membership the octets cannot carry -- that the literal's own bytes
+/// grant. A literal view establishes nothing, so the octets are the whole
+/// evidence; Terminal replays the same judgment from them.
+pub(crate) fn string_literal_grants_view_domains(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::String(_)
+    ) && domain_constraint_symbols(program, type_reference)
+        .into_iter()
+        .all(|symbol| {
+            domain_byte_predicate(program, symbol).is_some()
+                && program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == symbol)
+                    .is_some_and(|domain| {
+                        domain.establishment_routes.is_empty()
+                            && domain.semantic_roles == Default::default()
+                    })
+                && string_literal_expression_grants_domain(program, expression, symbol)
+        })
+}
+
 /// Whether the domain's ZERO/ZII value -- for a slice carrier, the EMPTY byte
 /// sequence -- provably satisfies `domain_symbol`'s declared facts. True only
 /// when its sole fact is a recognized comptime byte predicate that holds for
