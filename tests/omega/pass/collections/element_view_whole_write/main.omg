@@ -15,32 +15,32 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let fresh: Node = Node { value: 7, tag: 3 };
-    self.fill_literal(&mut self.bag, fresh);
+    Main::fill_literal(&mut main.bag, fresh);
     let second: Node = Node { value: 5, tag: 1 };
-    self.fill_param(&mut self.bag, second, 1);
+    Main::fill_param(&mut main.bag, second, 1);
     let third: Node = Node { value: 9, tag: 4 };
-    self.fill_direct(&mut self.bag, third);
+    Main::fill_direct(&mut main.bag, third);
     transition
-        self.bag.nodes[2].value == 7
-            && self.bag.nodes[1].tag == 1
-            && self.bag.nodes[3].value == 9
+        main.bag.nodes[2].value == 7
+            && main.bag.nodes[1].tag == 1
+            && main.bag.nodes[3].value == 9
     {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(181);
+    state good(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(90);
+    state bad(main: &mut Main) {
+        main.console.exit_process(90);
     }
 }
 
-machine Main::fill_literal(&mut self, bag: &mut Bag, fresh: Node) {
+machine Main::fill_literal(bag: &mut Bag, fresh: Node) {
     let nodes: &mut [Node] = bag.nodes.as_mut_slice();
     let pick: i32 = 2;
     nodes[pick] = fresh;
@@ -52,7 +52,7 @@ machine Main::fill_literal(&mut self, bag: &mut Bag, fresh: Node) {
     }
 }
 
-machine Main::fill_param(&mut self, bag: &mut Bag, fresh: Node, at: u64)
+machine Main::fill_param(bag: &mut Bag, fresh: Node, at: u64)
     requires at < 4
 {
     let nodes: &mut [Node] = bag.nodes.as_mut_slice();
@@ -65,7 +65,7 @@ machine Main::fill_param(&mut self, bag: &mut Bag, fresh: Node, at: u64)
     }
 }
 
-machine Main::fill_direct(&mut self, bag: &mut Bag, fresh: Node) {
+machine Main::fill_direct(bag: &mut Bag, fresh: Node) {
     bag.nodes[3] = fresh;
     transition {
         _ -> done()

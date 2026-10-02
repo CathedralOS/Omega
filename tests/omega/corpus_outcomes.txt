@@ -1340,7 +1340,7 @@ pass/calls/runtime_dispatch_binary_call_argument_exit checked 1428ms @2d8ed25366
 pass/calls/runtime_dispatch_float_terminal_exit checked 4399ms @2d8ed253669f
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 1797ms @2d8ed253669f
 pass/calls/runtime_dispatch_result_enum_case_exit checked 1492ms @2d8ed253669f
-pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253669f
+pass/calls/runtime_dispatch_slice_element_terminal_exit checked 964ms @2c44d70118d1+wt
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
 pass/calls/runtime_enum_self_method_exit checked 1484ms @ca8c127c90c5
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
@@ -1425,7 +1425,7 @@ pass/collections/case_array_literal_nested_store_exit checked 1327ms @2d8ed25366
 pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 40086ms @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
-pass/collections/element_view_borrow_local checked 1364ms @2d8ed253669f
+pass/collections/element_view_borrow_local checked 958ms @2c44d70118d1+wt
 pass/collections/element_view_edge_loan rejected 1396ms @9b253f5667e5
 	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(6), block: BlockId(14), node: 2, place: PlaceId(6) }))
 pass/collections/element_view_field_write checked 1283ms @2d8ed253669f
@@ -1433,7 +1433,7 @@ pass/collections/element_view_indexed_read checked 1297ms @2d8ed253669f
 pass/collections/element_view_indexed_write checked 1179ms @2d8ed253669f
 pass/collections/element_view_runtime_field_write checked 1284ms @2d8ed253669f
 pass/collections/element_view_runtime_loan_read checked 938ms @ca8c127c90c5
-pass/collections/element_view_whole_write checked 1833ms @ca8c127c90c5
+pass/collections/element_view_whole_write checked 1007ms @2c44d70118d1+wt
 pass/collections/element_view_write_transition checked 1201ms @2d8ed253669f
 pass/collections/empty_record_array_borrow_exit checked 479ms @3e847a410959+wt
 pass/collections/indexed_row_array_literal_store checked 1151ms @2d8ed253669f
@@ -2273,7 +2273,7 @@ pass/text/runtime_text_builder checked 1509ms @2d8ed253669f
 pass/text/runtime_text_not_equals_exit checked 2795ms @4e4bfed13aee+wt
 pass/text/runtime_utf16_literal_exit checked 1329ms @2d8ed253669f
 pass/text/utf8_boundary_established checked 302ms @2d8ed253669f
-pass/text/view_field_literal_store_outlives_helper_exit checked 1252ms @5676dbe78a95+wt
+pass/text/view_field_literal_store_outlives_helper_exit checked 1044ms @2c44d70118d1+wt
 pass/text/zii_default_string_equality_exit checked 1968ms @4e4bfed13aee+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms @8778c440081
 pass/time/runtime_duration_core_exit checked 24317ms @ca8c127c90c5
