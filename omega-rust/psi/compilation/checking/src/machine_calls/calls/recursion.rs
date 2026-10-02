@@ -5,7 +5,6 @@
 //! validator controls traversal and diagnostic ordering.
 
 use diagnostics::Diagnostic;
-use language_core::receiver_place_label;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -30,23 +29,11 @@ pub(crate) fn validate_self_recursive_call_positions(
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let entry_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
     match statement {
         StatementNode::RootBinding(binding) => {
             for expression in [binding.receiver, binding.implementation_operand] {
                 if expression.is_valid() {
-                    reject_embedded_self_calls(
-                        program,
-                        machine,
-                        entry_name,
-                        expression,
-                        diagnostics,
-                    );
+                    reject_embedded_self_calls(program, machine, expression, diagnostics);
                 }
             }
         }
@@ -57,28 +44,20 @@ pub(crate) fn validate_self_recursive_call_positions(
         // hold an expression walks below.
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
-                reject_embedded_self_calls(program, machine, entry_name, *argument, diagnostics);
+                reject_embedded_self_calls(program, machine, *argument, diagnostics);
             }
         }
         StatementNode::Assignment(assignment) => {
-            reject_embedded_self_calls(program, machine, entry_name, assignment.value, diagnostics);
+            reject_embedded_self_calls(program, machine, assignment.value, diagnostics);
         }
         StatementNode::LocalData(local_data) => {
-            reject_embedded_self_calls(
-                program,
-                machine,
-                entry_name,
-                local_data.initial_value,
-                diagnostics,
-            );
+            reject_embedded_self_calls(program, machine, local_data.initial_value, diagnostics);
         }
         StatementNode::Expression(expression) => {
             // Whole-call position alone does not prove a valid activation
             // backedge: another receiver, unresolved overload or unsupported
             // static/operational arguments can keep this as an ordinary call.
-            if let Some(call_display) =
-                whole_expression_self_call(program, machine, entry_name, *expression)
-            {
+            if let Some(call_display) = whole_expression_self_call(program, machine, *expression) {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{call_display}` in terminal position is TAIL self-recursion, but its \
                      exact receiver or call selection did not normalize to a constant-stack \
@@ -88,11 +67,11 @@ pub(crate) fn validate_self_recursive_call_positions(
                 )));
                 return;
             }
-            reject_embedded_self_calls(program, machine, entry_name, *expression, diagnostics);
+            reject_embedded_self_calls(program, machine, *expression, diagnostics);
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                reject_embedded_self_calls(program, machine, entry_name, guard, diagnostics);
+                reject_embedded_self_calls(program, machine, guard, diagnostics);
             }
             for target_handle in [transition.target, transition.continuation] {
                 if !target_handle.is_valid() {
@@ -103,23 +82,11 @@ pub(crate) fn validate_self_recursive_call_positions(
                     // self-call inside one still needs its own frame first.
                     TransitionTargetNode::Named { arguments, .. } => {
                         for argument in program.statement_table.expression_handles(*arguments) {
-                            reject_embedded_self_calls(
-                                program,
-                                machine,
-                                entry_name,
-                                *argument,
-                                diagnostics,
-                            );
+                            reject_embedded_self_calls(program, machine, *argument, diagnostics);
                         }
                     }
                     TransitionTargetNode::Value(expression) => {
-                        reject_embedded_self_calls(
-                            program,
-                            machine,
-                            entry_name,
-                            *expression,
-                            diagnostics,
-                        );
+                        reject_embedded_self_calls(program, machine, *expression, diagnostics);
                     }
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                 }
@@ -134,14 +101,12 @@ pub(crate) fn validate_self_recursive_call_positions(
 fn whole_expression_self_call(
     program: &TypedTrees,
     machine: &Machine,
-    entry_name: &str,
     expression: ExpressionHandle,
 ) -> Option<String> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    is_current_entry_call(program, machine, call)
-        .then(|| format!("{}(..)", receiver_place_label(entry_name)))
+    is_current_entry_call(program, machine, call).then(|| format!("{}(..)", machine.name.as_str()))
 }
 
 fn is_current_entry_call(
@@ -178,7 +143,6 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
 fn reject_embedded_self_calls(
     program: &TypedTrees,
     machine: &Machine,
-    entry_name: &str,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -186,7 +150,7 @@ fn reject_embedded_self_calls(
         return;
     }
     let recurse = |handle: ExpressionHandle, diagnostics: &mut Vec<Diagnostic>| {
-        reject_embedded_self_calls(program, machine, entry_name, handle, diagnostics);
+        reject_embedded_self_calls(program, machine, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
@@ -201,13 +165,18 @@ fn reject_embedded_self_calls(
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
             if is_current_entry_call(program, machine, call) {
+                // A transition arm names the entry by its leaf; the
+                // qualification that selects the machine is not respelled
+                // there.
+                let path = machine.name.as_str();
+                let leaf = path.rsplit("::").next().unwrap_or(path);
                 diagnostics.push(Diagnostic::error(format!(
-                    "`self.{entry_name}(..)` here is NON-TAIL self-recursion: the \
+                    "`{path}(..)` here is NON-TAIL self-recursion: the \
                      result feeds the surrounding computation, so the frame must \
                      survive the call. Runtime recursion is TAIL-ONLY (measured \
                      recursion amendment) -- recursion depth lives in explicit \
                      storage you size. Restructure so the recursive step is the \
-                     transition arm `-> self.{entry_name}(..)` on a measured \
+                     transition arm `-> {leaf}(..)` on a measured \
                      machine, or iterate with an explicit stack.",
                 )));
             }

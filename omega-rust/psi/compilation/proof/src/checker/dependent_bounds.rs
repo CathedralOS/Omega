@@ -4,7 +4,7 @@ use crate::checker::diagnostics::expression_display_name;
 use crate::obligations::{
     BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan,
 };
-use language_core::{receiver_place_field, receiver_place_label};
+use language_core::{place_field, place_label};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
@@ -143,8 +143,16 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     else {
         return false;
     };
+    // The binding naming the record these places are rooted at: `self` under
+    // the receiver spelling, an ordinary parameter name under the static one.
+    let Some(data_binding) = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str())
+    else {
+        return false;
+    };
     let argument_label = expression_display_name(proof_plan, obligation.argument);
-    let Some(argument_field) = receiver_place_field(&argument_label).filter(|field| {
+    let Some(argument_field) = place_field(data_binding, &argument_label).filter(|field| {
         !field.is_empty()
             && field
                 .chars()
@@ -170,12 +178,14 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     if !place_preserved_in_statements(
         proof_plan,
         machine,
-        &receiver_place_label(argument_field),
+        data_binding,
+        &place_label(data_binding, argument_field),
         &statements[..call_index],
     ) || !place_preserved_in_statements(
         proof_plan,
         machine,
-        &receiver_place_label(max_field.as_str()),
+        data_binding,
+        &place_label(data_binding, max_field.as_str()),
         &statements[..call_index],
     ) {
         return false;
@@ -367,6 +377,32 @@ pub(crate) fn dependent_call_field_floor(
 /// statement/value calls whose shared R5 frame overlaps it defeat the route.
 /// Opaque calls remain fail-closed; the other discharge routes (guard / floor)
 /// remain.
+/// The binding that names the data record of the state an obligation reports
+/// against: `self` under the receiver spelling, an ordinary parameter name
+/// under the static one.
+///
+/// Obligations carry machine and state NAMES, so this resolves them; `None`
+/// when either name does not resolve or the declaration reaches no single data
+/// record.
+pub(crate) fn obligation_data_binding<'plan>(
+    proof_plan: &'plan ProofPlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<&'plan str> {
+    let program = &proof_plan.program;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == state_name)?;
+    program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str())
+}
+
 pub(crate) fn state_preserves_field(
     proof_plan: &ProofPlan,
     machine_name: &str,
@@ -388,26 +424,35 @@ pub(crate) fn state_preserves_field(
     else {
         return false;
     };
+    let Some(data_binding) = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str())
+    else {
+        return false;
+    };
     state_preserves_place_path(
         proof_plan,
         machine,
         state,
-        &receiver_place_label(field.as_str()),
+        data_binding,
+        &place_label(data_binding, field.as_str()),
     )
 }
 
-/// The `state_preserves_field` scan over a concrete `self.<...>` place path:
+/// The `state_preserves_field` scan over a concrete `<data>.<...>` place path:
 /// assignments to the place and resolved statement/value calls whose shared
 /// R5 frame overlaps it defeat the route. Opaque calls remain fail-closed.
 fn state_preserves_place_path(
     proof_plan: &ProofPlan,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    data_binding: &str,
     field_path: &str,
 ) -> bool {
     place_preserved_in_statements(
         proof_plan,
         machine,
+        data_binding,
         field_path,
         proof_plan
             .program
@@ -422,6 +467,7 @@ fn state_preserves_place_path(
 fn place_preserved_in_statements(
     proof_plan: &ProofPlan,
     machine: &typed_trees::machine::Machine,
+    data_binding: &str,
     field_path: &str,
     statements: &[typed_trees::statement::StatementNode],
 ) -> bool {
@@ -429,7 +475,7 @@ fn place_preserved_in_statements(
     let program = &proof_plan.program;
     let call_frames = validation::CallFrameResolver::new(program);
     let field = &Identifier::generated(
-        receiver_place_field(field_path)
+        place_field(data_binding, field_path)
             .unwrap_or(field_path)
             .to_owned(),
     );

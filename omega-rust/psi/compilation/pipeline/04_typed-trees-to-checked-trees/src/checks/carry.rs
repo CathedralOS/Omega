@@ -1,6 +1,6 @@
 use diagnostics::Diagnostic;
 use facts::{FactPayload, FactPlace, QualificationEvidence};
-use language_core::receiver_place_label;
+use language_core::place_label;
 use language_semantics::{CarryPolicy, CarrySuspension};
 
 mod activation;
@@ -578,7 +578,13 @@ fn append_persistent_field_if_live(
     ) {
         return;
     }
-    let display_name = receiver_place_label(field_name);
+    // Quote the place as this state spells it: `self.field` under the
+    // receiver spelling, `main.field` under the static one, the bare field
+    // when the declaration reaches no single data record.
+    let display_name = match program.state_data_binding(machine, state) {
+        Some(root) => place_label(root.as_str(), field_name),
+        None => field_name.to_owned(),
+    };
     append_if_suspension_forbidden(
         program,
         machine,

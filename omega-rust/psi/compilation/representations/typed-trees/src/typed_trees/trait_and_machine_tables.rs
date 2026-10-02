@@ -396,6 +396,94 @@ impl TypedTrees {
         })
     }
 
+    /// The parameter of `parameters` that carries the machine's data record.
+    ///
+    /// Under the receiver spelling this is the authored `self`, which cannot be
+    /// shadowed, so a declaration that takes one reaches its data through
+    /// nothing else and the receiver wins outright. The same declaration
+    /// written statically names the data directly (`main: &mut Main`), and the
+    /// attached data's symbol is what identifies it. Both spellings answer one
+    /// question -- which binding holds the record this body's field places are
+    /// rooted at -- so a rendered place is data-rooted when its head names
+    /// this parameter, whatever the parameter is called.
+    ///
+    /// `None` when the declaration reaches no single such record:
+    ///
+    /// - a machine qualified by a carrier it takes no parameter of
+    ///   (`Main::set_at(cell: &mut Cell)`), because the qualification
+    ///   contributes no argument or storage;
+    /// - two parameters declared as the attached data, because they are
+    ///   distinct storage and choosing one would analyze the wrong place.
+    pub fn data_binding_parameter<'parameters>(
+        &self,
+        machine: &machine::Machine,
+        parameters: &'parameters [signature::StateParameter],
+    ) -> Option<&'parameters signature::StateParameter> {
+        if let Some(receiver) = parameters.iter().find(|parameter| parameter.is_self) {
+            return Some(receiver);
+        }
+        if !machine.attached_data_symbol.is_valid() {
+            return None;
+        }
+        let mut declared = parameters.iter().filter(|parameter| {
+            self.type_reference_names_attached_data(
+                parameter.type_reference,
+                machine.attached_data_symbol,
+            )
+        });
+        let parameter = declared.next()?;
+        declared.next().is_none().then_some(parameter)
+    }
+
+    /// The name of `state`'s data binding, for callers comparing rendered
+    /// place text.
+    pub fn state_data_binding(
+        &self,
+        machine: &machine::Machine,
+        state: &crate::state::State,
+    ) -> Option<&crate::name::Identifier> {
+        self.data_binding_parameter(machine, self.state_parameters(state))
+            .map(|parameter| &parameter.name)
+    }
+
+    /// The data binding of `machine`'s entry state, for the callers that hold
+    /// a machine without one of its states.
+    pub fn machine_data_binding(
+        &self,
+        machine: &machine::Machine,
+    ) -> Option<&crate::name::Identifier> {
+        let entry = self.machine_states(machine).first()?;
+        self.state_data_binding(machine, entry)
+    }
+
+    /// Whether `type_reference` names `attached_data_symbol` once references
+    /// and constraints are stripped.
+    ///
+    /// A data binding is spelled `&mut Main`, `&Main` or `Main`; the
+    /// ownership mode decides borrow access, not which record the binding
+    /// names, so every mode answers this the same way.
+    fn type_reference_names_attached_data(
+        &self,
+        type_reference: crate::types::TypeReferenceHandle,
+        attached_data_symbol: symbols::SymbolHandle,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        match self.type_reference_table.type_reference(type_reference) {
+            crate::types::TypeReferenceNode::Reference { referee, .. } => {
+                self.type_reference_names_attached_data(*referee, attached_data_symbol)
+            }
+            crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.type_reference_names_attached_data(*base_type, attached_data_symbol)
+            }
+            crate::types::TypeReferenceNode::Named { symbol, .. } => {
+                *symbol == attached_data_symbol
+            }
+            _ => false,
+        }
+    }
+
     /// The machine whose state list stores `state_symbol`. A state's
     /// retained parent names its owning machine, so the common case is one
     /// symbol read, one machines-row scan, and one membership check. The

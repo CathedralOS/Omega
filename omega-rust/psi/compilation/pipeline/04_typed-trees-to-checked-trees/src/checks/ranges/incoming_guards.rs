@@ -1,4 +1,4 @@
-use language_core::receiver_place_field;
+use language_core::place_field;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -354,7 +354,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
                 Some(compose_immutable_argument_symbols(&bindings, &replacements))
             });
             for &(guard, negated) in &edge.guards {
-                if guard_survives(program, guard, &written, written_any) {
+                if guard_survives(program, guard, edge.source, &written, written_any) {
                     result.push(IncomingGuard {
                         state: state.symbol,
                         evaluation_state: edge.source,
@@ -481,7 +481,7 @@ fn edge_carried_facts(
     let mut carried: Vec<CarriedGuard> = walk_facts
         .iter()
         .filter(|fact| fact.state == edge.source)
-        .filter(|fact| guard_survives(program, fact.guard, &written, written_any))
+        .filter(|fact| guard_survives(program, fact.guard, edge.source, &written, written_any))
         .map(|fact| CarriedGuard {
             evaluation_state: fact.evaluation_state,
             guard: fact.guard,
@@ -857,13 +857,14 @@ fn state_field_writes(
 fn guard_survives(
     program: &typed_trees::TypedTrees,
     guard: ExpressionHandle,
+    guard_state: SymbolHandle,
     written: &[String],
     written_any: bool,
 ) -> bool {
     if written_any {
         return false;
     }
-    match guard_member_paths(program, guard) {
+    match guard_member_paths(program, state_data_binding_of(program, guard_state), guard) {
         Some(paths) => paths.iter().all(|guard_path| {
             written
                 .iter()
@@ -874,7 +875,7 @@ fn guard_survives(
 }
 
 /// Exact caller-visible paths a state may write. Direct assignments contribute
-/// their authored `self` place; nested and statement-position calls contribute
+/// their authored data place; nested and statement-position calls contribute
 /// the shared R5 normalized frame. Opaque calls fail closed.
 fn state_writes(
     program: &typed_trees::TypedTrees,
@@ -885,6 +886,9 @@ fn state_writes(
     let Some(call_frames) = call_frames else {
         return StateWrites::Any;
     };
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str());
     let mut paths = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {
         let Some(value_writes) = call_frames.statement_value_may_write_paths(machine, statement)
@@ -902,7 +906,9 @@ fn state_writes(
 
         if let StatementNode::Assignment(assignment) = statement {
             let target = program.expression_table.display_name(assignment.target);
-            if receiver_place_field(&target).is_some() && !paths.contains(&target) {
+            if data_binding.is_some_and(|root| place_field(root, &target).is_some())
+                && !paths.contains(&target)
+            {
                 paths.push(target);
             }
         }
@@ -922,37 +928,63 @@ fn extend_unique(target: &mut Vec<String>, additions: &[String]) {
 /// cannot conservatively analyze (a call, range, literal aggregate, ...).
 fn guard_member_paths(
     program: &typed_trees::TypedTrees,
+    data_binding: Option<&str>,
     guard: ExpressionHandle,
 ) -> Option<Vec<String>> {
     let mut paths = Vec::new();
-    collect_member_paths(program, guard, &mut paths).then_some(paths)
+    collect_member_paths(program, data_binding, guard, &mut paths).then_some(paths)
 }
 
-/// Collect every `self.field` path the expression names; returns false if it
+/// The binding naming the data record of the state `state_symbol` names.
+///
+/// A guard's rendered paths are spelled in the state that evaluates it, so
+/// which root they carry is that state's property.
+fn state_data_binding_of(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Option<&str> {
+    let machine = program.machine_holding_state(state_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str())
+}
+
+/// Collect every data-rooted field path the expression names; returns false if it
 /// contains a node that might reference a field through a path we do not walk.
 fn collect_member_paths(
     program: &typed_trees::TypedTrees,
+    data_binding: Option<&str>,
     expression: ExpressionHandle,
     paths: &mut Vec<String>,
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
             let path = program.expression_table.display_name(expression);
-            if receiver_place_field(&path).is_some() && !paths.contains(&path) {
+            if data_binding.is_some_and(|root| place_field(root, &path).is_some())
+                && !paths.contains(&path)
+            {
                 paths.push(path);
             }
-            collect_member_paths(program, member.receiver, paths)
+            collect_member_paths(program, data_binding, member.receiver, paths)
         }
         ExpressionNode::Binary(binary) => {
-            collect_member_paths(program, binary.left, paths)
-                && collect_member_paths(program, binary.right, paths)
+            collect_member_paths(program, data_binding, binary.left, paths)
+                && collect_member_paths(program, data_binding, binary.right, paths)
         }
         ExpressionNode::Indexed(indexed) => {
-            collect_member_paths(program, indexed.collection, paths)
-                && collect_member_paths(program, indexed.index, paths)
+            collect_member_paths(program, data_binding, indexed.collection, paths)
+                && collect_member_paths(program, data_binding, indexed.index, paths)
         }
-        ExpressionNode::Unary(unary) => collect_member_paths(program, unary.operand, paths),
-        ExpressionNode::Cast(cast) => collect_member_paths(program, cast.value, paths),
+        ExpressionNode::Unary(unary) => {
+            collect_member_paths(program, data_binding, unary.operand, paths)
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_member_paths(program, data_binding, cast.value, paths)
+        }
         // A bare name is a local or `self` -- neither is a machine field, and a
         // local does not carry across states (keyed by a distinct symbol).
         ExpressionNode::Name(_)

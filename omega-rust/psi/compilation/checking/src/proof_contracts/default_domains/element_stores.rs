@@ -90,6 +90,12 @@ pub(super) fn handle_element_store<'program>(
     if affected.is_empty() {
         return true;
     }
+    // The binding naming the record this state's places are rooted at; see
+    // `place_queries::is_data_rooted`.
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str().to_owned());
+    let data_binding = data_binding.as_deref();
     let position = tracked_receiver(
         program,
         tracked,
@@ -99,6 +105,7 @@ pub(super) fn handle_element_store<'program>(
         poisoned_all,
         poisoned_paths,
         born_zero,
+        data_binding,
     );
     let place = &mut tracked[position];
     // A wildcard receiver may name any covered element; this analysis keeps

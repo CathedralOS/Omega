@@ -2,12 +2,12 @@
 //! against established places and range gates.
 
 use crate::proof_contracts::default_domains::place_queries::{
-    data_definition_for_expression, is_self_rooted, place_spelling_covers, self_place_spelling,
+    data_definition_for_expression, is_data_rooted, place_spelling_covers, self_place_spelling,
     transition_evaluated_expressions, write_place_spelling, write_target_index_expressions,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
-use language_core::{is_self_receiver, receiver_place_label};
+use language_core::place_label;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -52,8 +52,11 @@ pub(crate) fn scan_statement_reads(
         }
         StatementNode::Call(call) => {
             let receiver = program.statement_table.name_path_members(call.receiver);
+            let data_binding = program
+                .state_data_binding(machine, state)
+                .map(|name| name.as_str());
             if receiver.len() > 1
-                && receiver[0].is_self_receiver()
+                && data_binding.is_some_and(|root| receiver[0].as_str() == root)
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
                         .data_definitions()
@@ -65,8 +68,9 @@ pub(crate) fn scan_statement_reads(
                 validate_data_read(
                     program,
                     machine,
+                    state,
                     definition,
-                    "self",
+                    receiver[0].as_str(),
                     receiver[1].as_str(),
                     tracked,
                     entry_established,
@@ -203,6 +207,7 @@ fn scan_expression_use(
                     validate_data_read(
                         program,
                         machine,
+                        state,
                         place.definition,
                         &receiver_spelling,
                         members.last().expect("non-empty path").as_str(),
@@ -230,6 +235,7 @@ fn scan_expression_use(
                 validate_data_read(
                     program,
                     machine,
+                    state,
                     definition,
                     "self",
                     members[1].as_str(),
@@ -255,6 +261,7 @@ fn scan_expression_use(
                     validate_data_read(
                         program,
                         machine,
+                        state,
                         definition,
                         &receiver_spelling,
                         member.member.as_str(),
@@ -349,6 +356,7 @@ fn scan_expression_use(
                 validate_data_read(
                     program,
                     machine,
+                    state,
                     place.definition,
                     &receiver_spelling,
                     member.member.as_str(),
@@ -534,6 +542,7 @@ fn scan_expression_use(
 fn validate_data_read(
     program: &TypedTrees,
     machine: &Machine,
+    state: &State,
     definition: &DataDefinition,
     receiver_spelling: &str,
     member_name: &str,
@@ -543,26 +552,31 @@ fn validate_data_read(
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str());
     let place = tracked
         .iter()
         .find(|place| place_spelling_covers(&place.spelling, receiver_spelling));
     let established = place.map(|place| place.established).unwrap_or_else(|| {
         // Parameters and locals arrive domain-valid from their caller or
-        // initializer; machine-owned `self` storage starts as representation
-        // only and must earn establishment on every incoming path.
+        // initializer; machine-owned storage -- the record the data binding
+        // names -- starts as representation only and must earn establishment
+        // on every incoming path.
         entry_established
             .iter()
             .any(|established| established == receiver_spelling)
             || call_established
                 .iter()
                 .any(|established| established == receiver_spelling)
-            || !is_self_rooted(receiver_spelling)
+            || !is_data_rooted(data_binding, receiver_spelling)
     });
     let established = established
-        || (is_self_receiver(receiver_spelling)
+        || (data_binding == Some(receiver_spelling)
             && attached_value_established(
                 program,
                 machine,
+                state,
                 tracked,
                 entry_established,
                 call_established,
@@ -611,11 +625,20 @@ fn validate_data_read(
 pub(crate) fn attached_value_established(
     program: &TypedTrees,
     machine: &Machine,
+    state: &State,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
 ) -> bool {
-    if direct_place_established("self", tracked, entry_established, call_established) {
+    // No data binding means this machine owns no record here, so there is no
+    // whole-value establishment to find.
+    let Some(data_binding) = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str())
+    else {
+        return false;
+    };
+    if direct_place_established(data_binding, tracked, entry_established, call_established) {
         return true;
     }
     let Some(attached) = machine.attached_data.as_ref() else {
@@ -633,9 +656,7 @@ pub(crate) fn attached_value_established(
     if definition.zero_gated {
         return false;
     }
-    let root = tracked
-        .iter()
-        .find(|place| is_self_receiver(&place.spelling));
+    let root = tracked.iter().find(|place| place.spelling == data_binding);
     for member in program.data_members(definition) {
         let typed_trees::data::DataMember::Field(field) = member else {
             continue;
@@ -667,7 +688,7 @@ pub(crate) fn attached_value_established(
                 return false;
             }
         } else {
-            let child = receiver_place_label(field.name.as_str());
+            let child = place_label(data_binding, field.name.as_str());
             if !direct_place_established(&child, tracked, entry_established, call_established) {
                 return false;
             }

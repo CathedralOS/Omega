@@ -6,7 +6,7 @@ use super::{
     PrimitiveType, State, TypedTrees, declared_place_type_raw, guard_narrowing, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
-use language_core::receiver_place_label;
+use language_core::place_label;
 
 /// R3's ONE closed bounded-product rule: `a * self.Fb + c` where
 /// `a <= self.Fa - 1` (a STRICT dependent atom), `c <= self.Fb - 1` (strict,
@@ -108,16 +108,21 @@ fn strict_dependent_atom_field(
     (offset == -1).then_some(field)
 }
 
-/// A machine `requires` conjunct `self.Fa * self.Fb <= K` (either multiply
-/// order; strict `<` tightens to `K - 1`).
+/// A machine `requires` conjunct `main.Fa * main.Fb <= K` (either multiply
+/// order; strict `<` tightens to `K - 1`), where `main` is whatever the
+/// machine's data binding is called.
+///
+/// A machine with no data binding names no such conjunct, so there is no
+/// coupling to find and the caller keeps its naive bound.
 fn requires_product_coupling(
     program: &TypedTrees,
     machine: &Machine,
     fa: &typed_trees::name::Identifier,
     fb: &typed_trees::name::Identifier,
 ) -> Option<i64> {
-    let fa_label = receiver_place_label(fa.as_str());
-    let fb_label = receiver_place_label(fb.as_str());
+    let data_binding = program.machine_data_binding(machine)?.as_str();
+    let fa_label = place_label(data_binding, fa.as_str());
+    let fb_label = place_label(data_binding, fb.as_str());
     for contract in program.machine_contracts(machine) {
         if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
             continue;

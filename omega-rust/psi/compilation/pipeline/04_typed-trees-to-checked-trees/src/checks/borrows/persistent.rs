@@ -10,7 +10,7 @@
 //! a persistent owner's loan through every outgoing transition.
 
 use diagnostics::Diagnostic;
-use language_core::receiver_place_label;
+use language_core::place_label;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -784,8 +784,18 @@ fn static_path_frame_aliases(
         }
     }
     let field_path = format!("{root_name}{suffix}");
-    let receiver_path = receiver_place_label(&field_path);
-    vec![field_path, receiver_path]
+    // Callers match either spelling of the same storage: the bare field path,
+    // and the path rooted at the state's data binding (`self.field` under the
+    // receiver spelling, `main.field` under the static one). A state reaching
+    // no single data record has only the bare spelling.
+    let rooted_path = program
+        .machine_holding_state(state.symbol)
+        .and_then(|machine| program.state_data_binding(machine, state))
+        .map(|root| place_label(root.as_str(), &field_path));
+    match rooted_path {
+        Some(rooted_path) => vec![field_path, rooted_path],
+        None => vec![field_path],
+    }
 }
 
 fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {

@@ -3,7 +3,7 @@
 //! These are read-only structural queries shared by the default-domain write
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
-use language_core::{is_receiver_rooted, is_self_receiver};
+use language_core::{is_rooted_at, is_self_receiver};
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -11,7 +11,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Render a Name-rooted place (`self.map`, `target`, `local.a`); `None`
+/// Render a Name-rooted place (`main.map`, `target`, `local.a`); `None`
 /// for computed receivers. Slice 6: parameter/local roots are tracked too
 /// -- their writes carry the same obligation; only their VALUATION model
 /// differs (no born zero).
@@ -49,9 +49,14 @@ pub(super) fn self_place_spelling(
 }
 
 /// Slice 6: the born-zero valuation model applies only to machine-owned
-/// (self-rooted) storage.
-pub(super) fn is_self_rooted(spelling: &str) -> bool {
-    is_receiver_rooted(spelling)
+/// storage -- the record the machine's data binding names.
+///
+/// `data_binding` is the name that binding carries in the state being walked:
+/// `self` under the receiver spelling, an ordinary parameter name
+/// (`main`) under the static one. A machine with no data binding owns no
+/// storage here, so nothing is data-rooted for it.
+pub(super) fn is_data_rooted(data_binding: Option<&str>, spelling: &str) -> bool {
+    data_binding.is_some_and(|root| is_rooted_at(root, spelling))
 }
 
 /// The write-target analogue of [`self_place_spelling`]: a non-literal index

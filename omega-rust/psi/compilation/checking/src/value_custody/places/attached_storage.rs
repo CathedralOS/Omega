@@ -17,17 +17,14 @@
 //! `exact_self_field`: the same declaration-exact field identity, reached
 //! through whichever root the declaration actually binds.
 
-use super::{exact_attached_field, exact_self_field, unwrapped_type_reference};
-use language_core::{
-    PLACE_MEMBER_SEPARATOR, SELF_RECEIVER, receiver_place_field, receiver_place_label,
-};
+use super::{exact_attached_field, exact_self_field};
+use language_core::{SELF_RECEIVER, place_field, place_label};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceNode;
 
 /// The one binding a declaration reaches the machine's attached data through.
 ///
@@ -41,10 +38,11 @@ pub struct AttachedStorageRoot<'parameters> {
 
 /// The binding `parameters` reaches this machine's attached data through.
 ///
-/// A receiver wins outright: `self` cannot be shadowed, so a declaration that
-/// takes one reaches its storage through nothing else. Resolution installs a
-/// receiver name under the machine's own symbol, which is what
-/// `exact_self_field` matches, so that is the symbol reported here.
+/// `TypedTrees::data_binding_parameter` owns which parameter that is, for
+/// every stage that asks. This adds only what a rendered place needs: the
+/// symbol a root must resolve to. Resolution installs a receiver name under
+/// the machine's own symbol, which is what `exact_self_field` matches, so that
+/// is the symbol reported for a receiver.
 pub fn attached_storage_root<'parameters>(
     program: &TypedTrees,
     machine: &Machine,
@@ -53,40 +51,17 @@ pub fn attached_storage_root<'parameters>(
     if !machine.symbol.is_valid() || !machine.attached_data_symbol.is_valid() {
         return None;
     }
-    if parameters.iter().any(|parameter| parameter.is_self) {
+    let parameter = program.data_binding_parameter(machine, parameters)?;
+    if parameter.is_self {
         return Some(AttachedStorageRoot {
             name: SELF_RECEIVER,
             symbol: machine.symbol,
         });
     }
-    let mut attached = parameters
-        .iter()
-        .filter(|parameter| parameter_declares_attached_data(program, machine, parameter));
-    let parameter = attached.next()?;
-    if attached.next().is_some() || !parameter.symbol.is_valid() {
-        return None;
-    }
-    Some(AttachedStorageRoot {
+    parameter.symbol.is_valid().then(|| AttachedStorageRoot {
         name: parameter.name.as_str(),
         symbol: parameter.symbol,
     })
-}
-
-/// Whether `parameter` is declared as the machine's exact attached data,
-/// looking through the reference and constraint shells a `&mut Main` binding
-/// carries. Another declaration of the same shape is not the same data.
-fn parameter_declares_attached_data(
-    program: &TypedTrees,
-    machine: &Machine,
-    parameter: &StateParameter,
-) -> bool {
-    let Some(declared) = unwrapped_type_reference(program, parameter.type_reference) else {
-        return false;
-    };
-    matches!(
-        program.type_reference_table.type_reference(declared),
-        TypeReferenceNode::Named { symbol, .. } if *symbol == machine.attached_data_symbol
-    )
 }
 
 /// Resolve a direct field of this machine's attached data, reached through
@@ -192,11 +167,8 @@ pub fn canonical_storage_label(
     if root.name == SELF_RECEIVER {
         return label.to_owned();
     }
-    match label
-        .strip_prefix(root.name)
-        .and_then(|below| below.strip_prefix(PLACE_MEMBER_SEPARATOR))
-    {
-        Some(field) => receiver_place_label(field),
+    match place_field(root.name, label) {
+        Some(field) => place_label(SELF_RECEIVER, field),
         None => label.to_owned(),
     }
 }
@@ -212,13 +184,13 @@ pub fn declaration_storage_label(
     parameters: &[StateParameter],
     canonical: &str,
 ) -> Option<String> {
-    let Some(field) = receiver_place_field(canonical) else {
+    let Some(field) = place_field(SELF_RECEIVER, canonical) else {
         return Some(canonical.to_owned());
     };
     let root = attached_storage_root(program, machine, parameters)?;
     Some(if root.name == SELF_RECEIVER {
         canonical.to_owned()
     } else {
-        format!("{}{PLACE_MEMBER_SEPARATOR}{field}", root.name)
+        place_label(root.name, field)
     })
 }
