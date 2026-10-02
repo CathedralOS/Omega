@@ -80,6 +80,86 @@ fn matches(program: &TypedTrees, spelling: &str) -> bool {
 }
 
 #[test]
+fn generic_reference_slots_require_call_substitution_for_every_producer() {
+    let program = typed_source(
+        "data Context { value: u64; }
+         data Other { value: u64; }
+         data Holder { context: &mut Context; }
+         machine retain(context: &mut Context) -> &mut Context { context }
+         machine probe(holder: &mut Holder, stored: &mut Context, shared: &Context) {
+             let returned: &mut Context = retain(stored);
+             let projected: &mut Context = holder.context;
+             let readonly: &Context = shared;
+         }
+         machine require_mutable<T>(value: &mut T) {}
+         machine require_shared<T>(value: &T) {}
+         machine require_other(value: &mut Other) {}
+         machine require_context(value: &mut Context) {}
+         machine require_shared_context(value: &Context) {}",
+    );
+    let parameter_type = |name: &str| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("required reference declaration");
+        program.state_parameters(&program.machine_states(machine)[0])[0].type_reference
+    };
+    let mutable = parameter_type("require_mutable");
+    let shared = parameter_type("require_shared");
+    let other = parameter_type("require_other");
+    let context = parameter_type("require_context");
+    let shared_context = parameter_type("require_shared_context");
+    for spelling in ["stored", "holder.context", "retain(stored)"] {
+        let argument = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, expression)| {
+                let selected = if spelling == "retain(stored)" {
+                    matches!(expression, ExpressionNode::Call(call)
+                        if call.target.as_str() == "retain")
+                } else {
+                    program.expression_table.display_name(handle) == spelling
+                };
+                selected.then_some(handle)
+            })
+            .expect("reference producer expression");
+        assert!(
+            !checked_argument_matches_type_reference(&program, argument, mutable),
+            "{spelling} cannot close a mutable generic slot without its call substitution"
+        );
+        assert!(
+            !checked_argument_matches_type_reference(&program, argument, shared),
+            "{spelling} cannot close a shared generic slot without its call substitution"
+        );
+        assert!(
+            checked_argument_matches_type_reference(&program, argument, context),
+            "{spelling} retains its closed referee identity"
+        );
+        assert!(
+            checked_argument_matches_type_reference(&program, argument, shared_context),
+            "{spelling} attenuates mutable access without changing its closed carrier"
+        );
+        assert!(
+            !checked_argument_matches_type_reference(&program, argument, other),
+            "{spelling} cannot change a closed referee identity"
+        );
+    }
+    let shared_argument = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, _)| {
+            (program.expression_table.display_name(handle) == "shared").then_some(handle)
+        })
+        .expect("shared reference expression");
+    assert!(!checked_argument_matches_type_reference(
+        &program,
+        shared_argument,
+        context,
+    ));
+}
+
+#[test]
 fn missing_conflicting_and_non_value_roots_cannot_recover_from_spelling() {
     for corruption in [
         "missing",

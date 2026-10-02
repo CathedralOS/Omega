@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": null, "load1_end": 1.77, "load1_start": 1.57, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 1.7, "load1_start": 1.12, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -152,6 +152,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 789ms expected @2d8ed253669f
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb878591d2fc+wt
 	mutable argument `source` for state `clone` is not writable in this state
+fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expected @f3a79ef091a9
+	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 898ms expected @2d8ed253669f
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 811ms expected @2d8ed253669f
@@ -1146,6 +1148,10 @@ fail/traits/equatable_missing_conformance_suggested rejected 35ms expected @2d8e
 	cannot compare `Point` values with `==`: structural equality is not synthesized for non-conforming types -- declare `PointEquatable: Point satisfies Equatable;` to synthesize structural equality
 fail/traits/equatable_recursive_type rejected 36ms expected @2d8ed253669f
 	conformance `Node satisfies Equatable`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet
+fail/traits/generic_reference_forwarding_carrier_mismatch rejected 1304ms expected @f3a79ef091a9
+	argument `subject` for state `entry` expects `&mut T`, got `named value`
+	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
+	argument `subject` for state `entry` expects the `Counter` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/traits/inherited_default_ambiguous rejected 16ms expected @2d8ed253669f
 	data `Counter` inherits conflicting default machine `Counter::reset` from traits `LeftReset`, `RightReset`; write an override
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
@@ -2320,7 +2326,9 @@ pass/traits/equatable_mixed_shape_equality_exit checked 3655ms @ca8c127c90c5
 pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/traits/generic_reference_forwarding_exit checked 13520ms @f3a79ef091a9
 pass/traits/generic_trait_parent_binds_requirement checked 666ms @2d8ed253669f
+pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1540ms @2d8ed253669f
