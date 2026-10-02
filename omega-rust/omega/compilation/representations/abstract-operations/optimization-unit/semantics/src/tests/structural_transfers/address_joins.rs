@@ -280,6 +280,7 @@ pub(super) fn validate_address_join_ownership(
         &functions,
         &boundary_machines,
         &structural_types,
+        &crate::current_ownership::CallAccesses::new(&functions, &structural_types),
     )
 }
 

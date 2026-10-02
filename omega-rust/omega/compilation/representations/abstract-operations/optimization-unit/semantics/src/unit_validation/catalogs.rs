@@ -109,6 +109,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         }
     }
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
+    let call_accesses = crate::current_ownership::CallAccesses::new(&machines, &structural_types);
     for function in &unit.functions {
         validate_function(
             unit,
@@ -119,6 +120,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             &structural_types,
             &structural_domains,
             cycle_policy,
+            &call_accesses,
         )?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }

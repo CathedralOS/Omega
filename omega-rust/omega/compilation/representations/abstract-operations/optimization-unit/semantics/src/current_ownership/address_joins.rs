@@ -58,8 +58,9 @@ impl AddressJoinPins {
     pub(super) fn new(
         function: &PsiOptimizationFunction,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        call_accesses: &super::CallAccesses,
     ) -> Self {
-        let borrowed_regions = BorrowedRegions::new(function, structural_types);
+        let borrowed_regions = BorrowedRegions::new(function, structural_types, call_accesses);
         let descriptor_loans = DescriptorLoans::new(function, &borrowed_regions, structural_types);
         let joins = function
             .blocks

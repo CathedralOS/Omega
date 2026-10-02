@@ -288,7 +288,11 @@ fn receiver_fixture(intervening: O, observe_after_write: bool) -> PsiOptimizatio
 #[test]
 fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
     let function = receiver_fixture(scalar(1), true);
-    let regions = BorrowedRegions::new(&function, &BTreeMap::new());
+    let regions = BorrowedRegions::new(
+        &function,
+        &BTreeMap::new(),
+        &crate::current_ownership::CallAccesses::default(),
+    );
     let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
     assert_eq!(loans.loans.len(), 1);
     assert!(loans.loans[0].live.contains(&position(2)));
@@ -348,7 +352,11 @@ fn stored_dynamic_selection_is_an_escape_at_capture_not_at_later_dispatch() {
         },
     };
     let function = receiver_fixture(capture, false);
-    let regions = BorrowedRegions::new(&function, &BTreeMap::new());
+    let regions = BorrowedRegions::new(
+        &function,
+        &BTreeMap::new(),
+        &crate::current_ownership::CallAccesses::default(),
+    );
     let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
     assert_eq!(loans.loans.len(), 1);
     assert!(
@@ -503,7 +511,11 @@ fn writable_plain_projection_does_not_escape_a_shared_call_operand() {
                 .iter()
                 .map(|declaration| (declaration.id, declaration))
                 .collect();
-            let regions = BorrowedRegions::new(&function, &types);
+            let regions = BorrowedRegions::new(
+                &function,
+                &types,
+                &crate::current_ownership::CallAccesses::default(),
+            );
             let loans = DescriptorLoans::new(&function, &regions, &types);
             assert_eq!(loans.loans.len(), 1);
             assert!(
@@ -594,7 +606,11 @@ fn alias_bearing_or_unresolved_writable_output_keeps_the_call_loan_alive() {
             .iter()
             .map(|declaration| (declaration.id, declaration))
             .collect();
-        let regions = BorrowedRegions::new(&function, &types);
+        let regions = BorrowedRegions::new(
+            &function,
+            &types,
+            &crate::current_ownership::CallAccesses::default(),
+        );
         let loans = DescriptorLoans::new(&function, &regions, &types);
         assert_eq!(loans.loans.len(), 1);
         assert!(
@@ -627,7 +643,11 @@ fn a_non_escaping_call_does_not_retire_later_descriptor_observations() {
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect();
-    let regions = BorrowedRegions::new(&function, &types);
+    let regions = BorrowedRegions::new(
+        &function,
+        &types,
+        &crate::current_ownership::CallAccesses::default(),
+    );
     let loans = DescriptorLoans::new(&function, &regions, &types);
     assert!(loans.loans[0].live.contains(&position(3)));
     assert_eq!(
