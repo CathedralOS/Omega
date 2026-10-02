@@ -1,12 +1,13 @@
 use omega::language::core::float_operations;
 
-// F4: Exact float-to-int accepts a declared finite range and a sole incoming
-// guard that proves non-NaN plus both range bounds.
+// Exact float-to-int accepts a field's default-domain bound and an incoming
+// guard that proves non-NaN plus both range bounds. The data clause preserves
+// the former field suffix's [0.0..=100.0] contract without a range type.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main {
+data Main where bounded >= 0.0 && bounded <= 100.0 {
     console: Binding<Console>;
-    bounded: f64 [0.0..=100.0];
+    bounded: f64;
     unbounded: f64;
     a: i32;
     b: i32;
