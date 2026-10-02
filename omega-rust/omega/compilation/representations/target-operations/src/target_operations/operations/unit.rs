@@ -564,3 +564,56 @@ pub struct TargetStructuralRuntimeIndex {
     pub operand: TargetUnitScalarArgumentSource,
     pub stride: u32,
 }
+
+impl TargetUnitOperation {
+    /// Required storage for an operation's structural result. The operation
+    /// identity is retained beside the home so receiving replay can compare
+    /// the home origin with both its producer and the abstract declaration.
+    /// Borrowed descriptors and scalar homes are separate storage contracts.
+    pub fn structural_result_home(
+        &self,
+    ) -> Option<(OperationId, &TargetStructuralHomeRequirement)> {
+        match self {
+            Self::StructuralLeafCopy {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishZeroedStructural {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishRecord {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishReference {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishScalarArray {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishCase {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::Call {
+                psi_operation,
+                result:
+                    crate::TargetCallResult::Structural {
+                        result_home: Some(result_home),
+                        ..
+                    },
+                ..
+            } => Some((*psi_operation, result_home)),
+            _ => None,
+        }
+    }
+}

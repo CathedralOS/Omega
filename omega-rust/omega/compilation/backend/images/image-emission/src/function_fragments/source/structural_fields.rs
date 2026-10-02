@@ -1364,46 +1364,12 @@ fn read_access(
             }
             continue;
         }
-        let (producer, result) = match operation {
-            AbstractOperation::EstablishReference {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            }
-            | AbstractOperation::StructuralLeafCopy {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::MoveStructuralField {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            // A scalar array literal's home is the same owned arrival the
-            // record arms admit: element reads borrow that place, and the
-            // retained row carries its `result_home` home declaration.
-            | AbstractOperation::EstablishScalarArray {
-                psi_operation,
-                result,
-                ..
-            } if result.place == place => (*psi_operation, result),
-            _ => continue,
+        let Some((producer, result)) = operation.structural_result() else {
+            continue;
         };
+        if result.place != place {
+            continue;
+        }
         // Metadata reads observe the same established home as scalar fields.
         // This does not authorize replacing an owned byte carrier: mutation
         // keeps its separately checked borrowed-destination contract.
@@ -1418,26 +1384,15 @@ fn read_access(
                 .iter()
                 .flat_map(|block| &block.operations)
                 .any(|operation| {
-                    let home = match operation {
-                        TargetUnitOperation::EstablishReference { result_home, .. }
-                        | TargetUnitOperation::EstablishRecord { result_home, .. }
-                        | TargetUnitOperation::EstablishZeroedStructural { result_home, .. }
-                        | TargetUnitOperation::StructuralLeafCopy { result_home, .. }
-                        | TargetUnitOperation::EstablishScalarArray { result_home, .. }
-                        | TargetUnitOperation::Call {
-                            result:
-                                target_operations::TargetCallResult::Structural {
-                                    result_home: Some(result_home),
-                                    ..
-                                },
-                            ..
-                        } => result_home,
-                        _ => return false,
+                    let Some((retained_producer, home)) = operation.structural_result_home() else {
+                        return false;
                     };
-                    home.operation_result()
-                        .is_some_and(|(actual, declaration)| {
-                            actual == producer && declaration == result
-                        })
+                    retained_producer == producer
+                        && home
+                            .operation_result()
+                            .is_some_and(|(actual, declaration)| {
+                                actual == producer && declaration == result
+                            })
                 })
             || access
                 .replace((StructuralAccess::Owned, result.structural_type))
