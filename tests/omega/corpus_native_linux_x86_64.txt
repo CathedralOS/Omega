@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 0.98, "load1_start": 0.98, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 1.58, "load1_start": 1.56, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -956,7 +956,9 @@ pass/traits/equatable_mixed_shape_equality_exit built 4834ms exit:70 @2d8ed25366
 pass/traits/equatable_record_equality_exit built 5399ms exit:70 @2d8ed253669f+wt
 pass/traits/equatable_string_field_equality_exit rejected 1699ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/traits/generic_reference_forwarding_exit built 12268ms exit:1 @f3a79ef091a9+wt
 pass/traits/generic_trait_parent_binds_requirement checked 703ms @2d8ed253669f+wt
+pass/traits/nominal_generic_reference_forwarding_exit built 12133ms exit:1 @f3a79ef091a9+wt
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)

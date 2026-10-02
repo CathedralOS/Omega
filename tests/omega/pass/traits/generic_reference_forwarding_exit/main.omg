@@ -1,0 +1,37 @@
+// A stored mutable reference forwards through distinct generic telescopes.
+// The caller observes the selected increment after both helpers return.
+// Expected exit: 1.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(counter: &mut Counter) satisfies Incrementable::increment {
+    counter.value = counter.value + 1;
+}
+CounterIncrementable: Counter satisfies Incrementable;
+
+machine step<T, machine Increment>(subject: &mut T)
+where machine Increment(target: &mut T);
+{
+    Increment(subject);
+}
+
+machine forward<T, machine Increment>(subject: &mut T)
+where machine Increment(target: &mut T);
+{
+    step<T, Increment>(subject);
+}
+
+data Main { console: Binding<Console>; counter: Counter; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    forward<Counter, Counter::increment>(&mut main.counter);
+    main.console.exit_process(main.counter.value as i32);
+}
