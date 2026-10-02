@@ -72,16 +72,16 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
-    self.chars = " #";
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.line = "                        ";
-    self.c = 0;
-    transition { _ -> zero_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
+    main.chars = " #";
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.line = "                        ";
+    main.c = 0;
+    transition { _ -> zero_loop(main) }
 
     // --- clear the padded grid, then seed a glider ---
     state zero_loop(main: &mut Main) {

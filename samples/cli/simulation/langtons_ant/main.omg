@@ -64,20 +64,20 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("langtons_ant: an ant on a two-color toroidal grid, 120 animated steps");
-    self.ax = 12;
-    self.ay = 7;
-    self.ad = 0;
-    self.chars = " #";
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.line = "                        ";
-    self.k = 0;
-    self.gen = 0;
-    transition { _ -> clear(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("langtons_ant: an ant on a two-color toroidal grid, 120 animated steps");
+    main.ax = 12;
+    main.ay = 7;
+    main.ad = 0;
+    main.chars = " #";
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.line = "                        ";
+    main.k = 0;
+    main.gen = 0;
+    transition { _ -> clear(main) }
 
     state clear(main: &mut Main) {
         transition main.k >= 0 && main.k < 336 { true -> clear_cell(main) _ -> show(main) }

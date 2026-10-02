@@ -63,16 +63,16 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
-    self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.line = "        ";
-    self.i = 0;
-    transition { _ -> show(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
+    main.arr = [5, 2, 8, 1, 7, 3, 6, 4];
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.line = "        ";
+    main.i = 0;
+    transition { _ -> show(main) }
 
     // --- render the array as bars, in place ---
     state show(main: &mut Main) {

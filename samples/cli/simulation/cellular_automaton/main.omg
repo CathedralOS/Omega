@@ -66,12 +66,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
-    self.line = "                                                                ";
-    self.chars = " #";
-    self.x = 0;
-    transition { _ -> zero_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
+    main.line = "                                                                ";
+    main.chars = " #";
+    main.x = 0;
+    transition { _ -> zero_loop(main) }
 
     // --- clear the grid, then light a single centre cell ---
     state zero_loop(main: &mut Main) {

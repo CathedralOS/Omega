@@ -54,11 +54,11 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.line = "                               ";
-    self.chars = " -*#";
-    self.x = 0;
-    transition { _ -> init_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.line = "                               ";
+    main.chars = " -*#";
+    main.x = 0;
+    transition { _ -> init_loop(main) }
 
     // arr[i] = i, so the value `target` sits at index `target`
     state init_loop(main: &mut Main) {
