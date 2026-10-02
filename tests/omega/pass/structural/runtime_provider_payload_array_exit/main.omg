@@ -10,8 +10,8 @@ data Main {
     count: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.count = 42;
-    transition { _ -> finish() }
-    state finish(&mut self) { self.console.exit_process(self.count); }
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 42;
+    transition { _ -> finish(main) }
+    state finish(main: &mut Main) { main.console.exit_process(main.count); }
 }

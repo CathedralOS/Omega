@@ -33,33 +33,33 @@ data Plan {
 }
 
 data Spread16 { index: u64 in Wrapping; }
-machine Spread16::plan(&mut self, schema: Schema) -> Plan {
-    self.evaluate(schema, 128)
+machine Spread16::plan(spread16: &mut Spread16, schema: Schema) -> Plan {
+    Spread16::evaluate(spread16, schema, 128)
 }
-machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, fuel: u64) -> Plan
 requires fuel >= 1 && fuel <= 128
 terminates by fuel;
 {
     let mut entries: [FieldEntry; 64];
-    self.index = 0;
-    transition { _ -> fill(schema, fuel, entries) }
-    state fill(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    spread16.index = 0;
+    transition { _ -> fill(spread16, schema, fuel, entries) }
+    state fill(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
     requires fuel >= 1 && fuel <= 128 {
-        transition fuel > 1 && self.index < schema.field_count {
-            true -> place(schema, fuel - 1, entries)
+        transition fuel > 1 && spread16.index < schema.field_count {
+            true -> place(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    state place(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
     requires fuel >= 1 && fuel <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
-        let offset: u64 = (self.index * 16) as u64;
-        updated[self.index] = FieldEntry {
-            key: schema.fields[self.index].key,
+        let offset: u64 = (spread16.index * 16) as u64;
+        updated[spread16.index] = FieldEntry {
+            key: schema.fields[spread16.index].key,
             placement: FieldPlan::At { offset: offset },
         };
-        self.index = self.index + 1;
-        transition fuel > 1 { true -> fill(schema, fuel - 1, updated) _ -> done(schema, updated) }
+        spread16.index = spread16.index + 1;
+        transition fuel > 1 { true -> fill(spread16, schema, fuel - 1, updated) _ -> done(schema, updated) }
     }
     state done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
@@ -85,13 +85,13 @@ data Main {
     twin: Spread16<Certified>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.value.left = 7;
-    self.value.right = 63;
-    self.twin = self.value;
-    transition self.twin.left == 7 && self.twin.right == 63 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.value.left = 7;
+    main.value.right = 63;
+    main.twin = main.value;
+    transition main.twin.left == 7 && main.twin.right == 63 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }
