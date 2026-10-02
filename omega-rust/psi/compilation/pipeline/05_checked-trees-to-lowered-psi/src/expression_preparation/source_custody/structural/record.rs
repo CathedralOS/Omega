@@ -118,6 +118,10 @@ pub(super) fn validate(
             .iter()
             .find(|initializer| initializer.field_symbol == field.field)
         else {
+            if field.expression != expression || field.type_reference != declaration.type_reference
+            {
+                return unsupported("omitted record member changed its constructor or carrier");
+            }
             // Omitted members are the planner's zero synthesis:
             // only a structural zeroed-leaf value qualifies, and
             // its own arm replays the declared carrier and the
