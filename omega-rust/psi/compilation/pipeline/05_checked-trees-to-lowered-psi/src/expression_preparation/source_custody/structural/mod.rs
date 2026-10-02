@@ -1352,6 +1352,50 @@ fn validate_operand(
     Ok(plans.nodes.get(handle).primitive_type)
 }
 
+/// Retain each authored operand beside the type declared by its exact formal.
+/// Receiver elision changes argument positions, never the destination type.
+fn append_argument_scopes(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    receiver: ExpressionHandle,
+    pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
+) -> Result<(), LoweringError> {
+    let signature =
+        crate::emission::call_source_custody::authored::target_signature(checked, machine, target)?;
+    let nonself_count = signature
+        .parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+    let explicit_self = arguments.len() > nonself_count;
+    if arguments.len()
+        != if explicit_self {
+            signature.parameters.len()
+        } else {
+            nonself_count
+        }
+    {
+        return unsupported("structural operand scope changed its authored argument count");
+    }
+    let mut explicit = arguments.iter();
+    for parameter in signature.parameters {
+        let expression = if parameter.is_self && !explicit_self {
+            if !receiver.is_valid() {
+                continue;
+            }
+            receiver
+        } else {
+            *explicit.next().ok_or(LoweringError::Unsupported(
+                "structural operand argument missing",
+            ))?
+        };
+        pending.push((expression, parameter.type_reference));
+    }
+    Ok(())
+}
+
 /// Locate only operands of actual constructors and matches beneath this value.
 /// A retained role cannot authorize reading an unrelated expression in the arena.
 pub(crate) fn operand_source(
@@ -1362,52 +1406,100 @@ pub(crate) fn operand_source(
 ) -> Result<(ExpressionHandle, PrimitiveType), LoweringError> {
     let (machine, source) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    let mut pending = match checked
+    let mut pending = Vec::new();
+    match checked
         .statement_table
         .statements(source.statement_nodes)
         .get(statement as usize)
     {
-        Some(StatementNode::LocalData(local)) => vec![local.initial_value],
-        Some(StatementNode::Assignment(assignment)) => vec![assignment.value],
-        Some(StatementNode::Expression(expression)) => vec![*expression],
+        Some(StatementNode::LocalData(local)) => {
+            pending.push((local.initial_value, local.type_reference));
+        }
+        Some(StatementNode::Assignment(assignment)) => pending.push(authored_destination(
+            checked,
+            machine.symbol,
+            state,
+            statement,
+            assignment.value,
+            &None,
+        )?),
+        Some(StatementNode::Expression(expression)) => {
+            pending.push((*expression, source.return_type));
+        }
         // A call statement's operands are its authored arguments; a
         // construction passed by value is evaluated there.
-        Some(StatementNode::Call(call)) => checked
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec(),
+        Some(StatementNode::Call(call)) => append_argument_scopes(
+            checked,
+            machine.symbol,
+            call.target_symbol,
+            checked.statement_table.expression_handles(call.arguments),
+            ExpressionHandle::invalid(),
+            &mut pending,
+        )?,
         Some(StatementNode::Transition(transition))
             if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
         {
-            [transition.target, transition.continuation]
+            for target in [transition.target, transition.continuation]
                 .into_iter()
                 .filter(|target| target.is_valid())
-                .flat_map(
-                    |target| match checked.statement_table.transition_target(target) {
-                        checked_trees::statement::TransitionTargetNode::Value(expression) => {
-                            vec![*expression]
-                        }
-                        checked_trees::statement::TransitionTargetNode::Named {
-                            arguments, ..
-                        } => checked
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .to_vec(),
-                        _ => Vec::new(),
-                    },
-                )
-                .collect()
+            {
+                match checked.statement_table.transition_target(target) {
+                    checked_trees::statement::TransitionTargetNode::Value(expression) => {
+                        pending.push((*expression, source.return_type));
+                    }
+                    checked_trees::statement::TransitionTargetNode::Named {
+                        path,
+                        arguments,
+                        ..
+                    } => append_argument_scopes(
+                        checked,
+                        machine.symbol,
+                        path.symbol,
+                        checked.statement_table.expression_handles(*arguments),
+                        ExpressionHandle::invalid(),
+                        &mut pending,
+                    )?,
+                    _ => {}
+                }
+            }
         }
         _ => return unsupported("structural operand has no authored value scope"),
     };
     let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
+    while let Some((expression, declared)) = pending.pop() {
         if visited.contains(&expression) {
             return unsupported("structural operand has cyclic authored scope");
         }
         visited.push(expression);
         if !checked.expression_table.expression_is_valid(expression) {
             return unsupported("structural operand has stale authored scope");
+        }
+        if let CheckedScalarExpressionRole::StructuralArrayElement {
+            expression: array,
+            element_ordinal,
+        } = role
+            && array == expression
+        {
+            // The value's actual destination supplies its carrier whether it
+            // is an argument, local, return or aggregate child. The array
+            // owner alone reconstructs its ordered scalar leaf roster.
+            let leaves = validation::scalar_array_elements(
+                &checked.typed,
+                machine.symbol,
+                expression,
+                declared,
+            )
+            .filter(|leaves| leaves.projections.is_empty())
+            .ok_or(LoweringError::Unsupported(
+                "scalar array operand lost its closed carrier",
+            ))?;
+            return leaves
+                .elements
+                .get(element_ordinal as usize)
+                .copied()
+                .ok_or(LoweringError::Unsupported(
+                    "scalar array leaf ordinal escaped its array",
+                ));
         }
         if let CheckedScalarExpressionRole::StructuralValueField {
             expression: constructor,
@@ -1479,17 +1571,14 @@ pub(crate) fn operand_source(
         // receiver/arguments. Reach only those authored children before
         // comparing the retained constructor and field identities.
         if let ExpressionNode::Call(call) = checked.expression_table.expression(expression) {
-            pending.extend(
-                checked
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .rev()
-                    .copied(),
-            );
-            if call.receiver.is_valid() {
-                pending.push(call.receiver);
-            }
+            append_argument_scopes(
+                checked,
+                machine.symbol,
+                call.target_symbol,
+                checked.expression_table.expression_handles(call.arguments),
+                call.receiver,
+                &mut pending,
+            )?;
             continue;
         }
         // A nested record's scalar fields belong to that constructor, not the
@@ -1498,78 +1587,55 @@ pub(crate) fn operand_source(
         if let ExpressionNode::StructLiteral(literal) =
             checked.expression_table.expression(expression)
         {
-            // A supplied array member's leaves belong to that array occurrence.
-            // Its authored member declares the closed carrier, whether the
-            // constructor selects a record or a case. Resolve that declaration
-            // once rather than giving each enclosing shape an array producer.
-            if let CheckedScalarExpressionRole::StructuralArrayElement {
-                expression: array,
-                element_ordinal,
-            } = role
-                && let Some(field) = checked
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .find(|field| field.value == array)
-            {
-                let declared = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == literal.type_symbol)
-                    .and_then(|data| {
-                        validation::exact_data_member_field(
-                            &checked.typed,
-                            data,
-                            field.field_symbol,
-                            field.name.as_str(),
-                            literal.case_name.as_ref().map(|name| name.as_str()),
-                        )
-                        .filter(|declaration| !declaration.relevance.is_erased())
-                        .map(|declaration| declaration.type_reference)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar array member declaration missing",
-                    ))?;
-                let leaves = validation::scalar_array_elements(
-                    &checked.typed,
-                    machine.symbol,
-                    array,
-                    declared,
-                )
-                .filter(|leaves| leaves.projections.is_empty())
+            let data = checked
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == literal.type_symbol)
                 .ok_or(LoweringError::Unsupported(
-                    "scalar array member lost its closed carrier",
+                    "structural operand record declaration missing",
                 ))?;
-                return leaves
-                    .elements
-                    .get(element_ordinal as usize)
-                    .copied()
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar array leaf ordinal escaped its array",
-                    ));
+            for field in checked
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .rev()
+            {
+                let declaration = validation::exact_data_member_field(
+                    &checked.typed,
+                    data,
+                    field.field_symbol,
+                    field.name.as_str(),
+                    literal.case_name.as_ref().map(|name| name.as_str()),
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "structural operand member declaration missing",
+                ))?;
+                if !declaration.relevance.is_erased() {
+                    pending.push((field.value, declaration.type_reference));
+                }
             }
-            pending.extend(
-                checked
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .rev()
-                    .map(|field| field.value),
-            );
             continue;
         }
-        // A structural array literal's elements are each their own
-        // constructor; their operands keep their own owner and ordinal.
+        // Structural array children inherit the exact declared element type;
+        // their own constructors retain their own operand identities.
         if let ExpressionNode::ArrayLiteral(elements) =
             checked.expression_table.expression(expression)
         {
+            let reference = validation::unwrapped_type_reference(&checked.typed, declared).ok_or(
+                LoweringError::Unsupported("structural array operand lost its type"),
+            )?;
+            let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                checked.type_reference_table.type_reference(reference)
+            else {
+                return unsupported("structural array operand changed its carrier");
+            };
             pending.extend(
                 checked
                     .expression_table
                     .expression_handles(*elements)
                     .iter()
                     .rev()
-                    .copied(),
+                    .map(|expression| (*expression, *element_type)),
             );
             continue;
         }
@@ -1619,7 +1685,7 @@ pub(crate) fn operand_source(
                     LoweringError::Unsupported("structural pattern has no scalar carrier"),
                 );
             }
-            pending.push(arm.value);
+            pending.push((arm.value, declared));
         }
     }
     unsupported("structural operand role escaped its authored value scope")

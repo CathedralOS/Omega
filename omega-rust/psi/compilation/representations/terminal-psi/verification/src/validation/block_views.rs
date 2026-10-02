@@ -40,12 +40,6 @@ pub(super) fn validate_declarations(
         }
         for (position, declaration) in block.structural_parameters.iter().enumerate() {
             if u32::try_from(position).ok() != Some(declaration.position)
-                || (declaration.access == StructuralAccess::Owned
-                    && terminal_semantics::scalar_array_leaf_shape(
-                        module.structural_types.iter(),
-                        declaration.structural_type,
-                    )
-                    .is_some())
                 || parameter(machine, declaration.place) != Some(declaration)
                 || !matches!(
                     (declaration.access, declaration.multiplicity),
@@ -471,18 +465,15 @@ pub(super) fn validate_successor(
                     && expected.projected_qualifications.is_empty()
             })
         } else if expected.access == StructuralAccess::Owned {
-            // Whole plain records and sums use the same owned parameter move.
-            // The constructor establishes its own exact type; a successor may
-            // not substitute the selected result's type for an untouched owner.
-            // A trivial affine local is that constructor for its declared
-            // empty-record place: it binds no result row, so the declaration
-            // carries the exact type and the establishment carries custody.
-            // A copied case-payload leaf is the same fresh owned constructor:
-            // the op publishes its exact unqualified type the way a record or
-            // scalar-case constructor does.
-            (super::scalar::case::plain_return_source(module, machine, argument.place)
-                || super::structural::leaf_copy::copied_return_source(machine, argument.place)
-                || super::record::plain_return_source(module, machine, argument.place))
+            // The operation independently establishes its exact result. A whole
+            // owned edge transfers that value regardless of aggregate syntax;
+            // borrowed carriers and retained claims cannot acquire this custody.
+            // The frontier separately consumes any affine obligation.
+            available.contains(&argument.place)
+                && super::structural::result_contracts::has_plain_owned_shape(
+                    module,
+                    expected.structural_type,
+                )
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)
                         && block.operations.iter().any(|operation| {
@@ -493,6 +484,7 @@ pub(super) fn validate_successor(
                                     && result.qualifications == expected.qualifications
                                     && result.projected_qualifications
                                         == expected.projected_qualifications
+                                    && result.claims.is_empty()
                             })
                         })
                 })

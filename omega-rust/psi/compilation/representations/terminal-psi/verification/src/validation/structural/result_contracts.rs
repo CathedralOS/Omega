@@ -261,25 +261,26 @@ pub(in crate::validation) fn has_plain_owned_shape(
         }
         active.push(root);
         let mut field_is_owned = |field: &terminal_psi::StructuralFieldDeclaration| {
-            !field.relevance.is_erased()
-                && match &field.field_type {
-                    StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::IeeeFloat(_) => true,
-                    StructuralFieldType::Structural(child) => {
-                        visit(module, *child, active, complete)
-                    }
-                    StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    )
-                    | StructuralFieldType::PredicateByteSequence {
-                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                        ..
-                    } => true,
-                    StructuralFieldType::ByteSequence(_)
-                    | StructuralFieldType::PredicateByteSequence { .. }
-                    | StructuralFieldType::Erased { .. } => false,
-                }
+            // Erased declarations contribute no storage or loan authority.
+            if field.relevance.is_erased() {
+                return matches!(field.field_type, StructuralFieldType::Erased { .. });
+            }
+            match &field.field_type {
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::IeeeFloat(_) => true,
+                StructuralFieldType::Structural(child) => visit(module, *child, active, complete),
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => true,
+                StructuralFieldType::ByteSequence(_)
+                | StructuralFieldType::PredicateByteSequence { .. }
+                | StructuralFieldType::Erased { .. } => false,
+            }
         };
         let supported = match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) => true,

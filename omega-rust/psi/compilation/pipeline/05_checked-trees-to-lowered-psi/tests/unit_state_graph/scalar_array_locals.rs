@@ -404,3 +404,104 @@ fn owned_array_state_operands_execute_once_only_on_the_selected_edge() {
         [7, 30, 40, 9, 7, 30, 40, 9, 5, 50, 60, 8, 5, 50, 60, 8],
     );
 }
+
+#[test]
+fn owned_array_state_arguments_preserve_nested_array_values() {
+    let source = owned_array_source(false)
+        .replace("[i32; 2]", "[[i32; 2]; 2]")
+        .replace("[30, 40]", "[[30, 40], [50, 60]]")
+        .replace("Output::write(values[0]);", "Output::write(values[0][1]);")
+        .replace("Output::write(values[1]);", "Output::write(values[1][0]);");
+    assert_eq!(
+        owned_array_effects(&crate::front_end::checked_program(&source)),
+        [7, 40, 50, 9],
+    );
+}
+
+#[test]
+fn owned_array_state_terminal_replay_rejects_custody_and_late_producers() {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, Terminator};
+    let checked = crate::front_end::checked_program(&owned_array_source(false));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("owned array arrival lowers");
+    validate_module(&lowered.semantic_module).expect("unaltered arrival validates");
+    for mutation in ["borrowed access", "affine custody", "late producer"] {
+        let mut changed = lowered.semantic_module.clone();
+        let machine = changed
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.blocks.iter().any(|block| {
+                    block.operations.iter().any(|operation| {
+                        matches!(operation.kind, OperationKind::EstablishScalarArray { .. })
+                    })
+                })
+            })
+            .expect("array-producing machine");
+        let source_index = machine
+            .blocks
+            .iter()
+            .position(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(operation.kind, OperationKind::EstablishScalarArray { .. })
+                })
+            })
+            .unwrap();
+        let Terminator::Jump { target, .. } = machine.blocks[source_index].terminator else {
+            panic!("array construction precedes its state edge");
+        };
+        let target_index = machine
+            .blocks
+            .iter()
+            .position(|block| block.id == target)
+            .unwrap();
+        match mutation {
+            "borrowed access" => {
+                machine.blocks[target_index].structural_parameters[0].access =
+                    StructuralAccess::SharedBorrow;
+            }
+            "affine custody" => {
+                machine.blocks[target_index].structural_parameters[0].multiplicity =
+                    StructuralMultiplicity::Affine;
+            }
+            "late producer" => {
+                let operation_index = machine.blocks[source_index]
+                    .operations
+                    .iter()
+                    .position(|operation| {
+                        matches!(operation.kind, OperationKind::EstablishScalarArray { .. })
+                    })
+                    .unwrap();
+                let operation = machine.blocks[source_index]
+                    .operations
+                    .remove(operation_index);
+                machine.blocks[target_index].operations.insert(0, operation);
+            }
+            _ => unreachable!(),
+        }
+        assert!(validate_module(&changed).is_err(), "reject {mutation}");
+    }
+}
+
+#[test]
+fn owned_array_state_arguments_preserve_record_erased_declarations() {
+    let source = r#"
+        boundary trait Output { machine write(marker: i32) reaches Output; }
+        data Payload { proof [erased]: i32; values: [i32; 2]; }
+        data Root {}
+        machine Root::enter() reaches Output {
+            transition { _ -> take(Payload { proof: 0, values: [30, 40] }) }
+            state take(payload: Payload) {
+                Output::write(payload.values[0]);
+                Output::write(payload.values[1]);
+            }
+        }
+    "#;
+    assert_eq!(
+        owned_array_effects(&crate::front_end::checked_program(source)),
+        [30, 40],
+    );
+}
