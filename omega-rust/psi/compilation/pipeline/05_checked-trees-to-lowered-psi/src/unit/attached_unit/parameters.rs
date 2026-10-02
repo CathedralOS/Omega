@@ -1135,7 +1135,6 @@ fn validate_borrowed_argument(
         || argument.type_identity != target.type_identity
         || argument.access != target.access
         || target.multiplicity != Multiplicity::Unrestricted
-        || target.fused_service_erasure.is_some()
         || !structural_access_can_supply(source.access, access)
     {
         return unsupported("borrowed argument changed its checked access or target custody");
@@ -1158,6 +1157,15 @@ fn validate_borrowed_argument(
     ))?;
     if declarations.next().is_some() {
         return unsupported("borrowed argument target type is ambiguous");
+    }
+    // Program-level parameter custody and service-forwarding replay already
+    // authenticate the receipt and exact authored actual before lowering. A
+    // borrowed Binding still uses this ordinary loan geometry: erased storage
+    // is neither a reason to reject it nor permission to relabel another type.
+    if target.fused_service_erasure.is_some()
+        && expected.shape != StructuralTypeShape::FusedServiceBinding
+    {
+        return unsupported("borrowed service receipt requires its Fused binding carrier");
     }
     let exact = match &projection.tip {
         PreparedArgumentTip::Declaration(declaration) => declaration.id == expected.id,
