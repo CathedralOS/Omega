@@ -1032,14 +1032,19 @@ the complete product bar; focused successes below do not establish that baseline
   tests pass, including a complete checked metadata-call program and stale
   value-evidence rejection. The 78-fixture borrow corpus has unchanged outcomes
   from the prior checkpoint (including its attributed baseline failures).
-  The new unchanged-application package review remains pending after 16 minutes;
-  no successful package review or native run is established. Profiling found
-  repeated service declaration scans, now replaced by the existing index;
-  the same run also spends time scanning closed data declarations. Finish the
-  package-review reproduction before assigning its next semantic frontier.
+  Fresh unchanged-application review on `a836340ffc43` plus indexed unique-owner
+  lookup is pending; no successful package review or native run is established.
+  Profiling found repeated service and closed-data declaration scans. Both now
+  use the existing mutation-aware declaration index; unique-owner queries retain
+  duplicate rejection rather than taking the first match. The lookup change
+  passes 176 identity, index, generic-store and frame tests and scoped Clippy.
+  Finish the package-review reproduction before assigning its next semantic frontier.
   The unchanged native carrier-store probe still stops at stage 04's
   `structural field store: destination parameter`; do not remove the referent
-  store to turn that execution test green.
+  store to turn that execution test green. Its primitive store needs the actual
+  carrier home and explicit `Field(destination), Referent` path preserved through
+  source replay, custody checks and native address loading. An inferred origin
+  is not an address choice; a source-shaped rebase is not this operation.
   The route retains
   candidate windows in external result entries, sorts disjoint `target_addresses`,
   and updates scalar metadata on the new result; no candidate-arena write was found. The owning

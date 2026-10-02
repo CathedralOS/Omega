@@ -419,10 +419,29 @@ impl super::TypedTrees {
         })
     }
 
-    /// The data declaration carrying `symbol`.
+    /// The first data declaration carrying `symbol`.
     pub fn data_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&data::DataDefinition> {
         self.data_definition_position_by_symbol(symbol)
             .map(|position| &self.data_definitions()[position])
+    }
+
+    /// The sole data declaration carrying `symbol`; absent, invalid and
+    /// duplicate identities have no unique owner. Consult the complete indexed
+    /// roster rather than the first-match query when uniqueness is evidence.
+    pub fn unique_data_definition_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&data::DataDefinition> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let position = self.with_data_definition_index(|index| {
+            let [position] = index.positions_for_symbol(symbol) else {
+                return None;
+            };
+            Some(*position as usize)
+        })?;
+        self.data_definitions().get(position)
     }
 
     /// All data-definition positions carrying `symbol`, in declaration
@@ -718,6 +737,65 @@ mod tests {
                 .data_definition_by_symbol(symbol)
                 .map(|row| row.name.as_str().to_owned()),
             Some("First".to_owned())
+        );
+    }
+
+    #[test]
+    fn unique_data_owner_tracks_duplicate_rewrite_and_roster_replacement() {
+        let mut trees = TypedTrees::default();
+        let symbol = SymbolHandle::from_arena_index(41);
+        assert!(trees.unique_data_definition_by_symbol(symbol).is_none());
+        trees.push_data_definition(data_definition(41, "First"));
+        assert_eq!(
+            trees
+                .unique_data_definition_by_symbol(symbol)
+                .unwrap()
+                .name
+                .as_str(),
+            "First"
+        );
+        trees.push_data_definition(data_definition(41, "Second"));
+        assert!(trees.unique_data_definition_by_symbol(symbol).is_none());
+
+        // Rewriting one duplicate restores uniqueness without changing length.
+        let first = trees.roots.data_definitions.start();
+        trees.tables.data_definitions.get_mut(first).symbol = SymbolHandle::invalid();
+        assert!(
+            trees
+                .unique_data_definition_by_symbol(SymbolHandle::invalid())
+                .is_none()
+        );
+        assert_eq!(
+            trees
+                .unique_data_definition_by_symbol(symbol)
+                .unwrap()
+                .name
+                .as_str(),
+            "Second"
+        );
+
+        let replacement = trees
+            .tables
+            .data_definitions
+            .insert_many([data_definition(41, "Replacement")]);
+        // Prime the index after the arena mutation but before re-pointing its
+        // root: the root's identity, not just the arena revision, must refresh it.
+        assert_eq!(
+            trees
+                .unique_data_definition_by_symbol(symbol)
+                .unwrap()
+                .name
+                .as_str(),
+            "Second"
+        );
+        trees.roots.data_definitions = replacement;
+        assert_eq!(
+            trees
+                .unique_data_definition_by_symbol(symbol)
+                .unwrap()
+                .name
+                .as_str(),
+            "Replacement"
         );
     }
 
