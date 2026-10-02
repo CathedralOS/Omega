@@ -14,14 +14,14 @@ data Evidence {
     tag: i32;
 }
 
-machine Evidence::drop(&mut self) {
+machine Evidence::drop(evidence: &mut Evidence) {
 }
 
 data Guard {
     handle: i32;
 }
 
-machine Guard::drop(&mut self) {
+machine Guard::drop(guard: &mut Guard) {
 }
 
 data Carrier {

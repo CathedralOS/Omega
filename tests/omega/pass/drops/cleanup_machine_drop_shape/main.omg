@@ -21,7 +21,7 @@ machine Teardown::unlock() {
 machine Teardown::flush() {
 }
 
-machine Guard::drop(&mut self) {
+machine Guard::drop(guard: &mut Guard) {
     Teardown::unlock();
     Teardown::flush();
 }
