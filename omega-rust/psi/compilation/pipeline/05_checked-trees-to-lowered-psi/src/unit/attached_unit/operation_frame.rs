@@ -1923,7 +1923,63 @@ impl OperationFrame<'_, '_> {
                 self.values.len(),
             )?;
         }
+        let position = self.values.len();
         self.values.push(lowered);
+        let (_, state) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        if let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
+            .checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(result.statement_index as usize)
+            && !local.type_is_inferred
+        {
+            // Numeric predicates do not stand in for declared membership:
+            // retain the catalog's independent rejection of unsupported theories.
+            crate::expression_preparation::qualifications::type_atoms(
+                self.checked,
+                local.type_reference,
+            )?;
+            let predicates = validation::scalar_type_refinement_predicates(
+                &self.checked.typed,
+                local.type_reference,
+                checked_trees::CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: result.primitive_type,
+                },
+            )
+            .ok_or(LoweringError::Unsupported(
+                "Unit local refinement has no predicate owner",
+            ))?;
+            if !predicates.is_empty() {
+                if local.is_mutable {
+                    return unsupported(
+                        "mutable scalar value refinements require invariant-window custody",
+                    );
+                }
+                let machine = self
+                    .calls
+                    .machine_ids
+                    .iter()
+                    .find(|(symbol, _)| *symbol == self.machine)
+                    .map(|(_, identity)| *identity)
+                    .ok_or(LoweringError::Unsupported(
+                        "local refinement lost its machine identity",
+                    ))?;
+                self.evaluation.require_value_refinements(
+                    machine,
+                    predicates,
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                    self.calls,
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -2658,15 +2714,17 @@ impl OperationFrame<'_, '_> {
                 });
             }
         }
-        self.evaluation.cleanup_continuation(
-            discards,
-            residuals,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )
+        self.evaluation
+            .continue_values(
+                discards,
+                residuals,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+            )
+            .map(|_| ())
     }
 }
 

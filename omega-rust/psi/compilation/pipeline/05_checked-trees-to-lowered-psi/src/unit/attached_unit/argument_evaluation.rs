@@ -610,7 +610,7 @@ impl Evaluation {
 
     /// Preserve evaluated scalar bindings while committing only the dying
     /// affine owners on the completed call's normal continuation.
-    pub(crate) fn cleanup_continuation(
+    pub(crate) fn continue_values(
         &mut self,
         discards: Vec<PlaceId>,
         mut residuals: Vec<terminal_psi::StructuralAffineDiscard>,
@@ -619,7 +619,7 @@ impl Evaluation {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
-    ) -> Result<(), LoweringError> {
+    ) -> Result<semantic_vocabulary::EdgeId, LoweringError> {
         let discards = discards
             .into_iter()
             .map(|place| self.current_structural_place(place))
@@ -633,6 +633,7 @@ impl Evaluation {
             .collect::<Vec<_>>();
         let parameters = declarations(&types, next_value)?;
         let continuation = block_id(allocate_dense(next_block)?);
+        let edge = edge_id(allocate_dense(next_edge)?);
         self.blocks.push(Block {
             structural_parameters: std::mem::take(&mut self.block_structural_parameters),
             id: self.current,
@@ -642,7 +643,7 @@ impl Evaluation {
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
-                edge: edge_id(allocate_dense(next_edge)?),
+                edge,
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
@@ -665,6 +666,64 @@ impl Evaluation {
         self.parameters = parameters;
         self.current = continuation;
         self.operation_start = operations.len();
+        Ok(edge)
+    }
+
+    /// A local refinement is proved where its initializer has completed. The
+    /// ordinary continuation carries the exact evaluated values; its arrival
+    /// obligation precedes every use of the newly established local.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn require_value_refinements(
+        &mut self,
+        machine: semantic_vocabulary::MachineId,
+        predicates: Vec<checked_trees::CheckedBooleanExpression>,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<(), LoweringError> {
+        if predicates.is_empty() {
+            return Ok(());
+        }
+        let edge = self.continue_values(
+            Vec::new(),
+            Vec::new(),
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
+        let clauses = predicates
+            .into_iter()
+            .map(|predicate| {
+                Some(checked_trees::ClosedScalarContractValue::Predicate(
+                    predicate,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let predicate = crate::scalar_graph::scalar_contracts::clauses(
+            &clauses,
+            values,
+            &self.erased_scalar_formals,
+            &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
+        )?
+        .ok_or(LoweringError::Unsupported(
+            "local refinement lost its predicate",
+        ))?;
+        operations
+            .scalar_block_invariants
+            .push(terminal_psi::ScalarBlockInvariant {
+                machine,
+                header: self.current,
+                predicate,
+                arrivals: vec![terminal_psi::ScalarBlockInvariantArrival {
+                    edge,
+                    obligation: calls.allocate_requirement()?,
+                }],
+            });
         Ok(())
     }
 

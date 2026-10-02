@@ -140,6 +140,7 @@ pub(super) struct StepInputs {
 
 /// The lowered machine and the occurrence rows the closure accumulates.
 pub(super) struct EmittedMachine {
+    pub(super) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     pub(super) machine: TerminalMachine,
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
@@ -803,6 +804,7 @@ pub(super) fn emit(
         })
         .collect::<Vec<_>>();
     let OperationBuffer {
+        scalar_block_invariants,
         source_calls,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
@@ -934,6 +936,7 @@ pub(super) fn emit(
     *edge_counter = next_edge;
     *call_obligation_counter = next_call_obligation;
     Ok(EmittedMachine {
+        scalar_block_invariants,
         machine,
         source_calls,
         selected_ieee_float_comparisons,

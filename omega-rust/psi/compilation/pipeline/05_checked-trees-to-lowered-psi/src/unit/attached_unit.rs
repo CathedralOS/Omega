@@ -548,6 +548,7 @@ pub(crate) fn lower_unit_closure(
                 call_obligation: &mut next_call_obligation,
             },
         )?;
+        scalar_block_invariants.extend(emitted.scalar_block_invariants);
         machines.push(emitted.machine);
         occurrences.retain(
             emitted.source_calls,
