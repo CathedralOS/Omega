@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 5.23, "load1_start": 4.61, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.07, "load1_start": 4.07, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -116,8 +116,7 @@ pass/calls/callback_private_materialization rejected 479ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 746ms exit:171 @0f26891d973a+wt
-pass/calls/case_arm_payload_receiver_arg rejected 637ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
+pass/calls/case_arm_payload_receiver_arg built 1788ms @30260e7900cb
 pass/calls/case_scrutinee_param_clone_exit rejected 645ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
@@ -341,8 +340,7 @@ pass/control_flow/affine_call_result_state_transfer_exit built 820ms exit:70 @48
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839
 pass/control_flow/borrowed_state_argument built 3255ms exit:5 @527c7c316c6f+wt
-pass/control_flow/case_arm_payload_receiver_call rejected 414ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
+pass/control_flow/case_arm_payload_receiver_call built 2027ms exit:70 @30260e7900cb
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 1619ms exit:70 @48008365d839
 pass/control_flow/case_dispatch_unread_structural_payload_exit built 1167ms exit:70 @bd9a4018c019+wt
 pass/control_flow/case_pattern_rename_waive_exit built 1119ms exit:70 @48008365d839
