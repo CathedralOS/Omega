@@ -14,9 +14,12 @@
 use super::borrowed_regions::{BorrowedRegions, Position, Projection, Region};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
-use semantic_vocabulary::{BlockId, PlaceId};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::StructuralAccess;
+use terminal_psi::{
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
 struct DescriptorLoan {
     regions: Vec<Region>,
@@ -32,6 +35,7 @@ impl DescriptorLoans {
     pub(super) fn new(
         function: &PsiOptimizationFunction,
         borrowed_regions: &BorrowedRegions,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let mut births = Vec::new();
         for block in &function.blocks {
@@ -69,7 +73,7 @@ impl DescriptorLoans {
         if births.is_empty() {
             return Self::default();
         }
-        let flow = DescriptorFlow::new(function);
+        let flow = DescriptorFlow::new(function, types);
         let mut loans = Vec::with_capacity(births.len());
         for (birth, descriptor, source, projection) in births {
             loans.push(DescriptorLoan {
@@ -175,7 +179,11 @@ impl DescriptorLoans {
     }
 }
 
-fn known_descriptor_use(operation: &O) -> bool {
+fn known_descriptor_use(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    operation: &O,
+) -> bool {
     if let O::CallStructural {
         result,
         structural_arguments,
@@ -185,17 +193,33 @@ fn known_descriptor_use(operation: &O) -> bool {
     } = operation
     {
         // The checked ordinary call cannot publish a borrowed alias through
-        // a scalar/Unit result or a read-only input. Writable captures,
-        // descriptor dispatch and explicit claim transfers need their own
-        // retained-lineage evidence; those remain conservative escapes here.
+        // a scalar/Unit result, a read-only input, or writable storage whose
+        // closed type cannot retain a loan. Inspect the actual projection:
+        // unrelated fields of its owner are not writable through this input.
+        // Unknown storage, descriptor dispatch and explicit claim transfers
+        // still require retained-lineage evidence and remain escapes here.
         return matches!(
             result,
             abstract_operations::AbstractStructuralCallResult::Unit
                 | abstract_operations::AbstractStructuralCallResult::Scalar(_)
-        ) && structural_arguments
-            .iter()
-            .all(|argument| argument.access == StructuralAccess::SharedBorrow)
-            && dynamic_arguments.is_empty()
+        ) && structural_arguments.iter().all(|argument| {
+            argument.access == StructuralAccess::SharedBorrow
+                || crate::unit_validation::operation_contracts::structural_source_contract(
+                    function,
+                    argument.place,
+                    false,
+                )
+                .and_then(|source| {
+                    crate::unit_validation::structural_catalog::resolve_structural_path(
+                        types,
+                        source.structural_type,
+                        &argument.path,
+                    )
+                })
+                .is_some_and(|structural_type| {
+                    storage_cannot_retain_loan(types, structural_type, &mut BTreeMap::new())
+                })
+        }) && dynamic_arguments.is_empty()
             && claim_transfers.is_empty();
     }
     matches!(
@@ -213,6 +237,66 @@ fn known_descriptor_use(operation: &O) -> bool {
             | O::ReturnUnit { .. }
             | O::Crash { .. }
     )
+}
+
+/// This is a storage property, not a constructor whitelist. Every case and
+/// nested element must be closed owned data; missing or recursive declarations
+/// cannot prove absence of an alias. Mark an in-progress declaration false so
+/// cycles fail conservatively, and memoize shared substructure within a query.
+fn storage_cannot_retain_loan(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    established: &mut BTreeMap<StructuralTypeId, bool>,
+) -> bool {
+    if let Some(result) = established.get(&structural_type) {
+        return *result;
+    }
+    established.insert(structural_type, false);
+    let Some(declaration) = types.get(&structural_type) else {
+        return false;
+    };
+    let result = match &declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(_) => true,
+        StructuralTypeShape::ByteSequence(carrier) => !carrier.is_borrowed(),
+        StructuralTypeShape::Record { fields } => {
+            fields_cannot_retain_loan(types, fields, established)
+        }
+        StructuralTypeShape::FixedArray { element, .. } => {
+            storage_cannot_retain_loan(types, *element, established)
+        }
+        StructuralTypeShape::Sum { cases } => cases
+            .iter()
+            .all(|case| fields_cannot_retain_loan(types, &case.fields, established)),
+        StructuralTypeShape::Mixed { fields, cases } => {
+            fields_cannot_retain_loan(types, fields, established)
+                && cases
+                    .iter()
+                    .all(|case| fields_cannot_retain_loan(types, &case.fields, established))
+        }
+        StructuralTypeShape::FusedServiceBinding
+        | StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::ElementView { .. } => false,
+    };
+    established.insert(structural_type, result);
+    result
+}
+
+fn fields_cannot_retain_loan(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    fields: &[StructuralFieldDeclaration],
+    established: &mut BTreeMap<StructuralTypeId, bool>,
+) -> bool {
+    fields.iter().all(|field| match &field.field_type {
+        StructuralFieldType::Scalar(_)
+        | StructuralFieldType::BoundedInteger(_)
+        | StructuralFieldType::IeeeFloat(_) => true,
+        StructuralFieldType::ByteSequence(carrier)
+        | StructuralFieldType::PredicateByteSequence { carrier, .. } => !carrier.is_borrowed(),
+        StructuralFieldType::Structural(child) => {
+            storage_cannot_retain_loan(types, *child, established)
+        }
+        StructuralFieldType::Erased { .. } => field.relevance.is_erased(),
+    })
 }
 
 /// Current-value transport, separate from the conservative backing-region
@@ -252,7 +336,10 @@ impl DescriptorFlowEdge {
 }
 
 impl DescriptorFlow {
-    fn new(function: &PsiOptimizationFunction) -> Self {
+    fn new(
+        function: &PsiOptimizationFunction,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    ) -> Self {
         let mut steps = BTreeMap::new();
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
@@ -310,7 +397,7 @@ impl DescriptorFlow {
                         inputs: crate::unit_validation::function_structure::operation_place_inputs(
                             &node.operation,
                         ),
-                        may_escape: !known_descriptor_use(&node.operation),
+                        may_escape: !known_descriptor_use(function, types, &node.operation),
                         successors,
                     },
                 );
