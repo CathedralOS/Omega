@@ -902,3 +902,274 @@ fn scalar_array_call_results_keep_payload_through_unit_arguments() {
         expected(vec![byte(9), byte(9)]),
     );
 }
+
+#[test]
+fn mutable_element_view_writes_owned_array_and_retires_exact_loan() {
+    use super::Block;
+    use super::byte_sequence_read::{integer, scalar, successor};
+    use semantic_vocabulary::{PropositionContext, ScalarTerm};
+
+    let mut module = fixture(&[2], byte(0).scalar_type(), &[byte(7), byte(9)]);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "mutable_elements".into(),
+        shape: StructuralTypeShape::ElementView {
+            element: structural_type_id(2),
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+            producer: operation_id(100),
+            structural_type: structural_type_id(3),
+        },
+    });
+    let returned = machine.blocks[0].terminator.clone();
+    machine.blocks[0].operations.extend([
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(100),
+            result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: place_id(3),
+                structural_type: structural_type_id(3),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishMutableElementView {
+                destination: place_id(3),
+                source: StructuralArgument {
+                    place: place_id(1),
+                    path: Vec::new(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+                element: structural_type_id(2),
+            },
+        },
+        integer(101, 64, 1),
+        integer(102, 8, 42),
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(103),
+            result: OperationResult::Scalar(scalar(103, 64)),
+            kind: OperationKind::ElementViewLength {
+                source: place_id(3),
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(104),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(104),
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::IntegerLessThan {
+                left: value_id(101),
+                right: value_id(103),
+            },
+        },
+    ]);
+    let mut rejected = successor(3, 3);
+    rejected.trivial_affine_discards.push(place_id(3));
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: value_id(104),
+        when_true: successor(2, 2),
+        when_false: rejected,
+    };
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        id: block_id(2),
+        parameters: Vec::new(),
+        operations: vec![
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(105),
+                result: OperationResult::Unit,
+                kind: OperationKind::ElementViewWrite {
+                    destination: place_id(3),
+                    index: value_id(101),
+                    value: value_id(102),
+                    length: value_id(103),
+                    obligation: obligation_id(1),
+                },
+            },
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(106),
+                result: OperationResult::Scalar(scalar(106, 8)),
+                kind: OperationKind::ElementViewRead {
+                    source: place_id(3),
+                    index: value_id(101),
+                    length: value_id(103),
+                    path: Vec::new(),
+                    obligation: obligation_id(2),
+                },
+            },
+            // Returning the original array checks write-through, while writing
+            // the observed scalar back also makes a stale view read visible.
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(107),
+                result: OperationResult::Unit,
+                kind: OperationKind::ElementViewWrite {
+                    destination: place_id(3),
+                    index: value_id(101),
+                    value: value_id(106),
+                    length: value_id(103),
+                    obligation: obligation_id(3),
+                },
+            },
+        ],
+        terminator: Terminator::Jump {
+            edge: edge_id(4),
+            target: block_id(3),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: vec![place_id(3)],
+            residual_affine_discards: Vec::new(),
+        },
+    });
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        id: block_id(3),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: returned,
+    });
+
+    // The fixed backing extent and constant selector can normalize the branch
+    // fact. Prove the original operation bound through those independently
+    // reconstructed equalities instead of requiring an identical axiom row.
+    let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let context = PropositionContext::from_value_types(
+        module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| operation.result.scalar())
+            .map(|value| (value.id, value.scalar_type)),
+    )
+    .unwrap();
+    let mut evidence = questions
+        .obligations()
+        .iter()
+        .map(|site| {
+            assert!(site.canonical_certificate);
+            let equalities = site
+                .semantic_axioms
+                .iter()
+                .enumerate()
+                .filter(|(_, fact)| matches!(fact, Proposition::Equal(ScalarTerm::Value { .. }, _)))
+                .map(|(index, fact)| ProofNode {
+                    conclusion: fact.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
+                })
+                .collect::<Vec<_>>();
+            let closed = proof_admission::check_value_equality_denotation(
+                &context,
+                &site.obligation.proposition,
+                equalities.iter().map(|node| &node.conclusion),
+            )
+            .expect("the selector and established array extent have exact denotations");
+            let judgment = if closed == Proposition::Truth {
+                proof_admission::PrimitiveJudgment::Truth
+            } else {
+                proof_admission::PrimitiveJudgment::ClosedIntegerRelation
+            };
+            ObligationEvidence {
+                obligation: site.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(site.obligation.id.get()).unwrap(),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: site.obligation.proposition.clone(),
+                        rule: ProofRule::ValueEqualityTransport {
+                            premise: Box::new(ProofNode {
+                                conclusion: closed,
+                                rule: ProofRule::Primitive(judgment),
+                            }),
+                            equalities,
+                        },
+                    },
+                }),
+            }
+        })
+        .collect::<Vec<_>>();
+    evidence.sort_by_key(|row| row.obligation);
+    let proof = ProofBundle {
+        evidence,
+        ..ProofBundle::default()
+    };
+    let semantic = encode_module(&module).unwrap();
+    let evidence = encode_proof_section(&module, &proof).unwrap();
+    verify_module(
+        &decode_module(&semantic).unwrap(),
+        &terminal_codec::decode_proof_bundle(&evidence).unwrap(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the encoded mutable view and its exact cleanup verify independently");
+    let executed = interpret_terminal_artifact_measured(
+        &semantic,
+        &evidence,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut AcceptTerminalEffects,
+    )
+    .expect("the mutable view writes its owned array and retires without debt");
+    assert_eq!(executed.value(), expected(vec![byte(7), byte(42)]));
+
+    for mutation in [
+        "shared source",
+        "write-only source",
+        "missing cleanup",
+        "wrong cleanup",
+    ] {
+        let mut changed = module.clone();
+        if matches!(mutation, "shared source" | "write-only source") {
+            let OperationKind::EstablishMutableElementView { source, .. } =
+                &mut changed.machines[0].blocks[0].operations[3].kind
+            else {
+                panic!("mutable descriptor establishment");
+            };
+            source.access = if mutation == "shared source" {
+                StructuralAccess::SharedBorrow
+            } else {
+                StructuralAccess::WriteOnlyBorrow
+            };
+        } else {
+            let Terminator::Jump {
+                trivial_affine_discards,
+                ..
+            } = &mut changed.machines[0].blocks[1].terminator
+            else {
+                panic!("exact mutable descriptor retirement");
+            };
+            if mutation == "missing cleanup" {
+                trivial_affine_discards.clear();
+            } else {
+                trivial_affine_discards[0] = place_id(1);
+            }
+        }
+        assert!(
+            verify_module(&changed, &proof, &AdmissionProfile::default()).is_err(),
+            "forged mutable-view {mutation} must reject independently",
+        );
+    }
+}

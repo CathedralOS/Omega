@@ -594,16 +594,6 @@ impl TerminalExecution {
         {
             self.structural_values.remove(&parameter.place);
         }
-        // Frame-local byte views and loans end here and carry
-        // no affine cleanup, including locally established literals.
-        for place in self.byte_sequence_values.keys() {
-            reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                *place,
-            );
-        }
-        self.byte_sequence_values.clear();
         self.retire_plain_locals();
         let cleanups = commit_cleanup_actions(
             &self.program.structural_types,
