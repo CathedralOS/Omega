@@ -12,6 +12,8 @@ use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use super::super::integer_evidence::cited_facts;
 use super::super::{scope_identity, search_context};
 
+mod order_equalities;
+
 /// Distinct scalar endpoints offered pairwise to the kernel's licensed
 /// closed/open integer derivation once the cited chain cannot reach a goal.
 /// Transport edges extend the roster by at most one expansion per endpoint,
@@ -370,6 +372,7 @@ impl Roster {
             pending_facts.push(citation.proof(fact));
         }
         let mut equal_facts = Vec::new();
+        let mut order_facts = Vec::new();
         while let Some(proof) = pending_facts.pop() {
             match &proof.conclusion {
                 Proposition::Conjunction(conjuncts) => {
@@ -384,9 +387,11 @@ impl Roster {
                     }
                 }
                 Proposition::Equal(_, _) => equal_facts.push(proof),
+                Proposition::LessOrEqual(_, _) => order_facts.push(proof),
                 _ => {}
             }
         }
+        equal_facts.extend(order_equalities::derive(context, order_facts));
         let mut adjacency = BTreeMap::<ScalarTerm, Vec<usize>>::new();
         let mut base_endpoints = Vec::new();
         for (index, fact) in equal_facts.iter().enumerate() {
@@ -701,6 +706,38 @@ impl Roster {
         None
     }
 
+    /// Small invocation-owned component roster for the bounded normalization
+    /// universe. Relabeling at most 64 entries avoids rebuilding a second
+    /// adjacency index; all members are exact terms from the current scope.
+    fn normalization_components(
+        &self,
+        endpoints: &[&ScalarTerm],
+        transport: &[ProofNode],
+    ) -> Vec<usize> {
+        let mut components = (0..endpoints.len()).collect::<Vec<_>>();
+        for edge in self.equal_facts.iter().chain(transport) {
+            let Proposition::Equal(left, right) = &edge.conclusion else {
+                continue;
+            };
+            let (Ok(left), Ok(right)) = (
+                endpoints.binary_search(&left),
+                endpoints.binary_search(&right),
+            ) else {
+                continue;
+            };
+            let source = components[left];
+            let destination = components[right];
+            if source != destination {
+                for component in &mut components {
+                    if *component == destination {
+                        *component = source;
+                    }
+                }
+            }
+        }
+        components
+    }
+
     /// The sorted endpoint universe `endpoints()` used to compute per call:
     /// `base_endpoints` merged with the goal endpoints and any extra terms.
     /// Borrowed rather than cloned: callers read the endpoints in order and
@@ -897,6 +934,34 @@ impl Roster {
                 }
             }
         }
+        // A normalization edge is useful first when it joins the components
+        // containing the actual goal endpoints. Incidental equations can
+        // otherwise spend the pair budget before that bridge is considered.
+        // Components include only cited or independently checked transport
+        // edges: this ordering contributes no new equality authority.
+        let components = self.normalization_components(&endpoints, transport);
+        let left_component = components[endpoints
+            .binary_search(&left)
+            .expect("goal endpoint is in the universe")];
+        let right_component = components[endpoints
+            .binary_search(&right)
+            .expect("goal endpoint is in the universe")];
+        pairs.sort_by_key(|&(source, destination)| {
+            let source = components[source];
+            let destination = components[destination];
+            if (source == left_component && destination == right_component)
+                || (source == right_component && destination == left_component)
+            {
+                0
+            } else if [source, destination]
+                .iter()
+                .any(|component| *component == left_component || *component == right_component)
+            {
+                1
+            } else {
+                2
+            }
+        });
         let pairs = pairs
             .into_iter()
             .take(MAXIMUM_NORMALIZATION_PAIRS)

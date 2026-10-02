@@ -1,8 +1,9 @@
-//! Propose conservation of invocation-scoped mathematical contract terms.
+//! Propose conservation of invocation-scoped contract terms.
 //!
 //! A guarantee can describe work remaining as well as its final result. Its
-//! mathematical subterms supply candidate relations between the current header
-//! telescope and immutable invocation formals. These equalities grant no facts:
+//! scalar and mathematical subterms supply candidate relations between the
+//! current header telescope and immutable invocation formals. These equalities
+//! grant no facts:
 //! the ordinary invariant roster must prove every initial and preserving edge,
 //! and discard proposals that are not conserved. No rank supplies a premise.
 
@@ -10,6 +11,8 @@ use std::collections::BTreeMap;
 
 use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarType, ValueId};
 use terminal_psi::{TerminalMachine, ValueDeclaration};
+
+mod scalar;
 
 pub(super) fn candidates(
     machine: &TerminalMachine,
@@ -28,6 +31,20 @@ pub(super) fn candidates(
             break;
         }
         match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                for term in [left, right] {
+                    scalar::discover(
+                        term,
+                        &machine.parameters,
+                        bound,
+                        remaining,
+                        &mut candidates,
+                        0,
+                    );
+                }
+            }
             Proposition::IntegerMathEqual(left, right)
             | Proposition::IntegerMathLessThan(left, right)
             | Proposition::IntegerMathLessOrEqual(left, right) => {

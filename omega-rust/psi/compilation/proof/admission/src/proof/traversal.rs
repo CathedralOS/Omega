@@ -149,6 +149,10 @@ fn schedule_children<'proof>(
             pending.push(Action::Children(equalities));
             pending.push(Action::Enter(premise));
         }
+        ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+            pending.push(Action::Enter(backward));
+            pending.push(Action::Enter(forward));
+        }
         ProofRule::IntegerSubtractOrder {
             difference,
             positive,

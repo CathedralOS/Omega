@@ -8,3 +8,4 @@ pub(crate) mod integer_cast;
 pub(crate) mod integer_forbidden_root;
 pub(crate) mod integer_shift;
 pub(crate) mod open_terms;
+pub(crate) mod wrapping_equality;

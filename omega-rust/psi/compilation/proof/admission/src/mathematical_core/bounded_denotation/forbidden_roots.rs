@@ -158,6 +158,45 @@ fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> 
 }
 
 impl Denotation {
+    /// Shared integer antisymmetry law, retaining both order witnesses. The
+    /// portable rule's endpoint/carrier contract is checked by both readers.
+    pub(super) fn order_antisymmetry_evidence(
+        &mut self,
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+        forward: TermHandle,
+        backward: TermHandle,
+        conclusion: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let left = self.fixed_scalar_term(left)?;
+        let right = self.fixed_scalar_term(right)?;
+        let evidence = self.roots_law_application(
+            Law::LessOrEqualAntisymmetry,
+            &[left, right, forward, backward],
+        )?;
+        let Some((carrier, actual_left, actual_right)) = self.identity_parts(conclusion) else {
+            return Err(BoundedDenotationError::Unsupported(
+                "antisymmetry conclusion is not an identity",
+            ));
+        };
+        // Scalar equality canonicalizes value/literal endpoints during its
+        // mathematical lift. The law's ordered premises do not: orient its
+        // evidence to the actual receiving identity using J, never relabel it.
+        if self.arena.structurally_equal(actual_left, left)
+            && self.arena.structurally_equal(actual_right, right)
+        {
+            Ok(evidence)
+        } else if self.arena.structurally_equal(actual_left, right)
+            && self.arena.structurally_equal(actual_right, left)
+        {
+            Ok(self.symmetry(carrier, left, right, evidence))
+        } else {
+            Err(BoundedDenotationError::Unsupported(
+                "antisymmetry denotation changed endpoints",
+            ))
+        }
+    }
+
     /// `AddRightInverse a k m e : Id Int a (sub m k)` for `e : Id Int (add a
     /// k) m` — the same roster law the correlated chains invert through,
     /// shared with the exact-addition order elaboration.

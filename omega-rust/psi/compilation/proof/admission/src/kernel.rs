@@ -43,11 +43,23 @@ pub fn decide_primitive(
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::Equal(..))
         | (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessThan(..))
         | (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessOrEqual(..)) => {
-            compare_fixed_integer_relation(proposition)?.is_some_and(|ordering| match proposition {
-                Proposition::Equal(..) => ordering.is_eq(),
-                Proposition::LessThan(..) => ordering.is_lt(),
-                _ => !ordering.is_gt(),
-            })
+            let exact = compare_fixed_integer_relation(proposition)?.is_some_and(|ordering| {
+                match proposition {
+                    Proposition::Equal(..) => ordering.is_eq(),
+                    Proposition::LessThan(..) => ordering.is_lt(),
+                    _ => !ordering.is_gt(),
+                }
+            });
+            if exact {
+                true
+            } else if let Proposition::Equal(left, right) = proposition {
+                // Quotient-ring equality preserves the selected wrapping policy.
+                // It supplies neither a mathematical lift nor an order decision.
+                crate::integer_rules::wrapping_equality::equal(left, right)
+                    .map_err(KernelError::ClosedIntegerEvaluation)?
+            } else {
+                false
+            }
         }
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::IntegerMathEqual(left, right)) => {
             compare_integer_math_terms(left, right)

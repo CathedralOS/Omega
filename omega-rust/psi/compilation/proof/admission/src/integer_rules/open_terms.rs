@@ -14,7 +14,10 @@
 //! resource refusal establishes nothing, so the judgment never invents a
 //! per-instance axiom and never reads a wrapping machine operation as exact
 //! arithmetic: only the `IntegerMathTerm` ring vocabulary participates, and
-//! fixed-width terms enter it through the existing lifting bridge.
+//! fixed-width exact terms enter it through the existing lifting bridge.
+//! The wrapping equality owner separately reuses the polynomial machinery
+//! with coefficients modulo its fixed carrier width. That private scratch
+//! projection is not a mathematical lift and yields no order relation.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -64,9 +67,24 @@ fn atom(term: &IntegerMathTerm) -> NormalForm {
 #[derive(Default)]
 struct Normalizer {
     monomials: usize,
+    modulus: Option<BigInt>,
 }
 
 impl Normalizer {
+    // The ordinary mathematical route has no modulus. The wrapping route
+    // retains the same polynomial operations in its exact finite quotient.
+    fn coefficient(&self, value: BigInt) -> BigInt {
+        let Some(modulus) = &self.modulus else {
+            return value;
+        };
+        let (_, residue) = value.div_rem(modulus).expect("positive wrapping modulus");
+        if residue.is_negative() {
+            residue.add(modulus)
+        } else {
+            residue
+        }
+    }
+
     fn charge(&mut self, monomials: usize) -> Result<(), ClosedIntegerEvaluationError> {
         self.monomials = self
             .monomials
@@ -91,10 +109,12 @@ impl Normalizer {
             } else {
                 coefficient.clone()
             };
-            let merged = difference
-                .entry(monomial.clone())
-                .or_insert_with(BigInt::zero)
-                .add(&coefficient);
+            let merged = self.coefficient(
+                difference
+                    .entry(monomial.clone())
+                    .or_insert_with(BigInt::zero)
+                    .add(&coefficient),
+            );
             if merged.is_zero() {
                 difference.remove(monomial);
             } else {
@@ -129,14 +149,16 @@ impl Normalizer {
                         .ok_or(ClosedIntegerEvaluationError::ResourceLimitExceeded)?;
                     monomial.insert(atom.clone(), exponent);
                 }
-                let coefficient = left_coefficient.mul(right_coefficient);
+                let coefficient = self.coefficient(left_coefficient.mul(right_coefficient));
                 if coefficient.is_zero() {
                     continue;
                 }
-                let merged = result
-                    .entry(monomial.clone())
-                    .or_insert_with(BigInt::zero)
-                    .add(&coefficient);
+                let merged = self.coefficient(
+                    result
+                        .entry(monomial.clone())
+                        .or_insert_with(BigInt::zero)
+                        .add(&coefficient),
+                );
                 if merged.is_zero() {
                     result.remove(&monomial);
                 } else {
@@ -156,7 +178,9 @@ impl Normalizer {
         term: &IntegerMathTerm,
     ) -> Result<NormalForm, ClosedIntegerEvaluationError> {
         match term {
-            IntegerMathTerm::IntegerLiteral(literal) => Ok(constant(big_integer_literal(*literal))),
+            IntegerMathTerm::IntegerLiteral(literal) => {
+                Ok(constant(self.coefficient(big_integer_literal(*literal))))
+            }
             IntegerMathTerm::Add(left, right) => {
                 let left = self.normalize(left)?;
                 let right = self.normalize(right)?;
@@ -177,7 +201,7 @@ impl Normalizer {
                 self.product(&left, &right)
             }
             _ => match ClosedIntegerEvaluator::default().evaluate_closed(term)? {
-                Some(value) => Ok(constant(value)),
+                Some(value) => Ok(constant(self.coefficient(value))),
                 None => Ok(atom(term)),
             },
         }
@@ -208,6 +232,25 @@ pub(crate) fn constant_difference(
             .and_then(|(monomial, coefficient)| monomial.is_empty().then(|| coefficient.clone())),
         _ => None,
     })
+}
+
+/// Equality in the finite quotient of the integer polynomial ring. A nonzero
+/// polynomial proves nothing (including disequality): distinct polynomials can
+/// still agree on every finite input. Callers own the policy/carrier projection.
+pub(crate) fn equal_modulo(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    bits: u16,
+) -> Result<bool, ClosedIntegerEvaluationError> {
+    check_integer_math_term_size(left, right)?;
+    let mut normalizer = Normalizer {
+        modulus: Some(BigInt::from_u64(1).shl_bits(usize::from(bits))),
+        ..Normalizer::default()
+    };
+    let mut difference = normalizer.normalize(left)?;
+    let right = normalizer.normalize(right)?;
+    normalizer.merge(&mut difference, &right, true)?;
+    Ok(difference.is_empty())
 }
 
 /// `left cmp right` when their difference normalizes to a constant.

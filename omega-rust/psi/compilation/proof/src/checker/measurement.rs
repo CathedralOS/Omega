@@ -228,6 +228,9 @@ fn proof_node_count(node: &ProofNode) -> u64 {
         ProofRule::IntegerOrderWeakening { relation }
         | ProofRule::IntegerOrderDiscreteness { relation }
         | ProofRule::IntegerMathOrderTranslation { relation, .. } => proof_node_count(relation),
+        ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+            proof_node_count(forward) + proof_node_count(backward)
+        }
         ProofRule::IntegerSubtractOrder {
             difference,
             positive,

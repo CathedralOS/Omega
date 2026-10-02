@@ -24,6 +24,18 @@ A mixed signed-index/unsigned-length upper-bound branch supplies no implicit
 nonnegativity fact. Bounds and later arithmetic safety still need their exact
 independent premises; optimization cannot obtain them from unsigned promotion.
 
+## Bounded wrapping equality
+
+The reference primitive decision can establish equality of polynomials over
+one fixed wrapping carrier by reconstructing their difference modulo
+`2^width`. Every value, literal, and wrapping addition, subtraction, or
+multiplication retains that exact carrier. The bounded decision accepts only
+a zero polynomial; a nonzero form establishes neither disequality nor order.
+It cannot erase a policy, cancel a nonunit coefficient, or supply a ranking
+argument. Its independently re-decided conclusion uses the existing primitive
+decision bridge into the mathematical core; wrapping operations retain their
+policy-specific denotation.
+
 ## Canonical scalar goals
 
 Let `n` be the dividend, `d` the divisor, and `MIN` the carrier minimum.
@@ -83,6 +95,7 @@ endpoints below are exact, not matched by spelling.
 | `IntegerOrderWeakening` | Integer equality or strict order implies `<=` over the same ordered endpoints. No Boolean-to-integer order or reversal. |
 | `IntegerOrderSubstitution` | Replace one endpoint of `<` or `<=` through a proved integer equality in either orientation. Preserve the other endpoint and relation kind. |
 | `IntegerMathOrderTranslation` | From mathematical `a <= b`, conclude exactly `a + t <= b + t` for one well-formed mathematical integer term `t`. The child remains independently checked, all embedded value identities and carriers remain scoped, and no finite arithmetic or overflow authority is introduced. Strict premises are outside this certificate rule. |
+| `IntegerOrderAntisymmetry` | From independently proved `a <= b` and `b <= a`, conclude `a == b`. Both endpoints retain the same fixed non-address integer carrier and exact identities; strict, missing, or mismatched premises reject. |
 | `IntegerStrictOrderTransitivity` | Compose `a < b` with `b <= c`, `a <= b` with `b < c`, or two strict orders to conclude `a < c`. The shared middle and ordered endpoints are exact. Both children and conclusion use the same scalar integer type, including carrier, signedness, and width, or all use mathematical integers; no mixed domains or IEEE relations. |
 | `IntegerOrderDiscreteness` | Replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Check adjacency and carrier bounds; no wrap or address carrier. |
 | `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. Its mathematical form bounds `MathValue` by the exact retained carrier endpoints, including an address model's width; it grants no conversion or storage authority. No strict, compound, or narrower bound. |
@@ -143,6 +156,17 @@ dividend retains its declared carrier and identity; the cited definition stays
 in premise closure. A `Truth` child, an unrelated positive value, or a signed
 carrier cannot establish this relational form. Formation of the remainder and
 availability of its result remain separate verifier obligations.
+
+An additive translation word also admits a relative comparison with its own
+root. Its child proves `root <= root` together with every independently
+reconstructed no-wrap condition for the word’s Wrapping steps. The checked
+net displacement determines `target < root` when negative and `root < target`
+when positive; zero displacement supplies no strict relation. Each intermediate
+step retains its exact subject and carrier. A condition only on the final
+result cannot replace a missing intermediate condition. Saturating and
+non-additive steps do not qualify. The mathematical-core bridge re-decides the
+same conditional mapping and retains its definition, literal and bound
+premises under the existing rule-instance decision contract.
 
 For affine maps, positive coefficients preserve bound orientation and negative
 coefficients reverse it. A zero coefficient retains the cited orientation and

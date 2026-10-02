@@ -10,6 +10,8 @@ use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
 
+mod relative_translation;
+
 /// Check the monotone or antitone image of one canonical root bound.
 ///
 /// The caller must supply a root-bound proposition whose proof or citation was
@@ -123,6 +125,9 @@ fn map_integer_affine_bound_with_remainder_policy(
     }
     let (strict, bound, root_is_lower_endpoint, evidence_members) =
         destructure_chain_root_bound(form, root_bound)?;
+    if relative_translation::applies(form, strict, bound) {
+        return relative_translation::map(form, &evidence_members);
+    }
     let Some(bound) = integer_literal_as_i128(bound, form.integer_type()) else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
     };
@@ -376,6 +381,9 @@ pub fn integer_affine_wrapping_evidence(
         destructure_chain_root_bound(form, relation)?;
     if !evidence_members.is_empty() {
         return Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected);
+    }
+    if relative_translation::applies(form, strict, bound) {
+        return relative_translation::evidence(form);
     }
     let _ = integer_literal_as_i128(bound, form.integer_type())
         .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
@@ -1300,6 +1308,7 @@ pub enum IntegerAffineBoundConversionError {
     DirectMultiplyEvidenceMismatch,
     DirectMultiplyBoundOverflow,
     StrictBoundNotTranslation,
+    NonProgressingTranslation,
     WrappingEvidenceMissing,
     WrappingEvidenceUnexpected,
     ConclusionMismatch,

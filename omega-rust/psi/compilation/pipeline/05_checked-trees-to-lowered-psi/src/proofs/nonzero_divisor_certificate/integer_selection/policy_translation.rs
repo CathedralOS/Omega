@@ -34,6 +34,9 @@ use super::super::integer_evidence::{integer_carrier_bound, projected_facts, rel
 use super::super::scope_identity::{self, ScopeDerived};
 use super::{bound, exact, range};
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,
@@ -221,7 +224,16 @@ fn prove_value_goal(
     // the context and axioms alone), asked again at every goal under it.
     let rooted = shared_rooted_bounds(context, assumptions, semantic_axioms);
     let synthesized = shared_synthesized_operand_bounds(context, semantic_axioms);
-    for bound in rooted.iter().chain(synthesized.iter()) {
+    // Relative translation starts from an ordinary reflexive order, not a
+    // guessed bound or the ranking goal. The same checked word determines
+    // the displacement and demands every wrapping step's no-wrap premise.
+    let relative = [goal_left, goal_right].map(|root| reflexive_root(context, root));
+    for bound in relative
+        .iter()
+        .flatten()
+        .chain(rooted.iter())
+        .chain(synthesized.iter())
+    {
         for target in [goal_left, goal_right] {
             if bound.root == *target || !matches!(target, ScalarTerm::Value { .. }) {
                 continue;
@@ -283,6 +295,32 @@ fn prove_value_goal(
         }
     }
     None
+}
+
+/// A typed scalar root's self-order is the neutral premise for relative
+/// additive transport. It establishes no displacement and grants no overflow
+/// facts; the receiving affine mapper authenticates both independently.
+fn reflexive_root(context: &PropositionContext, root: &ScalarTerm) -> Option<RootedBound> {
+    if !matches!(
+        root,
+        ScalarTerm::Value {
+            scalar_type: ScalarType::Integer(_),
+            ..
+        }
+    ) {
+        return None;
+    }
+    let proposition = Proposition::LessOrEqual(root.clone(), root.clone());
+    let judgment = proof_admission::PrimitiveJudgment::ClosedIntegerRelation;
+    proof_admission::decide_primitive(context, &proposition, judgment).ok()?;
+    Some(RootedBound {
+        proposition: proposition.clone(),
+        proof: ProofNode {
+            conclusion: proposition,
+            rule: ProofRule::Primitive(judgment),
+        },
+        root: root.clone(),
+    })
 }
 
 /// Most values a carrier-root walk visits below one goal endpoint.
@@ -505,8 +543,10 @@ fn prove_expression_target(
     let rooted = shared_rooted_bounds(context, assumptions, semantic_axioms);
     let synthesized = shared_synthesized_operand_bounds(context, semantic_axioms);
     let carriers = carrier_roots(context, semantic_axioms, value);
-    for bound in rooted
+    let relative = reflexive_root(context, value);
+    for bound in relative
         .iter()
+        .chain(rooted.iter())
         .chain(synthesized.iter())
         .chain(carriers.iter())
     {
@@ -704,6 +744,7 @@ pub(super) fn map_word(
         definition_axioms,
     )?;
     if checked.evidence.is_empty()
+        && !matches!(&bound.proposition, Proposition::LessOrEqual(left, right) if left == right)
         && !matches!(bound.proposition, Proposition::LessThan(_, _))
         && !definition_axioms.iter().any(|&index| {
             let Proposition::Equal(left, right) = &semantic_axioms[index] else {

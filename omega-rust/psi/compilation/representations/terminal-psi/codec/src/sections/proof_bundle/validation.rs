@@ -209,6 +209,10 @@ fn validate_proof_node(node: &ProofNode) -> Result<(), ProofCodecError> {
                         left_equals_middle,
                         middle_equals_right,
                     }
+                    | ProofRule::IntegerOrderAntisymmetry {
+                        forward: left_equals_middle,
+                        backward: middle_equals_right,
+                    }
                     | ProofRule::IntegerLessOrEqualTransitivity {
                         left_less_or_equal_middle: left_equals_middle,
                         middle_less_or_equal_right: middle_equals_right,

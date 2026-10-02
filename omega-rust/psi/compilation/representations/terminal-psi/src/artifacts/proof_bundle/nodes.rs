@@ -85,6 +85,12 @@ pub enum ProofRule {
         relation: Box<ProofNode>,
         addend: IntegerMathTerm,
     },
+    /// Two independently proved opposite nonstrict bounds establish equality
+    /// of the same fixed integer endpoints, without changing their carriers.
+    IntegerOrderAntisymmetry {
+        forward: Box<ProofNode>,
+        backward: Box<ProofNode>,
+    },
     /// From result = original - decrement and 0 < decrement, conclude
     /// result < original. Both premises are independently checked; only
     /// exact fixed-integer subtraction is covered.

@@ -187,6 +187,10 @@ fn transport_node(
             left_equals_middle: left,
             middle_equals_right: right,
         }
+        | ProofRule::IntegerOrderAntisymmetry {
+            forward: left,
+            backward: right,
+        }
         | ProofRule::IntegerSubtractOrder {
             difference: left,
             positive: right,
