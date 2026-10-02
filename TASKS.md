@@ -184,6 +184,45 @@ execution and native exit/output. A moved refusal is still unfinished work.
   Acceptance: a fixture spelling the nominal binder over a static satisfier
   checks and runs, and the structural form keeps working.
 
+- **STATIC-SUBJECT-IN-CALLABLE-IDENTITY.** (split-of:STATIC-MACHINE-MIGRATION)
+  A boundary provider's satisfier cannot name its subject, because the
+  normalized callable identity records the SPELLING `self` rather than the
+  subject role. Nine samples, and it is what actually blocks the case
+  OWNER_QUESTIONS Q4 calls its widest.
+  Measured 2026-10-02. `pub boundary trait Clock { machine sleep(&mut self,
+  milliseconds: u32) invokes DarwinClock; }` with
+  `macos_arm64 machine PacingClockProvider::sleep(pacing_clock_provider: &mut
+  PacingClockProvider, milliseconds: u32) satisfies Clock::sleep` now passes
+  CONFORMANCE -- 972d5894a30 made the subject match by role -- and then fails
+  provider selection with "selected checked adapter
+  `named-callable(path(PacingClockProvider::sleep),parameters(parameter\(self\(no\)...".
+  `type_identity.rs:560` builds each parameter's identity with
+  `atom("self", if parameter.is_self { "yes" } else { "no" })`, so a named
+  subject reads `self(no)` where the requirement's adapter expects `self(yes)`
+  and the identities cannot match.
+  Customers: `samples/cli/{algorithms/binary_search_viz,algorithms/sort_visualizer,
+  rendering/bouncing_console,rendering/ripple_field,rendering/tick_marquee,
+  simulation/cellular_automaton,simulation/game_of_life_glider,
+  simulation/langtons_ant,simulation/random_walk}`. All nine meet their native
+  oracles today and reach only this refusal once migrated, so they are a clean
+  acceptance set.
+  **This one is NOT purely an implementation fix and needs the owner.** The
+  parameter identity is a NORMALIZED identity that package review evidence
+  digests; emitting the subject role instead of the `self` spelling changes the
+  identity string of every receiver-form machine in the repository, so every
+  recorded evidence digest moves with it. The shape to decide is whether the
+  atom becomes `subject(yes|no)` answered by role -- which is what makes the two
+  spellings agree -- and how the digest refresh is attributed, given
+  [[trusted-surface digests]] says never to refresh a digest for a file one did
+  not author.
+  Two smaller blockers sit behind the same nine samples once this clears:
+  `rendering/bouncing_particles` and `text/substring_search` report "cannot prove
+  index ... is within length" for `main.b * 20 + main.a` and a plain `main.j`,
+  and `rendering/dungeon_render` reports "state `put` receives `main` while local
+  borrow `__hoist_1` is still active" -- a hoisted index temp's loan conflicting
+  with passing the record, which 64b8f4c5db03 made reachable for data-rooted
+  indices.
+
 - **STATIC-DERIVED-ACCESSOR-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   The three `PlacedField` accessors in `source/library/core/layout.omg` cannot
   migrate by renaming, because the machine that satisfies the requirement is

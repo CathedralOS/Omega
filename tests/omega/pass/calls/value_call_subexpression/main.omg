@@ -7,11 +7,11 @@
 //   73  `twelve() as i64`                   (a cast parent)
 //   74  `twelve() == 12` as a Boolean local (a comparison parent)
 //   75  `0 - twelve()` and `1 + twelve()`   (call as either operand)
-//   76  `Main::add(&mut self, twelve(), twelve())`      (calls as call arguments)
+//   76  `Main::add(main, twelve(), twelve())`      (calls as call arguments)
 //   77  `self.total = twelve() * 2`         (a field store)
 //   78  `transition twelve() + 1 == 13`     (a guard subject)
-//   79  `Main::tick(&mut self) * 10 + Main::tick(&mut self)`    (ordered, single invocation: 12)
-//   80  `false && Main::tick(&mut self) == 3`         (the right operand never runs)
+//   79  `Main::tick(main) * 10 + Main::tick(main)`    (ordered, single invocation: 12)
+//   80  `false && Main::tick(main) == 3`         (the right operand never runs)
 //
 // Exit 70 means every call ran exactly as often as authored and its result
 // reached the enclosing expression. The repair was 508b04b168f, retaining
