@@ -5,9 +5,9 @@
 // literal names its members in reverse declaration order. Both records are
 // read back through their stored descriptors and scalars, and both texts are
 // written out. exits: 71 = left record wrong; 72 = right record wrong.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

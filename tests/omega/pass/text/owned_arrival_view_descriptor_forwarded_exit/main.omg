@@ -13,9 +13,9 @@
 // exits: 70 = every state saw the view and the rank; 71 = wrong extent or
 // rank after the first edge; 72 = wrong bytes or rank after the second edge;
 // 73 = wrong extent or byte after the third edge.
-domain [u8]::Utf8
+domain [u8]::Utf8(bytes)
 requires
-    valid_utf8(self);
+    valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::binding;
 

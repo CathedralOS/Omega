@@ -4,9 +4,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8]::Utf8 requires valid_utf8(self);
-domain [u8; 8]::Utf8 requires valid_utf8(self);
-domain [u8; 16]::Utf8 requires valid_utf8(self);
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 
 data Label [copy] { text: [u8; 8] in Utf8; sibling: u64; }
 data Main {

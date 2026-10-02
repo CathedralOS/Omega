@@ -198,7 +198,37 @@ fail/build/elf_interpreter_relative_path rejected 1706ms expected @5ce9755c44a5+
 	`build` produced an invalid Build: Build.elf_interpreter.linux_x86_64 is invalid: ELF interpreter plan path is not absolute
 fail/build/hosted_program_entry_visible_parameter rejected 1019ms expected @2d8ed253669f
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
-fail/build/package_local_calling_copy checked 923ms @9b253f5667e5
+fail/build/package_local_calling_copy rejected 72ms expected @c3ad5f6e051f+wt
+	duplicate data `SystemVEightbyteClass`
+	duplicate data `ValueClass`
+	duplicate data `ValueShape`
+	duplicate data `ValueField`
+	duplicate data `CallbackBinderIdentity`
+	duplicate data `AbiValueClass`
+	duplicate data `AbiValueShape`
+	duplicate data `NativePlace`
+	duplicate data `NativeCallbackDemandIdentity`
+	duplicate data `NativeParameterOrigin`
+	duplicate data `NativeParameterShape`
+	duplicate data `NativeParameterIdentity`
+	duplicate data `BoundarySignature`
+	duplicate data `MachineRegister`
+	duplicate data `IndirectPointerLocation`
+	duplicate data `ValueLocation`
+	duplicate data `ValuePlacement`
+	duplicate data `CallingConvention`
+	duplicate data `RegisterSet`
+	duplicate data `EntryControl`
+	duplicate data `CallbackMaterialization`
+	duplicate data `CallPlan`
+	duplicate data `MachineRegime`
+	duplicate data `MachineStateSet`
+	duplicate data `EntryStack`
+	duplicate data `Preemption`
+	duplicate data `StatePlan`
+	duplicate data `BoundaryEntryPlan`
+	duplicate data `CallingPolicyRejection`
+	duplicate data `BoundaryPlanResult`
 fail/build/placed_view_program_entry_input rejected 677ms expected @c9ed9f7b9e4c+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
 fail/build/product_entry_description_slot_mismatch rejected 546ms expected @b09f66e07ebd+wt
@@ -1312,7 +1342,7 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
 pass/calls/runtime_enum_self_method_exit checked 1484ms @ca8c127c90c5
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
-pass/calls/runtime_fixed_element_view_field_loan_exit checked 718ms @9472a7c10267+wt
+pass/calls/runtime_fixed_element_view_field_loan_exit checked 1060ms @c3ad5f6e051f+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
 pass/calls/runtime_indexed_scalar_calls_exit checked 1536ms @63377f7122bb+wt
@@ -1502,7 +1532,7 @@ pass/control_flow/runtime_branching_helper_string rejected 396ms @2d8ed253669f
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms @2d8ed253669f
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 1328ms @2d8ed253669f
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1563ms @15f38e49aac2+wt
-pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 5968ms @13e508d146a3+wt
+pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 1020ms @c3ad5f6e051f+wt
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656ms @e7c13a0f55b2+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f
@@ -1602,7 +1632,7 @@ pass/domains/local_alias_domain_transfer checked 275ms @4e4bfed13aee+wt
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
-pass/domains/record_literal_view_member_store_exit checked 1123ms @e8ed051cf626+wt
+pass/domains/record_literal_view_member_store_exit checked 1248ms @c3ad5f6e051f+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
@@ -2209,7 +2239,7 @@ pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5
 pass/text/local_bounded_text_scalar_loan_exit checked 4200ms @ca8c127c90c5
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
 pass/text/nested_owned_byte_record_literal_exit checked 1087ms @ae42075f1dcc+wt
-pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1324ms @ef2ef25a3ab8+wt
+pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1094ms @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms @5826c9701ec3+wt
 pass/text/runtime_alias_string_write checked 381ms @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms @2d8ed253669f
@@ -2322,3 +2352,4 @@ pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7
 pass/references/selected_record_loan_disjoint_fields_exit checked 741ms @63377f7122bb+wt
 pass/text/mutable_bounded_byte_state_exit checked 712ms @63377f7122bb+wt
 pass/text/state_parameter_byte_replacement_exit checked 967ms @63377f7122bb+wt
+pass/text/owned_record_byte_field_read_exit checked 1401ms @c3ad5f6e051f+wt
