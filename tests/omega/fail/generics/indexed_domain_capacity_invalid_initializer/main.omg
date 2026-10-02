@@ -1,0 +1,11 @@
+// Matching a capacity does not establish the constructor's length qualification.
+domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+data DomainBytes<Length, const Capacity: u64>
+where Length == u64::AtMost<Capacity>
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+machine invalid(storage: [u8; 256]) -> DomainBytes<u64::AtMost<256> > {
+    DomainBytes { storage: storage, length: 257 as u64 in AtMost<256> }
+}

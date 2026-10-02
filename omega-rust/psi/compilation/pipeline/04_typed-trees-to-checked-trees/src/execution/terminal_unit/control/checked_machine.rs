@@ -503,26 +503,8 @@ pub(crate) fn build_checked_machine_residual_parts(
 
     trace.phase("contract plan");
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    let mut body_qualifications = facts
-        .qualifications
-        .for_machine(machine.symbol)
-        .map(|fact| {
-            fact.body_committed
-                .iter()
-                .copied()
-                .filter(|domain| {
-                    !matches!(
-                        *domain,
-                        language_semantics::SemanticDomainTable::WRAPPING
-                            | language_semantics::SemanticDomainTable::SATURATING
-                            | language_semantics::SemanticDomainTable::TRAPPING
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    body_qualifications.sort_by_key(|domain| domain.0);
-    body_qualifications.dedup();
+    let body_qualifications =
+        super::super::types::body_structural_qualifications(program, facts, machine.symbol);
 
     trace.phase("provider attachment requirements");
     let provider_attachment_requirements = match attachment_type_identity.as_deref() {

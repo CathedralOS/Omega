@@ -248,11 +248,33 @@ pub(super) fn authored_operand(
         .ok_or(LoweringError::Unsupported(
             "authored cast computation lost its state",
         ))?;
-    let source_type =
-        validation::expression_result_type_reference(checked, machine, state, cast.value).ok_or(
-            LoweringError::Unsupported("authored cast computation lost its operand type"),
-        )?;
-    if checked.primitive_type_reference(source_type) != Some(nodes.get(operand).primitive_type) {
+    let source_primitive =
+        validation::expression_result_type_reference(checked, machine, state, cast.value)
+            .and_then(|reference| checked.primitive_type_reference(reference));
+    let operand_primitive = nodes.get(operand).primitive_type;
+    let matches_source =
+        source_primitive.map_or_else(
+            || {
+                // An explicit cast lands an anonymous integer at its own carrier.
+                // Replay that landing independently; a typed operand cannot borrow
+                // the destination carrier, and ordinary value correspondence still
+                // checks the retained payload and exact source occurrence.
+                checked.primitive_type_reference(cast.target_type) == Some(operand_primitive)
+                    && validation::land_anonymous_integer_expression(
+                        checked,
+                        cast.value,
+                        operand_primitive,
+                        |expression| match checked.facts.operators.expression_use(expression) {
+                            Some(operator) => operator.status
+                                == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+                            None => validation::has_anonymous_operator_meaning(checked, expression),
+                        },
+                    )
+                    .is_some()
+            },
+            |source| source == operand_primitive,
+        );
+    if !matches_source {
         return unsupported("authored cast computation substituted its operand carrier");
     }
     Ok(cast.value)

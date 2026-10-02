@@ -4624,13 +4624,18 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
   through specialization, layout and source-free execution.
 
-  First make the spec's TinyBytes infer Capacity from `u64::AtMost<256>` before
-  layout, then construct and access its nested backing through serialized
-  Terminal and native execution. Extend
-  `generics/omitted_data_binder_range_equation`: its `Bytes`
-  declaration preserves the domain-index direction, but `constructed_value`
-  only casts a scalar qualification. Neither it nor `generics/machine_type_equations`
-  binds a native entry. Include invalid-initializer controls.
+  `generics/omitted_data_binder_range_equation` now infers Capacity = 256
+  from `u64::AtMost<256>` before layout, constructs a nested `DomainBytes`
+  backing, and writes/reads element 255. Its bound native entry and checked
+  interpreter both exit 92 with `omega run --both
+  tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg`.
+  Serialized Terminal reload verifies without typed source; changing the
+  retained fixed index to 256 is rejected. The invalid-initializer control
+  rejects a length of 257. Closed integer domain indices retain their exact
+  instance identities through scalar interval proof and qualification replay.
+  Next extend this customer to the remaining matching routes below;
+  scalar return-domain inference from a typed parameter remains separate
+  from the now-running literal mint and nested backing route.
   **STATE-LOCAL-VALUE-FRONTIER** owns storage and borrowed-local mutation;
   const staging, initialization and stack supply remain separate obligations.
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** owns the remaining range-shell migration.

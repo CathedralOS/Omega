@@ -1019,9 +1019,26 @@ impl Builder<'_, '_> {
         if !semantic_casts::requires_custody(self.program, self.state, expression) {
             return None;
         }
-        let source_type = semantic_casts::result_type(self.program, self.state, cast.value)?;
-        let source_primitive = self.program.primitive_type_reference(source_type)?;
-        let operand = self.expression(cast.value, source_primitive)?;
+        let operand = if let Some(source_primitive) =
+            semantic_casts::result_type(self.program, self.state, cast.value)
+                .and_then(|reference| self.program.primitive_type_reference(reference))
+        {
+            self.expression(cast.value, source_primitive)?
+        } else {
+            // The explicit cast supplies the carrier for an anonymous integer
+            // expression. Preserve its exact landing and source occurrence;
+            // the qualification remains an authored cast with its own proof.
+            let target = self.program.primitive_type_reference(cast.target_type)?;
+            let value = super::scalar_lowering::land_anonymous_scalar_expression(
+                self.program,
+                self.operators,
+                cast.value,
+                target,
+            )?;
+            let operand = self.insert(target, CheckedScalarComputationKind::Value(value));
+            self.plans.nodes.get_mut(operand).value_source = cast.value;
+            operand
+        };
         let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
         Some(self.insert(
             expected_type,

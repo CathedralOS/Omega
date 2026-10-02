@@ -502,6 +502,102 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     })
 }
 
+/// Body commitments whose theory belongs to structural carriers. Numeric
+/// interval mints retain their authored scalar computation and range proof;
+/// requesting a structural carrier for them would duplicate the scalar owner.
+/// Nominal, routed, open, and non-interval domains remain structural requests.
+pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+) -> Vec<SemanticDomainId> {
+    let mut domains = facts
+        .qualifications
+        .for_machine(machine)
+        .map(|fact| {
+            fact.body_committed
+                .iter()
+                .copied()
+                .filter(|domain| {
+                    !matches!(
+                        *domain,
+                        language_semantics::SemanticDomainTable::WRAPPING
+                            | language_semantics::SemanticDomainTable::SATURATING
+                            | language_semantics::SemanticDomainTable::TRAPPING
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if domains.is_empty() {
+        return domains;
+    }
+    let interval_casts = program.expression_table.iter_expressions().filter_map(|(_, expression)| {
+        let ExpressionNode::Cast(cast) = expression else { return None; };
+        if !domains.contains(&cast.semantic_domain_id) { return None; }
+        let primitive = program.primitive_type_reference(cast.result_type)?;
+        let TypeReferenceNode::Constrained { constraints, .. } = program.type_reference_table.type_reference(cast.result_type) else { return None; };
+        program.type_reference_table.constraints(*constraints).iter().any(|constraint| {
+            matches!(constraint, TypeConstraintNode::Domain(domain)
+                if domain.semantic_id == cast.semantic_domain_id
+                    && domain.symbol == cast.semantic_domain_symbol
+                    && validation::exact_declared_domain_carrier_interval(program, primitive, domain)
+                        .is_some_and(|(minimum, maximum)| minimum <= maximum))
+        }).then_some(cast.semantic_domain_id.0)
+    }).collect::<BTreeSet<_>>();
+    domains.retain(|domain| !interval_casts.contains(&domain.0));
+    domains.sort_by_key(|domain| domain.0);
+    domains.dedup();
+    domains
+}
+
+#[cfg(test)]
+mod body_qualification_tests {
+    #[test]
+    fn interval_body_mints_keep_scalar_proof_and_nominal_commitments_remain_structural() {
+        let checked = crate::tests::front_end::checked_program(
+            "domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+             domain u64::Tagged;
+             machine mint() -> u64 in AtMost<256> { 1 as u64 in AtMost<256> }
+             machine tag(value: u64) -> u64 in Tagged { value as u64 in Tagged }",
+        );
+        for (name, interval) in [("mint", true), ("tag", false)] {
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            let committed = &checked
+                .facts
+                .qualifications
+                .for_machine(machine.symbol)
+                .unwrap()
+                .body_committed;
+            assert_eq!(
+                committed.len(),
+                1,
+                "the qualification fact retains its exact commitment"
+            );
+            let structural = super::body_structural_qualifications(
+                &checked.typed,
+                &checked.facts,
+                machine.symbol,
+            );
+            if interval {
+                assert!(
+                    structural.is_empty(),
+                    "interval membership keeps its scalar range-proof owner"
+                );
+            } else {
+                assert_eq!(
+                    &structural, committed,
+                    "a nominal tag still needs its structural theory"
+                );
+            }
+        }
+    }
+}
+
 /// Collect domain constraints below a structural root without treating them
 /// as root qualifications. Fixed-array indexes are the canonical source path
 /// for each occurrence; unsupported dynamic shapes remain absent from plans.

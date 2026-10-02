@@ -917,6 +917,7 @@ fn build_traced_with(
     };
     trace.phase("state graph: finish");
     let mut plan = composed_control::finish_state_graph(
+        program,
         facts,
         machine,
         attachment,

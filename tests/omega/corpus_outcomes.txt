@@ -678,6 +678,9 @@ fail/generics/const_data_where_fact_false rejected 18ms expected @2d8ed253669f
 	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/indexed_domain_capacity_invalid_initializer rejected 141ms expected @f64782b89114+wt
+	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `-9223372036854775808..=256`; constrain the value, construct with a literal in range, or widen the field
+	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 fail/generics/machine_bound_violated_at_call rejected 131ms expected @2d8ed253669f
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 118ms expected @2d8ed253669f
@@ -1838,7 +1841,7 @@ pass/generics/generic_seq_consuming_map_filter checked 312ms @2d8ed253669f
 pass/generics/machine_bound_satisfied_at_call checked 303ms @2d8ed253669f
 pass/generics/machine_type_equations checked 343ms @2d8ed253669f
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 293ms @2d8ed253669f
-pass/generics/omitted_data_binder_range_equation checked 349ms @2d8ed253669f
+pass/generics/omitted_data_binder_range_equation checked 1106ms @f64782b89114+wt
 pass/generics/open_computed_quantity_result rejected 1309ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
 pass/generics/ranged_const_parameter_attached_shape checked 1334ms @2d8ed253669f

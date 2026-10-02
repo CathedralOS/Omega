@@ -79,6 +79,37 @@ const ERASURE_SOURCE: &str = include_str!(concat!(
 ));
 
 #[test]
+fn anonymous_domain_mint_replay_requires_its_explicit_cast_carrier() {
+    let mut checked = crate::front_end::checked_program(
+        "domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+         machine choose() -> u64 in AtMost<256> { 1 as u64 in AtMost<256> }",
+    );
+    replay(&checked).expect("anonymous literal lands at its authored u64 cast");
+    let root = root(&checked);
+    let CheckedScalarComputationKind::AuthoredCast { operand, .. } = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .get(root.root)
+        .kind
+    else {
+        panic!("predicate mint keeps authored conversion custody");
+    };
+    checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .get_mut(operand)
+        .primitive_type = PrimitiveType::U32;
+    assert!(
+        replay(&checked).is_err(),
+        "a different operand carrier must be rejected"
+    );
+}
+
+#[test]
 fn explicit_erasure_replay_requires_its_authored_cast_and_bare_result() {
     for mutation in 0..3 {
         let mut checked = crate::front_end::checked_program(ERASURE_SOURCE);
