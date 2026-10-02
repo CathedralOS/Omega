@@ -151,19 +151,18 @@ pub(super) fn candidates(
             }
         }
         for header in qualifying_headers {
-            let Ok(scope) = PropositionContext::from_value_types(
-                machine
-                    .parameters
-                    .iter()
-                    .chain(&header.parameters)
-                    .map(|value| (value.id, value.scalar_type)),
-            ) else {
+            // Transport can replace an SSA observation with its storage term.
+            // Use the verifier's telescope so invocation/header storage remains
+            // expressible while operation-local and sibling-block roots stay out.
+            let Ok(scope) = terminal_verifier::scalar_block_invariant_scope(machine, header) else {
                 continue;
             };
             let allowed = machine
                 .parameters
                 .iter()
+                .chain(&machine.contract.erased_scalar_formals)
                 .chain(&header.parameters)
+                .chain(&header.erased_scalar_formals)
                 .map(|value| value.id)
                 .collect::<BTreeSet<_>>();
             let mut imported = module
@@ -412,9 +411,10 @@ pub(super) fn scoped_goal(
 ) -> Option<Proposition> {
     *remaining = remaining.checked_sub(1)?;
     let mut pending = Vec::new();
-    if !goal.visit_value_ids(|value| pending.push(value)) {
-        return None;
-    }
+    // The visitor still visits every SSA identity when storage terms occur;
+    // its false result means identities other than SSA also occur. Their
+    // authority is checked by denotation and the destination telescope below.
+    goal.visit_value_ids(|value| pending.push(value));
     let mut visited = BTreeSet::new();
     let mut equations = Vec::new();
     while let Some(value) = pending.pop() {
@@ -435,13 +435,11 @@ pub(super) fn scoped_goal(
             // into Truth instead of carrying its call/copy alias to the header.
             .filter(|definition| Some(*definition) != excluded)
             .or_else(|| arrival.reversed.get(&value))?;
-        if !definition.visit_value_ids(|dependency| {
+        definition.visit_value_ids(|dependency| {
             if dependency != value {
                 pending.push(dependency);
             }
-        }) {
-            return None;
-        }
+        });
         equations.push(definition);
     }
     // The transport validates all participating values before substitution.
@@ -623,6 +621,70 @@ fn transport_math_leaves(
 pub(super) struct ArrivalEquations<'input> {
     definitions: BTreeMap<ValueId, &'input Proposition>,
     reversed: BTreeMap<ValueId, Proposition>,
+}
+
+#[test]
+fn join_transport_retains_only_storage_observations_in_destination_scope() {
+    use semantic_vocabulary::{
+        BlockId, IntegerSign, IntegerType, OperationId, PlaceId, StructuralPlaceKind,
+        StructuralTypeId,
+    };
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let observed = ValueId::new(1).unwrap();
+    let parameter = PlaceId::new(1).unwrap();
+    let sibling = PlaceId::new(2).unwrap();
+    let local = PlaceId::new(3).unwrap();
+    let places = [
+        (
+            parameter,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        ),
+        (
+            sibling,
+            StructuralPlaceKind::BlockParameter {
+                block: BlockId::new(2).unwrap(),
+                position: 0,
+            },
+        ),
+        (
+            local,
+            StructuralPlaceKind::OperationResult {
+                producer: OperationId::new(1).unwrap(),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+            },
+        ),
+    ];
+    let context =
+        PropositionContext::from_value_types_and_places([(observed, scalar_type)], places).unwrap();
+    let scope = PropositionContext::from_value_types_and_places([], [places[0]]).unwrap();
+    let zero = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap();
+    let goal = Proposition::LessThan(zero.clone(), ScalarTerm::value(observed, scalar_type));
+    for root in [parameter, sibling, local] {
+        let extent = ScalarTerm::view_extent(root, Vec::new(), integer);
+        let axioms = [Proposition::Equal(
+            ScalarTerm::value(observed, scalar_type),
+            extent.clone(),
+        )];
+        let mut remaining = 128;
+        let equations = ArrivalEquations::new(&axioms, &mut remaining).unwrap();
+        let transported = Proposition::LessThan(zero.clone(), extent);
+        for demand in [&goal, &transported] {
+            let actual = scoped_goal(
+                demand,
+                &equations,
+                &BTreeSet::new(),
+                &scope,
+                &context,
+                None,
+                &mut remaining,
+            );
+            assert_eq!(actual, (root == parameter).then(|| transported.clone()));
+        }
+    }
 }
 
 #[test]
