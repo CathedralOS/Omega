@@ -343,93 +343,93 @@ machine UefiOsHandoffCycle::transfer(uefi_os_handoff_cycle: &mut UefiOsHandoffCy
 // `split_rejection`/`split_exhaustion` form the outer bounded leg. Every rejecting stage performs
 // the firmware return with the live custody still on this record; `complete`
 // is the nonreturning transfer.
-pub machine UefiOsHandoffCycle::run(&mut self)
+pub machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices + UefiOsHandoffTermination
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;
 {
-    transition { _ -> prepare() }
+    transition { _ -> prepare(uefi_os_handoff_cycle) }
 
     // Deployment inputs: the stale-key bound and the exhaustion status are
     // target-authored constants installed before the cycle begins.
-    state prepare(&mut self) {
-        self.remaining = UEFI_OS_HANDOFF_ATTEMPT_BOUND;
-        self.exhaustion = UEFI_OS_HANDOFF_EXHAUSTION_STATUS;
-        transition { _ -> acquire() }
+    state prepare(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        uefi_os_handoff_cycle.remaining = UEFI_OS_HANDOFF_ATTEMPT_BOUND;
+        uefi_os_handoff_cycle.exhaustion = UEFI_OS_HANDOFF_EXHAUSTION_STATUS;
+        transition { _ -> acquire(uefi_os_handoff_cycle) }
     }
 
-    state acquire(&mut self) {
-        UefiOsHandoffCycle::acquire(&mut self);
-        transition { _ -> acquired() }
+    state acquire(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        UefiOsHandoffCycle::acquire(uefi_os_handoff_cycle);
+        transition { _ -> acquired(uefi_os_handoff_cycle) }
     }
 
     // A successful acquire presents the freshest key to the exit leg; a
     // BUFFER_TOO_SMALL answer whose reported requirement exceeds the
     // retained capacity grows the buffer instead of spending an attempt.
-    state acquired(&mut self) {
-        transition self.legs.status == EFI_SUCCESS {
-            true -> attempt_exit()
-            _ -> map_too_small()
+    state acquired(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
+            true -> attempt_exit(uefi_os_handoff_cycle)
+            _ -> map_too_small(uefi_os_handoff_cycle)
         }
     }
 
-    state map_too_small(&mut self) {
-        transition self.legs.status == EFI_BUFFER_TOO_SMALL
-            && self.legs.map_size > self.legs.map_capacity {
-            true -> grow()
-            _ -> reject_status()
+    state map_too_small(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_BUFFER_TOO_SMALL
+            && uefi_os_handoff_cycle.legs.map_size > uefi_os_handoff_cycle.legs.map_capacity {
+            true -> grow(uefi_os_handoff_cycle)
+            _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
 
     // Grow the retained buffer to the firmware-reported requirement without
     // spending a stale-key attempt: allocate the replacement first so the old
     // map storage stays live on a rejected grow.
-    state grow(&mut self) {
-        let required: u64 = ((self.legs.map_size as u64 in Saturating)
+    state grow(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        let required: u64 = ((uefi_os_handoff_cycle.legs.map_size as u64 in Saturating)
             + (EFI_PAGE_BYTES - 1)) as u64;
-        self.legs.pages = required / EFI_PAGE_BYTES;
-        UefiOsHandoffCycle::grow(&mut self);
-        transition { _ -> release() }
+        uefi_os_handoff_cycle.legs.pages = required / EFI_PAGE_BYTES;
+        UefiOsHandoffCycle::grow(uefi_os_handoff_cycle);
+        transition { _ -> release(uefi_os_handoff_cycle) }
     }
 
-    state release(&mut self) {
-        transition self.legs.status == EFI_SUCCESS {
-            true -> release_allocated()
-            _ -> reject_status()
+    state release(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
+            true -> release_allocated(uefi_os_handoff_cycle)
+            _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
 
-    state release_allocated(&mut self) {
-        transition self.legs.map_pages > 0 {
-            true -> free()
-            _ -> adopt()
+    state release_allocated(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.map_pages > 0 {
+            true -> free(uefi_os_handoff_cycle)
+            _ -> adopt(uefi_os_handoff_cycle)
         }
     }
 
-    state free(&mut self) {
-        UefiOsHandoffCycle::free_map(&mut self);
-        transition { _ -> adopt() }
+    state free(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        UefiOsHandoffCycle::free_map(uefi_os_handoff_cycle);
+        transition { _ -> adopt(uefi_os_handoff_cycle) }
     }
 
-    state adopt(&mut self) {
-        self.legs.map = self.legs.next_map;
-        self.legs.map_pages = self.legs.pages;
-        self.legs.map_capacity = ((self.legs.pages as u64 in Saturating)
+    state adopt(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        uefi_os_handoff_cycle.legs.map = uefi_os_handoff_cycle.legs.next_map;
+        uefi_os_handoff_cycle.legs.map_pages = uefi_os_handoff_cycle.legs.pages;
+        uefi_os_handoff_cycle.legs.map_capacity = ((uefi_os_handoff_cycle.legs.pages as u64 in Saturating)
             * EFI_PAGE_BYTES) as u64;
-        transition { _ -> acquire() }
+        transition { _ -> acquire(uefi_os_handoff_cycle) }
     }
 
     // A successful acquire attempted no exit yet; the freshest `key` on the
     // legs record is the snapshot the exit leg presents.
-    state attempt_exit(&mut self) {
-        UefiOsHandoffCycle::attempt_exit(&mut self);
-        transition { _ -> exit_rejected() }
+    state attempt_exit(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        UefiOsHandoffCycle::attempt_exit(uefi_os_handoff_cycle);
+        transition { _ -> exit_rejected(uefi_os_handoff_cycle) }
     }
 
-    state exit_rejected(&mut self) {
-        transition self.legs.status == EFI_SUCCESS {
-            true -> complete()
-            _ -> split_rejection()
+    state exit_rejected(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
+            true -> complete(uefi_os_handoff_cycle)
+            _ -> split_rejection(uefi_os_handoff_cycle)
         }
     }
 
@@ -437,46 +437,46 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // INVALID_PARAMETER key rejection may spend `remaining`, and only while
     // attempts stay; once the bound is spent the exhaustion status is the
     // target-authored answer.
-    state split_rejection(&mut self) {
-        transition self.legs.status == EFI_INVALID_PARAMETER && self.remaining > 1 {
-            true -> retry()
-            _ -> split_exhaustion()
+    state split_rejection(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_INVALID_PARAMETER && uefi_os_handoff_cycle.remaining > 1 {
+            true -> retry(uefi_os_handoff_cycle)
+            _ -> split_exhaustion(uefi_os_handoff_cycle)
         }
     }
 
-    state split_exhaustion(&mut self) {
-        transition self.legs.status == EFI_INVALID_PARAMETER {
-            true -> exhausted()
-            _ -> reject_status()
+    state split_exhaustion(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        transition uefi_os_handoff_cycle.legs.status == EFI_INVALID_PARAMETER {
+            true -> exhausted(uefi_os_handoff_cycle)
+            _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
 
-    state retry(&mut self) {
-        self.remaining = ((self.remaining as u64 in Saturating) - 1) as u64;
-        transition { _ -> acquire() }
+    state retry(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        uefi_os_handoff_cycle.remaining = ((uefi_os_handoff_cycle.remaining as u64 in Saturating) - 1) as u64;
+        transition { _ -> acquire(uefi_os_handoff_cycle) }
     }
 
     // The live leg status is not an admitted rejection: the invocation's
     // firmware return carries it with the retained custody intact.
-    state reject_status(&mut self) {
-        // Copy the status before `&mut self` lends the whole receiver.
-        let status: u64 = self.legs.status;
-        UefiOsHandoffCycle::firmware_return(&mut self, status);
-        transition { _ -> reject_status() }
+    state reject_status(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        // Copy the status before `uefi_os_handoff_cycle` lends the whole receiver.
+        let status: u64 = uefi_os_handoff_cycle.legs.status;
+        UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle, status);
+        transition { _ -> reject_status(uefi_os_handoff_cycle) }
     }
 
     // Stale-key bound spent: the invocation's firmware return carries the
     // target-authored exhaustion status.
-    state exhausted(&mut self) {
-        let status: u64 = self.exhaustion;
-        UefiOsHandoffCycle::firmware_return(&mut self, status);
-        transition { _ -> exhausted() }
+    state exhausted(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        let status: u64 = uefi_os_handoff_cycle.exhaustion;
+        UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle, status);
+        transition { _ -> exhausted(uefi_os_handoff_cycle) }
     }
 
     // Boot Services consumed: the compiler-owned transfer enters the loaded
     // image's entry and never returns to this cycle.
-    state complete(&mut self) {
-        UefiOsHandoffCycle::transfer(&mut self);
-        transition { _ -> complete() }
+    state complete(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
+        UefiOsHandoffCycle::transfer(uefi_os_handoff_cycle);
+        transition { _ -> complete(uefi_os_handoff_cycle) }
     }
 }
