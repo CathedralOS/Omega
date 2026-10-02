@@ -17,9 +17,9 @@ requires
 {
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 requires
-    self.password in Password::Valid
+    main.password in Password::Valid
 {
-    self.accept(self.password.length);
+    main.accept(main.password.length);
 }

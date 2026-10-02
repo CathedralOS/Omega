@@ -57,14 +57,14 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let msg: CounterSample = CounterSample {
         counter: 300,
         delta: 0 - 2,
         flag: true
     };
 
-    CounterMessage::encode(&msg, &mut self.buffer, &mut self.written);
+    CounterMessage::encode(&msg, &mut main.buffer, &mut main.written);
 
     let decoded: CounterSample = CounterSample {
         counter: 0,
@@ -72,25 +72,25 @@ machine Main::main(&mut self) reaches Console {
         flag: false
     };
 
-    CounterMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+    CounterMessage::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
-    let matches: bool = self.verdict == WireVerdict::Sound
-        && self.written == 8
-        && self.read == 8
+    let matches: bool = main.verdict == WireVerdict::Sound
+        && main.written == 8
+        && main.read == 8
         && decoded.counter == 300
         && decoded.delta == 0 - 2
         && decoded.flag;
     transition matches {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
 
@@ -111,35 +111,35 @@ data CompactBinary {
     index: u64 in Wrapping;
     tag: u64;
 }
-machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
-    self.evaluate(schema, 128)
+machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    CompactBinary::evaluate(compact_binary, schema, 128)
 }
 
-machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 128
 terminates by fuel;
 {
-    transition { _ -> fill(schema, fuel, 0) }
+    transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
-    state fill(schema: Schema, fuel: u64, index: u64 in Wrapping)
+    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index < 32 && index < schema.field_count {
-            true -> place(schema, fuel - 1, index)
-            _ -> done(schema)
+            true -> place(compact_binary, schema, fuel - 1, index)
+            _ -> done(compact_binary, schema)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    state place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
-        self.tag = (schema.fields[index].number as u64 in Wrapping) as u64;
-        self.plans[index] = field_plan(schema.fields[index].kind, self.tag);
-        transition fuel > 1 { true -> fill(schema, fuel - 1, index + 1) _ -> done(schema) }
+        compact_binary.tag = (schema.fields[index].number as u64 in Wrapping) as u64;
+        compact_binary.plans[index] = field_plan(schema.fields[index].kind, compact_binary.tag);
+        transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
-            fields: self.plans,
+            fields: compact_binary.plans,
             entry_count: schema.field_count,
             size_fixed: 0,
             size_is_dynamic: true,

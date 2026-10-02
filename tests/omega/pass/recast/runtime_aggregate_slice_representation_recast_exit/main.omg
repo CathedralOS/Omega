@@ -28,60 +28,60 @@ data Main {
     source: [Narrow; 2];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source[0].signed_value = 7;
-    self.source[0].enabled = false;
-    self.source[1].signed_value = 11;
-    self.source[1].enabled = true;
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0].signed_value = 7;
+    main.source[0].enabled = false;
+    main.source[1].signed_value = 11;
+    main.source[1].enabled = true;
 
-    let read: &[Wide] = &self.source as &[Wide];
+    let read: &[Wide] = &main.source as &[Wide];
     transition read.len > 1 {
-        true -> inspect(read)
-        _ -> bad()
+        true -> inspect(main, read)
+        _ -> bad(main)
     }
 
-    state inspect(&mut self, read: &[Wide]) {
+    state inspect(main: &mut Main, read: &[Wide]) {
     transition read[0].unsigned_value == 7
         && !read[0].active
         && read[1].unsigned_value == 11
         && read[1].active {
-        true -> mutate()
-        _ -> bad()
+        true -> mutate(main)
+        _ -> bad(main)
     }
     }
 
-    state mutate(&mut self) {
-    let write: &mut [Exact] = &mut self.source as &mut [Exact];
+    state mutate(main: &mut Main) {
+    let write: &mut [Exact] = &mut main.source as &mut [Exact];
     transition write.len > 1 {
-        true -> write_values(write)
-        _ -> bad()
+        true -> write_values(main, write)
+        _ -> bad(main)
     }
     }
 
-    state write_values(&mut self, write: &mut [Exact]) {
+    state write_values(main: &mut Main, write: &mut [Exact]) {
     write[1].unsigned_value = 99;
     write[0].active = true;
     transition write[0].unsigned_value == 7
         && write[0].active
         && write[1].unsigned_value == 99
         && write[1].active {
-        true -> verify()
-        _ -> bad()
+        true -> verify(main)
+        _ -> bad(main)
     }
     }
 
-    // `write` holds `self.source` exclusively until `write_values` ends, so
+    // `write` holds `main.source` exclusively until `write_values` ends, so
     // the receiver observes the stores only after that edge.
-    state verify(&mut self) {
-    transition self.source[0].signed_value == 7
-        && self.source[0].enabled
-        && self.source[1].signed_value == 99
-        && self.source[1].enabled {
-        true -> good()
-        _ -> bad()
+    state verify(main: &mut Main) {
+    transition main.source[0].signed_value == 7
+        && main.source[0].enabled
+        && main.source[1].signed_value == 99
+        && main.source[1].enabled {
+        true -> good(main)
+        _ -> bad(main)
     }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

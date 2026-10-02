@@ -18,49 +18,49 @@ data Main {
     byte: u8;
 }
 
-machine Main::replace(&mut self, choice: u8, byte: u8) {
-    self.label = "Gate";
-    transition choice == 0 { true -> supplied(byte) _ -> space() }
-    state supplied(&mut self, byte: u8) {
-        self.byte = byte;
-        transition self.byte < 128 { true -> write() _ -> done() }
+machine Main::replace(main: &mut Main, choice: u8, byte: u8) {
+    main.label = "Gate";
+    transition choice == 0 { true -> supplied(main, byte) _ -> space(main) }
+    state supplied(main: &mut Main, byte: u8) {
+        main.byte = byte;
+        transition main.byte < 128 { true -> write(main) _ -> done() }
     }
-    state space(&mut self) {
-        self.byte = 32;
-        transition self.byte < 128 { true -> write() _ -> done() }
+    state space(main: &mut Main) {
+        main.byte = 32;
+        transition main.byte < 128 { true -> write(main) _ -> done() }
     }
-    state write(&mut self) { self.label[1] = self.byte; }
+    state write(main: &mut Main) { main.label[1] = main.byte; }
     state done() { }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.label = "Gate";
+machine Main::main(main: &mut Main) reaches Console {
+    main.label = "Gate";
 
-    transition self.label == "Gate" {
-        true -> supplied()
-        false -> bad()
+    transition main.label == "Gate" {
+        true -> supplied(main)
+        false -> bad(main)
     }
 
-    state supplied(&mut self) {
-        self.replace(0, 111);
-        transition self.label == "Gote" { true -> space() _ -> bad() }
+    state supplied(main: &mut Main) {
+        Main::replace(main, 0, 111);
+        transition main.label == "Gote" { true -> space(main) _ -> bad(main) }
     }
 
-    state space(&mut self) {
-        self.replace(1, 200);
-        transition self.label == "G te" { true -> non_ascii() _ -> bad() }
+    state space(main: &mut Main) {
+        Main::replace(main, 1, 200);
+        transition main.label == "G te" { true -> non_ascii(main) _ -> bad(main) }
     }
 
-    state non_ascii(&mut self) {
-        self.replace(0, 200);
-        transition self.label == "Gate" { true -> good() _ -> bad() }
+    state non_ascii(main: &mut Main) {
+        Main::replace(main, 0, 200);
+        transition main.label == "Gate" { true -> good(main) _ -> bad(main) }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

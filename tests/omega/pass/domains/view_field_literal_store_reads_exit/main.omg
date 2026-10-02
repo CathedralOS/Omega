@@ -16,43 +16,43 @@ data Main {
     raw: &[u8];
 }
 
-machine Main::check(&self, text: &[u8] in Utf8) reaches Console {
+machine Main::check(main: &Main, text: &[u8] in Utf8) reaches Console {
     transition text == "Door" {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&self) {
-        self.console.exit_process(70);
+    state good(main: &Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&self) {
-        self.console.exit_process(71);
+    state bad(main: &Main) {
+        main.console.exit_process(71);
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.name = "Gate";
-    self.raw = "\xff\x00";
-    self.name = "Door";
+machine Main::main(main: &mut Main) reaches Console {
+    main.name = "Gate";
+    main.raw = "\xff\x00";
+    main.name = "Door";
 
-    transition self.raw.len == 2 {
-        true -> raw_bytes()
-        false -> wrong()
+    transition main.raw.len == 2 {
+        true -> raw_bytes(main)
+        false -> wrong(main)
     }
 
-    state raw_bytes(&mut self) {
-        transition self.raw == "\xff\x00" {
-            true -> report()
-            false -> wrong()
+    state raw_bytes(main: &mut Main) {
+        transition main.raw == "\xff\x00" {
+            true -> report(main)
+            false -> wrong(main)
         }
     }
 
-    state report(&mut self) {
-        self.check(self.name);
+    state report(main: &mut Main) {
+        Main::check(main, main.name);
     }
 
-    state wrong(&mut self) {
-        self.console.exit_process(72);
+    state wrong(main: &mut Main) {
+        main.console.exit_process(72);
     }
 }

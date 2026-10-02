@@ -12,16 +12,16 @@ data Main {
     console: Binding<Console>;
     grid: [Cell; 3];
 }
-machine Main::main(&mut self) reaches Console {
-    self.fill();
-    transition self.grid[1] {
-        Cell::Door -> finish(&mut self, 7)
-        _ -> finish(&mut self, 1)
+machine Main::main(main: &mut Main) reaches Console {
+    Main::fill(main);
+    transition main.grid[1] {
+        Cell::Door -> finish(main, 7)
+        _ -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) {
         main.console.exit_process(code);
     }
 }
-machine Main::fill(&mut self) {
-    self.grid = [Cell::Floor, Cell::Door, Cell::Wall];
+machine Main::fill(main: &mut Main) {
+    main.grid = [Cell::Floor, Cell::Door, Cell::Wall];
 }

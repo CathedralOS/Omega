@@ -10,29 +10,29 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     transition true {
-        true -> copy_alias()
+        true -> copy_alias(main)
     }
 
-    state copy_alias(&mut self) {
-        self.entries[0].value = 7;
+    state copy_alias(main: &mut Main) {
+        main.entries[0].value = 7;
 
-        let entry_view: &[Entry] = self.entries.as_slice();
+        let entry_view: &[Entry] = main.entries.as_slice();
         let index: u64 = 0;
         let chosen: Entry = entry_view[index];
 
         transition chosen.value == 7 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(61);
+    state good(main: &mut Main) {
+        main.console.exit_process(61);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(62);
+    state bad(main: &mut Main) {
+        main.console.exit_process(62);
     }
 }

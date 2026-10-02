@@ -16,10 +16,10 @@ requires
 {
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 requires
-    self.player in Player::Alive
+    main.player in Player::Alive
 {
-    let mut copy: Player = self.player;
-    self.inspect(copy);
+    let mut copy: Player = main.player;
+    main.inspect(copy);
 }

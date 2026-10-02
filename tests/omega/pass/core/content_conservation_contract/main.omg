@@ -96,8 +96,8 @@ reaches RegionSplit, RegionSink
     right
 }
 
-machine Main::main(&mut self) reaches RegionSplit, RegionSink {
+machine Main::main(main: &mut Main) reaches RegionSplit, RegionSink {
     let whole: Region in Owned = Region { remaining: 8 };
-    let retained: Region in Owned = Main::partition_and_retain(self, whole);
-    self.sink.accept(retained);
+    let retained: Region in Owned = Main::partition_and_retain(main, whole);
+    main.sink.accept(retained);
 }

@@ -23,67 +23,67 @@ data Main {
     count: i32;
 }
 
-machine Main::set_name(&mut self)
+machine Main::set_name(main: &mut Main)
 ensures
-    self.name in Utf8
+    main.name in Utf8
 {
-    self.name = "Alpha";
+    main.name = "Alpha";
 }
 
-machine Main::set_label(&mut self)
+machine Main::set_label(main: &mut Main)
 ensures
-    self.label in Utf8;
+    main.label in Utf8;
 ensures
-    self.count < 4
+    main.count < 4
 {
-    self.label = "[" + self.name + "]";
-    self.count = 3;
+    main.label = "[" + main.name + "]";
+    main.count = 3;
 }
 
-machine Main::accept(&mut self)
+machine Main::accept(main: &mut Main)
 requires
-    self.count < 4
+    main.count < 4
 {
-    self.count = self.count + 1;
+    main.count = main.count + 1;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.set_name();
-    self.set_label();
-    self.accept();
+machine Main::main(main: &mut Main) reaches Console {
+    Main::set_name(main);
+    Main::set_label(main);
+    Main::accept(main);
 
-    transition self.name == "Alpha" {
-        true -> check_label()
-        _ -> bad_name()
+    transition main.name == "Alpha" {
+        true -> check_label(main)
+        _ -> bad_name(main)
     }
 
-    state bad_name(&mut self) {
-        self.console.exit_process(71);
+    state bad_name(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state check_label(&mut self) {
-        transition self.label == "[Alpha]" {
-            true -> check_count()
-            _ -> bad_label()
+    state check_label(main: &mut Main) {
+        transition main.label == "[Alpha]" {
+            true -> check_count(main)
+            _ -> bad_label(main)
         }
     }
 
-    state bad_label(&mut self) {
-        self.console.exit_process(72);
+    state bad_label(main: &mut Main) {
+        main.console.exit_process(72);
     }
 
-    state check_count(&mut self) {
-        transition self.count == 4 {
-            true -> good()
-            _ -> bad_count()
+    state check_count(main: &mut Main) {
+        transition main.count == 4 {
+            true -> good(main)
+            _ -> bad_count(main)
         }
     }
 
-    state bad_count(&mut self) {
-        self.console.exit_process(73);
+    state bad_count(main: &mut Main) {
+        main.console.exit_process(73);
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 }

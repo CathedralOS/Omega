@@ -86,8 +86,8 @@ data Main {
     game: Game;
 }
 
-machine Main::main(&mut self) -> i32 {
-    transition { _ -> running(&mut self) }
+machine Main::main(main: &mut Main) -> i32 {
+    transition { _ -> running(main) }
 
 
     state running(main: &mut Main) {
