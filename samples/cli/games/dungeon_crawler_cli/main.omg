@@ -1,6 +1,8 @@
 // Interactive dungeon crawler. With closed stdin (the runtime harness, EOF on the
 // first prompt) the game loop reads an empty command and exits cleanly via
-// `finished()`. Expected exit: 0.
+// `finished()`. Native lookup must preserve the generated room description.
+// Expected exit: 0.
+// Expected output contains: A bottomless dark room near the dungeon heart.
 domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);

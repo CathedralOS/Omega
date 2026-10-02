@@ -18,8 +18,8 @@ Runtime acceptance:
 This is a language pressure test, not a working-native-support claim.
 [build.omg](build.omg) declares four hosted entry bindings; those declarations
 do not establish that the current compiler can produce or execute this sample
-on any of them. The verified Terminal/native route still has unsupported
-constructs; see [native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
+on any of them. Checking and a zero exit status do not establish correct
+native output; see [native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
 and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
 The intended interactive path accepts commands at a live terminal. The closed-
@@ -38,6 +38,19 @@ printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.o
 Both cases should exit 0 after the initial room and goodbye output; the second
 also prints command help. These are acceptance commands, not passing receipts.
 `TASKS.md` records the current compiler failure.
+
+The existing sample gate reads the standalone `Expected exit` and
+`Expected output contains` lines in [main.omg](main.omg). Its closed-stdin
+oracle requires the generated room description, not just exit 0: native lookup
+previously lost the description while the process still exited successfully.
+
+```sh
+python3 tools/sample_native_gate.py --filter cli/games/dungeon_crawler_cli --jobs 1 --timeout 7200
+```
+
+The timeout accommodates the observed hour-long native compilation; it is a
+runner budget, not a language limit. This gate does not replace the separate
+`help`/`exit` input acceptance above.
 
 Current state cycle:
 
