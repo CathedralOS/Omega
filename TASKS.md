@@ -191,50 +191,31 @@ execution and native exit/output. A moved refusal is still unfinished work.
   spelling with no exclusivity exception added to checking; a genuine second
   exclusive loan still rejects, with a fixture naming that.
 
-- **STATIC-SUBJECT-GUARD-RELATION.** (split-of:STATIC-MACHINE-MIGRATION)
-  A guard a state spells over its own data record establishes no index bound in
-  the successor once the subject is explicit, so every stateful sample that
-  guards a COMPUTED index stops checking. This is the gate on the samples half
-  of the migration: 386 declarations in `samples/cli` and 116 in `samples/gui`.
-  `pass/ranges/subject_guard_compound_index_successor` is the thirteen-line
-  statement of it and is recorded red; the same program spelled with a receiver
-  checks. The first real customer is
-  `samples/cli/rendering/bouncing_particles`, whose native oracle passes at base
-  and whose migration stops at "cannot prove index `main.b * 20 + main.a` is
-  within length 200 in Main::main::plot_set".
-  Diagnosed to one classifier. `checks/ranges/incoming_guards.rs` seeds an
-  incoming guard's RELATIONAL decomposition (`seed_guard_facts`) only for
-  conjuncts that `machine_storage_conjuncts` accepts, and its leaf test asks
-  that the canonical place root equal `machine.symbol`. A receiver satisfied
-  that; an explicit subject is a parameter and never does. Narrower than the
-  canonical notion of the machine's own storage, in the recurring shape where a
-  gate re-derives a property by hand.
-  The subject already reaches the sound alternative:
-  `stable_scope_conjuncts` admits it through `parameter_bound_identically`,
-  which requires the edge to bind the successor's same-named subject to exactly
-  this parameter with no projections and no shadowing local. That path seeds
-  ENDPOINTS ONLY, so no index bound arrives.
-  Do not simply swap the seeder; measured. Giving every stable-scope conjunct
-  the relational decomposition fixes the compound index and regresses 5
-  fixtures with 0 improvements, because the ordering seeders register
-  label-to-symbol dependencies that mutation invalidation consumes at
-  ROOT-SYMBOL granularity, so a write to one field drops bounds on its
-  siblings. The casualties are
-  `collections/runtime_dutch_flag_partition_exit`,
-  `collections/runtime_maze_pathfind_exit`, `errors/runtime_result_match_exit`,
-  `proofs/nested_loop_digit_bytes_keep_utf8_exit` and
-  `filesystem/cross_linux_value_syscalls` -- the last one failing on
-  `filesystem.rd_idx` exactly as that code's own comment predicts.
-  So the work is field-granularity dependency tracking for a transported
-  relational fact, not a seeder swap: the transported bound must be invalidated
-  by a write to the field it names rather than to its root. Scope that against
-  `facts/dependencies/reads.rs` first.
-  Two neighbours are NOT this item and already work: a simple `main.a` index
-  crosses a transition, and so does a loop-carried one. Only the compound form
-  needs the decomposition.
-  Acceptance: `pass/ranges/subject_guard_compound_index_successor` checks,
-  `bouncing_particles` meets its native oracle in the static spelling, and the
-  five named fixtures stay green.
+- **STATIC-SUBJECT-SAMPLE-STORE.** (split-of:STATIC-MACHINE-MIGRATION)
+  The guard half of the samples blocker is fixed (73dff12c5ac): a guard a state
+  spells over its own data record now transports its relation onto destination
+  storage, `pass/ranges/subject_guard_compound_index_successor` checks, and the
+  corpus measured 0 regressions against 1654 fixtures. What remains for the
+  samples is a STORE shape, not a proof shape.
+  `samples/cli/rendering/bouncing_particles` is the measured next customer: its
+  native oracle passes at base, the migration now clears every index bound, and
+  it stops at "does not check: structural field store: scalar field type:
+  indexed element destination" for `main.ps[main.pi].x = main.n` -- an
+  array-of-structs element's scalar field as a store destination. The sample's
+  own header already calls this out ("a direct ps[i].x += ps[i].vx is a gap").
+  Whether the static spelling makes this reachable where the receiver spelling
+  hid it is UNMEASURED; establish that first by checking the receiver spelling
+  of the same store, because the sample passes its oracle today with receivers.
+  If both spellings fail it, this is an ordinary unit-plan gap and belongs with
+  the unit-plan items rather than the migration.
+  386 declarations in `samples/cli` and 116 in `samples/gui` sit behind the
+  samples path. Re-measure the yield after this one store shape: the guard fix
+  removed what was blocking every guarded computed index, so the next
+  bouncing_particles failure is the honest next frontier rather than a list
+  predicted from the old measurement.
+  Acceptance: `bouncing_particles` meets its documented native oracle in the
+  static spelling, and `tools/sample_native_gate.py` does not regress any
+  sample that passes today.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
