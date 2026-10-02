@@ -60,7 +60,7 @@ impl AddressJoinPins {
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let borrowed_regions = BorrowedRegions::new(function, structural_types);
-        let descriptor_loans = DescriptorLoans::new(function, &borrowed_regions);
+        let descriptor_loans = DescriptorLoans::new(function, &borrowed_regions, structural_types);
         let joins = function
             .blocks
             .iter()
