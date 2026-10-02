@@ -39,7 +39,19 @@ pub(crate) fn initializes_immutable_local(
         .ok_or(LoweringError::Unsupported(
             "call result has no authored statement",
         ))?;
-    Ok(matches!(statement, StatementNode::LocalData(local) if !local.is_mutable))
+    let StatementNode::LocalData(local) = statement else {
+        return Ok(false);
+    };
+    if local.is_mutable {
+        return Ok(false);
+    }
+    let authored = super::authored::locate_source(checked, state, coordinate)?;
+    // Preorder zero can also name the first nested call of a computation.
+    // Only the initializer expression itself completes this source binding.
+    Ok(authored.source_site
+        == Some(checked_trees::NominalMachineUseSite::Expression(
+            local.initial_value,
+        )))
 }
 
 /// A discarded statement result has an operation-owned place, not a fabricated

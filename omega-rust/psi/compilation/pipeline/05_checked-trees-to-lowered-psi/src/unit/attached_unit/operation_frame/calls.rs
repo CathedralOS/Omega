@@ -105,8 +105,8 @@ impl OperationFrame<'_, '_> {
         value: ValueDeclaration,
         staged: bool,
     ) -> Result<Option<ValueDeclaration>, LoweringError> {
-        let names_local = coordinate.call_ordinal == 0
-            && crate::emission::call_source_custody::initializers::initializes_immutable_local(
+        let names_local =
+            crate::emission::call_source_custody::initializers::initializes_immutable_local(
                 self.checked,
                 self.state,
                 coordinate,
