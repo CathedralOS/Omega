@@ -5,6 +5,90 @@ use crate::tests::front_end::typed_program;
 use checked_trees::CheckedScalarExpressionRole;
 
 #[test]
+fn shared_array_ranges_retain_backing_and_endpoint_evidence() {
+    use checked_trees::{
+        CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
+        CheckedStorageRoot, CheckedUnitStructuralArgumentSourcePlan,
+    };
+    let checked = lower_typed_trees(
+        typed_program(
+            "data Buffer { values: [i32; 3]; }
+             data Indirect { values: &[i32; 3]; }
+             machine count(values: &[i32]) -> u64 { values.len }
+             machine local() -> u64 {
+                 let values: [i32; 3] = [11, 22, 33];
+                 count(&values[1..3])
+             }
+             machine empty() -> u64 {
+                 let values: [i32; 0] = [];
+                 count(&values[..])
+             }
+             machine parameter(values: &[i32; 3]) -> u64 { count(&values[1..3]) }
+             machine field(buffer: &Buffer) -> u64 { count(&buffer.values[1..3]) }
+             machine indirect(buffer: &Indirect) -> u64 { count(&buffer.values[1..3]) }",
+        ),
+        &CheckingRequest::settled(),
+    )
+    .expect("array ranges retain exact shared loans");
+    let computations = &checked.facts.values.scalar_computations;
+    let mut roots = Vec::new();
+    for (_, computation) in computations.nodes.iter() {
+        let CheckedScalarComputationKind::Call {
+            structural_arguments,
+            ..
+        } = computation.kind
+        else {
+            continue;
+        };
+        for argument in computations
+            .structural_arguments
+            .span_or_empty(structural_arguments)
+        {
+            let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
+                continue;
+            };
+            let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root,
+                start,
+                end,
+                ..
+            } = &argument.source
+            else {
+                continue;
+            };
+            roots.push((*root, argument.path.len(), start.is_some(), end.is_some()));
+        }
+    }
+    assert_eq!(
+        roots.len(),
+        4,
+        "four direct backing operands use view ranges; a reference field needs a referent crossing: {roots:?}"
+    );
+    assert!(roots.iter().any(|(root, path, start, end)| matches!(
+        root,
+        CheckedStorageRoot::OwnedLocal { .. }
+    ) && *path == 0
+        && *start
+        && *end));
+    assert!(roots.iter().any(|(root, path, start, end)| matches!(
+        root,
+        CheckedStorageRoot::OwnedLocal { .. }
+    ) && *path == 0
+        && !*start
+        && !*end));
+    assert!(
+        roots.iter().any(
+            |(root, path, _, _)| matches!(root, CheckedStorageRoot::Parameter { .. }) && *path == 0
+        )
+    );
+    assert!(
+        roots.iter().any(
+            |(root, path, _, _)| matches!(root, CheckedStorageRoot::Parameter { .. }) && *path == 1
+        )
+    );
+}
+
+#[test]
 fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
     let checked = lower_typed_trees(
         typed_program(

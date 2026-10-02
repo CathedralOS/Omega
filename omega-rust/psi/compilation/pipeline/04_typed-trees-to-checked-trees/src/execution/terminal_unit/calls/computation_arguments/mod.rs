@@ -221,21 +221,21 @@ pub(crate) fn subslice_computation_argument(
         .machines()
         .iter()
         .find(|owner| owner.symbol == machine)?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let ExpressionNode::Name(source) = program.expression_table.expression(indexed.collection)
-    else {
-        return None;
-    };
-    // A local view already owns its descriptor identity. Only a parameter
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        call.statement_index,
+        expression,
+    )?;
+    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
+    // Local storage already owns its identity. Only a parameter
     // root needs the caller's structural signature namespace; rebuilding the
     // enclosing attachment for a local would unnecessarily require every
     // unrelated field (including service bindings) to be scalar-graph storage.
     let parameters = if !program
         .state_parameters(state)
         .iter()
-        .any(|parameter| parameter.symbol == source.symbol)
+        .any(|parameter| place.root == facts::PlaceRoot::Symbol(parameter.symbol))
     {
         Vec::new()
     } else if owner.attached_data.is_some() {
@@ -265,24 +265,16 @@ pub(crate) fn subslice_computation_argument(
         },
     )?;
     let argument = subslice.argument();
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    (exact_structural_borrow_access(
         program,
+        borrow,
+        machine,
         state.symbol,
-        call.statement_index,
-        expression,
-    )?;
-    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
-    (argument.path.is_empty()
-        && exact_structural_borrow_access(
-            program,
-            borrow,
-            machine,
-            state.symbol,
-            call,
-            &place,
-            CheckedStructuralAccess::SharedBorrow,
-            &[],
-        )? == CheckedStructuralAccess::SharedBorrow)
+        call,
+        &place,
+        CheckedStructuralAccess::SharedBorrow,
+        &[],
+    )? == CheckedStructuralAccess::SharedBorrow)
         .then_some(argument)
 }
 
