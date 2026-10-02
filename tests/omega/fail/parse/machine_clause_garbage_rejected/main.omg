@@ -3,5 +3,5 @@
 // parsed as void). Now a parse error.
 data Main {
 }
-machine Main::main(&mut self) bogus tokens {
+machine Main::main() bogus tokens {
 }

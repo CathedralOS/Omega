@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 10.0, "load1_start": 8.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.63, "load1_start": 4.63, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -89,9 +89,9 @@ fail/arithmetic/wrapping_target_plain_operands_rejected rejected 300ms expected 
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
 fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8ed253669f
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/arithmetic/zii_range_excludes_zero_rejected rejected 373ms expected @2d8ed253669f
-	reading `self.m` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `self.console` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/arithmetic/zii_range_excludes_zero_rejected rejected 81ms expected @3a2d2f7aa797+wt
+	reading `main.m` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `main.console` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 3ms expected @2d8ed253669f
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 0ms expected @2d8ed253669f
@@ -251,9 +251,9 @@ fail/build/product_entry_query_unknown_target rejected 276ms expected @b09f66e07
 	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `unknown_target::ProgramEntry`: root slot `unknown_target::ProgramEntry` belongs to unknown target profile `unknown_target`
 fail/build/program_entry_binding_outside_build rejected 738ms expected @2d8ed253669f
 	root binding requires a compiler-issued &mut Build receiver
-fail/build/program_entry_receiver_not_zii rejected 220ms expected @2d8ed253669f
-	reading `self.launch_count` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	data `Application`'s default domain is still FALSE at state exit: the invariant window opened on `self` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+wt
+	reading `application.launch_count` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	data `Application`'s default domain is still FALSE at state exit: the invariant window opened on `application` must close first -- restore the `where` facts before this consumption point (ch11)
 	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
@@ -478,8 +478,8 @@ fail/data/unbounded_integer_field rejected 276ms expected @2d8ed253669f
 	data `Counter` field `calls` stores unbounded integer type `UInt`, which has no runtime representation; use a sized integer such as `u64` or `i64`, or declare the field `[erased]` to keep it proof-only
 fail/data/zero_length_byte_literal_length_rejected rejected 85ms expected @2d8ed253669f
 	quoted byte literal has 1 source byte(s), but owned fixed byte array `[u8; 0]` requires exactly 0; fixed-array literal copying neither truncates nor pads
-fail/dependent/case_where_payload_write_exit_open rejected 321ms expected @2d8ed253669f
-	data `Interval`'s default domain is still FALSE at state exit: the invariant window opened on `self.interval` in a predecessor state must close first -- restore the `where` facts before this consumption point (ch11 window transport)
+fail/dependent/case_where_payload_write_exit_open rejected 73ms expected @3a2d2f7aa797+wt
+	data `Interval`'s default domain is still FALSE at state exit: the invariant window opened on `main.interval` in a predecessor state must close first -- restore the `where` facts before this consumption point (ch11 window transport)
 fail/dependent/case_where_sibling_payload_scope rejected 165ms expected @2d8ed253669f
 	data `Pair` case `B` constraint names `x`, which is not in scope: a case `where` fact may read only the case's payload bindings and the data's common fields (a sibling case's payload is never in scope)
 fail/dependent/case_where_unproved_bound_rejected rejected 316ms expected @2d8ed253669f
@@ -508,8 +508,8 @@ fail/dependent/data_where_invariant_window_unclosed_rejected rejected 80ms expec
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_literal_violates rejected 460ms expected @2d8ed253669f
 	data `Player` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 594ms expected @2d8ed253669f
-	statement 3 mutates `self.map.end` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 131ms expected @3a2d2f7aa797+wt
+	statement 3 mutates `main.map.end` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/dependent/data_where_param_write_unproven rejected 404ms expected @2d8ed253669f
 	write to `target.count` cannot PROVE data `Tally`'s default domain: a `where`-mentioned field's value is not a literal known here (a runtime value, or a co-field last written in another state) -- restructure with literal stores in one state for now (the entailment integration and cross-state valuation transport relax this)
 	data `Tally`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -588,10 +588,10 @@ fail/domains/unit_membership_postcondition_unestablished rejected 225ms expected
 	cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8
 fail/domains/view_field_store_literal_outside_domain rejected 256ms expected @c08960bee2b1+wt
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/drops/authored_cleanup_static_argument_rejected rejected 116ms expected @2d8ed253669f
-	machine argument `Resource::drop` for `accept` does not refine `Selected`: parameter 0 has a different calling mode
-fail/drops/drop_ensures_unlocked_predicate rejected 703ms expected @2d8ed253669f
-	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: self.mutex.unlocked()
+fail/drops/authored_cleanup_static_argument_rejected rejected 46ms expected @3a2d2f7aa797+wt
+	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
+fail/drops/drop_ensures_unlocked_predicate rejected 131ms expected @3a2d2f7aa797+wt
+	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/effects/nominal_callback_console_const_reach rejected 73ms expected @2d8ed253669f
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/entry/service_foreign_domain_rejected rejected 276ms expected @2d8ed253669f
@@ -787,8 +787,8 @@ fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78c
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
-fail/parse/machine_clause_garbage_rejected rejected 1ms expected @2d8ed253669f
-	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:31: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
+fail/parse/machine_clause_garbage_rejected rejected 0ms expected @3a2d2f7aa797+wt
+	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 1ms expected @c08960bee2b1+wt
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
 fail/ports/asm_port_in_unsettled rejected 360ms expected @c08960bee2b1+wt
