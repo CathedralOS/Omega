@@ -12,6 +12,9 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
 // allocation. These are private production limits, not reference semantics;
@@ -183,9 +186,10 @@ pub fn initializer_source(
 /// A borrowed initializer may name one projected leaf of a formal carrier —
 /// `&receiver.field[i]` — where the whole-carrier arm above only spells a
 /// bare parameter. The authored address walks member hops and literal index
-/// hops off the receiver; the minted source is that parameter's position,
-/// the projected segments, and the `Referent` segment the result's access
-/// spells. Indexes bound to locals stay opaque: folding them would need the
+/// hops off the receiver; the minted source is that parameter's position and
+/// the projected segments. A final `Referent` step belongs only to a stored
+/// reference leaf, never to an ordinary value being borrowed. Indexes bound
+/// to locals stay opaque: folding them would need the
 /// constant-binding evidence the producer resolves elsewhere.
 pub fn borrowed_initializer_source(
     program: &TypedTrees,
@@ -209,6 +213,12 @@ pub fn borrowed_initializer_source(
     let mut projections = Vec::new();
     let mut cursor = borrow.target;
     loop {
+        if !program.expression_table.expression_is_valid(cursor)
+            || projections.contains(&cursor)
+            || projections.len() >= MAX_REFERENCE_ORIGIN_DEPTH
+        {
+            return None;
+        }
         cursor = match program.expression_table.expression(cursor) {
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
                 projections.push(cursor);
@@ -233,7 +243,6 @@ pub fn borrowed_initializer_source(
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }
-    let machine_symbol = program.machine_holding_state(state.symbol)?.symbol;
     let found = program
         .state_parameters(state)
         .iter()
@@ -244,41 +253,28 @@ pub fn borrowed_initializer_source(
                     .is_none()
         })
         .enumerate()
-        .find(|(_, parameter)| {
-            parameter.symbol == path.symbol || (parameter.is_self && path.symbol == machine_symbol)
-        });
+        .find(|(_, parameter)| parameter.symbol == path.symbol);
     let (position, parameter) = found?;
-    if !parameter.is_self && parameter.name != *name {
+    if parameter.is_self || parameter.name != *name {
         return None;
     }
     // Each member hop resolves against the nominal owner its receiver
     // projects: the root carrier's declaration first, then each selected
-    // field's (or indexed element's) type. A `&self` root names the
-    // machine, whose fields live under its attached data.
+    // field's (or indexed element's) type.
     let mut owner_type = parameter.type_reference;
     let mut segments = Vec::with_capacity(projections.len() + 1);
     for projection in projections.iter().rev() {
         match program.expression_table.expression(*projection) {
             ExpressionNode::Member(member) => {
                 let data = nominal_member_owner_type(program, owner_type)?;
-                // `member.member_symbol` names the authored selection, not
-                // necessarily the declaration: attached-storage accessors
-                // carry their own symbols. The mint's `Field` segment spells
-                // the declaration's path identity, so the uniquely named
-                // field inside the resolved owner is the honest match.
-                let mut fields = program.data_members(data).iter().filter_map(|candidate| {
-                    let typed_trees::data::DataMember::Field(field) = candidate else {
-                        return None;
-                    };
-                    (field.name.as_str() == member.member.as_str()
-                        && field.symbol.is_valid()
-                        && field.type_reference.is_valid())
-                    .then_some(field)
-                });
-                let Some(field) = fields.next() else {
-                    return None;
-                };
-                if fields.next().is_some() {
+                let field = crate::value_custody::places::exact_data_member_field(
+                    program,
+                    data,
+                    member.member_symbol,
+                    member.member.as_str(),
+                    None,
+                )?;
+                if field.relevance.is_erased() {
                     return None;
                 }
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
@@ -306,7 +302,20 @@ pub fn borrowed_initializer_source(
             _ => return None,
         }
     }
-    segments.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    // Reference access and reference storage are separate facts. Borrowing a
+    // scalar produces a reference but does not dereference the scalar itself.
+    let leaf = if let Some(shell) = crate::reference_shell(program, owner_type) {
+        if shell.access != borrow.access {
+            return None;
+        }
+        segments.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        shell.referee
+    } else {
+        owner_type
+    };
+    if program.normalized_type_identity(leaf) != program.normalized_type_identity(referent) {
+        return None;
+    }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
             parameter_index: u32::try_from(position).ok()?,
@@ -315,29 +324,6 @@ pub fn borrowed_initializer_source(
         type_identity: program.normalized_type_identity(referent).into_string(),
         access,
     })
-}
-
-/// The nominal declaration whose member table owns a selected field: a data
-/// definition, or the attached storage of the machine a `&machine` carrier
-/// names.
-fn nominal_member_owner<'p>(
-    program: &'p TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&'p typed_trees::data::DataDefinition> {
-    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol).or_else(
-        || {
-            program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == symbol)
-                .and_then(|machine| {
-                    crate::program_scope::data_definitions::data_definition_by_symbol(
-                        program,
-                        machine.attached_data_symbol,
-                    )
-                })
-        },
-    )
 }
 
 /// Peel constraint shells and reference wrappers to the nominal owner one
@@ -351,7 +337,9 @@ fn nominal_member_owner_type<'p>(
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Named { symbol, .. } => {
-                return nominal_member_owner(program, *symbol);
+                return crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program, *symbol,
+                );
             }
             _ => return None,
         }

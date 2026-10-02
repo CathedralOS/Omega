@@ -24,7 +24,7 @@ use super::{
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionEventSource,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
@@ -220,47 +220,8 @@ fn returned_reference_leaf(
     })
 }
 
-/// The `&Self` receiver's referee is `Named { machine, "Self" }` — the
-/// machine's alias for its owner application — while the named view's `V`
-/// referee is `Named { data-symbol, ... }`. They name the same storage when
-/// the `Self` machine's attached data is the referee's data: a `self`
-/// whole-borrow then loans the storage its `&'a V` result names.
-fn self_referent_is_attached_application(
-    program: &TypedTrees,
-    self_type_reference: TypeReferenceHandle,
-    referee: TypeReferenceHandle,
-) -> bool {
-    let TypeReferenceNode::Reference {
-        referee: self_referee,
-        ..
-    } = program
-        .type_reference_table
-        .type_reference(self_type_reference)
-    else {
-        return false;
-    };
-    let TypeReferenceNode::Named {
-        symbol: self_machine,
-        name,
-    } = program.type_reference_table.type_reference(*self_referee)
-    else {
-        return false;
-    };
-    if name.as_str() != "Self" {
-        return false;
-    }
-    let view_data = match program.type_reference_table.type_reference(referee) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-        _ => return false,
-    };
-    crate::lookup::machine_by_symbol(program, *self_machine)
-        .is_some_and(|machine| machine.attached_data_symbol == view_data)
-}
-
 /// A `&'a V` named-result completion borrows the referent it names from one
-/// immutable structural carrier: `self` for a whole receiver borrow,
-/// `self.field` for a stored named reference. The whole stored borrow is the
+/// immutable structural carrier, either directly or through a field. The borrow is the
 /// result — there are no subslice endpoints and no separate slice length.
 /// Unlike `returned_reference_leaf`'s `&mut` record rosters the carrier may
 /// itself be the shared-borrow receiver, so `SharedBorrow` is admitted beside
@@ -268,7 +229,6 @@ fn self_referent_is_attached_application(
 fn returned_named_view(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     binders: &[(SymbolHandle, String)],
@@ -305,11 +265,12 @@ fn returned_named_view(
         return None;
     };
     let authored = program.state_parameters(state);
-    let position = authored.iter().position(|parameter| {
-        parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
-    })?;
+    let position = authored
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
     let carrier = &authored[position];
-    if carrier.is_mutable
+    if carrier.is_self
+        || carrier.is_mutable
         || !matches!(
             crate::execution::terminal_unit::types::structural_access_for_type_reference(
                 program,
@@ -335,26 +296,18 @@ fn returned_named_view(
         language_semantics::ReferenceAccess::Shared,
     )?;
     // The stored value the projection bottoms out in must be exactly the
-    // result's `&'a V` — a carrier parameter already holding the named borrow
-    // — or its referent `V` — the `&'a self` receiver's own storage. The
-    // receiver's storage spells the `&Self` machine alias, whose referent
-    // resolves through the machine's attached data application to the same
-    // `V` the referee names.
+    // result's `&'a V` or its referent `V`.
     if program.normalized_type_identity(storage)
         != program.normalized_type_identity(state.return_type)
         && program.normalized_type_identity(storage) != program.normalized_type_identity(referee)
-        && !(carrier.is_self
-            && self_referent_is_attached_application(program, carrier.type_reference, referee))
     {
         return None;
     }
-    // A member projection reaches the stored `&'a V` field itself; the loaned
-    // leaf the result names is its referent, one segment deeper — the same
-    // `Referent` tail `formal_record_sources` spells for `&mut` record
-    // leaves. A whole-borrow parameter already names its referent leaf, so
-    // its source path stays empty.
+    // Only a stored reference adds an indirection. A projected ordinary
+    // value already names the result's referent; a whole parameter borrow
+    // likewise already names its referent storage.
     let mut path = path;
-    if !path.is_empty() {
+    if !path.is_empty() && validation::reference_shell(program, storage).is_some() {
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     let source = CheckedUnitStructuralArgumentPlan {

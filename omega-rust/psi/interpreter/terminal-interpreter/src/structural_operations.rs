@@ -1588,10 +1588,8 @@ impl TerminalExecution {
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
-        let structural_value = self.structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
-        let mut parent = StructuralRuntimePlace::from(structural_value);
+        let structural_value = self.observation_root(source)?;
+        let mut parent = StructuralRuntimePlace::from(&structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
             self.program.structural_types.values(),
             structural_value.structural_type,
@@ -1664,9 +1662,7 @@ impl TerminalExecution {
         if !matches!(result.scalar_type, ScalarType::Integer(_)) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let structural_value = self.structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
+        let structural_value = self.observation_root(source)?;
         if terminal_semantics::observed_field_declaration(
             self.program.structural_types.values(),
             structural_value.structural_type,

@@ -564,9 +564,7 @@ impl TerminalExecution {
         let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
             return Ok(None);
         };
-        let Some(root) = self.structural_values.get(&source) else {
-            return Ok(None);
-        };
+        let root = self.observation_root(source)?;
         let Some((carrier, record)) = terminal_semantics::canonical_static_projection(
             self.program.structural_types.values(),
             root.structural_type,
