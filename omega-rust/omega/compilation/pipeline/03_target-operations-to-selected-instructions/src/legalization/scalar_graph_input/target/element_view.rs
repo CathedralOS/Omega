@@ -98,6 +98,16 @@ impl Checker<'_> {
                         };
                         (operation == psi_operation
                             && result.structural_type == *structural_type
+                            // Descriptor custody belongs to its establishment,
+                            // even when no later operation observes the view.
+                            // The surrounding function's ABI grants no result
+                            // evidence or ownership authority.
+                            && matches!(result.multiplicity,
+                                terminal_psi::StructuralMultiplicity::Unrestricted
+                                    | terminal_psi::StructuralMultiplicity::Affine)
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
                             && *destination == *place
                             && *expected_element == *element)
                             .then_some(argument)
@@ -188,6 +198,19 @@ impl Checker<'_> {
                             };
                             operation == psi_operation
                                 && result.place == source
+                                && result.multiplicity
+                                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.claims.is_empty()
+                                && self.types.iter().any(|declaration| {
+                                    declaration.id == result.structural_type
+                                        && matches!(declaration.shape,
+                                            StructuralTypeShape::ElementView { .. }
+                                                | StructuralTypeShape::ByteSequence(
+                                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                                ))
+                                })
                                 && length == expected_length
                                 && obligation == expected_obligation
                                 && self.element_view(original, *expected_source, aliases)

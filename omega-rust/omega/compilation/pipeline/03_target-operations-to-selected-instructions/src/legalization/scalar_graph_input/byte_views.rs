@@ -94,27 +94,10 @@ pub(super) fn validate(
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()
         || abstracted.published_service_ceiling != optimized.published_service_ceiling
-        // Provider attachments are specialization witnesses, not declared
-        // storage; they stay out of `declared_places` by contract (see
-        // `reconstruct_declared_places` and `place_declarations::matches_producers`).
-        || optimized.declared_places
-            != optimized
-                .structural_places
-                .iter()
-                .filter(|place| {
-                    !matches!(
-                        place.kind,
-                        semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
-                    )
-                })
-                .map(|place| place.id)
-                .collect()
-        || !optimized.structural_places.iter().all(|place| match place.kind {
-            semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
-                optimized.attachment == Some(attachment)
-            }
-            _ => true,
-        })
+        // Structural declarations compose independently of this byte-view ABI:
+        // one shared inventory rejoins every parameter, local and result to its
+        // exact producer. Operation replay owns each result's meaning.
+        || !super::place_declarations::matches_producers(optimized)
     {
         return Err(LegalizationError::custody());
     }
@@ -125,244 +108,24 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    let subslices = optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| {
-            if let AbstractOperation::ByteSequenceSubslice {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            } = &node.operation
-            {
-                Some((*psi_operation, result))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let establishes = optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| {
-            if let AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                destination,
-                ..
-            } = &node.operation
-            {
-                Some((*psi_operation, result, *destination))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let block_parameters = optimized
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .structural_parameters
-                .iter()
-                .map(move |parameter| (block.id, parameter))
-        })
-        .collect::<Vec<_>>();
     if optimized
-        .structural_places
+        .blocks
         .iter()
-        .filter(|place| {
-            !matches!(
-                place.kind,
-                semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
+        .flat_map(|block| &block.structural_parameters)
+        .any(|parameter| {
+            // State arrivals choose their own storage from declared access and
+            // layout, independently of the entry's borrowed ABI. Exact incoming
+            // bindings and ownership are replayed by target control flow; owned
+            // arrivals use the ordinary structural block-parameter homes.
+            crate::structural_inputs::structural_reference_input::parameter_shape(
+                parameter,
+                &plan.structural_types,
             )
+            .is_none()
+                || (parameter.is_self && target.attachment != Some(parameter.structural_type))
         })
-        .count()
-        != abstracted.structural_parameters.len()
-            + block_parameters.len()
-            + subslices.len()
-            + optimized
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .filter(|node| {
-                    matches!(
-                        node.operation,
-                        AbstractOperation::BoundaryCall {
-                            result: abstract_operations::AbstractBoundaryResult::Structural(_),
-                            ..
-                        }
-                    )
-                })
-                .count()
-            + optimized
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .filter(|node| {
-                    matches!(
-                        node.operation,
-                        AbstractOperation::EstablishPrimitiveLocal { .. }
-                            | AbstractOperation::EstablishByteSequenceLiteral { .. }
-                            | AbstractOperation::EstablishElementView { .. }
-                    )
-                })
-                .count()
     {
         return Err(LegalizationError::custody());
-    }
-    for place in &optimized.structural_places {
-        // Local immutable backing composes with borrowed inputs. Its exact
-        // declaration/producer join is independent of the surrounding roster;
-        // source-unit validation still owns dominance and availability.
-        if super::literals::declaration_producer(optimized, place.id).is_some() {
-            continue;
-        }
-        // Provider attachments are specialization witnesses, not declared
-        // storage or runtime views. Unit custody checks their exact field,
-        // boundary, and service authority; here they must name the function's
-        // own attachment, matching `place_declarations::matches_producers`.
-        if let semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { attachment, .. } =
-            place.kind
-        {
-            if optimized.attachment == Some(attachment) {
-                continue;
-            }
-            return Err(LegalizationError::custody());
-        }
-        if let Some((producer, structural_type)) =
-            owned_byte_result(optimized, place.id, &plan.structural_types)
-        {
-            if place.kind
-                != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                })
-                || !plan.structural_types.iter().any(|declaration| {
-                    declaration.id == structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
-        if let Some((producer, result)) = super::structural_case::source_result(optimized, place.id)
-            .ok()
-            .filter(|(producer, _)| {
-                // Element/byte-view producers admit through their own arms
-                // below; the conventional byte-read layout applies only to
-                // boundary results.
-                !subslices.iter().any(|(operation, _)| operation == producer)
-                    && !establishes
-                        .iter()
-                        .any(|(operation, _, _)| operation == producer)
-            })
-        {
-            // A borrowed-view activation may also own a completed boundary
-            // result. Keep its producer/type custody separate from descriptors;
-            // target replay still validates the exact selected settlement.
-            super::read_byte::layout(result, plan)?;
-            if place.kind
-                != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type: result.structural_type,
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
-        if let Some((operation, result, _)) = super::primitive_locals::producer(optimized, place.id)
-        {
-            if !super::primitive_locals::valid_result(optimized, operation, result) {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
-        if abstracted.structural_parameters.iter().any(|parameter| {
-            place.id == parameter.place
-                && place.kind
-                    == (semantic_vocabulary::StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    })
-        }) {
-            continue;
-        }
-        if block_parameters.iter().any(|(block, parameter)| {
-            place.id == parameter.place
-                && place.kind
-                    == (semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                        block: *block,
-                        position: parameter.position,
-                    })
-                // A control-flow join carries the same borrowed storage as
-                // entry. Referent layout and access determine its carrier,
-                // not the function result or whether the referent is a view.
-                // Exact predecessor bindings and loan authority are replayed
-                // separately by reference custody and target control flow.
-                && parameter.access != terminal_psi::StructuralAccess::Owned
-                && crate::structural_inputs::structural_reference_input::parameter_shape(
-                    parameter,
-                    &plan.structural_types,
-                )
-                .is_some()
-                && (!parameter.is_self
-                    || target.attachment == Some(parameter.structural_type))
-        }) {
-            continue;
-        }
-        if !(subslices.iter().any(|(operation, result)| {
-            place.id == result.place
-                && plan.structural_types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            ) | terminal_psi::StructuralTypeShape::ElementView { .. }
-                        )
-                })
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
-                && place.kind
-                    == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        producer: *operation,
-                        structural_type: result.structural_type,
-                    })
-        }) || establishes.iter().any(|(operation, result, destination)| {
-            place.id == *destination
-                && matches!(
-                    result.multiplicity,
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                        | terminal_psi::StructuralMultiplicity::Affine
-                )
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
-                && place.kind
-                    == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        producer: *operation,
-                        structural_type: result.structural_type,
-                    })
-        })) {
-            return Err(LegalizationError::custody());
-        }
     }
     Ok(call_plan.clone())
 }
@@ -455,38 +218,21 @@ pub(in crate::legalization) fn owned_byte_result(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
 )> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishByteSequenceConcatenation {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::CallStructural {
-                psi_operation,
-                result:
-                    abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } if result.place == place
-                && result.multiplicity
-                    == terminal_psi::StructuralMultiplicity::Unrestricted
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty()
-                && result.claims.is_empty()
-                && types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
-                }) => Some((*psi_operation, result.structural_type)),
-            _ => None,
-        })
+    let (producer, result) = super::structural_case::source_result(function, place).ok()?;
+    (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        }))
+    .then_some((producer, result.structural_type))
 }
 /// Whether a byte place reads the owner layout (length word at offset 0,
 /// bytes from offset 8): a completed owned byte result in this activation, or a

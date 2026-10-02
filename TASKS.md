@@ -1539,23 +1539,28 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `82bd694e30`
-  plus the descriptor-value lifetime repair (`b310abc301`), macOS ARM64,
-  the unchanged closed-stdin command clears abstract optimization and exits
-  200 during target lowering with
-  `StructuralCallArgumentTypeMismatch { callee: MachineId(2), place: PlaceId(22) }`
-  after 528 seconds. The next dependency is structural-call argument
-  lowering in `02_abstract-operations-to-target-operations/src/lowering/unit/`:
-  inspect `roster_arguments.rs` and `projected_argument.rs` to identify whether
-  the failing role is an ordinary call or stored/rebound dynamic selection,
-  then its caller/source operation, argument declaration/path/access, callee
-  formal and failed predicate. The diagnostic alone does not identify its branch.
-  Descriptor reformation now ends the previous value's lifetime without ending
-  surviving aliases; `borrows/loop_descriptor_reformation_exit` executes exit 70,
-  and old-alias and unknown-capture controls retain their backing pins.
-  Neither game command is complete. Keep exact incoming access, qualifications,
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `f6f5d90ce55`
+  plus this lane's structural-result and borrowed-header repairs, macOS ARM64,
+  the unchanged closed-stdin command clears target lowering and exits 200
+  during instruction legalization after 594 seconds:
+  `SourceCustodyMismatch` at `scalar_graph_input/structural_call/exclusive.rs:168`.
+  The owning dependency is
+  `03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/structural_call/exclusive.rs`:
+  identify the actual source, formal and failed predicate in exclusive call
+  transport; retain independently checked writable predicate preservation and
+  exact ABI placement rather than adding a source-family exception.
+  Shared bounded-owner views
+  now retain entry, state-arrival and completed-result storage; structural reads
+  use live arrivals. `borrows/qualified_byte_owner_shared_call_exit` and nine
+  related native controls execute their authored results. Borrowed headers now
+  rejoin the common place/producer inventory; element-view operation replay owns
+  its result checks. Twenty-five focused checks retain custody and ABI rejection;
+  the expanded native selection builds 27 fixtures and executes 26 with expected
+  results. The single macOS golden improvement is stale after upstream
+  `93913f8a122` added the static element-view fixture's entrypoint and exit oracle.
+  Neither game command is complete. Keep exact access, qualifications,
   source-length/capacity evidence, every possible origin, ranking and live-root
-  rebind rejection; repair the shared argument flow, not a producer-family case.
+  rebind rejection. The next acceptance remains the two unchanged game commands.
   Field replacement now carries the exact returned reference and live loan
   through window extraction, reseating, independent verification and native
   pointer-based addressing. Checked window parameters use dense structural
