@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex swarm"
+  short_description: "Advance Omega with reusable Codex cloud sessions"
+  default_prompt: "Use $codex-swarm to advance the Omega compiler through the requested pool of independent, reusable Codex cloud sessions."
