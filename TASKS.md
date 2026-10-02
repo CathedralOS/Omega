@@ -359,9 +359,12 @@ the complete product bar; focused successes below do not establish that baseline
 
     Finish mixed scalar/structural operands, effectful arguments/returns,
     nested mutable-receiver calls, dependent/public-trait results and boundary
-    consumers on that common route. A normalized foreign call's scalar result
-    is an ordinary SSA home without an attachment, and a later state may call
-    a top-level requirement that publishes a service ceiling; keep
+    consumers on that common route. Preserve
+    `calls/inline_record_scalar_call_arguments_exit`: record construction and
+    scalar operands execute once in authored order before scalar-result calls,
+    including calls in machines with later states. A normalized foreign call's
+    scalar result is an ordinary SSA home without an attachment, and a later
+    state may call a top-level requirement that publishes a service ceiling; keep
     `pass/boundary/static_foreign_scalar_result_locals_exit` and
     `pass/boundary/later_state_requirement_scalar_result_exit` at native exit
     70. Selected case edges retain the invocation

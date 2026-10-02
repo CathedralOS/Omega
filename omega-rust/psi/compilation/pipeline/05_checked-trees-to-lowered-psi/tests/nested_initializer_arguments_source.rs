@@ -138,6 +138,10 @@ fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     for (_, root) in roots {
         assert!(arguments.contains(&computations.nodes.get(root.root).authored_root));
     }
+    verified_artifact(checked)
+}
+
+fn verified_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -482,7 +486,7 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                 );
             }
         }
-        for mutation in 0..14 {
+        for mutation in 0..15 {
             let mut changed = checked.clone();
             match mutation {
                 0 => changed
@@ -505,7 +509,9 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                     else {
                         unreachable!();
                     };
-                    local.is_mutable = true;
+                    local.type_reference = checked
+                        .state_parameters(&checked.machine_states(machine)[0])[0]
+                        .type_reference;
                 }
                 3 | 4 => {
                     let plan = changed
@@ -589,7 +595,7 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                         )
                     };
                 }
-                12 | 13 => {
+                12..=14 => {
                     let ExpressionNode::Call(call) = changed
                         .typed
                         .expression_table
@@ -612,11 +618,13 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                                 representative_operation: selected,
                                 theorem_evidence: Box::new([]),
                             });
-                    } else {
+                    } else if mutation == 13 {
                         call.private_layout_operation =
                             Some(typed_trees::expression::PrivateLayoutOperationRequest {
                                 selected_slot: selected,
                             });
+                    } else {
+                        call.machine_arguments = Box::new([selected]);
                     }
                 }
                 _ => unreachable!(),
@@ -630,5 +638,118 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                 "outer initializer mutation={mutation}"
             );
         }
+    }
+}
+
+#[test]
+fn multi_state_record_initializer_replays_outer_and_nested_call_occurrences() {
+    let checked = crate::front_end::checked_program(
+        "data Payload { value: u32; } data Main {}
+         machine selection(value: bool) -> bool { value }
+         machine read(payload: Payload, selected: bool) -> u32 {
+             transition selected { true -> (payload.value) false -> (71) }
+         }
+         boundary trait Host { machine finish(value: u32) reaches Host; }
+         machine Main::main() reaches Host {
+             let first: u32 = read(Payload { value: 70 }, selection(true));
+             let second: u32 = read(Payload { value: 12 }, selection(false));
+             transition first == 70 && second == 71 {
+                 true -> good()
+                 false -> bad()
+             }
+             state good() { Host::finish(70); }
+             state bad() { Host::finish(72); }
+         }",
+    );
+    let artifact = verified_artifact(&checked);
+    let mut observer = ObserveResults::default();
+    execute(&artifact, &[], &mut observer).expect("both authored initializers execute");
+    assert_eq!(observer.calls, [vec![unsigned(32, 70)]]);
+    let machine = main_machine(&checked);
+    let state = &checked.machine_states(machine)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let initializers = statements[..2]
+        .iter()
+        .map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                panic!("two initializers")
+            };
+            local.initial_value
+        })
+        .collect::<Vec<_>>();
+    let (outer, captured) = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find(|(_, call)| call.authored_expression == initializers[0] && call.call_ordinal == 0)
+        .expect("first initializer occurrence");
+    let ExpressionNode::Call(call) = checked.expression_table.expression(initializers[0]) else {
+        unreachable!();
+    };
+    let nested_expression = checked.expression_table.expression_handles(call.arguments)[1];
+    let (nested, _) = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find(|(_, call)| call.authored_expression == nested_expression)
+        .expect("nested scalar operand occurrence");
+    for mutation in 0..5 {
+        let mut changed = checked.clone();
+        match mutation {
+            0 => {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .get_mut(outer)
+                    .authored_expression = arena::Handle::invalid()
+            }
+            1 => {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .get_mut(outer)
+                    .authored_expression = initializers[1]
+            }
+            2 => {
+                changed.facts.flow.control.calls.get_mut(outer).call_ordinal =
+                    captured.call_ordinal + 1
+            }
+            3 => {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .get_mut(nested)
+                    .authored_expression = initializers[0]
+            }
+            4 => {
+                let StatementNode::LocalData(local) = &mut changed
+                    .typed
+                    .statement_table
+                    .statements_mut(state.statement_nodes)[0]
+                else {
+                    unreachable!();
+                };
+                local.initial_value = initializers[1];
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
+            "multi-state initializer occurrence mutation={mutation}"
+        );
     }
 }

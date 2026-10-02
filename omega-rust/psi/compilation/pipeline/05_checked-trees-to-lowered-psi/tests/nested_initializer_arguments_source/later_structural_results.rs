@@ -47,7 +47,7 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
     };
     for mutation in 0..8 {
         let mut changed = original.clone();
-        if mutation < 4 {
+        if mutation < 5 {
             let plan = changed
                 .facts
                 .flow
@@ -79,6 +79,7 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
                     0 => result.binding_ordinal = 0,
                     1 => result.statement_index = 3,
                     2 => *discard_result_on_return = false,
+                    4 => result.multiplicity = language_semantics::Multiplicity::Linear,
                     _ => unreachable!(),
                 }
             }
@@ -92,7 +93,6 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
             };
             assert_eq!(local.symbol, second.symbol);
             match mutation {
-                4 => local.is_mutable = true,
                 5 => local.symbol = symbols::SymbolHandle::invalid(),
                 6 => local.type_reference = prefix.type_reference,
                 7 => local.initial_value = first.initial_value,
@@ -139,4 +139,17 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
         .is_err(),
         "result cleanup must remain in reverse production order"
     );
+}
+
+#[test]
+fn mutable_owned_boundary_result_retains_authored_call_custody() {
+    for source in [
+        super::structural_source().replace("let result: Token", "let mut result: Token"),
+        multiple_structural_source().replace("let second: Token", "let mut second: Token"),
+    ] {
+        let checked = crate::front_end::checked_program(&source);
+        // Mutability does not change the returned owner's carrier or introduce a
+        // write. Actual writes still require their own checked storage operations.
+        super::verified_artifact(&checked);
+    }
 }

@@ -1,0 +1,34 @@
+use omega_language_std::console;
+
+data Payload { value: i32; }
+
+machine identity(payload: Payload) -> Payload { payload }
+
+machine forward(payload: Payload, selected: bool) -> i32 {
+    transition selected {
+        true -> take(identity(payload))
+        false -> take(Payload { value: 71 })
+    }
+    state take(payload: Payload) -> i32 { payload.value }
+}
+
+machine mark_value(value: i32) -> i32 reaches Console {
+    Console::write_byte(value);
+    value
+}
+
+machine mark_selection(marker: i32, selected: bool) -> bool reaches Console {
+    Console::write_byte(marker);
+    selected
+}
+
+machine main() reaches Console {
+    let selected: i32 = forward(Payload { value: mark_value(70) }, mark_selection(84, true));
+    let unselected: i32 = forward(Payload { value: mark_value(72) }, mark_selection(78, false));
+    transition selected == 70 && unselected == 71 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
+}

@@ -392,13 +392,13 @@ pub fn unit_result_initializer_call_is_supported(
         || (program.machine_states(machine).len() != 1
             && !has_ordinary_structural_initializer
             && !has_boundary_scalar_initializer)
-        // Mutable plain results retain the ordinary constructor's storage.
-        // Primitive initialization, linear custody, and boundary results keep
-        // their separate receiving contracts.
+        // A mutable owned structural result keeps the same receiving storage
+        // regardless of the callee's supply. Primitive initialization and
+        // linear custody retain their separate receiving contracts.
         || (local.is_mutable
             && (program.type_multiplicity(local.type_reference)
                 == language_semantics::Multiplicity::Linear
-                || !has_ordinary_structural_initializer))
+                || program.primitive_type_reference(local.type_reference).is_some()))
         || (statement_index != 0
             && program
                 .primitive_type_reference(local.type_reference)
