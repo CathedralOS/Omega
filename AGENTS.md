@@ -144,7 +144,8 @@ The rules that touch every edit:
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   board work, `rust-systems-programmer` for Rust implementation and review,
-  `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `cloud-swarm`.
+  `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
+  `codex-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised, `debug = 0` and `opt-level = 1` in dev/test profiles (opt back in

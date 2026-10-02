@@ -477,7 +477,8 @@ class SkillContracts(unittest.TestCase):
         # No installed skill-creator validator is available in this executor.
         # Validate this repository's simple frontmatter and Markdown references.
         paths = [ROOT / ".agents/skills/dot-swarm/SKILL.md",
-                 ROOT / ".agents/skills/cloud-swarm/SKILL.md",
+                 ROOT / ".agents/skills/devin-swarm/SKILL.md",
+                 ROOT / ".agents/skills/codex-swarm/SKILL.md",
                  ROOT / ".agents/skills/dot-swarm/references/recovery.md"]
         for path in paths:
             text = path.read_text(encoding="utf-8")
