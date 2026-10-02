@@ -436,6 +436,167 @@ fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member
 }
 
 #[test]
+fn grouped_constraints_preserve_sparse_noncontiguous_memberships() {
+    use selected_instructions::SelectedInstructionId;
+
+    let selected =
+        crate::analyses::liveness::tests::supported_multiple_component_tied_early_clobber_function(
+        );
+    let mut live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let instruction_identity =
+        |identity: SelectedInstructionId| SelectedInstructionId(u32::MAX - identity.0 * 17);
+    let register_identity =
+        |identity: VirtualRegisterId| VirtualRegisterId(u32::MAX - identity.0 * 31);
+    for instruction in live
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        instruction.instruction = instruction_identity(instruction.instruction);
+    }
+    for operand in &mut live.operand_positions {
+        operand.instruction = instruction_identity(operand.instruction);
+        operand.virtual_register = register_identity(operand.virtual_register);
+    }
+    // Interleave instruction groups without changing the order within each.
+    // Private replay helpers must retain the old filter semantics even when
+    // input does not have the public liveness boundary's contiguous layout.
+    live.operand_positions
+        .sort_by_key(|operand| operand.operand);
+    let early = independently_derive_early_clobbers(0, &live).unwrap();
+    let ties = independently_derive_ties(0, &live).unwrap();
+    assert_eq!(
+        early,
+        crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap()
+    );
+    assert_eq!(
+        ties,
+        crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
+    );
+    assert_eq!(ties.len(), 4);
+    assert_eq!(early.len(), 2);
+    assert_eq!(
+        (early[0].early_point, early[0].def_point),
+        (LiveRangePoint(2), LiveRangePoint(3))
+    );
+    assert_eq!(
+        (early[1].early_point, early[1].def_point),
+        (LiveRangePoint(6), LiveRangePoint(7))
+    );
+    assert_eq!(
+        early[0].uses[0].virtual_register,
+        register_identity(VirtualRegisterId(2))
+    );
+    assert_eq!(
+        early[1].uses[0].virtual_register,
+        register_identity(VirtualRegisterId(6))
+    );
+
+    // Join the previously separate components: both early definitions now
+    // inhabit one component, and the first instruction-order hazard wins.
+    for operand in &mut live.operand_positions {
+        if operand.virtual_register == register_identity(VirtualRegisterId(4)) {
+            operand.virtual_register = register_identity(VirtualRegisterId(3));
+        }
+    }
+    assert_eq!(
+        independently_derive_early_clobbers(0, &live),
+        Err(LiveRangeError::UnsupportedEarlyClobber {
+            function: 0,
+            instruction: instruction_identity(SelectedInstructionId(1)).0,
+            operand: 2,
+        })
+    );
+}
+
+#[test]
+fn grouped_constraints_retain_local_errors_before_unmatched_markers() {
+    use selected_instructions::SelectedInstructionId;
+
+    let selected =
+        crate::analyses::liveness::tests::supported_component_tied_early_clobber_function();
+    let mut live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let early_position = live
+        .operand_positions
+        .iter()
+        .position(|operand| operand.early_clobber)
+        .unwrap();
+    let mut orphan = live.operand_positions[early_position];
+    orphan.instruction = SelectedInstructionId(u32::MAX);
+    orphan.tied_to = None;
+    orphan.virtual_register = VirtualRegisterId(u32::MAX);
+    live.operand_positions[early_position].position = LivenessPosition(99);
+    live.operand_positions.insert(0, orphan);
+    assert_eq!(
+        independently_derive_early_clobbers(7, &live),
+        Err(LiveRangeError::UnsupportedEarlyClobber {
+            function: 7,
+            instruction: 1,
+            operand: 2,
+        })
+    );
+    live.operand_positions[early_position + 1].position = LivenessPosition(1);
+    assert_eq!(
+        independently_derive_early_clobbers(7, &live),
+        Err(LiveRangeError::UnsupportedEarlyClobber {
+            function: 7,
+            instruction: u32::MAX,
+            operand: 2,
+        })
+    );
+
+    // With no early markers there is no hazard relation, even if ties remain.
+    for operand in &mut live.operand_positions {
+        operand.early_clobber = false;
+    }
+    assert_eq!(
+        independently_derive_early_clobbers(7, &live),
+        Ok(Vec::new())
+    );
+}
+
+#[test]
+fn grouped_ties_preserve_first_source_and_definition_error_order() {
+    let selected =
+        crate::analyses::liveness::tests::supported_component_tied_early_clobber_function();
+    let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let mut duplicate = live.clone();
+    let mut source = duplicate.operand_positions[0];
+    source.access = RegisterOperandAccess::Def;
+    duplicate.operand_positions.insert(0, source);
+    let first_error = Err(LiveRangeError::UnsupportedTiedOperand {
+        function: 3,
+        instruction: 0,
+        operand: 1,
+    });
+    assert_eq!(independently_derive_ties(3, &duplicate), first_error);
+    // A later duplicate cannot replace the original first matching source.
+    duplicate.operand_positions.remove(0);
+    duplicate.operand_positions.push(source);
+    assert_eq!(
+        independently_derive_ties(3, &duplicate),
+        independently_derive_ties(3, &live)
+    );
+
+    let mut missing = live.clone();
+    for operand in &mut missing.operand_positions {
+        if operand.tied_to.is_some() {
+            operand.tied_to = Some(u16::MAX);
+        }
+    }
+    assert_eq!(independently_derive_ties(3, &missing), first_error);
+    missing.operand_positions.reverse();
+    assert_eq!(
+        independently_derive_ties(3, &missing),
+        Err(LiveRangeError::UnsupportedTiedOperand {
+            function: 3,
+            instruction: 1,
+            operand: 2,
+        })
+    );
+}
+
+#[test]
 fn tied_component_receipt_count_uses_transitive_closure() {
     let edge = |use_register, def_register, instruction| selected_instructions::DistinctUseDefTie {
         block: SelectedBlockId(0),
