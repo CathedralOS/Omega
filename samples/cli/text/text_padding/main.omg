@@ -33,13 +33,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
-    self.message = "ALERT temp";
-    self.padding = 16 - (self.message.len as i32 in Saturating);
-    self.console.write_line(self.message);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
+    main.message = "ALERT temp";
+    main.padding = 16 - (main.message.len as i32 in Saturating);
+    main.console.write_line(main.message);
 
-    transition { _ -> done(&mut self) }
+    transition { _ -> done(main) }
 
     state done(main: &mut Main) {
         main.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");

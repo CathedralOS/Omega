@@ -27,25 +27,25 @@ data Main {
     ones_byte: u8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("format_number: rendering the number 25 into a text carrier digit by digit");
-    self.buffer = "00";
-    self.value = 25;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("format_number: rendering the number 25 into a text carrier digit by digit");
+    main.buffer = "00";
+    main.value = 25;
 
-    self.tens = self.value / 10;
-    self.tens = self.tens + 48;
-    self.tens_byte = narrow_i32_to_u8_trapping(self.tens);
+    main.tens = main.value / 10;
+    main.tens = main.tens + 48;
+    main.tens_byte = narrow_i32_to_u8_trapping(main.tens);
 
-    self.ones = self.value % 10;
-    self.ones = self.ones + 48;
-    self.ones_byte = narrow_i32_to_u8_trapping(self.ones);
+    main.ones = main.value % 10;
+    main.ones = main.ones + 48;
+    main.ones_byte = narrow_i32_to_u8_trapping(main.ones);
 
-    self.buffer[0] = self.tens_byte;
-    self.buffer[1] = self.ones_byte;
+    main.buffer[0] = main.tens_byte;
+    main.buffer[1] = main.ones_byte;
 
-    transition self.buffer == "25" {
-        true -> ok(&mut self)
-        _ -> bad(&mut self)
+    transition main.buffer == "25" {
+        true -> ok(main)
+        _ -> bad(main)
     }
 
     state ok(main: &mut Main) {

@@ -26,17 +26,17 @@ data Main {
     value: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("parse_number: reading the two-digit text 25 back into an integer");
-    self.text = "25";
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("parse_number: reading the two-digit text 25 back into an integer");
+    main.text = "25";
 
-    self.tens = widen_u8_to_i32(self.text[0]) % 256;
-    self.tens = self.tens - 48;
-    self.ones = widen_u8_to_i32(self.text[1]) % 256;
-    self.ones = self.ones - 48;
-    self.value = self.tens * 10 + self.ones;
+    main.tens = widen_u8_to_i32(main.text[0]) % 256;
+    main.tens = main.tens - 48;
+    main.ones = widen_u8_to_i32(main.text[1]) % 256;
+    main.ones = main.ones - 48;
+    main.value = main.tens * 10 + main.ones;
 
-    transition { _ -> done(&mut self) }
+    transition { _ -> done(main) }
 
     state done(main: &mut Main) {
         main.console.write_line("result: the parsed value, 25 for this text (the exit code)");

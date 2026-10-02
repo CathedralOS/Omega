@@ -29,45 +29,45 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
-    self.monsters[0].hp = 30;
-    self.monsters[1].hp = 12;
-    self.monsters[2].hp = 25;
-    self.monsters[3].hp = 8;
-    self.i = 0;
-    transition { _ -> damage_loop() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
+    main.monsters[0].hp = 30;
+    main.monsters[1].hp = 12;
+    main.monsters[2].hp = 25;
+    main.monsters[3].hp = 8;
+    main.i = 0;
+    transition { _ -> damage_loop(main) }
 
-    state damage_loop(&mut self) {
-        transition self.i < 4 { true -> damage_one() _ -> sum_start() }
+    state damage_loop(main: &mut Main) {
+        transition main.i < 4 { true -> damage_one(main) _ -> sum_start(main) }
     }
-    state damage_one(&mut self) {
-        self.scratch = self.monsters[self.i].hp; // direct indexed read into a scalar
-        self.scratch = self.scratch - 10;        // arithmetic on the scalar field
-        self.monsters[self.i].hp = self.scratch; // direct indexed write-back
-        self.i = self.i + 1;
-        transition { _ -> damage_loop() }
-    }
-
-    state sum_start(&mut self) {
-        self.i = 0;
-        self.total = 0;
-        transition { _ -> sum_loop() }
-    }
-    state sum_loop(&mut self) {
-        transition self.i < 4 { true -> sum_one() _ -> done() }
-    }
-    state sum_one(&mut self) {
-        self.scratch = self.monsters[self.i].hp;
-        self.total = self.total + self.scratch;
-        self.i = self.i + 1;
-        transition { _ -> sum_loop() }
+    state damage_one(main: &mut Main) {
+        main.scratch = main.monsters[main.i].hp; // direct indexed read into a scalar
+        main.scratch = main.scratch - 10;        // arithmetic on the scalar field
+        main.monsters[main.i].hp = main.scratch; // direct indexed write-back
+        main.i = main.i + 1;
+        transition { _ -> damage_loop(main) }
     }
 
-    state done(&mut self) {
-        self.console.write_line("result: total remaining HP is the exit code (35)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.total as i32);
+    state sum_start(main: &mut Main) {
+        main.i = 0;
+        main.total = 0;
+        transition { _ -> sum_loop(main) }
+    }
+    state sum_loop(main: &mut Main) {
+        transition main.i < 4 { true -> sum_one(main) _ -> done(main) }
+    }
+    state sum_one(main: &mut Main) {
+        main.scratch = main.monsters[main.i].hp;
+        main.total = main.total + main.scratch;
+        main.i = main.i + 1;
+        transition { _ -> sum_loop(main) }
+    }
+
+    state done(main: &mut Main) {
+        main.console.write_line("result: total remaining HP is the exit code (35)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.total as i32);
     }
 }

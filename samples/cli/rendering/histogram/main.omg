@@ -30,26 +30,26 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("histogram: counting value frequencies into a fixed-bucket array");
-    self.histogram[0] = 0;
-    self.histogram[1] = 0;
-    self.histogram[2] = 0;
-    self.histogram[3] = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("histogram: counting value frequencies into a fixed-bucket array");
+    main.histogram[0] = 0;
+    main.histogram[1] = 0;
+    main.histogram[2] = 0;
+    main.histogram[3] = 0;
 
-    self.samples[0] = 2;
-    self.samples[1] = 0;
-    self.samples[2] = 2;
-    self.samples[3] = 1;
-    self.samples[4] = 2;
-    self.samples[5] = 3;
-    self.samples[6] = 0;
-    self.samples[7] = 2;
+    main.samples[0] = 2;
+    main.samples[1] = 0;
+    main.samples[2] = 2;
+    main.samples[3] = 1;
+    main.samples[4] = 2;
+    main.samples[5] = 3;
+    main.samples[6] = 0;
+    main.samples[7] = 2;
 
-    self.k = 0;
+    main.k = 0;
 
     transition {
-        _ -> tally_loop(&mut self)
+        _ -> tally_loop(main)
     }
 
     // Walk the samples; the loop counter `k` is bounded by the array length.

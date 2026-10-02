@@ -37,27 +37,27 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
-    Main::deposit(&mut self, 500);
-    Main::deposit(&mut self, 200);
-    Main::withdraw(&mut self, 150);
-    Main::deposit(&mut self, 300);
-    Main::withdraw(&mut self, 80);
-    Main::withdraw(&mut self, 700);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
+    Main::deposit(main, 500);
+    Main::deposit(main, 200);
+    Main::withdraw(main, 150);
+    Main::deposit(main, 300);
+    Main::withdraw(main, 80);
+    Main::withdraw(main, 700);
 
     // Compute balance from transaction list (const-indexed reads).
-    let sum: i32 in Saturating = self.ledger.txns[0]
-                 + self.ledger.txns[1]
-                 + self.ledger.txns[2]
-                 + self.ledger.txns[3]
-                 + self.ledger.txns[4]
-                 + self.ledger.txns[5];
-    self.ledger.balance = sum;
+    let sum: i32 in Saturating = main.ledger.txns[0]
+                 + main.ledger.txns[1]
+                 + main.ledger.txns[2]
+                 + main.ledger.txns[3]
+                 + main.ledger.txns[4]
+                 + main.ledger.txns[5];
+    main.ledger.balance = sum;
 
-    transition self.ledger.balance == 70 {
-        true -> check_count(&mut self)
-        _ -> bad_balance(&mut self)
+    transition main.ledger.balance == 70 {
+        true -> check_count(main)
+        _ -> bad_balance(main)
     }
 
     state check_count(main: &mut Main) {

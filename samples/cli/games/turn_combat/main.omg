@@ -24,14 +24,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
-    self.hero.hp = 30;
-    self.hero.attack = 7;
-    self.monster.hp = 25;
-    self.monster.attack = 5;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
+    main.hero.hp = 30;
+    main.hero.attack = 7;
+    main.monster.hp = 25;
+    main.monster.attack = 5;
 
-    transition { _ -> hero_attacks(&mut self) }
+    transition { _ -> hero_attacks(main) }
 
     state hero_attacks(main: &mut Main) {
         main.monster.hp = (main.monster.hp - main.hero.attack) % 101;

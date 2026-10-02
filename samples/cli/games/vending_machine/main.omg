@@ -33,18 +33,18 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
-    Main::apply(&mut self, Event::Insert { cents: 50 });
-    Main::apply(&mut self, Event::Insert { cents: 25 });
-    Main::apply(&mut self, Event::Press { slot: 1 });
+    Main::apply(main, Event::Insert { cents: 50 });
+    Main::apply(main, Event::Insert { cents: 25 });
+    Main::apply(main, Event::Press { slot: 1 });
 
     // After the press the balance should be spent and 75c of product
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
-    transition self.register.balance == 0 {
-        true -> check_dispensed(&mut self)
-        false -> bad_balance(&mut self)
+    transition main.register.balance == 0 {
+        true -> check_dispensed(main)
+        false -> bad_balance(main)
     }
 
     state check_dispensed(main: &mut Main) {

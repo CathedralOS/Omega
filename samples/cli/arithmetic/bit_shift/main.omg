@@ -17,13 +17,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
     let kibibytes: i32 in Wrapping = 64;
     let bytes: i32 in Wrapping = kibibytes << 10;
     let recovered: i32 in Wrapping = bytes >> 10;
 
-    transition { _ -> done(&mut self, recovered) }
+    transition { _ -> done(main, recovered) }
 
     state done(main: &mut Main, recovered: i32 in Wrapping) {
         main.console.write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");

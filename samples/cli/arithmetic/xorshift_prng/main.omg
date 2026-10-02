@@ -23,23 +23,23 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
-    self.state = 2463534242;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
+    main.state = 2463534242;
 
-    self.scratch = self.state << 13;
-    self.state = self.state ^ self.scratch;
+    main.scratch = main.state << 13;
+    main.state = main.state ^ main.scratch;
 
-    self.scratch = self.state >> 17;
-    self.state = self.state ^ self.scratch;
+    main.scratch = main.state >> 17;
+    main.state = main.state ^ main.scratch;
 
-    self.scratch = self.state << 5;
-    self.state = self.state ^ self.scratch;
+    main.scratch = main.state << 5;
+    main.state = main.state ^ main.scratch;
 
     // Reduce the 32-bit draw to a process exit code via its low byte.
-    self.output = (self.state & 255) as i32;
+    main.output = (main.state & 255) as i32;
 
-    transition { _ -> emit(&mut self) }
+    transition { _ -> emit(main) }
 
     state emit(main: &mut Main) {
         main.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");

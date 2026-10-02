@@ -71,35 +71,35 @@ machine Main::log(main: &mut Main, level: LogLevel) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("logger: counting log entries by severity into a weighted score");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("logger: counting log entries by severity into a weighted score");
     // Log five Info entries.
-    Main::log(&mut self, LogLevel::Info);
-    Main::log(&mut self, LogLevel::Info);
-    Main::log(&mut self, LogLevel::Info);
-    Main::log(&mut self, LogLevel::Info);
-    Main::log(&mut self, LogLevel::Info);
+    Main::log(main, LogLevel::Info);
+    Main::log(main, LogLevel::Info);
+    Main::log(main, LogLevel::Info);
+    Main::log(main, LogLevel::Info);
+    Main::log(main, LogLevel::Info);
 
     // Log four Warn entries.
-    Main::log(&mut self, LogLevel::Warn);
-    Main::log(&mut self, LogLevel::Warn);
-    Main::log(&mut self, LogLevel::Warn);
-    Main::log(&mut self, LogLevel::Warn);
+    Main::log(main, LogLevel::Warn);
+    Main::log(main, LogLevel::Warn);
+    Main::log(main, LogLevel::Warn);
+    Main::log(main, LogLevel::Warn);
 
     // Log one Error with code 4.
-    Main::log(&mut self, LogLevel::Error { code: 4 });
+    Main::log(main, LogLevel::Error { code: 4 });
 
     // Compute weighted score: info*2 + warn*5 + error_code_sum*10.
     // = 5*2 + 4*5 + 4*10 = 10+20+40 = 70.
     // Broken into steps to avoid complex multi-multiplication let expressions.
-    let info_part: i32 in Saturating = self.logger.info_count * 2;
-    let warn_part: i32 in Saturating = self.logger.warn_count * 5;
-    let error_part: i32 in Saturating = self.logger.error_code_sum * 10;
+    let info_part: i32 in Saturating = main.logger.info_count * 2;
+    let warn_part: i32 in Saturating = main.logger.warn_count * 5;
+    let error_part: i32 in Saturating = main.logger.error_code_sum * 10;
     let score: i32 in Saturating = info_part + warn_part + error_part;
 
     transition score == 70 {
-        true -> check_counts(&mut self)
-        _ -> bad_score(&mut self)
+        true -> check_counts(main)
+        _ -> bad_score(main)
     }
 
     // Also verify the per-level counts as a sanity check.

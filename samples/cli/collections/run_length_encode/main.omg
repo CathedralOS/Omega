@@ -32,15 +32,15 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
-    self.data = "AAAABBBCCDDDDDEEEEEE";
-    self.prev = self.data[0];
-    self.count = 1;
-    self.i = 1;
-    self.runs = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
+    main.data = "AAAABBBCCDDDDDEEEEEE";
+    main.prev = main.data[0];
+    main.count = 1;
+    main.i = 1;
+    main.runs = 0;
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     state step(main: &mut Main) {

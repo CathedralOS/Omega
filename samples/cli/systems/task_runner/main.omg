@@ -81,18 +81,18 @@ machine Main::run_task(main: &mut Main, task: Task) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
-    Main::run_task(&mut self, Task::Compute { value: 10 });
-    Main::run_task(&mut self, Task::Compute { value: 15 });
-    Main::run_task(&mut self, Task::Double);
-    Main::run_task(&mut self, Task::Compute { value: 5 });
-    Main::run_task(&mut self, Task::Clamp { max: 45 });
-    Main::run_task(&mut self, Task::Compute { value: 25 });
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
+    Main::run_task(main, Task::Compute { value: 10 });
+    Main::run_task(main, Task::Compute { value: 15 });
+    Main::run_task(main, Task::Double);
+    Main::run_task(main, Task::Compute { value: 5 });
+    Main::run_task(main, Task::Clamp { max: 45 });
+    Main::run_task(main, Task::Compute { value: 25 });
 
-    transition self.runner.score == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.runner.score == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

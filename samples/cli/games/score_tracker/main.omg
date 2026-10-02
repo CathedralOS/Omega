@@ -37,21 +37,21 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("score_tracker: replays score/bonus/reset events for two players");
-    Main::apply(&mut self, Event::Score { player: 0, points: 30 });
-    Main::apply(&mut self, Event::Score { player: 1, points: 20 });
-    Main::apply(&mut self, Event::Bonus { player: 0 });
-    Main::apply(&mut self, Event::Score { player: 1, points: 10 });
-    Main::apply(&mut self, Event::Reset { player: 1 });
-    Main::apply(&mut self, Event::Score { player: 1, points: 10 });
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("score_tracker: replays score/bonus/reset events for two players");
+    Main::apply(main, Event::Score { player: 0, points: 30 });
+    Main::apply(main, Event::Score { player: 1, points: 20 });
+    Main::apply(main, Event::Bonus { player: 0 });
+    Main::apply(main, Event::Score { player: 1, points: 10 });
+    Main::apply(main, Event::Reset { player: 1 });
+    Main::apply(main, Event::Score { player: 1, points: 10 });
 
     // player[0] = 60, player[1] = 10, total = 70
-    self.tracker.total = self.scores[0] + self.scores[1];
+    main.tracker.total = main.scores[0] + main.scores[1];
 
-    transition self.tracker.total == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.tracker.total == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

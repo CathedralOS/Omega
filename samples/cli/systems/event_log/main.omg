@@ -80,18 +80,18 @@ machine Main::apply(main: &mut Main, event: Event) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
-    Main::apply(&mut self, Event::Deposit { amount: 100 });
-    Main::apply(&mut self, Event::Deposit { amount: 50 });
-    Main::apply(&mut self, Event::Withdraw { amount: 30 });
-    Main::apply(&mut self, Event::Deposit { amount: 20 });
-    Main::apply(&mut self, Event::Withdraw { amount: 70 });
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
+    Main::apply(main, Event::Deposit { amount: 100 });
+    Main::apply(main, Event::Deposit { amount: 50 });
+    Main::apply(main, Event::Withdraw { amount: 30 });
+    Main::apply(main, Event::Deposit { amount: 20 });
+    Main::apply(main, Event::Withdraw { amount: 70 });
 
     // Verify balance == 70.
-    transition self.log.stats.balance == 70 {
-        true -> check_deposits(&mut self)
-        _ -> bad_balance(&mut self)
+    transition main.log.stats.balance == 70 {
+        true -> check_deposits(main)
+        _ -> bad_balance(main)
     }
 
     state bad_balance(main: &mut Main) {
