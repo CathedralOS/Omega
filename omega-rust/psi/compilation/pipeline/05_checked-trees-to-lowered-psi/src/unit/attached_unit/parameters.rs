@@ -181,10 +181,21 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             }
             continue;
         };
+        // A composed plan's fused states belong to the machines their
+        // transition arms reach, not the dispatch machine — resolve the state
+        // under its own owner when the plan machine's roster does not name it.
         let Some(state) = checked
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == state_symbol)
+            .or_else(|| {
+                checked.machines().iter().find_map(|owner| {
+                    checked
+                        .machine_states(owner)
+                        .iter()
+                        .find(|state| state.symbol == state_symbol)
+                })
+            })
         else {
             if carries_parameter_custody {
                 return unsupported("direct Unit parameter plan has no exact typed state");

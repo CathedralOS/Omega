@@ -172,7 +172,20 @@ pub(super) fn build_traced(
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     let fused = fused_states(program, machine);
-    let retained_self = retained_receivers(program, facts, &fused);
+    // State-local `self` retention exists for fused rosters: a foreign
+    // owner's receiver is a different `self` identity than the dispatch
+    // machine's, so a fused state that never names its receiver runs on the
+    // ambient attachment. A single-owner graph keeps the signature shape
+    // the custody gate and its callers were proved against — every authored
+    // `&mut self` state retains its receiver there.
+    let retained_self = if fused
+        .iter()
+        .any(|(owner, _)| owner.symbol != machine.symbol)
+    {
+        retained_receivers(program, facts, &fused)
+    } else {
+        vec![true; fused.len()]
+    };
     if retained_self.iter().all(|retained| *retained) {
         return build_traced_with(
             program,
@@ -404,7 +417,7 @@ fn build_traced_with(
         // previous iteration. Synthetic expression continuations are not
         // authored state boundaries and receive no such rows here.
         requires.extend(
-            validation::state_declaration_predicates(program, &facts.operators, machine, state)
+            validation::state_declaration_predicates(program, &facts.operators, owner, state)
                 .into_iter()
                 .map(|row| {
                     Some(checked_trees::ClosedScalarContractValue::Predicate(
@@ -528,7 +541,7 @@ fn build_traced_with(
             result,
             checked_trees::CheckedControlResultPlan::Unit
                 | checked_trees::CheckedControlResultPlan::Scalar { .. }
-        ) && control::terminal_named_call(program, machine, state, terminator_index)
+        ) && control::terminal_named_call(program, owner, state, terminator_index)
             .is_some()
         {
             // An unconditional terminal machine call is this state's last
