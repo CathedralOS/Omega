@@ -531,13 +531,17 @@ fn wrapping_gauss_guarantee_survives_codec_and_rejects_wrong_accumulator() {
         .position(|machine| machine.id == module.entry)
         .unwrap();
     let machine = &wrong.machines[machine_index];
+    let questions = reconstruct_terminal_obligations(&module).unwrap();
     let (block_index, prior_accumulator) = machine
         .blocks
         .iter()
         .enumerate()
         .find_map(|(index, block)| {
             let Terminator::Jump {
-                target, arguments, ..
+                edge,
+                target,
+                arguments,
+                ..
             } = &block.terminator
             else {
                 return None;
@@ -551,23 +555,43 @@ fn wrapping_gauss_guarantee_survives_codec_and_rejects_wrong_accumulator() {
                 return None;
             }
             let updated = *arguments.get(1)?;
-            let prior = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find_map(|operation| {
-                    if operation
-                        .result
-                        .scalar()
-                        .is_none_or(|result| result.id != updated)
-                    {
-                        return None;
-                    }
-                    match operation.kind {
-                        OperationKind::WrappingIntegerAdd { left, .. } => Some(left),
-                        _ => None,
-                    }
-                })?;
+            // The arrival can carry an SSA alias of the update rather than
+            // its operation result. Use the independently reconstructed facts
+            // at this exact arrival, which transport both the update and its
+            // operands into the latch's current namespace.
+            let question = questions.obligations().iter().find(|question| {
+                matches!(question.owner,
+                    terminal_verifier::ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                        machine: owner, header, edge: incoming
+                    } if owner == machine.id && header == *target && incoming == *edge)
+            })?;
+            let prior = question.semantic_axioms.iter().find_map(|fact| {
+                let Proposition::Equal(result, expression) = fact else {
+                    return None;
+                };
+                let ScalarTerm::Value { id, scalar_type } = result else {
+                    return None;
+                };
+                let ScalarTerm::WrappingIntegerAdd {
+                    scalar_type: carrier,
+                    left,
+                    ..
+                } = expression
+                else {
+                    return None;
+                };
+                let ScalarTerm::Value {
+                    id: prior,
+                    scalar_type: prior_type,
+                } = left.as_ref()
+                else {
+                    return None;
+                };
+                (*id == updated
+                    && *scalar_type == semantic_vocabulary::ScalarType::Integer(*carrier)
+                    && prior_type == scalar_type)
+                    .then_some(*prior)
+            })?;
             Some((index, prior))
         })
         .expect("the loop's accumulator update reaches its strengthened header");

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 11.81, "load1_start": 11.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 5.2, "load1_start": 5.2, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -839,8 +839,7 @@ pass/proofs/ring_full_polynomial_compile built 1179ms exit:70 @bed5f45e9185+wt
 pass/proofs/ring_law_conformance built 1166ms exit:70 @bed5f45e9185+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit built 932ms exit:70 @08b483f23366+wt
-pass/proofs/runtime_inductive_gauss_sum_exit rejected 1009ms @48008365d839
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(4294967297)))
+pass/proofs/runtime_inductive_gauss_sum_exit built 1830ms exit:70 @b5a937001475+wt
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70

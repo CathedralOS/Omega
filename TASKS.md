@@ -1646,9 +1646,7 @@ the complete product bar; focused successes below do not establish that baseline
     them; strict plateau bounds and inverse saturation witnesses reject.
     The earlier constant Wrapping-store probe (`remaining = 5`) also already
     exits 70 on base `9782e38b64a`; it is not a remaining exit-proof gap.
-    Remaining: nonliteral wrapping operands; and
-    `proofs/runtime_inductive_gauss_sum_exit`'s Wrapping result identity, which
-    now lowers but needs an inductive exit proof. Reuse
+    Remaining: nonliteral wrapping operands. Reuse
     `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
     contracts and exact entry versions across joins.
   - Generalize entry-operand normalization in stage 04
@@ -3736,30 +3734,23 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `checks/contracts/exits/cyclic_headers.rs` caches only admitted exits;
   stage 05's `proofs/scalar_block_invariants/cyclic_guarantees.rs` searches again.
 
-  Reuse the native `runtime_ranked_accumulator_guarantee_exit` control and
-  source checking for a named cyclic state with carried integer parameters.
-  Complete multi-state induction beyond that single-header restriction and
-  storage-changing `self` transitions. Preserve establishment, every arrival's
-  simultaneous substitution, and exact source/Terminal scope.
+  Complete multi-state induction beyond the single-header restriction and
+  storage-changing `self` transitions. A two-state accumulator with strict
+  descent on both authored cyclic edges still fails to prove its exit
+  guarantee against the invocation's `previous` parameter. Preserve
+  establishment, every arrival's simultaneous substitution, and exact
+  source/Terminal scope; an authored state edge cannot borrow the preserving
+  implementation-edge exception to strict ranking.
 
-  Retain `proofs/runtime_inductive_climbing_sum_exit` as a working control:
-  its mathematical guarantee and bounded-distance ranking survive Terminal
-  serialization, independent verification, and artifact execution. On macOS
-  arm64, `omega run --both` exits 70 in both engines. Wrong accumulator
-  arrivals still reject while the same cycle certificate remains valid.
-
-  `proofs/runtime_inductive_gauss_sum_exit` remains the next native acceptance.
-  Carry the authored Wrapping result identity through every arrival and
-  independent replay. Stage 04 already retains Wrapping arithmetic and the
-  affine checker already supports subtraction with explicit no-wrap evidence;
-  reuse those owners without treating ranking as evidence for arithmetic bounds.
-  Coordinate execution gaps with STATE-LOCAL-VALUE-FRONTIER.
-
-  Reuse `ClosedIntegerRelation` normalization in
-  `proof/admission/src/integer_rules/open_terms.rs`; PROOF-KERNEL-CORE and
-  PCC-CANONICAL-SEMANTIC-LEDGER own its licensed derivation. Preserve exact
-  overflow obligations and Wrapping's equality-only reasoning, without per-loop
-  axioms or inferred residue order/disequality.
+  Retain the native `runtime_ranked_accumulator_guarantee_exit`,
+  `runtime_inductive_climbing_sum_exit`, and `runtime_inductive_gauss_sum_exit`
+  controls. Their guarantees survive serialization, independent verification,
+  and execution. Preserve Wrapping's equality-only polynomial reasoning and
+  each additive ranking step's independently proved no-wrap condition. Wrong
+  accumulator arrivals must reject while the same cycle certificate remains
+  valid; weakening the decrement guard must reject that cycle certificate.
+  PROOF-KERNEL-CORE and PCC-CANONICAL-SEMANTIC-LEDGER own the licensed
+  arithmetic derivation, without per-loop axioms or residue order assumptions.
 
   Acceptance: source guarantees and arrival evidence survive serialization and
   native execution. A wrong update must fail preservation while the unchanged
