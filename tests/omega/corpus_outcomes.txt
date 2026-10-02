@@ -1596,6 +1596,7 @@ pass/domains/local_alias_domain_transfer checked 279ms @2d8ed253669f
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
+pass/domains/record_literal_view_member_store_exit checked 1123ms @e8ed051cf626+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb

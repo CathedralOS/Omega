@@ -1,0 +1,53 @@
+// RUN CANARY (exit 70). A record literal assigned to a record field through
+// an exclusive receiver decomposes into one store per member: each quoted
+// `&[u8] in Utf8` member replaces the field's view descriptor with the
+// literal's, and each scalar member takes an ordinary field store. The second
+// literal names its members in reverse declaration order. Both records are
+// read back through their stored descriptors and scalars, and both texts are
+// written out. exits: 71 = left record wrong; 72 = right record wrong.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Tag {
+    label: &[u8] in Utf8;
+    weight: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    left: Tag;
+    right: Tag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.left = Tag { label: "amulet", weight: 3 };
+    self.right = Tag { weight: 4, label: "ring" };
+    self.console.write_line(self.left.label);
+    self.console.write_line(self.right.label);
+    transition self.left.label == "amulet" && self.left.weight == 3 {
+        true -> right_record(&mut self)
+        _ -> wrong_left(&mut self)
+    }
+
+    state right_record(main: &mut Main) {
+        transition main.right.label == "ring" && main.right.weight == 4 {
+            true -> good(main)
+            _ -> wrong_right(main)
+        }
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state wrong_left(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+
+    state wrong_right(main: &mut Main) {
+        main.console.exit_process(72);
+    }
+}

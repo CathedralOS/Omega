@@ -256,6 +256,55 @@ pub(super) fn is_view_element_copy(
             })
 }
 
+/// Whether every domain-qualified shared view member (`&[u8] in Utf8`) of
+/// the record `reference` is initialized by a quoted literal in `literal`.
+/// Construction cannot establish such a member's predicates from another
+/// view, so those records stay outside the constructible shapes; a quoted
+/// member instead becomes a `ByteLiteralView` whose octets carry the
+/// evidence, and which only a decomposing member store consumes.
+fn qualified_views_are_quoted(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    literal: &typed_trees::expression::TableStructLiteral,
+) -> bool {
+    let Some(symbol) = closed_data_symbol(program, reference) else {
+        return false;
+    };
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol)
+    else {
+        return false;
+    };
+    let authored = program.expression_table.struct_fields(literal.fields);
+    program.data_members(data).iter().all(|member| {
+        let typed_trees::data::DataMember::Field(field) = member else {
+            return true;
+        };
+        if crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
+            .is_empty()
+            || !matches!(
+                crate::execution::terminal_unit::types::byte_sequence_carrier(
+                    program,
+                    field.type_reference,
+                    &[],
+                ),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+            )
+        {
+            return true;
+        }
+        authored.iter().any(|initializer| {
+            initializer.field_symbol == field.symbol
+                && matches!(
+                    program.expression_table.expression(initializer.value),
+                    ExpressionNode::String(_)
+                )
+        })
+    })
+}
+
 /// A view-copied record field's carrier: a bare primitive, or a primitive
 /// under exactly one arithmetic policy. A policy changes operations, not the
 /// stored bits, so the element read and the fresh record carry the same
@@ -1577,6 +1626,8 @@ impl Builder<'_, '_> {
                     self.program,
                     reference,
                 )
+                || (validation::has_owned_or_qualified_shared_view_fields(self.program, reference)
+                    && qualified_views_are_quoted(self.program, reference, &literal))
         };
         // A custody domain on the declared type (`Region in Owned`) qualifies
         // the binding, not the record's storage: the shape question is about
@@ -1693,6 +1744,45 @@ impl Builder<'_, '_> {
                 })
             {
                 return None;
+            }
+            // A quoted literal for a shared byte view member lends immutable
+            // image storage: there is nothing to construct, so the member is
+            // its octets. Only a record literal assigned through an exclusive
+            // root consumes it, as one view field store per such member; the
+            // literal must already grant every declared domain of the view.
+            if let ExpressionNode::String(bytes) =
+                self.program.expression_table.expression(initializer.value)
+                && matches!(
+                    crate::execution::terminal_unit::types::byte_sequence_carrier(
+                        self.program,
+                        field.type_reference,
+                        &[],
+                    ),
+                    Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                        access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
+                    })
+                )
+            {
+                if !crate::facts::field_domain::string_literal_grants_view_domains(
+                    self.program,
+                    field.type_reference,
+                    initializer.value,
+                ) {
+                    return None;
+                }
+                let node = values.nodes.append(CheckedStructuralValue {
+                    expression: initializer.value,
+                    kind: CheckedStructuralValueKind::ByteLiteralView {
+                        bytes: bytes.to_vec(),
+                    },
+                });
+                fields.push(checked_trees::CheckedStructuralRecordField {
+                    field: field.symbol,
+                    expression: initializer.value,
+                    type_reference: field.type_reference,
+                    value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
+                });
+                continue;
             }
             let reference =
                 validation::unwrapped_type_reference(self.program, field.type_reference)?;

@@ -1105,6 +1105,11 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
+            // Source custody already refuses this kind; emission has no
+            // shared view operand to establish it with either.
+            CheckedStructuralValueKind::ByteLiteralView { .. } => Err(LoweringError::Unsupported(
+                "structural construction has a literal view member",
+            )),
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = self.establish_zeroed()?;
                 if let Some(continuation) = continuation {

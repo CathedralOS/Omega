@@ -1510,6 +1510,16 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
+        // A view field's descriptor store is one member store of a record
+        // literal's roster, in whichever authored position its member takes.
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+            if matches!(
+                store.destination,
+                checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+            ) =>
+        {
+            Some(store.statement_index)
+        }
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
         }
@@ -1620,6 +1630,15 @@ fn statement_continuations(
                     operation,
                     CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 )
+                || matches!(operation,
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+                    if matches!(
+                        store.destination,
+                        checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+                    ) && !matches!(
+                        store.value.nodes.get(store.value.root),
+                        checked_trees::CheckedByteSequenceValue::CallResult { .. }
+                    ))
                 // A whole-element store into a displaced element is only the
                 // move-out/store window pair: whichever of them leads is the
                 // statement's first effect, not a continuation.

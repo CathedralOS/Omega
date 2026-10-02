@@ -54,22 +54,11 @@ pub(super) fn member_store(
     let ExpressionNode::String(bytes) = program.expression_table.expression(value) else {
         return None;
     };
-    let domains =
-        crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference);
-    if !domains.iter().all(|symbol| {
-        typed_trees::byte_predicates::domain_byte_predicate(program, *symbol).is_some()
-            && program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == *symbol)
-                .is_some_and(|domain| {
-                    domain.establishment_routes.is_empty()
-                        && domain.semantic_roles == Default::default()
-                })
-            && crate::facts::field_domain::string_literal_expression_grants_domain(
-                program, value, *symbol,
-            )
-    }) {
+    if !crate::facts::field_domain::string_literal_grants_view_domains(
+        program,
+        field.type_reference,
+        value,
+    ) {
         return None;
     }
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
