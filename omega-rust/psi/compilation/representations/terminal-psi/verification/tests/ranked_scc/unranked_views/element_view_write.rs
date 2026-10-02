@@ -253,6 +253,33 @@ fn mutable_child_fixture() -> TerminalModule {
             kind: OperationKind::ElementViewLength { source: place },
         });
     }
+    // Close the first affine carrier before establishing the next exclusive
+    // loan. Last payload observation alone does not publish its disposal.
+    let mut next = machine.blocks[1].clone();
+    next.id = id(70, BlockId::new);
+    next.operations = machine.blocks[1].operations.split_off(4);
+    if let Terminator::ReturnUnit {
+        edge,
+        trivial_affine_discards,
+        ..
+    } = &mut next.terminator
+    {
+        *edge = id(70, EdgeId::new);
+        *trivial_affine_discards = vec![id(42, PlaceId::new)];
+    } else {
+        unreachable!();
+    }
+    machine.blocks[1].terminator = Terminator::Jump {
+        edge: id(71, EdgeId::new),
+        target: next.id,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: vec![id(40, PlaceId::new)],
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(next);
     module
 }
 
@@ -358,9 +385,12 @@ fn mutable_child_rejects_overlapping_windows_with_both_children_live() {
     let mut module = mutable_child_fixture();
     let proof = mutable_child_bounds(&module);
     verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
-    // Both children select the same nonempty range. Delay the first child's
-    // observation past the second child's birth; all operands still dominate.
-    module.machines[0].blocks[1].operations.swap(3, 4);
+    // Move the second child's birth before the first child's observation and
+    // explicit closure. The endpoints still dominate both births.
+    let second_birth = module.machines[0].blocks[3].operations.remove(0);
+    module.machines[0].blocks[1]
+        .operations
+        .insert(3, second_birth);
     assert!(
         matches!(
             validate_module(&module),
@@ -392,4 +422,21 @@ fn mutable_child_write_uses_its_own_live_authority() {
     // independent bounds obligation remains required by proof admission.
     module.machines[0].blocks[1].operations.insert(4, write);
     validate_module(&module).unwrap();
+}
+
+#[test]
+fn mutable_child_requires_exact_affine_carrier_cleanup() {
+    let mut module = mutable_child_fixture();
+    let terminal_psi::Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[3].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
+    ));
 }

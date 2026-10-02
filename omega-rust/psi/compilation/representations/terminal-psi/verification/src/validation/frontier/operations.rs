@@ -182,14 +182,21 @@ pub(super) fn apply_operation(
             frontier.partial_custody_paths.remove(&argument.place);
         }
     }
+    // Borrowing the backing does not remove affine custody of the descriptor.
+    // Its explicit discard closes the carrier; permission to access the backing
+    // remains a separate judgment.
     // Plain copy payloads are checked for producer dominance elsewhere,
     // not retained as disposal obligations. Claim-bearing results must
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
-        && super::super::byte_sequence::subslice::borrowed_result(machine, result.place).is_none()
+        && (result.multiplicity != StructuralMultiplicity::Unrestricted
+            || super::super::byte_sequence::subslice::borrowed_result(machine, result.place)
+                .is_none())
         && super::super::byte_sequence::concatenation::owned_result(machine, result.place).is_none()
         && terminal_semantics::byte_owned_call_result(module, machine, result.place).is_none()
-        && super::super::element_view::subslice::borrowed_result(machine, result.place).is_none()
+        && (result.multiplicity != StructuralMultiplicity::Unrestricted
+            || super::super::element_view::subslice::borrowed_result(machine, result.place)
+                .is_none())
         && super::super::record::shared_view_member_source(module, machine, result.place).is_none()
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
         && !super::super::scalar::array::plain_return_source(module, machine, result.place)

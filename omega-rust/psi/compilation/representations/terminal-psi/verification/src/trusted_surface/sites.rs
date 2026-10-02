@@ -35,6 +35,11 @@ pub struct TestOnlySource {
 
 pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
     TestOnlySource {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses/tests.rs",
+        parent: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses.rs",
+        module: "tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_ordering/tests.rs",
         parent: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_ordering.rs",
         module: "tests",
@@ -294,7 +299,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans.rs",
-        sha256: Some("4315ac644afcd717929522f519dba2ac7914821e79dfd3ba69b8e6342e8885d6"),
+        sha256: Some("1b4cc4ac95dfc57db3a532605fd97aaa2510bfeb945828643584069caa3533a9"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/aliases.rs",
+        sha256: Some("3cc14f8b40457e0890a618c9e0088dcbbaf5f2c336e870358aaae331bc9f2840"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses.rs",
+        sha256: Some("10deca77039cd90a365fb85025833c843dc2840c35d6869b280100306c13d524"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1244,7 +1259,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/operations.rs",
-        sha256: Some("fd02471461736e2c84ceb911b2855f5b24dfa1ef6a7f284f88d65b2238280d8e"),
+        sha256: Some("c15dc1b922c94d7d1b930dd4ae7098415118e635847c7f92d69bb6ac63462bf5"),
         inventory_machinery: false,
     },
     ImplementationSite {

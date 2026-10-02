@@ -2,11 +2,22 @@
 //! scalar type the view's element declaration selected, so the result check
 //! is definitional agreement, not a fixed width.
 use abstract_operations::AbstractOperation as O;
-use optimization_unit::ValueDefinition;
+use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 use std::collections::BTreeMap;
 
-pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDefinition>) -> bool {
+pub(super) fn types_match(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    definitions: &BTreeMap<ValueId, ValueDefinition>,
+) -> bool {
+    // Result contracts apply at production, including dead descriptors: no
+    // later read or cleanup may be needed to expose invalid loan metadata.
+    if matches!(operation, O::EstablishElementView { .. } | O::ElementViewSubslice { .. })
+        && crate::unit_validation::operation_contracts::structural_access::structural_operation_result_contract(function, operation).is_none()
+    {
+        return false;
+    }
     let scalar = |value: ValueId| definitions.get(&value).map(|row| row.scalar_type);
     let u64_scalar = |value: &ValueId| {
         matches!(scalar(*value), Some(ScalarType::Integer(integer))

@@ -7,7 +7,7 @@ use super::super::{
 };
 use super::{
     Block, LoweringError, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    TerminalAffineCleanupAction, Terminator, complete,
+    TerminalAffineCleanupAction, Terminator,
 };
 use semantic_vocabulary::OperationId;
 use terminal_psi::OperationKind;
@@ -324,4 +324,124 @@ fn cycles_and_preexisting_cleanup_require_their_own_custody() {
     };
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(parameter.place));
     assert!(complete(std::slice::from_ref(&parameter), block_id(1), &mut [block]).is_err());
+}
+
+fn complete(
+    parameters: &[StructuralParameterDeclaration],
+    entry: super::BlockId,
+    blocks: &mut [Block],
+) -> Result<(), LoweringError> {
+    super::complete(parameters, entry, blocks, &[])
+}
+
+fn descriptor_types() -> Vec<terminal_psi::StructuralTypeDeclaration> {
+    vec![terminal_psi::StructuralTypeDeclaration {
+        id: StructuralTypeId::new(9).unwrap(),
+        identity: "test::MutableView".into(),
+        shape: terminal_psi::StructuralTypeShape::ElementView {
+            element: StructuralTypeId::new(10).unwrap(),
+        },
+    }]
+}
+
+fn descriptor_birth(number: u64) -> Operation {
+    Operation {
+        id: OperationId::new(number).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            place: place_id(number),
+            structural_type: StructuralTypeId::new(9).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::ElementViewSubslice {
+            source: place_id(100),
+            start: value_id(1),
+            end: value_id(2),
+            length: value_id(3),
+            obligation: semantic_vocabulary::ObligationId::new(number).unwrap(),
+        },
+    }
+}
+
+#[test]
+fn descriptor_completion_disposes_births_before_entry_owners_in_producer_order() {
+    let parameter = parameter(91, 0);
+    let mut blocks = vec![returning(1)];
+    blocks[0].operations = vec![descriptor_birth(10), descriptor_birth(20)];
+    super::complete(&[parameter], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    assert_eq!(
+        cleanup(&blocks[0]),
+        &[
+            TerminalAffineCleanupAction::DiscardRoot(place_id(20)),
+            TerminalAffineCleanupAction::DiscardRoot(place_id(10)),
+            TerminalAffineCleanupAction::DiscardRoot(place_id(91)),
+        ]
+    );
+}
+
+#[test]
+fn descriptor_completion_closes_branch_local_carrier_on_its_selected_edge() {
+    let mut blocks = vec![
+        block(
+            1,
+            Terminator::Conditional {
+                condition: value_id(1),
+                when_true: successor(1, 2),
+                when_false: successor(2, 3),
+            },
+        ),
+        jump(2, 4),
+        jump(3, 4),
+        returning(4),
+    ];
+    blocks[1].operations = vec![descriptor_birth(10)];
+    super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &blocks[1].terminator
+    else {
+        panic!("birth arm");
+    };
+    assert_eq!(trivial_affine_discards, &[place_id(10)]);
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &blocks[2].terminator
+    else {
+        panic!("other arm");
+    };
+    assert!(trivial_affine_discards.is_empty());
+    assert!(cleanup(&blocks[3]).is_empty());
+}
+
+#[test]
+fn descriptor_completion_preserves_existing_carrier_cleanup_without_duplicates() {
+    let mut blocks = vec![returning(1)];
+    blocks[0].operations = vec![
+        descriptor_birth(10),
+        descriptor_birth(20),
+        descriptor_birth(30),
+    ];
+    let Terminator::Return {
+        cleanup_actions, ..
+    } = &mut blocks[0].terminator
+    else {
+        panic!("return");
+    };
+    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place_id(20)));
+    super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    assert_eq!(
+        cleanup(&blocks[0]),
+        &[
+            TerminalAffineCleanupAction::DiscardRoot(place_id(30)),
+            TerminalAffineCleanupAction::DiscardRoot(place_id(20)),
+            TerminalAffineCleanupAction::DiscardRoot(place_id(10)),
+        ]
+    );
 }

@@ -5,13 +5,14 @@
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalMachine,
-    TerminalModule, Terminator,
+    Operation, StructuralAccess, StructuralArgument, TerminalMachine, TerminalModule, Terminator,
 };
 use terminal_semantics::borrowed_storage::{self, AliasSources, Position, Projection, Region};
 use terminal_semantics::scalar_ordering::ScalarOrdering;
 
 mod accesses;
+mod aliases;
+mod call_accesses;
 mod flow;
 mod scalar_ordering;
 
@@ -27,132 +28,16 @@ pub(super) struct DescriptorLoans {
     positions: BTreeMap<OperationId, Position>,
     ordering: ScalarOrdering,
     loans: Vec<Loan>,
+    call_accesses: call_accesses::CallAccesses,
 }
 
 impl DescriptorLoans {
     pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
-        let mut aliases = AliasSources::new();
-        let mut positions = BTreeMap::new();
-        let mut births = Vec::new();
-        for block in &machine.blocks {
-            for (index, operation) in block.operations.iter().enumerate() {
-                let position = (
-                    block.id,
-                    u32::try_from(index).expect("operation index fits u32"),
-                );
-                positions.insert(operation.id, position);
-                let Some(result) = operation.result.structural() else {
-                    continue;
-                };
-                let descriptor = match &operation.kind {
-                    OperationKind::EstablishElementView { source, .. }
-                    | OperationKind::EstablishMutableElementView { source, .. }
-                    | OperationKind::EstablishReference { source } => Some((
-                        source.place,
-                        accesses::projection(
-                            module,
-                            machine,
-                            source.place,
-                            &source.path,
-                            None,
-                            position,
-                        ),
-                    )),
-                    OperationKind::ElementViewSubslice {
-                        source, start, end, ..
-                    }
-                    | OperationKind::ByteSequenceSubslice {
-                        source, start, end, ..
-                    } => Some((*source, Projection::window(*start, *end, position))),
-                    _ => None,
-                };
-                if let Some((source, projection)) = descriptor {
-                    aliases
-                        .entry(result.place)
-                        .or_default()
-                        .push((source, projection.clone()));
-                    // A temporary exclusive whole-array descriptor supplies the
-                    // parent capability; its narrowed child owns the live loan.
-                    // Shared establishment itself must keep its backing stable.
-                    let is_birth = matches!(
-                        operation.kind,
-                        OperationKind::ElementViewSubslice { .. }
-                            | OperationKind::ByteSequenceSubslice { .. }
-                    ) || matches!(&operation.kind, OperationKind::EstablishElementView { source, .. }
-                            if source.access == StructuralAccess::SharedBorrow);
-                    if is_birth {
-                        if let Some((_, access)) =
-                            crate::validation::element_view::view_loan_result(machine, result.place)
-                        {
-                            births.push((position, result.place, source, projection, access));
-                        }
-                    }
-                }
-            }
-            let position = (
-                block.id,
-                u32::try_from(block.operations.len()).expect("operation index fits u32"),
-            );
-            let mut bind = |target, arguments: &[StructuralArgument]| {
-                if let Some(destination) = machine
-                    .blocks
-                    .iter()
-                    .find(|candidate| candidate.id == target)
-                {
-                    for (parameter, argument) in
-                        destination.structural_parameters.iter().zip(arguments)
-                    {
-                        aliases.entry(parameter.place).or_default().push((
-                            argument.place,
-                            accesses::projection(
-                                module,
-                                machine,
-                                argument.place,
-                                &argument.path,
-                                None,
-                                position,
-                            ),
-                        ));
-                    }
-                }
-            };
-            match &block.terminator {
-                Terminator::Jump {
-                    target,
-                    structural_arguments,
-                    ..
-                } => bind(*target, structural_arguments),
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    bind(when_true.target, &when_true.structural_arguments);
-                    bind(when_false.target, &when_false.structural_arguments);
-                }
-                Terminator::StructuralCase { source, cases } => {
-                    // Payload extraction may project through captured storage;
-                    // without an exact field adapter retain the entire subject.
-                    for case in cases {
-                        if let Some(destination) = machine
-                            .blocks
-                            .iter()
-                            .find(|candidate| candidate.id == case.target)
-                        {
-                            for parameter in &destination.structural_parameters {
-                                let mut projection = Projection::new(&[]);
-                                projection.exact = false;
-                                aliases
-                                    .entry(parameter.place)
-                                    .or_default()
-                                    .push((*source, projection));
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
+        let aliases::Origins {
+            aliases,
+            positions,
+            births,
+        } = aliases::reconstruct(module, machine);
         if births.is_empty() {
             // Most scalar machines have no local descriptors. They need no
             // lifetime graph or scalar-order replay for this judgment.
@@ -161,6 +46,7 @@ impl DescriptorLoans {
                 positions: BTreeMap::new(),
                 ordering: ScalarOrdering::new(Vec::new(), (machine.entry, 0), Vec::new()),
                 loans: Vec::new(),
+                call_accesses: call_accesses::CallAccesses::default(),
             };
         }
         let steps = flow::reconstruct(module, machine);
@@ -182,6 +68,7 @@ impl DescriptorLoans {
             positions,
             ordering: scalar_ordering::reconstruct(machine),
             loans,
+            call_accesses: call_accesses::CallAccesses::new(module),
         }
     }
 
@@ -227,7 +114,10 @@ impl DescriptorLoans {
         consumed: &[PlaceId],
     ) -> Option<PlaceId> {
         let position = *self.positions.get(&operation.id)?;
-        for access in accesses::operation(module, machine, operation, position) {
+        for access in self
+            .call_accesses
+            .operation(module, machine, operation, position)
+        {
             if self.disturbed_access(position, &access, None, false) {
                 return Some(access.place);
             }
