@@ -229,13 +229,22 @@ rows! {
         &[tv!( "verification/field_snapshots.rs"), tv!( "verification/reconstruction/operation_facts.rs"), tv!( "verification/call_composition.rs")]
     );
 
+    SCOPE_BORROWED_STORAGE => (
+        "scope:borrowed-storage-observations",
+        PremiseScope,
+        "the validated machine's complete borrowed-block origin sets and current observation paths",
+        "writes and calls invalidate facts whenever any possible physical root and projection overlap; normal exits can restate a surviving fact in the invocation namespace only when every possible origin agrees on that exact parameter and projection; local or ambiguous backings grant no equality",
+        &["formation:machine-validation", "scope:place-substitution"],
+        &[tv!("validation/borrowed_windows.rs"), tv!("validation/propositions.rs"), tv!("verification/storage_observations.rs"), tv!("verification/reconstruction/machine_context.rs"), tv!("verification/reconstruction.rs")]
+    );
+
     // -- Write invalidation --
     INV_ESTABLISH_LOCAL => (
         "invalidation:establish-primitive-local",
         WriteInvalidation,
         "an EstablishPrimitiveLocal producing a structural result place",
         "every proposition still observing the result place after exact scalar capture is removed from the axiom set",
-        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
+        &["fact:structural-effect-observation", "scope:field-value-snapshots", "scope:borrowed-storage-observations"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
     INV_PRIMITIVE_STORE => (
@@ -243,7 +252,7 @@ rows! {
         WriteInvalidation,
         "a WriteOnlyPrimitiveStore to a destination place",
         "every proposition still observing the destination after exact scalar capture is removed from the axiom set",
-        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
+        &["fact:structural-effect-observation", "scope:field-value-snapshots", "scope:borrowed-storage-observations"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
     INV_ATOMIC_ACCESS => (
@@ -251,7 +260,7 @@ rows! {
         WriteInvalidation,
         "an AtomicAccess whose event modifies its leaf (store, read-modify-write, swap, or compare-exchange)",
         "every proposition still observing the accessed root is removed from the axiom set; the event itself publishes no equation",
-        &["scope:field-value-snapshots"],
+        &["scope:field-value-snapshots", "scope:borrowed-storage-observations"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
     INV_FIELD_STORE => (
@@ -259,7 +268,7 @@ rows! {
         WriteInvalidation,
         "a structural field store whose canonical write path may resolve, a whole bounded-byte-owner replacement, or formation of a mutable record reference whose later stores use a different carrier identity",
         "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root; mutable record reference formation retires source-root observations before indirect mutation, and release restores permission rather than old contents",
-        &["scope:place-substitution", "scope:field-value-snapshots"],
+        &["scope:place-substitution", "scope:field-value-snapshots", "scope:borrowed-storage-observations"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural/operations/structural_paths.rs")]
     );
     INV_BYTE_WRITE => (
@@ -297,7 +306,7 @@ rows! {
         CallComposition,
         "a call operation's callee signature, argument substitution, and the callee's verified contract",
         "parameter equalities, instantiated requires obligations, and imported ensures propositions composed into the caller frame; a lent stored view field has no owned-field spelling, so its binder is omitted only when the complete published contract never observes it",
-        &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots", "formation:structural-operations"],
+        &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots", "scope:borrowed-storage-observations", "formation:structural-operations"],
         &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs"), ts!( "static_path.rs")]
     );
     COMP_CALL_ROW_VALIDATION => (
@@ -530,7 +539,7 @@ rows! {
         "formation:crash-entry-requirements",
         SharedFormation,
         "a machine's declared entry requirements and independently reconstructed pre-operation paths, including integer-order chains, exact primitive failure predicates and complements of supported scalar crash predicates",
-        "certificates independently prove published coverage or disprove every uncovered invocation alternative on every retained path without importing the operation's normal-return facts; cyclic operation coverage retains entry-only facts without invariant custody; exact forwarding and predicate formation remain trusted Rust decisions, while producers emit certificate supplies and consumers only replay them through the certificate checker and mathematical-core kernel",
+        "certificates independently prove the caller's invocation-entry ceiling or disprove every uncovered call-time alternative on every retained path without normal-return facts; refutation retains only temporally stable requirements, and direct predicate equality covers only unchanged entry meanings; cyclic coverage keeps entry-only facts without invariant custody; exact forwarding and predicate formation remain trusted Rust decisions, while producers emit certificate supplies and consumers replay them through the certificate checker and mathematical-core kernel",
         &["formation:crash-validation", "formation:mathematical-core"],
         &[pa!( "admission/denotation.rs"), pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
     );

@@ -176,13 +176,30 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         // `requires` rows that lower into closed scalar predicates stay on
         // the plan as retained state requires and emit as header invariants;
         // every other authored contract row is still rejected outright.
-        match validation::structural_state_contract_scalar_predicates(&checked.typed, source) {
-            Some(predicates)
-                if predicates.len() == state.requires.len()
-                    && state.requires.iter().all(Option::is_some) => {}
-            _ => {
-                return unsupported("structural graph state has unrepresented authored contracts");
-            }
+        let authored =
+            validation::structural_state_contract_scalar_predicates(&checked.typed, source).ok_or(
+                LoweringError::Unsupported(
+                    "structural graph state has unrepresented authored contracts",
+                ),
+            )?;
+        let declaration_rows = validation::state_declaration_predicates(
+            &checked.typed,
+            &checked.facts.operators,
+            machine,
+            source,
+        )
+        .into_iter()
+        .map(|row| {
+            Some(checked_trees::ClosedScalarContractValue::Predicate(
+                row.predicate,
+            ))
+        })
+        .collect::<Vec<_>>();
+        if state.requires.len() != authored.len() + declaration_rows.len()
+            || !state.requires[..authored.len()].iter().all(Option::is_some)
+            || state.requires[authored.len()..] != declaration_rows
+        {
+            return unsupported("structural graph state declaration predicates differ from source");
         }
         if !super::returns::signature_matches(checked, source, &plan.result) {
             return unsupported("structural graph result signature disagrees with source");

@@ -487,6 +487,7 @@ fn a_continuation_row_is_covered_by_any_one_published_goal() {
         question: CrashObligationQuestion::Continuation {
             coverage_goals: vec![Proposition::Falsehood, Proposition::Truth],
             refutation_goal: None,
+            refutation_requirements: Vec::new(),
             paths: vec![Vec::new()],
         },
     };
@@ -515,6 +516,7 @@ fn a_question_without_context_accepts_no_certificate() {
         question: CrashObligationQuestion::Continuation {
             coverage_goals: vec![Proposition::Truth],
             refutation_goal: None,
+            refutation_requirements: Vec::new(),
             paths: vec![Vec::new()],
         },
     };
@@ -538,6 +540,7 @@ fn continuation_evidence_must_cover_every_reconstructed_path() {
         question: CrashObligationQuestion::Continuation {
             coverage_goals: vec![Proposition::Falsehood],
             refutation_goal: None,
+            refutation_requirements: Vec::new(),
             paths: vec![vec![Proposition::Falsehood]],
         },
     };

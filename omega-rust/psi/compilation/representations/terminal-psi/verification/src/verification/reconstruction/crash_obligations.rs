@@ -68,6 +68,10 @@ pub enum CrashObligationQuestion {
     Continuation {
         coverage_goals: Vec<Proposition>,
         refutation_goal: Option<Proposition>,
+        /// Call-time impossibility cannot borrow invocation-entry facts about
+        /// mutable storage. Coverage retains the caller's entry requirements;
+        /// refutation uses only their temporally stable subset and site facts.
+        refutation_requirements: Vec<Proposition>,
         /// Independently reconstructed facts before the invocation, never
         /// its returned value or its normal-return guarantees.
         paths: Vec<Vec<Proposition>>,
@@ -218,10 +222,10 @@ pub(super) fn operation_needs_site_facts(
         machine.contract.crash_routes.iter().any(|published| {
             published.cause == route.cause
                 && (published.alternatives.contains(&CrashRouteGuard::Truth)
-                    || route
-                        .alternatives
-                        .iter()
-                        .all(|guard| published.alternatives.contains(guard)))
+                    || route.alternatives.iter().all(|guard| {
+                        published.alternatives.contains(guard)
+                            && route_retains_entry_meaning(guard, machine)
+                    }))
         })
     };
     Ok(operation_continuations(module, operation)?
@@ -411,10 +415,10 @@ fn reconstruct_continuation_obligations(
         published_routes.iter().any(|published| {
             published.cause == continuation.cause
                 && (published.alternatives == [CrashRouteGuard::Truth]
-                    || continuation
-                        .alternatives
-                        .iter()
-                        .all(|route| published.alternatives.contains(route)))
+                    || continuation.alternatives.iter().all(|route| {
+                        published.alternatives.contains(route)
+                            && route_retains_entry_meaning(route, caller)
+                    }))
         })
     };
     if normalized_crash_routes(continuations).iter().all(&covered) {
@@ -435,7 +439,8 @@ fn reconstruct_continuation_obligations(
                 !published_routes.iter().any(|published| {
                     published.cause == continuation.cause
                         && (published.alternatives == [CrashRouteGuard::Truth]
-                            || published.alternatives.contains(route))
+                            || (published.alternatives.contains(route)
+                                && route_retains_entry_meaning(route, caller)))
                 })
             })
             .collect();
@@ -475,11 +480,32 @@ fn reconstruct_continuation_obligations(
             question: CrashObligationQuestion::Continuation {
                 coverage_goals,
                 refutation_goal,
+                refutation_requirements: caller
+                    .contract
+                    .requires
+                    .iter()
+                    .filter(|requirement| {
+                        super::crash_field_origins::retains_entry_meaning(requirement, caller)
+                    })
+                    .cloned()
+                    .collect(),
                 paths,
             },
         });
     }
     Ok(())
+}
+
+/// Identical syntax is direct coverage only when it still denotes the same
+/// invocation-entry value. A callee's mutable field guard denotes call-time
+/// storage, even after substitution gives it the caller's original place ID.
+fn route_retains_entry_meaning(route: &CrashRouteGuard, machine: &TerminalMachine) -> bool {
+    match route {
+        CrashRouteGuard::Truth => true,
+        CrashRouteGuard::Predicate(predicate) => {
+            super::crash_field_origins::retains_entry_meaning(predicate.proposition(), machine)
+        }
+    }
 }
 
 /// The coverage question one published bucket asks: its single predicate, or

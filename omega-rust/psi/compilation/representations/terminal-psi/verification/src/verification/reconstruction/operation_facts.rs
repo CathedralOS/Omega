@@ -86,7 +86,9 @@ pub(super) fn append_operation(
         // captured-root observations now; release restores permission, not
         // the pre-loan contents. Immutable scalar snapshots remain valid.
         field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            !crate::validation::proposition_observes_places(proposition, &[source.place])
+            !context
+                .storage
+                .observes_places(proposition, &[source.place])
         });
     }
     runtime_index::append(
@@ -296,7 +298,9 @@ pub(super) fn append_operation(
         && let Some(result) = operation.result.structural()
     {
         field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            !crate::validation::proposition_observes_places(proposition, &[result.place])
+            !context
+                .storage
+                .observes_places(proposition, &[result.place])
         });
     }
     if let OperationKind::AtomicAccess { place, event, .. } = &operation.kind {
@@ -308,7 +312,7 @@ pub(super) fn append_operation(
         // outliving a write they cannot see.
         if event.modifies_resident() {
             field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !crate::validation::proposition_observes_places(proposition, &[*place])
+                !context.storage.observes_places(proposition, &[*place])
             });
         }
         return Ok(());
@@ -333,10 +337,14 @@ pub(super) fn append_operation(
             &path[..static_prefix],
         ) {
             Some(written) => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !crate::validation::proposition_observes_write(proposition, *destination, &written)
+                !context
+                    .storage
+                    .observes_write(proposition, *destination, &written)
             }),
             None => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !crate::validation::proposition_observes_places(proposition, &[*destination])
+                !context
+                    .storage
+                    .observes_places(proposition, &[*destination])
             }),
         }
     }
@@ -363,10 +371,14 @@ pub(super) fn append_operation(
             &path[..static_prefix],
         ) {
             Some(written) => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !crate::validation::proposition_observes_write(proposition, *destination, &written)
+                !context
+                    .storage
+                    .observes_write(proposition, *destination, &written)
             }),
             None => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !crate::validation::proposition_observes_places(proposition, &[*destination])
+                !context
+                    .storage
+                    .observes_places(proposition, &[*destination])
             }),
         }
     } else if matches!(
@@ -382,7 +394,7 @@ pub(super) fn append_operation(
         match crate::validation::structural_field_store_write_path(module, machine, operation) {
             Some((root, written)) => {
                 field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                    !crate::validation::proposition_observes_write(proposition, root, &written)
+                    !context.storage.observes_write(proposition, root, &written)
                 });
                 // A scalar field store fixes the exact leaf it writes: the
                 // field equals the stored value until a covering write
@@ -425,7 +437,7 @@ pub(super) fn append_operation(
                     _ => unreachable!("store kinds are matched above"),
                 };
                 field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                    !crate::validation::proposition_observes_places(proposition, &[root])
+                    !context.storage.observes_places(proposition, &[root])
                 });
             }
         }
@@ -651,6 +663,7 @@ pub(super) fn append_operation(
         operation,
         machines,
         value_types,
+        &context.storage,
         capture_snapshots,
         axioms,
         operation_obligations,

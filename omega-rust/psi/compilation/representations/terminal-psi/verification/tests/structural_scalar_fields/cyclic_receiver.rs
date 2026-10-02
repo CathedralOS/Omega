@@ -274,13 +274,19 @@ fn mutable_entry_requirements_are_not_loop_invariants() {
             ScalarTerm::boolean_field(id(1), id(1)),
             ScalarTerm::Boolean(true),
         ));
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::ControlCycleIneligible {
-            reason: terminal_verifier::ControlCycleIneligibility::RequiresObservesMutableBorrow,
-            ..
-        })
-    ));
+    validate_module(&module).expect("entry requirements alone do not disqualify cycles");
+    // No body store or call may re-establish the same predicate independently.
+    module.machines[0].blocks[0]
+        .operations
+        .retain(|operation| !matches!(operation.id.get(), 12 | 13));
+    let requirements = module.machines[0].contract.requires.clone();
+    let axioms = exit_axioms(&mut module);
+    assert!(
+        requirements
+            .iter()
+            .all(|requirement| !axioms.contains(requirement)),
+        "an invocation observation cannot cross a feedback cut as an invariant"
+    );
 }
 
 #[test]

@@ -36,6 +36,7 @@ pub(super) fn compose_call_operation(
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
+    storage: &super::storage_observations::StorageObservations,
     capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
@@ -185,6 +186,7 @@ pub(super) fn compose_call_operation(
                 machine,
                 axioms,
                 structural_arguments,
+                storage,
                 capture_snapshots,
             );
             for guarantee in &callee.contract.ensures {
@@ -216,6 +218,7 @@ pub(super) fn compose_call_operation(
                 structural_arguments,
                 requirement_obligations,
                 value_types,
+                storage,
                 capture_snapshots,
                 axioms,
                 operation_obligations,
@@ -296,6 +299,7 @@ pub(super) fn compose_call_operation(
                 std::slice::from_ref(&selection.source),
                 requirement_obligations,
                 value_types,
+                storage,
                 capture_snapshots,
                 axioms,
                 operation_obligations,
@@ -446,6 +450,7 @@ pub(super) fn compose_call_operation(
                 machine,
                 axioms,
                 structural_arguments,
+                storage,
                 capture_snapshots,
             );
             for guarantee in &callee.contract.ensures {
@@ -529,6 +534,7 @@ pub(super) fn compose_call_operation(
                 machine,
                 axioms,
                 structural_arguments,
+                storage,
                 capture_snapshots,
             );
         }
@@ -554,6 +560,7 @@ fn compose_structural_scalar_call(
     structural_arguments: &[terminal_psi::StructuralArgument],
     requirement_obligations: &[semantic_vocabulary::ObligationId],
     value_types: &BTreeMap<ValueId, ScalarType>,
+    storage: &super::storage_observations::StorageObservations,
     capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
@@ -616,6 +623,7 @@ fn compose_structural_scalar_call(
         machine,
         axioms,
         structural_arguments,
+        storage,
         capture_snapshots,
     );
     for guarantee in &callee.contract.ensures {
@@ -790,9 +798,7 @@ fn structural_contract_substitutions(
                         }
                     }),
             )
-            .any(|proposition| {
-                crate::validation::proposition_observes_places(proposition, &[parameter.place])
-            });
+            .any(|proposition| storage.observes_places(proposition, &[parameter.place]));
         let borrowed_presentation = caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::fixed_byte_array_window(
                 module.structural_types.iter(),
@@ -801,10 +807,9 @@ fn structural_contract_substitutions(
                 parameter,
             )
             .is_some()
-        })
-            || crate::validation::structural::operations::is_record_loan(
-                module, caller, parameter, argument,
-            );
+        }) || crate::validation::structural::operations::is_record_loan(
+            module, caller, parameter, argument,
+        );
         // Completed local backing has the same lent presentation as a
         // parameter. Reuse call validation's geometry rather than inventing
         // an owned-field prefix for a window. An observed binder still fails
@@ -877,6 +882,7 @@ fn invalidate_mutated_arguments(
     machine: &TerminalMachine,
     axioms: &mut Vec<Proposition>,
     arguments: &[StructuralArgument],
+    storage: &super::storage_observations::StorageObservations,
     capture_snapshots: bool,
 ) {
     let mut written = arguments
@@ -943,15 +949,10 @@ fn invalidate_mutated_arguments(
     if !written.is_empty() || !consumed.is_empty() {
         super::field_snapshots::retain(axioms, capture_snapshots, |proposition| {
             !written.iter().any(|(root, path)| match path {
-                Some(path) => {
-                    crate::validation::proposition_observes_write(proposition, *root, path)
-                }
-                None => crate::validation::proposition_observes_places(proposition, &[*root]),
+                Some(path) => storage.observes_write(proposition, *root, path),
+                None => storage.observes_places(proposition, &[*root]),
             }) && (consumed.is_empty()
-                || !crate::validation::proposition_observes_unversioned_places(
-                    proposition,
-                    &consumed,
-                ))
+                || !storage.observes_unversioned_places(proposition, &consumed))
         });
     }
 }

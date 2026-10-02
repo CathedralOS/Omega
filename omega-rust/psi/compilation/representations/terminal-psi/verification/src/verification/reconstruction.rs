@@ -647,6 +647,18 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 _ => {}
             }
         }
+        if !crash_facts
+            && matches!(
+                block.terminator,
+                Terminator::Return { .. }
+                    | Terminator::ReturnUnit { .. }
+                    | Terminator::ReturnUnitNominalAffine { .. }
+                    | Terminator::ReturnUnitPartialAffine { .. }
+                    | Terminator::ReturnStructural { .. }
+            )
+        {
+            context.storage.append_invocation_facts(&mut axioms);
+        }
         terminator_facts::append_terminator(
             module,
             &block.terminator,

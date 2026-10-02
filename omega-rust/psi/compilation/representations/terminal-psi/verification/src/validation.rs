@@ -61,6 +61,7 @@ mod affine_cleanup;
 pub(crate) mod atomic_access;
 mod block_views;
 mod borrowed_windows;
+pub(crate) use borrowed_windows::window_aliases;
 pub(crate) mod byte_sequence;
 mod call_graph;
 mod conformance_applications;
@@ -120,8 +121,8 @@ pub use frontier::{
 use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_affine_root_type};
 use proof_recursion::validate_proof_recursive_components;
 pub(crate) use propositions::{
-    proposition_observes_places, proposition_observes_unversioned_places,
-    proposition_observes_write,
+    proposition_boolean_field_roots, proposition_observation_sites, proposition_observes_places,
+    proposition_observes_unversioned_places, proposition_observes_write,
 };
 pub(crate) use references::{argument_owns_references, is_reference_projection};
 pub use scalar::block_invariants::scalar_block_invariant_scope;

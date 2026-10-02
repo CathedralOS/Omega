@@ -50,7 +50,7 @@ use terminal_psi::StructuralArgument;
 /// parameters and operation results alias only themselves, so they carry no
 /// row; only `SharedBorrow`, `MutableBorrow` and `WriteOnlyBorrow` block
 /// parameters can re-spell caller storage.
-pub(super) type WindowAliases =
+pub(crate) type WindowAliases =
     BTreeMap<PlaceId, BTreeSet<(PlaceId, Vec<CanonicalStructuralPathSegment>)>>;
 
 /// The transitive place/prefix set a spelled `place` resolves to. An
@@ -90,7 +90,7 @@ fn argument_region(
 /// edge arguments may carry, transitively closed through earlier borrowed
 /// parameters. The closure is monotone and bounded by the finite edge
 /// spellings, so the fixpoint always terminates.
-pub(super) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine) -> WindowAliases {
+pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine) -> WindowAliases {
     let borrowed_parameters: BTreeSet<PlaceId> = machine
         .blocks
         .iter()

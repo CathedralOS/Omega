@@ -29,17 +29,22 @@ pub(crate) fn crash_roster(module: &TerminalModule) -> Vec<CrashObligationEviden
         .expect("fixture modules validate before their questions reconstruct")
         .iter()
         .map(|question| {
-            let produce =
-                |goal: &Proposition, semantic_axioms: &[Proposition]| -> Vec<CrashCertificate> {
-                    question.context.as_ref().map_or_else(Vec::new, |context| {
-                        proof_admission::produce_denotation_certificates(
-                            context,
-                            goal,
-                            &question.requirements,
-                            semantic_axioms,
-                        )
-                    })
-                };
+            let produce_with_requirements = |goal: &Proposition,
+                                             semantic_axioms: &[Proposition],
+                                             requirements: &[Proposition]|
+             -> Vec<CrashCertificate> {
+                question.context.as_ref().map_or_else(Vec::new, |context| {
+                    proof_admission::produce_denotation_certificates(
+                        context,
+                        goal,
+                        requirements,
+                        semantic_axioms,
+                    )
+                })
+            };
+            let produce = |goal: &Proposition, axioms: &[Proposition]| {
+                produce_with_requirements(goal, axioms, &question.requirements)
+            };
             let (coverage, refutation) = match &question.question {
                 CrashObligationQuestion::Site { guards, paths } => (
                     guards
@@ -59,6 +64,7 @@ pub(crate) fn crash_roster(module: &TerminalModule) -> Vec<CrashObligationEviden
                 CrashObligationQuestion::Continuation {
                     coverage_goals,
                     refutation_goal,
+                    refutation_requirements,
                     paths,
                 } => (
                     coverage_goals
@@ -75,7 +81,9 @@ pub(crate) fn crash_roster(module: &TerminalModule) -> Vec<CrashObligationEviden
                         .map(|goal| {
                             paths
                                 .iter()
-                                .flat_map(|axioms| produce(goal, axioms))
+                                .flat_map(|axioms| {
+                                    produce_with_requirements(goal, axioms, refutation_requirements)
+                                })
                                 .collect()
                         })
                         .collect(),

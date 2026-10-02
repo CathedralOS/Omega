@@ -285,13 +285,9 @@ fn an_ieee_range_row_is_restored_from_the_final_store() {
     );
 }
 
-/// Terminal admits no unranked control cycle whose requirements observe a
-/// mutable borrow, so a looping callee cannot assume or restore exclusive
-/// rows and publishes none. Its caller still requires its rows at entry but
-/// cannot restore them after the call, so it publishes no guarantee; a
-/// read-only loop over a `Grid` keeps executing.
+/// A loop proves declaration rows at authored state arrivals and normal return.
 #[test]
-fn a_looping_callee_publishes_no_rows_and_its_caller_restores_none() {
+fn a_looping_callee_and_its_caller_prove_declared_restoration() {
     let checked = crate::front_end::checked_program(&format!(
         "{PREDICATE}
          machine Main::scan(context: &mut Main) {{
@@ -311,7 +307,7 @@ fn a_looping_callee_publishes_no_rows_and_its_caller_restores_none() {
          machine Main::main(context: &mut Main) {{ Main::scan(context); }}"
     ));
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("a looping callee lowers without exclusive rows");
+        .expect("a looping callee proves its retained declaration obligations");
     assert!(verify(&lowered.semantic_module, &lowered));
     let rows = lowered
         .semantic_module
@@ -324,7 +320,140 @@ fn a_looping_callee_publishes_no_rows_and_its_caller_restores_none() {
             )
         })
         .collect::<Vec<_>>();
-    // `main` requires both arrays' eight cells and restores nothing; `scan`
-    // has no rows.
-    assert_eq!(rows, vec![(16, 0), (0, 0)]);
+    assert_eq!(rows, vec![(16, 1), (16, 1)]);
+}
+
+const GAUGE_LOOP: &str = "
+    data Main where value >= 0.0 && value <= 1.0 { value: f32; }
+    machine Main::fill(context: &mut Main) {
+        transition { _ -> step(context, 0) }
+        state step(context: &mut Main, round: u8) {
+            transition round < 3 { true -> again(context, round) _ -> done(context) }
+        }
+        state again(context: &mut Main, round: u8) {
+            context.value = 2.0;
+            context.value = 0.25;
+            transition { _ -> step(context, round + 1) }
+        }
+        state done(context: &mut Main) {}
+    }
+    machine Main::observe(context: &mut Main) {}
+    machine Main::main(context: &mut Main) {
+        Main::fill(context);
+        Main::observe(context);
+    }
+";
+
+#[test]
+fn a_loop_restores_float_rows_for_the_next_call_and_source_free_replay() {
+    let checked = crate::front_end::checked_program(GAUGE_LOOP);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("loop arrivals and normal return restore the downstream observer's field rows");
+    assert!(verify(&lowered.semantic_module, &lowered));
+    assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let evidence =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    terminal_verifier::verify_module(
+        &terminal_codec::decode_module(&semantic).unwrap(),
+        &terminal_codec::decode_proof_bundle(&evidence).unwrap(),
+        &AdmissionProfile::default(),
+    )
+    .expect("loop restoration survives independent source-free reload");
+    let mut broken = lowered.semantic_module.clone();
+    let mut changed = 0;
+    for operation in broken
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if operation.kind == ieee(0.25) {
+            operation.kind = ieee(2.0);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    assert!(
+        !verify(&broken, &lowered),
+        "the final store must restore the field before the backedge"
+    );
+}
+
+#[test]
+fn authored_state_declaration_rows_rejoin_the_exact_checked_source() {
+    for remove in [false, true] {
+        let mut checked = crate::front_end::checked_program(GAUGE_LOOP);
+        let state = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .find(|state| !state.requires.is_empty())
+            .expect("retained float declaration rows");
+        if remove {
+            state.requires.pop();
+        } else {
+            state.requires[0] = Some(checked_trees::ClosedScalarContractValue::Predicate(
+                checked_trees::CheckedBooleanExpression::Constant(true),
+            ));
+        }
+        let error = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+            .expect_err(
+                "neither a missing row nor a same-typed replacement may weaken a state contract",
+            );
+        assert!(
+            format!("{error:?}").contains("state declaration predicates differ from source"),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn an_open_float_invariant_window_cannot_cross_an_authored_state_transition() {
+    let source = GAUGE_LOOP.replace(
+        "context.value = 0.25;",
+        "transition { _ -> restore(context, round) } } state restore(context: &mut Main, round: u8) { context.value = 0.25;",
+    );
+    let errors = crate::front_end::checked_program_result(&source)
+        .expect_err("restoring in the next state is too late for the authored transition");
+    assert!(
+        format!("{errors:?}").contains("OPEN invariant window"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn final_state_store_invalidates_earlier_names_before_return_restoration() {
+    let checked = crate::front_end::checked_program(
+        "        data Main where value >= 0.0 && value <= 1.0 { value: f32; }
+        machine Main::main(context: &mut Main) {
+            transition { _ -> finish(context) }
+            state finish(context: &mut Main) { context.value = 0.25; }
+        }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the final state restores the original invocation storage");
+    assert!(verify(&lowered.semantic_module, &lowered));
+    let mut broken = lowered.semantic_module.clone();
+    let mut changed = 0;
+    for operation in broken
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if operation.kind == ieee(0.25) {
+            operation.kind = ieee(2.0);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    assert!(
+        !verify(&broken, &lowered),
+        "no later state arrival protects this return: old entry-name facts must expire on the aliased write"
+    );
 }
