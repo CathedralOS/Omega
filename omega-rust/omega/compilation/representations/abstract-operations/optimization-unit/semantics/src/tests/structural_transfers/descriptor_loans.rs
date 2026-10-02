@@ -104,8 +104,15 @@ fn address_join_read_only_call_does_not_escape_child() {
 }
 
 fn closed_call_candidate(writing_callee: bool) -> optimization_unit::PsiOptimizationUnit {
+    closed_call_with_observer("machine observe(values: &mut [u8]) { }", writing_callee)
+}
+
+fn closed_call_with_observer(
+    observer: &str,
+    writing_callee: bool,
+) -> optimization_unit::PsiOptimizationUnit {
     let source = format!(
-        "machine observe(values: &mut [u8]) {{ }}\n{}",
+        "{observer}\n{}",
         current_child_source().replace(
             "stamp(&mut packet.items);",
             "observe(&mut packet.items); stamp(&mut packet.items);"
@@ -163,5 +170,47 @@ fn closed_call_uses_the_current_callee_writes() {
             Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
         ),
         "a rewritten same-signature callee writes the live child's backing"
+    );
+}
+
+#[test]
+fn closed_call_boundary_without_structural_actuals_preserves_live_child() {
+    let candidate = closed_call_with_observer(
+        "machine observe(values: &mut [u8]) reaches Host { Host::exit(0); }",
+        false,
+    );
+    validate_address_join_ownership(&candidate)
+        .expect("the boundary receives no authority over the live child's backing");
+}
+
+#[test]
+fn closed_call_boundary_exclusive_actual_disturbs_live_child() {
+    let candidate = closed_call_with_observer(
+        r#"
+            boundary trait Input { machine read(values: &mut [u8]); }
+            machine observe(values: &mut [u8]) reaches Input { Input::read(values); }
+        "#,
+        false,
+    );
+    assert!(
+        candidate
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .any(|node| matches!(
+                &node.operation,
+                O::BoundaryCall { structural_arguments, .. }
+                    if structural_arguments.iter().any(|argument|
+                        argument.access == terminal_psi::StructuralAccess::MutableBorrow)
+            )),
+        "the actual boundary retains the callee's exclusive input"
+    );
+    assert!(
+        matches!(
+            validate_address_join_ownership(&candidate),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "a boundary may write every byte of its exact exclusive actual"
     );
 }

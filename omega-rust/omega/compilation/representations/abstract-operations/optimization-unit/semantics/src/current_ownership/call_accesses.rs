@@ -71,11 +71,29 @@ impl CallAccesses {
             if matches!(
                 node.operation,
                 O::CallDynamic { .. }
-                    | O::BoundaryCall { .. }
                     | O::Call { .. }
                     | O::AtomicEvent { .. }
                     | O::PortWrite { .. }
             ) {
+                return;
+            }
+            if let O::BoundaryCall {
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+                ..
+            } = &node.operation
+                && (structural_arguments
+                    .iter()
+                    .any(|argument| argument.access == StructuralAccess::Owned)
+                    || !completion_claim_sources.is_empty()
+                    || !completion_receipts.is_empty())
+            {
+                // Service reach grants no storage authority. Direct borrowed
+                // actuals have the declared access and exact referent projection
+                // checked by the boundary-call contract, so the ordinary write
+                // inventory bounds their effects. Owned carriers and completion
+                // custody need a separate mapping of carried authority.
                 return;
             }
             if let O::Return {
