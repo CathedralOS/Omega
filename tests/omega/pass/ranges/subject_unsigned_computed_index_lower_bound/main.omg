@@ -1,0 +1,27 @@
+// A computed index over UNSIGNED fields read through the machine's explicit
+// SUBJECT discharges its lower bound by type alone.
+//
+// `wh + wn` is hoisted into a synthetic temp, and the temp's carrier is what
+// proves the index non-negative: there is no `>= 0` guard here and none is
+// needed, because a `u64` sum cannot be negative. The temp takes its carrier
+// from the first place operand, so the operand must resolve -- through a
+// `&mut` subject exactly as it resolved through a `&mut self` receiver.
+//
+// The upper bound is the authored guard; only the lower half rides the type.
+//
+// Expected exit: 0.
+
+data Main {
+    arr: [i32 in Wrapping; 5];
+    wh: u64 in Wrapping;
+    wn: u64 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.wh = 1;
+    main.wn = 3;
+    transition main.wh + main.wn < 5 { true -> store(main) _ -> done(main) }
+
+    state store(main: &mut Main) { main.arr[main.wh + main.wn] = 11; }
+    state done(main: &mut Main) {}
+}

@@ -295,9 +295,14 @@ pub(super) fn infer_hoist_temp_type(
     // then reports its clean cannot-prove error).
     if let ExpressionNode::Binary(binary) = expressions.expression(initial_value) {
         for operand in [binary.left, binary.right] {
-            if let Some(place_type) =
-                collection_type_reference(lowerer, attached_data, state, operand)
-            {
+            // `member_chain_type`, not `collection_type_reference`: the latter
+            // resolves a member only when its receiver is spelled `self`, so
+            // an explicit subject (`main.k + 1`) found no place operand and the
+            // temp kept no carrier at all -- losing its unsignedness, which is
+            // what discharges an index's lower bound by type alone. The chain
+            // resolver reaches the same field through the subject parameter's
+            // declared type.
+            if let Some(place_type) = member_chain_type(lowerer, attached_data, state, operand) {
                 let base = base_scalar_type(lowerer.source_trees, &place_type).clone();
                 let scalar_handle = lower_type_reference_into_table(lowerer, &base)?;
                 // The operand's arithmetic policy is part of the computed
@@ -814,7 +819,9 @@ fn operand_declared_interval(
             inner.right,
         );
     }
-    let place_type = collection_type_reference(lowerer, attached_data, state, operand)?;
+    // The chain resolver, so an operand spelled through an explicit subject
+    // (`main.k`) contributes its declared range exactly as `self.k` does.
+    let place_type = member_chain_type(lowerer, attached_data, state, operand)?;
     declared_exact_range(lowerer.source_trees, &place_type).or_else(|| {
         dependent_exact_range_substituted(lowerer.source_trees, attached_data, &place_type)
     })
