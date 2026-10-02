@@ -237,7 +237,7 @@ pub(super) fn statement_uses_owner_path(
     }
 }
 
-pub(super) fn owner_path_overlaps_place_segments(
+pub(crate) fn owner_path_overlaps_place_segments(
     program: &typed_trees::TypedTrees,
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[facts::PlaceSegment],

@@ -4,6 +4,161 @@ use crate::tests::call_mutated_places;
 use crate::tests::front_end::typed_program;
 
 #[test]
+fn state_handoff_closes_local_view_of_reference_bearing_parent() {
+    let source = r#"
+        data Room { name: &[u8]; }
+        data Context { rooms: [Room; 3]; }
+        machine update(context: &mut Context) {
+            let rooms: &mut [Room] = context.rooms.as_mut_slice();
+            rooms[1].name = "expected";
+            transition rooms[0].name == "expected" {
+                true -> finish(context)
+                false -> finish(context)
+            }
+            state finish(context: &mut Context) {
+                context.rooms[2].name = "finished";
+            }
+        }
+    "#;
+    let mut checked = crate::tests::front_end::checked_program_result(source)
+        .expect("the local slice closes before the incoming parent reaches its successor");
+    let loan = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .find(|(_, loan)| checked.typed.symbols.name(loan.owner_symbol) == "rooms")
+        .expect("the local view retains its source loan")
+        .0;
+    let weakening = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .iter()
+        .find(|(_, weakening)| weakening.loan == loan)
+        .expect("exact scope closure")
+        .0;
+    checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get_mut(weakening)
+        .source = checked_trees::FlowInvalidationSource::Statement { statement_index: 0 };
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect_err("another closure coordinate cannot release this view at its edge");
+}
+
+#[test]
+fn state_handoff_does_not_hide_local_loan_in_parent_field() {
+    let source = r#"
+        data Context { item: u64; held: &u64; }
+        machine update(context: &mut Context) {
+            let held: &u64 = &context.item;
+            context.held = held;
+            transition held == 0 {
+                true -> finish(context)
+                false -> finish(context)
+            }
+            state finish(context: &mut Context) {
+                context.item = 1;
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    crate::tests::front_end::checked_program_result(source)
+        .expect_err("the parent still carries the local loan into a conflicting successor");
+}
+
+#[test]
+fn state_handoff_preserves_caller_backed_store() {
+    let source = r#"
+        data Context { item: u64; held: &u64; }
+        machine update(context: &mut Context, caller_value: &u64) {
+            context.held = caller_value;
+            let observed: &u64 = &context.item;
+            transition observed == 0 {
+                true -> finish(context)
+                false -> finish(context)
+            }
+            state finish(context: &mut Context) {
+                context.item = 1;
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    crate::tests::front_end::checked_program_result(source)
+        .expect("the stored caller loan outlives the state-local observation");
+}
+
+#[test]
+fn state_handoff_does_not_hide_local_loan_through_parent_alias() {
+    let source = r#"
+        data Context { item: u64; held: &u64; }
+        machine update(context: &mut Context) {
+            let alias: &mut Context = &mut context;
+            let held: &u64 = &alias.item;
+            alias.held = held;
+            transition held == 0 {
+                true -> finish(context)
+                false -> finish(context)
+            }
+            state finish(context: &mut Context) {
+                context.item = 1;
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    crate::tests::front_end::checked_program_result(source)
+        .expect_err("ending the alias cannot retire the loan stored in its parent");
+}
+
+#[test]
+fn state_handoff_rejects_parent_field_backed_by_dead_local() {
+    let source = r#"
+        data Context { held: &u64; }
+        machine update(context: &mut Context) {
+            let local: u64 = 7;
+            context.held = &local;
+            transition { _ -> finish(context) }
+            state finish(context: &mut Context) {
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    let diagnostics = crate::tests::front_end::checked_program_result(source)
+        .expect_err("disjoint local backing still expires before the successor");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("whose storage ends at the source state exit")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn state_handoff_retires_replaced_parent_field_loan() {
+    for assignments in [
+        "context.held = &context.item; context.held = caller_value;",
+        "let alias: &mut Context = &mut context; alias.held = &alias.item; alias.held = caller_value;",
+    ] {
+        let source = format!(
+            r#"
+            data Context {{ item: u64; held: &u64; }}
+            machine update(context: &mut Context, caller_value: &u64) {{
+                {assignments}
+                transition {{ _ -> finish(context) }}
+                state finish(context: &mut Context) {{ context.item = 1; }}
+            }}
+        "#
+        );
+        crate::tests::front_end::checked_program_result(&source)
+            .expect("replacing the field ends the old carried loan before the edge");
+    }
+}
+
+#[test]
 fn observation_loan_ends_before_explicit_context_state_handoff() {
     let source = "data Color [copy] { case Red; case Blue; }
         data Context { items: [Color; 3]; cursor: u64; }

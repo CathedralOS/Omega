@@ -48,6 +48,7 @@ use symbols::SymbolHandle;
 use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
 use aggregate::{BorrowedInitializer, BorrowedInitializerKind, borrowed_initializers};
+pub(crate) use owner_paths::store_destination_places;
 use owner_paths::{
     owner_path_from_place_segments, owner_path_matches, place_path_matches_owner_prefix,
 };
@@ -153,11 +154,11 @@ pub(super) fn statement_borrow_loans(
     }
 }
 
-/// Replacing an existing local or one of its fields must establish the same
-/// loans as an equivalent `let` initializer. Persistent machine storage is
-/// deliberately excluded here: loans that survive state transitions require
-/// the separate outlives/persistent-storage contract rather than a state-local
-/// tracker.
+/// A store installs the replacement's loans in its actual carrier. A projected
+/// store through a local reference belongs to that reference's backing storage,
+/// so ending the temporary reference cannot end loans installed in the parent.
+/// These rows retain conflicts within the source state; they do not establish
+/// outlives authority for transporting local storage into a successor.
 fn assignment_borrow_loans(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -175,9 +176,17 @@ fn assignment_borrow_loans(
     ) else {
         return Vec::new();
     };
-    let Some((_, local)) = program
+    let local = program
         .state_local_declaration(state, target.root_symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)
+        .map(|(_, local)| local);
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == target.root_symbol);
+    let Some(owner_name) = local
+        .map(|local| &local.name)
+        .or_else(|| parameter.map(|parameter| &parameter.name))
     else {
         return Vec::new();
     };
@@ -193,10 +202,9 @@ fn assignment_borrow_loans(
         return Vec::new();
     }
 
-    let target_owner_path = owner_path_from_place_segments(program, &target.segments);
     let synthetic_local = checked_trees::statement::TableLocalData {
-        symbol: local.symbol,
-        name: local.name.clone(),
+        symbol: target.root_symbol,
+        name: owner_name.clone(),
         type_reference: target_type,
         initial_value: assignment.value,
         is_mutable: true,
@@ -204,7 +212,7 @@ fn assignment_borrow_loans(
         relevance: language_core::BindingRelevance::Relevant,
     };
 
-    let mut loans = if is_reference_type(program, target_type) {
+    let loans = if is_reference_type(program, target_type) {
         reference_local_borrow_loans(
             program,
             state,
@@ -224,12 +232,33 @@ fn assignment_borrow_loans(
             loan_trackers,
         )
     };
-    for loan in &mut loans {
-        let mut path = target_owner_path.clone();
-        path.append(&mut loan.owner_path);
-        loan.owner_path = path;
-    }
-    loans
+    let destinations = store_destination_places(
+        program,
+        state,
+        target,
+        loan_trackers.iter().map(|loan| {
+            (
+                loan.owner_symbol,
+                loan.owner_path.as_slice(),
+                loan.place.root_symbol,
+                loan.place.segments.as_slice(),
+            )
+        }),
+    );
+    destinations
+        .iter()
+        .flat_map(|destination| {
+            let owner_path = owner_path_from_place_segments(program, &destination.segments);
+            loans.iter().cloned().map(move |mut loan| {
+                loan.owner_symbol = destination.root_symbol;
+                loan.owner_name = program.symbols.name(destination.root_symbol).into();
+                let mut path = owner_path.clone();
+                path.append(&mut loan.owner_path);
+                loan.owner_path = path;
+                loan
+            })
+        })
+        .collect()
 }
 
 fn reference_local_borrow_loans(

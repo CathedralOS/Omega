@@ -105,6 +105,43 @@ pub(crate) fn filter_reassigned_borrow_loans(
         }
     }
 
+    let target = checked_trees::CapturedPlace {
+        root_symbol: reassigned_symbol,
+        segments: reassigned_segments,
+    };
+    let destinations = crate::semantic::calls::find_state_with_machine(
+        program,
+        program.symbols.get(reassigned_symbol).parent,
+    )
+    .map(|(_, state)| {
+        crate::borrow::store_destination_places(
+            program,
+            state,
+            target.clone(),
+            constraint_refs
+                .span_or_empty(source)
+                .iter()
+                .filter_map(|constraint| match constraint.kind {
+                    FlowConstraintKind::BorrowLoan { loan } => Some(borrow.loans.get(loan)),
+                    _ => None,
+                })
+                .filter(|loan| loan.statement_index < statement_index)
+                .map(|loan| {
+                    (
+                        loan.owner_symbol,
+                        borrow.loan_owner_path(loan),
+                        loan.root_symbol,
+                        borrow.loan_segments(loan),
+                    )
+                }),
+        )
+    })
+    .unwrap_or_else(|| vec![target]);
+    let [destination] = destinations.as_slice() else {
+        // A may-alias set cannot prove which old slot was replaced.
+        return source;
+    };
+
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
@@ -112,12 +149,12 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 // Loans established by this assignment describe the replacement
                 // value and must survive it. Older loans carried by the
                 // overwritten whole/place are invalidated precisely.
-                let keep = active.owner_symbol != reassigned_symbol
+                let keep = active.owner_symbol != destination.root_symbol
                     || active.statement_index == statement_index
                     || !borrow_owner_path_overlaps_place(
                         program,
                         borrow.loan_owner_path(active),
-                        &reassigned_segments,
+                        &destination.segments,
                     );
                 if !keep {
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
