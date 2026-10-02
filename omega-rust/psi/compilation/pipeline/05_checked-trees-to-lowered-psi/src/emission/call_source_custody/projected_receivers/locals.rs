@@ -8,12 +8,11 @@ use checked_trees::{
     CheckedUnitStructuralParameterPlan, types::TypeReferenceNode,
 };
 
-/// An established shared-borrow local: a unique immutable declaration whose
-/// carrier is a `&T` type. Its storage is the referent's established place
-/// joined through its own result binding, never an owned record home -- so
-/// `declaration` above intentionally does not admit it. A mutable binding
-/// could reseat the referent and is not this carrier.
-pub(super) fn shared_borrow<'a>(
+/// An immutable retained borrowed carrier. Shared references already name a
+/// published referent; mutable slice locals name their published descriptor.
+/// Nominal mutable aliases still rejoin their original backing through alias
+/// replay, so retaining a descriptor never changes nominal alias semantics.
+pub(super) fn retained_borrowed_carrier<'a>(
     checked: &'a CheckedTrees,
     state: &checked_trees::state::State,
     statement: usize,
@@ -22,18 +21,34 @@ pub(super) fn shared_borrow<'a>(
     let (_, local) = checked
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement)?;
-    (!local.is_mutable
-        && local.initial_value.is_valid()
-        && matches!(
-            checked
-                .type_reference_table
-                .type_reference(local.type_reference),
-            TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                ..
-            }
-        ))
-    .then_some(local)
+    if local.is_mutable
+        || !checked
+            .expression_table
+            .expression_is_valid(local.initial_value)
+    {
+        return None;
+    }
+    match checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    {
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        } => Some(local),
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Mutable,
+            referee,
+            ..
+        } if matches!(
+            checked.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::Slice { .. }
+        ) =>
+        {
+            Some(local)
+        }
+        _ => None,
+    }
 }
 
 /// An immutable local whose value is a mutable reference returned by a call.

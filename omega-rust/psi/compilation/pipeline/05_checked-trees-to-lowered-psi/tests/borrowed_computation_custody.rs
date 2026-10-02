@@ -47,9 +47,23 @@ const MUTABLE_RANGE_INITIALIZER_SOURCE: &str = include_str!(concat!(
     "/../../../../../tests/omega/pass/slices/mutable_field_range_scalar_initializer_exit/main.omg"
 ));
 
+const MUTABLE_RANGE_LOCAL_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg"
+));
+
+#[test]
+fn mutable_range_local_computation_executes_once_before_observing_the_backing() {
+    assert_mutable_range_computation(MUTABLE_RANGE_LOCAL_SOURCE);
+}
+
 #[test]
 fn mutable_range_computation_executes_once_before_observing_the_backing() {
-    let checked = crate::front_end::checked_program(MUTABLE_RANGE_INITIALIZER_SOURCE);
+    assert_mutable_range_computation(MUTABLE_RANGE_INITIALIZER_SOURCE);
+}
+
+fn assert_mutable_range_computation(source: &str) {
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("main"),
@@ -117,6 +131,141 @@ fn mutable_range_computation_executes_once_before_observing_the_backing() {
         1,
         "the comparison must not replay its effectful operand"
     );
+}
+
+#[test]
+fn mutable_range_local_computation_rejects_carrier_custody_drift() {
+    let original = crate::front_end::checked_program(MUTABLE_RANGE_LOCAL_SOURCE);
+    let lower = |checked: &CheckedTrees| {
+        checked_trees_to_lowered_psi::lower_machine(checked, TerminalMachineSelection::Name("main"))
+    };
+    lower(&original).expect("the original named range custody lowers before corruption");
+    let main = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap();
+    let state = &original.machine_states(main)[0];
+    let statements = original.statement_table.statements(state.statement_nodes);
+    let (local_ordinal, local) = statements
+        .iter()
+        .enumerate()
+        .find_map(|(ordinal, statement)| {
+            let checked_trees::statement::StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.name.as_str() == "window").then_some((ordinal, local))
+        })
+        .expect("the authored descriptor local");
+    let other_owner = statements
+        .iter()
+        .find_map(|statement| {
+            let checked_trees::statement::StatementNode::LocalData(candidate) = statement else {
+                return None;
+            };
+            (candidate.symbol != local.symbol).then_some(candidate.symbol)
+        })
+        .unwrap();
+    for mutation in ["owner", "access"] {
+        let mut changed = original.clone();
+        for call in calls_to(&original, "stamp") {
+            let span = structural_span(&original, call);
+            let argument = changed
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .get_mut(span.start())
+                .as_place_mut()
+                .expect("the retained descriptor operand");
+            assert_eq!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: local.symbol
+                }
+            );
+            if mutation == "owner" {
+                argument.source = CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: other_owner,
+                };
+            } else {
+                argument.access = CheckedStructuralAccess::SharedBorrow;
+            }
+        }
+        assert!(
+            lower(&changed).is_err(),
+            "named mutable descriptor accepted changed {mutation}"
+        );
+    }
+    let mut changed = original.clone();
+    let mut reference = original
+        .type_reference_table
+        .type_reference(local.type_reference)
+        .clone();
+    let checked_trees::types::TypeReferenceNode::Reference { access, .. } = &mut reference else {
+        panic!("view reference");
+    };
+    *access = language_core::ReferenceAccess::Shared;
+    let reference = changed.typed.type_reference_table.insert(reference);
+    let checked_trees::statement::StatementNode::LocalData(local) = &mut changed
+        .typed
+        .statement_table
+        .statements_mut(state.statement_nodes)[local_ordinal]
+    else {
+        unreachable!();
+    };
+    local.type_reference = reference;
+    assert!(
+        lower(&changed).is_err(),
+        "a shared source declaration cannot grant mutable view access"
+    );
+
+    for mutation in ["missing", "substituted"] {
+        let mut changed = original.clone();
+        let operations = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .find_map(|state| {
+                state.operations.iter().any(|operation| matches!(operation,
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            )).then_some(&mut state.operations)
+            })
+            .expect("the descriptor has a retained range establishment");
+        let position = operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                )
+            })
+            .unwrap();
+        if mutation == "missing" {
+            operations.remove(position);
+        } else {
+            let checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                source, ..
+            } = &mut operations[position]
+            else {
+                unreachable!();
+            };
+            let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { end, .. } =
+                &mut source.source
+            else {
+                panic!("the original descriptor retains its exact element range");
+            };
+            assert!(end.is_some());
+            *end = None;
+        }
+        assert!(
+            lower(&changed).is_err(),
+            "named mutable descriptor accepted {mutation} range establishment"
+        );
+    }
 }
 
 #[test]
