@@ -304,13 +304,23 @@ fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bo
     let leaf_is_typeable = |operand: ExpressionHandle| -> bool {
         match expressions.expression(operand) {
             ExpressionNode::Integer(_) => true,
+            // A field of the machine's data, through whichever binding this
+            // state reaches it: `self` under the receiver spelling, an
+            // ordinary parameter under the static one. `member_chain_type`
+            // resolves either root, so both are typeable as a hoist temp.
             ExpressionNode::Member(member) => matches!(
                 expressions.expression(member.receiver),
                 ExpressionNode::Name(path)
                     if expressions
                         .name_path_members(path.members)
                         .first()
-                        .is_some_and(|name| name.is_self_receiver())
+                        .is_some_and(|name| {
+                            name.is_self_receiver()
+                                || lowerer
+                                    .current_state_parameter_names
+                                    .iter()
+                                    .any(|parameter| parameter == name.as_str())
+                        })
             ),
             ExpressionNode::Name(path) => {
                 let members = expressions.name_path_members(path.members);
