@@ -112,47 +112,18 @@ execution and native exit/output. A moved refusal is still unfinished work.
 
 ## Immediate product closure
 
-- **STATIC-NOMINAL-BINDER-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
-  A NOMINAL machine binder over a receiver-spelled trait requirement cannot take
-  a satisfier that names its subject. Not blocking: the structural binder is a
-  complete alternative and already works, so this is precision, not a gap in the
-  migration path.
-  What was measured on 2026-10-02, so it is not re-derived. A receiver-style
-  call is not a static spelling at all --
-  [machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
-  removes "implicit receiver, bound-method value, or receiver-inserting call
-  syntax" and spells the call `Counter::clear(&mut counter)`. So
-  `subject.increment()` in a generic body, and `main.bump(5)` on a static
-  machine, are both authored debt rather than compiler gaps; the arity refusal
-  they get ("state `bump` expects 2 argument(s), got 1") is correct.
-  `report_argument_count_mismatch` must NOT be generalized to accept them -- that
-  would resurrect the syntax the contract removes.
-  The static spelling of a bounded generic is a machine binder with an authored
-  contract plus explicit machine arguments, and it compiles and runs today:
-  `machine step<T, machine Increment>(subject: &mut T) where machine
-  Increment(target: &mut T); { Increment(subject); }` called as
-  `step<Counter, Counter::increment>(&mut main.counter)`.
-  `pass/traits/trait_generic_bound_static_dispatch` is migrated to it and meets
-  its native oracle at exit 1. Both halves are load-bearing: the binder needs
-  `<machine Increment>` in the generic list AND a semicolon-terminated
-  `where machine Increment ...;` of its own (comma-joining it to a type bound
-  parses as a clause keyword and rejects), and the call must pass the machine
-  argument.
-  What is left is only the NOMINAL contract form
-  (`where machine Increment satisfies Incrementable::increment;`). With a
-  satisfier that names its subject it reports "parameter 0 has a different
-  calling mode" from
-  `machine_parameters/callable_shape.rs`'s `required.is_self != actual.is_self`.
-  Relaxing that alone is not enough and was measured: the next refusal is
-  "parameter 0 expects `&mut Self`, got `&mut Counter`" (the subject position
-  needs the shape-only treatment the conformance route gives it), and after that
-  "state `increment` expects 0 argument(s), got 1" -- the requirement's `self` is
-  excluded from authored arguments while a binder call, being a static call, must
-  author it. So the nominal form needs the binder's arity taken from the selected
-  declaration rather than the requirement. Three linked sites, no customer that
-  the structural form does not already serve.
-  Acceptance: a fixture spelling the nominal binder over a static satisfier
-  checks and runs, and the structural form keeps working.
+- **STATIC-GENERIC-REFERENCE-FORWARDING.** (split-of:STATIC-NOMINAL-BINDER-SUBJECT)
+  Forwarding a lent generic context into another static generic call rejects
+  before execution. Compose `trait_generic_bound_static_dispatch` with
+  `forward<T, machine Increment>(subject: &mut T)` calling
+  `step<T, Increment>(subject)` under the same authored machine-binder contract;
+  entry calls `forward<Counter, Counter::increment>(&mut main.counter)`.
+  Both structural and nominal binder forms report "argument `subject` for state
+  `entry` expects `&mut T`, got `named value`". Preserve the caller/callee type
+  parameter correspondence and the existing reference permission through the
+  ordinary call path; do not equate type parameters by spelling or require an
+  extra authored reborrow. Acceptance: both compositions run with native and
+  checked-interpreter exit 1, while incompatible carrier or access still rejects.
 
 - **STATIC-SUBJECT-IN-CALLABLE-IDENTITY.** (split-of:STATIC-MACHINE-MIGRATION)
   A boundary provider's satisfier cannot name its subject, because the

@@ -4,7 +4,7 @@ use typed_trees::data::TypeParameter;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
-pub(super) struct TypeBinding {
+pub(in crate::machine_calls) struct TypeBinding {
     pub(super) symbol: SymbolHandle,
     pub(super) actual: TypeReferenceHandle,
 }
@@ -30,6 +30,7 @@ pub(super) fn required_type_matches(
         generic_types,
         bindings,
         binder_bindings,
+        TypeReferenceHandle::invalid(),
     )
 }
 
@@ -40,7 +41,82 @@ pub(super) fn required_type_matches_exact(
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
 ) -> bool {
-    required_type_matches_inner::<true>(program, actual, required, generic_types, bindings, &[])
+    required_type_matches_inner::<true>(
+        program,
+        actual,
+        required,
+        generic_types,
+        bindings,
+        &[],
+        TypeReferenceHandle::invalid(),
+    )
+}
+
+/// The selected declaration's receiver placeholder denotes its attached
+/// carrier. Named subject parameters already retain their exact application.
+/// Missing concrete carrier identity cannot be repaired from source spelling.
+pub(super) fn selected_subject_carrier(
+    program: &TypedTrees,
+    machine: Option<&typed_trees::machine::Machine>,
+    parameter: &typed_trees::signature::StateParameter,
+) -> TypeReferenceHandle {
+    let Some(carrier) =
+        crate::value_custody::places::unwrapped_type_reference(program, parameter.type_reference)
+    else {
+        return TypeReferenceHandle::invalid();
+    };
+    if !crate::declarations::traits::required_is_self_type(program, carrier) {
+        return carrier;
+    }
+    let Some(machine) = machine else {
+        return carrier;
+    };
+    program
+        .type_reference_table
+        .find_named_type_reference(machine.attached_data_symbol)
+        .unwrap_or_else(TypeReferenceHandle::invalid)
+}
+
+/// A nominal subject supplies the carrier for every `Self` occurrence while
+/// the ordinary matcher still checks reference shells, generic structure and
+/// repeated type bindings. A role match alone never proves access compatibility.
+pub(super) fn required_type_matches_with_subject(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+    subject: TypeReferenceHandle,
+) -> bool {
+    required_type_matches_inner::<false>(
+        program,
+        actual,
+        required,
+        generic_types,
+        bindings,
+        binder_bindings,
+        subject,
+    )
+}
+
+pub(in crate::machine_calls) fn required_type_matches_exact_with_subject(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    subject: TypeReferenceHandle,
+) -> bool {
+    required_type_matches_inner::<true>(
+        program,
+        actual,
+        required,
+        generic_types,
+        bindings,
+        &[],
+        subject,
+    )
 }
 
 fn required_type_matches_inner<const EXACT: bool>(
@@ -50,9 +126,28 @@ fn required_type_matches_inner<const EXACT: bool>(
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &[BinderBinding],
+    subject: TypeReferenceHandle,
 ) -> bool {
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
+    }
+    let actual = if subject.is_valid()
+        && crate::declarations::traits::required_is_self_type(program, actual)
+    {
+        subject
+    } else {
+        actual
+    };
+    if subject.is_valid() && crate::declarations::traits::required_is_self_type(program, required) {
+        return required_type_matches_inner::<EXACT>(
+            program,
+            actual,
+            subject,
+            &[],
+            &mut Vec::new(),
+            &[],
+            TypeReferenceHandle::invalid(),
+        );
     }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
@@ -81,6 +176,7 @@ fn required_type_matches_inner<const EXACT: bool>(
                     &[],
                     &mut Vec::new(),
                     binder_bindings,
+                    subject,
                 );
             }
             bindings.push(TypeBinding {
@@ -115,6 +211,7 @@ fn required_type_matches_inner<const EXACT: bool>(
                     generic_types,
                     bindings,
                     binder_bindings,
+                    subject,
                 )
         }
         (
@@ -133,6 +230,7 @@ fn required_type_matches_inner<const EXACT: bool>(
             generic_types,
             bindings,
             binder_bindings,
+            subject,
         ),
         // A constraint (`Token in Carry::AcrossSuspend`) is a value-level
         // permission or domain on its carrier, not a different type. The
@@ -154,6 +252,7 @@ fn required_type_matches_inner<const EXACT: bool>(
             generic_types,
             bindings,
             binder_bindings,
+            subject,
         ),
         (
             TypeReferenceNode::Constrained {
@@ -168,6 +267,7 @@ fn required_type_matches_inner<const EXACT: bool>(
             generic_types,
             bindings,
             binder_bindings,
+            subject,
         ),
         (
             TypeReferenceNode::FixedArray {
@@ -187,6 +287,7 @@ fn required_type_matches_inner<const EXACT: bool>(
                     generic_types,
                     bindings,
                     binder_bindings,
+                    subject,
                 )
         }
         (
@@ -203,6 +304,7 @@ fn required_type_matches_inner<const EXACT: bool>(
             generic_types,
             bindings,
             binder_bindings,
+            subject,
         ),
         (
             TypeReferenceNode::Generic {
@@ -242,6 +344,7 @@ fn required_type_matches_inner<const EXACT: bool>(
                             generic_types,
                             bindings,
                             binder_bindings,
+                            subject,
                         )
                     })
         }

@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateSignature;
+use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 
@@ -116,6 +116,36 @@ pub fn declared_signature_invocations(
         program.state_signature_invokes(signature),
         &parameters,
     )
+}
+
+/// Rejoin the inference vocabulary's non-receiver ordinal to the full
+/// positional signature used by explicit static calls and refinement.
+pub(crate) fn full_parameter_invocation(
+    target: InvocationTarget,
+    parameters: &[StateParameter],
+) -> Option<InvocationTarget> {
+    match target {
+        InvocationTarget::Parameter(ordinal) => parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| !parameter.is_self)
+            .nth(ordinal as usize)
+            .and_then(|(position, _)| u32::try_from(position).ok())
+            .map(InvocationTarget::Parameter),
+        target => Some(target),
+    }
+}
+
+fn explicit_signature_invocations(
+    program: &TypedTrees,
+    signature: &StateSignature,
+) -> Vec<InvocationTarget> {
+    declared_signature_invocations(program, signature)
+        .into_iter()
+        .filter_map(|target| {
+            full_parameter_invocation(target, program.state_signature_parameters(signature))
+        })
+        .collect()
 }
 
 /// Exact normalized target set authored by one machine's `invokes` clauses.
@@ -799,19 +829,26 @@ fn push_call(
     // component and belongs in the realized provider graph, not in the
     // caller's refinement set. Local/helper calls still substitute their
     // declared binding parameters so forwarding is inferred precisely.
-    let declared = (!crosses_boundary)
-        .then(|| {
+    let binder_signature = program
+        .retained_static_machine_contract(static_machine_parameter)
+        .map(typed_trees::data::MachineParameterContractView::signature)
+        .or_else(|| {
             program
-                .retained_static_machine_contract(static_machine_parameter)
-                .map(typed_trees::data::MachineParameterContractView::signature)
-                .or_else(|| signature_for_symbol(program, target))
-        })
-        .flatten()
-        .map(|signature| declared_signature_invocations(program, signature))
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|target| substitute_target(target, &arguments))
-        .collect::<Vec<_>>();
+                .machine_parameter_signature(target)
+                .map(|(_, signature)| signature)
+        });
+    let declared = if crosses_boundary {
+        Vec::new()
+    } else if let Some(signature) = binder_signature {
+        explicit_signature_invocations(program, signature)
+    } else {
+        signature_for_symbol(program, target)
+            .map(|signature| declared_signature_invocations(program, signature))
+            .unwrap_or_default()
+    }
+    .into_iter()
+    .filter_map(|target| substitute_target(target, &arguments))
+    .collect::<Vec<_>>();
     calls.push(CallWork {
         // A boundary receiver is a modular call through its requirement. Do
         // not accidentally follow whichever checked adapter happened to

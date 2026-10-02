@@ -1,3 +1,4 @@
+use super::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
@@ -161,8 +162,16 @@ fn validate_conformance_refinement(
             })
             .collect::<Vec<_>>();
         for requirement in matching {
-            let allowed = crate::declared_signature_invocations(program, requirement);
             let parameters = program.state_signature_parameters(requirement);
+            let allowed = crate::declared_signature_invocations(program, requirement)
+                .into_iter()
+                .map(|target| full_parameter_invocation(target, parameters))
+                .collect::<Option<Vec<_>>>();
+            let actual_parameters = program
+                .machine_states(machine)
+                .first()
+                .map(|state| program.state_parameters(state))
+                .unwrap_or_default();
             let self_forwarded = trait_definition.is_boundary
                 && crate::has_self_forwarded_boundary_parameter(
                     program,
@@ -183,10 +192,37 @@ fn validate_conformance_refinement(
                     }
                     target => Some(target),
                 })
-                .collect::<Vec<_>>();
+                .map(|target| {
+                    // The boundary adapter's extra receiver was removed above,
+                    // so its remaining ordinals already name requirement
+                    // parameters. Ordinary satisfiers retain their own roster.
+                    full_parameter_invocation(
+                        target,
+                        if self_forwarded {
+                            parameters
+                        } else {
+                            actual_parameters
+                        },
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
+            let (Some(actual), Some(allowed)) = (actual, allowed) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` conformance to `{}::{}` retains an invocation outside its declared parameter roster",
+                    machine.name, trait_definition.name, requirement.name,
+                )));
+                continue;
+            };
+            // Both sets now use full formal positions. Keep diagnostic labels
+            // in that same namespace; the reporting helper otherwise removes
+            // legacy self a second time.
+            let mut explicit_parameters = parameters.to_vec();
+            for parameter in &mut explicit_parameters {
+                parameter.is_self = false;
+            }
             report_missing_targets(
                 program,
-                parameters,
+                &explicit_parameters,
                 &actual,
                 &allowed,
                 |binding, ceiling| {

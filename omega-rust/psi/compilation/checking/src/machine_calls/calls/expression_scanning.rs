@@ -6,9 +6,9 @@
 
 use super::{
     free_machine_entry_state, machine_state_by_symbol, user_asm_contract,
-    validate_asm_operand_constraint, validate_call_arguments_handles,
-    validate_call_arguments_handles_with_policy_retention, validate_generic_bound_argument_types,
-    validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
+    validate_asm_operand_constraint, validate_call_arguments_handles_with_policy_retention,
+    validate_generic_bound_argument_types, validate_machine_call_type_parameter_bounds,
+    validate_value_call_argument_classes,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
@@ -530,15 +530,13 @@ fn validate_expression_call_bounds(
                     signature.name,
                 )));
             }
-            validate_call_arguments_handles(
+            super::validate_machine_parameter_arguments(
                 program,
                 current_machine,
                 Some(current_state),
                 value_environment,
                 arguments,
-                signature.name.as_str(),
-                program.state_signature_parameters(signature),
-                None,
+                signature,
                 writable_roots,
                 diagnostics,
             );
