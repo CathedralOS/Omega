@@ -2361,8 +2361,7 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 706ms @4e4bfed
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
 pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms @1da616075c39+wt
-pass/wire/runtime_wire_policy_authored_plan_exit rejected 364ms @4e4bfed13aee+wt
-	build-time evaluation of `CompactBinary::plan` failed for `CounterMessage`: machine `CompactBinary::plan` takes 2 argument(s); the build-time position supplied 1
+pass/wire/runtime_wire_policy_authored_plan_exit checked 38801ms @866d948d5b4a
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms @011fd400e8c1+wt
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1733ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)

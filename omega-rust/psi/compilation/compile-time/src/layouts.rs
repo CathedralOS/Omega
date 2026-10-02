@@ -7,5 +7,6 @@ pub(crate) mod layout_plans;
 pub(crate) mod materialization;
 pub(crate) mod placed_views;
 pub(crate) mod plan_laid;
+mod policy_arguments;
 pub(crate) mod schema_reflection;
 pub(crate) mod wire_plans;

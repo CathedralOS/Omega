@@ -1154,6 +1154,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `host/runtime_gui_foreground_window_exit` | Windows, exact authored Gui provider: create, query/store foreground result, destroy, exit 70. An invisible window need not become foreground. |
   | `control_flow/runtime_{integer,string}_literal_dispatch_exit` | Exits 22 and 11 for `"look"`, with authored selection order and ordinary result/field storage. Both exit natively on macOS ARM64 with checked-interpreter agreement; retain integer dispatch as the control while completing the host matrix. **MATCH-SELECTIVE-LOWERING** / **STATE-LOCAL-VALUE-FRONTIER**. |
   | `wire/runtime_wire_exact_array_without_count_exit` | Generated `[u32; 4]` encoding without a synthetic count sibling: seven bytes `00 00 04 01 02 03 04`, exit 70, and checked-interpreter agreement. **WIRE-RUNTIME-AND-INSTALLATION** owns the generated operation; native execution remains part of this integration gate. |
+  | `wire/runtime_wire_policy_authored_plan_exit` | On Linux x86-64 at `a885574d3d6` plus the shared policy-context repair, the unchanged authored plan and eight-byte round trip execute with native/interpreter exit 70 under `omega run --both tests/omega/pass/wire/runtime_wire_policy_authored_plan_exit/main.omg` after local package review. Build now supplies fresh, established context storage at the policy's exact declared subject position; layout, access and wire scheduling share that operation. The fixture README records preparation, and `expected_native_exit.txt` pins 70. Preserve policy/codec agreement, effect admission, zero-domain establishment and reference-field rejection. |
 
   Route additional omissions to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
@@ -2191,9 +2192,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   wire/runtime_wire_decode_rejects_wrong_era_exit,wire/runtime_wire_roundtrip_nested_and_repeated_exit`.
   Terminal reconstruction now joins each borrowed view's observed length to
   its own `ViewExtent` and substitutes exact structural arguments in state
-  arrival requirements. The full sample, noncanonical-varint and authored-plan
-  customers still need rerunning; their prior view-length blocker is not a
-  current failure measurement. The round trip compiles in 163884 ms; sampling
+  arrival requirements. The full sample and noncanonical-varint customers
+  still need rerunning; their prior view-length blocker is not a current failure
+  measurement. The authored-plan customer now executes with native/interpreter
+  exit 70 on Linux x86-64 after the shared Build policy-context repair recorded
+  under CANARY-CORPUS. The round trip compiles in 163884 ms; sampling
   found register-home validation under spill recovery, specifically
   `05_selected-instructions-to-register-homes/src/assignment/home_assignment/validate/`.
   Reduce that measured work without bypassing replay. Acceptance stays unchanged `samples/cli/systems/wire_protocol`

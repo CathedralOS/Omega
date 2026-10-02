@@ -673,7 +673,7 @@ impl<'program> Evaluator<'program> {
     /// Build a default-initialized value for a declared type, recursing into nested `data`
     /// records (a sub-Struct with its own defaults) and fixed arrays (an `Array` of
     /// per-element default cells). Falls back to the primitive/unit default.
-    pub(in crate::interpreter::evaluator) fn default_value_for_type(
+    pub(in crate::interpreter) fn default_value_for_type(
         &mut self,
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {

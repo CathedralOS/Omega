@@ -229,6 +229,28 @@ pub fn verify_wire_schema_codec(
     evaluator.verify_synthesized_wire_codec(schema)
 }
 
+/// Materialize the interpreter's ordinary zero representation for a compiler-
+/// supplied argument. The caller must establish that zero inhabits this exact
+/// declared type before requesting it; this operation grants no domain fact or
+/// reference authority. Policy scheduling uses it for fresh, private context
+/// storage, then passes that value through the ordinary positional evaluator.
+pub fn materialize_zero_initialized_build_time_value(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> Result<BuildTimeValue, String> {
+    let mut evaluator = Evaluator::new(program, &[]);
+    let value =
+        evaluator
+            .default_value_for_type(type_reference)
+            .map_err(|reason| match reason {
+                Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => {
+                    message
+                }
+                Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
+            })?;
+    Ok(BuildTimeValue::from_value(&value))
+}
+
 /// Evaluate one build-time machine for its structured return value and the
 /// private layout placements it issued. Selected operators are honored; the
 /// evaluation is pure and unsponsored.
