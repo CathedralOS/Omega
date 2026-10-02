@@ -46,7 +46,6 @@ This complete output was compared with an independent simulation on macOS
 ARM64; native execution exits 0. Other declared hosted targets still require
 matching-host execution.
 
-The checked interpreter currently declines this program because it has no
-provider for the selected `ClockNativeProvider::poll` realization. With
-`--both`, the CLI reports `native exit 0` and this interpreter limitation on
-stderr; its process exit of 0 does not establish interpreter execution.
+Both native execution and checked interpretation exit 0 on macOS ARM64.
+The checked sleep adapter executes normally; its exact selected foreign wait
+advances virtual time without delaying the interpreter or invoking a host import.

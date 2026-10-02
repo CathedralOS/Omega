@@ -509,6 +509,22 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
+        // An explicitly bound bodyless wait is a host call even when its
+        // top-level requirement has a resolvable entry state. Checked adapters
+        // above still execute before their external leaf reaches this route.
+        if let Some(value) = self.try_virtual_clock_wait(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
+
         // A boundary operator application (`CheckedMath::offset_zero(70)`,
         // `I8::from_f32(x)`, a policy cast bound to its conversion) or a
         // spelled float operation bound to its bodyless `Float` requirement
@@ -1044,7 +1060,7 @@ impl<'program> Evaluator<'program> {
                     return Ok(value);
                 }
                 if target == "tick_count" {
-                    self.virtual_ticks += 1;
+                    self.advance_virtual_clock(1)?;
                     return Ok(Value::Int(self.virtual_ticks));
                 }
                 if target == "key_state" {

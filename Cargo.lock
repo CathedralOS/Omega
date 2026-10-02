@@ -1255,11 +1255,14 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "calling-conventions",
  "checked-interpreter",
+ "checked-trees",
  "checked-trees-to-lowered-psi",
  "compilation-products",
  "compiler",
  "diagnostics",
+ "effects",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
@@ -1269,13 +1272,17 @@ dependencies = [
  "package-source",
  "platform-custody",
  "proof-admission",
+ "provider-planning",
  "resolver-execution",
  "semantic-vocabulary",
+ "source",
+ "symbols",
  "target",
  "terminal-fixed-fuel",
  "terminal-psi",
  "terminal-verifier",
  "trust-ledger",
+ "typed-trees",
 ]
 
 [[package]]

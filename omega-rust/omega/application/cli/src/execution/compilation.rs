@@ -14,6 +14,8 @@ use package_manager::operations::{
     compile_prepared_local_project_for_native, prepare_local_project,
 };
 
+mod virtual_clock;
+
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
     pub interpretation: Option<Result<InterpretOutcome, Vec<Diagnostic>>>,
@@ -91,7 +93,10 @@ fn interpret_checked(
     // The entry shape, not the interpreter, names the context occurrence the
     // arrival bridge provisions.
     let signature = entry.source_signature();
-    let mut options = InterpretOptions::default();
+    let mut options = InterpretOptions {
+        virtual_clock_wait_bindings: virtual_clock::bindings(checked)?,
+        ..InterpretOptions::default()
+    };
     if let Some(context) = signature.receiver().source_symbol() {
         options = options.with_provisioned_context_parameter(context);
     }

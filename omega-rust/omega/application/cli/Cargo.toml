@@ -33,3 +33,12 @@ proof-admission = { path = "../../../psi/compilation/proof/admission" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-fixed-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel/certification" }
 terminal-verifier = { path = "../../../psi/compilation/representations/terminal-psi/verification" }
+
+# Selected virtual host providers are interpreted only after exact Omega settlement.
+effects = { path = "../../compilation/backend/plans/provider-evidence" }
+provider-planning = { path = "../../compilation/realization/provider-planning" }
+checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
+typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+symbols = { path = "../../../psi/foundation/symbols" }
+source = { path = "../../../psi/foundation/source" }
+calling-conventions = { path = "../../compilation/backend/calling-conventions" }
