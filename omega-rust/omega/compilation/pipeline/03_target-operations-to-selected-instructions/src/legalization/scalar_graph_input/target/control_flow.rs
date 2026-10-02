@@ -103,6 +103,13 @@ pub(super) fn validate(
     // state it leaves suspended.
     let block_entries = super::super::reference_custody::block_entry_states(optimized, plan, unit)?;
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
+        let body_len = block
+            .operations
+            .iter()
+            .position(|row| matches!(row, TargetUnitOperation::CleanupCall { .. }))
+            .unwrap_or(block.operations.len());
+        let (body, cleanup_calls) = block.operations.split_at(body_len);
+
         if block.block != source.id
             || block.structural_parameters != source.structural_parameters
             || block.parameters.len() != source.parameters.len()
@@ -119,7 +126,7 @@ pub(super) fn validate(
                 .iter()
                 .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
                 .count()
-                != block.operations.len() + 1
+                != body.len() + 1
         {
             return Err(LegalizationError::custody());
         }
@@ -133,7 +140,7 @@ pub(super) fn validate(
             .get(&block.block)
             .cloned()
             .ok_or(LegalizationError::custody())?;
-        for (operation, node) in block.operations.iter().zip(&source_nodes) {
+        for (operation, node) in body.iter().zip(&source_nodes) {
             // Returns belong only to the terminator, never an ordinary row.
             if matches!(operation, TargetUnitOperation::Return { .. }) {
                 return Err(LegalizationError::custody());
@@ -164,6 +171,14 @@ pub(super) fn validate(
             .last()
             .ok_or(LegalizationError::custody())?
             .operation;
+        super::super::cleanup_calls::validate_target(
+            cleanup_calls,
+            source_terminator,
+            optimized,
+            native,
+            plan,
+            unit,
+        )?;
         // The terminator's edge-local discards move custody after every row,
         // in the same order the lowering's cleanup pass commits them.
         super::super::reference_custody::apply_terminator(

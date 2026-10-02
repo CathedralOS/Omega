@@ -10,8 +10,12 @@ pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    native: &target_operations::TargetOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
-    match &node.operation {
+    let cleanup_calls =
+        scalar_graph_input::cleanup_calls::expected(&node.operation, function, native, plan, unit)?;
+    let result = match &node.operation {
         AbstractOperation::Crash {
             psi_edge,
             cause,
@@ -100,7 +104,17 @@ pub(super) fn project(
             })
         }
         _ => Err(Error::custody()),
+    }?;
+    if cleanup_calls.is_empty() {
+        return Ok(result);
     }
+    let LegalizedScalarTerminator::Return(returned) = result else {
+        return Err(Error::custody());
+    };
+    Ok(LegalizedScalarTerminator::ReturnCleanup {
+        returned,
+        calls: cleanup_calls,
+    })
 }
 fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSuccessor {
     LegalizedScalarSuccessor {

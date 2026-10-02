@@ -1036,6 +1036,30 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
+            bytes.push(5);
+            encode_terminator(bytes, &LegalizedScalarTerminator::Return(returned.clone()));
+            encode_len(bytes, calls.len());
+            for (owner, call) in calls {
+                match owner {
+                    target_operations::CallSiteOwner::Operation(operation) => {
+                        bytes.push(0);
+                        bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    }
+                    target_operations::CallSiteOwner::CleanupAction {
+                        edge,
+                        action_ordinal,
+                    } => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&edge.get().to_le_bytes());
+                        bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+                    }
+                }
+                let encoded = call.canonical_bytes();
+                encode_len(bytes, encoded.len());
+                bytes.extend_from_slice(&encoded);
+            }
+        }
         LegalizedScalarTerminator::Crash {
             psi_edge,
             cause,

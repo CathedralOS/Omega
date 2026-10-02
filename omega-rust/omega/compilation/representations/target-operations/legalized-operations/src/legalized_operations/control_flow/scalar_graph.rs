@@ -1062,6 +1062,11 @@ pub enum LegalizedScalarTerminator {
         ownership: Vec<OwnershipEvent>,
     },
     Return(LegalizedScalarReturn),
+    /// Ordinary ABI calls performed by this return's ordered cleanup roster.
+    ReturnCleanup {
+        returned: LegalizedScalarReturn,
+        calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
+    },
     Jump {
         successor: LegalizedScalarSuccessor,
         effect: EffectLink,
@@ -1088,8 +1093,10 @@ impl LegalizedScalarTerminator {
         match self {
             Self::Crash { .. } => false,
             Self::StructuralCase { .. } => false,
-            Self::Return(returned) => matches!(returned.value,
-                LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value),
+            Self::Return(returned) | Self::ReturnCleanup { returned, .. } => {
+                matches!(returned.value,
+                LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)
+            }
             Self::Jump { successor, .. } => binds(successor),
             Self::Conditional {
                 condition,

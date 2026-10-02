@@ -71,7 +71,7 @@ pub(super) fn derive(
                 parameters: block.parameters.clone(),
                 structural_parameters: block.structural_parameters.clone(),
                 instructions,
-                terminator: terminator::project(last, optimized, plan)?,
+                terminator: terminator::project(last, optimized, plan, native, unit)?,
             })
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;

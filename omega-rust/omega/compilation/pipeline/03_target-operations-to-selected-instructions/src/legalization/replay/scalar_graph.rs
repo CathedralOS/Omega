@@ -111,7 +111,15 @@ pub(super) fn replay(
             optimized,
             plan,
         )?;
-        terminator::validate(&block.terminator, last, optimized, plan, &custody)?;
+        terminator::validate(
+            &block.terminator,
+            last,
+            optimized,
+            plan,
+            &custody,
+            native,
+            unit,
+        )?;
     }
     Ok(())
 }

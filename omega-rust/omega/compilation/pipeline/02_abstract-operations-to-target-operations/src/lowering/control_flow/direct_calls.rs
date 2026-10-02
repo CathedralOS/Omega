@@ -807,3 +807,100 @@ mod tests {
         );
     }
 }
+
+/// Cleanup selects a callee through the verified return roster, then uses the
+/// same signature and operand transport as an ordinary call. The edge/action
+/// identity never substitutes an authored operation identity.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_cleanup_calls(
+    terminator: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    types: &StructuralTypeLookup<'_>,
+    prepared: &PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+) -> Result<(), LoweringError> {
+    let (edge, actions) = match terminator {
+        AbstractOperation::ReturnUnit {
+            psi_edge,
+            cleanup_actions,
+        }
+        | AbstractOperation::Return {
+            psi_edge,
+            cleanup_actions,
+            ..
+        } => (*psi_edge, cleanup_actions),
+        _ => return Ok(()),
+    };
+    for (ordinal, action) in actions.iter().enumerate() {
+        let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+            continue;
+        };
+        let invalid = || LoweringError::unsupported_control_flow(function.machine);
+        let callee = functions
+            .get(&cleanup.cleanup_machine)
+            .copied()
+            .ok_or_else(invalid)?;
+        if callee.attachment != Some(cleanup.structural_type)
+            || callee.result != AbstractFunctionResult::Unit
+            || !callee.parameters.is_empty()
+            || callee.structural_parameters.len() > 1
+            || !cleanup.requirement_obligations.is_empty()
+        {
+            return Err(invalid());
+        }
+        let signature = prepare_function_signature(callee, target, types)?;
+        let mut arguments = Vec::new();
+        for (parameter, destination) in callee
+            .structural_parameters
+            .iter()
+            .zip(&signature.parameters)
+        {
+            if parameter.position != 0
+                || parameter.structural_type != cleanup.structural_type
+                || cleanup.cleanup_receiver != Some(parameter.place)
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+            {
+                return Err(invalid());
+            }
+            let argument = StructuralArgument {
+                place: cleanup.place,
+                path: Vec::new(),
+                access: parameter.access,
+            };
+            // A whole owned record lends its original home; it does not copy
+            // that home into the cleanup's borrowed parameter.
+            arguments.push(super::borrowed_calls::argument(
+                &argument,
+                parameter,
+                destination,
+                function,
+                prepared,
+                live,
+                types,
+            )?);
+        }
+        if !signature.scalar_parameters.is_empty()
+            || !signature.dynamic_parameters.is_empty()
+            || signature.parameters.len() != callee.structural_parameters.len()
+            || (callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some())
+        {
+            return Err(invalid());
+        }
+        operations.push(TargetUnitOperation::CleanupCall {
+            owner: target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal: ordinal.try_into().map_err(|_| invalid())?,
+            },
+            callee: cleanup.cleanup_machine,
+            call_plan: signature.call_plan,
+            arguments,
+        });
+    }
+    Ok(())
+}

@@ -11,8 +11,28 @@ pub(super) fn validate(
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     custody: &scalar_graph_input::reference_custody::Custody,
+    native: &target_operations::TargetOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
+    let expected_calls =
+        scalar_graph_input::cleanup_calls::expected(&node.operation, function, native, plan, unit)?;
+    let normalized;
+    let actual = match actual {
+        LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
+            if calls.is_empty() || *calls != expected_calls {
+                return Err(Error::custody());
+            }
+            normalized = LegalizedScalarTerminator::Return(returned.clone());
+            &normalized
+        }
+        _ => {
+            if !expected_calls.is_empty() {
+                return Err(Error::custody());
+            }
+            actual
+        }
+    };
     match (actual, &node.operation) {
         (
             LegalizedScalarTerminator::Crash {
