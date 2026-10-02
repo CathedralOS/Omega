@@ -209,3 +209,30 @@ fn a_conjunctive_consequence_composes_through_a_later_conditional_contract() {
     assert!(crate::check_certificate(&context, &goal, &[], &axioms, &proof).is_err());
     assert!(crate::produce_predicate_proof(&context, &goal, &[], &axioms).is_none());
 }
+
+#[test]
+fn restoring_repeated_citations_bounds_cloned_definition_children() {
+    let context = context();
+    let original = bounds(1);
+    let equation = Proposition::Equal(value(1), value(3));
+    let axioms = [original, equation.clone()];
+    let equations = vec![
+        crate::ProofNode {
+            conclusion: equation,
+            rule: crate::ProofRule::SemanticAxiom { index: 1 },
+        };
+        1000
+    ];
+    let child = crate::ProofNode {
+        conclusion: bounds(3),
+        rule: crate::ProofRule::SemanticAxiom { index: 0 },
+    };
+    let mut proof = crate::ProofNode {
+        conclusion: Proposition::Conjunction(vec![bounds(3); 5]),
+        rule: crate::ProofRule::ConjunctionIntroduction(vec![child; 5]),
+    };
+    assert!(
+        crate::retain_original_predicate_citations(&mut proof, &context, &[], &axioms, &equations,)
+            .is_none()
+    );
+}

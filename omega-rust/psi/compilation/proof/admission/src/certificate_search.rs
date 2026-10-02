@@ -102,7 +102,7 @@ pub fn produce_predicate_proof(
             rule: ProofRule::SemanticAxiom { index },
         })
         .collect::<Vec<_>>();
-    retain_original_predicate_citations(
+    let remaining = retain_original_predicate_citations(
         &mut proof,
         context,
         requirements,
@@ -110,6 +110,7 @@ pub fn produce_predicate_proof(
         &equations,
     )?;
     if &proof.conclusion != goal {
+        remaining.checked_sub(1 + equations.len())?;
         proof = ProofNode {
             conclusion: goal.clone(),
             rule: if equations.is_empty() {
