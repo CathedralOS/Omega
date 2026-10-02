@@ -4,7 +4,7 @@
 //! Reconstruct writes from the current operation inventory and borrowed-region
 //! origins, then substitute the exact actual projection. Never use the immutable
 //! Terminal snapshot or a source-language receiver spelling. Missing callees,
-//! recursive closures, dynamic dispatch and unresolved local origins retain the
+//! recursive closures, opaque effects and unresolved local origins retain the
 //! ordinary whole-input fence. This proves interference only, not loan closure.
 
 use super::address_joins::borrowed_regions::{BorrowedRegions, Projection};
@@ -68,7 +68,31 @@ impl CallAccesses {
                     return;
                 }
             }
-            if matches!(node.operation, O::CallDynamic { .. }) {
+            if matches!(
+                node.operation,
+                O::CallDynamic { .. }
+                    | O::BoundaryCall { .. }
+                    | O::Call { .. }
+                    | O::AtomicEvent { .. }
+                    | O::PortWrite { .. }
+            ) {
+                return;
+            }
+            if let O::Return {
+                cleanup_actions, ..
+            }
+            | O::ReturnUnit {
+                cleanup_actions, ..
+            } = &node.operation
+                && cleanup_actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                    )
+                })
+            {
+                // Nominal cleanup executes code after the result is observed;
+                // absence of an explicit store node does not make it read-only.
                 return;
             }
             for (place, region) in self.written_regions(function, types, &node.operation) {
