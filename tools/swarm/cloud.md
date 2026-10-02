@@ -214,27 +214,31 @@ For the parent-supported create/read/send_message runtime:
    B, with `parameters.phase:"preflight"`, explicit model/effort and the existing
    environment selector. Invoke each create once with a self-contained bounded
    preflight/report prompt, exact assignment contract and request IDs. Ingest
-   each actual result/mapping. B may run preflight despite its digest dependency.
+   each actual result/mapping. A consumer may run bounded preflight while its
+   declared dependency is waiting.
 3. Read each existing thread. Extract actual child acknowledgments and the
    bounded preflight task result; correlate IDs, save result JSON and ingest at
    the current revision. Materialize confirmed artifacts through the supported
    route; the parent cannot open child-local files. Read that executor's actual
    process and recovery state. Record its exact fresh claim with `ownership`.
    Ingest the validated preflight receipt; never infer it from runtime completed.
-4. Once A's preflight passes, record a `follow_up` intent with phase
-   `implementation` and invoke supported `send_message` once for A. It carries
+4. For each assignment whose preflight, ownership and actual dependency gates
+   pass, record a `follow_up` intent with phase `implementation` and invoke
+   supported `send_message` once for that assignment. Independent A and B may
+   continue on their separate executors. Each continuation carries
    the same authorized advance through tests, commit/push and cleanup, pausing
    only at genuine checkpoints/dependencies/required approval. Ingest enqueue
    result, then read until the child acknowledges this request. Do not enqueue
    another continuation on an old completed status. There is no sign-off wait.
-5. A reports its verified source candidate/claim evidence. Record the bilateral
-   A→B handoff and integration-owner protocol; then automatically continue B via
-   the same intent/send_message/acknowledgment procedure. When A's trusted site
-   cannot publish without B's shared digest, B integrates A's preserved commits,
-   revalidates and publishes the combined candidate through landing. Record
-   final acceptance for each distinct program against the landed bytes and
-   exact receipts, rerunning/reusing evidence under the rules below. Do not
-   require A to be individually publishable before handing its candidate to B.
+5. Each independent assignment verifies and publishes its own candidate through
+   the serialized landing queue. If a declared producer/consumer dependency
+   exists, record its exact bilateral handoff and integration-owner protocol
+   before continuing the consumer. For the optional trusted-site/digest example,
+   B integrates A's preserved commits, revalidates and publishes the combined
+   candidate through landing; A need not be individually publishable before
+   that handoff. Record final acceptance for each distinct program against the
+   landed bytes and exact receipts, rerunning/reusing evidence under the rules
+   below.
 6. Perform `cleanup-review`, execute authorized owned-resource cleanup, reobserve
    and `accept` each outcome. Continue automatically until both are accepted or
    accurately blocked. Admit five only after both satisfy the same end-to-end
