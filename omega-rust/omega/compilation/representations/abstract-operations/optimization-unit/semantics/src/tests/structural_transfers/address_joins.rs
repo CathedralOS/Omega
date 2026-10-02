@@ -477,3 +477,51 @@ fn address_join_later_exclusive_handoff_keeps_old_descriptor_suspended() {
         "{error:?}"
     );
 }
+
+const DISJOINT_STATE_FIELD_SOURCE: &str = "data Pair [copy] { left: u64; right: u64; }
+    data Owner { pair: Pair; total: u64; }
+    machine Owner::run(&mut self) -> u64 {
+        transition { _ -> observe(&self.pair) }
+        state observe(&mut self, pair: &Pair) -> u64 {
+            transition { _ -> store(pair) }
+        }
+        state store(&mut self, pair: &Pair) -> u64 {
+            self.total = pair.left;
+            transition { _ -> (self.total ^ pair.right) }
+        }
+    }";
+
+#[test]
+fn shared_address_joins_allow_disjoint_stores_and_reject_overlap_after_forwarding() {
+    let mut candidate = source_machine_unit(DISJOINT_STATE_FIELD_SOURCE, "Owner::run", true);
+    validate_psi_optimization_unit(&candidate).unwrap();
+    let (block, node) = candidate.functions[0]
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.nodes.iter().enumerate().find_map(|(node, item)| {
+                matches!(
+                    item.operation,
+                    AbstractOperation::StructuralScalarFieldStore { .. }
+                )
+                .then_some((block, node))
+            })
+        })
+        .expect("the source writes the receiver's disjoint total field");
+    let AbstractOperation::StructuralScalarFieldStore { path, field, .. } =
+        &mut candidate.functions[0].blocks[block].nodes[node].operation
+    else {
+        unreachable!()
+    };
+    *path = vec![StructuralPathSegment::Field("pair".into())];
+    *field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+    refresh_node_derivatives(&mut candidate, 0, block, node);
+    assert!(
+        matches!(
+            validate_address_join_ownership(&candidate),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "the forwarded pair loan must still reject writes to its own fields"
+    );
+}

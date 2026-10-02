@@ -385,6 +385,7 @@ pass/control_flow/runtime_tuple_case_destructure_exit built 1901ms exit:70 @4800
 pass/control_flow/runtime_tuple_transition_exit built 1035ms exit:22 @350be0d2a211+wt
 pass/control_flow/scalar_loop_interior_header_exit built 1452ms exit:87 @48008365d839
 pass/control_flow/self_case_payload_both_arms_exit built 755ms exit:70
+pass/control_flow/shared_state_disjoint_receiver_store_exit built 1438ms exit:70 @da17a13c769f+wt
 pass/control_flow/state_local_operand_edge_call_exit built 1759ms exit:70 @f05a17605282+wt
 pass/control_flow/structural_result_transition_tail built 1404ms exit:10 @15f38e49aac2
 pass/control_flow/sum_field_storage_roundtrip built 1074ms exit:70 @7a6595c07f7b+wt

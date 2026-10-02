@@ -62,30 +62,14 @@ pub(super) fn apply_operation(
     }
     let mut consumed_places = consumed_places(walk, operation);
     consumed_places.extend(leaf_moved_place);
-    // A shared successor loan keeps its referent root stable for the whole
-    // duration of the block that bound it: while a joined view observes the
-    // root, no operation here may move it, take an exclusive subloan on it,
-    // or write through it. Shared observations on the same root stay legal.
-    if let Some(pinned) = walk.shared_loans.get(&block) {
-        let disturbed = consumed_places
-            .iter()
-            .copied()
-            .chain(
-                projected_arguments(operation)
-                    .iter()
-                    .filter_map(|argument| {
-                        (argument.access != StructuralAccess::SharedBorrow)
-                            .then_some(argument.place)
-                    }),
-            )
-            .chain(mutation_destinations(operation))
-            .find(|place| pinned.contains(place));
-        if let Some(place) = disturbed {
-            return Err(ModuleError::SharedStructuralLoanDisturbed {
-                operation: operation.id,
-                place,
-            });
-        }
+    if let Some(place) =
+        walk.shared_loans
+            .disturbed(module, machine, block, operation, &consumed_places)
+    {
+        return Err(ModuleError::SharedStructuralLoanDisturbed {
+            operation: operation.id,
+            place,
+        });
     }
     for place in &consumed_places {
         if frontier.partial_custody_paths.contains_key(place) {
@@ -360,31 +344,10 @@ fn transferred_claims(operation: &terminal_psi::Operation) -> Vec<ClaimId> {
     }
 }
 
-/// The places an operation writes through without moving custody. A store
-/// into a pinned loan root would mutate data a bound shared view observes.
-fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
-    match &operation.kind {
-        OperationKind::StructuralScalarFieldStore { destination, .. }
-        | OperationKind::ByteSequenceStore { destination, .. }
-        | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
-        | OperationKind::StructuralByteViewFieldStore { destination, .. }
-        | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
-        | OperationKind::StoreStructuralField { destination, .. }
-        | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::ByteSequenceWrite { destination, .. }
-        | OperationKind::ElementViewWrite { destination, .. } => vec![*destination],
-        // Extraction mutates through the borrowed root a shared view may
-        // observe, so a pinned source rejects like a store's destination.
-        OperationKind::MoveStructuralField { source, .. } => vec![*source],
-        OperationKind::AtomicAccess { place, event, .. } if event.modifies_resident() => {
-            vec![*place]
-        }
-        _ => Vec::new(),
-    }
-}
-
 /// The structural arguments a call or boundary call passes.
-fn projected_arguments(operation: &terminal_psi::Operation) -> &[terminal_psi::StructuralArgument] {
+pub(super) fn projected_arguments(
+    operation: &terminal_psi::Operation,
+) -> &[terminal_psi::StructuralArgument] {
     match &operation.kind {
         OperationKind::CallUnit {
             structural_arguments,

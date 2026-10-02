@@ -105,14 +105,18 @@ fn argument_region(
 /// Keep precision in the shared traversal so equality consumers cannot mistake
 /// a widened prefix for an exact storage identity.
 pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine) -> WindowAliases {
-    borrowed_storage_origins(module, machine)
-        .into_iter()
+    window_aliases_from_origins(&borrowed_storage_origins(module, machine))
+}
+
+pub(super) fn window_aliases_from_origins(origins: &BorrowedStorageOrigins) -> WindowAliases {
+    origins
+        .iter()
         .map(|(place, origins)| {
             (
-                place,
+                *place,
                 origins
-                    .into_iter()
-                    .map(|origin| (origin.root, origin.path))
+                    .iter()
+                    .map(|origin| (origin.root, origin.path.clone()))
                     .collect(),
             )
         })
@@ -196,7 +200,7 @@ pub(crate) fn borrowed_storage_origins(
 
 /// One edge argument's source set under the current alias map: a borrowed
 /// intermediate composes its stored prefix with the argument's own region.
-fn resolve_origin(
+pub(super) fn resolve_origin(
     module: &TerminalModule,
     machine: &TerminalMachine,
     origins: &BorrowedStorageOrigins,
