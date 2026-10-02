@@ -14,6 +14,8 @@
 // `main` returns through the ordinary ProgramEntry completion, so the
 // runtime leg observes a deterministic clean exit on any hosted target
 // without needing a ProcessExit or Console provider.
+//
+// Expected exit: 0
 
 machine main() {
     transition { _ -> loop_(0, 1) }
