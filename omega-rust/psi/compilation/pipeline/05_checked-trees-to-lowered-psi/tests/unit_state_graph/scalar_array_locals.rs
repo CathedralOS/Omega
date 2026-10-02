@@ -505,3 +505,24 @@ fn owned_array_state_arguments_preserve_record_erased_declarations() {
         [30, 40],
     );
 }
+
+#[test]
+fn owned_array_state_contract_keeps_copied_view_record_custody() {
+    let source = r#"
+        boundary trait Output { machine write(marker: u64) reaches Output; }
+        data Room [copy] { label: &[u8]; }
+        data Root { room: Room; }
+        machine Root::enter(context: &mut Root) reaches Output {
+            context.room.label = "Gate";
+            transition { _ -> take(context.room) }
+            state take(room: Room) { Output::write(room.label.len); }
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a copied descriptor record retains owned carrier custody");
+    validate_module(&lowered.semantic_module).expect("copied view record transfer validates");
+}
