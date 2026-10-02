@@ -2118,6 +2118,7 @@ pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit checked 1261
 pass/slices/signed_index_and_range_lower_bounds checked 351ms @2d8ed253669f
 pass/slices/state_record_array_mutable_view_exit checked 1276ms @4b881daeea00+wt
 pass/slices/state_record_array_shared_child_view_exit checked 542ms @4b881daeea00+wt
+pass/slices/static_data_computed_index_hoists checked 148ms @94e7af7e4175+wt
 pass/slices/subslice_folded_bound_facts_compile checked 288ms @2d8ed253669f
 pass/slices/subslice_literal_bounds_compile checked 312ms @2d8ed253669f
 pass/slices/termination_slice_length_compile checked 252ms @8a91f26a0b28+wt
