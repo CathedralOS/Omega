@@ -25,26 +25,26 @@ machine Main::main(main: &mut Main) {
     }
 }
 
-machine Main::check(main: &mut Main, path: &[u8] in Path) reaches Console {
+machine Main::check(main: &Main, path: &[u8] in Path) reaches Console {
     // storage(main.k)=5 < storage(path.len)=7 -> subslice path[0..5] = "/adir".
     transition main.k < path.len {
         true -> Main::verify(main, path[0..main.k])
         false -> bad(main)
     }
-    state bad(main: &mut Main) {
+    state bad(main: &Main) {
         main.console.exit_process(71);
     }
 }
 
-machine Main::verify(main: &mut Main, prefix: &[u8] in Path) reaches Console {
+machine Main::verify(main: &Main, prefix: &[u8]) reaches Console {
     transition prefix.len == 5 {
         true -> good(main)
         false -> wrong(main)
     }
-    state good(main: &mut Main) {
+    state good(main: &Main) {
         main.console.exit_process(70);
     }
-    state wrong(main: &mut Main) {
+    state wrong(main: &Main) {
         main.console.exit_process(71);
     }
 }
