@@ -22,7 +22,6 @@ pub(in crate::legalization) fn argument_at(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    use target_operations::TargetStructuralArgumentSource;
     let destination_parameter = called
         .structural_parameters
         .get(position)
@@ -210,6 +209,29 @@ pub(in crate::legalization) fn argument_at(
     )? {
         return Ok(argument);
     }
+    // Whole borrowed descriptors have one source/placement join regardless of
+    // whether the caller lends shared or exclusive access. Referent projections
+    // continue through their storage-geometry owner below.
+    if semantic.path.is_empty()
+        && plan.structural_types.iter().any(|declaration| {
+            declaration.id == destination_parameter.structural_type
+                && (declaration.shape.is_borrowed_byte_view()
+                    || matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    ))
+        })
+    {
+        return view_argument(
+            semantic,
+            call_operation,
+            caller,
+            destination_parameter,
+            call,
+            parameter_ordinal,
+            native,
+        );
+    }
     if super::primitive_locals::producer(caller, semantic.place).is_some()
         || matches!(
             semantic.access,
@@ -297,7 +319,32 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
+    Err(LegalizationError::custody())
+}
+
+/// Rejoin one whole descriptor and the authority its current source minted.
+fn view_argument(
+    semantic: &StructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
+    caller: &PsiOptimizationFunction,
+    destination_parameter: &terminal_psi::StructuralParameterDeclaration,
+    call: &CallPlan,
+    parameter_ordinal: usize,
+    native: &TargetOperationPlan,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    use target_operations::TargetStructuralArgumentSource;
+    let access = optimization_unit_semantics::structural_place_access(caller, semantic.place)
+        .ok_or(LegalizationError::custody())?;
+    if !matches!(
+        semantic.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || !semantic.path.is_empty()
+        || destination_parameter.access != semantic.access
+        || destination_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !(access == semantic.access
+            || access == StructuralAccess::MutableBorrow
+                && semantic.access == StructuralAccess::SharedBorrow)
+    {
         return Err(LegalizationError::custody());
     }
     // Current-graph admission already replayed the exact argument's primitive
@@ -326,7 +373,7 @@ pub(in crate::legalization) fn argument_at(
             .map(|parameter| (block, parameter))
     }) {
         if block.id == caller.entry
-            || parameter.access != StructuralAccess::SharedBorrow
+            || parameter.access != access
             || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || parameter.is_self
             || !parameter.projected_qualifications.is_empty()
@@ -358,7 +405,7 @@ pub(in crate::legalization) fn argument_at(
             .find(|parameter| parameter.place == semantic.place)
             .ok_or(LegalizationError::custody())?;
         if semantic.place != source.place
-            || source.access != StructuralAccess::SharedBorrow
+            || source.access != access
             || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !source.projected_qualifications.is_empty()
             || parameter.place != source.place
@@ -372,7 +419,12 @@ pub(in crate::legalization) fn argument_at(
         }
         (source.structural_type, parameter.placement.clone().into())
     };
-    if structural_type != destination_parameter.structural_type {
+    if structural_type != destination_parameter.structural_type
+        || call
+            .parameters
+            .get(parameter_ordinal)
+            .is_none_or(|parameter| parameter.shape != ValueShape::borrowed_reference(16, 8))
+    {
         return Err(LegalizationError::custody());
     }
     Ok(TargetStructuralArgument {

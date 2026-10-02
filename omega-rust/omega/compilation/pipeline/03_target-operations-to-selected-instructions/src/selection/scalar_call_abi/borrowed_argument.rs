@@ -268,7 +268,6 @@ pub(super) fn validate_borrowed_argument(
     // descriptor's establishment, not a parameter or a home, is its source.
     let established_view_loan =
         crate::selection::established_view_input::element_view_type(source, semantic.place)
-            .filter(|_| !semantic.path.is_empty())
             .and_then(|view_type| {
                 let (selected, offset, elements) =
                     crate::structural_inputs::structural_reference_input::runtime_projection(
@@ -560,14 +559,17 @@ pub(super) fn validate_borrowed_argument(
         {
             // A descriptor-rooted element loan loans mutable or shared —
             // exclusive is exactly the mutable view's own authority.
-            crate::selection::established_view_input::accepts_view_loan(source, operation, target)?;
+            if semantic.path.is_empty() {
+                crate::selection::established_view_input::accepts(source, operation, target)?;
+            } else {
+                crate::selection::established_view_input::accepts_view_loan(
+                    source, operation, target,
+                )?;
+            }
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
         | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
         | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
-            if exclusive {
-                return None;
-            }
             crate::selection::established_view_input::accepts(source, operation, target)?;
         }
     }

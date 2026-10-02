@@ -157,6 +157,9 @@ pub(super) fn accepts(
                 terminal_psi::StructuralAccess::SharedBorrow
                     | terminal_psi::StructuralAccess::MutableBorrow
             )
+            && (target.access == parameter.access
+                || target.access == terminal_psi::StructuralAccess::SharedBorrow
+                    && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
@@ -179,6 +182,9 @@ pub(super) fn accepts(
         }
         _ => return None,
     };
+    if !element_view_source && target.access != terminal_psi::StructuralAccess::SharedBorrow {
+        return None;
+    }
     if element_view_source {
         let actual = element_view_access(source, target.place)?;
         if target.access != actual
