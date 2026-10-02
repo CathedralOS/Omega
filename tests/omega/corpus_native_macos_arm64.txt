@@ -938,6 +938,7 @@ pass/slices/subslice_literal_bounds_compile checked 184ms
 pass/slices/termination_slice_length_compile checked 201ms
 pass/slices/window_shrink_min_length_tail_index_compile checked 155ms
 pass/storage/forwarded_context_bounded_byte_field_exit built 813ms exit:0 @de74b73e1452+wt
+pass/storage/forwarded_context_byte_field_cross_state_store_exit built 847ms exit:66 @ea8076b7cb75+wt
 pass/storage/forwarded_context_byte_field_read_store_exit built 848ms exit:75 @2a7dbf752a77
 pass/storage/runtime_alias_field_binary checked 217ms
 pass/storage/runtime_alias_integer_write checked 190ms

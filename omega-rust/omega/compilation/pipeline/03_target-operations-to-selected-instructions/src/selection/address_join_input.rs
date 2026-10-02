@@ -205,3 +205,34 @@ fn root_type(
         .filter(|parameter| parameter.semantic.access != StructuralAccess::WriteOnlyBorrow)
         .map(|parameter| parameter.semantic.structural_type)
 }
+
+/// The declaration of the loan `place` holds: this unit's own ABI parameter,
+/// or the address join of the block that received the storage on an edge.
+///
+/// A receiver threads one ABI parameter through every state, so a lookup in
+/// the signature roster alone answers for the receiver spelling of a program
+/// and not for the same program spelled with a named data parameter, where
+/// each state holds its own block parameter. The join's block entry already
+/// loaded the same referent address the ABI parameter would have supplied, so
+/// the two are interchangeable here; only a mutable borrow has a join, which
+/// is why a write-only loan still has to be a parameter. The caller checks
+/// access, multiplicity and qualifications against the returned declaration.
+pub(crate) fn loan_declaration(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+    access: StructuralAccess,
+) -> Option<&StructuralParameterDeclaration> {
+    source
+        .structural
+        .as_ref()?
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .find(|parameter| parameter.place == place)
+        .or_else(|| {
+            (access == StructuralAccess::MutableBorrow)
+                .then(|| join(source, place))
+                .flatten()
+                .map(|(_, declared)| declared)
+        })
+}

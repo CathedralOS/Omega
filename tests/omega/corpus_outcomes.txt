@@ -2083,6 +2083,7 @@ pass/slices/subslice_literal_bounds_compile checked 312ms @2d8ed253669f
 pass/slices/termination_slice_length_compile checked 301ms @2d8ed253669f
 pass/slices/window_shrink_min_length_tail_index_compile checked 306ms @2d8ed253669f
 pass/storage/forwarded_context_bounded_byte_field_exit checked 798ms @de74b73e1452+wt
+pass/storage/forwarded_context_byte_field_cross_state_store_exit checked 842ms @ea8076b7cb75+wt
 pass/storage/forwarded_context_byte_field_read_store_exit checked 819ms @2a7dbf752a77
 pass/storage/runtime_alias_field_binary checked 293ms @2d8ed253669f
 pass/storage/runtime_alias_integer_write checked 298ms @2d8ed253669f

@@ -271,12 +271,8 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     {
         (structural_type, path.as_slice())
     } else {
-        let Some(parameter) = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)
-        else {
-            return malformed("byte field store destination is not a parameter");
+        let Some(parameter) = terminal_semantics::arrival_parameter(machine, *destination) else {
+            return malformed("byte field store destination is not arrival storage");
         };
         if !matches!(
             parameter.access,

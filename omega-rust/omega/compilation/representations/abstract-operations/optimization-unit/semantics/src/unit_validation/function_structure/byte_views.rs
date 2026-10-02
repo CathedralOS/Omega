@@ -25,10 +25,7 @@ pub(crate) fn byte_field_store_capacity(
         ..
     } = operation
     {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)?;
+        let parameter = function.arrival_parameter(*destination)?;
         if destination == source
             || !matches!(
                 parameter.access,
@@ -184,10 +181,7 @@ fn writable_byte_field_carrier(
         // producer to dominate this write. Shape resolution grants no storage.
         (owned.structural_type, path)
     } else {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)?;
+        let parameter = function.arrival_parameter(*destination)?;
         if !matches!(
             parameter.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -205,14 +199,6 @@ fn writable_byte_field_carrier(
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == *destination)
-            || !function.structural_places.iter().any(|place| {
-                place.id == *destination
-                    && place.kind
-                        == StructuralPlaceKind::Parameter {
-                            position: parameter.position,
-                            is_self: parameter.is_self,
-                        }
-            })
         {
             return None;
         }

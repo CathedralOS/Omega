@@ -271,9 +271,7 @@ fn writable_byte_field(
         )
     } else {
         let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == destination)
+            .arrival_parameter(destination)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !matches!(
             parameter.access,

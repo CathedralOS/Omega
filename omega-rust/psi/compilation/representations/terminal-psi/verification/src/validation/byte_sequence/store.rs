@@ -1,7 +1,7 @@
 //! Whole bounded-owner replacement preserves its declared byte predicates.
 use crate::validation::{
     ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
 pub(crate) fn capacity(
@@ -19,12 +19,8 @@ pub(crate) fn capacity(
     else {
         return Err(invalid());
     };
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == destination)
-        .or_else(|| crate::validation::block_views::parameter(machine, destination))
-        .ok_or_else(invalid)?;
+    let parameter =
+        terminal_semantics::arrival_parameter(machine, destination).ok_or_else(invalid)?;
     if operation.result != OperationResult::Unit
         || destination == source
         || !matches!(
@@ -32,16 +28,6 @@ pub(crate) fn capacity(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !machine.structural_places.iter().any(|place| {
-            place.id == destination
-                && (place.kind
-                    == StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    }
-                    || crate::validation::block_views::parameter(machine, destination)
-                        == Some(parameter))
-        })
         || machine
             .entry_claims
             .iter()

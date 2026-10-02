@@ -93,11 +93,7 @@ pub(super) fn readable_byte_field(
         }
         (home.structural_type(), StructuralAccess::Owned)
     } else {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == source)
-            .ok_or_else(unsupported)?;
+        let parameter = function.arrival_parameter(source).ok_or_else(unsupported)?;
         // Incoming ownership is as readable as ownership established here.
         // The consuming operation separately checks whether its observation
         // is permitted through the retained access (including write-only).

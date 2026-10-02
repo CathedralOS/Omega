@@ -8,6 +8,7 @@ use super::super::{
     ValueId,
 };
 use super::MachineId;
+use semantic_vocabulary::StructuralPlaceKind;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiProvenance {
     Operation(OperationId),
@@ -199,4 +200,41 @@ pub struct PsiOptimizationFunction {
     pub declared_service_reach: Vec<ServiceId>,
     pub facts: Vec<OptimizationFact>,
     pub blocks: Vec<OptimizationBlock>,
+}
+
+impl PsiOptimizationFunction {
+    /// The parameter declaration a structural place arrives as: this unit's
+    /// own parameter at its declared position, or a block parameter in the
+    /// block that declares it. Both are storage an operation addresses in
+    /// place, unlike an operation result or a literal, neither of which has a
+    /// caller-owned home.
+    ///
+    /// A receiver collapses every state onto the one unit parameter, while a
+    /// named data parameter gives each state its own block parameter, so
+    /// consulting only `structural_parameters` admits the receiver spelling of
+    /// a program and refuses the identical program spelled statically.
+    /// Callers still read the returned access, multiplicity and
+    /// qualifications themselves; this answers only which storage it is.
+    pub fn arrival_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
+        let declaration = self.structural_places.iter().find(|row| row.id == place)?;
+        match declaration.kind {
+            StructuralPlaceKind::Parameter { position, is_self } => {
+                self.structural_parameters.iter().find(|parameter| {
+                    parameter.place == place
+                        && parameter.position == position
+                        && parameter.is_self == is_self
+                })
+            }
+            StructuralPlaceKind::BlockParameter { block, position } => self
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == block)?
+                .structural_parameters
+                .get(position as usize)
+                .filter(|parameter| {
+                    parameter.place == place && parameter.position == position && !parameter.is_self
+                }),
+            _ => None,
+        }
+    }
 }

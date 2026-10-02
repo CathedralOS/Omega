@@ -58,18 +58,26 @@ pub(super) fn validate(
             };
             let exact_path = field_path(function, types, *destination, path, *field)
                 .ok_or_else(|| invalid.clone())?;
+            let names = crate::unit_validation::arrival_storage::storage_names(
+                function,
+                block.id,
+                *destination,
+            );
             let producer = function.blocks.iter().enumerate().find_map(|(owner, block)| {
-                block.nodes.iter().position(|candidate| matches!(&candidate.operation,
-                    O::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
-                    if source == destination && measured_path == path && measured_field == field && result.value == *length
-                )).map(|position| (owner, position))
+                names.in_block(block.id).find_map(|name| {
+                    block.nodes.iter().position(|candidate| matches!(&candidate.operation,
+                        O::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
+                        if *source == name && measured_path == path && measured_field == field && result.value == *length
+                    )).map(|position| (owner, position))
+                })
             }).ok_or_else(|| invalid.clone())?;
             if !unchanged_since(
                 function,
                 predecessors,
                 producer,
                 (block_position, node_position),
-                |operation| changes_length(function, types, *destination, &exact_path, operation),
+                *destination,
+                |operation, root| changes_length(function, types, root, &exact_path, operation),
             ) {
                 return Err(invalid);
             }
@@ -377,13 +385,15 @@ pub(super) fn unchanged_since(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     producer: (usize, usize),
     use_site: (usize, usize),
-    invalidates: impl Fn(&O) -> bool,
+    root: PlaceId,
+    invalidates: impl Fn(&O, PlaceId) -> bool,
 ) -> bool {
     established_on_every_path(
         function,
         predecessors,
         use_site,
-        |position, _| position == producer,
+        root,
+        |position, _, _| position == producer,
         invalidates,
     )
 }
@@ -398,27 +408,28 @@ pub(super) fn established_on_every_path(
     function: &PsiOptimizationFunction,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     use_site: (usize, usize),
-    establishes: impl Fn((usize, usize), &O) -> bool,
-    invalidates: impl Fn(&O) -> bool,
+    root: PlaceId,
+    establishes: impl Fn((usize, usize), &O, PlaceId) -> bool,
+    invalidates: impl Fn(&O, PlaceId) -> bool,
 ) -> bool {
-    let mut pending = vec![use_site];
+    let mut pending = vec![(use_site.0, use_site.1, root)];
     let mut visited = BTreeSet::new();
     let mut established = false;
-    while let Some((block_position, position)) = pending.pop() {
-        if !visited.insert((block_position, position)) {
+    while let Some((block_position, position, root)) = pending.pop() {
+        if !visited.insert((block_position, position, root)) {
             continue;
         }
         let block = &function.blocks[block_position];
         if position != 0 {
             let previous = (block_position, position - 1);
             let operation = &block.nodes[position - 1].operation;
-            if establishes(previous, operation) {
+            if establishes(previous, operation, root) {
                 established = true;
             } else {
-                if invalidates(operation) {
+                if invalidates(operation, root) {
                     return false;
                 }
-                pending.push(previous);
+                pending.push((previous.0, previous.1, root));
             }
         } else {
             if block.id == function.entry {
@@ -441,9 +452,21 @@ pub(super) fn established_on_every_path(
                 };
                 let mut found_edge = false;
                 for (position, node) in predecessor.nodes.iter().enumerate() {
-                    if node.successors.iter().any(|edge| edge.target == block.id) {
+                    for edge in node
+                        .successors
+                        .iter()
+                        .filter(|edge| edge.target == block.id)
+                    {
                         found_edge = true;
-                        pending.push((owner, position + 1));
+                        // The predecessor names this storage by whatever the
+                        // edge bound. A binding that forwards only part of it
+                        // leaves the fact unproven on this path.
+                        let Some(before) =
+                            crate::unit_validation::arrival_storage::root_before_edge(edge, root)
+                        else {
+                            return false;
+                        };
+                        pending.push((owner, position + 1, before));
                     }
                 }
                 if !found_edge {

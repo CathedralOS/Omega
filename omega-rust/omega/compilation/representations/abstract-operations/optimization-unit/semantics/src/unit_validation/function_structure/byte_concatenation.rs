@@ -130,23 +130,25 @@ pub(super) fn validate(
                             *field,
                         )
                         .ok_or_else(invalid)?;
-                        let producer = function.blocks.iter().enumerate().find_map(|(owner, block)| block.nodes.iter().position(|candidate| matches!(&candidate.operation,
+                        let names = crate::unit_validation::arrival_storage::storage_names(
+                            function,
+                            block.id,
+                            source.place,
+                        );
+                        let producer = function.blocks.iter().enumerate().find_map(|(owner, block)| names.in_block(block.id).find_map(|name| block.nodes.iter().position(|candidate| matches!(&candidate.operation,
                             O::StructuralByteSequenceFieldLength { source: measured, path, field: measured_field, result, .. }
-                            if *measured == source.place && *path == source.path && measured_field == field && result.value == *length)).map(|position| (owner, position))).ok_or_else(invalid)?;
+                            if *measured == name && *path == source.path && measured_field == field && result.value == *length)).map(|position| (owner, position)))).ok_or_else(invalid)?;
                         if !super::byte_field_freshness::unchanged_since(
                             function,
                             predecessors,
                             producer,
                             (block_position, node_position),
-                            |candidate| {
+                            source.place,
+                            |candidate, root| {
                                 super::byte_field_freshness::changes_length(
-                                    function,
-                                    types,
-                                    source.place,
-                                    &exact,
-                                    candidate,
+                                    function, types, root, &exact, candidate,
                                 ) || matches!(candidate, O::StructuralByteSequenceFieldByteStore { destination, path, field, .. }
-                                    if *destination == source.place && super::byte_field_freshness::field_path(function, types, *destination, path, *field).is_none_or(|written| exact.starts_with(&written) || written.starts_with(&exact)))
+                                    if *destination == root && super::byte_field_freshness::field_path(function, types, *destination, path, *field).is_none_or(|written| exact.starts_with(&written) || written.starts_with(&exact)))
                             },
                         ) {
                             return Err(invalid());
