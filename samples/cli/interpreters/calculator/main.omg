@@ -31,30 +31,30 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
-    self.text = "12+34";
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
+    main.text = "12+34";
 
     // First operand from text[0..1].
-    self.a = widen_u8_to_i32(self.text[0]) as i32 in Wrapping;
-    self.a = self.a - 48;
-    self.a = self.a * 10;
-    self.tmp = widen_u8_to_i32(self.text[1]) as i32 in Wrapping;
-    self.tmp = self.tmp - 48;
-    self.a = self.a + self.tmp;
+    main.a = widen_u8_to_i32(main.text[0]) as i32 in Wrapping;
+    main.a = main.a - 48;
+    main.a = main.a * 10;
+    main.tmp = widen_u8_to_i32(main.text[1]) as i32 in Wrapping;
+    main.tmp = main.tmp - 48;
+    main.a = main.a + main.tmp;
 
     // Second operand from text[3..4].
-    self.b = widen_u8_to_i32(self.text[3]) as i32 in Wrapping;
-    self.b = self.b - 48;
-    self.b = self.b * 10;
-    self.tmp = widen_u8_to_i32(self.text[4]) as i32 in Wrapping;
-    self.tmp = self.tmp - 48;
-    self.b = self.b + self.tmp;
+    main.b = widen_u8_to_i32(main.text[3]) as i32 in Wrapping;
+    main.b = main.b - 48;
+    main.b = main.b * 10;
+    main.tmp = widen_u8_to_i32(main.text[4]) as i32 in Wrapping;
+    main.tmp = main.tmp - 48;
+    main.b = main.b + main.tmp;
 
     // Dispatch on the operator byte text[2].
-    transition self.text[2] == 43 {
-        true -> do_add(&mut self)
-        _ -> check_sub(&mut self)
+    transition main.text[2] == 43 {
+        true -> do_add(main)
+        _ -> check_sub(main)
     }
 
     state check_sub(main: &mut Main) {
