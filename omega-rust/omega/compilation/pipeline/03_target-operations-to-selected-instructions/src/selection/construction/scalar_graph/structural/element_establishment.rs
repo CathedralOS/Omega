@@ -1,4 +1,4 @@
-//! Establish a shared element-view descriptor over a fixed-array field.
+//! Establish an element-view descriptor over resolved fixed-array storage.
 use super::local_storage::{address, store};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -129,7 +129,12 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    let base = if parameter.is_some() {
+    // An empty view has no dereferenceable payload. Keep its independently
+    // checked backing identity, but do not require a slot for a zero-byte
+    // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
+    let base = if element_count == 0 {
+        constant(builder, row, 0, 0)?
+    } else if parameter.is_some() {
         let Some(base) = builder
             .transport
             .pointers
@@ -172,7 +177,7 @@ pub(super) fn establish(
             byte_size: 16,
             alignment: 8,
         });
-    let backing = if field_offset == 0 {
+    let backing = if field_offset == 0 || element_count == 0 {
         base
     } else {
         let offset = constant(builder, row, 0, u64::from(field_offset))?;

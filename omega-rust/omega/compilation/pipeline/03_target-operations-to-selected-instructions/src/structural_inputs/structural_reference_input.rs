@@ -727,12 +727,6 @@ pub(crate) fn fixed_element_array_view(
         ),
         _ => (&argument.path[..], None),
     };
-    if field_path
-        .iter()
-        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-    {
-        return None;
-    }
     let view_element = match &declarations
         .iter()
         .find(|declaration| declaration.id == view_type)?
@@ -768,9 +762,6 @@ pub(crate) fn fixed_element_array_view(
                 )
         ) => {}
         _ => return None,
-    }
-    if *length == 0 {
-        return None;
     }
     let element_stride = align(
         shape(*element, declarations)?.byte_size,
@@ -1046,15 +1037,23 @@ fn shape_inner(
             }
             Some(ValueShape::integer(align(bytes, alignment)?, alignment))
         }
-        StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
-            let element = shape_inner(*element, declarations, active)?;
-            let stride = align(element.byte_size, element.alignment)?;
-            Some(ValueShape::integer(
-                u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
-                element.alignment,
-            ))
+        StructuralTypeShape::FixedArray { element, length } => {
+            // Owned primitive arrays already define their recursive ABI,
+            // including zero-byte arrays. Borrowing must observe that same
+            // layout instead of independently imposing a nonempty extent.
+            if let Some(shape) = primitive_array_shape(root, declarations) {
+                Some(shape)
+            } else if *length > 0 {
+                let element = shape_inner(*element, declarations, active)?;
+                let stride = align(element.byte_size, element.alignment)?;
+                Some(ValueShape::integer(
+                    u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
+                    element.alignment,
+                ))
+            } else {
+                None
+            }
         }
-        _ => None,
     };
     active.pop();
     result

@@ -3,8 +3,7 @@ use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_layout::{
-    direct_scalar_field_offset, resolve_structural_field_path, resolve_structural_projection_path,
-    structural_shape,
+    direct_scalar_field_offset, resolve_structural_projection_path, root_array_projection_metadata,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -545,10 +544,7 @@ fn established_source(
     if !matches!(
         source.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || field_path
-        .iter()
-        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-    {
+    ) {
         return Err(invalid());
     }
     let (root_structural_type, backing) = if let Some(semantic) = function
@@ -583,26 +579,13 @@ fn established_source(
     };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (projected_type, projected_shape, source_byte_offset) = if field_path.is_empty() {
-        (
-            root_structural_type,
-            structural_shape(
-                root_structural_type,
-                structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?,
-            0,
-        )
-    } else {
-        resolve_structural_field_path(
-            root_structural_type,
-            field_path,
-            structural_types,
-            &mut shape_cache,
-            &mut active,
-        )?
-    };
+    let (projected_type, projected_shape, source_byte_offset) = resolve_structural_projection_path(
+        root_structural_type,
+        field_path,
+        structural_types,
+        &mut shape_cache,
+        &mut active,
+    )?;
     let declaration = structural_types.get(&projected_type).ok_or_else(invalid)?;
     let StructuralTypeShape::FixedArray {
         element: array_element,
@@ -611,15 +594,22 @@ fn established_source(
     else {
         return Err(invalid());
     };
-    if array_element != element || length == 0 {
+    if array_element != element {
         return Err(invalid());
     }
-    let element_stride = u64::from(projected_shape.byte_size)
-        .checked_div(length)
-        .filter(|stride| *stride > 0)
-        .and_then(|stride| u32::try_from(stride).ok())
-        .ok_or_else(invalid)?;
-    if u64::from(element_stride) * length != u64::from(projected_shape.byte_size) {
+    // Stride belongs to the element layout, including when the collection
+    // contains no elements. Dividing by extent loses that valid empty view.
+    let (_, element_stride) = root_array_projection_metadata(
+        projected_type,
+        structural_types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    let element_stride = element_stride.ok_or_else(invalid)?;
+    if element_stride == 0
+        || u64::from(element_stride).checked_mul(length)
+            != Some(u64::from(projected_shape.byte_size))
+    {
         return Err(invalid());
     }
     let (window_offset, extent) = match byte_window {

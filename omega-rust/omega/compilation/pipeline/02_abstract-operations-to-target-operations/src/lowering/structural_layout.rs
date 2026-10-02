@@ -781,9 +781,13 @@ fn projection_path(
         structural_type = selected_type;
         selected_shape = Some(shape);
     }
-    selected_shape
-        .map(|shape| (structural_type, shape, total_offset))
-        .ok_or(LoweringError::UnknownStructuralType(root_type))
+    // The empty path is the identity projection, not a missing declaration.
+    // Resolve its root through the same layout validation as every child.
+    let shape = match selected_shape {
+        Some(shape) => shape,
+        None => structural_shape(structural_type, declarations, cache, active)?,
+    };
+    Ok((structural_type, shape, total_offset))
 }
 
 type RuntimeProjection = (
@@ -952,6 +956,45 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_projection_retains_root_layout_including_zero_extent() {
+        let element = StructuralTypeId::new(1).unwrap();
+        let array = StructuralTypeId::new(2).unwrap();
+        for length in [0, 2] {
+            let declarations = [
+                StructuralTypeDeclaration {
+                    id: element,
+                    identity: "Boolean".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                },
+                StructuralTypeDeclaration {
+                    id: array,
+                    identity: "Array".into(),
+                    shape: StructuralTypeShape::FixedArray { element, length },
+                },
+            ];
+            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
+            assert_eq!(
+                resolve_structural_projection_path(
+                    array,
+                    &[],
+                    &indexed,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .unwrap(),
+                (array, ValueShape::integer(length as u32, 1), 0),
+            );
+            let unknown = StructuralTypeId::new(3).unwrap();
+            assert!(matches!(
+                resolve_structural_projection_path(
+                    unknown, &[], &indexed, &mut BTreeMap::new(), &mut BTreeSet::new(),
+                ),
+                Err(LoweringError::UnknownStructuralType(identity)) if identity == unknown
+            ));
+        }
+    }
 
     #[test]
     fn array_extents_above_64k_remain_exact_and_u32_overflow_rejects() {
