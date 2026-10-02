@@ -44,7 +44,8 @@ pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
 pub use proof_contracts::domains::{
-    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+    scalar_interval_domains, scalar_membership_carrier, scalar_membership_predicates,
+    scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use value_custody::claim_frontier::{

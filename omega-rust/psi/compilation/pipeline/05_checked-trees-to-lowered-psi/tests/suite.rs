@@ -48,6 +48,7 @@ mod constructed_field_replacement_source;
 mod copied_call_operands;
 mod crash_member_source;
 mod direct_primitive_store_source;
+mod domain_runtime_requirements;
 mod entry_requirement_crash_coverage;
 mod enum_view_reference_source;
 mod evidence_identity_source;

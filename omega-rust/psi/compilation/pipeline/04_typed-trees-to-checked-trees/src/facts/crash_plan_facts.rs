@@ -309,8 +309,14 @@ pub(crate) fn build_published_crash_plan(
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> checked_trees::CrashPlan {
-    let structural_runtime_requirements =
-        build_structural_runtime_requirements(program, machine, operators, exact_integer_casts);
+    let mut runtime_membership_subjects = Vec::new();
+    let structural_runtime_requirements = build_structural_runtime_requirements(
+        program,
+        machine,
+        operators,
+        exact_integer_casts,
+        &mut runtime_membership_subjects,
+    );
     let structural_runtime_guarantees =
         build_structural_runtime_guarantees(program, machine, operators, exact_integer_casts);
     let published = build_published_crash_buckets(
@@ -331,6 +337,7 @@ pub(crate) fn build_published_crash_plan(
         checked_trees::CrashPlan::default()
     })
     .with_structural_runtime_requirements(structural_runtime_requirements)
+    .with_runtime_membership_subjects(runtime_membership_subjects)
     .with_structural_runtime_guarantees(structural_runtime_guarantees);
     let checked_sites = build_checked_crash_sites(program, machine, &plan);
     plan.with_checked_sites(checked_sites)
@@ -342,32 +349,55 @@ fn build_structural_runtime_requirements(
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    subjects: &mut Vec<checked_trees::CheckedRuntimeMembershipSubject>,
 ) -> Option<Vec<checked_trees::CheckedBooleanExpression>> {
     let entry = program.machine_states(machine).first()?;
-    let mut requirements = program
+    let facts = program
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        // A structural parameter's qualification restatement is carried by
-        // its declaration and proven by the caller's argument presentation.
-        .filter(|fact| {
-            !validation::restates_structural_parameter_qualification(program, entry, fact)
-        })
-        .map(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-                return None;
-            };
-            crate::values::lower_machine_entry_boolean_expression(
-                program,
-                operators,
-                machine,
-                *expression,
-                exact_integer_casts,
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
+        .enumerate();
+    let mut requirements = Vec::new();
+    for (fact_ordinal, fact) in facts {
+        // Structural qualification restatements retain their separate argument
+        // presentation; scalar memberships retain their subject and full theory.
+        if validation::restates_structural_parameter_qualification(program, entry, fact) {
+            continue;
+        }
+        match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                requirements.push(crate::values::lower_machine_entry_boolean_expression(
+                    program,
+                    operators,
+                    machine,
+                    *expression,
+                    exact_integer_casts,
+                )?)
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                let primitive = validation::scalar_membership_carrier(program, membership)?;
+                let subject = crate::values::lower_unit_scalar_argument(
+                    program,
+                    operators,
+                    entry,
+                    0,
+                    membership.value,
+                    primitive,
+                )?;
+                requirements.extend(validation::scalar_membership_predicates(
+                    program, operators, membership, &subject,
+                )?);
+                subjects.push(checked_trees::CheckedRuntimeMembershipSubject {
+                    fact_ordinal: u32::try_from(fact_ordinal).ok()?,
+                    membership: *membership,
+                    subject,
+                });
+            }
+            typed_trees::domain::ProofFact::Proposition(_) => return None,
+        }
+    }
     requirements.extend(
         crate::values::lower_scalar_parameter_refinement_predicates(program, machine)
             .into_iter()

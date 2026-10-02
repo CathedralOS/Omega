@@ -19,14 +19,22 @@ pub(crate) fn validate_scalar_source(
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
-    let requirements = checked
+    let crash = &checked
         .facts
         .contract_plans
         .for_machine(machine.symbol)
-        .and_then(|contract| contract.crash.structural_runtime_requirements())
         .ok_or(LoweringError::Unsupported(
-            "scalar completion lacks complete entry requirements",
-        ))?;
+            "scalar completion lacks a contract plan",
+        ))?
+        .crash;
+    let requirements =
+        crash
+            .structural_runtime_requirements()
+            .ok_or(LoweringError::Unsupported(
+                "scalar completion lacks complete entry requirements",
+            ))?;
+    let mut membership_subjects = crash.runtime_membership_subjects().iter();
+    let mut fact_ordinal = 0u32;
     // The package closes with the declaration predicate roster. Rederive it
     // from the entry parameters' declared storage and require that exact
     // tail, so authored clauses and ranges rejoin only the prefix before it.
@@ -71,10 +79,27 @@ pub(crate) fn validate_scalar_source(
             return unsupported("scalar entry requirement has no authored predicate");
         }
         for fact in facts {
+            let ordinal = fact_ordinal;
+            fact_ordinal = fact_ordinal
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "runtime requirement fact ordinal overflow",
+                ))?;
             // The declaration carries a structural parameter's restated
             // qualification; it occupies no runtime requirement slot.
             if validation::restates_structural_parameter_qualification(&checked.typed, state, fact)
             {
+                continue;
+            }
+            if let ProofFact::Membership(membership) = fact {
+                validate_membership_source(
+                    checked,
+                    state,
+                    membership,
+                    ordinal,
+                    &mut membership_subjects,
+                    &mut retained,
+                )?;
                 continue;
             }
             let ProofFact::Expression(expression) = fact else {
@@ -100,6 +125,9 @@ pub(crate) fn validate_scalar_source(
             )?;
         }
     }
+    if membership_subjects.next().is_some() {
+        return unsupported("scalar entry requirements retain an unauthored membership subject");
+    }
     // Ordered bodies keep no floating or integer range roster: the
     // structural runtime requirement capsule already fails closed when an
     // authored range cannot be retained, so no authored floating range can
@@ -111,6 +139,136 @@ pub(crate) fn validate_scalar_source(
         None,
         None,
     )
+}
+
+/// Rejoin membership rows at every runtime-contract publisher. Ordinary
+/// expression requirements retain their existing source validators; this
+/// walk counts their slots so a membership cannot substitute another clause.
+pub(crate) fn validate_runtime_memberships(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+) -> Result<(), LoweringError> {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|row| row.symbol == machine_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "runtime membership has no source machine",
+        ))?;
+    let state = checked
+        .machine_states(machine)
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "runtime membership has no source entry",
+        ))?;
+    let crash = &checked
+        .facts
+        .contract_plans
+        .for_machine(machine_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "runtime membership has no contract plan",
+        ))?
+        .crash;
+    let mut retained = crash
+        .structural_runtime_requirements()
+        .ok_or(LoweringError::Unsupported(
+            "runtime membership has no complete requirement package",
+        ))?
+        .iter();
+    let mut subjects = crash.runtime_membership_subjects().iter();
+    let facts = checked
+        .machine_contracts(machine)
+        .iter()
+        .chain(checked.state_contracts(state))
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| checked.proof_facts.span_or_empty(contract.facts));
+    for (ordinal, fact) in facts.enumerate() {
+        if validation::restates_structural_parameter_qualification(&checked.typed, state, fact) {
+            continue;
+        }
+        match fact {
+            ProofFact::Expression(_) => {
+                retained.next().ok_or(LoweringError::Unsupported(
+                    "runtime requirement lost an authored expression",
+                ))?;
+            }
+            ProofFact::Membership(membership) => validate_membership_source(
+                checked,
+                state,
+                membership,
+                u32::try_from(ordinal).map_err(|_| {
+                    LoweringError::Unsupported("runtime requirement fact ordinal overflow")
+                })?,
+                &mut subjects,
+                &mut retained,
+            )?,
+            ProofFact::Proposition(_) => {
+                return unsupported("runtime membership predicate needs its evidence owner");
+            }
+        }
+    }
+    if subjects.next().is_some() {
+        return unsupported("runtime requirements retain an unauthored membership subject");
+    }
+    Ok(())
+}
+
+fn validate_membership_source<'clause>(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    membership: &checked_trees::domain::ProofMembershipFact,
+    ordinal: u32,
+    membership_subjects: &mut std::slice::Iter<
+        'clause,
+        checked_trees::CheckedRuntimeMembershipSubject,
+    >,
+    retained: &mut std::slice::Iter<'clause, CheckedBooleanExpression>,
+) -> Result<(), LoweringError> {
+    let witness = membership_subjects
+        .next()
+        .filter(|row| row.fact_ordinal == ordinal && row.membership == *membership)
+        .ok_or(LoweringError::Unsupported(
+            "scalar entry membership lost its exact subject row",
+        ))?;
+    let primitive = validation::scalar_membership_carrier(&checked.typed, membership).ok_or(
+        LoweringError::Unsupported(
+            "scalar entry membership needs its declared theory evidence owner",
+        ),
+    )?;
+    crate::expression_preparation::source_custody::validate_entry_read_expression(
+        checked,
+        state.symbol,
+        membership.value,
+        &witness.subject,
+    )?;
+    validate_value(
+        checked,
+        state.symbol,
+        membership.value,
+        primitive,
+        witness.subject.clone(),
+    )?;
+    let predicates = validation::scalar_membership_predicates(
+        &checked.typed,
+        &checked.facts.operators,
+        membership,
+        &witness.subject,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "scalar entry membership has no complete predicate projection",
+    ))?;
+    for expected in predicates {
+        let actual = retained.next().ok_or(LoweringError::Unsupported(
+            "scalar entry membership lost a declared predicate",
+        ))?;
+        super::validate_namespace(actual)?;
+        if actual != &expected {
+            return unsupported(
+                "scalar entry membership differs from its exact declared predicates",
+            );
+        }
+    }
+    Ok(())
 }
 
 /// One requires-tail row during the range rejoin. Integer bounds are checked
