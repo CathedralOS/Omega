@@ -761,15 +761,27 @@ fn render_argument_types(
                 local_type(syntax_trees, machine, members[0].as_str())?
             }
             ExpressionNode::Member(member) => {
-                let is_self_receiver = matches!(
-                    syntax_trees.tables.expressions.expression(member.receiver),
-                    ExpressionNode::SelfValue
-                );
-                if !is_self_receiver {
-                    return None;
-                }
-                let attached = machine.attached_data.as_ref()?;
-                let fields = data_fields.get(attached.as_str())?;
+                // `&mut self.buffer` reads the attached data's fields; a named
+                // `&mut Data` parameter (`main.buffer` in `main: &mut Main`)
+                // carries the same declaration through the machine's parameter
+                // list. Both spellings name the same storage.
+                let data_name = match syntax_trees.tables.expressions.expression(member.receiver) {
+                    ExpressionNode::SelfValue => {
+                        machine.attached_data.as_ref()?.as_str().to_string()
+                    }
+                    ExpressionNode::Name(path) => {
+                        let members = syntax_trees
+                            .tables
+                            .expressions
+                            .identifier_path_members(*path);
+                        if members.len() != 1 {
+                            return None;
+                        }
+                        parameter_data_name(syntax_trees, machine, members[0].as_str())?
+                    }
+                    _ => return None,
+                };
+                let fields = data_fields.get(data_name.as_str())?;
                 *fields.get(member.member.as_str())?
             }
             _ => return None,
@@ -789,6 +801,43 @@ fn buffer_view(rendered: &str) -> Option<String> {
             && rest[..rest.len() - 1].chars().all(|c| c.is_ascii_digit())
         {
             return Some(access.to_string());
+        }
+    }
+    None
+}
+
+/// The data declaration a named machine parameter carries when its type is a
+/// reference (`main: &mut Main` -> `Main`) or a bare named data (`m: Main` ->
+/// `Main`). Anything else — a scalar, slice, generic, or absent name — has no
+/// field map to render against and declines.
+fn parameter_data_name(
+    syntax_trees: &SyntaxTrees,
+    machine: &Machine,
+    name: &str,
+) -> Option<String> {
+    for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
+        let state = syntax_trees.tables.items.state(*state_handle);
+        for parameter_handle in syntax_trees.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax_trees.tables.items.state_parameter(*parameter_handle);
+            if parameter.name.as_str() != name {
+                continue;
+            }
+            let mut type_reference = parameter.type_reference;
+            if let TypeReferenceNode::Reference { referee, .. } = syntax_trees
+                .tables
+                .type_references
+                .type_reference(type_reference)
+            {
+                type_reference = *referee;
+            }
+            let TypeReferenceNode::Named(named) = syntax_trees
+                .tables
+                .type_references
+                .type_reference(type_reference)
+            else {
+                return None;
+            };
+            return Some(named.as_str().to_string());
         }
     }
     None
