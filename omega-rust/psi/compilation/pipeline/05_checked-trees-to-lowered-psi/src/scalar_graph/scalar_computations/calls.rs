@@ -434,12 +434,12 @@ impl Expansion<'_> {
                     operands.push(Operand::Case { slot, fields });
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
-                    && let Some((_, expression, _, _, _)) = subslices::range(argument)
+                    && let Some(range) = subslices::range(argument)
                 {
                     let slot = self
                         .subslices
                         .iter()
-                        .find(|slot| slot.expression == expression)
+                        .find(|slot| slot.expression == range.expression)
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no reserved structural result",
                         ))?;
@@ -455,18 +455,22 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no explicit structural ordinal",
                         ))?;
-                    operands.push(Operand::Effect(subslices::effect(
-                        self.checked,
-                        site.state,
-                        site.statement,
-                        checked_trees::CheckedSubsliceSite::CallArgument {
-                            call_ordinal,
-                            argument_ordinal,
-                        },
-                        argument,
-                        slot,
-                        site.bindings,
-                    )?));
+                    operands.extend(
+                        subslices::effects(
+                            self.checked,
+                            site.state,
+                            site.statement,
+                            checked_trees::CheckedSubsliceSite::CallArgument {
+                                call_ordinal,
+                                argument_ordinal,
+                            },
+                            argument,
+                            slot,
+                            site.bindings,
+                        )?
+                        .into_iter()
+                        .map(Operand::Effect),
+                    );
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
                     && let Some(bytes) = literals::source_bytes(argument)

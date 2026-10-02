@@ -59,7 +59,7 @@ use super::argument_evaluation::Evaluation;
 use super::bodies::UnitPlans;
 use super::primitive_locals::{self, PrimitiveLocal};
 use super::signatures::MachineSignature;
-use super::view_ranges::{ViewRangeSite, ViewRangeSource};
+use super::view_ranges::ViewRangeSite;
 use super::{parameters, reference_results};
 use crate::emission::borrowed_window::{
     BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
@@ -67,10 +67,8 @@ use crate::emission::borrowed_window::{
 use crate::emission::indexed_write::{IndexedWriteLeaf, IndexedWriteTarget};
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::expression_preparation::bindings::view_locals;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -2302,16 +2300,15 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Bind one immutable view local to an exclusive range of an established
-    /// view: a whole view parameter or an earlier view local. The range
+    /// Bind one immutable view local to an exclusive range. The range
     /// replays at its `LocalBinding` site and emits through the same replay
     /// and Terminal operation a call argument or an edge transfer uses. The
     /// published place joins the local namespace exactly as an `as_slice`
     /// view local's does, so later edges, calls, lengths and element reads
     /// resolve either kind of view local the same way.
     ///
-    /// A range over a fixed-array field (`self.items[a..b]`) has no view to
-    /// narrow yet. It first establishes a whole element view of the field
+    /// A range over array backing has no view to narrow yet. It first
+    /// establishes a whole element view of that collection
     /// under a shared loan -- the same `EstablishElementView` an `as_slice`
     /// local emits -- into a private temporary, and narrows that. The
     /// verifier then relates the whole view's length to the array's declared
@@ -2327,77 +2324,22 @@ impl OperationFrame<'_, '_> {
         self.results
             .require_next(result, "view subslice result binding is not dense")?;
         super::view_ranges::binding_local(self.checked, self.state, operation)?;
-        let (root, family, expression, start, end) = match &source.source {
+        let (expression, start, end) = match &source.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-                root,
+                root: _,
                 expression,
                 start,
                 end,
-            } => (*root, ViewFamily::Bytes, *expression, start, end),
+            } => (*expression, start, end),
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-                root,
+                root: _,
                 expression,
                 start,
                 end,
-            } => (*root, ViewFamily::Elements, *expression, start, end),
+            } => (*expression, start, end),
             _ => return unsupported("view subslice binding lost its range source"),
         };
-        let field_range = !source.path.is_empty();
-        let range_source = match root {
-            checked_trees::CheckedStorageRoot::Parameter { index } if field_range => {
-                self.establish_whole_field_view(index, source, &result.type_identity, family)?
-            }
-            checked_trees::CheckedStorageRoot::Parameter { index } => {
-                let parameter =
-                    self.parameters
-                        .get(index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "view subslice source parameter is absent",
-                        ))?;
-                if parameter.access != terminal_psi::StructuralAccess::SharedBorrow
-                    || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return unsupported("view subslice source parameter is not an immutable view");
-                }
-                let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                )?;
-                let symbol = self
-                    .checked
-                    .state_parameters(authored)
-                    .get(parameter.position as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "view subslice source has no authored parameter",
-                    ))?
-                    .symbol;
-                ViewRangeSource {
-                    symbol,
-                    place: self.evaluation.current_structural_place(parameter.place),
-                    structural_type: parameter.structural_type,
-                    family,
-                }
-            }
-            checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                let local = view_locals::resolve(&self.evaluation.view_locals, symbol)?;
-                if (family == ViewFamily::Bytes)
-                    != (local.carrier == view_locals::ViewCarrier::Bytes)
-                {
-                    return unsupported("view subslice source local changed its view family");
-                }
-                ViewRangeSource {
-                    symbol,
-                    place: self.evaluation.current_structural_place(local.place),
-                    structural_type: local.structural_type,
-                    family,
-                }
-            }
-            checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
-                return unsupported("view subslice source is an owned local, not a view");
-            }
-        };
+
         // Endpoints read the body's scalar namespace, including the view
         // locals and parameters a `len` endpoint may observe.
         let bindings = self
@@ -2420,32 +2362,35 @@ impl OperationFrame<'_, '_> {
             retained: Some((start, end)),
         };
         let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
-        let declaration = if field_range {
-            super::view_ranges::emit_over_field(
-                self.checked,
-                site,
-                range_source,
-                &source.path,
-                result_type,
-                destination,
-                &bindings,
-                self.values,
-                self.next_value,
-                self.operations,
-            )?
-        } else {
-            super::view_ranges::emit(
-                self.checked,
-                site,
-                range_source,
-                result_type,
-                destination,
-                &bindings,
-                self.values,
-                self.next_value,
-                self.operations,
-            )?
-        };
+        let storage = super::view_ranges::storage(
+            self.checked,
+            self.state,
+            result.statement_index,
+            source,
+            self.structural_types.declarations(),
+        )?;
+        let whole = storage
+            .requires_establishment()
+            .then(|| allocate_dense(self.next_place).map(place_id))
+            .transpose()?;
+        let (range_source, establishment) =
+            storage.bind(self.checked, self.state, &bindings, whole)?;
+        if let Some(establishment) = establishment {
+            let declaration = super::view_ranges::establish(&establishment, self.operations);
+            self.private_places.temporaries().push(declaration);
+        }
+        let declaration = super::view_ranges::emit(
+            self.checked,
+            site,
+            range_source,
+            &source.path,
+            result_type,
+            destination,
+            &bindings,
+            self.values,
+            self.next_value,
+            self.operations,
+        )?;
         let produced = self
             .operations
             .operations
@@ -2469,130 +2414,6 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             self.operations,
         )
-    }
-
-    /// Establish a whole collection view of the fixed-array field `source.path`
-    /// below structural parameter `index`, as the source a field range
-    /// narrows. The view reads the array through a shared loan, so any
-    /// readable root lends it; the temporary is private to this binding.
-    fn establish_whole_field_view(
-        &mut self,
-        index: u32,
-        source: &CheckedUnitStructuralArgumentPlan,
-        type_identity: &str,
-        family: ViewFamily,
-    ) -> Result<ViewRangeSource, LoweringError> {
-        let parameter = self
-            .parameters
-            .get(index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "view subslice field owner parameter is absent",
-            ))?;
-        if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::Owned
-            )
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return unsupported("view subslice field owner cannot lend a shared collection view");
-        }
-        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
-        let symbol = self
-            .checked
-            .state_parameters(authored)
-            .get(parameter.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "view subslice field owner has no authored parameter",
-            ))?
-            .symbol;
-        let structural_type = lookup_type_id(self.type_ids, type_identity)?;
-        let path = lower_structural_path(&source.path)?;
-        let declarations = self.structural_types.declarations();
-        let collection = terminal_semantics::runtime_structural_path_tip(
-            declarations.iter(),
-            parameter.structural_type,
-            &path,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "view subslice field lost its exact collection",
-        ))?;
-        let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = collection.shape else {
-            return unsupported("view subslice field is not fixed-array backing");
-        };
-        let view = declarations
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "view subslice field range lost its view type",
-            ))?;
-        // Both descriptor families use the existing collection-view operation.
-        // A byte view may borrow only this array's exact u8 element, never
-        // reinterpret another primitive's bytes or erase element identity.
-        let matches_family = match (family, &view.shape) {
-            (
-                ViewFamily::Elements,
-                terminal_psi::StructuralTypeShape::ElementView { element: expected },
-            ) => *expected == element,
-            (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
-                let byte_scalar = terminal_scalar_type(checked_trees::types::PrimitiveType::U8)?;
-                declarations.iter().any(|declaration| {
-                    declaration.id == element
-                        && declaration.shape
-                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte_scalar)
-                })
-            }
-            _ => false,
-        };
-        if !matches_family {
-            return unsupported("view subslice field element disagrees with its view family");
-        }
-        let whole = place_id(allocate_dense(self.next_place)?);
-        let producer = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: producer,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: whole,
-                structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishElementView {
-                destination: whole,
-                source: terminal_psi::StructuralArgument {
-                    place: self.evaluation.current_structural_place(parameter.place),
-                    path,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                },
-                element,
-            },
-        });
-        self.private_places
-            .temporaries()
-            .push(StructuralPlaceDeclaration {
-                id: whole,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            });
-        Ok(ViewRangeSource {
-            symbol,
-            place: whole,
-            structural_type,
-            family,
-        })
     }
 
     /// Store a whole owned result back into its open window. The ledger

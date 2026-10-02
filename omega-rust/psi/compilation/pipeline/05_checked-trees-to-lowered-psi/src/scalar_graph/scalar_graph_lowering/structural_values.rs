@@ -632,9 +632,7 @@ pub(crate) fn declarations(
         .filter_map(|operation| match (&operation.kind, &operation.result) {
             (
                 OperationKind::EstablishRecord { .. }
-                | OperationKind::EstablishZeroedStructural { .. }
-                | OperationKind::ByteSequenceSubslice { .. }
-                | OperationKind::ElementViewSubslice { .. },
+                | OperationKind::EstablishZeroedStructural { .. },
                 OperationResult::Structural(result),
             ) => Some(StructuralPlaceDeclaration {
                 id: result.place,

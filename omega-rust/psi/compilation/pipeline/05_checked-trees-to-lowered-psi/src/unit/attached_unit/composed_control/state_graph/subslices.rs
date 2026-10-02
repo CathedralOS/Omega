@@ -103,6 +103,7 @@ pub(super) fn emit(
             retained: None,
         },
         source,
+        &[],
         source.structural_type,
         destination,
         bindings,

@@ -1139,22 +1139,42 @@ impl MachineEmission<'_> {
                 {
                     return unsupported("subslice argument is evaluated more than once");
                 }
+                let bindings = self
+                    .evaluation
+                    .scalar_bindings
+                    .clone()
+                    .unwrap_or_else(|| {
+                        crate::expression_preparation::bindings::ScalarBindings::new(
+                            self.scalar_result_values[..source_value_count]
+                                .iter()
+                                .map(|value| value.scalar_type),
+                        )
+                    })
+                    .with_structural_parameters(&self.evaluation.structural_parameters)
+                    .with_structural_observations(self.structural_types)
+                    .with_primitive_storage(&self.evaluation.primitive_storage)
+                    .with_local_cases(&self.evaluation.local_cases)
+                    .with_structural_locals(&self.evaluation.structural_locals)
+                    .with_view_locals(&self.evaluation.view_locals)
+                    .with_element_views(&self.evaluation.element_views);
+                let context = byte_subslices::StagingContext {
+                    state: plan.state,
+                    structural_types: self.structural_types,
+                    type_ids: self.type_ids,
+                    bindings: &bindings,
+                };
                 let place = byte_subslices::emit(
                     checked,
-                    plan,
+                    &context,
                     &plan.operations[operation],
                     ordinal,
-                    self.parameters,
-                    &self.evaluation.structural_parameters,
-                    &self.evaluation.view_locals,
                     &self.scalar_result_values[..source_value_count],
-                    self.type_ids,
+                    &mut self.subslice_places,
                     &mut self.next_place,
                     &mut self.next_value_identity,
                     &mut self.operations,
                 )?;
-                self.staged_subslices[operation].push((ordinal, place.id));
-                self.subslice_places.push(place);
+                self.staged_subslices[operation].push((ordinal, place));
                 return Ok(());
             }
             argument_schedule::Step::Call(index) if self.retained_scalar_prefix.is_some() => {

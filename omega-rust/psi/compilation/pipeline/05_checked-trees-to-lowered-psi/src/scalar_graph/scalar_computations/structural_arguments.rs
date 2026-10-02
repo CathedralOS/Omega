@@ -204,17 +204,14 @@ pub(super) fn lower(
             };
             if checked.primitive_type_reference(*referee).is_none() {
                 if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    && let Some((_, expression, _, _, _)) = subslices::range(argument)
+                    && let Some(range) = subslices::range(argument)
                 {
                     let slot = subslices
                         .iter()
-                        .find(|slot| slot.expression == expression)
+                        .find(|slot| slot.expression == range.expression)
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no reserved structural result",
                         ))?;
-                    if !argument.path.is_empty() {
-                        return unsupported("computed range cannot project its descriptor");
-                    }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,

@@ -677,24 +677,15 @@ pub(crate) fn validate_transfer_shape(
             // A literal can construct a fresh bounded owner; ranges of either
             // view family still supply only shared views. Source replay checks
             // the exact formal, and Terminal checks every emitted
-            // qualification from its bytes. A range over a fixed-array field
-            // keeps the field projection its staging views whole.
+            // qualification from its bytes. A range retains its collection
+            // projection; storage replay checks that projection before staging.
             let owned_literal = argument.byte_sequence_literal().is_some()
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned;
-            let field_range = range.as_ref().is_some_and(|range| {
-                matches!(
-                    range.root,
-                    checked_trees::CheckedStorageRoot::Parameter { .. }
-                )
-            }) && argument
-                .path
-                .iter()
-                .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)));
             let element_range = range.as_ref().is_some_and(|range| {
                 range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Elements
             });
-            if (!argument.path.is_empty() && !field_range)
+            if (!argument.path.is_empty() && range.is_none())
                 || argument.type_identity != target.type_identity
                 || (!owned_literal
                     && argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow)

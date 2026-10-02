@@ -290,7 +290,6 @@ pub(super) fn emit_call_operations(
                 let place = literal_arguments::stage_range(
                     checked,
                     state,
-                    parameters,
                     &planned_operations[operation],
                     ordinal,
                     source_value_count,
@@ -338,7 +337,6 @@ pub(super) fn emit_call_operations(
                 checked,
                 machine,
                 state,
-                parameters,
                 operation,
                 staged.then_some(literal_arguments::StagedArguments {
                     scalars: &staged_scalars,

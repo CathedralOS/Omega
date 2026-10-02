@@ -1,22 +1,11 @@
-//! Replay one checked view range at its authored site, then emit it through
-//! the shared view-subslice emitter.
+//! Resolve range storage, establish a descriptor when needed, and narrow it.
 //!
-//! Every Unit route that narrows an established view -- a call argument
-//! (`byte_subslices.rs`), a Unit-graph edge transfer
-//! (`composed_control/state_graph/subslices.rs`) and a view local's `let`
-//! (`operation_frame.rs`) -- independently replays the same facts before it
-//! emits anything: the authored expression is an exclusive builtin range over
-//! the exact checked storage root and projection, each present endpoint has exactly one
-//! source-bound `u64` fact at the range's `CheckedSubsliceSite`, and an
-//! endpoint the plan retains equals that fact. Only the lookup of the source
-//! place differs by route, so each route resolves `ViewRangeSource` itself.
-//!
-//! A range over a fixed-array field (`self.items[a..b]`, as a view local's
-//! initializer or a call argument) names no established view: its route
-//! first establishes a whole collection view of the field
-//! (`establish_field_view`) and passes that place as the source, together
-//! with the checked field path. `emit_over_field` then replays the authored
-//! member chain to that exact field in place of the bare view name.
+//! Arrays have backing but no descriptor; views already have one. That type
+//! distinction, not the source's local/parameter origin or projection length,
+//! decides whether EstablishElementView precedes narrowing. Reservation never
+//! evaluates an operand: each consumer emits the preparation at the range's
+//! authored position. Source replay and Terminal loan/bounds verification remain
+//! independent of this choice.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -27,8 +16,312 @@ use checked_trees::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedSubsliceSite,
     CheckedUnitStructuralPathSegment,
 };
+use checked_trees::{
+    CheckedStorageRoot, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralPlaceDeclaration, ValueDeclaration};
+
+/// One range argument as its checked plan retains it.
+pub(crate) struct Range<'a> {
+    pub(crate) root: CheckedStorageRoot,
+    pub(crate) family: ViewFamily,
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) start: &'a Option<CheckedScalarExpression>,
+    pub(crate) end: &'a Option<CheckedScalarExpression>,
+}
+
+/// The range `argument` narrows, of either view family.
+pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Range<'_>> {
+    let (root, family, expression, start, end) = match &argument.source {
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root,
+            expression,
+            start,
+            end,
+        } => (*root, ViewFamily::Bytes, *expression, start, end),
+        CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root,
+            expression,
+            start,
+            end,
+        } => (*root, ViewFamily::Elements, *expression, start, end),
+        _ => return None,
+    };
+    Some(Range {
+        root,
+        family,
+        expression,
+        start,
+        end,
+    })
+}
+
+#[derive(Clone)]
+pub(crate) struct RangeStorage {
+    symbol: symbols::SymbolHandle,
+    root: checked_trees::CheckedStorageRoot,
+    collection: Vec<CheckedUnitStructuralPathSegment>,
+    structural_type: StructuralTypeId,
+    family: ViewFamily,
+    array_element: Option<StructuralTypeId>,
+}
+
+/// One ordinary collection-view operation, shared by scalar and Unit schedules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CollectionView {
+    pub(crate) source: terminal_psi::StructuralArgument,
+    pub(crate) element: StructuralTypeId,
+    pub(crate) place: PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
+}
+
+impl RangeStorage {
+    pub(crate) fn requires_establishment(&self) -> bool {
+        self.array_element.is_some()
+    }
+
+    /// Bind the replayed source to the current activation's storage. Array
+    /// borrowing reuses the ordinary place join, including its access checks.
+    pub(crate) fn bind(
+        &self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        bindings: &ScalarBindings,
+        destination: Option<PlaceId>,
+    ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
+        let (machine, authored) =
+            crate::expression_preparation::source_custody::authored_state(checked, state)?;
+        let (place, establishment) = if let Some(element) = self.array_element {
+            let destination = destination.ok_or(LoweringError::Unsupported(
+                "array range has no reserved whole-view descriptor",
+            ))?;
+            let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: self.symbol,
+                },
+                path: self.collection.clone(),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                type_identity: String::new(),
+            };
+            let source = bindings.shared_structural_argument(
+                &argument,
+                machine,
+                checked.state_parameters(authored),
+            )?;
+            (
+                destination,
+                Some(CollectionView {
+                    source,
+                    element,
+                    place: destination,
+                    structural_type: self.structural_type,
+                }),
+            )
+        } else {
+            let (symbol, place) = bindings.shared_view_source(
+                self.root,
+                checked.state_parameters(authored),
+                checked,
+                self.structural_type,
+                self.family == ViewFamily::Bytes,
+            )?;
+            if symbol != self.symbol || !self.collection.is_empty() {
+                return unsupported("range descriptor changed its storage identity");
+            }
+            (place, None)
+        };
+        Ok((
+            ViewRangeSource {
+                symbol: self.symbol,
+                place,
+                structural_type: self.structural_type,
+                family: self.family,
+            },
+            establishment,
+        ))
+    }
+}
+
+/// Resolve the collection's declared type before reserving descriptor storage.
+/// This does not confer a loan or discharge range bounds.
+pub(crate) fn storage(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<RangeStorage, LoweringError> {
+    let range = range(argument).ok_or(LoweringError::Unsupported(
+        "range storage has no range operation",
+    ))?;
+    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+        return unsupported("range storage requires a shared loan");
+    }
+    let (machine, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let operation = validation::shared_subslice_expression(&checked.typed, range.expression)
+        .ok_or(LoweringError::Unsupported(
+            "range storage lost its shared expression",
+        ))?;
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
+        return unsupported("range storage lost its collection");
+    };
+    let source = crate::emission::call_source_custody::projected_receivers::source(
+        checked,
+        machine.symbol,
+        state,
+        statement as usize,
+        indexed.collection,
+    )?;
+    let symbol = match range.root {
+        checked_trees::CheckedStorageRoot::Parameter { index } => checked
+            .state_parameters(authored)
+            .iter()
+            .filter(|parameter| {
+                !parameter.relevance.is_erased()
+                    && checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .nth(index as usize)
+            .map(|parameter| parameter.symbol)
+            .ok_or(LoweringError::Unsupported(
+                "range storage lost its parameter",
+            ))?,
+        checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
+        | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
+    };
+    if source.root != symbol || source.path != argument.path {
+        return unsupported("range storage changed its root or projection");
+    }
+    let mut reference = validation::declared_place_type_raw(
+        &checked.typed,
+        machine,
+        Some(authored),
+        indexed.collection,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "range collection has no declared type",
+    ))?;
+    // A root reference is represented by its parameter/view-local custody.
+    // A stored reference needs an explicit Referent projection, not erasure.
+    if source.path.is_empty()
+        && !matches!(
+            range.root,
+            checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+        )
+        && let Some(shell) = validation::reference_shell(&checked.typed, reference)
+    {
+        if shell.access != language_core::ReferenceAccess::Shared
+            && shell.access != language_core::ReferenceAccess::Mutable
+        {
+            return unsupported("range collection is not readable");
+        }
+        reference = shell.referee;
+    }
+    let reference = super::parameters::structural_carrier_type(checked, reference)?;
+    let identity = checked.normalized_type_identity(reference);
+    let collection = declarations
+        .iter()
+        .find(|declaration| declaration.identity == identity.as_str())
+        .ok_or(LoweringError::Unsupported(
+            "range collection has no exact Terminal type",
+        ))?;
+    let view = declarations
+        .iter()
+        .find(|declaration| declaration.identity == argument.type_identity)
+        .ok_or(LoweringError::Unsupported(
+            "range result has no exact Terminal type",
+        ))?;
+    let array_element = match collection.shape {
+        terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
+            validate_element(element, view, range.family, declarations)?;
+            Some(element)
+        }
+        _ if collection.id == view.id
+            && source.path.is_empty()
+            && !matches!(
+                range.root,
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+            ) =>
+        {
+            None
+        }
+        _ => return unsupported("range collection is neither backing nor its exact descriptor"),
+    };
+    Ok(RangeStorage {
+        symbol,
+        root: range.root,
+        collection: source.path,
+        structural_type: view.id,
+        family: range.family,
+        array_element,
+    })
+}
+
+fn validate_element(
+    element: StructuralTypeId,
+    view: &terminal_psi::StructuralTypeDeclaration,
+    family: ViewFamily,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    let matches = match (family, &view.shape) {
+        (
+            ViewFamily::Elements,
+            terminal_psi::StructuralTypeShape::ElementView { element: expected },
+        ) => *expected == element,
+        (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
+            let byte = crate::emission::scalar_types::terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?;
+            declarations.iter().any(|declaration| {
+                declaration.id == element
+                    && declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte)
+            })
+        }
+        _ => false,
+    };
+    if !matches {
+        return unsupported("range backing element disagrees with its view type");
+    }
+    Ok(())
+}
+
+pub(crate) fn establish(
+    view: &CollectionView,
+    operations: &mut OperationBuffer,
+) -> StructuralPlaceDeclaration {
+    let producer = operations.allocate();
+    operations.push(terminal_psi::Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: producer,
+        result: terminal_psi::OperationResult::Structural(
+            terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: view.place,
+                structural_type: view.structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+        ),
+        kind: terminal_psi::OperationKind::EstablishElementView {
+            destination: view.place,
+            source: view.source.clone(),
+            element: view.element,
+        },
+    });
+    StructuralPlaceDeclaration {
+        id: view.place,
+        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type: view.structural_type,
+        },
+    }
+}
 
 /// The established view a range narrows, as the emitting route found it.
 #[derive(Debug, Clone, Copy)]
@@ -55,69 +348,9 @@ pub(crate) struct ViewRangeSite<'a> {
     )>,
 }
 
-/// Replay the range at `site` and emit `source[start..end]` into
-/// `destination`, whose type is the narrowed view's (always the source's).
+/// Replay the authored collection and narrow its established descriptor.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
-    checked: &CheckedTrees,
-    site: ViewRangeSite<'_>,
-    source: ViewRangeSource,
-    result_type: StructuralTypeId,
-    destination: PlaceId,
-    bindings: &ScalarBindings,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    emit_ranged(
-        checked,
-        site,
-        source,
-        &[],
-        result_type,
-        destination,
-        bindings,
-        values,
-        next_value,
-        operations,
-    )
-}
-
-/// `emit` for a range whose authored collection is the fixed-array field
-/// `collection` below the parameter `source.symbol` names. `source.place` is
-/// the whole collection view the route already established over that field.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn emit_over_field(
-    checked: &CheckedTrees,
-    site: ViewRangeSite<'_>,
-    source: ViewRangeSource,
-    collection: &[CheckedUnitStructuralPathSegment],
-    result_type: StructuralTypeId,
-    destination: PlaceId,
-    bindings: &ScalarBindings,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    if collection.is_empty() {
-        return unsupported("view subslice field collection has no field path");
-    }
-    emit_ranged(
-        checked,
-        site,
-        source,
-        collection,
-        result_type,
-        destination,
-        bindings,
-        values,
-        next_value,
-        operations,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn emit_ranged(
     checked: &CheckedTrees,
     site: ViewRangeSite<'_>,
     source: ViewRangeSource,
@@ -144,123 +377,6 @@ fn emit_ranged(
         next_value,
         operations,
     )
-}
-
-/// Establish the whole shared view of the fixed-array field `collection`
-/// names below the structural parameter `owner`, into `destination`: the
-/// view a field range narrows. `owner_place` is the place currently holding
-/// the owner on the emitting route and `symbol` its authored name.
-///
-/// Both descriptor families use the existing collection-view operation
-/// (`EstablishElementView`) under a shared loan of the field, so the
-/// verifier relates the view's length to the array's declared extent and
-/// keeps the owner frozen while the view lives. A byte view may borrow only
-/// an exact `u8` element array, never reinterpret another primitive's bytes.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn establish_field_view(
-    owner: &terminal_psi::StructuralParameterDeclaration,
-    owner_place: PlaceId,
-    symbol: symbols::SymbolHandle,
-    collection: &[CheckedUnitStructuralPathSegment],
-    view_type: StructuralTypeId,
-    family: ViewFamily,
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-    destination: PlaceId,
-    operations: &mut OperationBuffer,
-) -> Result<(ViewRangeSource, StructuralPlaceDeclaration), LoweringError> {
-    if collection.is_empty()
-        || !matches!(
-            owner.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::Owned
-        )
-        || !owner.qualifications.is_empty()
-        || !owner.projected_qualifications.is_empty()
-    {
-        return unsupported("view subslice field owner cannot lend a shared collection view");
-    }
-    let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-        collection,
-    )?;
-    let array = terminal_semantics::runtime_structural_path_tip(
-        declarations.iter(),
-        owner.structural_type,
-        &path,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "view subslice field lost its exact collection",
-    ))?;
-    let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = array.shape else {
-        return unsupported("view subslice field is not fixed-array backing");
-    };
-    let view = declarations
-        .iter()
-        .find(|declaration| declaration.id == view_type)
-        .ok_or(LoweringError::Unsupported(
-            "view subslice field range lost its view type",
-        ))?;
-    let matches_family = match (family, &view.shape) {
-        (
-            ViewFamily::Elements,
-            terminal_psi::StructuralTypeShape::ElementView { element: expected },
-        ) => *expected == element,
-        (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
-            let byte_scalar = crate::emission::scalar_types::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U8,
-            )?;
-            declarations.iter().any(|declaration| {
-                declaration.id == element
-                    && declaration.shape
-                        == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte_scalar)
-            })
-        }
-        _ => false,
-    };
-    if !matches_family {
-        return unsupported("view subslice field element disagrees with its view family");
-    }
-    let producer = operations.allocate();
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: terminal_psi::OperationResult::Structural(
-            terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: destination,
-                structural_type: view_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            },
-        ),
-        kind: terminal_psi::OperationKind::EstablishElementView {
-            destination,
-            source: terminal_psi::StructuralArgument {
-                place: owner_place,
-                path,
-                access: terminal_psi::StructuralAccess::SharedBorrow,
-            },
-            element,
-        },
-    });
-    Ok((
-        ViewRangeSource {
-            symbol,
-            place: destination,
-            structural_type: view_type,
-            family,
-        },
-        StructuralPlaceDeclaration {
-            id: destination,
-            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type: view_type,
-            },
-        },
-    ))
 }
 
 /// Bind replayed endpoints into the current scalar namespace. Replay itself
@@ -431,22 +547,9 @@ pub(crate) fn binding_local<'a>(
     else {
         return unsupported("view subslice binding lost its authored local");
     };
-    // Only a range over a fixed-array field, rooted at the parameter owning
-    // it, carries a path: the field projection to the array it views whole.
-    let field_range = matches!(
-        source.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            root: checked_trees::CheckedStorageRoot::Parameter { .. },
-            ..
-        } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            root: checked_trees::CheckedStorageRoot::Parameter { .. },
-            ..
-        }
-    );
     if local.is_mutable
         || !local.symbol.is_valid()
         || local.initial_value != *expression
-        || (!source.path.is_empty() && !field_range)
         || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
         || source.type_identity != result.type_identity
         || result.multiplicity != language_semantics::Multiplicity::Unrestricted
