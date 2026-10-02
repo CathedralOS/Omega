@@ -162,6 +162,43 @@ execution and native exit/output. A moved refusal is still unfinished work.
   migrate those three samples as acceptance. Do not widen the remaining
   machine-parameter-only sites without their own customer program.
 
+- **STATIC-DATA-ROOTED-PLACE-SPELLING.** (split-of:STATIC-MACHINE-MIGRATION)
+  Six fixtures are refused in the static spelling by the default-domain
+  valuation, and the diff that causes it is the receiver rename and nothing
+  else. `pass/dependent/data_where_invariant_window_restored_exit` writes
+  `main.start = 10; main.end = 20;` under `data Main where start <= end` and
+  reports "a `where`-mentioned field's value is not a literal known here"; the
+  identical body spelled `self.start`/`self.end` checks. The other five are
+  `data_where_call_frame_preserves_disjoint_valuation_compile`,
+  `data_where_field_read_during_window_compile`,
+  `data_where_read_before_establish`,
+  `data_where_relational_callee_restored_exit` and
+  `collection_predicate_zero_violating_read_rejected`.
+  The cause is a rendered-place vocabulary keyed to the literal spelling
+  `self`. `language-core/src/source_semantics/receiver_binding.rs` owns it and
+  says so -- "This module is the only place that spelling lives" -- and offers
+  `SELF_RECEIVER`, `receiver_place_label`, `receiver_place_field` and
+  `is_receiver_rooted`. `default_domains/place_queries.rs::is_self_rooted` is a
+  thin wrapper over the last of these, so a place rendered `main.start` is not
+  data-rooted and its literal valuation is dropped.
+  Scope, measured: 53 call sites across 12 files outside the owning module,
+  spanning `default_domains`, the stage-04 range and dependent-parameter
+  checks, the borrow persistence check and the proof checker's dependent
+  bounds. The vocabulary is internally consistent -- labels are BUILT from the
+  same spelling they are tested against -- so the change is to make it carry
+  the machine's data binding instead of assuming `self`: one owning module
+  generalized, then its callers given the binding they already have in scope
+  through `machine` and `state`.
+  This is not a decision: [machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+  already says qualification "contributes no argument or storage", so which
+  name the data binding carries cannot change whether a place is rooted at it.
+  It is sized as its own change because a 53-site vocabulary refactor landed
+  half-done would leave every dependent-value check reading a mix of two
+  rootedness rules.
+  Acceptance: the six fixtures check and meet their native oracles in the
+  static spelling; a place rooted at an ordinary local or parameter that is NOT
+  the machine's data is still not data-rooted, with a fixture naming that.
+
 - **STATIC-ENTRY-RESULT-ARGUMENT.** (split-of:STATIC-MACHINE-MIGRATION)
   Four fixtures reach one refusal in the static spelling and the same one:
   `pass/borrows/{branch_selected_record_receiver_exit,enum_selected_view_reference_exit,returned_record_method_receiver_exit,returned_record_projected_call_exit}`
