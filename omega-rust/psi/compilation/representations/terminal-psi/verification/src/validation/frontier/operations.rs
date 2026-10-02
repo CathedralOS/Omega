@@ -66,14 +66,6 @@ pub(super) fn apply_operation(
             place: destination,
         });
     }
-    // The literal storage is an owned affine carrier like any trivial local:
-    // its unit-result establishment produces no OperationResult to install,
-    // and foundation validation already pins one establish per declaration.
-    if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind {
-        frontier
-            .owned_places
-            .insert(destination, StructuralMultiplicity::Affine);
-    }
     let mut consumed_places = consumed_places(walk, operation);
     consumed_places.extend(leaf_moved_place);
     if let Some(place) =

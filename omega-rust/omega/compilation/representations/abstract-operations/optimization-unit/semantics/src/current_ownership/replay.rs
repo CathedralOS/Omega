@@ -233,19 +233,6 @@ pub(super) fn validate_current_ownership_cfg(
                     StructuralMultiplicity::Affine,
                 )?;
             }
-            // The literal storage is an owned affine carrier like any trivial
-            // local: its establishment produces no structural result row, so
-            // the frontier installs it by declaration like the local above.
-            if let O::EstablishByteSequenceLiteral { place, .. } = &node.operation {
-                insert_owned_result(
-                    function,
-                    block_id,
-                    node_index,
-                    &mut frontier,
-                    place.id,
-                    StructuralMultiplicity::Affine,
-                )?;
-            }
             if let O::ReturnStructural {
                 trivial_affine_locals,
                 ..
@@ -659,7 +646,21 @@ pub(super) fn validate_current_ownership_cfg(
                     let unrestricted_result = function.result.structural().is_some_and(|result| {
                         result.multiplicity == StructuralMultiplicity::Unrestricted
                     });
-                    if !unrestricted_result && frontier.owned_places.remove(source).is_none() {
+                    // A byte-sequence literal's descriptor borrows immutable
+                    // backing: the establishment is pinned ahead of its uses,
+                    // so it is a plain copy payload with no owned custody to
+                    // consume here.
+                    let literal_source = function.structural_places.iter().any(|place| {
+                        place.id == *source
+                            && matches!(
+                                place.kind,
+                                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                            )
+                    });
+                    if !unrestricted_result
+                        && !literal_source
+                        && frontier.owned_places.remove(source).is_none()
+                    {
                         return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                             machine: function.machine,
                             block: block_id,
