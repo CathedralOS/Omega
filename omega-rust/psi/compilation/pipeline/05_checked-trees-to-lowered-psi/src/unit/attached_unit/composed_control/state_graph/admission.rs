@@ -1094,10 +1094,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // parameter's place; resolve replays each edge's checked Transfer event
     // before emission trusts that alias.
     let mut claim_transport = claims::resolve(checked, plan, &live)?;
-    // A state parameter that only ever receives the entry's whole receiver,
-    // or a whole entry loan whose referent holds a borrowed view, keeps the
-    // invocation place, as a state's implicit `self` does.
-    entry_aliases::alias_entry_parameter_loans(checked, plan, &live, &mut claim_transport.aliased)?;
+    // A whole loan proven to name the same entry storage on every arrival
+    // keeps that invocation place instead of duplicating its authority.
+    entry_aliases::alias_entry_parameter_loans(plan, &live, &mut claim_transport.aliased)?;
     // A shared parameter that only ever receives its source's whole
     // exclusive loan holds that loan; Terminal edges transfer mutable names.
     let exclusive_handoffs = exclusive_handoffs::promote_shared_handoffs(

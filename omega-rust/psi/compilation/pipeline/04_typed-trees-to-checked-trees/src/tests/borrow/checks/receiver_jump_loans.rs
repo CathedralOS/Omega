@@ -506,3 +506,261 @@ fn local_loans_the_jump_does_not_carry_and_receiver_authority_accept() {
         assert_accepted(source);
     }
 }
+
+// Explicit data parameters retain their own root identity. Supplying the parent
+// beside a projected child transfers the suspended parent, not a second usable
+// exclusive path to the child. These counterparts retain both state arguments.
+fn named_jump_into(argument: &str, successor: &str) -> String {
+    format!(
+        "data Inner {{ tag: u64; }}
+        data Main {{ inner: Inner; other: u64; }}
+        machine Main::run(main: &mut Main) -> u64 {{
+            transition {{ _ -> next(main, {argument}) }}
+            {successor}
+        }}"
+    )
+}
+
+#[test]
+fn named_parent_allows_child_writes_and_disjoint_parent_access() {
+    assert_accepted(&named_jump_into(
+        "&mut main.inner",
+        "state next(main: &mut Main, loan: &mut Inner) -> u64 {
+            loan.tag = 9;
+            main.other = 3;
+            let seen: u64 = loan.tag;
+            (main.other)
+        }",
+    ));
+    assert_accepted(&named_jump_into(
+        "&main.inner",
+        "state next(main: &mut Main, loan: &Inner) -> u64 {
+            main.other = 3;
+            let seen: u64 = loan.tag;
+            (main.inner.tag)
+        }",
+    ));
+}
+
+#[test]
+fn named_parent_rejects_reads_and_writes_of_its_exclusively_lent_child() {
+    // Require the callee-footprint judgment: rejecting the entire handoff as
+    // duplicate mutable arguments would also reject the valid counterpart.
+    for (body, expected) in [
+        (
+            "main.inner.tag = 7; let seen: u64 = loan.tag; (seen)",
+            "while its mutable receiver writes",
+        ),
+        (
+            "loan.tag = 9; (main.inner.tag)",
+            "while its mutable receiver reads",
+        ),
+        (
+            "let seen: u64 = main.inner.tag; loan.tag = 9; (seen)",
+            "while its mutable receiver reads",
+        ),
+    ] {
+        assert_rejected(
+            &named_jump_into(
+                "&mut main.inner",
+                &format!("state next(main: &mut Main, loan: &mut Inner) -> u64 {{ {body} }}"),
+            ),
+            expected,
+        );
+    }
+}
+
+#[test]
+fn named_parent_rejects_writes_while_its_shared_child_is_live() {
+    assert_rejected(
+        &named_jump_into(
+            "&main.inner",
+            "state next(main: &mut Main, loan: &Inner) -> u64 {
+                main.inner.tag = 7;
+                (loan.tag)
+            }",
+        ),
+        "while its mutable receiver writes",
+    );
+}
+
+#[test]
+fn named_parent_restores_access_only_after_the_child_stops_forwarding() {
+    for (argument, successor) in [
+        (
+            "&mut main.inner",
+            "state next(main: &mut Main, loan: &mut Inner) -> u64 {
+                loan.tag = 9;
+                transition { _ -> after(loan, main) }
+            }
+            state after(loan: &mut Inner, main: &mut Main) -> u64 {
+                loan.tag = 10;
+                transition { _ -> done(main) }
+            }
+            state done(main: &mut Main) -> u64 {
+                main.inner.tag = 11;
+                (main.inner.tag)
+            }",
+        ),
+        (
+            "&main.inner",
+            "state next(main: &mut Main, loan: &Inner) -> u64 {
+                let saved: u64 = loan.tag;
+                transition { _ -> done(saved, main) }
+            }
+            state done(saved: u64, main: &mut Main) -> u64 {
+                main.inner.tag = saved;
+                (main.inner.tag)
+            }",
+        ),
+    ] {
+        assert_accepted(&named_jump_into(argument, successor));
+    }
+}
+
+#[test]
+fn named_parent_keeps_child_suspension_across_forwarding_and_local_aliases() {
+    assert_rejected(
+        &named_jump_into(
+            "&mut main.inner",
+            "state next(main: &mut Main, loan: &mut Inner) -> u64 {
+                loan.tag = 9;
+                transition { _ -> after(loan, main) }
+            }
+            state after(loan: &mut Inner, main: &mut Main) -> u64 {
+                loan.tag = 10;
+                (main.inner.tag)
+            }",
+        ),
+        "while its mutable receiver reads",
+    );
+    assert_rejected(
+        &named_jump_into(
+            "&main.inner",
+            "state next(main: &mut Main, loan: &Inner) -> u64 {
+                let forwarded: &Inner = loan;
+                transition { _ -> after(forwarded, main) }
+            }
+            state after(loan: &Inner, main: &mut Main) -> u64 {
+                main.inner.tag = 10;
+                (loan.tag)
+            }",
+        ),
+        "while its mutable receiver writes",
+    );
+}
+
+#[test]
+fn named_parent_can_follow_other_authored_parameters() {
+    for (body, expected) in [
+        ("loan.tag = 9; main.other = seed; (main.other)", None),
+        (
+            "loan.tag = 9; (main.inner.tag)",
+            Some("while its mutable receiver reads"),
+        ),
+        (
+            "main.inner.tag = seed; (loan.tag)",
+            Some("while its mutable receiver writes"),
+        ),
+    ] {
+        let source = format!(
+            "data Inner {{ tag: u64; }}
+            data Main {{ inner: Inner; other: u64; }}
+            machine Main::run(seed: u64, main: &mut Main) -> u64 {{
+                transition {{ _ -> next(seed, &mut main.inner, main) }}
+                state next(seed: u64, loan: &mut Inner, main: &mut Main) -> u64 {{
+                    {body}
+                }}
+            }}"
+        );
+        match expected {
+            Some(expected) => assert_rejected(&source, expected),
+            None => assert_accepted(&source),
+        }
+    }
+}
+
+#[test]
+fn named_parent_does_not_merge_independent_same_typed_roots() {
+    for supplied_parent in ["left", "right"] {
+        let source = format!(
+            "data Inner {{ tag: u64; }}
+            data Main {{ inner: Inner; }}
+            machine Main::run(left: &mut Main, right: &mut Main) -> u64 {{
+                transition {{ _ -> next({supplied_parent}, &mut right.inner) }}
+                state next(main: &mut Main, loan: &mut Inner) -> u64 {{
+                    main.inner.tag = 7;
+                    loan.tag = 9;
+                    (main.inner.tag)
+                }}
+            }}"
+        );
+        if supplied_parent == "left" {
+            // A child of right is disjoint from left even though the parent
+            // data declarations and field identities are identical.
+            assert_accepted(&source);
+        } else {
+            assert_rejected(&source, "while its mutable receiver writes");
+        }
+    }
+}
+
+#[test]
+fn named_parent_releases_the_exact_child_after_same_typed_loans_reorder() {
+    for (forwarded, accepts) in [("first", true), ("second", false)] {
+        let source = format!(
+            "data Main {{ count: u64; other: u64; }}
+            machine Main::run(main: &mut Main) -> u64 {{
+                transition {{ _ -> next(main, &main.count, &main.other) }}
+                state next(main: &mut Main, first: &u64, second: &u64) -> u64 {{
+                    transition {{ _ -> swapped(second, main, first) }}
+                }}
+                state swapped(first: &u64, main: &mut Main, second: &u64) -> u64 {{
+                    transition {{ _ -> writeback({forwarded}, main) }}
+                }}
+                state writeback(observed: &u64, main: &mut Main) -> u64 {{
+                    main.count = 7;
+                    (observed)
+                }}
+            }}"
+        );
+        if accepts {
+            assert_accepted(&source);
+        } else {
+            assert_rejected(&source, "while its mutable receiver writes");
+        }
+    }
+}
+
+#[test]
+fn named_parent_rejects_the_board_double_exclusive_access_example() {
+    assert_rejected(
+        "data Inner { tag: i32; }
+        data Main { inner: Inner; seen: i32; }
+        machine Main::main(main: &mut Main) {
+            main.inner.tag = 1;
+            transition true { _ -> next(main, &mut main.inner) }
+            state next(main: &mut Main, loan: &mut Inner) {
+                main.inner.tag = 7;
+                main.seen = loan.tag;
+            }
+        }",
+        "while its mutable receiver writes",
+    );
+}
+
+#[test]
+fn ordinary_static_call_does_not_transport_a_suspended_parent() {
+    assert_rejected(
+        "data Main { count: u64; other: u64; }
+         machine Main::observe(main: &mut Main, child: &u64) -> u64 {
+             main.other = 3;
+             (child)
+         }
+         machine Main::run(main: &mut Main) -> u64 {
+             let seen: u64 = Main::observe(main, &main.count);
+             (seen)
+         }",
+        "both mutable and read-only",
+    );
+}

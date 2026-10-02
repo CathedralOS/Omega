@@ -36,6 +36,7 @@ pub(crate) mod cases;
 pub(crate) mod comparisons;
 pub(crate) mod copies;
 mod dispatch;
+mod erased_scope;
 pub(crate) mod fields;
 pub(crate) mod literals;
 pub(crate) mod operand_types;
@@ -126,14 +127,20 @@ impl<'a> Expansion<'a> {
         self
     }
 
-    /// Re-enter the erased-proof scope mid-lowering — same roster update as
-    /// the builder form, for an already-bound expansion.
-    pub(crate) fn refresh_proof_scope(
+    /// Mark the start of one authored state's private expansion.
+    pub(crate) fn private_state_count(&self) -> usize {
+        self.states.len()
+    }
+
+    /// Finish the exact private rows just created for this source state. Their
+    /// erased lanes remain in its scope; authored successor edges keep their
+    /// supplied actuals and never acquire identity substitutions here.
+    pub(crate) fn retain_state_erased_scope(
         &mut self,
-        roster: &[checked_trees::CheckedErasedProofParameterPlan],
-    ) {
-        self.erased_proof_formals =
-            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
+        private_start: usize,
+        entry: &mut LoweredScalarBranchState,
+    ) -> Result<(), LoweringError> {
+        erased_scope::retain(self.base, private_start, entry, &mut self.states)
     }
 
     pub(crate) fn finish(self) -> Vec<LoweredScalarBranchState> {
@@ -723,6 +730,8 @@ impl<'a> Expansion<'a> {
                         terminator: LoweredScalarBranchTerminator::Qualify {
                             target,
                             arguments: parameters(&operand_types),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });

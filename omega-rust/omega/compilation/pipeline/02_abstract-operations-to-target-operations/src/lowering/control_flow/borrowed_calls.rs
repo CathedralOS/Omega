@@ -37,8 +37,22 @@ pub(super) fn argument(
         )?
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine));
     }
-    if live.address_joins.contains(&argument.place) {
-        return address_join_argument(argument, declaration, destination, function, live, types);
+    if live.address_joins.contains(&argument.place)
+        || (!argument.path.is_empty()
+            && prepared
+                .parameters
+                .iter()
+                .any(|source| source.place == argument.place))
+    {
+        return storage_argument(
+            argument,
+            declaration,
+            destination,
+            function,
+            prepared,
+            live,
+            types,
+        );
     }
     // A live aggregate home lends one exact subtree through a borrow: the
     // producer keeps whole storage, and the argument transports the leaf's
@@ -134,70 +148,6 @@ pub(super) fn argument(
             destination: destination.placement.clone(),
         });
     }
-    // A projected borrow through an incoming machine parameter carries the
-    // parameter's placement whole and transports the leaf's address inside
-    // it, exactly as the structural-home loan above does for a produced
-    // result. The parameter's own access authorizes the argument.
-    if !argument.path.is_empty()
-        && let Some(source) = prepared
-            .parameters
-            .iter()
-            .find(|source| source.place == argument.place)
-    {
-        let allowed = match source.access {
-            StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
-            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-            StructuralAccess::WriteOnlyBorrow => {
-                argument.access == StructuralAccess::WriteOnlyBorrow
-            }
-            StructuralAccess::Owned => false,
-        };
-        let mut shape_cache = BTreeMap::new();
-        let mut active = BTreeSet::new();
-        let Some((projected_type, projected_shape, source_byte_offset)) =
-            crate::lowering::structural_layout::resolve_structural_projection_path(
-                source.structural_type,
-                &argument.path,
-                types,
-                &mut shape_cache,
-                &mut active,
-            )
-            .ok()
-        else {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        };
-        if !allowed
-            || argument.access != declaration.access
-            || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-            || !declaration.qualifications.is_empty()
-            || !declaration.projected_qualifications.is_empty()
-            || projected_type != declaration.structural_type
-            || crate::lowering::structural_layout::structural_parameter_shape(
-                projected_shape,
-                declaration.access,
-            ) != destination.shape
-            || projected_shape
-                .byte_size
-                .checked_add(source_byte_offset)
-                .is_none_or(|end| end > source.shape.byte_size)
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        return Ok(TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: source.structural_type,
-            structural_type: projected_type,
-            shape: destination.shape,
-            source_byte_offset,
-            fixed_array_length: None,
-            element_stride: None,
-            indices: Vec::new(),
-            source: source.placement.clone().into(),
-            destination: destination.placement.clone(),
-        });
-    }
     if !argument.path.is_empty()
         || argument.access != declaration.access
         || !super::primitive_storage::is_primitive_reference(declaration, types)
@@ -259,43 +209,70 @@ pub(super) fn argument(
     })
 }
 
-/// An available address join lends from its carried address, not copied storage.
-/// Projections use the same typed layout and dominating scalar operands as an
-/// incoming parameter; the block source retains the joined root's identity.
+/// Invocation and joined storage lend from their existing address, not a copy.
+/// Both use the same typed projection and dominating scalar operands; only the
+/// source placement differs. Runtime selectors retain their verified paths.
 /// Access cannot widen, and the projected referent must match the callee.
 /// Unit call admission owns qualification discharge and writable invariants;
 /// a qualified loan has the same address and layout as its carrier.
-pub(super) fn address_join_argument(
+pub(super) fn storage_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
     function: &AbstractFunction,
+    prepared: &PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    if !live.address_joins.contains(&argument.place)
-        || !matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        || declaration.access != argument.access
+    if !matches!(
+        argument.access,
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
+    ) || declaration.access != argument.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (block, parameter) = address_join_parameter(function, argument.place)
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let (root_type, access, source) = if live.address_joins.contains(&argument.place) {
+        let (block, parameter) = address_join_parameter(function, argument.place)
+            .filter(|(_, parameter)| super::transfers::is_address_join(parameter, types))
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        (
+            parameter.structural_type,
+            parameter.access,
+            TargetStructuralArgumentSource::BlockParameter {
+                block,
+                place: parameter.place,
+            },
+        )
+    } else {
+        let parameter = prepared
+            .parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        (
+            parameter.structural_type,
+            parameter.access,
+            parameter.placement.clone().into(),
+        )
+    };
+    let allowed = match access {
+        StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+        StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+        StructuralAccess::WriteOnlyBorrow => argument.access == StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::Owned => false,
+    };
     let (selected, referent, offset, runs) =
         crate::lowering::structural_layout::runtime_projection(
-            parameter.structural_type,
+            root_type,
             &argument.path,
             types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
         )?;
-    if !super::transfers::is_address_join(parameter, types)
-        || argument.access == StructuralAccess::MutableBorrow
-            && parameter.access != StructuralAccess::MutableBorrow
+    if !allowed
         || selected != declaration.structural_type
         || destination.shape
             != crate::lowering::structural_layout::structural_parameter_shape(
@@ -314,17 +291,14 @@ pub(super) fn address_join_argument(
         place: argument.place,
         access: argument.access,
         path: argument.path.clone(),
-        root_structural_type: parameter.structural_type,
+        root_structural_type: root_type,
         structural_type: selected,
         shape: destination.shape,
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
         indices,
-        source: TargetStructuralArgumentSource::BlockParameter {
-            block,
-            place: parameter.place,
-        },
+        source,
         destination: destination.placement.clone(),
     })
 }

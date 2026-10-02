@@ -32,8 +32,8 @@ use target_operations::{
     TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
 use terminal_psi::{
-    ClaimTransfer, CrashRouteBucket, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape,
+    ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
 };
 
 /// Only the published scalar operation requires a separately published ABI.
@@ -664,27 +664,41 @@ fn structural_argument(
     }
     let view =
         is_byte_parameter(declaration, types) || is_element_view_parameter(declaration, types);
+    // Whole invocation operands already have their declared placement. Inline
+    // byte fields also retain their carrier presentation: they do not acquire
+    // a canonical structural leaf identity merely by being borrowed. The
+    // roster resolver owns their capacity and descriptor/owner distinction.
+    let invocation_projection = !argument.path.is_empty()
+        && !types
+            .get(&declaration.structural_type)
+            .is_some_and(|ty| matches!(ty.shape, StructuralTypeShape::ByteSequence(_)))
+        && prepared.parameters.iter().any(|parameter| {
+            parameter.place == argument.place && parameter.access != StructuralAccess::Owned
+        });
+    if !view
+        && (live.address_joins.contains(&argument.place) || invocation_projection)
+        && argument.access != StructuralAccess::Owned
+    {
+        return super::borrowed_calls::storage_argument(
+            argument,
+            declaration,
+            destination,
+            function,
+            prepared,
+            live,
+            types,
+        );
+    }
     if live.address_joins.contains(&argument.place) {
-        return if view {
-            super::borrowed_calls::address_join_window_argument(
-                argument,
-                declaration,
-                destination,
-                callee,
-                function,
-                live,
-                types,
-            )
-        } else {
-            super::borrowed_calls::address_join_argument(
-                argument,
-                declaration,
-                destination,
-                function,
-                live,
-                types,
-            )
-        };
+        return super::borrowed_calls::address_join_window_argument(
+            argument,
+            declaration,
+            destination,
+            callee,
+            function,
+            live,
+            types,
+        );
     }
     if live.block_views.contains(&argument.place)
         || (view

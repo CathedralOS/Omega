@@ -389,20 +389,42 @@ fn named_lockstep_evidence_rejects_changed_step_and_wrong_backing() {
             .find(|machine| machine.id == entry)
             .unwrap();
         if wrong_backing {
-            let block = machine
+            // Unchanged whole loans now retain their invocation places, so
+            // the entry edge need not carry redundant block arguments. Swap
+            // the loop's actual storage operands instead: initialization
+            // still puts 100 in context.divisor and zero in spare.divisor,
+            // but the guard, division and updates now execute on spare.
+            assert_eq!(machine.structural_parameters.len(), 2);
+            let context = machine.structural_parameters[0].place;
+            let spare = machine.structural_parameters[1].place;
+            assert_ne!(context, spare);
+            let mut changed_reads = 0;
+            let mut changed_writes = 0;
+            for operation in machine
                 .blocks
                 .iter_mut()
-                .find(|block| block.id == machine.entry)
-                .unwrap();
-            let terminal_psi::Terminator::Jump {
-                structural_arguments,
-                ..
-            } = &mut block.terminator
-            else {
-                panic!("entry forwards both initialized contexts to the header");
-            };
-            assert_eq!(structural_arguments.len(), 2);
-            structural_arguments.swap(0, 1);
+                .filter(|block| block.id != machine.entry)
+                .flat_map(|block| &mut block.operations)
+            {
+                let (place, count) = match &mut operation.kind {
+                    terminal_psi::OperationKind::IntegerStructuralField { source, .. } => {
+                        (source, &mut changed_reads)
+                    }
+                    terminal_psi::OperationKind::StructuralScalarFieldStore {
+                        destination, ..
+                    } => (destination, &mut changed_writes),
+                    _ => continue,
+                };
+                if *place == context {
+                    *place = spare;
+                } else if *place == spare {
+                    *place = context;
+                } else {
+                    panic!("the loop's field access must name an invocation context");
+                }
+                *count += 1;
+            }
+            assert!(changed_reads > 0 && changed_writes > 0);
         } else {
             let constant = machine
                 .blocks

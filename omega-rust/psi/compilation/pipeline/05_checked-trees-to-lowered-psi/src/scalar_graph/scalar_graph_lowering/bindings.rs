@@ -17,6 +17,9 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
+#[cfg(test)]
+mod erased_parameters_tests;
+
 pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,
     pub(super) scalar_bindings: storage::ScalarBindings,
@@ -653,11 +656,8 @@ impl Prepared {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: self.parameter_types,
-            erased_formal_types: self.erased_formal_types,
-            erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
-                    &self.erased_proof_formals,
-                ),
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: self.bindings,
             terminator,
         };
@@ -814,6 +814,16 @@ impl Prepared {
                 },
             };
         }
+        // Backward assembly may replace the entry repeatedly. The authored
+        // erased roster belongs to the final outer state, whose declaration
+        // supplies the machine contract or an incoming state edge. Private
+        // computations receive the same scope when graph preparation closes
+        // this authored state's exact expansion range.
+        continuation.erased_formal_types = self.erased_formal_types;
+        continuation.erased_proof_formals =
+            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                &self.erased_proof_formals,
+            );
         Ok(continuation)
     }
 }

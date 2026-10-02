@@ -55,20 +55,18 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     let Some(machine) = whole_mutable_receiver_machine(program, state_flow, call) else {
         return;
     };
+    let data_access = explicit_jump_data_access(program, facts, state_flow, call);
     let attached = |places| attached_places(program, machine, places);
-    // The static spelling supplies the subject as an ordinary argument, so it is
-    // the parent this judgment is about rather than one of the arguments judged
-    // against it. Comparing it with itself would report every jump.
-    let subject_argument = subject_argument_position(program, facts, state_flow, call);
     let retained_arguments: Vec<_> = facts
         .borrow
         .argument_accesses
         .span_or_empty(call.accesses)
         .iter()
         .enumerate()
-        .filter(|(position, _)| subject_argument != Some(*position))
+        .filter(|(ordinal, argument)| {
+            Some(*ordinal) != data_access && argument.end_before_access.is_none()
+        })
         .map(|(_, argument)| argument)
-        .filter(|argument| argument.end_before_access.is_none())
         .collect();
     let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
     for argument in retained_arguments {
@@ -295,7 +293,79 @@ pub(in crate::checks::borrows) fn returns_through_mutable_receiver(
     program: &TypedTrees,
     call: &BorrowCallFact,
 ) -> bool {
-    call.has_receiver && receiver_is_mutable_reference(program, call.target_symbol)
+    call.has_receiver && receiver_is_mutable_reference(program, call.target_symbol, false)
+}
+
+/// A local successor receives its data parameter together with the child loans
+/// it keeps alive. The parent is judged by that successor's footprint, just as
+/// the authored receiver is; it is not a second independent loan of every field.
+/// Keep the original access roster and its coordinates for operand evaluation
+/// and independent replay. Only one exact retained parent access can use this
+/// judgment, and ordinary returning calls retain their operand exclusivity.
+pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call: &BorrowCallFact,
+) -> Option<usize> {
+    super::local_jump(program, state_flow, call)?;
+    let machine = whole_mutable_receiver_machine(program, state_flow, call)?;
+    let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let parameter = program.data_binding_parameter(machine, program.state_parameters(target))?;
+    if parameter.is_self {
+        return None;
+    }
+    let site = crate::semantic::calls::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let parent = crate::flow::canonical_receiver_place_for_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        &site,
+        call.statement_index,
+    )?;
+    let facts::PlaceRoot::Symbol(root_symbol) = parent.root else {
+        return None;
+    };
+    // Access rows and expression places may spell the authored self root
+    // differently. Compare them in the same attached-storage coordinates
+    // used by the footprint judgment; ordinary named parameter roots retain
+    // their distinct identities.
+    let parent = attached_place(
+        program,
+        machine,
+        CapturedPlace {
+            root_symbol,
+            segments: parent.segments,
+        },
+    );
+    let mut matching = facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .enumerate()
+        .filter(|(_, access)| {
+            if access.kind != BorrowAccessKind::Mutable || access.end_before_access.is_some() {
+                return false;
+            }
+            let place = attached_place(
+                program,
+                machine,
+                CapturedPlace {
+                    root_symbol: access.root_symbol,
+                    segments: facts.borrow.access_segments(access).to_vec(),
+                },
+            );
+            place.root_symbol == parent.root_symbol && place.segments == parent.segments
+        });
+    let (ordinal, _) = matching.next()?;
+    matching.next().is_none().then_some(ordinal)
 }
 
 /// The caller's machine when `call` passes a whole `&mut` receiver: the one
@@ -305,15 +375,12 @@ fn whole_mutable_receiver_machine<'p>(
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
 ) -> Option<&'p typed_trees::machine::Machine> {
-    // A named jump forwards the caller's own data as the callee's subject
-    // argument; every other call spells a receiver or passes operands. Only the
-    // jump reaches the footprint judgement through its subject, so the subject
-    // shape never admits a call the receiver shape would have refused.
-    let jump_forwards_subject =
-        super::super::super::statements::local_jump(program, state_flow, call).is_some()
-            && subject_is_mutable_reference(program, call.target_symbol);
     if !super::call_passes_receiver(program, state_flow, call)
-        || !(receiver_is_mutable_reference(program, call.target_symbol) || jump_forwards_subject)
+        || !receiver_is_mutable_reference(
+            program,
+            call.target_symbol,
+            super::local_jump(program, state_flow, call).is_some(),
+        )
     {
         return None;
     }
@@ -339,12 +406,7 @@ fn whole_mutable_receiver_machine<'p>(
         segments,
     }) = receiver
     else {
-        // A static jump has no receiver expression to resolve: its parent
-        // arrives as the subject ARGUMENT, and the caller checks that argument
-        // is whole -- the requirement the receiver branch below enforces
-        // through `attached_place(..).segments.is_empty()`. A spelled receiver
-        // that failed to resolve is still unjudgeable here.
-        return jump_forwards_subject.then_some(machine);
+        return None;
     };
     attached_place(
         program,
@@ -405,96 +467,21 @@ fn attached_label(
     )
 }
 
-/// The ACCESS supplying the callee's subject, when the callee NAMES it rather
-/// than taking a receiver.
-///
-/// A receiver is not an authored argument, so the receiver spelling answers
-/// `None` and every argument stays judged against it exactly as before.
-///
-/// The roster is searched by PLACE rather than by position:
-/// `BorrowArgumentAccessFact` carries no argument ordinal, and the two do not
-/// align whenever an argument contributes an access of its own -- a nested call
-/// in `take_copy(Main::shift(&mut context.counter, ..), context)` puts
-/// `context.counter` in the roster ahead of the subject. The subject is the one
-/// retained access that supplies its place WHOLE and exclusively, which is what
-/// a receiver's loan is.
-pub(in crate::checks::borrows) fn subject_argument_position(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    call: &BorrowCallFact,
-) -> Option<usize> {
-    // Only a named JUMP into a sibling state forwards the caller's own data as
-    // the parent. An ordinary machine call's arguments are all operands, and
-    // the receiver form never put a parent among them.
-    super::super::super::statements::local_jump(program, state_flow, call)?;
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
-    if parameters.iter().any(|parameter| parameter.is_self) {
-        return None;
-    }
-    let machine = program.machine_holding_state(call.target_symbol)?;
-    let subject = program.data_binding_position(machine.attached_data_symbol, parameters)?;
-    if !matches!(
-        program
-            .type_reference_table
-            .type_reference(parameters[subject].type_reference),
-        TypeReferenceNode::Reference {
-            access: ReferenceAccess::Mutable,
-            ..
-        }
-    ) {
-        return None;
-    }
-    facts
-        .borrow
-        .argument_accesses
-        .span_or_empty(call.accesses)
-        .iter()
-        .position(|argument| {
-            argument.kind == BorrowAccessKind::Mutable
-                && argument.end_before_access.is_none()
-                && facts.borrow.access_segments(argument).is_empty()
-        })
-}
-
-/// Whether the callee's SUBJECT is an exclusive reference, for a callee that
-/// names it. The receiver twin below answers the same question of a `self`
-/// declaration; a jump into either shape is judged by what the successor does
-/// through that parent.
-fn subject_is_mutable_reference(
-    program: &TypedTrees,
-    target_symbol: symbols::SymbolHandle,
-) -> bool {
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
-    else {
-        return false;
-    };
-    let Some(machine) = program.machine_holding_state(target_symbol) else {
-        return false;
-    };
-    program
-        .data_binding_position(machine.attached_data_symbol, parameters)
-        .is_some_and(|index| {
-            matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameters[index].type_reference),
-                TypeReferenceNode::Reference {
-                    access: ReferenceAccess::Mutable,
-                    ..
-                }
-            )
-        })
-}
-
 fn receiver_is_mutable_reference(
     program: &TypedTrees,
     target_symbol: symbols::SymbolHandle,
+    explicit_data: bool,
 ) -> bool {
     crate::semantic::calls::call_target_parameters(program, target_symbol).is_some_and(
         |parameters| {
+            let data_parameter = explicit_data
+                .then(|| crate::proof::contract_target_from_state_symbol(program, target_symbol))
+                .flatten()
+                .and_then(|(machine, _)| crate::lookup::machine_by_symbol(program, machine))
+                .and_then(|machine| program.data_binding_parameter(machine, parameters));
             parameters.iter().any(|parameter| {
-                parameter.is_self
+                (parameter.is_self
+                    || data_parameter.is_some_and(|data| data.symbol == parameter.symbol))
                     && matches!(
                         program
                             .type_reference_table

@@ -171,7 +171,10 @@ fn dispatch_copied_payload_travels_beside_a_mutable_root() {
 /// [ownership](wiki/spec/language/ownership.md) says a shared child freezes the
 /// parent's mutation. Freezing is admissible; writing the frozen branch is not.
 /// So the callee's footprint decides, and a copy taken at the call site holds
-/// no loan to freeze at all.
+/// no loan to freeze at all. Forwarding this exact parent carrier transfers
+/// within the same activation; it does not stage a new ordinary-call loan.
+/// Argument evaluation still follows authored order, and ordinary calls retain
+/// their separate argument-loan checks.
 ///
 /// Pairing instead admitted none of these. That strictness was an artifact of
 /// the static spelling putting the parent among the authored arguments: a
@@ -232,6 +235,43 @@ fn forwarded_subject_conflicts_only_where_the_callee_writes_the_frozen_branch() 
     ] {
         let source = program(arm, target, body);
         check_program(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn retained_payload_loan_freezes_its_variant_but_not_disjoint_parent_fields() {
+    for (body, accepts) in [
+        ("", true),
+        ("main.count = x;", true),
+        (
+            "main.never = Msg::Pong { y: 1, z: 2 }; main.count = x;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Msg {{ case Ping(x: i32); case Pong(y: i32, z: i32); }}
+             data Main {{ never: Msg; count: i32; }}
+             machine Main::build(main: &mut Main) {{
+                 transition main.never {{
+                     Msg::Ping {{ x }} -> peek(main, &x)
+                     _ -> done(main)
+                 }}
+                 state peek(main: &mut Main, x: &i32) {{ {body} }}
+                 state done(main: &mut Main) {{}}
+             }}"
+        );
+        let result = check_program(&source);
+        if accepts {
+            result.unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        } else {
+            let diagnostics = result.expect_err("a retained payload freezes enum replacement");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("while its mutable receiver writes")),
+                "{source}: {diagnostics:#?}"
+            );
+        }
     }
 }
 

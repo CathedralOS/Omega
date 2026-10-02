@@ -5,6 +5,8 @@
 // through two calls (pinning left-to-right delivery), an explicitly typed
 // source local, and nested calls inside a binary target argument. Exit 70
 // covers both engines.
+// Supply the data reference last so nested effects finish before the outer
+// call or successor acquires its mutable argument. Effects stay in their arm.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -13,108 +15,110 @@ data Main {
     hits: u64 in Wrapping;
 }
 
-machine Main::bump_and_value(&mut self, value: u32) -> u32
+machine Main::bump_and_value(value: u32, main: &mut Main) -> u32
 requires value <= 20
 ensures result <= 20
 {
-    self.hits = self.hits + 1;
+    main.hits = main.hits + 1;
     value
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.hits = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.hits = 0;
     transition false {
-        true -> consume(self.bump_and_value(7))
-        false -> check_skipped()
+        true -> consume(Main::bump_and_value(7, main), main)
+        false -> check_skipped(main)
     }
 
-    state check_skipped(&mut self) {
-        transition self.hits == 0 {
-            true -> take_call()
-            false -> bad(71)
+    state check_skipped(main: &mut Main) {
+        transition main.hits == 0 {
+            true -> take_call(main)
+            false -> bad(main, 71)
         }
     }
 
-    state take_call(&mut self) {
+    state take_call(main: &mut Main) {
         transition true {
-            true -> consume(self.bump_and_value(7))
-            false -> bad(72)
+            true -> consume(Main::bump_and_value(7, main), main)
+            false -> bad(main, 72)
         }
     }
 
-    state consume(&mut self, delivered: u32) {
-        transition delivered == 7 && self.hits == 1 {
-            true -> reset_pair()
-            false -> bad(73)
+    state consume(delivered: u32, main: &mut Main) {
+        transition delivered == 7 && main.hits == 1 {
+            true -> reset_pair(main)
+            false -> bad(main, 73)
         }
     }
 
-    state reset_pair(&mut self) {
-        self.hits = 0;
-        transition { _ -> take_pair(10) }
+    state reset_pair(main: &mut Main) {
+        main.hits = 0;
+        transition { _ -> take_pair(main, 10) }
     }
 
-    state take_pair(&mut self, seed: u32)
+    state take_pair(main: &mut Main, seed: u32)
     requires seed <= 10
     {
         transition true {
             true -> consume_pair(
-                self.bump_and_value(seed),
-                self.bump_and_value(seed + 1)
+                Main::bump_and_value(seed, main),
+                Main::bump_and_value(seed + 1, main),
+                main
             )
-            false -> bad(74)
+            false -> bad(main, 74)
         }
     }
 
-    state consume_pair(&mut self, first: u32, second: u32) {
-        transition first == 10 && second == 11 && self.hits == 2 {
-            true -> reset_local()
-            false -> bad(75)
+    state consume_pair(first: u32, second: u32, main: &mut Main) {
+        transition first == 10 && second == 11 && main.hits == 2 {
+            true -> reset_local(main)
+            false -> bad(main, 75)
         }
     }
 
-    state reset_local(&mut self) {
-        self.hits = 0;
-        transition { _ -> take_local() }
+    state reset_local(main: &mut Main) {
+        main.hits = 0;
+        transition { _ -> take_local(main) }
     }
 
-    state take_local(&mut self) {
+    state take_local(main: &mut Main) {
         let seed: u32 = 20;
         transition true {
-            true -> consume_local(self.bump_and_value(seed))
-            false -> bad(76)
+            true -> consume_local(Main::bump_and_value(seed, main), main)
+            false -> bad(main, 76)
         }
     }
 
-    state consume_local(&mut self, delivered: u32) {
-        transition delivered == 20 && self.hits == 1 {
-            true -> reset_nested()
-            false -> bad(77)
+    state consume_local(delivered: u32, main: &mut Main) {
+        transition delivered == 20 && main.hits == 1 {
+            true -> reset_nested(main)
+            false -> bad(main, 77)
         }
     }
 
-    state reset_nested(&mut self) {
-        self.hits = 0;
-        transition { _ -> take_nested() }
+    state reset_nested(main: &mut Main) {
+        main.hits = 0;
+        transition { _ -> take_nested(main) }
     }
 
-    state take_nested(&mut self) {
+    state take_nested(main: &mut Main) {
         let seed: u32 = 20;
         transition true {
             true -> consume_nested(
-                self.bump_and_value(self.bump_and_value(seed)) + 1
+                Main::bump_and_value(Main::bump_and_value(seed, main), main) + 1,
+                main
             )
-            false -> bad(78)
+            false -> bad(main, 78)
         }
     }
 
-    state consume_nested(&mut self, delivered: u32) {
-        transition delivered == 21 && self.hits == 2 {
-            true -> good()
-            false -> bad(79)
+    state consume_nested(delivered: u32, main: &mut Main) {
+        transition delivered == 21 && main.hits == 2 {
+            true -> good(main)
+            false -> bad(main, 79)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

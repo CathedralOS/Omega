@@ -22,10 +22,7 @@ data Tally {
 data Stepper {
 }
 
-machine Stepper::bump(
-    &mut self,
-    tally: &mut Tally
-) {
+machine Stepper::bump(tally: &mut Tally) {
     tally.value = tally.value + 1;
 }
 
@@ -35,15 +32,15 @@ data Main {
     tally: Tally;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.tally.value = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.tally.value = 0;
 
     transition {
-        _ -> spin(&mut self.tally, 0, 50000000)
+        _ -> spin(main, &mut main.tally, 0, 50000000)
     }
 
     state spin(
-        &mut self,
+        main: &mut Main,
         tally: &mut Tally,
         // Defined-overflow counter: the unconditional `index + 1` increments a
         // value threaded through a mutating call, matching the corpus's own
@@ -51,28 +48,28 @@ machine Main::main(&mut self) reaches Console {
         index: u64 in Wrapping,
         count: u64
     ) {
-        self.stepper.bump(tally);
+        Stepper::bump(tally);
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < count;
 
         transition {
-            has_next -> spin(tally, next_index, count)
-            _ -> check()
+            has_next -> spin(main, tally, next_index, count)
+            _ -> check(main)
         }
     }
 
-    state check(&mut self) {
-        transition self.tally.value == 50000000 {
-            true -> full_count()
-            false -> dropped_count()
+    state check(main: &mut Main) {
+        transition main.tally.value == 50000000 {
+            true -> full_count(main)
+            false -> dropped_count(main)
         }
     }
 
-    state full_count(&mut self) {
-        self.console.exit_process(70);
+    state full_count(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state dropped_count(&mut self) {
-        self.console.exit_process(71);
+    state dropped_count(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
