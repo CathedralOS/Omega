@@ -21,14 +21,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("direction_command: dispatch the command \"north\" by its first byte");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("direction_command: dispatch the command \"north\" by its first byte");
 
-    self.command = "north";
+    main.command = "north";
 
-    transition self.command[0] == 110 {
-        true -> go_north(&mut self)
-        _ -> try_south(&mut self)
+    transition main.command[0] == 110 {
+        true -> go_north(main)
+        _ -> try_south(main)
     }
 
     state try_south(main: &mut Main) {
