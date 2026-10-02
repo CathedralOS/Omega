@@ -13,9 +13,9 @@ use super::caller_aliases::{
     CallOriginContext, CallerWriteSite, expression_has_calls, with_caller_origins,
 };
 use super::{
-    coarse_place_path, known_boundary_call_written_paths_for_parts,
-    known_call_written_paths_for_parts_with_origins, known_call_written_paths_with_summaries,
-    normalize_state_relative_path, receiver_member_chain,
+    coarse_place_path, known_boundary_call_written_paths_for_parts, known_call_written_paths,
+    known_call_written_paths_for_parts_with_origins, normalize_state_relative_path,
+    receiver_member_chain,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
@@ -94,10 +94,6 @@ pub(crate) struct CallFrameCaches {
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
     inferred_machine_frames:
         Mutex<HashMap<SymbolHandle, std::sync::Arc<Vec<NormalizedWriteFrame>>>>,
-    /// Successful acyclic state summaries are context-independent relative
-    /// frames. Retain them across resolver queries; opaque and cycle fallback
-    /// results remain one-shot so the conservative frontier is unchanged.
-    complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
     /// Every assignment's target and prefix origins per (machine, state),
     /// from one recorded walk of the state instead of one prefix walk per
     /// assignment statement and per query kind.
@@ -529,19 +525,15 @@ impl<'program> CallFrameResolver<'program> {
                         let has_divergent_actual = arguments
                             .iter()
                             .any(|argument| prefix.mentions_divergent(self.program, *argument));
-                        let known =
-                            self.with_complete_state_summaries(|complete_state_summaries| {
-                                known_call_written_paths_with_summaries(
-                                    self.program,
-                                    call,
-                                    current_machine,
-                                    &machine_symbols,
-                                    &self.symbols,
-                                    complete_state_summaries,
-                                    inference,
-                                    Some(&argument_origins),
-                                )
-                            });
+                        let known = known_call_written_paths(
+                            self.program,
+                            call,
+                            current_machine,
+                            &machine_symbols,
+                            &self.symbols,
+                            inference,
+                            Some(&argument_origins),
+                        );
                         known
                         .or_else(|| {
                             known_boundary_call_written_paths_for_parts(
@@ -635,19 +627,16 @@ impl<'program> CallFrameResolver<'program> {
             &self.caches.state_write_collections,
             |inference, prefix| {
                 let mut written = Vec::new();
-                self.with_complete_state_summaries(|complete_state_summaries| {
-                    collect_expression_call_written_paths(
-                        self.program,
-                        expression,
-                        current_machine,
-                        &machine_symbols,
-                        &self.symbols,
-                        inference,
-                        &mut written,
-                        complete_state_summaries,
-                        prefix,
-                    )
-                })?;
+                collect_expression_call_written_paths(
+                    self.program,
+                    expression,
+                    current_machine,
+                    &machine_symbols,
+                    &self.symbols,
+                    inference,
+                    &mut written,
+                    prefix,
+                )?;
                 Some(written)
             },
         )
@@ -727,22 +716,19 @@ impl<'program> CallFrameResolver<'program> {
             &self.caches.state_write_collections,
             |inference, prefix| {
                 let mut written = Vec::new();
-                self.with_complete_state_summaries(|complete_state_summaries| {
-                    for expression in expressions {
-                        collect_expression_call_written_paths(
-                            self.program,
-                            expression,
-                            current_machine,
-                            machine_symbols,
-                            &self.symbols,
-                            inference,
-                            &mut written,
-                            complete_state_summaries,
-                            prefix,
-                        )?;
-                    }
-                    Some(written)
-                })
+                for expression in expressions {
+                    collect_expression_call_written_paths(
+                        self.program,
+                        expression,
+                        current_machine,
+                        machine_symbols,
+                        &self.symbols,
+                        inference,
+                        &mut written,
+                        prefix,
+                    )?;
+                }
+                Some(written)
             },
         )
         .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
@@ -765,13 +751,7 @@ impl<'program> CallFrameResolver<'program> {
             {
                 return NormalizedWriteFrame::opaque();
             }
-            self.with_complete_state_summaries(|complete_state_summaries| {
-                self.inferred_state_write_frame_with_summaries(
-                    machine,
-                    state,
-                    complete_state_summaries,
-                )
-            })
+            self.infer_state_write_frame(machine, state)
         })
     }
 
@@ -785,29 +765,20 @@ impl<'program> CallFrameResolver<'program> {
     ) -> Vec<NormalizedWriteFrame> {
         let frames = memoized(&self.caches.inferred_machine_frames, machine.symbol, || {
             std::sync::Arc::new(
-                self.with_complete_state_summaries(|complete_state_summaries| {
-                    self.program
-                        .machine_states(machine)
-                        .iter()
-                        .map(|state| {
-                            self.inferred_state_write_frame_with_summaries(
-                                machine,
-                                state,
-                                complete_state_summaries,
-                            )
-                        })
-                        .collect()
-                }),
+                self.program
+                    .machine_states(machine)
+                    .iter()
+                    .map(|state| self.infer_state_write_frame(machine, state))
+                    .collect(),
             )
         });
         (*frames).clone()
     }
 
-    fn inferred_state_write_frame_with_summaries(
+    fn infer_state_write_frame(
         &self,
         machine: &'program Machine,
         state: &'program State,
-        complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     ) -> NormalizedWriteFrame {
         let mut inference = FrameInference::for_state(state.symbol);
         let relative_paths = summarize_state_written_paths(
@@ -816,7 +787,6 @@ impl<'program> CallFrameResolver<'program> {
             state,
             &self.symbols,
             &mut inference,
-            complete_state_summaries,
         )
         .or_else(|| {
             summarize_state_written_paths_with_cycles(
@@ -825,7 +795,6 @@ impl<'program> CallFrameResolver<'program> {
                 state,
                 &self.symbols,
                 &inference,
-                complete_state_summaries,
             )
         });
         let Some(relative_paths) = relative_paths else {
@@ -840,16 +809,6 @@ impl<'program> CallFrameResolver<'program> {
             }
         }
         NormalizedWriteFrame::complete(normalized)
-    }
-
-    fn with_complete_state_summaries<T>(
-        &self,
-        resolve: impl FnOnce(&mut HashMap<SymbolHandle, Vec<String>>) -> T,
-    ) -> T {
-        match self.caches.complete_state_summaries.lock() {
-            Ok(mut summaries) => resolve(&mut summaries),
-            Err(_) => resolve(&mut HashMap::default()),
-        }
     }
 }
 
@@ -891,7 +850,6 @@ pub(super) fn collect_expression_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     written: &mut Vec<String>,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     origins: &CallOriginContext<'_>,
 ) -> Option<()> {
     if !expression.is_valid() {
@@ -906,7 +864,6 @@ pub(super) fn collect_expression_call_written_paths(
             symbols,
             inference,
             written,
-            complete_state_summaries,
             origins,
         )
     };
@@ -1042,7 +999,6 @@ pub(super) fn collect_expression_call_written_paths(
                 symbols,
                 inference,
                 Some(&argument_origins),
-                complete_state_summaries,
             )
             .or_else(|| {
                 if !exact_receiver {

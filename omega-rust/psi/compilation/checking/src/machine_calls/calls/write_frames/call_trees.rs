@@ -332,68 +332,61 @@ fn complete_expression_tree(
         }
         // Call frames share completed state summaries with every other walk
         // of this program: one honest acyclic or solved-cycle frame per state.
-        if symbols
-            .caller_sites
-            .with_complete_state_summaries(|complete_state_summaries| {
-                known_call_written_paths_for_parts(
-                    program,
-                    call.target_symbol,
-                    call.target.as_str(),
-                    &receiver_members,
-                    &receiver_origins,
-                    receiver_data_name.as_deref(),
-                    arguments,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    inference,
-                    complete_state_summaries,
-                )
-            })
-            .or_else(|| {
-                if call.receiver.is_valid()
-                    && receiver_member_chain(program, call.receiver).is_none()
-                {
-                    return None;
-                }
-                known_boundary_call_written_paths_for_parts(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    super::caller_aliases::CallerWriteSite::Expression(expression),
-                    arguments,
-                    inference,
-                )
-            })
-            .or_else(|| {
-                // A divergent receiver names several candidate referents, none of
-                // them a single spelling a requirement signature could select by.
-                let single_receiver_origin = (receiver_origins.len() == 1)
-                    .then(|| receiver_origins.first())
-                    .flatten();
-                if call.receiver.is_valid()
-                    && receiver_member_chain(program, call.receiver).is_none()
-                    && single_receiver_origin.is_none()
-                {
-                    return None;
-                }
-                super::boundary_calls::known_requirement_call_written_paths_for_parts(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    single_receiver_origin,
-                    super::caller_aliases::CallerWriteSite::Expression(expression),
-                    arguments,
-                    inference,
-                )
-            })
-            .is_none()
+        if known_call_written_paths_for_parts(
+            program,
+            call.target_symbol,
+            call.target.as_str(),
+            &receiver_members,
+            &receiver_origins,
+            receiver_data_name.as_deref(),
+            arguments,
+            current_machine,
+            machine_symbols,
+            symbols,
+            inference,
+        )
+        .or_else(|| {
+            if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {
+                return None;
+            }
+            known_boundary_call_written_paths_for_parts(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                &receiver_members,
+                call.target.as_str(),
+                super::caller_aliases::CallerWriteSite::Expression(expression),
+                arguments,
+                inference,
+            )
+        })
+        .or_else(|| {
+            // A divergent receiver names several candidate referents, none of
+            // them a single spelling a requirement signature could select by.
+            let single_receiver_origin = (receiver_origins.len() == 1)
+                .then(|| receiver_origins.first())
+                .flatten();
+            if call.receiver.is_valid()
+                && receiver_member_chain(program, call.receiver).is_none()
+                && single_receiver_origin.is_none()
+            {
+                return None;
+            }
+            super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                &receiver_members,
+                call.target.as_str(),
+                single_receiver_origin,
+                super::caller_aliases::CallerWriteSite::Expression(expression),
+                arguments,
+                inference,
+            )
+        })
+        .is_none()
         {
             return false;
         }

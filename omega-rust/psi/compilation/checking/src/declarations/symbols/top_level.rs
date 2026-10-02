@@ -27,23 +27,32 @@ pub(crate) struct CallerSiteCaches {
     /// (machine symbol, site kind, site identity) -> the resolved prefix
     /// site outcome; None in the map encodes "no unique statement".
     pub prefix_site_entries: Mutex<HashMap<(SymbolHandle, u8, usize), Option<PrefixSiteEntry>>>,
-    /// state symbol -> its complete, context-independent written-path
-    /// summary. Per-state prefix walks and call-tree walks each used to solve
-    /// their callees into a private map, re-deriving one callee's summary for
-    /// every caller walk that reached it.
+    /// Complete, context-independent state effects shared by resolver and
+    /// nested origin queries. Never holds contextual prefixes or failures.
     complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
 }
 
 impl CallerSiteCaches {
-    /// Runs `walk` against the shared complete-summary memo, or against a
-    /// private map while a walk further up the stack holds the shared one.
-    pub(crate) fn with_complete_state_summaries<T>(
-        &self,
-        walk: impl FnOnce(&mut HashMap<SymbolHandle, Vec<String>>) -> T,
-    ) -> T {
-        match self.complete_state_summaries.try_lock() {
-            Ok(mut summaries) => walk(&mut summaries),
-            Err(_) => walk(&mut HashMap::default()),
+    /// Borrow the memo only while copying a completed row. Holding this lock
+    /// across inference forced recursive queries to discard solved work into
+    /// private tables. Active-state guards belong to callers, before lookup:
+    /// callers may then push the target while deriving its complete summary.
+    /// A poisoned memo is a miss; inference still computes the required effect.
+    pub(crate) fn completed_state_writes(&self, state: SymbolHandle) -> Option<Vec<String>> {
+        self.complete_state_summaries
+            .lock()
+            .ok()?
+            .get(&state)
+            .cloned()
+    }
+
+    /// Publish only after a successful Complete walk or a finite cycle's fixed
+    /// point. No lock spans derivation, so nested/concurrent misses may repeat
+    /// work but cannot observe partial evidence. The enclosing frozen-program
+    /// identity bounds reuse; result-origin relations retain their own scopes.
+    pub(crate) fn record_completed_state_writes(&self, state: SymbolHandle, writes: &[String]) {
+        if let Ok(mut summaries) = self.complete_state_summaries.lock() {
+            summaries.entry(state).or_insert_with(|| writes.to_vec());
         }
     }
 }

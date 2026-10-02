@@ -5,6 +5,13 @@
 //! It produces complete caller-visible paths or fails closed as opaque; call
 //! validity and type diagnostics remain owned by the parent module.
 //!
+//! Completed callee-relative effects share the frozen program's caller-site
+//! memo. Lookup and publication release its lock before recursive inference;
+//! holding it across a walk forced nested queries into private, repeated work.
+//! Only complete walks and converged cycle equations publish. Active-call guards
+//! still govern recursion, and caller-relative result origins are derived in
+//! their own scope rather than cached with context-independent effects.
+//!
 //! This file owns the known-call summaries. `state_write_walk.rs` walks
 //! state write prefixes, `alias_origins.rs` propagates stable alias origins,
 //! `transparent_results.rs` follows transparent call results,
@@ -67,7 +74,6 @@ use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -110,13 +116,12 @@ thread_local! {
 /// implementation shapes this inference cannot summarize remain deliberately
 /// opaque. Authored `stores` clauses are retired; precision grows through the
 /// shared inferred complete-or-opaque frame instead.
-fn known_call_written_paths_with_summaries(
+fn known_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
@@ -139,7 +144,6 @@ fn known_call_written_paths_with_summaries(
         symbols,
         inference,
         argument_origins,
-        complete_state_summaries,
     )
 }
 
@@ -156,7 +160,6 @@ fn known_call_written_paths_for_parts(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     known_call_written_paths_for_parts_with_origins(
         program,
@@ -171,7 +174,6 @@ fn known_call_written_paths_for_parts(
         symbols,
         inference,
         None,
-        complete_state_summaries,
     )
 }
 
@@ -189,7 +191,6 @@ fn known_call_written_paths_for_parts_with_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
     // not an ordinary receiver binding. Until MP summaries instantiate that
@@ -321,7 +322,6 @@ fn known_call_written_paths_for_parts_with_origins(
         symbols,
         inference,
         argument_origins,
-        complete_state_summaries,
     )
     .or_else(|| {
         // A static declaration qualifier is not caller storage. When recursive
@@ -378,7 +378,6 @@ fn summarize_resolved_call(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
-    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // Every proven receiver candidate is a base the callee's `self`-relative
     // writes may land on; the caller-visible set is the union across bases.
@@ -413,7 +412,6 @@ fn summarize_resolved_call(
         callee_state,
         symbols,
         inference,
-        complete_state_summaries,
     );
     inference.active_states.pop();
     // Actual expressions run in the caller, not recursively inside this
