@@ -433,8 +433,12 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `self.rda_drain(4096)` and took no argument loan at all. See
   [[call-argument exclusivity]]: a call argument enforces loan exclusivity where
   a plain operand read does not, so migrating a receiver call onto the static
-  spelling moves it onto the strict route. Those five files are otherwise
-  mechanically migratable; this one state cluster per target is what holds them.
+  spelling moves it onto the strict route.
+  Binding the call's result to a local and guarding on THAT clears it, which is
+  what those five files now do, so this shape has no remaining customer there.
+  It is kept because the authored rewrite is only available when the conflicting
+  read is a value the caller can name; an arm that must pass both a record and a
+  projection of it has no such rewrite.
   Acceptance: the 13 fixtures check and the `*_exit` ones meet their native
   oracles in the static spelling; the three `receiver_jump_loans` refusals keep
   rejecting, with a static-spelling fixture for each of the two obligations

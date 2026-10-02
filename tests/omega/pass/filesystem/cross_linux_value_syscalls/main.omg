@@ -107,7 +107,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition kind { ErrorKind::NotFound -> remove_missing_tree(main) _ -> fail_error_kind(main) }
     }
     state remove_missing_tree(main: &mut Main) {
-        let result: UnitResult = main.semantic_fs.remove_dir_all("/omega_definitely_absent_linux");
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.semantic_fs, "/omega_definitely_absent_linux");
         transition result {
             UnitResult::Error { kind } -> check_tree_missing(main, kind)
             _ -> fail_error_kind(main)
