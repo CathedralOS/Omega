@@ -10,7 +10,7 @@ use selected_instructions::{
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
     PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlanIdentity,
+    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -128,6 +128,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 15 => PostAllocationSelectedTransformation::CopiedCallOperand(
                     CopiedCallOperandIdentity::from_bytes(cursor.array()?),
+                ),
+                16 => PostAllocationSelectedTransformation::StoredLoadForwarding(
+                    StoredLoadForwardingIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -279,6 +282,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
                 canonical.push(15);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
+                canonical.push(16);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

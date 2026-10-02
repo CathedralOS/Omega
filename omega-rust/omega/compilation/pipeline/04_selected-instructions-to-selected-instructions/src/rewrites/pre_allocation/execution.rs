@@ -7,6 +7,7 @@
 //! restarts over the transformed plan: an extension removal publishes a
 //! `CopyI64` the copy-removal pass then owns, so families share the joint
 //! fixed point rather than each converging alone.
+use crate::{StoredLoadForwardingError, forward_selected_stored_load};
 use std::collections::BTreeSet;
 
 use crate::AddressFoldError;
@@ -220,7 +221,7 @@ fn is_call_consumer(instruction: &SelectedInstruction) -> bool {
 }
 
 /// The joint measure a committed step must strictly drop: the plan's
-/// virtual registers, plus its remaining extension candidates, plus the
+/// virtual registers and retained memory access rows, plus its remaining extension candidates, plus the
 /// summed operand-0 definition-chain lengths of the fold-shaped consumers,
 /// plus the summed per-`Use`-operand definition-chain lengths of the
 /// direct internal calls, plus every flag unit the remaining
@@ -240,7 +241,12 @@ fn is_call_consumer(instruction: &SelectedInstruction) -> bool {
 /// compare-publisher term while a compare carries no register definitions
 /// or flag uses the other terms charge.
 fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
-    let mut total = virtual_registers;
+    let mut total = virtual_registers
+        + plan
+            .functions
+            .iter()
+            .map(|function| function.memory_accesses.len())
+            .sum::<usize>();
     for function in &plan.functions {
         for block in &function.blocks {
             for (index, instruction) in block.instructions.iter().enumerate() {
@@ -976,6 +982,99 @@ fn last_definition_before(
     })
 }
 
+/// Nominate memory reads through the ordinary catalog sweep and analysis
+/// restaging. The surface bound covers both independent walks, including
+/// predecessor joins and register transport scans. Unknown aliases refuse.
+fn stored_load_forwarding_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    let surface = current
+        .selected_plan()
+        .functions
+        .iter()
+        .try_fold(1u64, |total, function| {
+            let members = function.blocks.iter().try_fold(0u64, |total, block| {
+                total
+                    .checked_add(block.instructions.len() as u64)?
+                    .checked_add(1)
+            })?;
+            total
+                .checked_add(members)?
+                .checked_add(function.memory_accesses.len() as u64)?
+                .checked_add(function.virtual_registers.len() as u64)
+        })
+        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+    let audit_cost = surface
+        .checked_mul(surface)
+        .and_then(|value| value.checked_mul(surface))
+        .and_then(|value| value.checked_mul(2))
+        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::Load64 { .. }
+                        | SelectedInstructionKind::Load32 { .. }
+                        | SelectedInstructionKind::Load16 { .. }
+                        | SelectedInstructionKind::Load8 { .. }
+                        | SelectedInstructionKind::Load8Indexed { .. }
+                ) {
+                    continue;
+                }
+                evaluated += 1;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                if validation_steps > budget.validation_steps() {
+                    return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
+                        StoredLoadForwardingError::WorkBudgetExceeded,
+                    ));
+                }
+                match forward_selected_stored_load(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(forwarding) => {
+                        return Ok(PreAllocationPass::Applied {
+                            transformation:
+                                ValidatedPreAllocationTransformation::StoredLoadForwarding(
+                                    forwarding,
+                                ),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (StoredLoadForwardingError::WorkBudgetExceeded
+                        | StoredLoadForwardingError::IdentityOverflow
+                        | StoredLoadForwardingError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
+                            error,
+                        ));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
 /// Source-bound candidate discovery for the copied-call-operand family:
 /// every direct internal call — `CallUnit`, `CallScalar`, or
 /// `CallAggregate` — in the current validated plan, in
@@ -991,6 +1090,7 @@ fn last_definition_before(
 /// commit's independent validation. The retained-call surface binds the
 /// environment's validated effect catalog the same way the
 /// constant-branch family binds it.
+
 fn copied_call_operand_pass(
     current: SelectedProgramRef<'_>,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -1140,6 +1240,9 @@ fn run_passes(
                 }
                 Optimization::SelectedCopiedCallOperandFoldV1 => {
                     copied_call_operand_pass(current, environment, budget)?
+                }
+                Optimization::SelectedStoredLoadForwardingV1 => {
+                    stored_load_forwarding_pass(current, environment, budget)?
                 }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
@@ -1471,6 +1574,10 @@ fn pre_allocation_completion_identity(
                 canonical.push(9);
                 canonical.extend_from_slice(&identity.bytes());
             }
+            crate::PreAllocationTransformationIdentity::StoredLoadForwarding(identity) => {
+                canonical.push(10);
+                canonical.extend_from_slice(&identity.bytes());
+            }
         }
         encode_count(&mut canonical, iteration.function_index());
         canonical.extend_from_slice(&iteration.instruction().0.to_le_bytes());
@@ -1498,4 +1605,48 @@ fn encode_count(canonical: &mut Vec<u8>, count: usize) {
             .expect("pre-allocation completion count fits u64")
             .to_le_bytes(),
     );
+}
+
+#[cfg(test)]
+mod stored_load_catalog_tests {
+    use super::*;
+    use register_environment::baseline_target_register_environment;
+    use target::NativeTarget;
+
+    #[test]
+    fn stored_load_scan_commits_and_accounts_for_work() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = crate::rewrites::load_forwarding::tests::fixture(target);
+        let budget = OptimizationWorkBudget::new(100, 100, 1_000_000, 100, 100).unwrap();
+        match stored_load_forwarding_pass(SelectedProgramRef::new(&source), &environment, budget)
+            .unwrap()
+        {
+            PreAllocationPass::Applied {
+                transformation,
+                evaluated,
+                validation_steps,
+                ..
+            } => {
+                assert!(matches!(
+                    transformation,
+                    ValidatedPreAllocationTransformation::StoredLoadForwarding(_)
+                ));
+                assert_eq!(evaluated, 1);
+                assert!(validation_steps > 0);
+                assert_ne!(
+                    transformation.source_selected(),
+                    transformation.transformed_selected()
+                );
+            }
+            PreAllocationPass::Clean { .. } => panic!("the stored load must actually commit"),
+        }
+        let exhausted = OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap();
+        assert!(matches!(
+            stored_load_forwarding_pass(SelectedProgramRef::new(&source), &environment, exhausted),
+            Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
+                StoredLoadForwardingError::WorkBudgetExceeded
+            ))
+        ));
+    }
 }

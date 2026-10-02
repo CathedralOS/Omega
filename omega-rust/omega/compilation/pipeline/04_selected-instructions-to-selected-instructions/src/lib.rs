@@ -144,3 +144,8 @@ pub use selected_instructions::{
 #[cfg(test)]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+pub use rewrites::{
+    StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
+    forward_selected_stored_load, validate_stored_load_forwarding,
+};

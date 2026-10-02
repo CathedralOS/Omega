@@ -5,7 +5,7 @@ mod cross_block_forwarding;
 mod independence_tests;
 mod same_block_forwarding;
 
-use crate::rewrites::unexecuted::{
+use crate::rewrites::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
     forward_selected_stored_load,
 };
@@ -103,7 +103,7 @@ fn access(
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim:
 /// `r1 = copy r0; store [r0+0] <- r1; r3 = copy r0; r2 = load [r0+0]; return`.
-fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
+pub(in crate::rewrites) fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
     let copy = environment.constraint(keys.copy_i64).unwrap();
@@ -239,6 +239,10 @@ fn fixture(target: NativeTarget) -> ValidatedStoredLoadForwarding {
     let identity = selected_instruction_plan_identity(&plan);
     ValidatedStoredLoadForwarding {
         receipt: StoredLoadForwardingReceipt {
+            identity: selected_instructions::StoredLoadForwardingIdentity::from_bytes([3; 32]),
+            function_index: 0,
+            load: LOAD,
+            validation_steps: 0,
             source_selected: identity,
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),

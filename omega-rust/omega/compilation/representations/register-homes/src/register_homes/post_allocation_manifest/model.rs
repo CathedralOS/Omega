@@ -8,7 +8,7 @@ use selected_instructions::{
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
     PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlanIdentity,
+    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
 };
 use target::NativeTarget;
 
@@ -66,6 +66,7 @@ pub enum PostAllocationSelectedTransformation {
     /// call's operands rebind to the copy's source while producer and
     /// call contract both stay published.
     CopiedCallOperand(CopiedCallOperandIdentity),
+    StoredLoadForwarding(StoredLoadForwardingIdentity),
 }
 
 /// Structured report at the first independently validated physical-home

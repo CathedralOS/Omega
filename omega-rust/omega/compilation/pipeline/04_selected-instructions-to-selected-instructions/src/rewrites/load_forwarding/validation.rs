@@ -32,7 +32,7 @@ use super::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
-use crate::rewrites::unexecuted::place_storage::{
+use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
 };
@@ -140,23 +140,25 @@ fn disturbs(
 ) -> bool {
     use SelectedMemoryAccessRole::*;
     match access.role {
-        WritePlace => access.place == read.place && read.overlaps(access),
+        WritePlace => access.place != read.place || read.overlaps(access),
         WriteByteSpan { .. }
         | WriteByteSequence { .. }
         | WriteElementView { .. }
         | WriteIndexedPrimitive { .. }
         | WriteIndexedStructural { .. } => {
-            access.place == read.place && read.reaches(access, function)
+            access.place != read.place || read.reaches(access, function)
         }
         WriteLocal { slot } => {
-            local_slot_is_place_storage(slot, read.place, structural_places)
-                && read.overlaps(access)
+            (access.place != read.place
+                && local_slot_is_place_storage(slot, access.place, structural_places))
+                || (local_slot_is_place_storage(slot, read.place, structural_places)
+                    && read.overlaps(access))
         }
         // A materialized local address could reach the place's storage by a
         // route the roster does not bound, so it blocks whenever its slot is
         // the place's storage; a staged slot's address reaches only the
         // staged bytes.
-        AddressLocal { slot } => local_slot_is_place_storage(slot, read.place, structural_places),
+        AddressLocal { slot } => local_slot_is_place_storage(slot, access.place, structural_places),
         ReadPlace
         | ReadByteSpan { .. }
         | ReadByteSequence { .. }
@@ -447,11 +449,10 @@ fn sole_result(
 /// block resolved through — and only when the binding supplies exactly the
 /// register this leg resolved to, which is the condition the merge itself
 /// was reconstructed under. Structural destinations, case custody slots,
-/// and custody discards reach the read's bytes only through the same place
-/// root under place exclusivity.
+/// and custody discards may alias the read without a retained disjointness premise and refuse.
 fn edge_keeps(
     successor: &SelectedSuccessor,
-    read: &Read,
+    _read: &Read,
     carried: Option<VirtualRegisterId>,
     defined: Option<VirtualRegisterId>,
     output: VirtualRegisterId,
@@ -482,14 +483,12 @@ fn edge_keeps(
             | SelectedStructuralTransport::Descriptor { destination, .. }
             | SelectedStructuralTransport::Address { destination, .. } => destination,
         };
-        if destination.structural_place() == Some(read.place) {
+        if destination.structural_place().is_some() {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }
     }
     if let Some(case) = &successor.structural_case {
-        if case.source.place() == Some(read.place)
-            || case.trivial_affine_discards.contains(&read.place)
-        {
+        if case.source.place().is_some() || !case.trivial_affine_discards.is_empty() {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }
         for payload in &case.payloads {
@@ -1224,12 +1223,12 @@ pub fn validate_stored_load_forwarding(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
     let reconstructed = reconstruct(source, function_index, load, environment)?;
-    if measured_steps(
+    let validation_steps = measured_steps(
         source.selected_plan(),
         reconstructed.function,
         &reconstructed,
-    )? > budget.validation_steps()
-    {
+    )?;
+    if validation_steps > budget.validation_steps() {
         return Err(StoredLoadForwardingError::WorkBudgetExceeded);
     }
     if proposed.functions.get(function_index) != Some(&expect(&reconstructed)) {
@@ -1238,8 +1237,22 @@ pub fn validate_stored_load_forwarding(
     if restore(&reconstructed, &proposed)? != *source.selected_plan() {
         return Err(StoredLoadForwardingError::ReplayMismatch);
     }
+    let transformed_selected = selected_instruction_plan_identity(&proposed);
+    let mut canonical = b"omega.stored-load-forwarding.v1".to_vec();
+    canonical.extend_from_slice(&source.selected_identity().bytes());
+    canonical.extend_from_slice(&transformed_selected.bytes());
+    canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
+    canonical.extend_from_slice(&source.fuel_schedule_identity().marker().to_le_bytes());
+    canonical.extend_from_slice(&(function_index as u64).to_le_bytes());
+    canonical.extend_from_slice(&load.0.to_le_bytes());
     Ok(ValidatedStoredLoadForwarding {
         receipt: StoredLoadForwardingReceipt {
+            identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
+                &canonical,
+            ),
+            function_index,
+            load,
+            validation_steps,
             source_selected: source.selected_identity(),
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),

@@ -29,6 +29,7 @@ use crate::ValidatedLiveRanges;
 use crate::ValidatedLiveness;
 use crate::ValidatedRedundantCompare;
 use crate::ValidatedRedundantExtension;
+use crate::{StoredLoadForwardingError, ValidatedStoredLoadForwarding};
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
@@ -38,6 +39,7 @@ use selected_instructions::{
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     LiveRangeIdentity, LivenessIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
     SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    StoredLoadForwardingIdentity,
 };
 
 /// Narrow pre-allocation admission set: which exact catalog payloads the
@@ -58,6 +60,7 @@ impl PreAllocationPolicy {
     const REDUNDANT_COMPARE_V1_BIT: u32 = 1 << 6;
     const EQUIVALENT_COMPARE_V1_BIT: u32 = 1 << 7;
     const COPIED_CALL_OPERAND_V1_BIT: u32 = 1 << 8;
+    const STORED_LOAD_FORWARDING_V1_BIT: u32 = 1 << 9;
     const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
         | Self::REDUNDANT_EXTENSION_V1_BIT
         | Self::ADDRESS_FOLD_V1_BIT
@@ -66,7 +69,8 @@ impl PreAllocationPolicy {
         | Self::DEAD_COMPARE_V1_BIT
         | Self::REDUNDANT_COMPARE_V1_BIT
         | Self::EQUIVALENT_COMPARE_V1_BIT
-        | Self::COPIED_CALL_OPERAND_V1_BIT;
+        | Self::COPIED_CALL_OPERAND_V1_BIT
+        | Self::STORED_LOAD_FORWARDING_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
@@ -139,6 +143,12 @@ impl PreAllocationPolicy {
         enabled: Self::COPIED_CALL_OPERAND_V1_BIT,
     };
 
+    /// Forward an exact-width store to a later read after independent byte,
+    /// alias, register and path reconstruction.
+    pub const STORED_LOAD_FORWARDING_V1: Self = Self {
+        enabled: Self::STORED_LOAD_FORWARDING_V1_BIT,
+    };
+
     pub const fn empty() -> Self {
         Self { enabled: 0 }
     }
@@ -187,6 +197,7 @@ pub enum ValidatedPreAllocationTransformation {
     RedundantCompare(ValidatedRedundantCompare),
     EquivalentCompare(ValidatedEquivalentCompare),
     CopiedCallOperand(ValidatedCopiedCallOperand),
+    StoredLoadForwarding(ValidatedStoredLoadForwarding),
 }
 
 impl ValidatedPreAllocationTransformation {
@@ -201,6 +212,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.transformed(),
             Self::EquivalentCompare(removal) => removal.transformed(),
             Self::CopiedCallOperand(reroute) => reroute.transformed(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.transformed(),
         }
     }
 
@@ -215,6 +227,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.shared_transformed(),
             Self::EquivalentCompare(removal) => removal.shared_transformed(),
             Self::CopiedCallOperand(reroute) => reroute.shared_transformed(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.shared_transformed(),
         }
     }
 
@@ -229,6 +242,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().source_selected(),
             Self::EquivalentCompare(removal) => removal.receipt().source_selected(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().source_selected(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().source_selected(),
         }
     }
 
@@ -243,6 +257,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().transformed_selected(),
             Self::EquivalentCompare(removal) => removal.receipt().transformed_selected(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().transformed_selected(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().transformed_selected(),
         }
     }
 
@@ -257,6 +272,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().optimization_unit(),
             Self::EquivalentCompare(removal) => removal.receipt().optimization_unit(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().optimization_unit(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().optimization_unit(),
         }
     }
 
@@ -271,6 +287,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().fuel_schedule(),
             Self::EquivalentCompare(removal) => removal.receipt().fuel_schedule(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().fuel_schedule(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().fuel_schedule(),
         }
     }
 
@@ -286,6 +303,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().function_index(),
             Self::EquivalentCompare(removal) => removal.receipt().function_index(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().function_index(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().function_index(),
         }
     }
 
@@ -306,6 +324,7 @@ impl ValidatedPreAllocationTransformation {
             Self::RedundantCompare(removal) => removal.receipt().compare(),
             Self::EquivalentCompare(removal) => removal.receipt().compare(),
             Self::CopiedCallOperand(reroute) => reroute.receipt().call(),
+            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().load(),
         }
     }
 
@@ -342,6 +361,11 @@ impl ValidatedPreAllocationTransformation {
             Self::CopiedCallOperand(reroute) => {
                 PreAllocationTransformationIdentity::CopiedCallOperand(reroute.receipt().identity())
             }
+            Self::StoredLoadForwarding(forwarding) => {
+                PreAllocationTransformationIdentity::StoredLoadForwarding(
+                    forwarding.receipt().identity(),
+                )
+            }
         }
     }
 }
@@ -360,6 +384,7 @@ pub enum PreAllocationTransformationIdentity {
     RedundantCompare(RedundantCompareIdentity),
     EquivalentCompare(EquivalentCompareIdentity),
     CopiedCallOperand(CopiedCallOperandIdentity),
+    StoredLoadForwarding(StoredLoadForwardingIdentity),
 }
 
 /// The post-allocation ledger entry one committed pre-allocation step
@@ -395,6 +420,9 @@ impl From<PreAllocationTransformationIdentity>
             }
             PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
                 Self::CopiedCallOperand(identity)
+            }
+            PreAllocationTransformationIdentity::StoredLoadForwarding(identity) => {
+                Self::StoredLoadForwarding(identity)
             }
         }
     }
@@ -682,6 +710,7 @@ pub enum OptimizedPreAllocationCustodyError {
     RedundantCompare(RedundantCompareError),
     EquivalentCompare(EquivalentCompareError),
     CopiedCallOperand(CopiedCallOperandError),
+    StoredLoadForwarding(StoredLoadForwardingError),
     /// The target's machine-effect catalog — the declarations the
     /// constant-branch and copied-call-operand pair descriptors bind —
     /// could not be built or validated for the environment's constraint

@@ -488,15 +488,23 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 - **ALIAS-AWARE-MEMORY.** Connect load forwarding, dead-store elimination
   and store motion to exact selected-stage execution, allocation and publication.
-  The existing implementations and tests live under
+  `SelectedStoredLoadForwardingV1` now executes the existing byte-exact
+  forwarding proposer and independent validator through the common preallocation
+  catalog, with source/output/function/load identities carried into allocation
+  manifest replay. The authored `optimizer/stored_load_forwarding_selection_exit`
+  control exits 0 natively and interpreted; disabling the selection retains the
+  field reload. Dead-store elimination and store motion remain under
   [rewrites/unexecuted/](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs),
-  not the executable catalog. Reuse their proposers and independent legality
+  outside the executable catalog. Reuse their proposers and independent legality
   validators; EXACT-MACHINE-SIMPLIFICATIONS owns the common stage-execution
   join, not a second memory-specific pipeline.
 
   Establish the alias premise each admitted window needs. `commuting_accesses`
   currently treats different `StorageRoute::Place` identities as disjoint;
-  the memory rewrites likewise rely on the access roster's root/extent claims.
+  the remaining memory rewrites likewise rely on the access roster's root/extent
+  claims. Executable forwarding conservatively refuses intervening writes through
+  distinct place identities, including forged edits presented directly to replay;
+  same-place disjoint byte extents and private staging remain controls.
   Bind general distinct-place reasoning to retained loan/compatibility/fact
   identities, or independently prove non-overlap at the roster producer under
   [loan semantics](wiki/spec/terminal-psi/loans.md). Exclusive custody alone

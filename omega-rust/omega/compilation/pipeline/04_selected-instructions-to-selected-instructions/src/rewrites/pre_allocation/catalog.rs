@@ -28,10 +28,11 @@ pub type PreAllocationRuleCatalogEntry =
 /// copy-removal pass scans first, then the extension pass, then the
 /// address-fold pass, then the constant-boolean pass, then the
 /// constant-branch pass, then the dead-, redundant-, and
-/// equivalent-compare passes, then the copied-call-operand pass, and a
+/// equivalent-compare passes, then the copied-call-operand and stored-load
+/// forwarding passes, and a
 /// commit by any of them restarts the whole sweep over the transformed
 /// program.
-pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 9] = [
+pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 10] = [
     PreAllocationRuleCatalogEntry::new(
         Optimization::SelectedSameBlockCopyI64RemovalV1,
         PreAllocationRuleCatalogPayload {
@@ -93,6 +94,13 @@ pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 9] = [
         PreAllocationRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
             policy: PreAllocationPolicy::COPIED_CALL_OPERAND_V1,
+        },
+    ),
+    PreAllocationRuleCatalogEntry::new(
+        Optimization::SelectedStoredLoadForwardingV1,
+        PreAllocationRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy: PreAllocationPolicy::STORED_LOAD_FORWARDING_V1,
         },
     ),
 ];

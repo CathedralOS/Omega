@@ -1,3 +1,4 @@
+use crate::ValidatedStoredLoadForwarding;
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
@@ -8,7 +9,7 @@ use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
     ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedDeadStoreElimination,
     ValidatedInflowRelocation, ValidatedInterchange, ValidatedMemberRunRelocation,
-    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedScheduledRelocation, ValidatedStoreMutationMotion,
 };
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,

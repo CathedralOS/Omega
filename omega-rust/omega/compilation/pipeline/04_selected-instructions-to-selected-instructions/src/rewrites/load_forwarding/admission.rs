@@ -60,8 +60,8 @@
 //! exact writer while a disjoint one walks past like a disjoint `WritePlace`;
 //! a slot that only stages bytes naming the place — a call's staged view
 //! descriptor — holds none of the place's bytes at any offset, so its writes
-//! and materialized address never block at all. Rows for other places and
-//! every read role are safe under place exclusivity.
+//! and materialized address never block at all. Writes under another place
+//! identity refuse without a physical disjointness premise; reads are harmless.
 //! Instructions without a row are admitted only when their kind cannot
 //! write semantic storage: loads, address formation, private-slot frame
 //! accesses, and pure register work. Calls, hosted effects, and unaccounted
@@ -99,7 +99,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
-use crate::rewrites::unexecuted::place_storage::{
+use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
 };
@@ -233,7 +233,10 @@ fn dynamic_copy_destination_blocks_forwarding_but_its_source_does_not() {
         accepted_fact,
     };
     access.place = PlaceId::new(2).unwrap();
-    assert!(!interferes(&forwarded, &access, &[], &function));
+    assert!(
+        interferes(&forwarded, &access, &[], &function),
+        "a distinct identity has no physical disjointness premise"
+    );
     access.place = place;
     access.role = SelectedMemoryAccessRole::WritePlace;
     assert!(
@@ -320,7 +323,7 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
     };
     access.byte_count = 0;
     assert!(interferes(&forwarded, &access, &[], &function));
-    // A read or a different place still walks past.
+    // A read walks past; a different place still needs a disjointness premise.
     access.role = SelectedMemoryAccessRole::ReadByteSequence {
         index: semantic_vocabulary::ValueId::new(6).unwrap(),
         length: semantic_vocabulary::ValueId::new(8).unwrap(),
@@ -337,7 +340,10 @@ fn dynamic_read_extent_reverses_the_interference_directions() {
     };
     access.byte_count = 1;
     access.place = PlaceId::new(2).unwrap();
-    assert!(!interferes(&forwarded, &access, &[], &function));
+    assert!(
+        interferes(&forwarded, &access, &[], &function),
+        "a distinct identity has no physical disjointness premise"
+    );
 }
 
 pub(super) fn admit<'source>(
@@ -943,21 +949,23 @@ fn interferes(
 ) -> bool {
     match access.role {
         SelectedMemoryAccessRole::WritePlace => {
-            access.place == forwarded.place && forwarded.intersects(access)
+            access.place != forwarded.place || forwarded.intersects(access)
         }
         SelectedMemoryAccessRole::WriteByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteElementView { .. }
         | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. }
         | SelectedMemoryAccessRole::WriteIndexedStructural { .. } => {
-            access.place == forwarded.place && forwarded.reached_by(access, function)
+            access.place != forwarded.place || forwarded.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {
-            local_slot_is_place_storage(slot, forwarded.place, structural_places)
-                && forwarded.intersects(access)
+            (access.place != forwarded.place
+                && local_slot_is_place_storage(slot, access.place, structural_places))
+                || (local_slot_is_place_storage(slot, forwarded.place, structural_places)
+                    && forwarded.intersects(access))
         }
         SelectedMemoryAccessRole::AddressLocal { slot } => {
-            local_slot_is_place_storage(slot, forwarded.place, structural_places)
+            local_slot_is_place_storage(slot, access.place, structural_places)
         }
         SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }
@@ -1194,11 +1202,11 @@ fn sequence_source(
 /// merged parameter the target block resolved through — and only when the
 /// binding supplies exactly the register this leg resolved to, which is the
 /// condition the merge itself was admitted under. Structural destinations,
-/// case custody slots, and custody discards reach the forwarded bytes only
-/// through the same place root under place exclusivity.
+/// case custody slots, and custody discards refuse without a physical
+/// disjointness premise.
 fn edge_preserves(
     successor: &SelectedSuccessor,
-    forwarded: &Forwarded,
+    _forwarded: &Forwarded,
     carried: Option<VirtualRegisterId>,
     defined: Option<VirtualRegisterId>,
     output: VirtualRegisterId,
@@ -1229,14 +1237,12 @@ fn edge_preserves(
             | SelectedStructuralTransport::Descriptor { destination, .. }
             | SelectedStructuralTransport::Address { destination, .. } => destination,
         };
-        if destination.structural_place() == Some(forwarded.place) {
+        if destination.structural_place().is_some() {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }
     }
     if let Some(case) = &successor.structural_case {
-        if case.source.place() == Some(forwarded.place)
-            || case.trivial_affine_discards.contains(&forwarded.place)
-        {
+        if case.source.place().is_some() || !case.trivial_affine_discards.is_empty() {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }
         for payload in &case.payloads {

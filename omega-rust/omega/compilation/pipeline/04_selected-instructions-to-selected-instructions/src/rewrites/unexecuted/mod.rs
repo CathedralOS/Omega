@@ -66,7 +66,6 @@
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `scheduled_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`projected_access`) — staged, owner row
 //!   **DECLARATIVE-PEEPHOLES**; the former `terminator_pair`,
@@ -76,8 +75,8 @@
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //!
-//! `commuting_accesses`, `dead_path` and `place_storage` are the shared
-//! vocabulary only these families read; `super::block_edges`,
+//! `commuting_accesses` and `dead_path` are the shared vocabulary these
+//! staged families read; `super::place_storage` also serves executed forwarding; `super::block_edges`,
 //! `super::condition_state` and `super::window_hazards` are shared with the
 //! executed set.
 
@@ -91,9 +90,8 @@ mod dead_path;
 mod dead_store;
 mod inflow_relocation;
 mod interchange;
-mod load_forwarding;
 pub mod peepholes;
-mod place_storage;
+pub(super) use super::place_storage;
 mod relocation;
 mod scheduled_relocation;
 mod store_motion;
@@ -129,10 +127,6 @@ pub use inflow_relocation::{
 pub use interchange::{
     InterchangeError, InterchangeReceipt, ValidatedInterchange, interchange_selected_runs,
     validate_selected_interchange,
-};
-pub use load_forwarding::{
-    StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load, validate_stored_load_forwarding,
 };
 pub use relocation::{
     MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,

@@ -94,6 +94,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
                     ("copied-call-operand", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
+                    ("stored-load-forwarding", identity.bytes())
+                }
             };
             writeln!(
                 output,

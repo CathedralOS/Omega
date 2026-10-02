@@ -1,0 +1,14 @@
+// The selected memory rewrite must preserve the value stored in the caller's
+// field and subsequently read through the same retained place.
+data Context { value: u64; }
+
+machine main(context: &mut Context) crashes Trap {
+    context.value = 43u64;
+    let observed: u64 = context.value;
+    transition observed == 43u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

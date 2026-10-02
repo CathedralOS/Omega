@@ -3,7 +3,7 @@ use super::{
     STORE, VALUE, access, budget, crossed_edge, define_index, define_index_as, forward,
     instruction, mutated_chained, place, sequence_pair, sequence_write, successor,
 };
-use crate::rewrites::unexecuted::{StoredLoadForwardingError, validate_stored_load_forwarding};
+use crate::rewrites::{StoredLoadForwardingError, validate_stored_load_forwarding};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
@@ -983,7 +983,7 @@ fn cross_block_writerless_cycles_resolve_when_arriving_legs_agree() {
         function.blocks[1].instructions.push(instruction(
             SelectedInstructionId(10),
             SelectedInstructionKind::Store {
-                byte_offset: 0,
+                byte_offset: 8,
                 byte_size: 8,
             },
             store,
@@ -992,8 +992,8 @@ fn cross_block_writerless_cycles_resolve_when_arriving_legs_agree() {
         function.memory_accesses.push(access(
             SelectedInstructionId(10),
             5,
-            PlaceId::new(2).unwrap(),
-            0,
+            place(),
+            8,
             SelectedMemoryAccessRole::WritePlace,
         ));
         function.blocks[1].terminator = SelectedTerminator::ConditionalBranch {
@@ -1458,9 +1458,8 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
     let payload = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
             source: selected_instructions::SelectedCaseDispatchSource::Local {
-                slot: LocalStorageSlotId::Structural {
+                slot: LocalStorageSlotId::Boundary {
                     operation: OperationId::new(9).unwrap(),
-                    place: PlaceId::new(2).unwrap(),
                 },
             },
             case: StructuralCaseId::new(1).unwrap(),
@@ -1520,7 +1519,7 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
         forward(&aliased, &environment).unwrap_err(),
         StoredLoadForwardingError::AliasingWrite
     );
-    // The same transport into a different place's slot stays harmless.
+    // A different place identity still lacks a physical disjointness premise.
     let disjoint = mutated_chained(target, |function, _| {
         crossed_edge(function)
             .structural_bindings
@@ -1544,7 +1543,10 @@ fn cross_block_edge_transports_and_terminator_rows_decide() {
                 },
             });
     });
-    forward(&disjoint, &environment).unwrap();
+    assert_eq!(
+        forward(&disjoint, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
     // A trivially discarded case binding on the forwarded place is a write.
     let discarded = mutated_chained(target, |function, _| {
         crossed_edge(function).structural_case = Some(SelectedStructuralCaseEdge {
