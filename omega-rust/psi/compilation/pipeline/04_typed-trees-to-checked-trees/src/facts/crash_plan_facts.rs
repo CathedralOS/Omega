@@ -366,7 +366,7 @@ fn build_structural_runtime_requirements(
         })
         .collect::<Option<Vec<_>>>()?;
     requirements.extend(
-        crate::values::lower_integer_parameter_range_requirements(program, machine)
+        crate::values::lower_scalar_parameter_refinement_predicates(program, machine)
             .into_iter()
             .collect::<Option<Vec<_>>>()?,
     );

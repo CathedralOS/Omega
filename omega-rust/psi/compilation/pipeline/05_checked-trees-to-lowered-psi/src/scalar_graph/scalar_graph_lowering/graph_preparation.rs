@@ -258,6 +258,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .map(|declaration| (declaration.identity.clone(), declaration.id))
         .collect::<Vec<_>>();
     let mut state_requires = Vec::with_capacity(states.len());
+    let mut value_requirements = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
         let state_parameters = if state_index == 0 || shared_receiver {
             Vec::new()
@@ -562,7 +563,12 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // The entry's roster lives on the machine signature, not the block:
         // an entry block with a nonempty roster is reserved for owned loop
         // forwarding custody.
-        let mut lowered = prepared.finish(state.state, terminator, &mut computations)?;
+        let mut lowered = prepared.finish(
+            state.state,
+            terminator,
+            &mut computations,
+            &mut value_requirements,
+        )?;
         lowered.structural_parameters = state_parameters;
         lowered_states.push(lowered);
     }
@@ -588,6 +594,22 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     }
 
     lowered_states.extend(computations.finish());
+    state_requires.resize_with(lowered_states.len(), || PreparedStateRequirements {
+        clauses: Vec::new(),
+        parameters: Vec::new(),
+    });
+    for (target, predicates) in value_requirements {
+        let requirements = state_requires
+            .get_mut(target)
+            .ok_or(LoweringError::Unsupported(
+                "local refinement lost its completed-value block",
+            ))?;
+        requirements.clauses.extend(
+            predicates
+                .into_iter()
+                .map(|predicate| Some(ClosedScalarContractValue::Predicate(predicate))),
+        );
+    }
     let successors = lowered_states
         .iter()
         .map(|state| match &state.terminator {
@@ -701,6 +723,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     } else {
         plan
     };
+    let refined_plan = crate::scalar_graph::scalar_contracts::with_result_range(
+        checked,
+        entry_state.state,
+        entry_state.parameter_types.len(),
+        plan,
+    )?;
+    let plan = &refined_plan;
     let requires = crate::scalar_graph::scalar_contracts::covered_requires(plan)?;
     let has_predicates = requires.iter().chain(plan.ensures()).any(|clause| {
         matches!(

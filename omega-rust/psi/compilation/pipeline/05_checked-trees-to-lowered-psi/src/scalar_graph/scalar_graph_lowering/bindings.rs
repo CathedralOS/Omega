@@ -57,11 +57,12 @@ struct PendingComputation {
     result_type: QualifiedScalarType,
     value: PendingValue,
     store: Option<crate::emission::store_destination::StoreDestination>,
+    refinements: Vec<checked_trees::CheckedBooleanExpression>,
 }
 
 enum PendingValue {
     Computation,
-    Expression(LoweredDirectExpression),
+    Binding(LoweredScalarBinding),
 }
 
 pub(super) fn prepare(
@@ -380,12 +381,31 @@ pub(super) fn prepare(
         {
             return unsupported("scalar binding does not retain its authored qualification");
         }
+        let mut refinements = Vec::new();
+        if let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+            statements.get(binding.statement_ordinal as usize)
+            && !local.type_is_inferred
+            && binding.destination == CheckedScalarBindingDestination::Immutable
+        {
+            refinements = validation::scalar_type_refinement_predicates(
+                &checked.typed,
+                local.type_reference,
+                checked_trees::CheckedScalarExpression::Parameter {
+                    position: value_types.len(),
+                    primitive_type: binding.primitive_type,
+                },
+            )
+            .ok_or(LoweringError::Unsupported(
+                "scalar local refinement has no complete predicate meaning",
+            ))?;
+        }
         let store = primitive_locals::destination(primitive_locals, binding)?;
         if store.is_some() && !binding_type.qualifications.is_empty() {
             return unsupported("qualified primitive storage requires qualified storage custody");
         }
         let inline_call = if matches!(binding.value, CheckedScalarBindingValue::Computation)
             && binding.destination == CheckedScalarBindingDestination::Immutable
+            && refinements.is_empty()
         {
             computations::lower_inline_call(
                 checked,
@@ -417,6 +437,7 @@ pub(super) fn prepare(
                 },
                 result_type: binding_type,
                 value: PendingValue::Computation,
+                refinements: refinements.clone(),
                 store,
             }));
             parameter_types = value_types.clone();
@@ -487,8 +508,28 @@ pub(super) fn prepare(
                     }
                 },
                 result_type: binding_type,
-                value: PendingValue::Expression(expression),
+                value: PendingValue::Binding(LoweredScalarBinding::Expression(expression)),
+                refinements: Vec::new(),
                 store: Some(store),
+            }));
+            parameter_types = value_types.clone();
+            parameter_types.push(binding_type);
+        }
+        if !refinements.is_empty()
+            && let Some(value) = lowered.take()
+        {
+            prefixes.push(PendingStep::Value(PendingComputation {
+                parameter_types,
+                bindings: std::mem::take(&mut bindings),
+                value_types: value_types.clone(),
+                scalar_bindings: scalar_bindings.clone(),
+                statement_ordinal: binding.statement_ordinal,
+                role,
+                destination: symbols::SymbolHandle::default(),
+                result_type: binding_type,
+                value: PendingValue::Binding(value),
+                refinements,
+                store: None,
             }));
             parameter_types = value_types.clone();
             parameter_types.push(binding_type);
@@ -602,6 +643,7 @@ impl Prepared {
         state: symbols::SymbolHandle,
         terminator: LoweredScalarBranchTerminator,
         computations: &mut computations::Expansion<'_>,
+        value_requirements: &mut Vec<(usize, Vec<checked_trees::CheckedBooleanExpression>)>,
     ) -> Result<LoweredScalarBranchState, LoweringError> {
         let mut continuation = LoweredScalarBranchState {
             structural_parameters: Vec::new(),
@@ -690,6 +732,9 @@ impl Prepared {
                 }
             };
             let mut target = computations.push(continuation);
+            if !prefix.refinements.is_empty() {
+                value_requirements.push((target, prefix.refinements));
+            }
             if let Some(destination) = prefix.store {
                 let mut completed_types = prefix.value_types.clone();
                 completed_types.push(prefix.result_type);
@@ -727,7 +772,7 @@ impl Prepared {
                     prefix.result_type,
                     target,
                 )?,
-                PendingValue::Expression(expression) => {
+                PendingValue::Binding(binding) => {
                     let mut completed_types = prefix.value_types.clone();
                     completed_types.push(prefix.result_type);
                     computations.push(LoweredScalarBranchState {
@@ -736,7 +781,7 @@ impl Prepared {
                         parameter_types: prefix.value_types.clone(),
                         erased_formal_types: Vec::new(),
                         erased_proof_formals: Vec::new(),
-                        bindings: vec![LoweredScalarBinding::Expression(expression)],
+                        bindings: vec![binding],
                         terminator: LoweredScalarBranchTerminator::Jump {
                             trivial_affine_discards: Vec::new(),
                             structural_arguments: Vec::new(),

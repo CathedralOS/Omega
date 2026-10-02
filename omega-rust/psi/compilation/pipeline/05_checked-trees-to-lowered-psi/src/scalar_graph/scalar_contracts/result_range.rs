@@ -1,9 +1,7 @@
 //! A numeric result refinement is an ordinary normal-return obligation, not
 //! permission to narrow the returned carrier or assume the authored body fits.
 use super::super::{CheckedTrees, ClosedScalarValueContractPlan};
-use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
-};
+use super::{CheckedScalarExpression, ClosedScalarContractValue, LoweringError};
 use checked_trees::types::TypeReferenceNode;
 
 pub(crate) fn with_result_range(
@@ -19,34 +17,29 @@ pub(crate) fn with_result_range(
             .type_reference_table
             .type_reference(source.return_type),
         TypeReferenceNode::Constrained { .. }
-    ) || validation::is_arithmetic_policy_only_integer(&checked.typed, source.return_type)
-    {
+    ) {
         return Ok(plan.clone());
     }
-    // This query describes the exact authored interval only. The guarantee
-    // below still has to be proved independently at every actual normal exit.
-    let (primitive_type, minimum, maximum) =
-        validation::closed_scalar_result_range(&checked.typed, source.return_type).ok_or(
-            LoweringError::Unsupported("scalar result requires one closed exact integer range"),
-        )?;
+    // The catalog validates semantic atoms and policy shells independently.
+    // Every value refinement below adds its own normal-return predicate;
+    // combining one with a tag or policy cannot discard either owner.
+    let (primitive_type, _) =
+        crate::expression_preparation::qualifications::type_atoms(checked, source.return_type)?;
     let subject = CheckedScalarExpression::Parameter {
         position: result_position,
         primitive_type,
     };
-    let predicate = CheckedBooleanExpression::And {
-        left: Box::new(CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
-            left: Box::new(CheckedScalarExpression::IntegerLiteral { literal: minimum }),
-            right: Box::new(subject.clone()),
-        }),
-        right: Box::new(CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::LessOrEqual,
-            left: Box::new(subject),
-            right: Box::new(CheckedScalarExpression::IntegerLiteral { literal: maximum }),
-        }),
-    };
+    let predicates =
+        validation::scalar_type_refinement_predicates(&checked.typed, source.return_type, subject)
+            .ok_or(LoweringError::Unsupported(
+                "scalar result refinement has no complete predicate meaning",
+            ))?;
     let mut ensures = plan.ensures().to_vec();
-    ensures.push(Some(ClosedScalarContractValue::Predicate(predicate)));
+    ensures.extend(
+        predicates
+            .into_iter()
+            .map(|predicate| Some(ClosedScalarContractValue::Predicate(predicate))),
+    );
     Ok(ClosedScalarValueContractPlan::new(
         plan.requires().to_vec(),
         ensures,

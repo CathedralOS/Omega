@@ -131,7 +131,8 @@ pub use crate::value_custody::cleanup::{
 };
 pub use crate::value_custody::data::data_requires_establishment;
 pub use crate::value_custody::type_references::{
-    StaticTypeArgumentOwner, validate_closed_const_argument, validate_exact_const_value_encoding,
+    StaticTypeArgumentOwner, scalar_type_refinement_predicates, scalar_value_domain_predicate,
+    validate_closed_const_argument, validate_exact_const_value_encoding,
     validate_static_type_argument,
 };
 pub use declarations::definition_facts::build_definition_fact_plan;
