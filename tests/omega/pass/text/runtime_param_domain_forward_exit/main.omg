@@ -16,10 +16,10 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     transition true {
-        true -> relay(&mut self, "yes", true)
-        false -> relay(&mut self, "no", false)
+        true -> relay(main, "yes", true)
+        false -> relay(main, "no", false)
     }
 
     state relay(main: &mut Main, text: &[u8] in Utf8, go: bool) {

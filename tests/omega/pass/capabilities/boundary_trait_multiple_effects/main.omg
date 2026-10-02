@@ -28,6 +28,6 @@ data Main {
     client: Client;
 }
 
-machine Main::main(&mut self) {
-    Client::run(&mut self.client);
+machine Main::main(main: &mut Main) {
+    Client::run(&mut main.client);
 }

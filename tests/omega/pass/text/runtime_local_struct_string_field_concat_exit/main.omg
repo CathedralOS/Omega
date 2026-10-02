@@ -13,31 +13,31 @@ data Main {
     source: Room;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.label = "Gate";
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.label = "Gate";
 
     transition {
-        _ -> render(self.source)
+        _ -> render(main)
     }
 
-    state render(&mut self, source: Room) {
+    state render(main: &mut Main) {
         let room: Room;
         let mut out_line: &[u8] in Utf8;
 
-        room.label = source.label;
+        room.label = main.source.label;
         out_line = "== " + room.label + " ==";
 
         transition out_line == "== Gate ==" {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(188);
+    state good(main: &mut Main) {
+        main.console.exit_process(188);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(189);
+    state bad(main: &mut Main) {
+        main.console.exit_process(189);
     }
 }

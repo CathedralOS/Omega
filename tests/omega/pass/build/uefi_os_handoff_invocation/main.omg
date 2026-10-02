@@ -18,7 +18,7 @@ pub data Loader {
 }
 
 machine Loader::run(
-    &mut self,
+    loader: &mut Loader,
     image: Extent in Granted,
     initial_storage: Extent in Granted
 )
@@ -26,14 +26,14 @@ machine Loader::run(
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;
 {
-    transition { _ -> launch(&mut self, image as Extent, initial_storage as Extent) }
+    transition { _ -> launch(loader, image as Extent, initial_storage as Extent) }
 
     // The cyclic machine admits only the bare persistent receiver, so the
     // cycle call moves through `drive`; the granted extents ride this
     // machine's block parameters as plain extents, retained beneath the
     // invocation for the whole cycle life.
     state launch(loader: &mut Loader, image: Extent, storage: Extent) {
-        loader.drive();
+        Loader::drive(loader);
         transition { _ -> retain(image, storage) }
     }
 
@@ -46,10 +46,10 @@ machine Loader::run(
 // cyclic machine and may only be reached through the bare `self` receiver
 // from a cyclic caller; this plain body presents the projected
 // `self.cycle` receiver where it is legal.
-machine Loader::drive(&mut self)
+machine Loader::drive(loader: &mut Loader)
     reaches UefiBootServices + UefiOsHandoffTermination
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;
 {
-    self.cycle.run();
+    Loader::run(&mut loader.cycle);
 }

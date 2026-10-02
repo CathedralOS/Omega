@@ -20,27 +20,27 @@ machine initialize(cell: &mut Cell, tag: Tag, value: u64) {
     cell.value = value;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.cells[0].label = "first";
-    self.source.cells[1].label = "second";
-    self.destination.cells[1].label = "kept";
-    initialize(&mut self.source.cells[0], Tag::First, 11);
-    initialize(&mut self.source.cells[1], Tag::Second, 39);
-    initialize(&mut self.destination.cells[1], Tag::First, 31);
-    copy_selected(&self.source, &mut self.destination);
-    transition self.destination.cells[0].value == 39
-        && self.destination.cells[0].label == "second"
-        && self.destination.cells[0].tag == Tag::Second
-        && self.destination.cells[1].value == 31
-        && self.destination.cells[1].label == "kept"
-        && self.destination.cells[1].tag == Tag::First
-        && self.source.cells[0].value == 11
-        && self.source.cells[0].label == "first"
-        && self.source.cells[1].value == 39
-        && self.source.cells[1].label == "second"
-        && self.source.cells[1].tag == Tag::Second {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.cells[0].label = "first";
+    main.source.cells[1].label = "second";
+    main.destination.cells[1].label = "kept";
+    initialize(&mut main.source.cells[0], Tag::First, 11);
+    initialize(&mut main.source.cells[1], Tag::Second, 39);
+    initialize(&mut main.destination.cells[1], Tag::First, 31);
+    copy_selected(&main.source, &mut main.destination);
+    transition main.destination.cells[0].value == 39
+        && main.destination.cells[0].label == "second"
+        && main.destination.cells[0].tag == Tag::Second
+        && main.destination.cells[1].value == 31
+        && main.destination.cells[1].label == "kept"
+        && main.destination.cells[1].tag == Tag::First
+        && main.source.cells[0].value == 11
+        && main.source.cells[0].label == "first"
+        && main.source.cells[1].value == 39
+        && main.source.cells[1].label == "second"
+        && main.source.cells[1].tag == Tag::Second {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

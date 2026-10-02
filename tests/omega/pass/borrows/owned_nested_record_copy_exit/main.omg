@@ -13,17 +13,17 @@ machine copy_room(source: Room, destination: &mut Room) {
     destination.event.leaf.value = source.event.leaf.value;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.event.leaf.name = "bat";
-    self.source.event.leaf.value = 42;
-    self.destination.event.leaf.name = "old";
-    self.destination.event.leaf.value = 7;
-    copy_room(self.source, &mut self.destination);
-    transition self.destination.event.leaf.name == "bat"
-        && self.destination.event.leaf.value == 42
-        && self.source.event.leaf.value == 42 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.event.leaf.name = "bat";
+    main.source.event.leaf.value = 42;
+    main.destination.event.leaf.name = "old";
+    main.destination.event.leaf.value = 7;
+    copy_room(main.source, &mut main.destination);
+    transition main.destination.event.leaf.name == "bat"
+        && main.destination.event.leaf.value == 42
+        && main.source.event.leaf.value == 42 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

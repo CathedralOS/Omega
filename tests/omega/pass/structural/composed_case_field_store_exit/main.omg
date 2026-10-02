@@ -8,37 +8,37 @@ data Mode [copy] { case Empty; case Exploring; case Counter(step: u64); }
 data Controller { direction: Direction; mode: Mode; count: u64; }
 data Main { console: Binding<Console>; controller: Controller; }
 
-machine Controller::before(&mut self) { self.count = 1; }
-machine Controller::after(&mut self) { self.count = 2; }
+machine Controller::before(controller: &mut Controller) { controller.count = 1; }
+machine Controller::after(controller: &mut Controller) { controller.count = 2; }
 
-machine Controller::initialize(&mut self, selected: Direction, seed: u64) {
-    self.before();
-    self.mode = Mode::Exploring;
-    self.direction = selected;
-    transition { _ -> finish(seed) }
-    state finish(&mut self, seed: u64) {
-        self.mode = Mode::Counter { step: seed };
-        self.after();
+machine Controller::initialize(controller: &mut Controller, selected: Direction, seed: u64) {
+    Controller::before(controller);
+    controller.mode = Mode::Exploring;
+    controller.direction = selected;
+    transition { _ -> finish(controller, seed) }
+    state finish(controller: &mut Controller, seed: u64) {
+        controller.mode = Mode::Counter { step: seed };
+        Controller::after(controller);
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.controller.initialize(Direction::Right, 7);
-    transition self.controller.mode {
-        Mode::Counter { step } -> observe(step)
-        _ -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    Controller::initialize(&mut main.controller, Direction::Right, 7);
+    transition main.controller.mode {
+        Mode::Counter { step } -> observe(main, step)
+        _ -> finish(main, 1)
     }
-    state observe(&mut self, step: u64) {
-        transition step == 7 && self.controller.count == 2 {
-            true -> observe_direction()
-            false -> finish(2)
+    state observe(main: &mut Main, step: u64) {
+        transition step == 7 && main.controller.count == 2 {
+            true -> observe_direction(main)
+            false -> finish(main, 2)
         }
     }
-    state observe_direction(&mut self) {
-        transition self.controller.direction {
-            Direction::Right -> finish(70)
-            _ -> finish(3)
+    state observe_direction(main: &mut Main) {
+        transition main.controller.direction {
+            Direction::Right -> finish(main, 70)
+            _ -> finish(main, 3)
         }
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

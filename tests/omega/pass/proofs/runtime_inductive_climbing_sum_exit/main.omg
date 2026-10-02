@@ -19,12 +19,12 @@ data Main {
     limit: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.limit = 4;
-    let total: u64 = self.climb(self.limit, 0, 0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.limit = 4;
+    let total: u64 = Main::climb(main, main.limit, 0, 0);
     transition total == 4 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {
@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
+machine Main::climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
 requires
     limit <= 1000,
     acc <= index,
@@ -46,7 +46,7 @@ ensures
     embed(result) >= embed(acc) + embed(limit) - embed(index)
 {
     transition index < limit {
-        true -> climb(limit, index + 1, acc + 1)
+        true -> climb(main, limit, index + 1, acc + 1)
         false -> acc
     }
 }

@@ -15,14 +15,14 @@ data Main {
     i: u64 in U640To3;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.tag = 99;
-    self.values[0] = 5;
-    self.values[1] = 11;
-    self.values[2] = -7;
-    self.values[3] = 13;
-    self.i = 2;
-    transition { _ -> read(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.tag = 99;
+    main.values[0] = 5;
+    main.values[1] = 11;
+    main.values[2] = -7;
+    main.values[3] = 13;
+    main.i = 2;
+    transition { _ -> read(main) }
 
     state read(main: &mut Main) {
         let v: i32 = main.values[main.i];

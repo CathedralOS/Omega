@@ -1,22 +1,22 @@
 data Main {
 }
 
-machine Main::main(&mut self) {
-    _ = self.evaluate();
+machine Main::main(main: &mut Main) {
+    _ = Main::evaluate(main);
 }
 
-machine Main::evaluate(&mut self) -> u64 {
+machine Main::evaluate(main: &mut Main) -> u64 {
     transition {
-        _ -> self.walk(4, 0)
+        _ -> Main::walk(main, 4, 0)
     }
 }
 
-machine Main::walk(&mut self, limit: u64, index: u64)
+machine Main::walk(main: &mut Main, limit: u64, index: u64)
 terminates by (index, limit) -> Nat::BoundedDistance;
 -> u64
 {
     transition index < limit {
-        true -> walk(limit, index + 1)
+        true -> walk(main, limit, index + 1)
         false -> index
     }
 }

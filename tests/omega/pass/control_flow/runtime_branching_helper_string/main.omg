@@ -10,10 +10,10 @@ data Main {
     out: &[u8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let flag: bool = true;
     let picked: &[u8] in Utf8 = Main::pick(flag);
-    self.out = picked;
+    main.out = picked;
 }
 
 machine Main::pick(flag: bool) -> &[u8] in Utf8 {

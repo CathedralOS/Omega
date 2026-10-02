@@ -21,44 +21,44 @@ data Main {
     rooms: [Room; 3];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let match_index: u64 = 1;
     let differ_index: u64 = 2;
     let empty_index: u64 = 0;
-    let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+    let room_slice: &mut [Room] = main.rooms.as_mut_slice();
     room_slice[match_index].name = "expected";
     // Same length as the literal, differing only in the final byte, so the
     // inequality must come from the byte loop rather than the length check.
     room_slice[differ_index].name = "expectes";
 
     transition room_slice[empty_index].name == "expected" {
-        true -> fail()
-        false -> check_match()
+        true -> fail(main)
+        false -> check_match(main)
     }
 
-    state check_match(&mut self) {
+    state check_match(main: &mut Main) {
         let index: u64 = 1;
-        let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+        let room_slice: &mut [Room] = main.rooms.as_mut_slice();
         transition room_slice[index].name == "expected" {
-            true -> check_differ()
-            false -> fail()
+            true -> check_differ(main)
+            false -> fail(main)
         }
     }
 
-    state check_differ(&mut self) {
+    state check_differ(main: &mut Main) {
         let index: u64 = 2;
-        let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+        let room_slice: &mut [Room] = main.rooms.as_mut_slice();
         transition room_slice[index].name == "expected" {
-            true -> fail()
-            false -> pass()
+            true -> fail(main)
+            false -> pass(main)
         }
     }
 
-    state pass(&mut self) {
-        self.console.exit_process(70);
+    state pass(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state fail(&mut self) {
-        self.console.exit_process(71);
+    state fail(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

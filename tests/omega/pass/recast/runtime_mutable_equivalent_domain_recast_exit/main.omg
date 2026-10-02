@@ -15,13 +15,13 @@ data Main {
     value: u32 in Small;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let view: &mut u32 in Small = &mut self.value as &mut u32;
-    transition self.value == 0 && view == 0 {
-        true -> good()
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    let view: &mut u32 in Small = &mut main.value as &mut u32;
+    transition main.value == 0 && view == 0 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

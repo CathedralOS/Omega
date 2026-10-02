@@ -11,20 +11,20 @@ machine fill(cell: &mut Cell, tag: Tag, value: u64) {
     cell.value = value;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cells[0].label = "first";
-    self.cells[1].label = "second";
-    let view: &mut [Cell] = self.cells.as_mut_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0].label = "first";
+    main.cells[1].label = "second";
+    let view: &mut [Cell] = main.cells.as_mut_slice();
     fill(&mut view[0], Tag::First, 31);
     fill(&mut view[1], Tag::Second, 39);
-    transition self.cells[0].value == 31
-        && self.cells[1].value == 39
-        && self.cells[0].label == "first"
-        && self.cells[1].label == "second"
-        && self.cells[0].tag == Tag::First
-        && self.cells[1].tag == Tag::Second {
-        true -> finish(70)
-        false -> finish(1)
+    transition main.cells[0].value == 31
+        && main.cells[1].value == 39
+        && main.cells[0].label == "first"
+        && main.cells[1].label == "second"
+        && main.cells[0].tag == Tag::First
+        && main.cells[1].tag == Tag::Second {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

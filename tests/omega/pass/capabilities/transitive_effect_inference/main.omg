@@ -15,18 +15,18 @@ data App {
     console: Binding<Console>;
 }
 
-machine App::greet(&mut self) {
-    self.helper();
+machine App::greet(app: &mut App) {
+    App::helper(app);
 }
 
-machine App::helper(&mut self) reaches Console {
-    self.console.write_line("hi");
+machine App::helper(app: &mut App) reaches Console {
+    app.console.write_line("hi");
 }
 
 data Main {
     app: App;
 }
 
-machine Main::main(&mut self) {
-    self.app.greet();
+machine Main::main(main: &mut Main) {
+    App::greet(&mut main.app);
 }

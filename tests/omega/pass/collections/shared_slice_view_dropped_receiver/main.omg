@@ -19,20 +19,20 @@ data Main {
     probe: Probe;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let bag: Bag;
     bag.nodes[2].value = 7;
-    self.probe.scan(&mut bag);
+    Probe::scan(&main.probe, &mut bag);
     transition true {
-        true -> good()
-        _ -> good()
+        true -> good(main)
+        _ -> good(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(181);
+    state good(main: &mut Main) {
+        main.console.exit_process(181);
     }
 }
 
-machine Probe::scan(&self, bag: &mut Bag) {
+machine Probe::scan(probe: &Probe, bag: &mut Bag) {
     let slots: &[Node] = bag.nodes.as_slice();
 }

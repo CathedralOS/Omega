@@ -30,22 +30,22 @@ data Main {
     read: u64;
     verdict: WireVerdict;
 }
-machine Main::main(&mut self) reaches Console {
-    self.buffer[0] = 0;
-    self.buffer[1] = 0;
-    self.buffer[2] = 7;
-    self.buffer[3] = 1;
-    self.buffer[4] = 3;
-    self.buffer[5] = 226;
-    self.buffer[6] = 130;
-    self.buffer[7] = 172;
+machine Main::main(main: &mut Main) reaches Console {
+    main.buffer[0] = 0;
+    main.buffer[1] = 0;
+    main.buffer[2] = 7;
+    main.buffer[3] = 1;
+    main.buffer[4] = 3;
+    main.buffer[5] = 226;
+    main.buffer[6] = 130;
+    main.buffer[7] = 172;
     let decoded: LabelSample;
     decoded.count = 0;
     decoded.label = "";
-    LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
-    transition self.verdict == WireVerdict::Sound {
-        true -> overlong(&mut self)
-        false -> bad_euro(&mut self)
+    LabelMessage::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    transition main.verdict == WireVerdict::Sound {
+        true -> overlong(main)
+        false -> bad_euro(main)
     }
     state overlong(main: &mut Main) {
         main.buffer[5] = 224;

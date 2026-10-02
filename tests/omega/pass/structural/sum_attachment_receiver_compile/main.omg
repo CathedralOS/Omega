@@ -15,8 +15,8 @@ data Main {
     right: Transition;
 }
 
-machine Transition::equals(&self, other: &Transition) -> bool {
-    transition self {
+machine Transition::equals(transition: &Transition, other: &Transition) -> bool {
+    transition transition {
         Transition::First -> first(other)
         Transition::Second -> second(other)
     }
@@ -34,6 +34,6 @@ machine Transition::equals(&self, other: &Transition) -> bool {
     }
 }
 
-machine Main::main(&mut self) {
-    let same: bool = self.left.equals(&self.right);
+machine Main::main(main: &mut Main) {
+    let same: bool = Transition::equals(&main.left, &main.right);
 }

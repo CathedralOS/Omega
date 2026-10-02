@@ -26,18 +26,18 @@ data Main {
     result: Outcome;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.direction = Direction::Right;
-    self.result = Outcome::Hit;
+machine Main::main(main: &mut Main) reaches Console {
+    main.direction = Direction::Right;
+    main.result = Outcome::Hit;
     let mut approved: bool = false;
-    transition (self.direction, self.result, approved) {
-        (Direction::Horizontal, _, _) -> right()
-        (Direction::Up, Outcome::Hit, true) -> wrong()
-        (Direction::Up, Outcome::Hit, false) -> wrong()
-        (Direction::Up, Outcome::Miss, true) -> wrong()
-        (Direction::Up, Outcome::Miss, false) -> wrong()
+    transition (main.direction, main.result, approved) {
+        (Direction::Horizontal, _, _) -> right(main)
+        (Direction::Up, Outcome::Hit, true) -> wrong(main)
+        (Direction::Up, Outcome::Hit, false) -> wrong(main)
+        (Direction::Up, Outcome::Miss, true) -> wrong(main)
+        (Direction::Up, Outcome::Miss, false) -> wrong(main)
     }
 
-    state right(&mut self) { self.console.exit_process(70); }
-    state wrong(&mut self) { self.console.exit_process(71); }
+    state right(main: &mut Main) { main.console.exit_process(70); }
+    state wrong(main: &mut Main) { main.console.exit_process(71); }
 }

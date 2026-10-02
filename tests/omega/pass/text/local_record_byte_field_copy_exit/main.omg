@@ -17,11 +17,11 @@ machine change(room: &mut Room) {
     room.description.bytes = "changed";
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let room: Room;
     fill(&mut room);
-    self.output = room.description.bytes;
+    main.output = room.description.bytes;
     change(&mut room);
-    self.console.write_line(self.output);
-    self.console.exit_process(70);
+    main.console.write_line(main.output);
+    main.console.exit_process(70);
 }

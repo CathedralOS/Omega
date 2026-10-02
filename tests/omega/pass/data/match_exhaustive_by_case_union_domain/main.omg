@@ -25,20 +25,20 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cmd = Command::Say { volume: 3 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.cmd = Command::Say { volume: 3 };
 
-    transition self.cmd {
-        Command::None -> missed()
-        Command::Quit -> missed()
-        Command::Interactive -> matched()
+    transition main.cmd {
+        Command::None -> missed(main)
+        Command::Quit -> missed(main)
+        Command::Interactive -> matched(main)
     }
 
-    state matched(&mut self) {
-        self.console.exit_process(70);
+    state matched(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

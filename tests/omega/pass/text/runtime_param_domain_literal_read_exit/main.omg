@@ -15,30 +15,30 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     transition false {
-        true -> relay("yes")
-        false -> relay("no")
+        true -> relay(main, "yes")
+        false -> relay(main, "no")
     }
 
-    state relay(text: &[u8] in Utf8) {
+    state relay(main: &mut Main, text: &[u8] in Utf8) {
         transition {
-            _ -> consume(text)
+            _ -> consume(main, text)
         }
     }
 
-    state consume(&mut self, text: &[u8] in Utf8) {
+    state consume(main: &mut Main, text: &[u8] in Utf8) {
         transition text.len == 2 && text[0] == 110 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -11,16 +11,16 @@ data Score {
     value: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let rc: Score = Main::walk(&mut self, "ab", 0);
+machine Main::main(main: &mut Main) reaches Console {
+    let rc: Score = Main::walk(main, "ab", 0);
     let rc2: Score = Main::tail("z");
     transition rc.value == rc2.value {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(181); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(181); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
 
 machine Main::walk(main: &mut Main, name: &[u8], i: u64) -> Score

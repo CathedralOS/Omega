@@ -16,35 +16,35 @@ data Main {
     count: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
-    self.count = 0;
+machine Main::main(main: &mut Main) {
+    main.count = 0;
     transition {
-        _ -> self.walk("abcdefg")
+        _ -> Main::walk(main, "abcdefg")
     }
 }
 
-machine Main::walk(&mut self, bytes: &[u8])
+machine Main::walk(main: &mut Main, bytes: &[u8])
 terminates by bytes -> Slice::Length;
 reaches Console {
-    self.count = self.count + 10;
+    main.count = main.count + 10;
 
     transition bytes.len > 0 {
-        true -> walk(bytes[1..])
-        false -> finished()
+        true -> walk(main, bytes[1..])
+        false -> finished(main)
     }
 
-    state finished(&mut self) {
-        transition self.count == 80 {
-            true -> matched()
-            false -> missed()
+    state finished(main: &mut Main) {
+        transition main.count == 80 {
+            true -> matched(main)
+            false -> missed(main)
         }
     }
 
-    state matched(&mut self) {
-        self.console.exit_process(70);
+    state matched(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
