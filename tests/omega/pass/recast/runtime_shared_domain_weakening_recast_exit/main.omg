@@ -18,13 +18,13 @@ data Main {
     value: u32 in Narrow;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let view: &u32 in Wide = &self.value as &u32;
+machine Main::main(main: &mut Main) reaches Console {
+    let view: &u32 in Wide = &main.value as &u32;
     transition view == 0 {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

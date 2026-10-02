@@ -26,12 +26,12 @@ data Main {
     divisor: Divisor;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.divisor = Divisor::By { amount: 7 };
-    transition self.divisor {
-        Divisor::By { amount } -> quotient(490 / amount)
-        Divisor::Unset -> wrong_case()
+machine Main::main(main: &mut Main) reaches Console {
+    main.divisor = Divisor::By { amount: 7 };
+    transition main.divisor {
+        Divisor::By { amount } -> quotient(main, 490 / amount)
+        Divisor::Unset -> wrong_case(main)
     }
-    state quotient(&mut self, value: i32) { self.console.exit_process(value); }
-    state wrong_case(&mut self) { self.console.exit_process(71); }
+    state quotient(main: &mut Main, value: i32) { main.console.exit_process(value); }
+    state wrong_case(main: &mut Main) { main.console.exit_process(71); }
 }

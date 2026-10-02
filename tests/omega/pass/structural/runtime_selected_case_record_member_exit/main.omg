@@ -11,23 +11,23 @@ data Response {
 }
 data Main { console: Binding<Console>; }
 
-machine Main::inspect(&mut self, response: Response) reaches Console {
+machine Main::inspect(main: &mut Main, response: Response) reaches Console {
     transition response {
-        Response::Reset { response } -> finish(1, 2, response.success)
-        Response::Scanned { response } -> finish(response.left.count, response.right.count, response.left.valid && !response.right.valid)
+        Response::Reset { response } -> finish(main, 1, 2, response.success)
+        Response::Scanned { response } -> finish(main, response.left.count, response.right.count, response.left.valid && !response.right.valid)
     }
-    state finish(&mut self, left: i32, right: i32, success: bool) {
+    state finish(main: &mut Main, left: i32, right: i32, success: bool) {
         transition success && left == 17 && right == 25 {
-            true -> success()
-            false -> failure()
+            true -> success(main)
+            false -> failure(main)
         }
     }
-    state success(&mut self) { self.console.exit_process(42); }
-    state failure(&mut self) { self.console.exit_process(1); }
+    state success(main: &mut Main) { main.console.exit_process(42); }
+    state failure(main: &mut Main) { main.console.exit_process(1); }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.inspect(Response::Scanned {
+machine Main::main(main: &mut Main) reaches Console {
+    Main::inspect(main, Response::Scanned {
         response: Scanned { left: Metadata { valid: true, count: 17 }, right: Metadata { valid: false, count: 25 } }
     });
 }

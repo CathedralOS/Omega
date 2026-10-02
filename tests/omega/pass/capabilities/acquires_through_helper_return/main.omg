@@ -61,6 +61,6 @@ data Main {
     backup: Backup;
 }
 
-machine Main::main(&mut self) {
-    let staged: Folder = Backup::stage(&mut self.backup);
+machine Main::main(main: &mut Main) {
+    let staged: Folder = Backup::stage(&mut main.backup);
 }

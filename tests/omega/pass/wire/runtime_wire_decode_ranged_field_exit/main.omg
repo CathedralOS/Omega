@@ -25,43 +25,43 @@ data Main {
     good_read: u64;
     good_verdict: WireVerdict;
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // era 0, tag 0, value 200 (varint C8 01), tag 1, delta -20
     // (zigzag 39). Both declared ranges reject.
-    self.buffer[0] = 0;
-    self.buffer[1] = 0;
-    self.buffer[2] = 200;
-    self.buffer[3] = 1;
-    self.buffer[4] = 1;
-    self.buffer[5] = 39;
+    main.buffer[0] = 0;
+    main.buffer[1] = 0;
+    main.buffer[2] = 200;
+    main.buffer[3] = 1;
+    main.buffer[4] = 1;
+    main.buffer[5] = 39;
     let bad: Val = Val { v: 42, delta: 7 };
     Msg::decode(
         &mut bad,
-        &self.buffer,
-        &mut self.bad_read,
-        &mut self.bad_verdict,
+        &main.buffer,
+        &mut main.bad_read,
+        &mut main.bad_verdict,
     );
 
     // Same envelope, now value 50 and delta -5 (zigzag 9).
-    self.buffer[2] = 50;
-    self.buffer[3] = 1;
-    self.buffer[4] = 9;
+    main.buffer[2] = 50;
+    main.buffer[3] = 1;
+    main.buffer[4] = 9;
     let good: Val = Val { v: 42, delta: 7 };
     Msg::decode(
         &mut good,
-        &self.buffer,
-        &mut self.good_read,
-        &mut self.good_verdict,
+        &main.buffer,
+        &mut main.good_read,
+        &mut main.good_verdict,
     );
 
     transition {
-        self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
-        bad.v != 42 || bad.delta != 7 -> corrupted_on_reject()
-        self.good_verdict == WireVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven()
-        _ -> broken()
+        main.bad_verdict == WireVerdict::Sound -> accepted_hostile(main)
+        bad.v != 42 || bad.delta != 7 -> corrupted_on_reject(main)
+        main.good_verdict == WireVerdict::Sound && good.v == 50 && good.delta == 0 - 5 -> proven(main)
+        _ -> broken(main)
     }
-    state accepted_hostile(&mut self)    { self.console.exit_process(66); }
-    state corrupted_on_reject(&mut self) { self.console.exit_process(67); }
-    state proven(&mut self)              { self.console.exit_process(70); }
-    state broken(&mut self)              { self.console.exit_process(71); }
+    state accepted_hostile(main: &mut Main)    { main.console.exit_process(66); }
+    state corrupted_on_reject(main: &mut Main) { main.console.exit_process(67); }
+    state proven(main: &mut Main)              { main.console.exit_process(70); }
+    state broken(main: &mut Main)              { main.console.exit_process(71); }
 }

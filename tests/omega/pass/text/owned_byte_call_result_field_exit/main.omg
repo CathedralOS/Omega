@@ -18,18 +18,18 @@ machine replace(holder: &mut Holder, short: bool) {
     holder.text = label(short);
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.holder.sibling = 29;
-    replace(&mut self.holder, false);
-    let longer_matches: bool = self.holder.text == "Branch Room"
-        && self.holder.text.len == 11;
-    self.holder.text = label(true);
+machine Main::main(main: &mut Main) reaches Console {
+    main.holder.sibling = 29;
+    replace(&mut main.holder, false);
+    let longer_matches: bool = main.holder.text == "Branch Room"
+        && main.holder.text.len == 11;
+    main.holder.text = label(true);
     transition longer_matches
-        && self.holder.text == "Gate"
-        && self.holder.text.len == 4
-        && self.holder.sibling == 29 {
-        true -> finish(70)
-        false -> finish(1)
+        && main.holder.text == "Gate"
+        && main.holder.text.len == 4
+        && main.holder.sibling == 29 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

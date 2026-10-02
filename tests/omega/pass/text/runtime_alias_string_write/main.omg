@@ -9,7 +9,7 @@ data Main {
     label: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) {
-    let label_alias: &mut [u8; 8] in Utf8 = &mut self.label;
+machine Main::main(main: &mut Main) {
+    let label_alias: &mut [u8; 8] in Utf8 = &mut main.label;
     label_alias = "hello";
 }

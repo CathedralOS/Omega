@@ -19,20 +19,20 @@ data Main {
     text: [u8; 16] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.label = "A1";
-    self.text = "Room " + self.label;
+machine Main::main(main: &mut Main) reaches Console {
+    main.label = "A1";
+    main.text = "Room " + main.label;
 
-    transition self.text == "Room A1" {
-        true -> good()
-        false -> bad()
+    transition main.text == "Room A1" {
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

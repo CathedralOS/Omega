@@ -17,27 +17,27 @@ data Main {
     text: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.text = "A";
-    let bytes: &[u8] in Utf8 = self.text;
+machine Main::main(main: &mut Main) reaches Console {
+    main.text = "A";
+    let bytes: &[u8] in Utf8 = main.text;
 
     transition bytes.len > 0 {
-        true -> check(bytes)
-        false -> bad()
+        true -> check(main, bytes)
+        false -> bad(main)
     }
 
-    state check(&mut self, bytes: &[u8]) {
+    state check(main: &mut Main, bytes: &[u8]) {
         transition bytes[0] == 65 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -32,21 +32,21 @@ data Main {
     line: [u8; 16] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.formatter.label = "Gate";
-    self.line = "";
-    Formatter::render(&mut self.formatter, &mut self.line);
+machine Main::main(main: &mut Main) reaches Console {
+    main.formatter.label = "Gate";
+    main.line = "";
+    Formatter::render(&mut main.formatter, &mut main.line);
 
-    transition self.line == "== Gate ==" {
-        true -> good()
-        false -> bad()
+    transition main.line == "== Gate ==" {
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

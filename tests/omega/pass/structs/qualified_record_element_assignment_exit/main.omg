@@ -12,10 +12,10 @@ data Exit [copy] {
 data Room { exits: [Exit; 2]; }
 data Main { console: Binding<Console>; room: Room; command: [u8; 8] in Utf8; direction: Direction; }
 
-machine Room::install(&mut self, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
-    transition { _ -> write(command, direction, coordinate) }
-    state write(&mut self, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
-        self.exits[1] = Exit {
+machine Room::install(room: &mut Room, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
+    transition { _ -> write(room, command, direction, coordinate) }
+    state write(room: &mut Room, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
+        room.exits[1] = Exit {
             command: command,
             direction: direction,
             destination: Cell { value: coordinate },
@@ -23,23 +23,23 @@ machine Room::install(&mut self, command: [u8; 8] in Utf8, direction: Direction,
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.room.exits[0].destination.value = 55;
-    self.command = "east";
-    self.direction = Direction::East;
-    self.room.install(self.command, self.direction, 7);
-    transition self.room.exits[1].command == "east"
-        && self.room.exits[1].command.len == 4
-        && self.room.exits[1].destination.value == 7
-        && self.room.exits[0].destination.value == 55 {
-        true -> verify_direction()
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.room.exits[0].destination.value = 55;
+    main.command = "east";
+    main.direction = Direction::East;
+    Room::install(&mut main.room, main.command, main.direction, 7);
+    transition main.room.exits[1].command == "east"
+        && main.room.exits[1].command.len == 4
+        && main.room.exits[1].destination.value == 7
+        && main.room.exits[0].destination.value == 55 {
+        true -> verify_direction(main)
+        false -> finish(main, 1)
     }
-    state verify_direction(&mut self) {
-        transition self.room.exits[1].direction {
-            Direction::East -> finish(70)
-            Direction::None -> finish(2)
+    state verify_direction(main: &mut Main) {
+        transition main.room.exits[1].direction {
+            Direction::East -> finish(main, 70)
+            Direction::None -> finish(main, 2)
         }
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

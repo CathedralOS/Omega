@@ -35,23 +35,23 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source[0] = 72;
-    self.source[1] = 105;
-    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0] = 72;
+    main.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
 
-    Blob::encode(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut main.buffer, &mut main.written);
 
-    let ok: bool = self.written == 5
-        && self.buffer[0] == 0
-        && self.buffer[1] == 0
-        && self.buffer[2] == 2
-        && self.buffer[3] == 72
-        && self.buffer[4] == 105;
+    let ok: bool = main.written == 5
+        && main.buffer[0] == 0
+        && main.buffer[1] == 0
+        && main.buffer[2] == 2
+        && main.buffer[3] == 72
+        && main.buffer[4] == 105;
 
     transition ok {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

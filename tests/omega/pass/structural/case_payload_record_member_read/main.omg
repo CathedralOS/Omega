@@ -24,16 +24,16 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::run(&mut self, s: Shape) reaches Console {
+machine Main::run(main: &mut Main, s: Shape) reaches Console {
     transition s {
-        Shape::Circle { r } -> emit(r * 7)
-        Shape::Boxed { inner } -> emit(inner.x)
+        Shape::Circle { r } -> emit(main, r * 7)
+        Shape::Boxed { inner } -> emit(main, inner.x)
     }
-    state emit(&mut self, v: i32 in Wrapping) {
-        self.console.exit_process(v as i32);
+    state emit(main: &mut Main, v: i32 in Wrapping) {
+        main.console.exit_process(v as i32);
     }
 }
 
-machine Main::main(&mut self) {
-    self.run(Shape::Circle { r: 10 });
+machine Main::main(main: &mut Main) {
+    Main::run(main, Shape::Circle { r: 10 });
 }
