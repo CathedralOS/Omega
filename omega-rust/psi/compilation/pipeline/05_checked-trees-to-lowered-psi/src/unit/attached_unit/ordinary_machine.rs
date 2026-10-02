@@ -779,6 +779,17 @@ pub(super) fn emit(
         },
     });
     evaluation.blocks.sort_by_key(|block| block.id);
+    if scalar_return.is_some() {
+        // Statement cleanup owns entry/local obligations. Complete only the
+        // remaining descriptor carriers on the final scalar continuation graph,
+        // using the same custody owner as composed and scalar-graph emission.
+        crate::emission::affine_cleanup::complete(
+            &[],
+            evaluation.entry,
+            &mut evaluation.blocks,
+            structural_types,
+        )?;
+    }
     crate::scalar_graph::scalar_computations::literals::retain_declarations(
         &evaluation.literals,
         evaluation.blocks.iter().flat_map(|block| &block.operations),
