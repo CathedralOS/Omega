@@ -30,8 +30,8 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 
-/// The storage a mutable element view writes through to. A shared view has
-/// no home: its captured snapshot is the only truth a read can observe.
+/// Original scalar storage retained by a view. Access belongs to the descriptor;
+/// a shared descendant can keep this home for current reads without write authority.
 pub(crate) struct ElementViewHome {
     source: PlaceId,
     path: Vec<StructuralPathSegment>,
@@ -42,15 +42,13 @@ pub(crate) struct ElementView {
     backing: ElementViewBacking,
     window: Range<usize>,
     home: Option<Arc<ElementViewHome>>,
+    access: StructuralAccess,
 }
 
 #[derive(Clone)]
 enum ElementViewBacking {
     Scalars(Arc<[TerminalScalarValue]>),
-    Structural {
-        collection: TerminalStructuralValue,
-        access: StructuralAccess,
-    },
+    Structural { collection: TerminalStructuralValue },
 }
 
 impl ElementView {
@@ -60,6 +58,7 @@ impl ElementView {
             backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: None,
+            access: StructuralAccess::SharedBorrow,
         }
     }
 
@@ -71,6 +70,7 @@ impl ElementView {
             backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: Some(Arc::new(home)),
+            access: StructuralAccess::MutableBorrow,
         }
     }
 
@@ -80,9 +80,10 @@ impl ElementView {
         access: StructuralAccess,
     ) -> Self {
         Self {
-            backing: ElementViewBacking::Structural { collection, access },
+            backing: ElementViewBacking::Structural { collection },
             window: 0..length,
             home: None,
+            access,
         }
     }
 
@@ -94,10 +95,10 @@ impl ElementView {
         writing: bool,
     ) -> Result<(TerminalStructuralValue, Vec<StructuralPathSegment>), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let ElementViewBacking::Structural { collection, access } = &self.backing else {
+        let ElementViewBacking::Structural { collection } = &self.backing else {
             return Err(invalid());
         };
-        if writing && *access != StructuralAccess::MutableBorrow {
+        if writing && self.access != StructuralAccess::MutableBorrow {
             return Err(invalid());
         }
         let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first() else {
@@ -127,26 +128,33 @@ impl ElementView {
         elements.get(self.window.clone())?.get(index)
     }
 
-    /// Share the backing under a narrowed window, mirroring
-    /// `ByteSequenceView::subslice`. A derived window is immutable: the home
-    /// does not transfer, since a narrowed write target was never verified.
-    pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
-        if start > end || end > self.len() {
+    /// Preserve the original backing while narrowing its window. Attenuation
+    /// changes descriptor authority, never the backing identity or parent access.
+    pub(crate) fn subslice(
+        &self,
+        start: usize,
+        end: usize,
+        access: StructuralAccess,
+    ) -> Option<Self> {
+        if start > end
+            || end > self.len()
+            || !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || !matches!(
+                self.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || (access == StructuralAccess::MutableBorrow && self.access != access)
+        {
             return None;
         }
-        let backing = match &self.backing {
-            ElementViewBacking::Scalars(elements) => {
-                ElementViewBacking::Scalars(Arc::clone(elements))
-            }
-            ElementViewBacking::Structural { collection, .. } => ElementViewBacking::Structural {
-                collection: collection.clone(),
-                access: StructuralAccess::SharedBorrow,
-            },
-        };
         Some(Self {
-            backing,
+            backing: self.backing.clone(),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
-            home: None,
+            home: self.home.clone(),
+            access,
         })
     }
 }
@@ -450,7 +458,8 @@ impl TerminalExecution {
         let Some(home) = view.home.clone() else {
             return Err(invalid());
         };
-        if view.len() != length || index >= length {
+        if view.access != StructuralAccess::MutableBorrow || view.len() != length || index >= length
+        {
             return Err(invalid());
         }
         let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
@@ -519,8 +528,8 @@ impl TerminalExecution {
         else {
             return Err(invalid());
         };
-        // Backings hold scalar elements only: a record-element view is never
-        // established here, so an element path has no element to project.
+        // Scalar element reads use this operation; structural element fields
+        // resolve through the common structural projection owner.
         if !path.is_empty() {
             return Err(invalid());
         }
@@ -533,7 +542,19 @@ impl TerminalExecution {
         if view.len() != length || index >= length {
             return Err(invalid());
         }
-        let element = view.get(index).copied().ok_or_else(invalid)?;
+        // A mutable descendant may have updated the original storage while
+        // this descriptor was suspended. Snapshots cannot authorize stale reads
+        // after restoration; shared descendants retain read-only access to home.
+        let element = if let Some(home) = &view.home {
+            let mut path = home.path.clone();
+            path.push(StructuralPathSegment::FixedIndex(
+                u64::try_from(view.window.start.checked_add(index).ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?,
+            ));
+            self.read_primitive_place(home.source, &path, result.scalar_type)?
+        } else {
+            view.get(index).copied().ok_or_else(invalid)?
+        };
         if element.scalar_type() != result.scalar_type || !terminal_scalar_belongs_to_type(element)
         {
             return Err(invalid());
@@ -573,20 +594,66 @@ impl TerminalExecution {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
-        if !machine.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: operation.id,
-                        structural_type: result.structural_type,
-                    }
-        }) || view.len() != length
+        let access = match result.multiplicity {
+            StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+            StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
+            StructuralMultiplicity::Linear => return Err(invalid()),
+        };
+        // A call or edge may attenuate a descriptor while retaining the same
+        // physical backing. The receiving formal remains authoritative.
+        let mut parameters = machine
+            .structural_parameters
+            .iter()
+            .chain(
+                machine
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .filter(|parameter| parameter.place == *source);
+        if let Some(parameter) = parameters.next() {
+            if parameters.next().is_some()
+                || parameter.structural_type != source_value.structural_type
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                || (access == StructuralAccess::MutableBorrow && parameter.access != access)
+            {
+                return Err(invalid());
+            }
+        } else if view.access == StructuralAccess::MutableBorrow
+            && !self
+                .live_affine_frontier
+                .contains(&terminal_psi::StructuralAffineDiscard {
+                    place: *source,
+                    path: Vec::new(),
+                    structural_type: source_value.structural_type,
+                })
+        {
+            return Err(invalid());
+        }
+        if result.place == *source
+            || !machine.structural_places.iter().any(|place| {
+                place.id == result.place
+                    && place.kind
+                        == StructuralPlaceKind::OperationResult {
+                            producer: operation.id,
+                            structural_type: result.structural_type,
+                        }
+            })
+            || view.len() != length
             || source_value.structural_type != result.structural_type
             || !source_value.path.is_empty()
             || !source_value.qualifications.is_empty()
-            || result.multiplicity != StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !self
+                .program
+                .structural_types
+                .get(&result.structural_type)
+                .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || !result.claims.is_empty()
             || self
                 .live_claims
@@ -595,7 +662,7 @@ impl TerminalExecution {
             || self
                 .live_affine_frontier
                 .iter()
-                .any(|entry| entry.place == *source || entry.place == result.place)
+                .any(|entry| entry.place == result.place)
             || self.scalar_case_values.contains_key(source)
             || self.scalar_case_values.contains_key(&result.place)
         {
@@ -615,9 +682,17 @@ impl TerminalExecution {
             (Some(previous), Some(_)) if *previous == destination => {}
             _ => return Err(invalid()),
         }
-        let window = view.subslice(start, end).ok_or_else(invalid)?;
+        let window = view.subslice(start, end, access).ok_or_else(invalid)?;
         self.element_view_values.insert(result.place, window);
         self.structural_values.insert(result.place, destination);
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier
+                .insert(terminal_psi::StructuralAffineDiscard {
+                    place: result.place,
+                    path: Vec::new(),
+                    structural_type: result.structural_type,
+                });
+        }
         Ok(())
     }
 }
