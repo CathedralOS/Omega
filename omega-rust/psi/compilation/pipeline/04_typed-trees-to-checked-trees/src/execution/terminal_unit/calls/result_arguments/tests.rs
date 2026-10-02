@@ -5,6 +5,7 @@ use checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralPathSegment,
 };
+use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
 
 #[test]
 fn exclusive_whole_local_loans_use_captured_access_not_binding_mutability() {
@@ -1091,7 +1092,125 @@ fn a_view_result_keeps_its_local_loan_out_of_the_plain_result_lane() {
 }
 
 #[test]
-fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
+fn qualified_call_transfers_owned_data_other_than_its_attached_type() {
+    let checked = checked_program(
+        r#"
+        data Payload { value: i32; }
+        data Owner {}
+        machine produce() -> Payload { Payload { value: 7 } }
+        machine Owner::accept(payload: Payload) {}
+        machine run() {
+            let payload: Payload = produce();
+            Owner::accept(payload);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let accept = machine_named(&checked, "accept");
+    let produce = machine_named(&checked, "produce");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("owned explicit argument plan");
+    let producer = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == produce)
+        .and_then(|call| call.structural_result())
+        .expect("owned producer result");
+    let consumer = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find(|call| call.target.machine == accept)
+        .expect("qualified explicit argument call");
+    let [argument] = consumer.structural_arguments.as_slice() else {
+        panic!("accept receives one owned argument")
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::Owned);
+    assert!(argument.path.is_empty());
+    assert_eq!(
+        argument.source_structural_result_binding_ordinal(),
+        Some(producer.binding_ordinal)
+    );
+    let state = checked
+        .typed
+        .machine_by_symbol(machine)
+        .and_then(|machine| checked.typed.machine_states(machine).first())
+        .expect("caller state");
+    let typed_trees::statement::StatementNode::LocalData(local) = &checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes)[producer.statement_index as usize]
+    else {
+        panic!("producer binds the owned local")
+    };
+    let call = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .map(|(_, call)| call)
+        .find(|call| call.target_symbol == consumer.target.state)
+        .expect("captured consumer call");
+    let mut events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == plan.state
+                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                && event.access == PermissionAccess::Owned
+                && event.source
+                    == PermissionEventSource::Call {
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        target_symbol: call.target_symbol,
+                    }
+        });
+    let (permission, event) = events.next().expect("exact owned handoff event");
+    assert!(events.next().is_none());
+    assert_eq!(event.kind, PermissionEventKind::Transfer);
+    let retained = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &checked.facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        retained.for_machine(machine).is_some(),
+        "the unchanged owned transfer must survive the same replay"
+    );
+
+    // Qualification supplies a namespace, not authority to consume unrelated
+    // data. Replaying the same call with a terminal settlement must fail.
+    let mut facts = checked.facts.clone();
+    facts.flow.ownership.permissions.get_mut(permission).kind = PermissionEventKind::Consume;
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        rebuilt.for_machine(machine).is_none(),
+        "an owned handoff was accepted as terminal consumption"
+    );
+}
+
+#[test]
+fn returned_mutable_record_lends_its_referent_to_a_named_parameter() {
     let checked = checked_program(
         r#"
         data Child { value: i32 in Wrapping; }
@@ -1102,12 +1221,12 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
             let holders: &mut [Holder] = bag.holders.as_mut_slice();
             transition { _ -> &mut holders[1] }
         }
-        machine Holder::replace(&mut self) { self.child.value = 41; }
+        machine Holder::replace(holder: &mut Holder) { holder.child.value = 41; }
         machine observe(holder: &Holder) { }
-        machine Main::run(&mut self) {
-            let selected: &mut Holder = pick(&mut self.bag);
+        machine Main::run(main: &mut Main) {
+            let selected: &mut Holder = pick(&mut main.bag);
             selected.sibling = 29;
-            selected.replace();
+            Holder::replace(selected);
             selected.sibling = 31;
         }
         "#,
@@ -1122,7 +1241,7 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
         .for_machine(machine)
         .unwrap_or_else(|| {
             panic!(
-                "returned-record receiver plan: {:?}",
+                "returned-record named-argument plan: {:?}",
                 checked
                     .facts
                     .flow
@@ -1144,23 +1263,23 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
         .iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
         .find(|call| call.target.machine == replace)
-        .expect("implicit receiver call");
-    let [receiver] = replace_call.structural_arguments.as_slice() else {
+        .expect("explicit argument call");
+    let [argument] = replace_call.structural_arguments.as_slice() else {
         panic!(
             "replace receives one returned referent: {:?}",
             replace_call.structural_arguments
         );
     };
-    assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
-    assert_eq!(receiver.path, [CheckedUnitStructuralPathSegment::Referent]);
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert_eq!(argument.path, [CheckedUnitStructuralPathSegment::Referent]);
     assert_eq!(
-        receiver.source_structural_result_binding_ordinal(),
+        argument.source_structural_result_binding_ordinal(),
         Some(result.binding_ordinal)
     );
 
     // The returned permission must come from the exact initializer call.
     // Removing its authored-expression identity leaves no producer that can
-    // authorize the receiver even though the result row is still present.
+    // authorize the argument even though the result row is still present.
     let producer = checked
         .facts
         .flow
@@ -1191,10 +1310,10 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
     );
     assert!(
         missing_producer_plan.for_machine(machine).is_none(),
-        "a result row without its exact producer authorized the receiver"
+        "a result row without its exact producer authorized the argument"
     );
 
-    // The implicit receiver must remain inside the producer's exact returned
+    // The explicit argument must remain inside the producer's exact returned
     // loan. Moving the retained last use without moving its weakening makes
     // that lifetime stale and withdraws the caller plan.
     let loan = pick_call
@@ -1208,7 +1327,7 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
         .borrow
         .loans
         .get_mut(loan)
-        .last_use_statement_index = last_use.checked_sub(1).expect("receiver follows producer");
+        .last_use_statement_index = last_use.checked_sub(1).expect("argument follows producer");
     let stale = crate::execution::terminal_unit::build_checked_unit_effect_plans(
         &checked.typed,
         &stale_facts,
@@ -1219,11 +1338,11 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
     );
     assert!(
         stale.for_machine(machine).is_none(),
-        "a stale returned-reference lifetime authorized the receiver"
+        "a stale returned-reference lifetime authorized the argument"
     );
 
     // A shared permission with the same referent spelling cannot be retagged
-    // as the mutable receiver. Keep all captured facts unchanged and corrupt
+    // as the mutable argument. Keep all captured facts unchanged and corrupt
     // only the selected local's declared reference access.
     let observe = machine_named(&checked, "observe");
     let shared_reference = checked
@@ -1255,7 +1374,7 @@ fn returned_mutable_record_lends_its_referent_to_an_implicit_receiver() {
     );
     assert!(
         shared_as_mutable.for_machine(machine).is_none(),
-        "a shared returned carrier was retagged as a mutable receiver"
+        "a shared returned carrier was retagged as a mutable argument"
     );
 }
 
