@@ -204,9 +204,16 @@ pub(super) fn lower(
                 return unsupported("computed structural operand is not a reference");
             };
             if checked.primitive_type_reference(*referee).is_none() {
-                if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    && let Some(range) = subslices::range(argument)
-                {
+                if let Some(range) = subslices::range(argument) {
+                    let access = match argument.access {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            StructuralAccess::SharedBorrow
+                        }
+                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                            StructuralAccess::MutableBorrow
+                        }
+                        _ => return unsupported("computed range requires readable borrowed access"),
+                    };
                     let slot = subslices
                         .iter()
                         .find(|slot| slot.expression == range.expression)
@@ -217,7 +224,7 @@ pub(super) fn lower(
                         selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
-                        access: StructuralAccess::SharedBorrow,
+                        access,
                     });
                 }
                 if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow

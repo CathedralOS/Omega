@@ -42,6 +42,126 @@ const INDEXED_BORROW_SOURCE: &str = r#"
     }
 "#;
 
+const MUTABLE_RANGE_INITIALIZER_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/omega/pass/slices/mutable_field_range_scalar_initializer_exit/main.omg"
+));
+
+#[test]
+fn mutable_range_computation_executes_once_before_observing_the_backing() {
+    let checked = crate::front_end::checked_program(MUTABLE_RANGE_INITIALIZER_SOURCE);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the authored mutable range scalar initializer publishes")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let calls = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallStructuralScalar { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "exactly one retained stamp invocation");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs::default(),
+    )
+    .unwrap();
+    let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(100_000);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut terminal_interpreter::AcceptTerminalEffects)
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ),
+        "the authored guard observes [0, 7, 9, 0] and the untouched marker"
+    );
+    assert_eq!(
+        meter
+            .usage()
+            .at(terminal_fuel::FuelChargeSite::Operation(calls[0].id))
+            .expect("the selected stamp call executes")
+            .executions(),
+        1,
+        "the comparison must not replay its effectful operand"
+    );
+}
+
+#[test]
+fn mutable_range_computation_rejects_access_source_and_occurrence_drift() {
+    let original = crate::front_end::checked_program(MUTABLE_RANGE_INITIALIZER_SOURCE);
+    let lower = |checked: &CheckedTrees| {
+        checked_trees_to_lowered_psi::lower_machine(checked, TerminalMachineSelection::Name("main"))
+    };
+    lower(&original).expect("the original range custody lowers before corruption");
+    for mutation in ["shared", "owned", "source", "field", "occurrence"] {
+        let mut changed = original.clone();
+        for call in calls_to(&original, "stamp") {
+            let span = structural_span(&original, call);
+            let call_expression = original
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(call)
+                .authored_root;
+            let argument = changed
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .get_mut(span.start())
+                .as_place_mut()
+                .expect("the computed call retains its range operand");
+            assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+            match mutation {
+                "shared" => argument.access = CheckedStructuralAccess::SharedBorrow,
+                "owned" => argument.access = CheckedStructuralAccess::Owned,
+                "field" => {
+                    assert!(!argument.path.is_empty());
+                    argument.path.clear();
+                }
+                "source" | "occurrence" => {
+                    let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                        root,
+                        expression,
+                        ..
+                    } = &mut argument.source
+                    else {
+                        panic!("the original operand retains an element range");
+                    };
+                    if mutation == "source" {
+                        *root = checked_trees::CheckedStorageRoot::Parameter { index: 0 };
+                    } else {
+                        assert_ne!(*expression, call_expression);
+                        *expression = call_expression;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            lower(&changed).is_err(),
+            "computed mutable range accepted changed {mutation} custody"
+        );
+    }
+}
+
 #[test]
 fn indexed_borrow_evaluates_selector_before_its_retained_loan() {
     let original = publish_original(INDEXED_BORROW_SOURCE);
