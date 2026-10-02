@@ -1,4 +1,10 @@
 //! Independent scalar-function and block liveness replay.
+//! Exact selected-edge validation precedes replay-local transport preparation;
+//! the full-scan fixed point and result reconstruction remain independent of the
+//! producer. Reuse the validated relationships, not a producer's analysis.
+
+mod edge_transports;
+use edge_transports::{EdgeTransport, EdgeTransports};
 
 use super::constraints::reject_v1_unsupported;
 use super::instruction_order::ordered_instructions;
@@ -22,6 +28,7 @@ pub(super) fn replay_function(
 ) -> Result<FunctionLiveness, LivenessError> {
     reject_v1_unsupported(function_index, function)?;
     super::super::edge_values::validate_transports(function_index, function)?;
+    let transports = EdgeTransports::prepare(function);
     let block_ids = function
         .blocks
         .iter()
@@ -41,44 +48,19 @@ pub(super) fn replay_function(
     let mut u_out = u_in.clone();
     loop {
         let old = (v_in.clone(), v_out.clone(), u_in.clone(), u_out.clone());
-        for block in function.blocks.iter().rev() {
+        for (block_ordinal, block) in function.blocks.iter().enumerate().rev() {
             #[cfg(test)]
             BLOCK_VISITS.set(BLOCK_VISITS.get() + 1);
-            let targets = match &block.terminator {
-                SelectedTerminator::ConditionalBranch {
-                    when_nonzero,
-                    when_zero,
-                    ..
-                } => vec![when_nonzero, when_zero],
-                SelectedTerminator::ConditionalBranchU64LessThan {
-                    when_less,
-                    when_not_less,
-                    ..
-                }
-                | SelectedTerminator::ConditionalBranchI64LessThan {
-                    when_less,
-                    when_not_less,
-                    ..
-                } => vec![when_less, when_not_less],
-                SelectedTerminator::Jump { successor, .. } => vec![successor],
-                SelectedTerminator::Return { .. }
-                | SelectedTerminator::Crash { .. }
-                | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-            };
+            let targets = &transports.blocks[block_ordinal];
             let mut vo = BTreeSet::new();
-            for edge in &targets {
-                for destination in &v_in[&edge.block] {
-                    vo.insert(super::super::edge_values::incoming_argument(
-                        function_index,
-                        function,
-                        edge,
-                        *destination,
-                    )?);
+            for edge in targets {
+                for destination in &v_in[&edge.target] {
+                    vo.insert(transports.incoming_argument(function_index, edge, *destination)?);
                 }
             }
             let uo = targets
                 .iter()
-                .filter_map(|target| u_in.get(&target.block))
+                .filter_map(|target| u_in.get(&target.target))
                 .flat_map(|set| set.iter().copied())
                 .collect::<BTreeSet<_>>();
             let mut vi = vo.clone();
@@ -160,10 +142,12 @@ pub(super) fn replay_function(
     let blocks = function
         .blocks
         .iter()
-        .map(|block| {
+        .enumerate()
+        .map(|(block_ordinal, block)| {
             replay_block(
                 function_index,
-                function,
+                &transports,
+                &transports.blocks[block_ordinal],
                 block,
                 &position,
                 &v_in,
@@ -183,7 +167,8 @@ pub(super) fn replay_function(
 
 fn replay_block(
     function_index: usize,
-    function: &SelectedFunction,
+    transports: &EdgeTransports,
+    edges: &[EdgeTransport],
     block: &SelectedBlock,
     position: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
     v_in: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
@@ -291,37 +276,10 @@ fn replay_block(
     };
     let mut successors = Vec::new();
     for mut row in successor_rows {
-        let edge = match &block.terminator {
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => [when_nonzero, when_zero][usize::from(row.polarity_ordinal)],
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => [when_less, when_not_less][usize::from(row.polarity_ordinal)],
-            SelectedTerminator::Jump { successor, .. } => successor,
-            SelectedTerminator::Return { .. }
-            | SelectedTerminator::Crash { .. }
-            | SelectedTerminator::HostedExitProcess { .. } => {
-                unreachable!("return has no successor rows")
-            }
-        };
+        let edge = &edges[usize::from(row.polarity_ordinal)];
         let mut incoming = BTreeSet::new();
         for destination in row.virtual_live {
-            incoming.insert(super::super::edge_values::incoming_argument(
-                function_index,
-                function,
-                edge,
-                destination,
-            )?);
+            incoming.insert(transports.incoming_argument(function_index, edge, destination)?);
         }
         row.virtual_live = collect(&incoming);
         successors.push(row);

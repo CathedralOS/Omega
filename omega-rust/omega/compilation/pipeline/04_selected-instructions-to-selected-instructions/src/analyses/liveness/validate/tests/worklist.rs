@@ -88,12 +88,75 @@ fn compare(function: &SelectedFunction) -> (usize, usize, usize, usize) {
     edge_values::INCOMING_ARGUMENT_RECONSTRUCTIONS.set(0);
     let expected = replay_function(0, function).unwrap();
     assert_eq!(actual, expected);
+    assert_eq!(
+        edge_values::INCOMING_ARGUMENT_RECONSTRUCTIONS.get(),
+        producer_transports,
+        "independent replay validates transports once, not on every fixed-point visit"
+    );
     (
         producer_visits,
         super::super::replay::BLOCK_VISITS.get(),
         producer_transports,
         edge_values::INCOMING_ARGUMENT_RECONSTRUCTIONS.get(),
     )
+}
+
+#[test]
+fn prepared_replay_preserves_sparse_live_through_and_unused_duplicate_registers() {
+    let mut function = graph(&[vec![1], vec![2], vec![]]);
+    let register = VirtualRegisterId(u32::MAX - 1);
+    function.virtual_registers[0].id = register;
+    for block in &mut function.blocks {
+        if let SelectedTerminator::Return { instruction, .. } = &mut block.terminator {
+            instruction.operands[0].virtual_register = register;
+        }
+    }
+    // An unqueried duplicate must not acquire a new eager rejection boundary.
+    let mut unused = function.virtual_registers[0].clone();
+    unused.id = VirtualRegisterId(17);
+    function.virtual_registers.extend([unused.clone(), unused]);
+    function.virtual_registers.reverse();
+    function.blocks.reverse();
+    let (_, replay_visits, _, replay_transports) = compare(&function);
+    assert!(replay_visits > function.blocks.len());
+    assert_eq!(replay_transports, 0);
+}
+
+#[test]
+fn prepared_replay_keeps_distinct_arguments_on_edges_to_the_same_block() {
+    let mut function = successor_parameter_function();
+    let SelectedTerminator::Jump {
+        instruction,
+        successor,
+    } = &function.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    let mut branch = instruction.clone();
+    branch.kind = SelectedInstructionKind::CompareI64Zero;
+    let when_nonzero = successor.clone();
+    let mut when_zero = successor.clone();
+    when_zero.psi_edge = EdgeId::new(7).unwrap();
+    when_zero.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    when_zero.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
+        argument: VirtualRegisterId(1),
+        parameter: VirtualRegisterId(2),
+    };
+    function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+        instruction: branch,
+        when_nonzero,
+        when_zero,
+    };
+    compare(&function);
+    let replayed = replay_function(0, &function).unwrap();
+    assert_eq!(
+        replayed.blocks[0].successors[0].virtual_live,
+        [VirtualRegisterId(0)]
+    );
+    assert_eq!(
+        replayed.blocks[0].successors[1].virtual_live,
+        [VirtualRegisterId(1)]
+    );
 }
 
 #[test]

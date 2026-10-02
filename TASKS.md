@@ -1492,12 +1492,21 @@ the complete product bar; focused successes below do not establish that baseline
   instead of its backing storage. Case tags, scalar/byte fields and projected
   copies now resolve that storage through one address owner, with independent
   replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
-  and derived views. The unchanged full-game commands remain in allocation
-  recovery; do not substitute this reduced program's result for application
-  acceptance. Independent live-range replay visits actual register memberships,
+  and derived views. Older unchanged full-game runs remain in allocation
+  recovery. The latest help/exit run (macOS ARM64, `a10a36f6dd` compiler,
+  unchanged source checkout `356d43c6d6`) instead rejects in Psi stage 05 after
+  63.58 seconds: `borrowed view result acquired owned storage custody` in
+  `unit/attached_unit/structural_calls/result_uses.rs`. Trace the view result's
+  carrier transfer and loan retirement through the shared custody flow; do not
+  exempt a producer spelling or weaken validation. Do not substitute the
+  reduced program's result for application acceptance. Independent live-range
+  replay visits actual register memberships,
   groups operands by instruction, reconstructs tied components once and walks
   ordered fragments. It retains liveness revalidation and exact evidence
-  comparison; repeated full scans are removed, not the checks. Spill recovery
+  comparison; repeated full scans are removed, not the checks. Independent
+  liveness replay also prepares its own exact edge substitutions after transport
+  validation, retaining them across its separate full-scan solver and successor
+  publication instead of reconstructing them for each live register. Spill recovery
   retains a failed crossing allocation probe within its current victim attempt:
   an independently validated bounded rewrite reuses it only when the complete
   plan and receipt match. Final recovery replay remains independent. Full-game
