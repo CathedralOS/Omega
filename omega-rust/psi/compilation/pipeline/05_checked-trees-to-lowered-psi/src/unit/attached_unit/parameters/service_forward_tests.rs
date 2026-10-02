@@ -106,6 +106,8 @@ fn service_field_forwarding_rejoins_direct_and_composed_actuals() {
                 "producer omitted forwarding calls: caller={composed_caller}, target={composed_target}"
             );
             validate(&checked).expect("exact field loans in an ordinary multi-operation body");
+            crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("forward"))
+                .expect("authenticated service loans also reach Terminal production");
         }
     }
 }
@@ -130,6 +132,14 @@ fn service_field_forwarding_rejects_same_type_actual_substitution() {
                 assert!(
                     validate(&checked).is_err(),
                     "caller={composed_caller}, target={composed_target}, mutation={mutation}"
+                );
+                assert!(
+                    crate::lower_machine(
+                        &checked,
+                        crate::TerminalMachineSelection::Name("forward"),
+                    )
+                    .is_err(),
+                    "lowering must retain exact authored-actual custody"
                 );
             }
         }
