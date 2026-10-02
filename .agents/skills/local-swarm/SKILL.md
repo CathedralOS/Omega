@@ -15,7 +15,7 @@ description: >-
 
 A local wave is N subagents on this machine, one per Git worktree, each running
 the ordinary `advance` protocol on one board item; the coordinator also works
-one item itself as the last slot, matching the cloud-swarm shape — 6 subagents
+one item itself as the last slot, matching the devin-swarm shape — 6 subagents
 plus the coordinator makes 7 workers on the machine. The shared claims registry
 and `tools/landing.py` provide the fences; `tools/swarm/README.md` is the full
 reference and carries the evidence behind every rule here. This skill is the
@@ -272,7 +272,7 @@ same manifest to continue.
 Local subagents are in-session agents, not Devin sessions — there is nothing to
 archive; their state is the worktree, branch, and claims ticket, which this
 drain handles. Cloud-sibling sessions are different: archive finished ones via
-`devin_session_interact archive` (see the cloud-swarm skill).
+`devin_session_interact archive` (see the devin-swarm skill).
 
 When the user says wrap up: stop backfilling, let running agents finish, then
 sweep — collect pending worker evidence first (`python3 tools/claims.py

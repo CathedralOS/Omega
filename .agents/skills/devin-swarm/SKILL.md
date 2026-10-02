@@ -1,9 +1,9 @@
 ---
-name: cloud-swarm
-description: Coordinate a cloud swarm wave — spawn sibling Devin sessions on board items, work your own item as the last slot, drain settled sessions into outcomes.json, backfill by recycling suspended sessions (resume bypasses the create cap), and keep a resumable pool. Use when the user asks for a cloud wave, a Devin session swarm, or to keep N cloud sessions working. Not for local in-session subagents (see local-swarm) or a single advance.
+name: devin-swarm
+description: Coordinate a Devin swarm wave — spawn sibling Devin sessions on board items, work your own item as the last slot, drain settled sessions into outcomes.json, backfill by recycling suspended sessions (resume bypasses the create cap), and keep a resumable pool. Use when the user asks for a Devin cloud wave, a Devin session swarm, or to keep N cloud sessions working. Not for local in-session subagents (see local-swarm) or a single advance.
 ---
 
-# Cloud swarm coordination
+# Devin swarm coordination
 
 One session coordinates; sibling cloud sessions each run `advance` on one board
 item; the coordinator also works items serially as the last slot.

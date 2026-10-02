@@ -1,11 +1,11 @@
 ---
 name: dot-swarm
-description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using cloud-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use cloud-swarm for Devin sessions and local-swarm for other local launchers.
+description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using devin-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use devin-swarm for Devin sessions and local-swarm for other local launchers.
 ---
 
 # dot swarm
 
-Adapt [cloud-swarm](../cloud-swarm/SKILL.md)'s small-pool chain mode to dot's
+Adapt [devin-swarm](../devin-swarm/SKILL.md)'s small-pool chain mode to dot's
 cloud computer. Keep its task selection, warm chain ownership, slice-first
 progress, immediate result drains, and same-domain continuations. Replace its
 Devin transport and mass-wave mechanics with the actual native agent tools.
@@ -238,7 +238,7 @@ and validate, obtain the required exact-commit receipt, enqueue/claim, rebase on
 the reserved base, and revalidate changed inputs. If rebasing changes HEAD, run
 `python3 tools/landing.py verify --base <reserved-base>` again for that exact candidate SHA
 even when ordinary test evidence is reusable, then publish. Respect its lease and
-clean-tree requirements. Never copy cloud-swarm's historical merge commits,
+clean-tree requirements. Never copy devin-swarm's historical merge commits,
 direct pushes to main, batch-merge bypass, or remote branch cleanup. A lane is
 `landed` only after its candidate is verified as an ancestor of fetched
 `origin/main`; local integration is `candidate_ready`.
