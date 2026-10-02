@@ -162,42 +162,76 @@ fn dispatch_copied_payload_travels_beside_a_mutable_root() {
     check_program(&indexed).unwrap_or_else(|diagnostics| panic!("{indexed}: {diagnostics:#?}"));
 }
 
-/// Only the dispatch's copy is exempt. An authored projection of the root, or
-/// a loan of the payload's storage, still overlaps the earlier `&mut` root.
+/// A jump that forwards the caller's own data as the callee's subject is
+/// judged by what that callee does through it, not by pairing the subject
+/// against every sibling argument.
+///
+/// The subject is a reborrow of the caller's parent, so a sibling argument
+/// derived from the same parent is its child:
+/// [ownership](wiki/spec/language/ownership.md) says a shared child freezes the
+/// parent's mutation. Freezing is admissible; writing the frozen branch is not.
+/// So the callee's footprint decides, and a copy taken at the call site holds
+/// no loan to freeze at all.
+///
+/// Pairing instead admitted none of these. That strictness was an artifact of
+/// the static spelling putting the parent among the authored arguments: a
+/// receiver was never an argument, so the receiver spelling of every case here
+/// was admitted, including the one this test now requires to reject.
 #[test]
-fn authored_projection_beside_a_forwarded_mutable_root_still_conflicts() {
+fn forwarded_subject_conflicts_only_where_the_callee_writes_the_frozen_branch() {
     let declarations = "data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
-        data Main { never: Msg; count: i32; }";
-    for (arm, target) in [
-        ("_ -> chk(main, main.count)", "chk(main: &mut Main, x: i32)"),
-        (
-            "Msg::Ping { x } -> chk(main, main.count)",
-            "chk(main: &mut Main, x: i32)",
-        ),
-        (
-            "Msg::Ping { x } -> peek(main, &x)",
-            "peek(main: &mut Main, x: &i32)",
-        ),
-    ] {
-        let source = format!(
+        data Main { never: Msg; count: i32; other: i32; }";
+    let program = |arm: &str, target: &str, body: &str| {
+        format!(
             "{declarations}
              machine Main::build(main: &mut Main) {{
                  transition main.never {{
                      {arm}
                      _ -> done(main)
                  }}
-                 state {target} {{}}
+                 state {target} {{ {body} }}
                  state done(main: &mut Main) {{}}
              }}"
-        );
-        let diagnostics =
-            check_program(&source).expect_err("the forwarded root retains its exclusive loan");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
-            "{source}: {diagnostics:#?}"
-        );
+        )
+    };
+
+    // A loan of the payload's storage freezes `main.never`; writing it through
+    // the subject is the conflict.
+    let conflicting = program(
+        "Msg::Ping { x } -> peek(main, &x)",
+        "peek(main: &mut Main, x: &i32)",
+        "main.never = Msg::Pong { y: 1, z: 2 };",
+    );
+    let diagnostics = check_program(&conflicting)
+        .expect_err("the subject writes the storage its sibling argument loans");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("while its mutable receiver writes")),
+        "{conflicting}: {diagnostics:#?}"
+    );
+
+    // Everything else the pairing rule caught: the same loan beside a disjoint
+    // write, and a copy taken at the call site, which holds no loan to freeze.
+    for (arm, target, body) in [
+        (
+            "Msg::Ping { x } -> peek(main, &x)",
+            "peek(main: &mut Main, x: &i32)",
+            "main.other = 7;",
+        ),
+        (
+            "Msg::Ping { x } -> chk(main, main.count)",
+            "chk(main: &mut Main, x: i32)",
+            "main.count = x;",
+        ),
+        (
+            "Msg::Ping { x } -> chk(main, main.count)",
+            "chk(main: &mut Main, x: i32)",
+            "",
+        ),
+    ] {
+        let source = program(arm, target, body);
+        check_program(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
 

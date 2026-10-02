@@ -419,17 +419,8 @@ impl TypedTrees {
         machine: &machine::Machine,
         parameters: &'parameters [signature::StateParameter],
     ) -> Option<&'parameters signature::StateParameter> {
-        if let Some(receiver) = parameters.iter().find(|parameter| parameter.is_self) {
-            return Some(receiver);
-        }
-        if !machine.attached_data_symbol.is_valid() {
-            return None;
-        }
-        let mut declared = parameters
-            .iter()
-            .filter(|parameter| self.parameter_declares_attached_data(machine, parameter));
-        let parameter = declared.next()?;
-        declared.next().is_none().then_some(parameter)
+        self.data_binding_position(machine.attached_data_symbol, parameters)
+            .map(|index| &parameters[index])
     }
 
     /// The name of `state`'s data binding, for callers comparing rendered
@@ -475,6 +466,30 @@ impl TypedTrees {
                 parameter.type_reference,
                 machine.attached_data_symbol,
             )
+    }
+
+    /// The position of the one parameter carrying `attached_data_symbol`'s
+    /// record, by the same rule as `data_binding_parameter`: a receiver wins
+    /// outright, otherwise the single parameter declaring that data, and
+    /// `None` when two could be.
+    ///
+    /// Callers that hold the attachment without the machine record ask here.
+    pub fn data_binding_position(
+        &self,
+        attached_data_symbol: symbols::SymbolHandle,
+        parameters: &[signature::StateParameter],
+    ) -> Option<usize> {
+        if let Some(index) = parameters.iter().position(|parameter| parameter.is_self) {
+            return Some(index);
+        }
+        if !attached_data_symbol.is_valid() {
+            return None;
+        }
+        let mut declared = parameters.iter().enumerate().filter(|(_, parameter)| {
+            self.type_reference_names_attached_data(parameter.type_reference, attached_data_symbol)
+        });
+        let (index, _) = declared.next()?;
+        declared.next().is_none().then_some(index)
     }
 
     /// Whether `type_reference` names `attached_data_symbol` once references

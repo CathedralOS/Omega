@@ -338,9 +338,22 @@ fn extend_new(reads: &mut Vec<CanonicalPlace>, additions: Vec<CanonicalPlace>) -
     grew
 }
 
+/// Whether `target_symbol`'s declaration takes the subject of its machine's
+/// data: `self` under the receiver spelling, an ordinary parameter declaring
+/// that data under the static one. Both arrive as the same storage, so a
+/// footprint judgment has to follow either.
 fn target_takes_receiver(program: &typed_trees::TypedTrees, target_symbol: SymbolHandle) -> bool {
-    crate::semantic::calls::call_target_parameters(program, target_symbol)
-        .is_some_and(|parameters| parameters.iter().any(|parameter| parameter.is_self))
+    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
+    else {
+        return false;
+    };
+    if parameters.iter().any(|parameter| parameter.is_self) {
+        return true;
+    }
+    program
+        .machine_holding_state(target_symbol)
+        .and_then(|machine| program.data_binding_position(machine.attached_data_symbol, parameters))
+        .is_some()
 }
 
 impl FootprintOwner<'_> {
@@ -399,11 +412,25 @@ impl FootprintOwner<'_> {
         let facts::PlaceRoot::Symbol(root) = place.root else {
             return false;
         };
-        root == self.machine_symbol
-            || program
-                .state_parameters(self.state)
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.symbol == root)
+        if root == self.machine_symbol {
+            return true;
+        }
+        let parameters = program.state_parameters(self.state);
+        if parameters
+            .iter()
+            .any(|parameter| parameter.is_self && parameter.symbol == root)
+        {
+            return true;
+        }
+        // The static spelling reaches the same storage through the state's data
+        // binding, which is an ordinary parameter rather than a receiver.
+        crate::lookup::machine_by_symbol(program, self.machine_symbol)
+            .and_then(|machine| {
+                program.data_binding_position(machine.attached_data_symbol, parameters)
+            })
+            .is_some_and(|index| {
+                parameters[index].symbol.is_valid() && parameters[index].symbol == root
+            })
     }
 }
 

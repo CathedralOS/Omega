@@ -135,11 +135,24 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
         let facts::PlaceRoot::Symbol(root) = summary_place.root else {
             return None;
         };
+        // A write reaches the callee's data through whichever binding that
+        // state declares: `self` under the receiver spelling, an ordinary
+        // parameter declaring the attached data under the static one. Missing
+        // the second one makes a successor's write through its named subject
+        // invisible to the footprint judgment, which is what licenses the
+        // parent/projection pair in the first place.
+        let target_parameters = program.state_parameters(target_state);
+        let subject_root = crate::lookup::machine_by_symbol(program, target_machine_symbol)
+            .and_then(|machine| {
+                program.data_binding_position(machine.attached_data_symbol, target_parameters)
+            })
+            .map(|index| target_parameters[index].symbol)
+            .filter(|symbol| symbol.is_valid());
         let reached_through_receiver = root == target_machine_symbol
-            || program
-                .state_parameters(target_state)
+            || target_parameters
                 .iter()
-                .any(|parameter| parameter.is_self && parameter.symbol == root);
+                .any(|parameter| parameter.is_self && parameter.symbol == root)
+            || subject_root == Some(root);
         if !reached_through_receiver {
             continue;
         }

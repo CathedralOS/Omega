@@ -22,6 +22,17 @@ pub(super) fn check_call_access_conflicts<'p>(
     recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
+    // The argument supplying the callee's SUBJECT is the parent of the
+    // call, not one operand among others: an implicit receiver was never an
+    // argument access at all, so the receiver spelling never formed these
+    // pairs. `receiver::footprint` owns that parent, judging it by what the
+    // callee actually does through it, and it refuses a projection of the
+    // parent that the callee's own reads or writes disturb.
+    let subject_argument =
+        super::receiver::subject_argument_position(program, facts, state_flow, borrow_call);
+    // The list keeps every access: `end_before_access` cites POSITIONS in it,
+    // so dropping an element would misalign every later comparison. The
+    // subject is skipped when pairing instead.
     let accesses: Vec<_> = facts
         .borrow
         .argument_accesses
@@ -88,7 +99,13 @@ pub(super) fn check_call_access_conflicts<'p>(
     }
 
     for (index, access) in accesses.iter().enumerate() {
+        if subject_argument == Some(index) {
+            continue;
+        }
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            if subject_argument == Some(other_index) {
+                continue;
+            }
             // A copied read or completed nested-call loan no longer observes
             // its source when the later access begins. A payload its arm's
             // dispatch copied before the call (end 0) ended before the earlier
