@@ -17,12 +17,12 @@ data Sink {
     pending: i32;
 }
 
-machine Sink::write(&mut self) satisfies Logger::write {
-    self.pending = 0;
+machine Sink::write(sink: &mut Sink) satisfies Logger::write {
+    sink.pending = 0;
 }
 
-machine Sink::flush(&mut self) satisfies Logger::flush {
-    self.pending = 0;
+machine Sink::flush(sink: &mut Sink) satisfies Logger::flush {
+    sink.pending = 0;
 }
 
 SinkLogger: Sink satisfies Logger;

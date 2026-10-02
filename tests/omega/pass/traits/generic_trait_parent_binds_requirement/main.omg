@@ -15,10 +15,10 @@ data Main {
 
 CounterIntSink: Counter satisfies IntSink;
 
-machine Counter::put(&mut self, value: i32) satisfies Sink<i32>::put {
-    self.value = value;
+machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<i32>::put {
+    counter.value = value;
 }
 
-machine Main::main(&mut self) {
-    self.counter.put(7);
+machine Main::main(main: &mut Main) {
+    Counter::put(&mut main.counter, 7);
 }
