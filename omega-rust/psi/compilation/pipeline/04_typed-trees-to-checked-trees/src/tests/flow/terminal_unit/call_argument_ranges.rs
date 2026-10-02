@@ -65,6 +65,59 @@ const FIELD_RANGES: &str = r#"
     }
 "#;
 
+#[test]
+fn local_array_ranges_use_declared_storage_with_or_without_initializers() {
+    for element in ["u8", "i32"] {
+        for initializer in ["", " = [1, 2]"] {
+            let checked = checked(&format!(
+                "machine consume(values: &[{element}]) {{ let count: u64 = values.len; }}
+                 machine run() {{
+                     let values: [{element}; 2]{initializer};
+                     consume(&values[..]);
+                 }}"
+            ));
+            let symbol = machine_named(&checked, "run");
+            let plan = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(symbol)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{element} local {initializer}: {:?}",
+                        checked
+                            .facts
+                            .flow
+                            .terminal_unit_effects
+                            .omission_for_machine(symbol)
+                    )
+                });
+            let argument = plan
+                .operations
+                .iter()
+                .find_map(CheckedUnitEffectOperationPlan::call)
+                .and_then(|call| call.structural_arguments.first())
+                .expect("call receives its range descriptor");
+            assert!(matches!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                    root: CheckedStorageRoot::OwnedLocal { .. },
+                    start: None,
+                    end: None,
+                    ..
+                } | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                    root: CheckedStorageRoot::OwnedLocal { .. },
+                    start: None,
+                    end: None,
+                    ..
+                }
+            ));
+            assert!(argument.path.is_empty());
+            assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        }
+    }
+}
+
 fn field_range(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
     matches!(
         argument.source,

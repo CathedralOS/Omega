@@ -590,9 +590,11 @@ fn array_collection(
         let (_, local) = program
             .state_local_declaration(state, symbol)
             .filter(|&(ordinal, _)| ordinal < statement_index)?;
-        if !local.initial_value.is_valid()
-            || structural_access_for_type_reference(program, local.type_reference)
-                != Some(CheckedStructuralAccess::Owned)
+        // The earlier declaration owns its storage whether its establishment
+        // was explicit or zero-initialized. Body sequencing publishes that
+        // backing; an initializer expression is not storage authority.
+        if structural_access_for_type_reference(program, local.type_reference)
+            != Some(CheckedStructuralAccess::Owned)
         {
             return None;
         }
