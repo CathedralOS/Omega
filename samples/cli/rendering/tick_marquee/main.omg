@@ -50,11 +50,11 @@ data Main {
     elapsed: u64 in Wrapping;
     pause: [u8; 256];
 }
-machine Main::main(&mut self) reaches Clock2 + Console + DarwinClock {
-    self.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
-    self.t_start = self.clock.tick_count();
-    self.frame = 0;
-    transition { _ -> frame_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock2 + Console + DarwinClock {
+    main.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
+    main.t_start = main.clock.tick_count();
+    main.frame = 0;
+    transition { _ -> frame_loop(main) }
     state frame_loop(main: &mut Main) {
         transition main.frame < 24 { true -> draw(main) _ -> finish(main) }
     }

@@ -68,16 +68,16 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
-    self.line = "                              ";
-    self.ramp = " .:-=+*#";
-    self.home = "XXX";
-    self.home[0] = 27; // ESC
-    self.home[1] = 91; // [
-    self.home[2] = 72; // H
-    self.frame = 0;
-    transition { _ -> frame_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
+    main.line = "                              ";
+    main.ramp = " .:-=+*#";
+    main.home = "XXX";
+    main.home[0] = 27; // ESC
+    main.home[1] = 91; // [
+    main.home[2] = 72; // H
+    main.frame = 0;
+    transition { _ -> frame_loop(main) }
 
     state frame_loop(main: &mut Main) {
         transition main.frame < 60 { true -> frame_start(main) _ -> finish(main) }

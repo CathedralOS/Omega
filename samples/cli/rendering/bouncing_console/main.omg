@@ -49,15 +49,15 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
-    self.console.write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
-    self.line = "                                        ";
-    self.cr = "X";
-    self.cr[0] = 13;
-    self.p = 0;
-    self.dir = 1;
-    self.frame = 0;
-    transition { _ -> frame_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console + DarwinClock {
+    main.console.write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
+    main.line = "                                        ";
+    main.cr = "X";
+    main.cr[0] = 13;
+    main.p = 0;
+    main.dir = 1;
+    main.frame = 0;
+    transition { _ -> frame_loop(main) }
 
     state frame_loop(main: &mut Main) {
         transition main.frame < 50 { true -> clear_init(main) _ -> finish(main) }
