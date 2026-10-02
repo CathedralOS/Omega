@@ -499,23 +499,30 @@ pub(super) fn returned_byte_sequence_literal(
     let ExpressionNode::String(bytes) = program.expression_table.expression(*expression) else {
         return None;
     };
-    // The returned view borrows the literal's backing, so the plan names the
-    // peeled slice carrier and the affine view-loan custody the signature and
-    // the binding both record — not the `&` shell's unrestricted spelling.
-    let (return_type, multiplicity) = match validation::reference_result_custody::shared_place_borrowed_parts(
-        program,
-        state.return_type,
-    ) {
-        Some((referee, _)) => (referee, Multiplicity::Affine),
-        None => (state.return_type, program.type_multiplicity(state.return_type)),
-    };
+    // Peeling a shared descriptor's storage identity changes neither its
+    // multiplicity nor the lifetime of the immutable literal backing.
+    let (return_type, multiplicity) =
+        match validation::reference_result_custody::shared_place_borrowed_parts(
+            program,
+            state.return_type,
+        ) {
+            Some((referee, _)) => (
+                referee,
+                validation::reference_result_custody::result_multiplicity(
+                    program,
+                    state.return_type,
+                ),
+            ),
+            None => (
+                state.return_type,
+                program.type_multiplicity(state.return_type),
+            ),
+        };
     Some(CheckedUnitStructuralReturnPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),
         },
-        type_identity: program
-            .normalized_type_identity(return_type)
-            .into_string(),
+        type_identity: program.normalized_type_identity(return_type).into_string(),
         multiplicity,
         reference_sources: Vec::new(),
     })
