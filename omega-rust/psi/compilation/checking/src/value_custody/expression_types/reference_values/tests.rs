@@ -1,8 +1,10 @@
-use super::super::{TypeConstraintNode, argument_matches_type_reference_handle};
+use super::super::{
+    TypeConstraintNode, argument_matches_carrier, argument_matches_type_reference_handle,
+};
 use super::{
     ExpressionHandle, ExpressionNode, ReferenceAccess, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, place_forwards_mutable_reference, projected_matches_reference,
-    reference_type_matches,
+    TypedTrees, declared_value_matches_reference, place_forwards_mutable_reference,
+    projected_matches_reference, reference_type_matches, value_carrier_matches_reference,
 };
 fn member(program: &TypedTrees, name: &str) -> ExpressionHandle {
     program
@@ -87,6 +89,11 @@ fn array_reference_correspondence_preserves_elements_and_access() {
                 accepted,
                 "{origin}: {actual} to {required}"
             );
+            assert_eq!(
+                argument_matches_carrier(&program, expression, expected(&program)),
+                accepted,
+                "call carrier {origin}: {actual} to {required}"
+            );
         }
     }
 }
@@ -132,7 +139,8 @@ fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
     assert!(projected_matches_reference(
         &program,
         expression,
-        expected(&program)
+        expected(&program),
+        declared_value_matches_reference
     ));
     assert!(!place_forwards_mutable_reference(
         &program,
@@ -218,6 +226,14 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
         !reference_type_matches(&program, plain_actual, shared_view, &[]),
         "an unqualified slice cannot satisfy the callee's constrained referee"
     );
+    assert!(
+        !value_carrier_matches_reference(&program, plain_actual, shared_view, &[]),
+        "call carrier matching cannot introduce a non-domain constraint"
+    );
+    assert!(
+        value_carrier_matches_reference(&program, constrained_actual, shared_view, &[]),
+        "identical non-domain constraints retain their exact declared identity"
+    );
 }
 
 #[test]
@@ -235,14 +251,20 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
          }",
     );
     assert!(
-        projected_matches_reference(&program, member(&program, "value.text"), expected(&program)),
+        projected_matches_reference(
+            &program,
+            member(&program, "value.text"),
+            expected(&program),
+            declared_value_matches_reference
+        ),
         "an owned `[u8; 4] in Utf8` view satisfies `&[u8] in Utf8`"
     );
     assert!(
         !projected_matches_reference(
             &program,
             member(&program, "value.plain"),
-            expected(&program)
+            expected(&program),
+            declared_value_matches_reference
         ),
         "a bare `[u8; 4]` cannot satisfy the callee's constrained referee"
     );
@@ -252,6 +274,7 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
             &program,
             member(&program, "value.text"),
             parameters[2].type_reference,
+            declared_value_matches_reference,
         ),
         "the byte-carrier bridge does not change the element type"
     );
@@ -304,7 +327,8 @@ fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
         !projected_matches_reference(
             &program,
             member(&program, "value.value.value"),
-            expected(&program)
+            expected(&program),
+            declared_value_matches_reference
         ),
         "re-entry needs scoped argument views, not an overwritten flat binding"
     );
@@ -333,7 +357,12 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
             .find_map(|(handle, node)| matches!(node, ExpressionNode::Member(_)).then_some(handle))
             .expect("indexed member");
         assert_eq!(
-            projected_matches_reference(&program, expression, expected(&program)),
+            projected_matches_reference(
+                &program,
+                expression,
+                expected(&program),
+                declared_value_matches_reference
+            ),
             accepted,
             "{operator}"
         );
@@ -365,7 +394,8 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
     assert!(!projected_matches_reference(
         &program,
         expression,
-        expected(&program)
+        expected(&program),
+        declared_value_matches_reference
     ));
 }
 
@@ -387,6 +417,49 @@ fn generic_index_cannot_select_builtin_meaning_from_unsubstituted_elements() {
     assert!(!projected_matches_reference(
         &program,
         expression,
-        expected(&program)
+        expected(&program),
+        declared_value_matches_reference
     ));
+}
+
+#[test]
+fn shared_call_carriers_defer_domains_for_every_reference_producer() {
+    for (declarations, selected) in [
+        (
+            "machine inspect(value: &[u8], expected: &[u8] in Ascii) { value; }",
+            "value",
+        ),
+        (
+            "data Holder { value: &[u8]; } machine inspect(holder: &Holder, expected: &[u8] in Ascii) { holder.value; }",
+            "holder.value",
+        ),
+        (
+            "machine retain(value: &[u8]) -> &[u8] { value } machine inspect(value: &[u8], expected: &[u8] in Ascii) { let returned: &[u8] = retain(value); returned; }",
+            "retain(value)",
+        ),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain [u8]::Ascii(bytes) requires ascii_only(bytes); {declarations}"
+        ));
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, expression)| {
+                (if selected == "retain(value)" {
+                    matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == "retain")
+                } else {
+                    program.expression_table.display_name(handle) == selected
+                })
+                .then_some(handle)
+            })
+            .unwrap_or_else(|| panic!("selected reference producer: {selected}"));
+        assert!(
+            argument_matches_carrier(&program, expression, expected(&program)),
+            "{selected}"
+        );
+        assert!(
+            !argument_matches_type_reference_handle(&program, expression, expected(&program)),
+            "without call facts the declaration cannot prove the domain: {selected}"
+        );
+    }
 }

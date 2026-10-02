@@ -101,24 +101,33 @@ fn primitive_qualified_subslice_calls_compose_with_empty_chained_slices() {
     );
 }
 
-#[test]
-fn primitive_qualified_subslice_named_descriptors_compose() {
-    let source = SOURCE.replace(
+fn named_descriptor_source(argument: &str) -> String {
+    SOURCE.replace(
         r#"transition root.end < bytes.len {
             true -> Root::inspect(root, bytes[0..root.end])
             false -> empty()
         }
         state empty() {}"#,
-        r#"let prefix: &[u8] = bytes[0..0];
-        Root::inspect(root, prefix[0..0]);"#,
-    );
-    let lowered = lower(&source);
-    verify(&lowered);
+        &format!("let prefix: &[u8] = bytes[0..0]; Root::inspect(root, {argument});"),
+    )
+}
+
+#[test]
+fn primitive_qualified_subslice_named_descriptors_compose() {
+    for argument in ["prefix", "prefix[0..0]"] {
+        let lowered = lower(&named_descriptor_source(argument));
+        verify(&lowered);
+    }
 }
 
 #[test]
 fn qualified_subslice_call_rejects_a_same_typed_unqualified_source() {
-    let mut lowered = lower(SOURCE);
+    for source in [SOURCE.to_owned(), named_descriptor_source("prefix")] {
+        reject_unqualified_call_source(lower(&source));
+    }
+}
+
+fn reject_unqualified_call_source(mut lowered: LoweredPsi) {
     verify(&lowered);
     let machine = slice_machine(&mut lowered);
     let byte_type = machine
@@ -186,7 +195,7 @@ fn qualified_subslice_call_rejects_a_same_typed_unqualified_source() {
 
 #[test]
 fn qualified_subslice_call_does_not_preserve_nonempty_or_utf8() {
-    let base = lower(SOURCE);
+    let base = lower(&named_descriptor_source("prefix"));
     verify(&base);
     for predicate in [
         ByteSequencePredicate::NonEmpty,
@@ -215,7 +224,7 @@ fn qualified_subslice_call_does_not_preserve_nonempty_or_utf8() {
 
 #[test]
 fn qualified_subslice_result_cannot_assert_its_own_qualification() {
-    let mut lowered = lower(SOURCE);
+    let mut lowered = lower(&named_descriptor_source("prefix"));
     verify(&lowered);
     let domain = lowered
         .semantic_module

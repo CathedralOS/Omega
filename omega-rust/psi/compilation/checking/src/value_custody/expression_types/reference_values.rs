@@ -101,6 +101,102 @@ pub(super) fn reference_type_matches(
         )
 }
 
+/// A reference argument relation selected by the evidence available to its
+/// consumer. Ordinary calls prove qualifications from flow facts; logical
+/// formation and post-check consumers retain declaration correspondence.
+pub(super) type ReferenceCorrespondence = fn(
+    &TypedTrees,
+    TypeReferenceHandle,
+    TypeReferenceHandle,
+    &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool;
+
+/// Call carrier correspondence is used only before independent flow contract
+/// checking. Shared views can use live qualification evidence even when their
+/// declaration is bare; mutable invariants keep declaration correspondence.
+pub(super) fn value_carrier_matches_reference(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let TypeReferenceNode::Reference {
+        access: ReferenceAccess::Shared,
+        referee: required_referee,
+        ..
+    } = program.type_reference_table.type_reference(required)
+    else {
+        return declared_value_matches_reference(program, actual, required, substitutions);
+    };
+    let actual_referee = match program.type_reference_table.type_reference(actual) {
+        TypeReferenceNode::Reference {
+            access: ReferenceAccess::WriteOnly,
+            ..
+        } => return false,
+        TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => actual,
+    };
+    shared_referee_matches(program, actual_referee, *required_referee, substitutions)
+}
+
+/// Shared access compares the referee's carrier, independently of the facts
+/// required at this use. A local may have a bare declared type and still carry
+/// a predicate from its producer or a guard. Requiring that predicate in its
+/// declaration rejects a valid call before flow contract checking can prove it.
+///
+/// Only outer declared-domain requirements are deferred: element types, nested reference
+/// access, nominal identities and fixed extents still participate. Contract
+/// checking proves the required qualification on the actual value; domain
+/// weakening, carry and loan checks separately retain semantic and ownership
+/// obligations. This relation supplies neither membership nor a loan.
+fn shared_referee_matches(
+    program: &TypedTrees,
+    mut actual: TypeReferenceHandle,
+    mut required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    if program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(actual)
+    }) == program.normalized_type_identity(required)
+    {
+        return true;
+    }
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(actual)
+    {
+        actual = *base_type;
+    }
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(required)
+    {
+        // Declared domains become call contract facts. Other constraints
+        // (including compiler-owned carry/layout domains) do not all have
+        // that discharge route, so shape matching cannot introduce them.
+        if !program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .all(|constraint| {
+                matches!(constraint, TypeConstraintNode::Domain(domain)
+                if domain.symbol.is_valid()
+                    && domain.subject == typed_trees::types::DomainConstraintSubject::Declared)
+            })
+        {
+            break;
+        }
+        required = *base_type;
+    }
+    program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(actual)
+    }) == program.normalized_type_identity(required)
+        || owned_array_projects_to_slice(program, actual, required, substitutions)
+        || fixed_array_binds_open_length(program, actual, required, substitutions)
+}
+
 /// A `const` binder in a fixed-array length is an inference slot, not a closed
 /// identity: an actual literal length supplies the binding only when the
 /// literal satisfies the binder's declared carrier (primitive fit plus every
@@ -257,6 +353,7 @@ pub(super) fn subslice_view_matches_reference(
     program: &TypedTrees,
     indexed: &typed_trees::expression::TableIndexedExpression,
     required: TypeReferenceHandle,
+    correspondence: ReferenceCorrespondence,
 ) -> bool {
     let mut substitutions = Vec::new();
     let Some(collection) =
@@ -270,13 +367,14 @@ pub(super) fn subslice_view_matches_reference(
     matches!(
         program.type_reference_table.type_reference(collection),
         TypeReferenceNode::Reference { .. }
-    ) && reference_type_matches(program, collection, required, &substitutions)
+    ) && correspondence(program, collection, required, &substitutions)
 }
 
 pub(super) fn projected_matches_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
     required: TypeReferenceHandle,
+    correspondence: ReferenceCorrespondence,
 ) -> bool {
     let mut substitutions = Vec::new();
     let Some(actual) = declared_value_type(program, expression, &mut substitutions) else {
@@ -285,9 +383,18 @@ pub(super) fn projected_matches_reference(
     let Some(actual) = substituted_reference(program, actual, &substitutions) else {
         return false;
     };
+    correspondence(program, actual, required, &substitutions)
+}
+
+pub(super) fn declared_value_matches_reference(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
     let actual_identity = |reference| {
         program.type_identity(TypeIdentityRequest {
-            substitutions: &substitutions,
+            substitutions,
             ..TypeIdentityRequest::ordinary(reference)
         })
     };
@@ -303,20 +410,20 @@ pub(super) fn projected_matches_reference(
         program.type_reference_table.type_reference(actual),
         TypeReferenceNode::Reference { .. }
     ) {
-        return reference_type_matches(program, actual, required, &substitutions);
+        return reference_type_matches(program, actual, required, substitutions);
     }
     // The existing implicit shared borrow of an owned field still needs that
     // field's actual type. Member syntax alone cannot match an arbitrary referee.
     *required_access == ReferenceAccess::Shared
         && (actual_identity(actual) == program.normalized_type_identity(*required_referee)
-            || owned_array_projects_to_slice(program, actual, *required_referee, &substitutions)
+            || owned_array_projects_to_slice(program, actual, *required_referee, substitutions)
             || owned_array_satisfies_constrained_referee(
                 program,
                 actual,
                 *required_referee,
-                &substitutions,
+                substitutions,
             )
-            || fixed_array_binds_open_length(program, actual, *required_referee, &substitutions))
+            || fixed_array_binds_open_length(program, actual, *required_referee, substitutions))
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.

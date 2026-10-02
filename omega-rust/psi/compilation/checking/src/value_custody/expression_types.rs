@@ -1,7 +1,7 @@
 //! Expression types: whether an expression's value may be delivered to a
 //! declared type, and which type an expression produces.
 //!
-//! There is no single entrance. This file owns one check and four queries.
+//! This file owns expression validation and the type queries it shares with callers.
 //! `validate_expression_type_handle` is the check: the expression-statement
 //! validator in `program_validation::statements` runs it on a state's
 //! terminal expression. It reports a string literal that exceeds a bounded
@@ -9,7 +9,9 @@
 //! `argument_matches_type_reference_handle` compares one argument with a
 //! declared type for the call, machine-data, machine-parameter and proof
 //! validators; the crate exports it as `checked_argument_matches_type_reference`
-//! for package review. `named_value_type_reference` finds the declared type
+//! for package review. Runtime calls use `argument_matches_carrier`, which
+//! shares that expression walk but leaves declared-domain proof to their flow
+//! contract checker. `named_value_type_reference` finds the declared type
 //! of a named binder, `bounded_byte_buffer_capacity` reads the capacity of a
 //! domain-constrained `[u8; N]` text carrier, and `expression_type_name_handle`
 //! names an expression's kind in diagnostics.
@@ -113,15 +115,45 @@ impl fmt::Display for ExpressionTypeOwner<'_> {
     }
 }
 
-/// Recheck one typed argument against an exact declared type.
-///
-/// Compiler-internal consumers such as package admission use this after the
-/// main validation pass to reject typed-tree state that no longer agrees with
-/// the declaration which originally admitted it.
+/// Recheck an argument's declared type correspondence. This supplies neither
+/// flow facts nor domain proof; post-check and logical-formation consumers use
+/// the declaration-backed reference relation instead of runtime call evidence.
 pub fn argument_matches_type_reference_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
+) -> bool {
+    argument_matches_type_reference_using(
+        program,
+        argument,
+        type_reference,
+        reference_values::declared_value_matches_reference,
+    )
+}
+
+/// Match a runtime argument before the call's independent flow contract check.
+/// Carrier and access must correspond, while a shared referee's declared-domain
+/// requirements may be proved from the actual's live facts. Logical formation
+/// and package-review rechecks have no such call context and use the declared
+/// correspondence above. Both judgments traverse the identical expressions.
+pub(crate) fn argument_matches_carrier(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    argument_matches_type_reference_using(
+        program,
+        argument,
+        type_reference,
+        reference_values::value_carrier_matches_reference,
+    )
+}
+
+fn argument_matches_type_reference_using(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+    correspondence: reference_values::ReferenceCorrespondence,
 ) -> bool {
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
         if matches!(
@@ -133,7 +165,12 @@ pub fn argument_matches_type_reference_handle(
         let arms = program.expression_table.match_arms(dispatch.arms);
         return !arms.is_empty()
             && arms.iter().all(|arm| {
-                argument_matches_type_reference_handle(program, arm.value, type_reference)
+                argument_matches_type_reference_using(
+                    program,
+                    arm.value,
+                    type_reference,
+                    correspondence,
+                )
             });
     }
     if let ExpressionNode::Borrow(inner_expression) = program.expression_table.expression(argument)
@@ -145,10 +182,15 @@ pub fn argument_matches_type_reference_handle(
             return false;
         };
         return inner_expression.access == *access
-            && argument_matches_type_reference_handle(program, inner_expression.target, *referee);
+            && argument_matches_type_reference_using(
+                program,
+                inner_expression.target,
+                *referee,
+                correspondence,
+            );
     }
 
-    // A resolved reference result has an exact referee type. Do not let the
+    // A resolved reference result has a declared referee carrier. Do not let the
     // permissive scalar-call or implicit-shared syntax fallbacks erase it.
     if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
         && let Some(actual) = crate::machine_calls::calls::resolved_call_result_type(program, call)
@@ -157,7 +199,7 @@ pub fn argument_matches_type_reference_handle(
             TypeReferenceNode::Reference { .. }
         )
     {
-        return reference_values::reference_type_matches(program, actual, type_reference, &[]);
+        return correspondence(program, actual, type_reference, &[]);
     }
 
     // An element projection selects a stored value; a range constructs a view
@@ -176,7 +218,12 @@ pub fn argument_matches_type_reference_handle(
             TypeReferenceNode::Reference { .. }
         )
     {
-        return reference_values::projected_matches_reference(program, argument, type_reference);
+        return reference_values::projected_matches_reference(
+            program,
+            argument,
+            type_reference,
+            correspondence,
+        );
     }
 
     // A reference already stored in a named parameter/local is a value of its
@@ -220,7 +267,7 @@ pub fn argument_matches_type_reference_handle(
         {
             return true;
         }
-        return reference_values::reference_type_matches(program, actual, type_reference, &[]);
+        return correspondence(program, actual, type_reference, &[]);
     }
 
     let argument_node = program.expression_table.expression(argument);
@@ -234,7 +281,12 @@ pub fn argument_matches_type_reference_handle(
             program.expression_table.expression(indexed.index),
             ExpressionNode::Range(_)
         )
-        && reference_values::subslice_view_matches_reference(program, indexed, type_reference)
+        && reference_values::subslice_view_matches_reference(
+            program,
+            indexed,
+            type_reference,
+            correspondence,
+        )
     {
         return true;
     }
@@ -253,7 +305,12 @@ pub fn argument_matches_type_reference_handle(
             );
             *access == language_semantics::ReferenceAccess::Shared
                 && implicit_shared_source_has_identity
-                && argument_matches_type_reference_handle(program, argument, *referee)
+                && argument_matches_type_reference_using(
+                    program,
+                    argument,
+                    *referee,
+                    correspondence,
+                )
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             // A literal may directly establish an owned bounded text carrier
@@ -265,7 +322,12 @@ pub fn argument_matches_type_reference_handle(
             (matches!(argument_node, ExpressionNode::String(literal)
                 if bounded_byte_buffer_capacity(program, type_reference)
                     .is_some_and(|capacity| literal.len() <= capacity))
-                || argument_matches_type_reference_handle(program, argument, *base_type))
+                || argument_matches_type_reference_using(
+                    program,
+                    argument,
+                    *base_type,
+                    correspondence,
+                ))
         }
         TypeReferenceNode::FixedArray { .. } => matches!(
             argument_node,
