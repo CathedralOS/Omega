@@ -1,0 +1,12 @@
+use omega_language_std::console;
+machine main() reaches Console {
+    transition { _ -> take([30, 40]) }
+    state take(values: [i32; 2]) {
+        transition values[0] == 30 && values[1] == 40 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
+}
