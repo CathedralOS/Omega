@@ -41,21 +41,21 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console {
-    self.console.write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
-    self.line = "                        ";
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.bx = 3.0;
-    self.by = 1.0;
-    self.vx = 0.85;
-    self.vy = 0.0;
-    self.ball_x = 3;
-    self.ball_y = 1;
-    self.frame = 0;
-    transition { _ -> frame_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console {
+    main.console.write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
+    main.line = "                        ";
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.bx = 3.0;
+    main.by = 1.0;
+    main.vx = 0.85;
+    main.vy = 0.0;
+    main.ball_x = 3;
+    main.ball_y = 1;
+    main.frame = 0;
+    transition { _ -> frame_loop(main) }
 
     state frame_loop(main: &mut Main) {
         transition main.frame < 70 { true -> frame_start(main) _ -> finish(main) }

@@ -285,19 +285,21 @@ execution and native exit/output. A moved refusal is still unfinished work.
   naming their subject.
 
 - **STATIC-ENTRY-PROOF-REACH.** (split-of:STATIC-MACHINE-MIGRATION)
-  Finish the named-entry migration for
-  `samples/cli/{rendering/bouncing_ball_2d,rendering/mandelbrot,
-  rendering/mandelbrot_zoom,algorithms/maze_flood,arithmetic/prime_sieve}`.
-  These five customers have not been rerun since the state-parameter proof
-  repairs; their earlier attempts reached unavailable operation proofs or
-  private proof-search capacity limits. Reproduce each current boundary before
-  changing inference or budgets. `OMEGA_DUMP_OBLIGATIONS=1` exposes reconstructed
-  goals and axioms. Preserve exact storage bindings across states and independent
-  all-arrival proof checks; parameter names do not establish storage identity.
-  Acceptance: migrate each entry under the static-machine contract without
-  changing its algorithm, verify its documented native output/exit and checked-
-  interpreter agreement, and retain rejection controls for substituted storage
-  and invalid numeric bounds.
+  Remaining acceptance: checked-interpreter agreement for
+  `samples/cli/rendering/{bouncing_ball_2d,mandelbrot_zoom}`. Both named entries
+  now run natively on macOS ARM64 with exit 0 and exact full animation output
+  (70 ball frames and 12 zoom frames). `omega run --both <sample>/main.omg`
+  still declines interpretation at the bodyless `ClockNativeProvider::poll`
+  requirement; CLI exit 0 reflects native success, not interpreter agreement.
+  The checked `ClockNativeProvider::sleep` adapter must remain executable.
+  Carry the selected wait provider's exact identity into checked interpretation
+  through an explicit receiving contract; no `poll` spelling match or bypass
+  of the adapter. The CLI interpreter uses virtual host state before native
+  admission, so preserve that policy, exact duration (including zero), and
+  host-effect accounting. Owners: checked-interpreter `execution/host_dispatch.rs`
+  and CLI `execution/compilation.rs`. Acceptance: both engines exit 0 for these
+  unchanged programs, retain the complete native frame oracles, and reject
+  substituted provider identities or unsupported wait operands.
 
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is

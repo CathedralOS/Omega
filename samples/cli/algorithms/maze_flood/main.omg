@@ -55,23 +55,23 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
-    self.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
-    self.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
+    main.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
+    main.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
                  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
                  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1];
-    self.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    main.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    self.dr = [0 - 1, 1, 0, 0];
-    self.dc = [0, 0, 0 - 1, 1];
-    self.line = "                ";
-    self.dist[0] = 0;
-    self.queue[0] = 0;
-    self.head = 0;
-    self.tail = 1;
-    self.count = 1;
-    transition { _ -> bfs_loop(&mut self) }
+    main.dr = [0 - 1, 1, 0, 0];
+    main.dc = [0, 0, 0 - 1, 1];
+    main.line = "                ";
+    main.dist[0] = 0;
+    main.queue[0] = 0;
+    main.head = 0;
+    main.tail = 1;
+    main.count = 1;
+    transition { _ -> bfs_loop(main) }
 
     // --- BFS (grid pathfinding) ---
     state bfs_loop(main: &mut Main) {

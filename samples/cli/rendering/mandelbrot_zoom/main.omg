@@ -45,17 +45,17 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console {
-    self.console.write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
-    self.palette = " .:-=+*#";
-    self.row = "................................................";
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.span = 3.0;
-    self.frame = 0;
-    transition { _ -> frame_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Clock + Console {
+    main.console.write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
+    main.palette = " .:-=+*#";
+    main.row = "................................................";
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.span = 3.0;
+    main.frame = 0;
+    transition { _ -> frame_loop(main) }
 
     state frame_loop(main: &mut Main) {
         transition main.frame < 12 { true -> frame_init(main) _ -> finish(main) }

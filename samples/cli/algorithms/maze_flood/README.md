@@ -17,6 +17,12 @@ checked interpreter must both exit **0**. The maze's shortest distances are:
 12 13 14 15 16
 ```
 
+The named entry forwards its context through the states. Both engines exit 0
+on macOS ARM64. Each displayed row has two trailing spaces in the actual output,
+making 16 bytes before LF; the complete native stdout, including banner, PASS
+line and closing prompt, is 235 bytes. All five rows and the full output were
+compared exactly.
+
 This example composes guarded array reads/writes, loops, integer arithmetic,
 and byte rendering. Proof search must retain proved consequences and share case
 selection across those operations; retrying permutations of the same facts can
