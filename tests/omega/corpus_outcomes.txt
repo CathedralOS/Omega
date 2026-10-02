@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.02, "load1_start": 4.02, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.51, "load1_start": 4.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1474,6 +1474,7 @@ pass/control_flow/case_pattern_rename_waive_exit checked 1765ms @ca8c127c90c5
 pass/control_flow/composite_state_parameter checked 1293ms @2d8ed253669f
 pass/control_flow/conditional_unit_completion_exit checked 1498ms @2d8ed253669f
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 303ms @2d8ed253669f
+pass/control_flow/edge_call_nested_structural_operand_exit checked 779ms @ff183e7f95fb+wt
 pass/control_flow/explicit_state_value_frontier checked 306ms @2d8ed253669f
 pass/control_flow/field_subject_named_arm_chain checked 1463ms @2d8ed253669f
 pass/control_flow/field_view_transfer_exit checked 1421ms @2d8ed253669f
@@ -1484,6 +1485,7 @@ pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
 pass/control_flow/guarded_value_transition_roster checked 1554ms @15f38e49aac2+wt
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
+pass/control_flow/nested_structural_call_operand_exit checked 916ms @ff183e7f95fb+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 1890ms @2d8ed253669f
 pass/control_flow/ordered_unconditional_arm_exit checked 1444ms @2d8ed253669f
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms @af9f91f2fb06+wt

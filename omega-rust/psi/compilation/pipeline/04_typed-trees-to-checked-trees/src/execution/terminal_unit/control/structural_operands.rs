@@ -96,7 +96,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     trivial_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    preamble: &mut Vec<CheckedUnitEffectOperationPlan>,
+    preamble: &[CheckedUnitEffectOperationPlan],
     count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
@@ -120,7 +120,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 if call.authored_expression != plans.nodes.get(value).expression {
                     return None;
                 }
-                let mut preparation = preamble.clone();
+                let mut preparation = preamble.to_vec();
                 let predecessor_count = preparation.len();
                 plan_call_operands(
                     program,
@@ -767,7 +767,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     trivial_affine_locals,
                     entry_claims,
                     structural_results,
-                    &mut *operations,
+                    &*operations,
                     &mut *structural_count,
                     root.root,
                     trace,
