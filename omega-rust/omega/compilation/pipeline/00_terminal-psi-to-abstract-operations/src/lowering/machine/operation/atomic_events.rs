@@ -1,7 +1,7 @@
 //! A verified Terminal `AtomicAccess` becomes one normalized abstract atomic
 //! event, with its retained coherence edges.
 //!
-//! The event keeps its exact location (machine parameter root, static carrier
+//! The event keeps its exact location (the live arrival root, static carrier
 //! path, scalar field), operation, orderings, operands and observed prior, so
 //! optimization cannot split it into a read and a store and target refinement
 //! can choose one instruction for it.
@@ -11,26 +11,18 @@
 //! The optimization unit rechecks every event's `reads_from` and
 //! `modification_after` claim against its own happens-before replay
 //! (`happens_before_atomic_coherence_violation`), so this producer must name
-//! exactly the write the event observes or immediately follows in its
-//! location's modification order. It computes that from the Terminal graph by
-//! a forward reaching-writes fixpoint whose facts are `Initial` (the residency
-//! the activation received), one atomic write, or `Unknown`:
+//! exactly the write the event observes or immediately follows. Trace the
+//! location backward from the event, stopping at the latest write on each path.
+//! Whole-storage edge bindings rename the root while retaining its path and
+//! field. Ordinary control edges preserve a dominating name. Projected or
+//! ambiguous bindings cannot establish this exact-location relation.
 //!
-//! - an atomic writing event on the same location replaces the fact with
-//!   itself;
-//! - any other operation that may write the location's root — a scalar field
-//!   store to the same field, a call or projection that lends the root with
-//!   write authority, a reference that could alias it — makes it `Unknown`,
-//!   because the retained edges name only atomic events in this activation;
-//! - a join unions the facts of its arrivals.
-//!
-//! An event whose reaching fact is exactly `Initial` or exactly one atomic
-//! write gets that edge; anything else (a join of different writes, or an
-//! intervening non-atomic write or lending call) has no single checkable
-//! predecessor, and lowering refuses rather than retaining a claim the
-//! concurrency contract would not support. Only machine-parameter roots are
-//! admitted: a block parameter may alias the same storage under another place
-//! identity, which would split one modification order in two.
+//! The frontier contains invocation residency, an atomic write, or an unknown
+//! intervening write/loan. Only one unanimous frontier supplies a retained edge;
+//! branch-selected writes and opaque mutation refuse. The finite (block, root)
+//! worklist follows cycles without treating a repeated visit as new evidence.
+//! Event locations stay block-local so downstream authority and native address
+//! checks use the actual arrival declaration, not an invented invocation alias.
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
@@ -62,10 +54,7 @@ pub(super) fn lower(
         unreachable!("the atomic router dispatches only AtomicAccess");
     };
     let malformed = || LoweringError::VerifiedAtomicAccessMalformed(operation.id);
-    let root = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *place)
+    let root = terminal_semantics::arrival_parameter(machine, *place)
         .ok_or(LoweringError::UnsupportedAtomicAccess(operation.id))?;
     let leaf =
         field_type(structural_types, root.structural_type, path, *field).ok_or_else(malformed)?;
@@ -261,42 +250,58 @@ fn reaching_fact(
         .iter()
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
-    let mut arrivals: BTreeMap<BlockId, BTreeSet<Reaching>> =
-        BTreeMap::from([(machine.entry, BTreeSet::from([Reaching::Initial]))]);
-    let mut pending = vec![machine.entry];
-    while let Some(block) = pending.pop() {
-        let mut fact = arrivals.get(&block).cloned().unwrap_or_default();
-        for operation in &blocks.get(&block).ok_or_else(unsupported)?.operations {
-            transfer(operation, &location, &mut fact);
+    let mut reached = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(target_block, target_index, location.0)];
+    while let Some((block, before, root)) = pending.pop() {
+        // The target prefix and a full revisit through a backedge are different
+        // execution points. A write in the latter belongs to an earlier turn.
+        if !visited.insert((block, before, root)) {
+            continue;
         }
-        for (successor, lends_root) in successors(
-            &blocks.get(&block).ok_or_else(unsupported)?.terminator,
-            location.0,
-        ) {
-            // An edge binding the root to a target block parameter hands the
-            // storage to another place identity whose writes this fact does
-            // not follow.
-            let arriving = if lends_root {
-                BTreeSet::from([Reaching::Unknown])
-            } else {
-                fact.clone()
-            };
-            let entry = arrivals.entry(successor).or_default();
-            let before = entry.len();
-            entry.extend(arriving);
-            if entry.len() != before || before == 0 {
-                pending.push(successor);
+        let declaration = blocks.get(&block).ok_or_else(unsupported)?;
+        let local = (root, location.1.clone(), location.2);
+        if let Some(write) = declaration.operations[..before]
+            .iter()
+            .rev()
+            .find_map(|operation| latest_write(operation, &local))
+        {
+            reached.insert(write);
+            continue;
+        }
+        if block == machine.entry {
+            reached.insert(
+                if machine
+                    .structural_parameters
+                    .iter()
+                    .any(|row| row.place == root)
+                {
+                    Reaching::Initial
+                } else {
+                    Reaching::Unknown
+                },
+            );
+        }
+        let mut has_predecessor = false;
+        for predecessor in &machine.blocks {
+            if !successors(&predecessor.terminator).contains(&block) {
+                continue;
+            }
+            has_predecessor = true;
+            match terminal_semantics::root_before_edge(machine, block, predecessor, root) {
+                Some(source) => {
+                    pending.push((predecessor.id, predecessor.operations.len(), source))
+                }
+                None => {
+                    reached.insert(Reaching::Unknown);
+                }
             }
         }
+        if block != machine.entry && !has_predecessor {
+            reached.insert(Reaching::Unknown);
+        }
     }
-    let mut fact = arrivals
-        .get(&target_block)
-        .cloned()
-        .ok_or_else(unsupported)?;
-    for operation in &blocks[&target_block].operations[..target_index] {
-        transfer(operation, &location, &mut fact);
-    }
-    Ok(fact)
+    Ok(reached)
 }
 
 type Location = (
@@ -305,8 +310,8 @@ type Location = (
     semantic_vocabulary::StructuralFieldId,
 );
 
-/// Apply one operation's effect on `location`'s latest-write fact.
-fn transfer(operation: &Operation, location: &Location, fact: &mut BTreeSet<Reaching>) {
+/// The first preceding operation that prevents looking farther for a write.
+fn latest_write(operation: &Operation, location: &Location) -> Option<Reaching> {
     let (root, path, field) = location;
     match &operation.kind {
         OperationKind::AtomicAccess {
@@ -320,7 +325,7 @@ fn transfer(operation: &Operation, location: &Location, fact: &mut BTreeSet<Reac
                 && other_field == field
                 && event.modifies_resident()
             {
-                *fact = BTreeSet::from([Reaching::Atomic(operation.id)]);
+                return Some(Reaching::Atomic(operation.id));
             }
         }
         OperationKind::StructuralScalarFieldStore {
@@ -329,8 +334,11 @@ fn transfer(operation: &Operation, location: &Location, fact: &mut BTreeSet<Reac
             field: other_field,
             ..
         } => {
-            if destination == root && other_path == path && other_field == field {
-                *fact = BTreeSet::from([Reaching::Unknown]);
+            if destination == root
+                && terminal_semantics::structural_paths_may_overlap(other_path, path)
+                && other_field == field
+            {
+                return Some(Reaching::Unknown);
             }
         }
         // Observations never write, and a shared loan never admits a write
@@ -351,10 +359,11 @@ fn transfer(operation: &Operation, location: &Location, fact: &mut BTreeSet<Reac
                 .any(|projection| projection.root == *root)
                 && !shared_only(&operation.kind, *root);
             if lends_root {
-                *fact = BTreeSet::from([Reaching::Unknown]);
+                return Some(Reaching::Unknown);
             }
         }
     }
+    None
 }
 
 /// Whether every structural argument naming `root` lends it shared.
@@ -388,35 +397,20 @@ fn shared_only(kind: &OperationKind, root: PlaceId) -> bool {
         .all(|argument| argument.access == StructuralAccess::SharedBorrow)
 }
 
-/// Each successor block, and whether its edge binds `root` to one of the
-/// target's structural parameters.
-fn successors(terminator: &Terminator, root: PlaceId) -> Vec<(BlockId, bool)> {
-    let binds = |arguments: &[terminal_psi::StructuralArgument]| {
-        arguments.iter().any(|argument| argument.place == root)
-    };
+/// Actual control successors, including edges that carry no structural data.
+fn successors(terminator: &Terminator) -> Vec<BlockId> {
     match terminator {
-        Terminator::Jump {
-            target,
-            structural_arguments,
-            ..
-        } => vec![(*target, binds(structural_arguments))],
+        Terminator::Jump { target, .. } => vec![*target],
         Terminator::Conditional {
             when_true,
             when_false,
             ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|edge| (edge.target, binds(&edge.structural_arguments)))
-            .collect(),
-        Terminator::StructuralCase { source, cases } => cases
-            .iter()
-            .map(|successor| (successor.target, *source == root))
-            .collect(),
-        Terminator::Return { .. }
-        | Terminator::ReturnUnit { .. }
-        | Terminator::ReturnUnitPartialAffine { .. }
-        | Terminator::ReturnUnitNominalAffine { .. }
-        | Terminator::ReturnStructural { .. }
-        | Terminator::Crash { .. } => Vec::new(),
+        } => {
+            vec![when_true.target, when_false.target]
+        }
+        Terminator::StructuralCase { cases, .. } => {
+            cases.iter().map(|successor| successor.target).collect()
+        }
+        _ => Vec::new(),
     }
 }

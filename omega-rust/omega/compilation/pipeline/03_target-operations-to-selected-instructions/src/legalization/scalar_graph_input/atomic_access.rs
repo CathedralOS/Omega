@@ -102,10 +102,7 @@ pub(in crate::legalization) fn access(
 ) -> Option<Access> {
     let location = source.location()?;
     let (event, result) = event(source)?;
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == location.root)?;
+    let parameter = function.arrival_parameter(location.root)?;
     if !event.ordering_is_legal()
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()

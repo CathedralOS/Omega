@@ -25,11 +25,7 @@ pub(super) fn form(
     };
     let form = AtomicForm::from_access(*scalar_type, *event)?;
     let signature = source.structural.as_ref()?;
-    let parameter = &signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == location.place)?
-        .semantic;
+    let parameter = crate::selection::arrival_parameter_input::parameter(source, location.place)?;
     if parameter.access != location.access
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()

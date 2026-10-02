@@ -46,9 +46,9 @@ pub enum LoweringError {
     /// A verified Trapping primitive's operands did not rejoin its result
     /// carrier, or a shift count or conversion source was not an integer.
     VerifiedTrappingIntegerMalformed(semantic_vocabulary::OperationId),
-    /// A verified atomic access whose root is not a machine structural
-    /// parameter: a block parameter may alias the same storage under another
-    /// place identity, splitting one modification order in two.
+    /// A verified atomic access whose root has no exact machine or block
+    /// arrival declaration. Operation-result storage needs its own supported
+    /// residency contract before it can participate in retained coherence.
     UnsupportedAtomicAccess(semantic_vocabulary::OperationId),
     /// A verified atomic access whose location, result, or ordering did not
     /// rejoin its declared scalar field and normalized event.

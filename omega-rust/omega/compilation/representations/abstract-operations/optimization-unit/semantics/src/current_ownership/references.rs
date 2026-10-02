@@ -897,6 +897,20 @@ pub(super) fn apply_operation(
         return Err(invalid(function, block, Some(node), "operation result remains pinned by live reference custody"));
     }
     match operation {
+        O::AtomicEvent { event, .. } => {
+            if let Some(location) = event.location() {
+                check_record_field_access(
+                    function,
+                    structural_types,
+                    block,
+                    node,
+                    live,
+                    location.root,
+                    &location.path,
+                    Some(location.field),
+                )?;
+            }
+        }
         O::ReleaseReference { source, .. } => {
             return release(function, block, Some(node), live, *source);
         }

@@ -6,14 +6,14 @@
 //   fetch_add        -> LOCK xadd  (x86_64) / LDADD (aarch64, NoOrdering)
 //   compare_exchange -> LOCK CMPXCHG (x86_64) / CASAL (aarch64)
 //
-// All operands are constants and nothing is passed as a state argument, so the
-// program compiles for every declared target. Exit 70 iff all ops behaved:
+// The same atomic counter is forwarded through named state parameters.
+// Exit 70 iff all operations behaved:
 //   store(10); fetch_add(5)  -> old1==10, counter==15
 //   compare_exchange(15,99)  -> prior==15 (match), counter==99
 //   Publish store/Receive load and GlobalOrder store/load round-trip
 //
-// Verified on the host (windows_x86_64) by execution; the aarch64 LDADD/CASAL
-// paths are verified by cross-emission + disassembly (this box cannot run them).
+// The named-entry form runs natively and in the checked interpreter on
+// macOS ARM64. Other declared targets retain their matching-host obligations.
 
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -24,14 +24,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
-    self.counter.store(10, NoOrdering);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
+    main.counter.store(10, NoOrdering);
 
-    let old1: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
+    let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
     transition old1 == 10 {
-        true -> after_add(&mut self)
-        _ -> bad(&mut self)
+        true -> after_add(main)
+        _ -> bad(main)
     }
 
     state after_add(main: &mut Main) {

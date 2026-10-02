@@ -36,7 +36,49 @@ pub(crate) fn validate_function_atomic_coherence(
             )
         })
         .collect();
-    match happens_before_atomic_coherence_violation(&sequences, predecessors, dominators) {
+    match happens_before_atomic_coherence_violation(
+        &sequences,
+        predecessors,
+        dominators,
+        function.entry,
+        |predecessor, successor, root| {
+            let predecessor = function
+                .blocks
+                .iter()
+                .find(|block| block.id == predecessor)?;
+            let target = function.blocks.iter().find(|block| block.id == successor)?;
+            let is_parameter = target
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == root);
+            let mut mapped = None;
+            for edge in predecessor
+                .nodes
+                .iter()
+                .flat_map(|node| &node.successors)
+                .filter(|edge| edge.target == successor)
+            {
+                // Case payloads are not whole-storage forwarding bindings. A
+                // target-owned formal must have its exact binding on every edge.
+                if is_parameter
+                    && edge
+                        .structural_bindings
+                        .iter()
+                        .filter(|binding| binding.parameter == root)
+                        .count()
+                        != 1
+                {
+                    return None;
+                }
+                let before = crate::unit_validation::arrival_storage::root_before_edge(edge, root)?;
+                if mapped.is_some_and(|earlier| earlier != before) {
+                    return None;
+                }
+                mapped = Some(before);
+            }
+            mapped
+        },
+    ) {
         Some((block, node, violation)) => Err(
             OptimizationUnitValidationError::AtomicEventCoherenceMismatch {
                 machine: function.machine,

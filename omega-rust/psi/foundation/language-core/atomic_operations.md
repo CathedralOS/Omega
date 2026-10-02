@@ -2,9 +2,7 @@
 
 Contract: [concurrency and atomic observation](../../../../wiki/spec/language/concurrency.md).
 [atomic.rs](src/atomic/mod.rs) owns the shared normalized atomic ordering vocabulary.
-[Core surface tests](../../../omega/compiler/tests/atomic_core_surface.rs)
-pin exact public outcome identities and payload shapes. The
-[access-plan owner](../access-plans/README.md) separately validates placed
+The [access-plan owner](../access-plans/README.md) separately validates placed
 permissions, resident custody, and specialized requests.
 
 Keep decisive/single-attempt and observing/non-observing axes independent.
@@ -14,7 +12,7 @@ An unsupported single-attempt route must reject rather than erase `Uncommitted`
 into a decisive scalar carrier. Generic outcomes retain payload multiplicity;
 neither result shape nor zero initialization proves an event happened.
 
-Every atomic family takes a shared receiver. The access-plan vocabulary
+Every atomic family takes shared access to its storage. The access-plan vocabulary
 carries that fact as `AccessOperation::receiver_polarity`, and validation's
 `value_custody::atomic_operations` reads it so a store, fetch, swap, or
 compare-exchange on an atomic cell is admitted through `&self` while ordinary
@@ -49,12 +47,14 @@ Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same
 `AbstractAtomicLocation` (root place, carrier path, field). It adds the
 `reads_from` and `modification_after` edges that the optimization unit's
-happens-before replay rechecks. A forward reaching-writes pass over the
-activation names the one write each event observes or follows. Lowering
-refuses rather than guessing when that write is ambiguous. That happens at a
-join of distinct writes, at a non-atomic write or write-authority loan of the
-root between them, when an edge hands the root to a block parameter, or when
-the root is not a machine parameter.
+happens-before replay rechecks. A backward latest-write analysis follows the actual whole-storage edge
+bindings, so a state parameter keeps the same modification history under its
+own place identity. The independent unit checker reconstructs that relation
+from its current edges and rejects substituted backing, stale initial-residency
+claims, ambiguous writes and intervening non-atomic writes or exclusive loans.
+The event retains its block-local root: arrival declarations supply access and
+layout through target lowering and independent native selection. Projected or
+ambiguous edge bindings still refuse rather than guessing a storage identity.
 
 Instruction mappings and serial differential tests are not proofs of concurrent
 observations. Complete memory-model/fence axioms, target-refinement proofs,
