@@ -1,11 +1,18 @@
-//! Complete whole affine custody in scalar graphs: invocation owners enter at
-//! entry, while no-code borrowed descriptor carriers enter at their result birth.
-use super::super::{
-    BlockId, StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction,
-};
-use super::{Block, LoweringError, StructuralParameterDeclaration, Terminator, unsupported};
+//! Complete no-code affine carrier custody after a body's operation graph exists.
+//!
+//! Callers supply only entry owners whose cleanup they delegate here. Existing
+//! statement cleanup remains authoritative; otherwise unhandled borrowed-view
+//! carriers enter at their result birth and are disposed before their owners.
+//! Carrier disposal grants no ownership of borrowed backing storage.
+//! Cyclic descriptor forwarding and nominal cleanup remain outside this pass.
 use crate::direct_calls::call_structural_arguments;
+use crate::lowering_error::{LoweringError, unsupported};
+use semantic_vocabulary::BlockId;
 use std::collections::VecDeque;
+use terminal_psi::{
+    Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    TerminalAffineCleanupAction, Terminator,
+};
 
 #[cfg(test)]
 mod tests;
@@ -13,9 +20,10 @@ mod tests;
 /// The caller must first establish source no-code signature eligibility through
 /// parameter_storage -> owned::validate, including permissions and exclusion of
 /// nominal cleanup. Terminal multiplicity alone does not establish eligibility.
-/// This private pass completes that custody through calls and continuations;
+/// Pass an empty parameter roster when another emitter owns entry cleanup.
+/// This pass completes the delegated custody through calls and continuations;
 /// the independent verifier checks types, reads, and disposal completeness.
-pub(super) fn complete(
+pub(crate) fn complete(
     parameters: &[StructuralParameterDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
