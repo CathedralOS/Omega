@@ -897,9 +897,6 @@ the complete product bar; focused successes below do not establish that baseline
     `calls/guarded_arm_view_range_tail_call_exit` and
     `slices/runtime_bounded_fixed_array_subslice_arg_exit` (golden exits 70,
     70, 70 and 3).
-  - `47b444c202` (shared range descriptor production) stops
-    `borrows/runtime_released_loan_with_forwarded_view_exit` (golden 70) at
-    stage 04 `call operation: structural arguments: argument place`.
   - `a094beb6bb0` or `531d2642067` (unit-local and scalar value refinements;
     the first does not build alone, so the bisect cannot split them) stops
     `float/float_saturating_arithmetic_exit` (golden 77) at
