@@ -334,40 +334,7 @@ fn byte_carrier_literal_equality(
         else {
             continue;
         };
-        let mut equality = CheckedBooleanExpression::IntegerComparison {
-            kind: CheckedIntegerComparisonKind::Equal,
-            left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
-                root,
-                path: path.clone(),
-            }),
-            right: Box::new(integer_literal(
-                u64::try_from(bytes.len()).ok()?,
-                PrimitiveType::U64,
-            )?),
-        };
-        for (index, byte) in bytes.iter().enumerate() {
-            let read = CheckedScalarExpression::StructuralParameterIndexedRead {
-                root,
-                path: path.clone(),
-                index: Box::new(integer_literal(
-                    u64::try_from(index).ok()?,
-                    PrimitiveType::U64,
-                )?),
-                inner_indexes: Vec::new(),
-                element_path: Vec::new(),
-                primitive_type: PrimitiveType::U8,
-            };
-            let comparison = CheckedBooleanExpression::IntegerComparison {
-                kind: CheckedIntegerComparisonKind::Equal,
-                left: Box::new(read),
-                right: Box::new(integer_literal(u64::from(*byte), PrimitiveType::U8)?),
-            };
-            equality = CheckedBooleanExpression::And {
-                left: Box::new(equality),
-                right: Box::new(comparison),
-            };
-        }
-        return Some(equality);
+        return CheckedBooleanExpression::byte_literal_equality(root, path, bytes);
     }
     None
 }
@@ -462,7 +429,7 @@ fn byte_carrier_pair_equality(
 /// The storage root, path and carrier of a byte carrier whose live length and
 /// bytes a content comparison may observe, or `None` when `carrier` names no
 /// such place.
-fn comparable_byte_carrier(
+pub(super) fn comparable_byte_carrier(
     program: &TypedTrees,
     authored_parameters: &[StateParameter],
     carrier: ExpressionHandle,
@@ -515,7 +482,7 @@ fn comparable_byte_carrier(
 /// The carrier of `type_reference` when it has a live byte length and
 /// readable bytes: a bounded owned byte buffer, or a shared or mutable
 /// borrowed byte view.
-fn comparable_byte_carrier_type(
+pub(super) fn comparable_byte_carrier_type(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {

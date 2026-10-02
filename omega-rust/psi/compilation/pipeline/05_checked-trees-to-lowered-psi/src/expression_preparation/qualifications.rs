@@ -105,7 +105,8 @@ impl PreparedScalarQualifications {
                     pending.push(*operand);
                 }
                 CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. } => {}
+                | CheckedScalarComputationKind::StructuralField { .. }
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
                 CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                     pending.push(*subject);
                     for arm in plans

@@ -740,6 +740,18 @@ fn subslice_site_range(
 ) -> Result<Option<checked_trees::expression::ExpressionHandle>, LoweringError> {
     let program = &checked.typed;
     Ok(match (authored, site) {
+        (_, checked_trees::CheckedSubsliceSite::Expression { expression }) => {
+            let mut present = false;
+            for (_, root) in program.statement_table.expression_roots(authored) {
+                if root.is_valid()
+                    && computation_calls::authored_expressions(checked, root)?.contains(&expression)
+                {
+                    present = true;
+                    break;
+                }
+            }
+            present.then_some(expression)
+        }
         (
             _,
             checked_trees::CheckedSubsliceSite::CallArgument {

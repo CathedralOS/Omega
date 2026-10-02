@@ -32,6 +32,7 @@ mod assignment;
 mod call_statement;
 mod expression_statement;
 pub(super) mod local_data;
+mod range_operands;
 mod transition;
 
 #[derive(Debug, Clone)]
@@ -166,6 +167,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                     binding_symbols: &mut binding_symbols,
                 };
                 array_elements::plan(planner.reborrow(), statement);
+                range_operands::plan(planner.reborrow(), statement);
                 match statement {
                     StatementNode::LocalData(local) => local_data::plan(planner, local),
                     StatementNode::Expression(expression) => {

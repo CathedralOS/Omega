@@ -29,6 +29,7 @@ use numerics::arithmetic::ArithmeticDomain;
 
 pub(crate) mod arrays;
 mod boundary_calls;
+mod byte_comparisons;
 mod calls;
 pub(crate) use calls::lower_inline_call;
 pub(crate) mod cases;
@@ -631,6 +632,16 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                source_expression,
+                subject,
+            } => self.byte_literal_comparison(
+                source_expression,
+                &subject,
+                input_types,
+                target,
+                site,
+            )?,
             CheckedScalarComputationKind::StructuralField { subject, field, .. } => {
                 let (site_machine, site_authored) =
                     crate::expression_preparation::source_custody::authored_state(

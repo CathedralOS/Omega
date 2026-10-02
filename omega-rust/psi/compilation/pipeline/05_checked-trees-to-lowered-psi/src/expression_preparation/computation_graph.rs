@@ -104,7 +104,8 @@ pub(crate) fn reachable_nodes(
                     pending.push(arm.value);
                 }
             }
-            CheckedScalarComputationKind::Value(_)
+            CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+            | CheckedScalarComputationKind::Value(_)
             | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Select {
                 condition,

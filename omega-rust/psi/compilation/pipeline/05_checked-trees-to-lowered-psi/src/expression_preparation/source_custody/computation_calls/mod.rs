@@ -11,6 +11,7 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
 mod borrowed_nominal_arguments;
+pub(crate) mod byte_comparisons;
 mod dispatch;
 mod mixed_arguments;
 mod operand_scopes;
@@ -72,6 +73,23 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
+            CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                source_expression,
+                subject,
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                if node.primitive_type != PrimitiveType::Bool {
+                    return unsupported("byte content comparison is not Boolean");
+                }
+                byte_comparisons::validate(checked, state, statement, *source_expression, subject)?;
+            }
             CheckedScalarComputationKind::StructuralField {
                 source_expression,
                 subject,
