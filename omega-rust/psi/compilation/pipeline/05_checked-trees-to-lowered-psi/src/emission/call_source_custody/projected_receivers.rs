@@ -218,38 +218,7 @@ fn resolve_source(
                 ) {
                     return unsupported("store destination index has no builtin address meaning");
                 }
-                let reference = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(state),
-                    indexed.collection,
-                )
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "store destination index has no declared collection",
-                ))?;
-                // A slice's extent is live, not declared: the emitted
-                // RuntimeIndex segment's Terminal obligation re-proves the
-                // bound against the view's own length witness, exactly as the
-                // literal-length fixed array's does against its declared one.
-                // A byte element keeps its established `ByteSequence` carrier
-                // and byte-store vocabulary; only the non-byte view family
-                // resolves here.
-                if !match checked.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::FixedArray {
-                        length: checked_trees::types::FixedArrayLength::Literal(_),
-                        ..
-                    } => true,
-                    TypeReferenceNode::Slice { element_type } => {
-                        checked.primitive_type_reference(*element_type)
-                            != Some(checked_trees::types::PrimitiveType::U8)
-                    }
-                    _ => false,
-                } {
-                    return unsupported("store destination index has no literal array length");
-                }
+                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ));
@@ -314,34 +283,7 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                let reference = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(state),
-                    indexed.collection,
-                )
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver index has no declared collection",
-                ))?;
-                // Same live-extent rule as the literal arm: a view-typed
-                // receiver's bound obligation replays against the view's
-                // own length witness, not a declared literal. A byte
-                // element keeps its `ByteSequence` carrier vocabulary.
-                if !match checked.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::FixedArray {
-                        length: checked_trees::types::FixedArrayLength::Literal(_),
-                        ..
-                    } => true,
-                    TypeReferenceNode::Slice { element_type } => {
-                        checked.primitive_type_reference(*element_type).is_none()
-                    }
-                    _ => false,
-                } {
-                    return unsupported("projected receiver index has no literal array length");
-                }
+                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
@@ -373,30 +315,7 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                let reference = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(state),
-                    indexed.collection,
-                )
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver index has no declared collection",
-                ))?;
-                if !match checked.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::FixedArray {
-                        length: checked_trees::types::FixedArrayLength::Literal(_),
-                        ..
-                    } => true,
-                    TypeReferenceNode::Slice { element_type } => {
-                        checked.primitive_type_reference(*element_type).is_none()
-                    }
-                    _ => false,
-                } {
-                    return unsupported("projected receiver index has no literal array length");
-                }
+                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::StructuralField(selector),
                 ));
@@ -419,43 +338,13 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                let reference = validation::declared_place_type_raw(
-                    &checked.typed,
+                validate_indexed_collection(
+                    checked,
                     machine,
-                    Some(state),
+                    state,
                     indexed.collection,
-                )
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver index has no declared collection",
-                ))?;
-                match checked.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::FixedArray {
-                        length: checked_trees::types::FixedArrayLength::Literal(length),
-                        ..
-                    } => {
-                        if usize::try_from(index)
-                            .ok()
-                            .is_none_or(|index| index >= *length)
-                        {
-                            return unsupported("projected receiver index is out of bounds");
-                        }
-                    }
-                    // A view-typed receiver carries no literal length: its
-                    // extent is the bound witness, and Terminal re-proves the
-                    // element against it exactly as the runtime selectors do.
-                    // Only a structural element projects through a view: a
-                    // primitive element (`bytes[0]` over `&[u8]`) is a scalar
-                    // element read, which keeps the storage-read route whose
-                    // source custody replays it.
-                    TypeReferenceNode::Slice { element_type }
-                        if checked.primitive_type_reference(*element_type).is_none() => {}
-                    _ => {
-                        return unsupported("projected receiver index has no literal array length");
-                    }
-                }
+                    Some(index),
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 captured_segments.push(facts::PlaceSegment::FixedIndex {
                     index: usize::try_from(index).map_err(|_| {
@@ -584,6 +473,47 @@ fn resolve_source(
         },
         erased_alias,
     })
+}
+
+/// Fixed arrays own a declared extent; element views own a live bound witness.
+/// Selector spelling changes neither collection identity nor addressability.
+/// This source join grants no bound or mutation permission: the operation's
+/// independent storage/loan and index obligations still establish those.
+fn validate_indexed_collection(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    collection: ExpressionHandle,
+    fixed_index: Option<u64>,
+) -> Result<(), LoweringError> {
+    let reference =
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), collection)
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .ok_or(LoweringError::Unsupported(
+                "projected index has no declared collection",
+            ))?;
+    match checked.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::FixedArray {
+            length: checked_trees::types::FixedArrayLength::Literal(length),
+            ..
+        } => {
+            if fixed_index.is_some_and(|index| {
+                usize::try_from(index)
+                    .ok()
+                    .is_none_or(|index| index >= *length)
+            }) {
+                return unsupported("projected receiver index is out of bounds");
+            }
+        }
+        // Byte views retain their byte-element operation and storage contract.
+        TypeReferenceNode::Slice { element_type }
+            if checked.primitive_type_reference(*element_type)
+                != Some(checked_trees::types::PrimitiveType::U8) => {}
+        _ => {
+            return unsupported("projected index has neither fixed-array nor element-view storage");
+        }
+    }
+    Ok(())
 }
 
 /// The element ordinal a fixed selector denotes: an integer literal, an
