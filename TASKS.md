@@ -1401,19 +1401,20 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `be20683757eb`
-  plus the case-source and retained-call-parameter repairs, on macOS ARM64,
-  source checking and local package review succeed; closed stdin exits 200
-  during Terminal production with `byte value parameter has no ordinary read
-  authority`. The next dependency is stage 05
-  `emission/structural_byte_sequence_store.rs::ValueEmitter::field_source`:
-  identify the actual source parameter and retain its ordinary read custody
-  through byte construction, without dropping qualifications or loan evidence.
-  Call scheduling now joins authored positions to the callee's exact retained
-  parameters; source syntax and argument counts cannot invent receiver slots.
-  `borrows/enum_selected_view_reference_exit` and
-  `calls/retained_receiver_argument_order_exit` execute their authored exit 70;
-  sixteen related native controls retain their results and four invalid-copy/
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `745e4632e4`,
+  macOS ARM64, source checking and local package review succeed; closed stdin
+  exits 200 during Terminal production with `structural case field store local
+  root is not a whole owned home`. The next dependency is the stage 05 field
+  store/window path: `generation/maze_builder.omg::carve_room` writes through
+  the mutable reference returned by `level.room_mut(cell)`. Carry that exact
+  reference's referent path and live loan through window extraction, reseating,
+  independent verification and native pointer-based addressing; do not treat
+  its carrier as an owned record or bypass field validity.
+  Owned byte-field reads now retain declaration custody through state transfer,
+  byte construction and native publication. Ordinary direct calls resolve each
+  operand independently of sibling storage or result kind; the former whole-call
+  routing split is removed. `text/owned_record_byte_field_read_exit` and eighteen
+  related native controls execute their authored results; four invalid-access/
   bounds fixtures still reject. Those witnesses do not establish that Dungeon
   runs. Acceptance remains the two complete game commands above.
 
