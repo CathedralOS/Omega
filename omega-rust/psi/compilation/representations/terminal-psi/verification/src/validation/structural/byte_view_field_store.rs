@@ -9,9 +9,8 @@
 //! literal's exact octets and must imply every declared field predicate.
 
 use crate::validation::{
-    ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
-    resolve_structural_path,
+    ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralPlaceKind,
+    StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
 /// Validate destination authority, the field carrier, the source's lifetime
@@ -32,57 +31,11 @@ pub(crate) fn validate(
     else {
         return Err(invalid());
     };
-    let (root_type, carrier_path) = if let Some(reference) =
-        crate::validation::references::mutable_record_field_destination(
-            module,
-            machine,
-            *destination,
-            path,
-        ) {
-        reference
-    } else {
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)
-            .ok_or_else(invalid)?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !machine.structural_places.iter().any(|place| {
-                place.id == *destination
-                    && place.kind
-                        == StructuralPlaceKind::Parameter {
-                            position: parameter.position,
-                            is_self: parameter.is_self,
-                        }
-            })
-        {
-            return Err(invalid());
-        }
-        (parameter.structural_type, path.as_slice())
-    };
-    if operation.result != OperationResult::Unit
-        || *destination == *source
-        || !terminal_psi::is_bounded_structural_scalar_store_path(carrier_path)
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == *destination)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == *destination)
-    {
+    if operation.result != OperationResult::Unit || *destination == *source {
         return Err(invalid());
     }
-    let parent_type =
-        resolve_structural_path(module, root_type, carrier_path).ok_or_else(invalid)?;
+    let parent_type = super::field_stores::parent_type(module, machine, *destination, path)
+        .ok_or_else(invalid)?;
     let StructuralTypeShape::Record { fields } = &module
         .structural_types
         .iter()

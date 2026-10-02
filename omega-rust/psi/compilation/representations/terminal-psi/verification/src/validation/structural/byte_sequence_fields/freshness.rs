@@ -3,7 +3,7 @@
 use super::{
     ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralFieldId,
     StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule, byte_count_type,
-    field_path, resolve_structural_path,
+    field_path,
 };
 use crate::validation::{BTreeSet, OperationId, Proposition, ScalarTerm};
 fn operation_position(machine: &TerminalMachine, identity: OperationId) -> Option<(usize, usize)> {
@@ -132,7 +132,7 @@ fn established_on_every_path(
 }
 
 fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
-    left.starts_with(right) || right.starts_with(left)
+    terminal_semantics::structural_paths_may_overlap(left, right)
 }
 
 /// A descriptor is a spelling of backing storage, not an independent owner.
@@ -292,7 +292,7 @@ fn changes_length(
                 && match field {
                     None => true,
                     Some(field) => stored_field_identity(module, machine, root, windowed, field)
-                        .is_some_and(|identity| {
+                        .is_none_or(|identity| {
                             let mut windowed = windowed.clone();
                             windowed.push(StructuralPathSegment::Field(identity));
                             overlaps(path, &windowed)
@@ -362,7 +362,8 @@ fn stored_field_identity(
     // Owned homes and state-local loans can also open and repair a nested
     // window. Closing its debt does not revive an earlier length observation.
     let (structural_type, _) = terminal_semantics::byte_field_root(machine, root)?;
-    let carrier = resolve_structural_path(module, structural_type, path)?;
+    let carrier =
+        super::super::runtime_indexes::checked_projection_type(module, structural_type, path)?;
     let declaration = module
         .structural_types
         .iter()
@@ -374,6 +375,23 @@ fn stored_field_identity(
         .iter()
         .find(|candidate| candidate.id == *field)
         .map(|candidate| candidate.identity.clone())
+}
+
+/// Bound certificates belong to operations; an observed location is selected
+/// by its root, static geometry and exact immutable selector values. Replacing
+/// an obligation identity cannot turn another element into the measured one.
+fn same_observed_path(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| match (left, right) {
+                (
+                    StructuralPathSegment::RuntimeIndex { index: left, .. },
+                    StructuralPathSegment::RuntimeIndex { index: right, .. },
+                ) => left == right,
+                _ => left == right,
+            })
 }
 
 pub(in crate::validation) fn exact_length_is_current(
@@ -404,7 +422,7 @@ pub(in crate::validation) fn exact_length_is_current(
     let Some((_, producer)) = operations_naming(machine, operation.id, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if source == name && measured_path == path && *measured_field == field)
+                if source == name && same_observed_path(measured_path, path) && *measured_field == field)
     }) else { return false; };
     unchanged_since(
         machine,
@@ -548,7 +566,7 @@ pub(crate) fn field_content_length_is_current(
     let Some((_, producer)) = operations_naming(machine, use_site, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if source == name && measured_path == path && *measured_field == field)
+                if source == name && same_observed_path(measured_path, path) && *measured_field == field)
     }) else { return false; };
     unchanged_since(machine, producer.id, use_site, root, |candidate, root| {
         changes_content(module, machine, root, &exact_path, candidate)

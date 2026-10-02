@@ -3,6 +3,10 @@
 //! descriptor preparation remains inside its selected scalar branch.
 use super::{Expansion, LoweringError, QualifiedScalarType, Site, parameters, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, LoweredElementPathSegment,
+};
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
@@ -125,13 +129,34 @@ impl Expansion<'_> {
         if negated {
             comparison = CheckedBooleanExpression::Not(Box::new(comparison));
         }
-        let value = bindings.expression(&CheckedScalarExpression::Boolean(Box::new(comparison)))?;
-        let comparison = self.binding(
-            input_types,
+        let mut value =
+            bindings.expression(&CheckedScalarExpression::Boolean(Box::new(comparison)))?;
+        // The template asks several questions of one already evaluated operand.
+        // Capture its selectors before the length guard, then carry their exact
+        // SSA identities through the selected byte observations. This also keeps
+        // mutable scalar fields used as selectors from being read repeatedly.
+        let mut captures = OperandSelectors::new(input_types.len());
+        captures.capture(&mut value);
+        let mut operand_types = input_types.to_vec();
+        operand_types.extend(
+            captures
+                .values
+                .iter()
+                .map(|value| QualifiedScalarType::from(value.scalar_type())),
+        );
+        let mut comparison = self.binding(
+            &operand_types,
             input_types.len(),
             target,
             LoweredScalarBinding::Expression(value),
         );
+        for (ordinal, value) in captures.values.into_iter().enumerate().rev() {
+            comparison = self.direct_value(
+                &operand_types[..input_types.len() + ordinal],
+                comparison,
+                value,
+            )?;
+        }
         if effects.is_empty() {
             return Ok(comparison);
         }
@@ -151,5 +176,73 @@ impl Expansion<'_> {
                 structural_arguments: Vec::new(),
             },
         }))
+    }
+}
+
+/// Selectors are operands of the one content query, not independent operands
+/// of the length and each byte observation generated from that query.
+struct OperandSelectors {
+    first_parameter: usize,
+    values: Vec<LoweredDirectExpression>,
+    paths: Vec<(
+        Vec<LoweredElementPathSegment>,
+        Vec<LoweredElementPathSegment>,
+    )>,
+}
+impl OperandSelectors {
+    fn new(first_parameter: usize) -> Self {
+        Self {
+            first_parameter,
+            values: Vec::new(),
+            paths: Vec::new(),
+        }
+    }
+    fn bind(&mut self, value: LoweredDirectExpression) -> LoweredDirectExpression {
+        let position = self.first_parameter + self.values.len();
+        let scalar_type = value.scalar_type();
+        self.values.push(value);
+        LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        }
+    }
+    fn capture(&mut self, expression: &mut LoweredDirectExpression) {
+        match expression {
+            LoweredDirectExpression::Boolean { expression } => self.boolean(expression),
+            LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
+            | LoweredDirectExpression::ByteSequenceFieldRead { path, .. } => {
+                if let Some((_, prepared)) =
+                    self.paths.iter().find(|(original, _)| original == path)
+                {
+                    *path = prepared.clone();
+                    return;
+                }
+                let original = path.clone();
+                for segment in path.iter_mut() {
+                    if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+                        *selector = self.bind(selector.clone());
+                        *extent = extent.take().map(|value| self.bind(value));
+                    }
+                }
+                self.paths.push((original, path.clone()));
+            }
+            _ => {}
+        }
+    }
+    fn boolean(&mut self, expression: &mut LoweredBooleanReturnExpression) {
+        match expression {
+            LoweredBooleanReturnExpression::Not { operand } => self.boolean(operand),
+            LoweredBooleanReturnExpression::And { left, right }
+            | LoweredBooleanReturnExpression::Or { left, right }
+            | LoweredBooleanReturnExpression::Equal { left, right } => {
+                self.boolean(left);
+                self.boolean(right);
+            }
+            LoweredBooleanReturnExpression::IntegerComparison { left, right, .. } => {
+                self.capture(left);
+                self.capture(right);
+            }
+            _ => {}
+        }
     }
 }

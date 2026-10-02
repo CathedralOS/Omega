@@ -178,6 +178,50 @@ fn computed_byte_comparisons_observe_indexed_literal_field_stores() {
     )
     .expect("indexed store authority and observation bounds replay");
 
+    for observation in [false, true] {
+        let mut forged = lowered.semantic_module.clone();
+        let mut altered = false;
+        for operation in forged
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+        {
+            let path =
+                match &mut operation.kind {
+                    terminal_psi::OperationKind::StructuralByteViewFieldStore { path, .. }
+                        if !observation =>
+                    {
+                        path
+                    }
+                    terminal_psi::OperationKind::StructuralByteSequenceFieldLength {
+                        path, ..
+                    } if observation => path,
+                    _ => continue,
+                };
+            if let Some(segment) = path.iter_mut().find(|segment| {
+                matches!(
+                    segment,
+                    terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                )
+            }) {
+                *segment = terminal_psi::StructuralPathSegment::FixedIndex(1);
+                altered = true;
+                break;
+            }
+        }
+        assert!(altered, "dynamic view selection carries its bound");
+        assert!(
+            terminal_verifier::verify_module(
+                &forged,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default()
+            )
+            .is_err(),
+            "a literal view index cannot erase its runtime bound"
+        );
+    }
+
     let mut changed = checked.clone();
     let handles: Vec<_> = changed
         .facts

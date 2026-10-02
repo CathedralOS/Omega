@@ -48,7 +48,7 @@ pub(crate) fn lower_checked_scalar_expression(
     lower_checked_scalar_expression_with_parameters(
         expression,
         &[],
-        &[],
+        &Default::default(),
         &[],
         &[],
         &std::collections::BTreeMap::new(),
@@ -1152,7 +1152,7 @@ pub(crate) fn lower_checked_boolean_expression(
     lower_checked_boolean_expression_with_parameters(
         expression,
         &[],
-        &[],
+        &Default::default(),
         &[],
         &[],
         &std::collections::BTreeMap::new(),

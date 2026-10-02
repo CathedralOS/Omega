@@ -140,8 +140,9 @@ impl OperationBuffer {
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) {
-        self.field_byte_lengths
-            .retain(|(root, carrier, _, _)| *root != place || !carrier.starts_with(path));
+        self.field_byte_lengths.retain(|(root, carrier, _, _)| {
+            *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
+        });
     }
 
     pub(crate) fn record_source_call(
