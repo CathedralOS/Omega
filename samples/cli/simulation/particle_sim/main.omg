@@ -36,24 +36,24 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("particle_sim: 5 Euler steps of position/velocity/acceleration in f64");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("particle_sim: 5 Euler steps of position/velocity/acceleration in f64");
     // Initialize.
-    self.p.velocity = 1.0;
-    self.p.acceleration = 0.5;
+    main.p.velocity = 1.0;
+    main.p.acceleration = 0.5;
 
     // 5 simulation steps.
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
 
     // position should be exactly 10.0 after 5 steps.
     // Guard: 10.0 > 9.5 (true) and 10.0 < 10.5 (true) -> exit 70.
-    transition self.p.position > 9.5 {
-        true -> check_upper(&mut self)
-        _ -> bad(&mut self)
+    transition main.p.position > 9.5 {
+        true -> check_upper(main)
+        _ -> bad(main)
     }
 
     state check_upper(main: &mut Main) {

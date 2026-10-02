@@ -58,22 +58,22 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("recursive_sum: recursive slice sum + count via value-returning machines");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
-    self.arr[0] = 5;
-    self.arr[1] = 10;
-    self.arr[2] = 15;
-    self.arr[3] = 20;
+    main.arr[0] = 5;
+    main.arr[1] = 10;
+    main.arr[2] = 15;
+    main.arr[3] = 20;
 
     // Compute sum via recursive value-returning call.
-    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let s: &[i32 in Wrapping] = main.arr.as_slice();
     let sum_result: i32 = sum(s, 0);
 
     // Check sum == 50 directly on the local.
     transition sum_result == 50 {
-        true -> check_count(&mut self)
-        _ -> bad_sum(&mut self)
+        true -> check_count(main)
+        _ -> bad_sum(main)
     }
 
     state bad_sum(main: &mut Main) {

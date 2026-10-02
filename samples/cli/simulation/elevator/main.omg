@@ -50,19 +50,19 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
-    Main::send(&mut self, Command::GoTo { floor: 2 });
-    Main::send(&mut self, Command::OpenDoor);
-    Main::send(&mut self, Command::CloseDoor);
-    Main::send(&mut self, Command::GoTo { floor: 0 });
-    Main::send(&mut self, Command::GoTo { floor: 1 });
-    Main::send(&mut self, Command::OpenDoor);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
+    Main::send(main, Command::GoTo { floor: 2 });
+    Main::send(main, Command::OpenDoor);
+    Main::send(main, Command::CloseDoor);
+    Main::send(main, Command::GoTo { floor: 0 });
+    Main::send(main, Command::GoTo { floor: 1 });
+    Main::send(main, Command::OpenDoor);
 
     // floor==1, moves==3, door_open==1 -> exit 70.
-    transition self.lift.floor == 1 {
-        true -> check_moves(&mut self)
-        _ -> bad_floor(&mut self)
+    transition main.lift.floor == 1 {
+        true -> check_moves(main)
+        _ -> bad_floor(main)
     }
 
     state check_moves(main: &mut Main) {

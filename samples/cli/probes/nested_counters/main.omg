@@ -113,92 +113,92 @@ requires
     main.state.multiplier = m;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
-    Main::set_value(&mut self, 10);
-    Main::set_bonus(&mut self, 20);
-    Main::increment_count(&mut self);
-    Main::set_multiplier(&mut self, 5);
-    Main::set_value(&mut self, 40);
-    Main::increment_count(&mut self);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
+    Main::set_value(main, 10);
+    Main::set_bonus(main, 20);
+    Main::increment_count(main);
+    Main::set_multiplier(main, 5);
+    Main::set_value(main, 40);
+    Main::increment_count(main);
 
-    // Verify nested field self.state.inner.value == 40.
-    transition self.state.inner.value == 40 {
-        true -> check_bonus()
-        _ -> bad_value()
+    // Verify nested field main.state.inner.value == 40.
+    transition main.state.inner.value == 40 {
+        true -> check_bonus(main)
+        _ -> bad_value(main)
     }
 
-    state bad_value(&mut self) {
-        self.console.write_line("FAIL: wrong nested value field (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_value(main: &mut Main) {
+        main.console.write_line("FAIL: wrong nested value field (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_bonus(&mut self) {
-        transition self.state.inner.bonus == 20 {
-            true -> check_count()
-            _ -> bad_bonus()
+    state check_bonus(main: &mut Main) {
+        transition main.state.inner.bonus == 20 {
+            true -> check_count(main)
+            _ -> bad_bonus(main)
         }
     }
 
-    state bad_bonus(&mut self) {
-        self.console.write_line("FAIL: wrong nested bonus field (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_bonus(main: &mut Main) {
+        main.console.write_line("FAIL: wrong nested bonus field (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state check_count(&mut self) {
-        transition self.state.count == 2 {
-            true -> check_multiplier()
-            _ -> bad_count()
+    state check_count(main: &mut Main) {
+        transition main.state.count == 2 {
+            true -> check_multiplier(main)
+            _ -> bad_count(main)
         }
     }
 
-    state bad_count(&mut self) {
-        self.console.write_line("FAIL: wrong counter value (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_count(main: &mut Main) {
+        main.console.write_line("FAIL: wrong counter value (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state check_multiplier(&mut self) {
-        transition self.state.multiplier == 5 {
-            true -> compute_result()
-            _ -> bad_multiplier()
+    state check_multiplier(main: &mut Main) {
+        transition main.state.multiplier == 5 {
+            true -> compute_result(main)
+            _ -> bad_multiplier(main)
         }
     }
 
-    state bad_multiplier(&mut self) {
-        self.console.write_line("FAIL: wrong nested multiplier field (exit 75)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(75);
+    state bad_multiplier(main: &mut Main) {
+        main.console.write_line("FAIL: wrong nested multiplier field (exit 75)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(75);
     }
 
-    state compute_result(&mut self) {
+    state compute_result(main: &mut Main) {
         // result = inner.value + inner.bonus + count * multiplier
         //        = 40 + 20 + 2 * 5 = 70
-        let result: i32 = self.state.inner.value + self.state.inner.bonus
-                        + self.state.count * self.state.multiplier;
+        let result: i32 = main.state.inner.value + main.state.inner.bonus
+                        + main.state.count * main.state.multiplier;
         transition result == 70 {
-            true -> good()
-            _ -> bad_result()
+            true -> good(main)
+            _ -> bad_result(main)
         }
     }
 
-    state bad_result(&mut self) {
-        self.console.write_line("FAIL: wrong combined result (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad_result(main: &mut Main) {
+        main.console.write_line("FAIL: wrong combined result (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

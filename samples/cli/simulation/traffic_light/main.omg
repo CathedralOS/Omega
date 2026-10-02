@@ -33,18 +33,18 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
     // Start: Red (zero-initialized), advances = 0.
-    Main::advance(&mut self);  // Red    -> Green,  advances = 1
-    Main::advance(&mut self);  // Green  -> Yellow, advances = 2
-    Main::advance(&mut self);  // Yellow -> Red,    advances = 3
-    Main::advance(&mut self);  // Red    -> Green,  advances = 4
+    Main::advance(main);  // Red    -> Green,  advances = 1
+    Main::advance(main);  // Green  -> Yellow, advances = 2
+    Main::advance(main);  // Yellow -> Red,    advances = 3
+    Main::advance(main);  // Red    -> Green,  advances = 4
 
     // After 4 advances the light should be Green and advances == 4.
-    transition self.light.advances == 4 {
-        true -> check_phase(&mut self)
-        false -> bad_count(&mut self)
+    transition main.light.advances == 4 {
+        true -> check_phase(main)
+        false -> bad_count(main)
     }
 
     state check_phase(main: &mut Main) {

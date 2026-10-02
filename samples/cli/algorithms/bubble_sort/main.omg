@@ -29,17 +29,17 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps");
-    self.nums[0] = 29;
-    self.nums[1] = 10;
-    self.nums[2] = 14;
-    self.nums[3] = 37;
-    self.nums[4] = 13;
-    self.i = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps");
+    main.nums[0] = 29;
+    main.nums[1] = 10;
+    main.nums[2] = 14;
+    main.nums[3] = 37;
+    main.nums[4] = 13;
+    main.i = 0;
 
     transition {
-        _ -> outer(&mut self)
+        _ -> outer(main)
     }
 
     // Outer pass: N passes settle every element into place.

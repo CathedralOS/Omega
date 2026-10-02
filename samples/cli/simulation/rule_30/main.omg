@@ -20,11 +20,11 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
-    self.cells = 32768; // single live cell in the centre (bit 15)
-    self.g = 0;
-    transition { _ -> gen_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
+    main.cells = 32768; // single live cell in the centre (bit 15)
+    main.g = 0;
+    transition { _ -> gen_loop(main) }
 
     state gen_loop(main: &mut Main) {
         transition main.g < 16 { true -> render_init(main) _ -> finish(main) }

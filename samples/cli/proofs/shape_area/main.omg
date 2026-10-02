@@ -27,13 +27,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("shape_area: matches a Shape enum payload and computes that variant's area");
-    self.shape = Shape::Rectangle { width: 6, height: 7 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("shape_area: matches a Shape enum payload and computes that variant's area");
+    main.shape = Shape::Rectangle { width: 6, height: 7 };
 
-    transition self.shape {
-        Shape::Circle { radius } -> circle(&mut self, radius)
-        Shape::Rectangle { width, height } -> rect(&mut self, width, height)
+    transition main.shape {
+        Shape::Circle { radius } -> circle(main, radius)
+        Shape::Rectangle { width, height } -> rect(main, width, height)
     }
 
     // The payload arrives as a plain i32; a guard hop re-establishes its bound on

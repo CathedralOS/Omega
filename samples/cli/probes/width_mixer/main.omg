@@ -40,25 +40,25 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
     // Set up the sub-width fields.
-    self.data.flags = 5;
-    self.data.offset = 0 - 300;
+    main.data.flags = 5;
+    main.data.offset = 0 - 300;
 
     // Compute: flags*10 = 50, offset = -300, 50 + (-300) + 320 = 70.
     // Widen through visible calls, then qualify the Exact results for the
     // saturating arithmetic chain.
     let flags_i32: i32 in Saturating =
-        widen_u8_to_i32(self.data.flags) as i32 in Saturating;
+        widen_u8_to_i32(main.data.flags) as i32 in Saturating;
     let offset_i32: i32 in Saturating =
-        widen_i16_to_i32(self.data.offset) as i32 in Saturating;
+        widen_i16_to_i32(main.data.offset) as i32 in Saturating;
     let contrib: i32 in Saturating = flags_i32 * 10;
-    self.data.total = contrib + offset_i32 + 320;
+    main.data.total = contrib + offset_i32 + 320;
 
-    transition self.data.total == 70 {
-        true -> check_flags(&mut self)
-        _ -> bad_total(&mut self)
+    transition main.data.total == 70 {
+        true -> check_flags(main)
+        _ -> bad_total(main)
     }
 
     state check_flags(main: &mut Main) {

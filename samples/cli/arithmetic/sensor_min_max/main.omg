@@ -34,22 +34,22 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
-    self.nums[0] = 20.5;
-    self.nums[1] = 18.0;
-    self.nums[2] = 24.5;
-    self.nums[3] = 22.0;
-    self.nums[4] = 19.5;
-    self.nums[5] = 26.0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
+    main.nums[0] = 20.5;
+    main.nums[1] = 18.0;
+    main.nums[2] = 24.5;
+    main.nums[3] = 22.0;
+    main.nums[4] = 19.5;
+    main.nums[5] = 26.0;
 
     // Seed both extremes with the first reading, then fold in the rest.
-    self.lo = self.nums[0];
-    self.hi = self.nums[0];
-    self.i = 1;
+    main.lo = main.nums[0];
+    main.hi = main.nums[0];
+    main.i = 1;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     // Loop head: fold readings until every element has been visited.
