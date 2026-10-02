@@ -76,22 +76,17 @@ pub(crate) fn bind_local(
         crate::expression_preparation::bindings::structural_paths::terminal_access(access)
     })
     .or_else(|| shared_slice.map(|_| terminal_psi::StructuralAccess::SharedBorrow));
-    let owned_array =
-        validation::is_closed_primitive_array_type(&checked.typed, local.type_reference);
+    // The roster's owned-source admission is one storage judgment: an already
+    // established owned value whose exact constrained type survives the
+    // transfer. It classifies every producer and wrapper (plain arrays,
+    // numeric-constrained and byte-predicate-domained owners, Named or
+    // Constrained references) rather than per-shape combinations.
+    let represented_owned = validation::has_plain_owned_contents_with_represented_constraints(
+        &checked.typed,
+        local.type_reference,
+    );
     if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(borrowed_access.is_some()
-            || owned_array
-            || (expression.is_some()
-                && matches!(
-                    checked
-                        .type_reference_table
-                        .type_reference(local.type_reference),
-                    checked_trees::types::TypeReferenceNode::Named { .. }
-                )
-                && validation::has_plain_owned_contents_with_numeric_constraints(
-                    checked,
-                    local.type_reference,
-                )))
+        || !(borrowed_access.is_some() || represented_owned)
     {
         return Ok(());
     }
@@ -99,13 +94,20 @@ pub(crate) fn bind_local(
     // that home does not freeze its contents or lend it; later writes, copies
     // and loans independently rejoin their authored access. Reference carriers
     // still retain their separate immutable-binding requirement.
+    // The published result carries the storage identity; the local's declared
+    // `Constrained` shells name qualifications, never the storage that carries
+    // them, so the join compares storage carriers. A shared slice's referee is
+    // already the referent's carrier.
     let declared_identity = match shared_slice {
         Some(referee) => checked.normalized_type_identity(referee).into_string(),
         None => checked
-            .normalized_type_identity(local.type_reference)
+            .normalized_type_identity(validation::peel_declared_constraints(
+                &checked.typed,
+                local.type_reference,
+            ))
             .into_string(),
     };
-    if (local.is_mutable && !(owned_array || super::plain_record(checked, local.type_reference)))
+    if (local.is_mutable && !represented_owned)
         || !local.symbol.is_valid()
         || locals.iter().any(|binding| binding.symbol == local.symbol)
         || declared_identity.as_str() != result.type_identity
