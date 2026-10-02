@@ -216,26 +216,13 @@ impl ContractPredicates<'_, '_> {
                             )
                         })
                     }
-                    None => {
-                        if !matches!(
-                            program.expression_table.expression(operand),
-                            ExpressionNode::Integer(_)
-                        ) {
-                            return None;
-                        }
-                        lower_return_expression(
-                            program,
-                            self.operators,
-                            operand,
-                            &[],
-                            &[],
-                            &[],
-                            &[],
-                            carrier_type,
-                            &[],
-                        )
-                        .map(|literal| (literal, ArithmeticDomain::Exact, carrier_reference))
-                    }
+                    None => lower_contract_integer_literal(
+                        program,
+                        self.operators,
+                        operand,
+                        carrier_type,
+                    )
+                    .map(|literal| (literal, ArithmeticDomain::Exact, carrier_reference)),
                 });
                 let (left, left_domain, left_reference) = left?;
                 let (right, right_domain, right_reference) = right?;
@@ -540,28 +527,36 @@ pub(super) fn lower_integer_contract_comparison(
             }
             return Some(value);
         }
-        if !matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_)
-        ) {
-            return None;
-        }
-        lower_return_expression(
-            program,
-            operators,
-            expression,
-            &[],
-            &[],
-            &[],
-            &[],
-            contextual_primitive,
-            &[],
-        )
+        lower_contract_integer_literal(program, operators, expression, contextual_primitive)
     };
     let [left_subject, right_subject] = subjects;
     let left = operand(binary.left, left_subject)?;
     let right = operand(binary.right, right_subject)?;
     construct_integer_comparison(binary.operator, left, right)
+}
+
+/// Anonymous arithmetic lands at the comparison or typed peer's carrier through
+/// the ordinary scalar lowerer. With no runtime namespace, only a completed
+/// literal can supply this operand: typed operations retain their own policy
+/// and remain with `integer_term`, rather than being reinterpreted as constants.
+fn lower_contract_integer_literal(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let value = lower_return_expression(
+        program,
+        operators,
+        expression,
+        &[],
+        &[],
+        &[],
+        &[],
+        primitive,
+        &[],
+    )?;
+    matches!(value, CheckedScalarExpression::IntegerLiteral { .. }).then_some(value)
 }
 
 /// One authored parameter range constraint observed by the scalar contract

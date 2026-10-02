@@ -42,6 +42,148 @@ fn scalar_requirement(
 }
 
 #[test]
+fn scalar_state_contract_lands_anonymous_signed_bounds() {
+    let program = typed_program(
+        "machine decode(wide: i64) {
+            transition { _ -> write(wide) }
+            state write(wide: i64)
+                requires (-2147483648 <= wide && wide <= 2147483647)
+                    && 0 - 10 <= wide && wide <= 10
+            {}
+        }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[1];
+    let expression = program
+        .state_contracts(state)
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .find_map(|fact| match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .expect("authored non-entry requirement");
+    let predicate = crate::values::lower_state_scalar_contract_predicate(
+        &program,
+        &CheckedOperatorFacts::default(),
+        machine,
+        state,
+        expression,
+        &mut 4096,
+    )
+    .expect("both negative bound spellings retain the state contract");
+    let mut pending = vec![&predicate];
+    let mut bounds = Vec::new();
+    while let Some(predicate) = pending.pop() {
+        match predicate {
+            CheckedBooleanExpression::And { left, right } => {
+                pending.extend([right.as_ref(), left.as_ref()]);
+            }
+            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+                for operand in [left.as_ref(), right.as_ref()] {
+                    match operand {
+                        CheckedScalarExpression::IntegerLiteral { literal } => {
+                            assert_eq!(
+                                crate::values::scalar_expression_type(operand),
+                                Some(PrimitiveType::I64)
+                            );
+                            bounds.push(literal.value_bignum().unwrap().to_i64().unwrap());
+                        }
+                        CheckedScalarExpression::Parameter {
+                            position: 0,
+                            primitive_type: PrimitiveType::I64,
+                        } => {}
+                        other => panic!("unexpected contract operand: {other:?}"),
+                    }
+                }
+            }
+            other => panic!("unexpected state contract: {other:?}"),
+        }
+    }
+    assert_eq!(bounds, [-2147483648, 2147483647, -10, 10]);
+}
+
+#[test]
+fn scalar_entry_contract_lands_anonymous_arithmetic_at_its_typed_peer() {
+    for (predicate, arithmetic) in [
+        ("(2 * 3 - 10) <= wide", false),
+        ("wide + (2 * 3 - 10) <= wide", true),
+    ] {
+        let program = typed_program(&format!(
+            "machine value(wide: i64) -> bool requires {predicate} {{ true }}"
+        ));
+        let lowered = scalar_requirement(&program, requirement(&program)).unwrap();
+        let CheckedBooleanExpression::IntegerComparison { left, .. } = lowered else {
+            panic!("integer comparison retained");
+        };
+        let literal = if arithmetic {
+            let CheckedScalarExpression::IntegerBinary { left, right, .. } = *left else {
+                panic!("typed addition retains its operation");
+            };
+            assert!(matches!(
+                *left,
+                CheckedScalarExpression::Parameter { position: 0, .. }
+            ));
+            right
+        } else {
+            left
+        };
+        let CheckedScalarExpression::IntegerLiteral { literal } = *literal else {
+            panic!("anonymous peer lands as one exact literal");
+        };
+        assert_eq!(literal.value_bignum().unwrap().to_i64(), Some(-4));
+    }
+}
+
+#[test]
+fn scalar_contract_anonymous_landing_rejects_invalid_values_and_selected_operators() {
+    for predicate in ["(0 - 129) <= wide", "(1 / 0) <= wide", "(1 / 2) <= wide"] {
+        let program = typed_program(&format!(
+            "machine value(wide: i8) -> bool requires {predicate} {{ true }}"
+        ));
+        assert!(
+            scalar_requirement(&program, requirement(&program)).is_none(),
+            "invalid anonymous endpoint: {predicate}"
+        );
+    }
+
+    let program =
+        typed_program("machine value(wide: i64) -> bool requires (0 - 10) <= wide { true }");
+    let comparison = requirement(&program);
+    assert!(scalar_requirement(&program, comparison).is_some());
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(comparison) else {
+        panic!("comparison source");
+    };
+    for (expression, spelling) in [
+        (comparison, language_core::OperatorSpelling::LessEqual),
+        (binary.left, language_core::OperatorSpelling::Subtract),
+    ] {
+        let mut uses = arena::Arena::new();
+        uses.append(checked_trees::CheckedOperatorUseFact {
+            expression,
+            spelling,
+            status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
+            selected_operator_symbol: symbols::SymbolHandle::from_parts(1, 1),
+            ..Default::default()
+        });
+        let operators =
+            CheckedOperatorFacts::with_roots(uses, arena::Arena::new(), arena::Arena::new());
+        assert!(
+            lower_scalar_contract_predicate(
+                &program,
+                &operators,
+                &program.machines()[0],
+                comparison,
+                false,
+                &mut 4096,
+            )
+            .is_none(),
+            "selected {spelling:?} was interpreted as anonymous builtin arithmetic"
+        );
+    }
+}
+
+#[test]
 fn scalar_entry_requirement_rejects_symbol_and_spelling_disagreement() {
     let mut program =
         typed_program("machine value(left: bool, right: bool) -> bool requires left { true }");
