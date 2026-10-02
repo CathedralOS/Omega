@@ -177,6 +177,33 @@ fn computed_byte_comparisons_observe_indexed_literal_field_stores() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("indexed store authority and observation bounds replay");
+    let encoded = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("indexed field operation encodes");
+    let decoded = terminal_codec::decode_module(&encoded).expect("indexed field operation reloads");
+    assert_eq!(decoded, lowered.semantic_module);
+    let entry = &decoded.machines[0];
+    let input = [terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 991,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    let interpreted = interpret_terminal_artifact_measured(
+        &encoded,
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &input,
+            ..Default::default()
+        },
+        &mut AcceptTerminalEffects,
+    )
+    .expect("indexed descriptor store and guarded observation execute after reload");
+    assert!(
+        matches!(interpreted.effects(), [TerminalEffect::BoundaryCall { arguments, .. }] if arguments.as_slice() == [TerminalScalarValue::Boolean(true)])
+    );
 
     for observation in [false, true] {
         let mut forged = lowered.semantic_module.clone();
