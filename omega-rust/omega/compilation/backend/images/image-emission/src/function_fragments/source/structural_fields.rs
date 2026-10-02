@@ -11,6 +11,89 @@ use terminal_psi::StructuralArgument;
 #[cfg(test)]
 mod tests;
 
+/// Access, geometry and bounds are independently replayed by source::admit's
+/// mandatory current-graph validation. Publication binds the emitted occurrence
+/// to the same named selector operands rather than discovering another producer catalog.
+fn retained_selectors(
+    path: &[terminal_psi::StructuralPathSegment],
+    indices: &[target_operations::TargetStructuralRuntimeIndex],
+) -> bool {
+    let mut selectors = path.iter().filter_map(|segment| segment.runtime_index());
+    indices.iter().all(|retained| {
+        selectors
+            .next()
+            .is_some_and(|(index, _)| index == retained.operand.source_value())
+    }) && selectors.next().is_none()
+}
+
+/// Bind a consumed place's declaration to the same target storage producer.
+/// Permission follows mandatory graph replay, not the physical home category.
+fn retained_field_root(
+    function: &AbstractFunction,
+    target: &TargetFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> bool {
+    if let Some(parameter) = function.arrival_parameter(place) {
+        if let Some(position) = function
+            .structural_parameters
+            .iter()
+            .position(|row| row == parameter)
+        {
+            return target.graph.parameters.get(position).is_some_and(|row| {
+                row.place == place
+                    && row.structural_type == parameter.structural_type
+                    && row.access == parameter.access
+                    && row.multiplicity == parameter.multiplicity
+                    && row.projected_qualifications == parameter.projected_qualifications
+            });
+        }
+        return function.block_entries.iter().any(|block| {
+            block.structural_parameters.contains(parameter)
+                && target.graph.blocks.iter().any(|retained| {
+                    retained.block == block.block
+                        && retained
+                            .structural_parameters
+                            .get(parameter.position as usize)
+                            == Some(parameter)
+                })
+        });
+    }
+    let mut declarations = function
+        .operations
+        .iter()
+        .filter_map(|operation| operation.structural_result())
+        .filter(|(_, result)| result.place == place);
+    let Some((producer, declaration)) = declarations.next() else {
+        return false;
+    };
+    if declarations.next().is_some() {
+        return false;
+    }
+    let mut retained = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            if let Some((identity, home)) = operation.structural_result_home() {
+                return identity == producer
+                    && home.operation_result() == Some((producer, declaration));
+            }
+            match operation {
+                TargetUnitOperation::EstablishElementView {
+                    result,
+                    view: target_operations::TargetElementView::Established { psi_operation, .. },
+                }
+                | TargetUnitOperation::ElementViewSubslice {
+                    result,
+                    view: target_operations::TargetElementView::Subslice { psi_operation, .. },
+                } => *psi_operation == producer && result == declaration,
+                _ => false,
+            }
+        });
+    retained.next().is_some() && retained.next().is_none()
+}
+
 /// Join the exact indexed-write occurrence without replacing its structural
 /// subject with a byte offset. Mandatory replay checks layout and scalar homes.
 pub(super) fn indexed_store_retained(
@@ -99,6 +182,11 @@ pub(super) fn runtime_footprint_retained(
     };
     let (psi_operation, place, written) = match operation {
         AbstractOperation::PrimitiveScalarRead {
+            psi_operation,
+            source,
+            ..
+        }
+        | AbstractOperation::StructuralByteSequenceFieldLength {
             psi_operation,
             source,
             ..
@@ -233,22 +321,6 @@ pub(super) fn indexed_read_retained(
     else {
         return false;
     };
-    let Some((access, _)) = read_access(function, target, *source, AccessPurpose::Field) else {
-        return false;
-    };
-    if !matches!(
-        access,
-        terminal_psi::StructuralAccess::Owned
-            | terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-    ) {
-        return false;
-    }
-    let expected_source = StructuralArgument {
-        place: *source,
-        access,
-        path: path.clone(),
-    };
     let mut reads = target
         .graph
         .blocks
@@ -266,13 +338,18 @@ pub(super) fn indexed_read_retained(
         index: retained_index,
         length: retained_length,
         obligation: retained_obligation,
+        indices,
         ..
     }) = reads.next()
     else {
         return false;
     };
-    retained_result == result
-        && *retained_source == expected_source
+    retained_field_root(function, target, *source)
+        && retained_result == result
+        && retained_source.place == *source
+        && retained_source.path == *path
+        && retained_source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+        && retained_selectors(path, indices)
         && retained_field == field
         && retained_length == length
         && retained_obligation == obligation
@@ -282,10 +359,46 @@ pub(super) fn indexed_read_retained(
         && reads.next().is_none()
 }
 
+fn field_root_type(
+    function: &AbstractFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    let mut roots = function
+        .arrival_parameter(place)
+        .map(|parameter| parameter.structural_type)
+        .into_iter()
+        .chain(function.operations.iter().filter_map(|operation| {
+            let (_, result) = operation.structural_result()?;
+            (result.place == place).then_some(result.structural_type)
+        }));
+    let root = roots.next()?;
+    roots.next().is_none().then_some(root)
+}
+
+fn loads_backing_pointer(
+    function: &AbstractFunction,
+    target: &TargetFunction,
+    place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> bool {
+    matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) || field_root_type(function, place).is_some_and(|root| {
+        target.graph.structural_types.iter().any(|row| {
+            row.id == root
+                && matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        })
+    })
+}
+
 /// Whether an indexed field read follows a shared view field's descriptor
 /// pointer rather than addressing inline bounded-owned bytes. The carrier is
 /// resolved from the exact root declaration, never from a footprint shape.
-pub(super) fn reads_through_descriptor(
+fn reads_through_descriptor(
     function: &AbstractFunction,
     operation: &AbstractOperation,
     target: &TargetFunction,
@@ -299,7 +412,7 @@ pub(super) fn reads_through_descriptor(
     else {
         return false;
     };
-    read_access(function, target, *source, AccessPurpose::Field).is_some_and(|(_, root)| {
+    field_root_type(function, *source).is_some_and(|root| {
         field_carrier(target, root, path, *field)
             == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
                 access: Some(terminal_psi::StructuralAccess::SharedBorrow),
@@ -307,19 +420,45 @@ pub(super) fn reads_through_descriptor(
     })
 }
 
-/// The declared byte carrier of `field` below `root` along a static path.
+/// The declared byte carrier below the operation's retained projection.
 fn field_carrier(
     target: &TargetFunction,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<terminal_psi::ByteSequenceCarrier> {
-    let terminal_psi::StructuralTypeShape::Record { fields } =
-        &terminal_semantics::runtime_structural_path_tip(
-            target.graph.structural_types.iter(),
-            root,
-            path,
-        )?
+    let mut carrier = root;
+    for segment in path {
+        let declaration = target
+            .graph
+            .structural_types
+            .iter()
+            .find(|row| row.id == carrier)?;
+        carrier = match (segment, &declaration.shape) {
+            (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+                | terminal_psi::StructuralTypeShape::ElementView { element },
+            ) => *element,
+            (
+                terminal_psi::StructuralPathSegment::Referent,
+                terminal_psi::StructuralTypeShape::Reference { referent, .. },
+            ) => *referent,
+            _ => {
+                terminal_semantics::runtime_structural_path_tip(
+                    target.graph.structural_types.iter(),
+                    carrier,
+                    std::slice::from_ref(segment),
+                )?
+                .id
+            }
+        };
+    }
+    let terminal_psi::StructuralTypeShape::Record { fields } = &target
+        .graph
+        .structural_types
+        .iter()
+        .find(|row| row.id == carrier)?
         .shape
     else {
         return None;
@@ -336,7 +475,8 @@ fn field_carrier(
 /// shared view field's descriptor first loads that descriptor's pointer word
 /// from the same root.
 pub(super) fn indexed_read_footprint_retained(
-    through_descriptor: bool,
+    function: &AbstractFunction,
+    target: &TargetFunction,
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
 ) -> bool {
@@ -346,6 +486,7 @@ pub(super) fn indexed_read_footprint_retained(
     let AbstractOperation::StructuralByteSequenceFieldRead {
         psi_operation,
         source,
+        path,
         index,
         length,
         obligation,
@@ -354,30 +495,96 @@ pub(super) fn indexed_read_footprint_retained(
     else {
         return false;
     };
-    let mut effects = accesses
+    let effects = accesses
         .iter()
-        .filter(|access| access.origin == Origin::Operation(*psi_operation));
-    if through_descriptor {
-        let Some(pointer) = effects.next() else {
+        .filter(|access| access.origin == Origin::Operation(*psi_operation))
+        .collect::<Vec<_>>();
+    let mut cursor = effects.as_slice();
+    if loads_backing_pointer(function, target, *source, path) {
+        let Some((backing, rest)) = cursor.split_first() else {
             return false;
         };
-        if pointer.place != *source || pointer.byte_count != 8 || pointer.role != Role::ReadPlace {
+        if backing.place != *source || backing.byte_count != 8 || backing.role != Role::ReadPlace {
             return false;
         }
+        cursor = rest;
     }
-    let Some(read) = effects.next() else {
+    if reads_through_descriptor(function, operation, target) {
+        let count = path
+            .iter()
+            .filter_map(|segment| segment.runtime_index())
+            .count()
+            .max(1);
+        if cursor.len() < count || !projected_field_rows(&cursor[..count], path, *source, false) {
+            return false;
+        }
+        cursor = &cursor[count..];
+    }
+    let [read] = cursor else {
         return false;
     };
     read.place == *source
         && read.byte_count == 1
-        && matches!(read.role, Role::ReadByteSequence {
-            index: retained_index,
-            length: retained_length,
-            obligation: retained_obligation,
-            ..
-        } if retained_index == *index && retained_length == *length
-            && retained_obligation == *obligation)
-        && effects.next().is_none()
+        && matches!(read.role, Role::ReadByteSequence { index: actual_index, length: actual_length, obligation: actual_obligation, .. }
+            if actual_index == *index && actual_length == *length && actual_obligation == *obligation)
+}
+
+/// Each dynamic path element publishes its own accepted bound on the same
+/// load/store instruction. Layout, stride and physical address replay stays
+/// in mandatory selection validation; publication retains their occurrence.
+fn projected_field_rows(
+    rows: &[&selected_instructions::SelectedMemoryAccess],
+    path: &[terminal_psi::StructuralPathSegment],
+    place: semantic_vocabulary::PlaceId,
+    writing: bool,
+) -> bool {
+    use selected_instructions::SelectedMemoryAccessRole as Role;
+    let selectors = path
+        .iter()
+        .filter_map(|segment| segment.runtime_index())
+        .collect::<Vec<_>>();
+    let Some(first) = rows.first() else {
+        return false;
+    };
+    if rows.len() != selectors.len().max(1)
+        || rows.iter().any(|row| {
+            row.place != place
+                || row.byte_count != 8
+                || row.byte_offset != first.byte_offset
+                || row.instruction != first.instruction
+        })
+    {
+        return false;
+    }
+    if selectors.is_empty() {
+        return first.role
+            == if writing {
+                Role::WritePlace
+            } else {
+                Role::ReadPlace
+            };
+    }
+    rows.iter()
+        .zip(selectors)
+        .all(|(row, (index, obligation))| match (writing, row.role) {
+            (
+                false,
+                Role::ReadIndexedPrimitive {
+                    index: actual_index,
+                    obligation: actual_obligation,
+                    ..
+                },
+            )
+            | (
+                true,
+                Role::WriteIndexedStructural {
+                    index: actual_index,
+                    obligation: actual_obligation,
+                    ..
+                },
+            ) => actual_index == index && actual_obligation == obligation,
+            _ => false,
+        })
 }
 
 /// Account for one descriptor replacement's exact graph occurrence: the
@@ -397,12 +604,7 @@ pub(super) fn view_replacement_retained(
     else {
         return false;
     };
-    let Some(expected_destination) =
-        write_destination(function, target, *destination, path, AccessPurpose::Field)
-    else {
-        return false;
-    };
-    if source == destination {
+    if source == destination || !retained_field_root(function, target, *destination) {
         return false;
     }
     let mut replacements = target
@@ -416,11 +618,14 @@ pub(super) fn view_replacement_retained(
                 destination,
                 field,
                 source,
-            } if identity == psi_operation => Some((destination, field, source)),
+                indices,
+            } if identity == psi_operation => Some((destination, field, source, indices)),
             _ => None,
         });
-    matches!(replacements.next(), Some((actual_destination, actual_field, actual_source))
-        if *actual_destination == expected_destination && actual_field == field
+    matches!(replacements.next(), Some((actual_destination, actual_field, actual_source, indices))
+        if actual_destination.place == *destination && actual_destination.path == *path
+            && matches!(actual_destination.access, terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+            && retained_selectors(path, indices) && actual_field == field
             && actual_source == source)
         && replacements.next().is_none()
 }
@@ -429,6 +634,8 @@ pub(super) fn view_replacement_retained(
 /// descriptor's pointer and extent words read in order, then the same two
 /// words written at the field's descriptor in the destination root.
 pub(super) fn view_replacement_footprints_retained(
+    function: &AbstractFunction,
+    target: &TargetFunction,
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
 ) -> bool {
@@ -438,6 +645,8 @@ pub(super) fn view_replacement_footprints_retained(
     let AbstractOperation::StructuralByteViewFieldStore {
         psi_operation,
         source,
+        destination,
+        path,
         ..
     } = operation
     else {
@@ -447,9 +656,31 @@ pub(super) fn view_replacement_footprints_retained(
         .iter()
         .filter(|access| access.origin == Origin::Operation(*psi_operation))
         .collect::<Vec<_>>();
-    let [pointer, extent, pointer_write, extent_write] = effects.as_slice() else {
+    let mut cursor = effects.as_slice();
+    if loads_backing_pointer(function, target, *destination, path) {
+        let Some((backing, rest)) = cursor.split_first() else {
+            return false;
+        };
+        if backing.place != *destination
+            || backing.byte_count != 8
+            || backing.role != Role::ReadPlace
+        {
+            return false;
+        }
+        cursor = rest;
+    }
+    let count = path
+        .iter()
+        .filter_map(|segment| segment.runtime_index())
+        .count()
+        .max(1);
+    if cursor.len() != 2 + 2 * count {
         return false;
-    };
+    }
+    let pointer = cursor[0];
+    let extent = cursor[1];
+    let pointer_writes = &cursor[2..2 + count];
+    let extent_writes = &cursor[2 + count..];
     pointer.place == *source
         && pointer.byte_offset == 0
         && pointer.byte_count == 8
@@ -458,15 +689,12 @@ pub(super) fn view_replacement_footprints_retained(
         && extent.byte_offset == 8
         && extent.byte_count == 8
         && extent.role == Role::ReadPlace
-        && pointer_write.place == extent_write.place
-        && pointer_write.byte_count == 8
-        && extent_write.byte_count == 8
-        && pointer_write.role == Role::WritePlace
-        && extent_write.role == Role::WritePlace
-        && pointer_write.byte_offset.checked_add(8) == Some(extent_write.byte_offset)
+        && projected_field_rows(pointer_writes, path, *destination, true)
+        && projected_field_rows(extent_writes, path, *destination, true)
+        && pointer_writes[0].byte_offset.checked_add(8) == Some(extent_writes[0].byte_offset)
         && pointer.instruction < extent.instruction
-        && extent.instruction < pointer_write.instruction
-        && pointer_write.instruction < extent_write.instruction
+        && extent.instruction < pointer_writes[0].instruction
+        && pointer_writes[0].instruction < extent_writes[0].instruction
 }
 
 /// Account for replacement's exact graph occurrence. Mandatory source/selection
@@ -713,15 +941,6 @@ pub(super) fn retained(
         field,
     } = operation
     {
-        let Some((access, _)) = read_access(function, target, *source, AccessPurpose::ByteLength)
-        else {
-            return false;
-        };
-        let expected_source = StructuralArgument {
-            place: *source,
-            access,
-            path: path.clone(),
-        };
         // Mandatory graph replay reconstructs bounded-field geometry and u64
         // metadata typing. Publication rejoins this exact observation, not a
         // content read or a synthesized whole-view descriptor.
@@ -736,10 +955,15 @@ pub(super) fn retained(
                     result,
                     source,
                     field,
-                } if identity == psi_operation => Some((result, source, field)),
+                    indices,
+                } if identity == psi_operation => Some((result, source, field, indices)),
                 _ => None,
             });
-        return reads.next() == Some((result, &expected_source, field)) && reads.next().is_none();
+        return retained_field_root(function, target, *source)
+            && matches!(reads.next(), Some((actual_result, actual_source, actual_field, indices))
+            if actual_result == result && actual_source.place == *source && actual_source.path == *path
+                && actual_field == field && retained_selectors(path, indices))
+            && reads.next().is_none();
     }
     if let AbstractOperation::PrimitiveScalarRead {
         psi_operation,

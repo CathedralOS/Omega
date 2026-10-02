@@ -418,6 +418,13 @@ pub(super) fn project_structural_byte_sequence_field_read(
         .ok_or(Error::custody())?;
     Ok(
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+            indices: scalar_graph_input::structural_fields::byte_index_operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &source,
+                *field,
+            )?,
             source,
             field: *field,
             index: *index,

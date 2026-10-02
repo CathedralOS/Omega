@@ -162,6 +162,35 @@ pub(super) fn read_geometry(
 ) -> Option<(PlaceId, u32)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
+        Instruction::StructuralByteSequenceFieldLength {
+            source: argument,
+            field,
+            indices,
+        } => {
+            let signature = source.structural.as_ref()?;
+            let root = super::field_bytes::root_type(source, argument)?;
+            let geometry =
+                crate::structural_inputs::structural_reference_input::projected_byte_field(
+                    root,
+                    &argument.path,
+                    *field,
+                    &signature.structural_types,
+                )?;
+            let count = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .ok()?,
+            );
+            (scalar == count
+                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                    indices,
+                    &geometry.elements,
+                ))
+            .then_some((argument.place, geometry.length_offset))
+        }
+
         // A projection through runtime elements returns its static offset;
         // the row's traversals must be exactly the path's runtime elements,
         // which the read scales into the address before the load.
@@ -198,15 +227,7 @@ pub(super) fn read_geometry(
             source: argument,
             field,
             ..
-        }
-        | Instruction::StructuralByteSequenceFieldLength {
-            source: argument,
-            field,
         } => {
-            let observes_byte_length = matches!(
-                row.kind,
-                Instruction::StructuralByteSequenceFieldLength { .. }
-            );
             let signature = source.structural.as_ref()?;
             if !signature.entry_claims.is_empty() {
                 return None;
@@ -216,8 +237,7 @@ pub(super) fn read_geometry(
             // byte field's extent; it remains separate from content authority.
             let structural_type = if let Some(parameter) = read_parameter(source, argument.place) {
                 if parameter.access != argument.access
-                    || (parameter.access == StructuralAccess::WriteOnlyBorrow
-                        && !observes_byte_length)
+                    || parameter.access == StructuralAccess::WriteOnlyBorrow
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
@@ -246,20 +266,7 @@ pub(super) fn read_geometry(
                     }
                     _ => return None,
                 };
-                if argument.access != expected_access || observes_byte_length {
-                    return None;
-                }
-                result.structural_type
-            } else if observes_byte_length {
-                if argument.access != StructuralAccess::Owned {
-                    return None;
-                }
-                // Byte-length metadata uses the same exact established home
-                // as concatenation field operands. Rejoin its
-                // producer, place declaration and layout before resolving the
-                // field; a length observation never supplies content authority.
-                let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
-                if !result.qualifications.is_empty() {
+                if argument.access != expected_access {
                     return None;
                 }
                 result.structural_type
@@ -328,7 +335,7 @@ pub(super) fn read_geometry(
                     else {
                         return None;
                     };
-                    if argument.access != StructuralAccess::SharedBorrow || observes_byte_length {
+                    if argument.access != StructuralAccess::SharedBorrow {
                         return None;
                     }
                     (referent, suffix)
@@ -348,15 +355,6 @@ pub(super) fn read_geometry(
                     scalar,
                     &signature.structural_types,
                 )?,
-                _ if observes_byte_length => {
-                    crate::structural_inputs::structural_reference_input::observed_byte_field_length(
-                        structural_type,
-                        path,
-                        *field,
-                        scalar,
-                        &signature.structural_types,
-                    )?
-                }
                 _ => crate::structural_inputs::structural_reference_input::field_read(
                     structural_type,
                     path,

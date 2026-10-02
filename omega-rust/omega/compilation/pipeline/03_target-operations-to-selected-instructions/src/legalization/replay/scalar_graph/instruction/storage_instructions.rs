@@ -13,6 +13,7 @@ pub(super) fn validate_structural_scalar_field_read(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
     custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     // A record read and a byte-length observation carry no case; a
@@ -29,7 +30,9 @@ pub(super) fn validate_structural_scalar_field_read(
             AbstractOperation::StructuralScalarFieldRead { .. },
         ) => (source, *case, field),
         (
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                source, field, ..
+            },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => (source, None, field),
         _ => unreachable!("dispatched validate_structural_scalar_field_read"),
@@ -43,6 +46,21 @@ pub(super) fn validate_structural_scalar_field_read(
             custody,
         )
         .ok_or(invalid.clone())?;
+    if let LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. } =
+        &actual.kind
+    {
+        if *indices
+            != scalar_graph_input::structural_fields::byte_index_operands(
+                optimized,
+                unit,
+                actual.operation,
+                source,
+                *field,
+            )?
+        {
+            return Err(invalid);
+        }
+    }
     if source != &expected_source || case != expected_case || *field != expected_field {
         return Err(invalid);
     }
@@ -422,6 +440,7 @@ pub(super) fn validate_structural_byte_sequence_field_read(
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+            indices,
             source,
             field,
             index,
@@ -441,6 +460,13 @@ pub(super) fn validate_structural_byte_sequence_field_read(
         unreachable!("dispatched validate_structural_byte_sequence_field_read")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
+    if *indices
+        != scalar_graph_input::structural_fields::byte_index_operands(
+            optimized, unit, operation, source, *field,
+        )?
+    {
+        return Err(invalid);
+    }
     if Some(source.clone())
         != scalar_graph_input::structural_fields::byte_read(
             optimized,

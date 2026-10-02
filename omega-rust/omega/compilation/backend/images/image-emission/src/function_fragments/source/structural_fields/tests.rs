@@ -432,6 +432,7 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                 result,
                 source: source.clone(),
                 field,
+                indices: Vec::new(),
             };
         assert!(retained(&function, &function.operations[0], &target));
         assert!(super::super::requires_graph_storage_replay(
@@ -445,6 +446,7 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                 result,
                 source,
                 field,
+                ..
             } = operation
             else {
                 panic!("metadata")
@@ -456,7 +458,12 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                 3 => source.place = PlaceId::new(2).unwrap(),
                 4 => source.path.clear(),
                 5 => *field = StructuralFieldId::new(2).unwrap(),
-                6 => source.access = StructuralAccess::Owned,
+                6 => source
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: ValueId::new(99).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(99).unwrap(),
+                    }),
                 7 => {
                     *operation = TargetUnitOperation::StructuralScalarFieldRead {
                         psi_operation: *psi_operation,
@@ -730,6 +737,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                 result,
                 source,
                 field,
+                indices: Vec::new(),
             };
         target.graph.blocks[0].operations.insert(
             0,
@@ -883,7 +891,9 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                     else {
                         panic!("metadata")
                     };
-                    source.access = StructuralAccess::SharedBorrow;
+                    source
+                        .path
+                        .push(terminal_psi::StructuralPathSegment::FixedIndex(99));
                 }
                 _ => {
                     let duplicate = changed.graph.blocks[0].operations[1].clone();

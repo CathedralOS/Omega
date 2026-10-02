@@ -139,3 +139,84 @@ fn every_activation_replaces_its_parameter_field_with_image_backed_literal() {
         }
     }
 }
+
+#[test]
+fn indexed_view_fields_retain_selector_custody_and_mutable_access() {
+    let source = super::structural_borrows::source_plan(
+        r#"
+        domain [u8]::Utf8 requires valid_utf8(self);
+        data Room { name: &[u8] in Utf8; }
+        data Main { rooms: [Room; 3]; }
+        machine Main::run(root: &mut Main) {
+            let index: u64 = 1;
+            let room_slice: &mut [Room] = root.rooms.as_mut_slice();
+            room_slice[index].name = "expected";
+            transition room_slice[index].name == "expected" {
+                true -> finish(root)
+                false -> fail(root)
+            }
+            state finish(root: &mut Main) { }
+            state fail(root: &mut Main) { }
+        }
+    "#,
+    );
+    for target in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target))
+            .expect("indexed fields use the borrowed collection backing");
+        let fields = lowered
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::StructuralByteViewFieldStore {
+                    destination,
+                    indices,
+                    ..
+                } => Some((destination, indices)),
+                TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    source, indices, ..
+                }
+                | TargetUnitOperation::StructuralByteSequenceFieldRead {
+                    source, indices, ..
+                } => Some((source, indices)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(fields.len() >= 3);
+        for (source, indices) in fields {
+            assert_eq!(source.access, StructuralAccess::MutableBorrow);
+            let selectors = source
+                .path
+                .iter()
+                .filter_map(|segment| segment.runtime_index())
+                .collect::<Vec<_>>();
+            assert_eq!(selectors.len(), indices.len());
+            assert!(!indices.is_empty());
+            for ((selector, _), retained) in selectors.iter().zip(indices) {
+                assert_eq!(*selector, retained.operand.source_value());
+                assert!(retained.stride > 0);
+            }
+        }
+        crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
+    }
+    let mut shared = source.clone();
+    for operation in shared
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.operations)
+    {
+        if let AbstractOperation::EstablishElementView { source, result, .. } = operation {
+            source.access = StructuralAccess::SharedBorrow;
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+        }
+    }
+    assert!(
+        lower_to_target_operations(
+            &shared,
+            TargetLoweringRequest::new(NativeTarget::macos_arm64())
+        )
+        .is_err(),
+        "owning an immutable descriptor does not authorize field replacement"
+    );
+}

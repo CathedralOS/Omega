@@ -59,7 +59,13 @@ pub(super) fn project(
                 custody,
             )
             .ok_or(Error::custody())?;
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field }
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                indices: scalar_graph_input::structural_fields::byte_index_operands(
+                    optimized, unit, operation, &source, field,
+                )?,
+                source,
+                field,
+            }
         }
         AbstractOperation::StructuralScalarFieldRead { .. } => {
             let (_, _, source, case, field) = scalar_graph_input::structural_fields::read(
@@ -324,15 +330,22 @@ pub(super) fn project(
             )?
         }
         AbstractOperation::StructuralByteViewFieldStore { field, source, .. } => {
+            let destination = scalar_graph_input::structural_fields::view_replacement(
+                optimized,
+                &node.operation,
+                &unit.structural_types,
+                custody,
+            )
+            .ok_or(LegalizationError::custody())?;
             LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
-                destination:
-                    crate::legalization::scalar_graph_input::structural_fields::view_replacement(
-                        optimized,
-                        &node.operation,
-                        &unit.structural_types,
-                        custody,
-                    )
-                    .ok_or(LegalizationError::custody())?,
+                indices: scalar_graph_input::structural_fields::byte_index_operands(
+                    optimized,
+                    unit,
+                    operation,
+                    &destination,
+                    *field,
+                )?,
+                destination,
                 field: *field,
                 source: *source,
             }

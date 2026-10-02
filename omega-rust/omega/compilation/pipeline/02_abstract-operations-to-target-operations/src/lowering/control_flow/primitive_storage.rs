@@ -63,7 +63,8 @@ fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, Loweri
 /// length nor a byte read establishes a borrowed view or other authority.
 pub(super) fn readable_byte_field(
     function: &AbstractFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+    prepared: &PreparedFunctionSignature,
     live: &LiveDefinitions,
     source: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
@@ -81,52 +82,18 @@ pub(super) fn readable_byte_field(
     {
         return Err(unsupported());
     }
-    let (structural_type, access) = if let Some(home) = live.structural_homes.get(&source) {
-        // The establishment retains original backing and live ownership;
-        // observing its field does not manufacture a parameter or a loan.
-        if home.has_claims()
-            || home.multiplicity() == StructuralMultiplicity::Linear
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
-        {
-            return Err(unsupported());
-        }
-        (home.structural_type(), StructuralAccess::Owned)
-    } else {
-        let parameter = function.arrival_parameter(source).ok_or_else(unsupported)?;
-        // Incoming ownership is as readable as ownership established here.
-        // The consuming operation separately checks whether its observation
-        // is permitted through the retained access (including write-only).
-        if parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return Err(unsupported());
-        }
-        (parameter.structural_type, parameter.access)
-    };
-    if !terminal_psi::is_bounded_structural_scalar_store_path(path)
-        && terminal_semantics::runtime_structural_path_tip(
-            types.values().copied(),
-            structural_type,
-            path,
-        )
-        .is_none()
-    {
+    let (structural_type, access) = field_root(function, types, prepared, live, source)?;
+    if !terminal_psi::is_structural_scalar_store_path(path) {
         return Err(unsupported());
     }
-    let carrier = if path.is_empty() {
-        structural_type
-    } else {
-        crate::lowering::structural_layout::resolve_structural_projection_path(
-            structural_type,
-            path,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?
-        .0
-    };
+    let carrier = crate::lowering::structural_layout::runtime_projection(
+        structural_type,
+        path,
+        types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?
+    .0;
     let StructuralTypeShape::Record { fields } =
         &types.get(&carrier).ok_or_else(unsupported)?.shape
     else {
@@ -170,6 +137,112 @@ pub(super) fn readable_byte_field(
     })
 }
 
+/// Resolve descriptor authority separately from ownership of its physical
+/// home. A mutable view owns an affine descriptor but writes borrowed backing.
+pub(super) fn field_root(
+    function: &AbstractFunction,
+    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+    prepared: &PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    place: semantic_vocabulary::PlaceId,
+) -> Result<(StructuralTypeId, StructuralAccess), LoweringError> {
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    let structural_type = live
+        .views
+        .get(&place)
+        .map(|(_, identity)| *identity)
+        .or_else(|| {
+            live.structural_homes
+                .get(&place)
+                .map(|home| home.structural_type())
+        })
+        .or_else(|| {
+            function
+                .arrival_parameter(place)
+                .map(|parameter| parameter.structural_type)
+        })
+        .ok_or_else(unsupported)?;
+    if matches!(
+        types
+            .get(&structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::ElementView { .. })
+    ) {
+        let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+        let (_, resolved_type, access) =
+            crate::lowering::scalar::element_views::resolve_element_view(
+                function,
+                types,
+                &prepared.parameters,
+                crate::lowering::scalar::element_views::ElementViewBackings::new(
+                    &live.structural_homes,
+                    &live.address_joins,
+                ),
+                &values,
+                &live.lengths,
+                place,
+                &mut Vec::new(),
+            )?;
+        if resolved_type != structural_type {
+            return Err(unsupported());
+        }
+        return Ok((structural_type, access));
+    }
+    if let Some(home) = live.structural_homes.get(&place) {
+        if home.has_claims()
+            || home.multiplicity() == StructuralMultiplicity::Linear
+            || !home.qualifications().is_empty()
+            || !home.projected_qualifications().is_empty()
+        {
+            return Err(unsupported());
+        }
+        return Ok((structural_type, StructuralAccess::Owned));
+    }
+    let parameter = function.arrival_parameter(place).ok_or_else(unsupported)?;
+    if parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return Err(unsupported());
+    }
+    Ok((structural_type, parameter.access))
+}
+
+/// Keep every runtime selector in target operand custody, alongside the
+/// authoritative path whose operation-owned bounds justify the address.
+pub(super) fn field_indices(
+    function: &AbstractFunction,
+    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+    prepared: &PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    argument: &terminal_psi::StructuralArgument,
+) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
+    let (root, _) = field_root(function, types, prepared, live, argument.place)?;
+    let (root, path) =
+        if let Some(terminal_psi::StructuralPathSegment::Referent) = argument.path.first() {
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                types.get(&root).map(|row| &row.shape)
+            else {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            };
+            (*referent, &argument.path[1..])
+        } else {
+            (root, argument.path.as_slice())
+        };
+    let (_, _, _, runs) = crate::lowering::structural_layout::runtime_projection(
+        root,
+        path,
+        types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(live),
+    )
+}
+
 pub(super) fn retain_result(
     operation: OperationId,
     result: abstract_operations::AbstractResult,
@@ -197,7 +270,7 @@ pub(super) fn retain_result(
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
     prepared: &PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
@@ -218,9 +291,11 @@ pub(super) fn lower(
             if result.scalar_type != unsigned(function, 64)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let source = readable_byte_field(function, types, live, *source, path, *field)?;
+            let source =
+                readable_byte_field(function, types, prepared, live, *source, path, *field)?;
             // Metadata keeps the original home and static projection. It
             // does not establish a borrowed view or grant byte-content access.
+            let indices = field_indices(function, types, prepared, live, &source)?;
             retain_result(*psi_operation, *result, live)?;
             (
                 *psi_operation,
@@ -229,6 +304,7 @@ pub(super) fn lower(
                     result: *result,
                     source,
                     field: *field,
+                    indices,
                 },
             )
         }
@@ -242,7 +318,8 @@ pub(super) fn lower(
             length,
             obligation,
         } => {
-            let argument = readable_byte_field(function, types, live, *source, path, *field)?;
+            let argument =
+                readable_byte_field(function, types, prepared, live, *source, path, *field)?;
             // Content needs a shared or mutable borrow; a write-only borrow
             // may observe the live length but not the bytes. The index is
             // bounded by this same field's live length: the length operand
@@ -251,7 +328,7 @@ pub(super) fn lower(
                 || result.scalar_type != unsigned(function, 8)?
                 || !function.operations.iter().any(|operation| matches!(operation,
                     AbstractOperation::StructuralByteSequenceFieldLength { source: measured, path: measured_path, field: measured_field, result: measured_result, .. }
-                    if measured == source && measured_path == path && measured_field == field && measured_result.value == *length))
+                    if measured == source && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && measured_result.value == *length))
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -268,6 +345,7 @@ pub(super) fn lower(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let indices = field_indices(function, types, prepared, live, &argument)?;
             retain_result(*psi_operation, *result, live)?;
             (
                 *psi_operation,
@@ -276,6 +354,7 @@ pub(super) fn lower(
                     result: *result,
                     source: argument,
                     field: *field,
+                    indices,
                     index: index_value.into_target_source(*index),
                     length: *length,
                     obligation: *obligation,

@@ -74,11 +74,11 @@ pub(super) fn replace(
                     writable_field(
                         function,
                         structural_types,
+                        prepared,
                         live,
                         *destination,
                         path,
                         *field,
-                        live.structural_homes.get(destination),
                     )?,
                     *field,
                 )),
@@ -131,20 +131,20 @@ pub(super) fn replace(
 fn writable_field(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     destination: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
-    owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     writable_byte_field(
         function,
         structural_types,
+        prepared,
         live,
         destination,
         path,
         field,
-        owned_home,
         |carrier| {
             matches!(
                 carrier,
@@ -161,6 +161,7 @@ pub(super) fn replace_view_descriptor(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -179,11 +180,11 @@ pub(super) fn replace_view_descriptor(
     let destination_argument = writable_byte_field(
         function,
         structural_types,
+        prepared,
         live,
         *destination,
         path,
         *field,
-        None,
         |carrier| {
             carrier
                 == terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -201,11 +202,19 @@ pub(super) fn replace_view_descriptor(
     if source == destination || !literal {
         return Err(unsupported());
     }
+    let indices = super::primitive_storage::field_indices(
+        function,
+        structural_types,
+        prepared,
+        live,
+        &destination_argument,
+    )?;
     operations.push(TargetUnitOperation::StructuralByteViewFieldStore {
         psi_operation: *psi_operation,
         destination: destination_argument,
         field: *field,
         source: *source,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -214,11 +223,11 @@ pub(super) fn replace_view_descriptor(
 fn writable_byte_field(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     destination: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
-    owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
     carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let reference_destination = super::references::writable_referent_destination(
@@ -240,70 +249,34 @@ fn writable_byte_field(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (root, root_type, access, path) = if let Some(home) = owned_home.filter(|home| {
-        structural_types
-            .get(&home.structural_type())
-            .is_some_and(|declaration| {
-                matches!(declaration.shape, StructuralTypeShape::Record { .. })
-            })
-    }) {
-        let (_, result) = home
-            .operation_result()
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        if result.place != destination
-            || result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !result.claims.is_empty()
-            || !structural_types
-                .get(&result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(declaration.shape, StructuralTypeShape::Record { .. })
-                })
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        // The live home is the actual dominating result, not a borrowed
-        // parameter invented from its type. Selection addresses this home.
+    let (root_type, access) = if let Some(reference) = &reference_destination {
         (
-            destination,
-            result.structural_type,
-            StructuralAccess::Owned,
-            path.to_vec(),
-        )
-    } else if let Some(reference) = &reference_destination {
-        (
-            destination,
             reference.result.structural_type,
             StructuralAccess::MutableBorrow,
-            path.to_vec(),
         )
     } else {
-        let parameter = function
-            .arrival_parameter(destination)
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        (
-            parameter.place,
-            parameter.structural_type,
-            parameter.access,
-            path.to_vec(),
-        )
+        super::primitive_storage::field_root(
+            function,
+            structural_types,
+            prepared,
+            live,
+            destination,
+        )?
     };
+    if !matches!(
+        access,
+        StructuralAccess::Owned
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
+    ) {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let root = destination;
     let (projection_root, projection_path) = reference_destination
         .as_ref()
         .map(|reference| (reference.referent, reference.path.as_slice()))
-        .unwrap_or((root_type, path.as_slice()));
-    if !terminal_psi::is_bounded_structural_scalar_store_path(projection_path)
+        .unwrap_or((root_type, path));
+    if !terminal_psi::is_structural_scalar_store_path(projection_path)
         || function
             .entry_claims
             .iter()
@@ -314,7 +287,7 @@ fn writable_byte_field(
     let carrier = if projection_path.is_empty() {
         projection_root
     } else {
-        crate::lowering::structural_layout::resolve_structural_projection_path(
+        crate::lowering::structural_layout::runtime_projection(
             projection_root,
             projection_path,
             structural_types,
@@ -346,7 +319,7 @@ fn writable_byte_field(
     Ok(terminal_psi::StructuralArgument {
         place: root,
         access,
-        path,
+        path: path.to_vec(),
     })
 }
 
@@ -354,6 +327,7 @@ pub(super) fn replace_byte(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -374,17 +348,17 @@ pub(super) fn replace_byte(
     let destination_argument = writable_field(
         function,
         structural_types,
+        prepared,
         live,
         *destination,
         path,
         *field,
-        None,
     )?;
     // Current-IR validation proves all-path freshness. Retain that same exact
     // field observation and dominating scalar definitions in target custody.
     if !function.operations.iter().any(|operation| matches!(operation,
         AbstractOperation::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
-        if source == destination && measured_path == path && measured_field == field && result.value == *length))
+        if source == destination && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && result.value == *length))
     { return Err(LoweringError::unsupported_control_flow(function.machine)); }
     let index_value = *live
         .integers

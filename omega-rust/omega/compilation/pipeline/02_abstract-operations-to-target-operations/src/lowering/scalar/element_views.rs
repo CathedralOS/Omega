@@ -296,6 +296,29 @@ pub(in crate::lowering) fn element_view_for_place(
     place: PlaceId,
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetElementView, StructuralTypeId), LoweringError> {
+    resolve_element_view(
+        function,
+        structural_types,
+        parameters,
+        backings,
+        values,
+        lengths,
+        place,
+        active,
+    )
+    .map(|(view, structural_type, _)| (view, structural_type))
+}
+
+pub(in crate::lowering) fn resolve_element_view(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters: &[TargetStructuralParameter],
+    backings: ElementViewBackings<'_>,
+    values: &BTreeMap<ValueId, KnownScalar>,
+    lengths: &BTreeMap<ValueId, PlaceId>,
+    place: PlaceId,
+    active: &mut Vec<PlaceId>,
+) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
@@ -367,6 +390,7 @@ pub(in crate::lowering) fn element_view_for_place(
                 source: source_home,
             },
             result.structural_type,
+            source.access,
         ));
     }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
@@ -387,6 +411,7 @@ pub(in crate::lowering) fn element_view_for_place(
                 structural_type: parameter.structural_type,
             },
             parameter.structural_type,
+            parameter.access,
         ));
     }
     if let Some(semantic) = function
@@ -413,6 +438,7 @@ pub(in crate::lowering) fn element_view_for_place(
                 placement: parameter.placement.clone(),
             },
             semantic.structural_type,
+            semantic.access,
         ));
     }
     let Some(AbstractOperation::ElementViewSubslice {
@@ -430,8 +456,10 @@ pub(in crate::lowering) fn element_view_for_place(
     else {
         return Err(invalid());
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !structural_types
@@ -461,7 +489,7 @@ pub(in crate::lowering) fn element_view_for_place(
         return Err(invalid());
     }
     active.push(place);
-    let (source, _) = element_view_for_place(
+    let (source, source_type, source_access) = resolve_element_view(
         function,
         structural_types,
         parameters,
@@ -472,6 +500,16 @@ pub(in crate::lowering) fn element_view_for_place(
         active,
     )?;
     active.pop();
+    let access = match result.multiplicity {
+        StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+        StructuralMultiplicity::Affine if source_access == StructuralAccess::MutableBorrow => {
+            StructuralAccess::MutableBorrow
+        }
+        _ => return Err(invalid()),
+    };
+    if source_type != result.structural_type {
+        return Err(invalid());
+    }
     Ok((
         TargetElementView::Subslice {
             psi_operation: *psi_operation,
@@ -483,14 +521,12 @@ pub(in crate::lowering) fn element_view_for_place(
             obligation: *obligation,
         },
         result.structural_type,
+        access,
     ))
 }
 
-/// Resolve one writable element-view place's descriptor identity. Mutable
-/// views are whole machine or block parameters declared `&mut [T]`, or
-/// operation-result places whose establishment lent the collection under
-/// `MutableBorrow`; subslices establish immutable windows, so a mutable
-/// write can never name one.
+/// A writable descriptor uses the same source-chain and geometry replay as
+/// observations. Affine result custody alone never creates mutable access.
 pub(in crate::lowering) fn mutable_element_view_for_place(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
@@ -500,60 +536,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
 ) -> Result<(TargetElementView, StructuralTypeId), LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
-    if let Some(AbstractOperation::EstablishElementView { source, .. }) =
-        function.operations.iter().find(|operation| {
-            matches!(operation,
-                AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
-        })
-    {
-        if source.access != StructuralAccess::MutableBorrow {
-            return Err(invalid());
-        }
-        return element_view_for_place(
-            function,
-            structural_types,
-            parameters,
-            backings,
-            values,
-            lengths,
-            place,
-            &mut Vec::new(),
-        );
-    }
-    if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
-        entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| (entry, parameter))
-    }) {
-        if entry.block == function.entry
-            || parameter.access != StructuralAccess::MutableBorrow
-            || !is_element_view_parameter(parameter, structural_types)
-        {
-            return Err(invalid());
-        }
-        return Ok((
-            TargetElementView::BlockParameter {
-                block: entry.block,
-                place,
-                structural_type: parameter.structural_type,
-            },
-            parameter.structural_type,
-        ));
-    }
-    let Some(semantic) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    else {
-        return Err(invalid());
-    };
-    if semantic.access != StructuralAccess::MutableBorrow {
-        return Err(invalid());
-    }
-    element_view_for_place(
+    let (view, structural_type, access) = resolve_element_view(
         function,
         structural_types,
         parameters,
@@ -562,7 +545,13 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
         lengths,
         place,
         &mut Vec::new(),
-    )
+    )?;
+    if access != StructuralAccess::MutableBorrow {
+        return Err(LoweringError::UnsupportedOperationInScalarFunction(
+            function.machine,
+        ));
+    }
+    Ok((view, structural_type))
 }
 
 /// Resolve an establishment's collection argument to its exact backing
@@ -614,7 +603,12 @@ fn established_source(
             StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::Owned
-        ) || semantic.multiplicity != StructuralMultiplicity::Unrestricted
+        ) || (source.access == StructuralAccess::MutableBorrow
+            && !matches!(
+                semantic.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::Owned
+            ))
+            || semantic.multiplicity != StructuralMultiplicity::Unrestricted
             || !semantic.qualifications.is_empty()
             || !semantic.projected_qualifications.is_empty()
         {

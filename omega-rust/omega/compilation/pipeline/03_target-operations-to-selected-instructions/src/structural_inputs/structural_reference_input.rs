@@ -1828,6 +1828,65 @@ pub(crate) fn case_field_read(
     .then_some((offset, bytes))
 }
 
+/// Exact byte metadata geometry at a projected record, including every
+/// runtime selector retained by the common structural path owner. The
+/// carrier distinguishes descriptor storage from inline owned byte payload.
+pub(crate) struct ProjectedByteField {
+    pub length_offset: u32,
+    pub descriptor_offset: Option<u32>,
+    pub capacity: Option<u64>,
+    pub elements: Vec<RuntimeElement>,
+}
+
+pub(crate) fn projected_byte_field(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ProjectedByteField> {
+    let count = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .ok()?,
+    );
+    let (length_offset, width, elements) =
+        scalar_field_geometry(root, path, field, count, declarations, true)?;
+    if width != 8 {
+        return None;
+    }
+    let (carrier, _, _) = runtime_projection(root, path, declarations)?;
+    let StructuralTypeShape::Record { fields } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
+    else {
+        return None;
+    };
+    let mut matching = fields
+        .iter()
+        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
+    let selected = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let capacity = match selected.field_type.byte_sequence_carrier() {
+        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
+        _ => None,
+    };
+    // The scalar geometry owner admitted only length-bearing byte or element
+    // descriptors; an inline owner alone places its length before its bytes.
+    let descriptor_offset = if capacity.is_some() {
+        None
+    } else {
+        Some(length_offset.checked_sub(8)?)
+    };
+    Some(ProjectedByteField {
+        length_offset,
+        descriptor_offset,
+        capacity,
+        elements,
+    })
+}
+
 #[derive(Clone, Copy)]
 enum ByteFieldGeometryUse {
     Observation,

@@ -23,13 +23,15 @@ pub(in crate::selection) fn read_byte(
         length,
         obligation,
         accepted_fact,
+        indices,
     } = &row.kind
     else {
         return Err(replay.invalid());
     };
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let geometry = crate::selection::field_bytes::FieldBytes::resolve(function, source, *field)
-        .ok_or_else(|| replay.invalid())?;
+    let geometry =
+        crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, indices)
+            .ok_or_else(|| replay.invalid())?;
     let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) =
         replay.resolve(*index).ok_or_else(|| replay.invalid())?;
@@ -46,13 +48,15 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(replay.invalid());
     }
-    let root = replay
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == source.place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| replay.invalid())?;
+    let root = super::primitive_locals::backing_pointer(
+        function,
+        replay,
+        row,
+        source.place,
+        payload_offset,
+    )?;
+    let root =
+        super::runtime_address::scale(replay, row, source.place, payload_offset, root, indices)?;
     let payload = result(replay, source.place, payload_offset)?;
     match geometry {
         crate::selection::field_bytes::FieldBytes::Inline(_) => replay.check_instruction(
@@ -68,13 +72,14 @@ pub(in crate::selection) fn read_byte(
             &provenance(row),
         )?,
         crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
-            memory(
+            super::runtime_address::footprint(
                 replay,
                 row,
                 source.place,
                 payload_offset,
                 8,
-                SelectedMemoryAccessRole::ReadPlace,
+                indices,
+                super::runtime_address::Written::None,
             )?;
             replay.check_instruction(
                 SelectedInstructionKind::Load64 {
