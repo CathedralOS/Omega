@@ -618,6 +618,21 @@ fn primitive_path(
         return None;
     }
     primitive_leaf(program, machine, state, target)?;
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) {
+        let collection =
+            validation::declared_place_type_raw(program, machine, Some(state), indexed.collection)
+                .and_then(|reference| validation::unwrapped_type_reference(program, reference))?;
+        if let TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(collection)
+            && program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
+        {
+            // Element views own a live extent, including when the authored
+            // selector is a literal. Let the destination resolver retain that
+            // extent in ElementViewWrite instead of treating the descriptor as
+            // fixed storage. Byte sequences keep their existing byte path.
+            return None;
+        }
+    }
     let selectors = super::selectors::TargetSelectors::resolve(
         program,
         facts,

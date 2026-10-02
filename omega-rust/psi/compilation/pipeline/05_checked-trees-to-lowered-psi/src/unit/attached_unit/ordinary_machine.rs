@@ -779,9 +779,9 @@ pub(super) fn emit(
         },
     });
     evaluation.blocks.sort_by_key(|block| block.id);
-    if scalar_return.is_some() {
+    if structural_return.is_none() {
         // Statement cleanup owns entry/local obligations. Complete only the
-        // remaining descriptor carriers on the final scalar continuation graph,
+        // remaining descriptor carriers on the final scalar or Unit graph,
         // using the same custody owner as composed and scalar-graph emission.
         crate::emission::affine_cleanup::complete(
             &[],

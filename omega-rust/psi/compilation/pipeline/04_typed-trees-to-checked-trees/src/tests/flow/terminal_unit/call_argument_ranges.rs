@@ -434,6 +434,42 @@ fn non_preserving_domain_narrows_only_into_a_plain_formal() {
 }
 
 #[test]
+fn mutable_state_view_literal_writes_retain_live_extent_operations() {
+    let checked = checked(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg"
+    )));
+    let machine = machine_named(&checked, "write_pair");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("guarded mutable view writes have a composed plan");
+    let writes: Vec<_> = plan
+        .states
+        .iter()
+        .flat_map(|state| &state.operations)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write),
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => {
+                panic!("view elements require their current descriptor extent")
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(writes.len(), 2);
+    for (statement_index, write) in writes.iter().enumerate() {
+        assert_eq!(write.statement_index, statement_index as u32);
+        assert_eq!(
+            write.destination,
+            checked_trees::CheckedStoreRoot::Parameter { position: 0 }
+        );
+        assert_eq!(write.element, checked_trees::types::PrimitiveType::I32);
+    }
+}
+
+#[test]
 fn fixed_array_field_ranges_retain_access_and_projection_on_state_edges() {
     for (borrow, access, explicit) in [
         ("&", CheckedStructuralAccess::SharedBorrow, false),

@@ -3,7 +3,8 @@
 //! Callers supply only entry owners whose cleanup they delegate here. Existing
 //! statement cleanup remains authoritative; otherwise unhandled borrowed-view
 //! carriers enter at their result birth and are disposed before their owners.
-//! Carrier disposal grants no ownership of borrowed backing storage.
+//! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
+//! a carrier across an edge retains its original disposal debt until exit.
 //! Cyclic descriptor forwarding and nominal cleanup remain outside this pass.
 use crate::direct_calls::call_structural_arguments;
 use crate::lowering_error::{LoweringError, unsupported};
@@ -115,10 +116,9 @@ pub(crate) fn complete(
                 trivial_affine_discards,
                 ..
             } => {
-                if (structural_arguments
-                    .iter()
-                    .any(|argument| managed.contains(&argument.place))
-                    && !(reentered && *target == entry))
+                if (structural_arguments.iter().any(|argument| {
+                    managed.contains(&argument.place) && argument.access == StructuralAccess::Owned
+                }) && !(reentered && *target == entry))
                     || !residual_affine_discards.is_empty()
                     || trivial_affine_discards
                         .iter()
@@ -141,13 +141,13 @@ pub(crate) fn complete(
                 ..
             } => {
                 if [when_true, when_false].iter().any(|edge| {
-                    edge.structural_arguments
+                    edge.structural_arguments.iter().any(|argument| {
+                        managed.contains(&argument.place)
+                            && argument.access == StructuralAccess::Owned
+                    }) || edge
+                        .trivial_affine_discards
                         .iter()
-                        .any(|argument| managed.contains(&argument.place))
-                        || edge
-                            .trivial_affine_discards
-                            .iter()
-                            .any(|place| affine.contains(place))
+                        .any(|place| affine.contains(place))
                         || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
@@ -166,10 +166,19 @@ pub(crate) fn complete(
             {
                 Vec::new()
             }
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards
+                .iter()
+                .all(|place| !affine.contains(place)) =>
+            {
+                Vec::new()
+            }
             Terminator::Crash { .. } => Vec::new(),
             _ => {
                 return unsupported(
-                    "scalar graph whole parameter cleanup requires scalar exits and ordinary edges",
+                    "scalar graph whole parameter cleanup requires scalar or Unit exits and ordinary edges",
                 );
             }
         };
@@ -324,6 +333,12 @@ pub(crate) fn complete(
                     discards(successors[position][1]),
                     &producers,
                 );
+            }
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } => {
+                merge_discards(trivial_affine_discards, exits[position].clone(), &producers);
             }
             Terminator::Return {
                 cleanup_actions, ..
