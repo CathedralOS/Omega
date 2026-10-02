@@ -680,28 +680,29 @@ impl<'program> ShapeCollector<'program> {
             {
                 element_carrier = *base_type;
             }
-            if (length == 0
-                && !validation::is_closed_primitive_array_type(self.program, type_reference))
-                || (!plain_owned_array
-                    && !owned_affine_array
-                    && (substitutions.iter().any(|(parameter, _)| {
-                        crate::monomorphization::runtime_bound_occurrence_in(
-                            self.program,
-                            &[*element_type],
-                            *parameter,
-                        )
-                    }) || (!matches!(
-                        self.program
-                            .type_reference_table
-                            .type_reference(element_carrier),
-                        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                    ) && !unrestricted_primitive_element
-                        && !nested_array_element)
-                        || (crate::checks::type_multiplicity(self.program, *element_type)
-                            != Multiplicity::Linear
-                            && !unrestricted_primitive_element
-                            && !material_data_element
-                            && !nested_array_element)))
+            // An empty extent removes elements, not their declared type.
+            // Collect the same owned element shell at every length; the
+            // recursive collector still rejects unknown and recursive types.
+            if (!plain_owned_array
+                && !owned_affine_array
+                && (substitutions.iter().any(|(parameter, _)| {
+                    crate::monomorphization::runtime_bound_occurrence_in(
+                        self.program,
+                        &[*element_type],
+                        *parameter,
+                    )
+                }) || (!matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(element_carrier),
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                ) && !unrestricted_primitive_element
+                    && !nested_array_element)
+                    || (crate::checks::type_multiplicity(self.program, *element_type)
+                        != Multiplicity::Linear
+                        && !unrestricted_primitive_element
+                        && !material_data_element
+                        && !nested_array_element)))
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;

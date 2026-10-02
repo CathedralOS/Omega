@@ -444,9 +444,12 @@ the complete product bar; focused successes below do not establish that baseline
     Complete those valid custody cases, including values arriving as owned
     parameters/block arguments, without double disposal or a fabricated move
     window. Verify empty-record locals both when forwarded and when discarded;
-    a successful forwarding path does not prove edge cleanup. Non-scalar-leaf
-    zero-length arrays still reject in native structural layout; preserve
-    empty-index and literal-arity rejection while admitting empty construction.
+    a successful forwarding path does not prove edge cleanup. Empty record-array
+    fields now use the ordinary checked catalog and zero-byte native layout;
+    `collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}`
+    preserve mutable caller writes with native/interpreter exit 0 on Linux x86-64.
+    Unknown/cyclic element graphs, stored reference custody, byte-view substitution,
+    empty indexing and literal arity remain independent rejection checks.
     `filesystem/windows_canonicalize_exit` needs its stored UnitResult. Coordinate
     **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
     **NOMINAL-FIELD-FLOW**.
@@ -1949,6 +1952,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.
+  Empty record-array fields and their nested array extents now lend through the
+  ordinary mutable-record call path: `omega run --both
+  tests/omega/pass/collections/empty_record_array_borrow_exit/main.omg` exits 0
+  natively and interpreted on Linux x86-64, after the helper writes the caller's
+  scalar neighbor. `nested_empty_record_array_borrow_exit` checks both sides of
+  a nested empty-array field and the parent record's neighbors; index 0 into the
+  same empty element type still rejects. This closes empty-shell admission and
+  native geometry, not the remaining owned element producers below.
   Literal closed primitive array members already compose at local, nested,
   return and field-store sites: stage 04's shared `structural_value` sends them to
   `CheckedStructuralValueKind::ScalarArray`, whose row-major leaves are keyed

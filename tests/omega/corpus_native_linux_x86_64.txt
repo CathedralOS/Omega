@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 1.3, "load1_start": 1.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.14, "load1_start": 0.14, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -211,9 +211,11 @@ pass/collections/element_view_indexed_read built 1020ms exit:181 @2d8ed253669f+w
 pass/collections/element_view_indexed_write built 941ms @2d8ed253669f+wt
 pass/collections/element_view_runtime_field_write built 951ms exit:181 @2d8ed253669f+wt
 pass/collections/element_view_write_transition built 1043ms exit:181 @2d8ed253669f+wt
+pass/collections/empty_record_array_borrow_exit built 538ms exit:0 @3e847a410959+wt
 pass/collections/indexed_row_array_literal_store built 1154ms @2d8ed253669f+wt
 pass/collections/mutable_slice_view_edge_release built 1124ms exit:181 @2d8ed253669f+wt
 pass/collections/mutable_slice_view_establishment built 910ms exit:181 @2d8ed253669f+wt
+pass/collections/nested_empty_record_array_borrow_exit built 563ms exit:0 @3e847a410959+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit built 1130ms exit:70 @2d8ed253669f+wt
 pass/collections/owned_array_scalar_comparisons checked 315ms @2d8ed253669f+wt
 pass/collections/policy_array_literal_store_exit built 1127ms exit:52 @2d8ed253669f+wt

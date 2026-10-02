@@ -797,9 +797,10 @@ fn shape(
             ValueShape::integer(byte_size, alignment)
         }
         StructuralTypeShape::FixedArray { length: 0, .. } => {
-            // Zero-byte calling plans retain a canonical shape, but emptiness
-            // cannot hide an unknown, recursive or nonprimitive element chain.
-            validate_empty_primitive_array(structural_type, declarations)?;
+            // Zero-byte calling plans retain a canonical shape. Reconstruct
+            // the complete element declaration even though no element bytes
+            // are transported; unknown and recursive shells still reject.
+            validate_empty_array_element(structural_type, declarations, cache, active)?;
             ValueShape::integer(0, 1)
         }
         StructuralTypeShape::FixedArray { element, length } => {
@@ -824,9 +825,11 @@ fn shape(
     Ok(result)
 }
 
-fn validate_empty_primitive_array(
+fn validate_empty_array_element(
     root: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<(), InvalidStructuralShape> {
     let mut current = root;
     for _ in 0..declarations.len() {
@@ -848,7 +851,10 @@ fn validate_empty_primitive_array(
                     _ => Err(InvalidStructuralShape),
                 };
             }
-            _ => return Err(InvalidStructuralShape),
+            // The array chain's extents contribute no payload under the
+            // empty root. A nominal element still has its own independently
+            // reconstructible geometry and complete type graph.
+            _ => return shape(current, declarations, cache, active).map(|_| ()),
         }
     }
     Err(InvalidStructuralShape)

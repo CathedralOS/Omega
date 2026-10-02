@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 7.65, "load1_start": 0.17, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.11, "load1_start": 0.11, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -335,6 +335,8 @@ fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
+fail/collections/empty_record_array_index_rejected rejected 257ms expected @3e847a410959+wt
+	cannot prove index `0` is within length 0
 fail/collections/fixed_vec_push_without_room rejected 216ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/vec_duplicate_cleanup rejected 740ms expected @2d8ed253669f
@@ -1433,10 +1435,12 @@ pass/collections/element_view_runtime_field_write checked 1284ms @2d8ed253669f
 pass/collections/element_view_runtime_loan_read checked 938ms @ca8c127c90c5
 pass/collections/element_view_whole_write checked 1833ms @ca8c127c90c5
 pass/collections/element_view_write_transition checked 1201ms @2d8ed253669f
+pass/collections/empty_record_array_borrow_exit checked 479ms @3e847a410959+wt
 pass/collections/indexed_row_array_literal_store checked 1151ms @2d8ed253669f
 pass/collections/mutable_slice_view_edge_release checked 1248ms @2d8ed253669f
 pass/collections/mutable_slice_view_establishment checked 1329ms @2d8ed253669f
 pass/collections/named_transition_completion checked 1468ms @ca8c127c90c5
+pass/collections/nested_empty_record_array_borrow_exit checked 497ms @3e847a410959+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
 pass/collections/policy_array_literal_store_exit checked 1541ms @2d8ed253669f

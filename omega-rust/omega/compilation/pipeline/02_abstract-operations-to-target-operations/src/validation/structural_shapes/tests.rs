@@ -1,4 +1,4 @@
-//! Empty ABI shapes retain complete recursive primitive declarations.
+//! Empty ABI shapes retain complete recursive element declarations.
 
 use super::{
     IeeeFloatFormat, ScalarType, StructuralFieldType, StructuralPathSegment,
@@ -113,7 +113,7 @@ fn empty_primitive_arrays_have_canonical_zero_byte_abi_without_inner_extent_over
 }
 
 #[test]
-fn empty_primitive_array_reconstruction_rejects_unknown_recursive_and_nonprimitive_types() {
+fn empty_array_reconstruction_rejects_unknown_and_recursive_types() {
     for nested in [
         StructuralTypeShape::FixedArray {
             element: StructuralTypeId::new(99).unwrap(),
@@ -123,7 +123,6 @@ fn empty_primitive_array_reconstruction_rejects_unknown_recursive_and_nonprimiti
             element: StructuralTypeId::new(1).unwrap(),
             length: 0,
         },
-        StructuralTypeShape::Record { fields: Vec::new() },
     ] {
         let types = [
             declaration(
@@ -137,4 +136,25 @@ fn empty_primitive_array_reconstruction_rejects_unknown_recursive_and_nonprimiti
         ];
         assert!(reconstruct(types[0].id, &types).is_err());
     }
+}
+
+#[test]
+fn empty_record_array_geometry_keeps_element_validation_and_no_index() {
+    let types = [
+        declaration(
+            1,
+            StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(2).unwrap(),
+                length: 0,
+            },
+        ),
+        declaration(2, StructuralTypeShape::Record { fields: Vec::new() }),
+    ];
+    assert_eq!(
+        reconstruct(types[0].id, &types),
+        Ok(ValueShape::integer(0, 1))
+    );
+    assert!(
+        project_static_path(types[0].id, &[StructuralPathSegment::FixedIndex(0)], &types).is_err()
+    );
 }
