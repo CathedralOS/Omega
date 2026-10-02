@@ -820,8 +820,8 @@ pub(crate) fn structural_source_contract(
                     };
                     (declaration.id == place).then_some(StructuralSourceContract {
                         structural_type: structural_type.id,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                        access: terminal_psi::StructuralAccess::Owned,
                         qualifications: qualifications.as_slice(),
                         projected_qualifications: &[],
                         operation_result: None,

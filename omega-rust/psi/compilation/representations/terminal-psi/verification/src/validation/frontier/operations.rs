@@ -66,6 +66,14 @@ pub(super) fn apply_operation(
             place: destination,
         });
     }
+    // The literal storage is an owned affine carrier like any trivial local:
+    // its unit-result establishment produces no OperationResult to install,
+    // and foundation validation already pins one establish per declaration.
+    if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind {
+        frontier
+            .owned_places
+            .insert(destination, StructuralMultiplicity::Affine);
+    }
     let mut consumed_places = consumed_places(walk, operation);
     consumed_places.extend(leaf_moved_place);
     if let Some(place) =
@@ -190,14 +198,16 @@ pub(super) fn apply_operation(
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::byte_sequence::subslice::borrowed_result(machine, result.place)
+            || super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, result.place)
                 .is_none())
         && super::super::byte_sequence::concatenation::owned_result(machine, result.place).is_none()
         && terminal_semantics::byte_owned_call_result(module, machine, result.place).is_none()
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::element_view::subslice::borrowed_result(machine, result.place)
+            || super::super::element_view::subslice::borrowed_result_in_module(module, machine, result.place)
                 .is_none())
-        && super::super::record::shared_view_member_source(module, machine, result.place).is_none()
+        && (result.multiplicity != StructuralMultiplicity::Unrestricted
+            || super::super::record::shared_view_member_source(module, machine, result.place)
+                .is_none())
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
         && !super::super::scalar::array::plain_return_source(module, machine, result.place)
         && !(result.multiplicity == StructuralMultiplicity::Unrestricted

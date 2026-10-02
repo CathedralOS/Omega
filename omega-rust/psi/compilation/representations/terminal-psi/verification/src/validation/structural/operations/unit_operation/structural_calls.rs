@@ -204,6 +204,100 @@ pub(in crate::validation) fn validate_call_structural(
         }
         return Ok(());
     }
+    if result.multiplicity != StructuralMultiplicity::Linear
+        && matches!(
+            operation.kind,
+            OperationKind::CallStructuralWithScalarArguments { .. }
+        )
+    {
+        // A non-linear structural result is a produced place, not a claim
+        // interface: claims, transfers and linear source policy do not apply,
+        // while the callee correspondence, result-place and contract surface
+        // checks run exactly as they do for a linear call.
+        if callee.parameters.len() != arguments.len()
+            || structural_arguments.len() != callee.structural_parameters.len()
+            || result.structural_type != callee_result.structural_type
+            || result.multiplicity != callee_result.multiplicity
+            || !crate::validation::structural::result_contracts::call_result_matches(
+                result,
+                callee_result,
+            )
+            || !result.claims.is_empty()
+            || !claim_transfers.is_empty()
+            || !returned_claim_transfers.is_empty()
+        {
+            return Err(ModuleError::StructuralCallTargetMismatch {
+                operation: operation.id,
+                callee: callee.id,
+            });
+        }
+        let result_place = machine
+            .structural_places
+            .iter()
+            .find(|place| place.id == result.place);
+        if !matches!(
+            result_place.map(|place| place.kind),
+            Some(StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            }) if producer == operation.id && structural_type == result.structural_type
+        ) {
+            return Err(ModuleError::StructuralCallResultPlaceMismatch(
+                operation.id,
+            ));
+        }
+        validate_structural_arguments(
+            module,
+            machine,
+            structural_arguments,
+            &callee.structural_parameters,
+            operation.id,
+            false,
+            StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults,
+        )?;
+        validate_unit_call_contract_places(callee, operation.id)?;
+        validate_service_reach(
+            operation.id,
+            &machine.published_service_ceiling,
+            &callee.published_service_ceiling,
+        )?;
+        if requirement_obligations.len() != callee.contract.requires.len() {
+            return Err(ModuleError::CallRequirementArityMismatch {
+                operation: operation.id,
+                expected: callee.contract.requires.len(),
+                actual: requirement_obligations.len(),
+            });
+        }
+        if erased_arguments.len() != callee.contract.erased_scalar_formals.len() {
+            return Err(ModuleError::ErasedCallArgumentArityMismatch {
+                operation: operation.id,
+                expected: callee.contract.erased_scalar_formals.len(),
+                actual: erased_arguments.len(),
+            });
+        }
+        crate::validation::validate_erased_argument_terms(
+            machine,
+            operation.id,
+            erased_arguments,
+        )?;
+        crate::validation::validate_erased_proof_terms(
+            machine,
+            crate::validation::proof_formals_in_scope(machine, operation.id),
+            &callee.contract.erased_proof_formals,
+            erased_proof_arguments,
+            operation.id,
+        )?;
+        validate_unit_call_crash_continuations(
+            module,
+            machine,
+            callee,
+            arguments,
+            structural_arguments,
+            crash_continuations,
+            operation.id,
+        )?;
+        return Ok(());
+    }
     if callee.parameters.len() != arguments.len()
         || structural_arguments.len() != 1
         || !structural_arguments[0].path.is_empty()
@@ -214,7 +308,6 @@ pub(in crate::validation) fn validate_call_structural(
             result,
             callee_result,
         )
-        || result.multiplicity != StructuralMultiplicity::Linear
     {
         return Err(ModuleError::StructuralCallTargetMismatch {
             operation: operation.id,

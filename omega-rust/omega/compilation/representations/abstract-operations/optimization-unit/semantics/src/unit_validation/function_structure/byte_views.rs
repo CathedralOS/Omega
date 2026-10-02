@@ -223,7 +223,9 @@ pub(super) fn validate_source(
         }
         _ => matches!(
             access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::Owned
         ),
     };
     let arrival = function.arrival_parameter(source);
@@ -298,7 +300,8 @@ pub(super) fn validate_source(
         .or_else(|| {
             let contract = super::super::operation_contracts::structural_source_contract(
                 function, source, false,
-            )?;
+            );
+            let contract = contract?;
             let result = contract.operation_result()?;
             (result.place == source
                 && result.structural_type == *structural_type

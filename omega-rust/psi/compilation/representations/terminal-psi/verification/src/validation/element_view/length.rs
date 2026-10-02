@@ -85,10 +85,10 @@ pub(in crate::validation) fn validate_source(
             parameter.structural_type
         }
         StructuralPlaceKind::OperationResult { .. } => {
-            crate::validation::element_view::subslice::borrowed_result(machine, source)
+            crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, source)
                 .map(|result| result.structural_type)
                 .or_else(|| {
-                    crate::validation::element_view::write::mutable_result(machine, source)
+                    crate::validation::element_view::write::mutable_result(module, machine, source)
                         .map(|result| result.structural_type)
                 })
                 .ok_or_else(&invalid)?

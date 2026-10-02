@@ -195,7 +195,7 @@ fn call_argument_changes(
         match &operation.kind {
             OperationKind::EstablishElementView { source, .. }
             | OperationKind::EstablishMutableElementView { source, .. } => {
-                if crate::validation::element_view::view_loan_result(machine, place).is_none() {
+                if crate::validation::element_view::view_loan_result_in_module(module, machine, place).is_none() {
                     return true;
                 }
                 let mut backing = source.path.clone();

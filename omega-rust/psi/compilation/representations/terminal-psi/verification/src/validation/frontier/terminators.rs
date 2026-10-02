@@ -628,6 +628,25 @@ fn close_return_structural(
         .expect("control validation requires a structural result");
     let source_signature =
         super::super::structural::result_contracts::source_signature(machine, *source)
+            .or_else(|| {
+                machine
+                    .structural_places
+                    .iter()
+                    .find_map(|declaration| match declaration.kind {
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                            structural_type,
+                            ..
+                        } if declaration.id == *source => {
+                            Some(super::super::structural::result_contracts::StructuralResultSignature {
+                                structural_type,
+                                multiplicity: StructuralMultiplicity::Affine,
+                                qualifications: &[],
+                                projected_qualifications: &[],
+                            })
+                        }
+                        _ => None,
+                    })
+            })
             .expect("control validation requires a structural source declaration");
     let plain_owned_block_return =
         super::super::block_views::plain_owned_return_source(module, machine, *source);
@@ -800,7 +819,11 @@ fn close_return_structural(
         && !super::super::structural::case::plain_return_source(module, machine, *source)
         && !super::super::structural::leaf_copy::copied_return_source(machine, *source)
         && !super::super::record::established_record_return_source(module, machine, *source)
-        && !super::super::record::plain_return_source(module, machine, *source))
+        && !super::super::record::plain_return_source(module, machine, *source)
+        && !machine.structural_places.iter().any(|place| {
+            place.id == *source
+                && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+        }))
         || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(ModuleError::NonCanonicalStructuralReturnClaims {

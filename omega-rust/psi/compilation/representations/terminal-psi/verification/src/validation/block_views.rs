@@ -636,8 +636,8 @@ fn shared_loan_root(
             .then_some(structural_type);
     }
     if argument.path.is_empty() {
-        return super::byte_sequence::subslice::borrowed_result(machine, argument.place)
-            .or_else(|| super::element_view::subslice::borrowed_result(machine, argument.place))
+        return super::byte_sequence::subslice::borrowed_result_in_module(module, machine, argument.place)
+            .or_else(|| super::element_view::subslice::borrowed_result_in_module(module, machine, argument.place))
             .or_else(|| {
                 super::structural::leaf_copy::copied_return_source(machine, argument.place)
                     .then_some(argument.place)
@@ -663,7 +663,7 @@ fn shared_loan_root(
     // the view's element type, exactly as a record field loan roots at the
     // record. Byte views keep the whole-view rule above — their elements
     // carry no structural projection.
-    super::element_view::subslice::borrowed_result(machine, argument.place)
+    super::element_view::subslice::borrowed_result_in_module(module, machine, argument.place)
         .filter(|_| available.contains(&argument.place))
         .map(|result| result.structural_type)
 }
@@ -699,7 +699,7 @@ fn mutable_loan_root(
         .then_some(parameter.structural_type);
     }
     mutable_records::owned_home(module, machine, argument.place)
-        .or_else(|| mutable_view_result(machine, argument.place))
+        .or_else(|| mutable_view_result(module, machine, argument.place))
         .filter(|_| available.contains(&argument.place))
         .map(|result| result.structural_type)
 }
@@ -708,11 +708,12 @@ fn mutable_loan_root(
 /// multiplicity alone. This also covers narrowed views without granting a
 /// shared source exclusive access or treating descriptor ownership as ownership
 /// of the referent. Formation validates the exact result type and custody.
-fn mutable_view_result(
-    machine: &TerminalMachine,
+fn mutable_view_result<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
     place: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
-    super::element_view::view_loan_result(machine, place)
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    super::element_view::view_loan_result_in_module(module, machine, place)
         .filter(|(_, access)| *access == StructuralAccess::MutableBorrow)
         .map(|(result, _)| result)
 }
@@ -758,7 +759,7 @@ pub(super) fn mutable_availability(
                     .filter(|result| {
                         (record_loans
                             && mutable_records::owned_home(module, machine, result.place).is_some())
-                            || mutable_view_result(machine, result.place).is_some()
+                            || mutable_view_result(module, machine, result.place).is_some()
                     })
                     .map(|result| result.place)
                     .collect::<BTreeSet<_>>(),
@@ -885,7 +886,7 @@ pub(super) fn mutable_availability(
                                 && parameter.access == StructuralAccess::SharedBorrow
                                 && (self::parameter(machine, argument.place).is_some_and(
                                     |source| source.access == StructuralAccess::MutableBorrow,
-                                ) || mutable_view_result(machine, argument.place).is_some())))
+                                ) || mutable_view_result(module, machine, argument.place).is_some())))
                     {
                         incoming.remove(&argument.place);
                     }
@@ -948,12 +949,16 @@ pub(super) fn mutable_availability(
     available
 }
 
-pub(super) fn is_mutable_name(machine: &TerminalMachine, place: PlaceId) -> bool {
+pub(super) fn is_mutable_name(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> bool {
     machine
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == place)
         .or_else(|| parameter(machine, place))
         .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
-        || mutable_view_result(machine, place).is_some()
+        || mutable_view_result(module, machine, place).is_some()
 }

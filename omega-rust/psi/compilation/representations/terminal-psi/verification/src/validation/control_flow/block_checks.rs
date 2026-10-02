@@ -4,8 +4,8 @@ use super::definitions::DefinitionSites;
 use crate::validation::operations::{require_defined, validate_operation_operands};
 use crate::validation::{
     BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, ContractClauseKind, MachineId,
-    ModuleError, OperationKind, ScalarType, StructuralAccess, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
+    ModuleError, OperationKind, ScalarType, StructuralAccess, StructuralPlaceKind,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
 };
 use semantic_vocabulary::PlaceId;
 
@@ -66,7 +66,7 @@ pub(super) fn validate_block(
     );
     if let Some(mutable) = mutable_views.get(&block_id) {
         available_structural.retain(|place| {
-            !crate::validation::block_views::is_mutable_name(machine, *place)
+            !crate::validation::block_views::is_mutable_name(module, machine, *place)
                 && (mutable_records.is_none()
                     || crate::validation::block_views::mutable_records::owned_home(
                         module, machine, *place,
@@ -373,9 +373,9 @@ pub(super) fn validate_block(
                     place: *source,
                 });
             }
-            if crate::validation::byte_sequence::subslice::borrowed_result(machine, *source)
+            if crate::validation::byte_sequence::subslice::borrowed_result_in_module(module, machine, *source)
                 .is_some()
-                || crate::validation::element_view::subslice::borrowed_result(machine, *source)
+                || crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, *source)
                     .is_some()
                 || block_parameter
                     .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
@@ -406,6 +406,14 @@ pub(super) fn validate_block(
                             .structural()
                             .is_some_and(|result| result.place == *source)
                     })
+                && !matches!(
+                    machine
+                        .structural_places
+                        .iter()
+                        .find(|place| place.id == *source)
+                        .map(|place| &place.kind),
+                    Some(StructuralPlaceKind::ByteSequenceLiteral { .. })
+                )
             {
                 return Err(ModuleError::StructuralReturnRequiresParameterSource {
                     machine: machine.id,

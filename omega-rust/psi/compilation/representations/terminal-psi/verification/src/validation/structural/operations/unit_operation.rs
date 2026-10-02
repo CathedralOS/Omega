@@ -165,82 +165,82 @@ pub(crate) fn validate_unit_operation_static(
             let Some(result) = operation.result.structural() else {
                 return Err(ModuleError::StructuralCallResultMismatch(operation.id));
             };
-            let [callee_parameter] = callee.structural_parameters.as_slice() else {
-                return Err(ModuleError::StructuralCallTargetMismatch {
-                    operation: operation.id,
-                    callee: callee.id,
-                });
+            // The forwarding-wrapper cell: an affine owned value crossing a
+            // call whose callee is exactly `return parameter`. Producer
+            // callees mint their result instead of preserving one incoming
+            // place's custody, so anything outside this shape joins the
+            // general structural-call validation rather than failing here.
+            let forwarding_wrapper = 'cell: {
+                let [callee_parameter] = callee.structural_parameters.as_slice() else {
+                    break 'cell false;
+                };
+                let [argument] = structural_arguments.as_slice() else {
+                    break 'cell false;
+                };
+                let exact_return = matches!(callee.blocks.as_slice(), [block]
+                if block.id == callee.entry
+                    && block.parameters.is_empty()
+                    && block.operations.is_empty()
+                    && matches!(
+                        &block.terminator,
+                        Terminator::ReturnStructural {
+                            source,
+                            returned_claims,
+                            trivial_affine_discards,
+                            ..
+                        } if *source == callee_parameter.place
+                            && returned_claims.is_empty()
+                            && trivial_affine_discards.is_empty()
+                    ));
+                break 'cell callee.parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.scalar_type,
+                        ScalarType::Integer(integer)
+                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                    )
+                }) && callee_parameter.position == 0
+                    && !callee_parameter.is_self
+                    && callee_parameter.structural_type == callee_result.structural_type
+                    && callee_parameter.multiplicity == StructuralMultiplicity::Affine
+                    && callee_parameter.access == StructuralAccess::Owned
+                    && callee_parameter.qualifications.is_empty()
+                    && callee_parameter.projected_qualifications.is_empty()
+                    && argument.path.is_empty()
+                    && argument.access == StructuralAccess::Owned
+                    && result.structural_type == callee_result.structural_type
+                    && result.multiplicity == StructuralMultiplicity::Affine
+                    && result.multiplicity == callee_result.multiplicity
+                    && crate::validation::structural::result_contracts::call_result_matches(
+                        result,
+                        callee_result,
+                    )
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                    && claim_transfers.is_empty()
+                    && returned_claim_transfers.is_empty()
+                    && requirement_obligations.is_empty()
+                    && crash_continuations.is_empty()
+                    && callee.entry_claims.is_empty()
+                    && callee.content_entry_claims.is_empty()
+                    && callee.content_identity_reshuffles.is_empty()
+                    && callee.content_partition_compositions.is_empty()
+                    && callee.published_service_ceiling.is_empty()
+                    && callee.contract.requires.is_empty()
+                    && callee.contract.ensures.is_empty()
+                    && callee.contract.outcome_specific_ensures.is_empty()
+                    && callee.contract.crash_routes.is_empty()
+                    && crate::validation::structural::result_contracts::has_plain_owned_shape(
+                        module,
+                        callee_result.structural_type,
+                    )
+                    && exact_return;
             };
-            let [argument] = structural_arguments.as_slice() else {
-                return Err(ModuleError::StructuralCallTargetMismatch {
-                    operation: operation.id,
-                    callee: callee.id,
-                });
-            };
-            let exact_return = matches!(callee.blocks.as_slice(), [block]
-            if block.id == callee.entry
-                && block.parameters.is_empty()
-                && block.operations.is_empty()
-                && matches!(
-                    &block.terminator,
-                    Terminator::ReturnStructural {
-                        source,
-                        returned_claims,
-                        trivial_affine_discards,
-                        ..
-                    } if *source == callee_parameter.place
-                        && returned_claims.is_empty()
-                        && trivial_affine_discards.is_empty()
-                ));
-            if !callee.parameters.iter().all(|parameter| {
-                matches!(
-                    parameter.scalar_type,
-                    ScalarType::Integer(integer)
-                        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                            && matches!(integer.bits(), 8 | 16 | 32 | 64)
-                )
-            }) || callee_parameter.position != 0
-                || callee_parameter.is_self
-                || callee_parameter.structural_type != callee_result.structural_type
-                || callee_parameter.multiplicity != StructuralMultiplicity::Affine
-                || callee_parameter.access != StructuralAccess::Owned
-                || !callee_parameter.qualifications.is_empty()
-                || !callee_parameter.projected_qualifications.is_empty()
-                || !argument.path.is_empty()
-                || argument.access != StructuralAccess::Owned
-                || result.structural_type != callee_result.structural_type
-                || result.multiplicity != StructuralMultiplicity::Affine
-                || result.multiplicity != callee_result.multiplicity
-                || !crate::validation::structural::result_contracts::call_result_matches(
-                    result,
-                    callee_result,
-                )
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.claims.is_empty()
-                || !claim_transfers.is_empty()
-                || !returned_claim_transfers.is_empty()
-                || !requirement_obligations.is_empty()
-                || !crash_continuations.is_empty()
-                || !callee.entry_claims.is_empty()
-                || !callee.content_entry_claims.is_empty()
-                || !callee.content_identity_reshuffles.is_empty()
-                || !callee.content_partition_compositions.is_empty()
-                || !callee.published_service_ceiling.is_empty()
-                || !callee.contract.requires.is_empty()
-                || !callee.contract.ensures.is_empty()
-                || !callee.contract.outcome_specific_ensures.is_empty()
-                || !callee.contract.crash_routes.is_empty()
-                || !crate::validation::structural::result_contracts::has_plain_owned_shape(
-                    module,
-                    callee_result.structural_type,
-                )
-                || !exact_return
-            {
-                return Err(ModuleError::StructuralCallTargetMismatch {
-                    operation: operation.id,
-                    callee: callee.id,
-                });
+            if !forwarding_wrapper {
+                return structural_calls::validate_call_structural(
+                    module, machine, machines, operation,
+                );
             }
             let result_place = machine
                 .structural_places

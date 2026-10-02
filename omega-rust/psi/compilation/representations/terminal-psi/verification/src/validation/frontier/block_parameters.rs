@@ -208,8 +208,8 @@ fn carries_owned_frontier(
     match declaration.kind {
         StructuralPlaceKind::TrivialAffineLocal { .. } => true,
         StructuralPlaceKind::OperationResult { .. } => {
-            super::super::byte_sequence::subslice::borrowed_result(machine, place).is_none()
-                && super::super::element_view::subslice::borrowed_result(machine, place).is_none()
+            super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, place).is_none()
+                && super::super::element_view::subslice::borrowed_result_in_module(module, machine, place).is_none()
                 && super::super::primitive_storage::local_result(machine, place).is_none()
                 && !super::super::scalar::array::plain_return_source(module, machine, place)
                 && !super::super::structural::leaf_copy::copied_return_source(machine, place)

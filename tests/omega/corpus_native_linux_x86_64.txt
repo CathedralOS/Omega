@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 5.29, "load1_start": 5.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 6.99, "load1_start": 5.94, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -766,8 +766,8 @@ pass/relevance/erased_parameter_named_transition_forward checked 277ms @2d8ed253
 pass/relevance/erased_parameter_proof_only built 794ms @2d8ed253669f+wt
 pass/relevance/erased_receiver_proof_machine_call checked 287ms @2d8ed253669f+wt
 pass/relevance/erased_record_parameter_exit built 797ms exit:70 @2d8ed253669f+wt
-pass/slices/byte_sequence_literal_tail_return_compile rejected 398ms @e459ca044a2c
-	terminal-artifact production failed: Lowering(Unsupported("structural call result disagrees with its declared carrier"))
+pass/slices/byte_sequence_literal_tail_return_compile rejected 472ms @69dd09ed5aa5+wt
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/observations.rs", line: 65, column: 28 } }
 pass/slices/callee_non_byte_view_len_index_subslice built 1330ms exit:9 @9baafc0ace88
 pass/slices/disjoint_mut_subslice_windows_compile checked 278ms @2d8ed253669f+wt
 pass/slices/domained_runtime_end_subslice_exit built 1356ms exit:70 @2c44d70118d1+wt

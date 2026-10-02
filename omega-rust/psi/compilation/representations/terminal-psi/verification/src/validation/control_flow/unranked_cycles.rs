@@ -845,13 +845,13 @@ fn cycle_operation_eligible(
                                             StructuralPlaceKind::ByteSequenceLiteral { .. }
                                         )
                                 })
-                                || crate::validation::byte_sequence::subslice::borrowed_result(
-                                    machine,
+                                || crate::validation::byte_sequence::subslice::borrowed_result_in_module(
+                                    module, machine,
                                     argument.place,
                                 )
                                 .is_some()
-                                || crate::validation::element_view::subslice::borrowed_result(
-                                    machine,
+                                || crate::validation::element_view::subslice::borrowed_result_in_module(
+                                    module, machine,
                                     argument.place,
                                 )
                                 .is_some()))
@@ -963,19 +963,19 @@ fn cycle_operation_eligible(
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::byte_sequence::subslice::borrowed_result(machine, result.place)
+                crate::validation::byte_sequence::subslice::borrowed_result_in_module(module, machine, result.place)
                     == Some(result)
             })
         }
         OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::element_view::subslice::borrowed_result(machine, result.place)
+                crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, result.place)
                     == Some(result)
             })
         }
         OperationKind::EstablishMutableElementView { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::element_view::write::mutable_result(machine, result.place)
+                crate::validation::element_view::write::mutable_result(module, machine, result.place)
                     == Some(result)
             })
         }

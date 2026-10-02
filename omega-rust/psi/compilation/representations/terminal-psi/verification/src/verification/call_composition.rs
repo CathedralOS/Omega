@@ -853,7 +853,7 @@ fn structural_contract_substitutions(
         let element_view_borrow = !argument.path.is_empty()
             && argument.access != terminal_psi::StructuralAccess::Owned
             && crate::validation::is_static_borrow_path(&argument.path)
-            && crate::validation::element_view::view_loan_result(caller, argument.place).is_some();
+            && crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place).is_some();
         // A stored shared view field lends its own descriptor: like a
         // window, it has no owned-field spelling, so an unobserved binder is
         // omitted. Its declared predicates already cover the formal's.

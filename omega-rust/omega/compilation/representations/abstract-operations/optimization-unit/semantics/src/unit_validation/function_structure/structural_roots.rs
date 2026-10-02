@@ -812,6 +812,22 @@ pub(crate) fn validate_structural_root_operations(
                                 )
                             })
                             .or_else(|| {
+                                let Some(StructuralPlaceKind::ByteSequenceLiteral {
+                                    structural_type,
+                                    ..
+                                }) = place_kinds.get(source).copied()
+                                else {
+                                    return None;
+                                };
+                                Some((
+                                    structural_type,
+                                    terminal_psi::StructuralMultiplicity::Affine,
+                                    &[][..],
+                                    &[][..],
+                                    BTreeSet::new(),
+                                ))
+                            })
+                            .or_else(|| {
                                 let Some(StructuralPlaceKind::OperationResult {
                                     producer,
                                     structural_type,
