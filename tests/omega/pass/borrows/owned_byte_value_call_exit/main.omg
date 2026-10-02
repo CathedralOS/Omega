@@ -12,7 +12,7 @@ data Main {
 
 data Writer {}
 
-machine Writer::replace(&mut self, value: [u8; 16] in Utf8, line: &mut [u8; 16] in Utf8) {
+machine Writer::replace(value: [u8; 16] in Utf8, line: &mut [u8; 16] in Utf8) {
     line = value;
 }
 
@@ -20,17 +20,17 @@ machine returned_line() -> [u8; 16] in Utf8 { "é" }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.sibling = 29;
-    main.writer.replace("Wanderer", &mut main.line);
+    Writer::replace("Wanderer", &mut main.line);
     let literal_matches: bool = main.line == "Wanderer" && main.line.len == 8;
-    main.writer.replace("é", &mut main.line);
+    Writer::replace("é", &mut main.line);
     let unicode_matches: bool = main.line == "é" && main.line.len == 2;
     let joined: [u8; 16] in Utf8 = "Ga" + "te";
-    main.writer.replace(joined, &mut main.line);
+    Writer::replace(joined, &mut main.line);
     let joined_matches: bool = main.line == "Gate" && main.line.len == 4;
     let returned: [u8; 16] in Utf8 = returned_line();
-    main.writer.replace(returned, &mut main.line);
+    Writer::replace(returned, &mut main.line);
     let returned_matches: bool = main.line == "é" && main.line.len == 2;
-    main.writer.replace("", &mut main.line);
+    Writer::replace("", &mut main.line);
     transition literal_matches && unicode_matches && joined_matches && returned_matches
         && main.line.len == 0 && main.sibling == 29 {
         true -> finish(main, 70)

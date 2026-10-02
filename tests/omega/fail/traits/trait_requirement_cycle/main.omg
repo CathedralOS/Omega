@@ -16,12 +16,12 @@ data Main {
     thing: Thing;
 }
 
-machine Thing::a(&mut self) satisfies A::a {
-    self.value = 1;
+machine Thing::a(thing: &mut Thing) satisfies A::a {
+    thing.value = 1;
 }
 
-machine Thing::b(&mut self) satisfies B::b {
-    self.value = 2;
+machine Thing::b(thing: &mut Thing) satisfies B::b {
+    thing.value = 2;
 }
 
 machine Main::main() {
