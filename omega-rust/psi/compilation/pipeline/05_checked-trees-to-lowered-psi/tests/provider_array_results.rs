@@ -56,6 +56,48 @@ impl TerminalEffectHandler for NoHostEffects {
     }
 }
 
+#[test]
+fn host_only_array_results_reject_before_invoking_the_handler() {
+    for length in [0, 2] {
+        let checked = crate::front_end::checked_program(&format!(
+            "boundary trait Factory {{ machine produce() -> [u8; {length}]; }}
+             machine run() reaches Factory {{
+                 let produced: [u8; {length}] = Factory::produce();
+             }}"
+        ));
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("boundary array signature is a valid portable product")
+        .into_artifact();
+        assert!(
+            decode_module(artifact.semantic_bytes())
+                .unwrap()
+                .provider_candidates
+                .is_empty()
+        );
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                execution.resume(&mut TerminalFuelMeter::default(), &mut NoHostEffects),
+                Err(TerminalInterpretError::VerifiedOperationMalformed)
+            ),
+            "host array length {length}"
+        );
+    }
+}
+
 fn expected_result() -> TerminalExecutionResult {
     TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
