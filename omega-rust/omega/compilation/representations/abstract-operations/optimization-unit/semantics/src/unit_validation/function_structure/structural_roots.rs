@@ -571,7 +571,7 @@ pub(crate) fn validate_structural_root_operations(
                     let valid = borrowed_window_root(function, source, &place_kinds)
                         && window_field_type(function, structural_types, source, path, *field)
                             == Some(result.structural_type)
-                        && root_window_loan(source, *field)
+                        && root_window_loan(source, path, *field)
                         && matches!(
                             result.multiplicity,
                             terminal_psi::StructuralMultiplicity::Unrestricted
@@ -607,7 +607,7 @@ pub(crate) fn validate_structural_root_operations(
                     // the Terminal verifier retained; the unit keeps the
                     // static contract honest.
                     let valid = borrowed_window_root(function, destination, &place_kinds)
-                        && root_window_loan(destination, *field)
+                        && root_window_loan(destination, path, *field)
                         && value.access == terminal_psi::StructuralAccess::Owned
                         && value.path.is_empty()
                         && window_field_type(
@@ -1152,14 +1152,16 @@ fn borrowed_window_root(
     }
 }
 
-/// A root window (`field: None`) replaces the whole referent of an exclusive
+/// A root window (`field: None`, empty path) replaces the whole referent of an exclusive
 /// loan, so its root must be a borrowed parameter. Field windows keep their
 /// own per-field contract.
 fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,
+    path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> bool {
     field.is_some()
+        || !path.is_empty()
         || matches!(
             root,
             abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
@@ -1196,65 +1198,11 @@ fn window_field_type(
     } else {
         (root.structural_type(), path)
     };
-    let Some(field) = field else {
-        return path.is_empty().then_some(root);
-    };
-    if matches!(
-        path.last(),
-        Some(
-            terminal_psi::StructuralPathSegment::FixedIndex(_)
-                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-        )
-    ) {
-        // An indexed window already names the complete element. Its field
-        // id belongs to the last array-owning record, not to the element.
-        // Rejoin that id to the spelled field before accepting the endpoint;
-        // a sibling array with the same element type is not interchangeable.
-        let field_position = path.iter().rposition(|segment| {
-            matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
-        })?;
-        let owner = super::super::structural_catalog::resolve_structural_path(
-            structural_types,
-            root,
-            &path[..field_position],
-        )?;
-        let terminal_psi::StructuralPathSegment::Field(identity) = &path[field_position] else {
-            return None;
-        };
-        let fields = match &structural_types.get(&owner)?.shape {
-            terminal_psi::StructuralTypeShape::Record { fields }
-            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
-            _ => return None,
-        };
-        fields.iter().find(|candidate| {
-            candidate.id == field
-                && candidate.identity == *identity
-                && !candidate.relevance.is_erased()
-                && matches!(
-                    candidate.field_type,
-                    terminal_psi::StructuralFieldType::Structural(_)
-                )
-        })?;
-        return super::super::structural_catalog::resolve_structural_path(
-            structural_types,
-            root,
-            path,
-        );
-    }
-    let parent =
-        super::super::structural_catalog::resolve_structural_path(structural_types, root, path)?;
-    let declaration = structural_types.get(&parent)?;
-    let fields = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields }
-        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
-        _ => return None,
-    };
-    match fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
-        .field_type
-    {
-        terminal_psi::StructuralFieldType::Structural(field_type) => Some(field_type),
-        _ => None,
-    }
+    terminal_semantics::structural_window_projection(
+        structural_types.values().copied(),
+        root,
+        path,
+        field,
+    )
+    .map(|projection| projection.structural_type)
 }

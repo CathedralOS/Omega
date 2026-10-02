@@ -1235,6 +1235,7 @@ pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
 pass/borrows/enum_selected_view_reference_exit checked 1343ms @011fd400e8c1+wt
+pass/borrows/indexed_record_field_replacement_exit checked 1447ms @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt

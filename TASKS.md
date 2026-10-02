@@ -1782,24 +1782,29 @@ the complete product bar; focused successes below do not establish that baseline
   qualified byte values; six related native controls execute 70 and seven
   invalid ownership/domain/capacity cases reject on `94940a170e`.
 
-  Full game acceptance remains open. On macOS ARM64, the closed-stdin command
-  at `14a2b507ea` completes allocation but exits 200 after 8,762 seconds in
-  `FunctionRelativeRealization(CalleeSavedRequirements(BudgetExceeded))`:
-  callee-save traversal requires 124,286 iteration units against 100,000.
-  `compilation/products/src/compile_request/native.rs` now allows 1,000,000
-  iterations per pass, matching validation steps; candidate/commit limits and
-  independent admission remain unchanged. These iterations count visited
-  functions, blocks, instructions, operands and writes, not optimizer retries.
-  Allocation already limits placement queries to constrained neighbors and
-  prepared copy-affinity incidence, preserving ranking and parallel-edge
-  multiplicity. Full recovery replay belongs solely to
-  `RetainedAllocation::try_from`, with per-step semantic checks unchanged.
-  Re-drive both unchanged game commands through this boundary and require
-  actual exit 0, the initial Gate room and authored goodbye. The help run must
-  print paths and command help twice, versus once under EOF: their initial
-  display alone does not prove command dispatch. The raised-budget EOF rerun
-  is still in progress without an execution receipt. Small transport controls are
-  not evidence that the full game runs. Retain exact access,
+  Full game acceptance remains open: on macOS ARM64 at `8d34ee6221`,
+  `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with closed stdin
+  exits 0 after 3,958 seconds but omits
+  `A bottomless dark room near the dungeon heart.`; checked interpretation
+  prints it correctly. The help/exit route also processes input but omits the
+  description. CLI `--both` compares exit status, not stdout, and native
+  package production selects `main.omg` even when given an alternate filename.
+  Trace the value through `MazeBuilder::carve_room`, `RoomLookup::find_room`,
+  `RoomFormatter::write_room_info` and `GameView::render_room` without changing
+  the authored game. The diagnostic exposed indexed-field replacement being
+  mistaken for whole-element replacement; one explicit storage projection now
+  serves the receiving stages, and `borrows/indexed_record_field_replacement_exit`
+  executes 70 alongside returned-reference and whole-referent controls.
+  The canonical diagnostic with the actual Room/Level/Lookup/Formatter modules
+  now runs: the stored description prints correctly, but lookup and formatted
+  output are blank (macOS ARM64, `cc281eba3ea`, 847 seconds). Trace lookup's
+  branch selection and owned record transfer before investigating formatting.
+  Require both full-game commands to print the authored description and retain
+  their exit/input behavior. Allocation retains constrained-neighbor placement,
+  prepared copy-affinity incidence and one full recovery admission replay in
+  `RetainedAllocation::try_from`; pass traversal permits 1,000,000 iterations,
+  with semantic checks and candidate/commit limits unchanged. Small transport
+  controls are not evidence that the full game runs. Retain exact access,
   qualifications, source-length/capacity evidence, every possible origin,
   ranking, live-root rebind rejection and same-typed-sibling rejection. Keep
   `borrows/qualified_byte_owner_exclusive_call_exit`,

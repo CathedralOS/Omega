@@ -603,6 +603,7 @@ static FACT_BORROWED_STORAGE_RESTORATION_DEBT: TrustedSurfaceEntry = TrustedSurf
     dependencies: &["formation:operation-validation"],
     implementation: &[
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/borrowed_windows.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_window.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier.rs",
     ],
     soundness: TRUSTED,

@@ -114,17 +114,35 @@ fn record_store_requires_live_unsuspended_mutable_carrier() {
 
 #[test]
 fn reference_window_exempts_only_its_active_parent_carrier() {
-    let (function, declarations, place) = record_carrier();
-    let types: BTreeMap<_, _> = declarations.iter().map(|row| (row.id, row)).collect();
+    let (function, mut declarations, place) = record_carrier();
     let parameter = &function.structural_parameters[0];
-    let StructuralTypeShape::Reference { referent, .. } = types[&parameter.structural_type].shape
+    let StructuralTypeShape::Reference { referent, .. } = declarations
+        .iter()
+        .find(|row| row.id == parameter.structural_type)
+        .unwrap()
+        .shape
     else {
         unreachable!()
     };
-    let StructuralTypeShape::Record { fields } = &types[&referent].shape else {
+    let child = id(9_032, StructuralTypeId::new);
+    let StructuralTypeShape::Record { fields } = &mut declarations
+        .iter_mut()
+        .find(|row| row.id == referent)
+        .unwrap()
+        .shape
+    else {
         unreachable!()
     };
+    // A restoration window moves a structural subtree, never the fixture's
+    // original byte field. Keep the loan test on a legal window geometry.
+    fields[0].field_type = terminal_psi::StructuralFieldType::Structural(child);
     let field = fields.first().expect("record field").id;
+    declarations.push(StructuralTypeDeclaration {
+        id: child,
+        identity: "test.window-child".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let types: BTreeMap<_, _> = declarations.iter().map(|row| (row.id, row)).collect();
     let root = abstract_operations::StructuralWindowRoot::OwnedResult {
         producer: id(9_030, semantic_vocabulary::OperationId::new),
         result: terminal_psi::StructuralOperationResult {

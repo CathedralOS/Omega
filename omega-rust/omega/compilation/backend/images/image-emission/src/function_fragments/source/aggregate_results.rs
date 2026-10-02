@@ -92,11 +92,6 @@ pub(super) fn operation(
         // the loan's whole referent. Source replay binds the leaf to the
         // declared field and its offset.
         AbstractOperation::MoveStructuralField { psi_operation, result, source, path, field } => {
-            let element_leaf = matches!(
-                path.last(),
-                Some(terminal_psi::StructuralPathSegment::FixedIndex(_)
-                    | terminal_psi::StructuralPathSegment::RuntimeIndex { .. })
-            );
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
                 TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), indices, .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
@@ -107,16 +102,11 @@ pub(super) fn operation(
                         return false;
                     }
                     if field.is_none() {
-                        // A root window copies the loan's whole referent.
-                        indices.is_empty() && path.is_empty() && retained_path.is_empty()
-                    } else if element_leaf {
+                        // No additional field: the path names the complete
+                        // subtree, including the empty whole-root path.
                         retained_path == path
-                            && matches!(retained_path.last(),
-                                Some(terminal_psi::StructuralPathSegment::FixedIndex(_)
-                                    | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }))
                     } else {
-                        indices.is_empty()
-                            && retained_path.len() == path.len() + 1 && retained_path.starts_with(path)
+                        retained_path.len() == path.len() + 1 && retained_path.starts_with(path)
                             && matches!(retained_path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
                     }
                 }

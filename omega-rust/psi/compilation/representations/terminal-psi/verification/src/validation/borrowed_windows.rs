@@ -38,9 +38,8 @@ use super::structural::operations::{canonical_field_path, structural_field_store
 use super::structural::result_contracts::source_signature;
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, EdgeId, ModuleError,
-    OperationKind, PlaceId, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralPathSegment, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
-    TerminalModule, Terminator,
+    OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceKind, TerminalMachine, TerminalModule, Terminator,
 };
 use terminal_psi::StructuralArgument;
 
@@ -471,60 +470,13 @@ fn declared_window_field_type(
         source_signature(machine, root)?.structural_type,
         path.as_slice(),
     ));
-    let Some(field) = field else {
-        return path.is_empty().then_some(root_type);
-    };
-    if matches!(
-        path.last(),
-        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
-    ) {
-        // An element leaf: `field` names the array's own field declaration —
-        // the last field segment in its owner record — and the hole's type is
-        // the element the spelled path selects.
-        let field_position = path
-            .iter()
-            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
-        let owner = super::foundation::resolve_runtime_projection(
-            module,
-            root_type,
-            &path[..field_position],
-        )?;
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == owner)?;
-        let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields
-            }
-            _ => return None,
-        };
-        fields.iter().find(|candidate| {
-            candidate.id == field
-                && !candidate.relevance.is_erased()
-                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
-        })?;
-        return super::foundation::resolve_runtime_projection(module, root_type, path);
-    }
-    let parent_type = super::foundation::resolve_runtime_projection(module, root_type, path)?;
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)?;
-    let fields = match &declaration.shape {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-            fields
-        }
-        _ => return None,
-    };
-    match fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
-        .field_type
-    {
-        StructuralFieldType::Structural(field_type) => Some(field_type),
-        _ => None,
-    }
+    terminal_semantics::structural_window_projection(
+        module.structural_types.iter(),
+        root_type,
+        path,
+        field,
+    )
+    .map(|projection| projection.structural_type)
 }
 
 /// The root storage a window operation may name: either a mutable-borrowed
@@ -651,6 +603,7 @@ pub(super) fn validate_move_static(
     // A root window displaces the whole referent of an exclusive loan; an
     // owned home is no loan.
     if let OperationKind::MoveStructuralField { field: None, .. } = &operation.kind
+        && path.is_empty()
         && !is_root_window_loan(module, machine, *source)
     {
         return Err(invalid());
@@ -700,6 +653,7 @@ pub(super) fn validate_store_static(
         return Err(invalid());
     }
     if let OperationKind::StoreStructuralField { field: None, .. } = &operation.kind
+        && path.is_empty()
         && !is_root_window_loan(module, machine, *destination)
     {
         return Err(invalid());

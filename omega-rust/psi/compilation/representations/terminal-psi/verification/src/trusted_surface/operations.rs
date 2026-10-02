@@ -353,6 +353,7 @@ static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_STRUCTURAL_OPS,
         VAL_BORROWED_WINDOWS,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_window.rs",
     ],
 );
 static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
@@ -372,6 +373,7 @@ static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_STRUCTURAL_OPS,
         VAL_BORROWED_WINDOWS,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_window.rs",
     ],
 );
 static OP_BYTE_SEQUENCE_STORE: TrustedSurfaceEntry = entry(

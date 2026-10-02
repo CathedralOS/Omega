@@ -448,19 +448,14 @@ pub(crate) fn lower_structural_field_steps<'a>(
 }
 
 /// A window path's leaf: the last segment is a record member (`Field`) or an
-/// element selection of a fixed array (`Element`), the latter naming the
-/// array's field declaration as the op's `field` operand.
+/// element selection of a fixed array (`Element`). An element's path is
+/// already complete; it does not borrow an enclosing record's field ID.
 pub(crate) enum WindowLeaf<'a> {
     /// The route's last segment names a record member; the hole's declared
     /// type is that field's structural type.
     Field(&'a terminal_psi::StructuralFieldDeclaration),
-    /// The route ends in an element selection: `field` is the innermost
-    /// record member on the route (the array the element is selected from)
-    /// and `element_type` is the hole's declared type.
-    Element {
-        field: &'a terminal_psi::StructuralFieldDeclaration,
-        element_type: StructuralTypeId,
-    },
+    /// The route ends in an element selection of the declared type.
+    Element { element_type: StructuralTypeId },
 }
 
 /// Walk a window operation's spelled path — record fields and fixed-array
@@ -473,7 +468,6 @@ pub(crate) fn lower_window_path<'a>(
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>), LoweringError> {
     let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
-    let mut last_field = None;
     let mut cursor = path;
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;
@@ -512,7 +506,6 @@ pub(crate) fn lower_window_path<'a>(
                 let StructuralFieldType::Structural(nested) = carrier.field_type else {
                     unreachable!("carrier shape was checked above")
                 };
-                last_field = Some(carrier);
                 field_owner = structural_types
                     .iter()
                     .find(|candidate| candidate.id == nested)
@@ -537,15 +530,9 @@ pub(crate) fn lower_window_path<'a>(
                         "structural window element type is absent",
                     ))?;
                 if rest.is_empty() {
-                    let Some(field) = last_field else {
-                        return unsupported(
-                            "structural window element has no enclosing field segment",
-                        );
-                    };
                     return Ok((
                         steps,
                         WindowLeaf::Element {
-                            field,
                             element_type: *element,
                         },
                     ));
@@ -567,15 +554,9 @@ pub(crate) fn lower_window_path<'a>(
                         "structural window element type is absent",
                     ))?;
                 if rest.is_empty() {
-                    let Some(field) = last_field else {
-                        return unsupported(
-                            "structural window element has no enclosing field segment",
-                        );
-                    };
                     return Ok((
                         steps,
                         WindowLeaf::Element {
-                            field,
                             element_type: *element,
                         },
                     ));

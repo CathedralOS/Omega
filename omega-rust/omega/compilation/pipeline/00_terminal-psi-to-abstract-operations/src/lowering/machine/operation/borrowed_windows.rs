@@ -26,8 +26,8 @@ use abstract_operations::{
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -103,7 +103,7 @@ fn lower_move(
     let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
     if declared_window_field_type(structural_types, &source, path, field)
         != Some(result.structural_type)
-        || !root_window_loan(&source, field)
+        || !root_window_loan(&source, path, field)
     {
         return Err(invalid());
     }
@@ -142,7 +142,7 @@ fn lower_store(
     };
     if source.structural_type != field_type
         || !source.has_empty_qualifications()
-        || !root_window_loan(&destination, field)
+        || !root_window_loan(&destination, path, field)
     {
         return Err(invalid());
     }
@@ -189,11 +189,17 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     Some(StructuralWindowRoot::OwnedResult { producer, result })
 }
 
-/// A root window (`field: None`) names the whole referent of an exclusive
+/// A root window (`field: None`, empty path) names the whole referent of an exclusive
 /// loan: only a borrowed parameter root qualifies. Field windows keep their
 /// own contract.
-fn root_window_loan(root: &StructuralWindowRoot, field: Option<StructuralFieldId>) -> bool {
-    field.is_some() || matches!(root, StructuralWindowRoot::BorrowedParameter(_))
+fn root_window_loan(
+    root: &StructuralWindowRoot,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+) -> bool {
+    field.is_some()
+        || !path.is_empty()
+        || matches!(root, StructuralWindowRoot::BorrowedParameter(_))
 }
 
 /// The declared `Structural` type of the field a window operation names,
@@ -239,96 +245,8 @@ fn declared_window_field_type(
     } else {
         (root.structural_type(), path)
     };
-    let Some(field) = field else {
-        return path.is_empty().then_some(root);
-    };
-    if matches!(
-        path.last(),
-        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
-    ) {
-        // An element leaf: `field` names the array's own field declaration in
-        // the last record the path crosses, and the hole's type is the
-        // element the spelled path selects.
-        let field_position = path
-            .iter()
-            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
-        let owner = resolve_spelled_path(structural_types, root, &path[..field_position])?;
-        let declaration = structural_types
-            .iter()
-            .find(|candidate| candidate.id == owner)?;
-        let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields
-            }
-            _ => return None,
-        };
-        fields.iter().find(|candidate| {
-            candidate.id == field
-                && !candidate.relevance.is_erased()
-                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
-        })?;
-        return resolve_spelled_path(structural_types, root, path);
-    }
-    let parent_type = resolve_spelled_path(structural_types, root, path)?;
-    let declaration = structural_types
-        .iter()
-        .find(|candidate| candidate.id == parent_type)?;
-    let fields = match &declaration.shape {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-            fields
-        }
-        _ => return None,
-    };
-    match fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
-        .field_type
-    {
-        StructuralFieldType::Structural(field_type) => Some(field_type),
-        _ => None,
-    }
-}
-
-/// Resolve one name-spelled path beneath `root`: field segments select a
-/// non-erased record/mixed member that must itself be structural, fixed
-/// indices step into in-bounds array elements, and anything else cannot be a
-/// window carrier.
-pub(super) fn resolve_spelled_path(
-    structural_types: &[StructuralTypeDeclaration],
-    mut structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralTypeId> {
-    for segment in path {
-        let declaration = structural_types
-            .iter()
-            .find(|candidate| candidate.id == structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
-            ) => {
-                let field = fields.iter().find(|candidate| {
-                    candidate.identity == *identity && !candidate.relevance.is_erased()
-                })?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            // A runtime element step resolves to the element type; its bound
-            // is the obligation the verifier discharged, not a path property.
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => *element,
-            _ => return None,
-        };
-    }
-    Some(structural_type)
+    terminal_semantics::structural_window_projection(structural_types.iter(), root, path, field)
+        .map(|projection| projection.structural_type)
 }
 
 /// The declared signature a spelled structural place carries: machine

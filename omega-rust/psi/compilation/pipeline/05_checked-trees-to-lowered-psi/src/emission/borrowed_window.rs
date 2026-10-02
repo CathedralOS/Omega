@@ -65,7 +65,7 @@ use terminal_psi::{StructuralArgument, StructuralOperationResult};
 pub(crate) struct OpenBorrowedWindow {
     pub(crate) source: PlaceId,
     pub(crate) path: Vec<StructuralPathSegment>,
-    /// The vacated field, or `None` for a root window's whole referent.
+    /// A field extending `path`, or `None` when `path` names the whole hole.
     pub(crate) field: Option<StructuralFieldId>,
     pub(crate) hole_type: StructuralTypeId,
     /// The checked route the authored statement spelled, leaf included: hole
@@ -455,10 +455,7 @@ fn resolve_window_place(
             };
             (Some(field.id), hole_type)
         }
-        WindowLeaf::Element {
-            field,
-            element_type,
-        } => (Some(field.id), element_type),
+        WindowLeaf::Element { element_type } => (None, element_type),
     };
     if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
         return Err(unpinned(

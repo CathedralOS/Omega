@@ -649,15 +649,17 @@ fn element_window_cycle(multiplicity: StructuralMultiplicity) -> TerminalModule 
     }];
     operations.extend(fresh_cell(&mut module, 21, 3));
     let mut vacate = extract(&mut module, 20, cells, 2, multiplicity);
-    let OperationKind::MoveStructuralField { path, .. } = &mut vacate.kind else {
+    let OperationKind::MoveStructuralField { path, field, .. } = &mut vacate.kind else {
         unreachable!("extract moves a field")
     };
     *path = element(1);
+    *field = None;
     let mut reseat = repair(22, cells, 3);
-    let OperationKind::StoreStructuralField { path, .. } = &mut reseat.kind else {
+    let OperationKind::StoreStructuralField { path, field, .. } = &mut reseat.kind else {
         unreachable!("repair stores a field")
     };
     *path = element(2);
+    *field = None;
     operations.extend([vacate, reseat]);
     loop_block(&mut module).operations = operations;
     if multiplicity == StructuralMultiplicity::Affine {
