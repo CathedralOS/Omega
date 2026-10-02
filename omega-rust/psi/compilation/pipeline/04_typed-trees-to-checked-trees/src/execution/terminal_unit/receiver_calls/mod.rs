@@ -1,4 +1,4 @@
-//! Reconcile implicit receiver operands against completed call signatures.
+//! Reconcile borrowed subject operands against completed call signatures.
 //!
 //! Attachment specialization can erase borrowed self. A retained callee self
 //! instead requires the caller's actual loan, including through forwarding
@@ -22,6 +22,81 @@ use super::{
 };
 mod observations;
 pub(in crate::execution::terminal_unit) use observations::uses_receiver_storage;
+
+#[cfg(test)]
+mod explicit_subject_tests {
+    #[test]
+    fn explicit_borrowed_subject_follows_completed_signature_without_swapping_operands() {
+        for body in ["false", "self.value < rhs.value"] {
+            let source = format!(
+                "data Point {{ value: i32; }}
+                 data Root {{ left: Point; right: Point; answer: bool; }}
+                 machine Point::equals(&self, rhs: &Point) -> bool {{ {body} }}
+                 machine Root::run(&mut self) {{
+                     let comparison_result: bool = Point::equals(&self.left, &self.right);
+                     self.answer = comparison_result;
+                 }}"
+            );
+            let checked = crate::tests::front_end::checked_program_result(&source)
+                .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+            let caller = checked
+                .machines()
+                .iter()
+                .find(|machine| {
+                    checked
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.name.as_str() == "run")
+                })
+                .expect("Root::run declaration");
+            let plans = &checked.facts.flow.terminal_unit_effects;
+            let plan = plans.for_machine(caller.symbol).unwrap_or_else(|| {
+                panic!(
+                    "caller omitted: {:?}",
+                    plans.omission_for_machine(caller.symbol)
+                )
+            });
+            let call = plan
+                .operations
+                .iter()
+                .filter_map(|operation| operation.call())
+                .find(|call| call.scalar_result().is_some())
+                .expect("ordinary scalar call");
+            let target = plans
+                .for_machine(call.target.machine)
+                .expect("completed scalar target");
+            assert_eq!(target.state, call.target.state);
+            // Primitive-result signatures retain their declared borrowed self
+            // even for a constant body. Compare against that published roster,
+            // not an assumed unused-parameter optimization.
+            assert_eq!(
+                call.structural_arguments.len(),
+                target.structural_parameters.len(),
+                "body {body}"
+            );
+            for (argument, parameter) in call
+                .structural_arguments
+                .iter()
+                .zip(&target.structural_parameters)
+            {
+                let name = match parameter.position {
+                    0 => "left",
+                    1 => "right",
+                    position => panic!("unexpected formal position {position}"),
+                };
+                assert_eq!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                );
+                assert!(
+                    matches!(argument.path.as_slice(),
+                    [checked_trees::CheckedUnitStructuralPathSegment::Field(field)] if field == name),
+                    "body {body}, argument {argument:?}"
+                );
+            }
+        }
+    }
+}
 
 /// Whether any call in `state` carries a receiver rooted at `self`. A
 /// callee that keeps a borrowed `self` needs the caller's `self` structural
@@ -323,10 +398,9 @@ fn reconcile_operands(
                 let is_scalar = call.scalar_result().is_some();
                 // A structural call's custody claims keep their argument indices.
                 let shifts_claim_transfers = call.structural_result().is_none();
-                // A borrowed `self` stays ambient on the attachment carrier
-                // for a scalar-graph callee: its graph keeps no receiver
-                // slot, so calls dispatched there take no receiver operand.
-                if is_scalar
+                // Scalar graph dispatch owns its completed parameter roster,
+                // even when an ordinary provisional sibling retained self.
+                let scalar_graph_erases_subject = is_scalar
                     && facts
                         .flow
                         .terminal_scalar_graphs
@@ -339,8 +413,55 @@ fn reconcile_operands(
                                         .iter()
                                         .all(|parameter| !parameter.is_self)
                             })
+                        });
+                let Some(explicit_subject) = explicit_borrowed_subject(
+                    program,
+                    machine,
+                    state,
+                    coordinate,
+                    target_machine,
+                    target_state,
+                ) else {
+                    return false;
+                };
+                if let Some((subject_index, authored_count)) = explicit_subject {
+                    // The ordinary argument planner has already authenticated
+                    // this explicit operand. A namespace is never its storage
+                    // source. Only completed signature erasure can remove it.
+                    if call.structural_arguments.len() != authored_count {
+                        return false;
+                    }
+                    if let Some((_, _, retained_index, _, count)) = retained
+                        .iter()
+                        .find(|(machine, state, ..)| {
+                            *machine == target_machine && *state == target_state
                         })
-                {
+                        .filter(|_| !scalar_graph_erases_subject)
+                    {
+                        if *retained_index != subject_index || *count != authored_count {
+                            return false;
+                        }
+                    } else {
+                        if call
+                            .claim_transfers_mut()
+                            .iter()
+                            .any(|transfer| transfer.argument_index as usize == subject_index)
+                        {
+                            return false;
+                        }
+                        call.structural_arguments.remove(subject_index);
+                        if !shifts_claim_transfers {
+                            continue;
+                        }
+                        for transfer in call.claim_transfers_mut() {
+                            if transfer.argument_index as usize > subject_index {
+                                transfer.argument_index -= 1;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                if scalar_graph_erases_subject {
                     continue;
                 }
                 let Some((_, _, receiver_index, target, count)) =
@@ -425,6 +546,56 @@ fn reconcile_operands(
             })
         })
     });
+}
+
+/// Locate a fully explicit borrowed subject by its authored formal position.
+/// `None` inside the successful result means this call has no explicit borrowed
+/// subject; a missing source occurrence or malformed formal roster fails closed.
+fn explicit_borrowed_subject(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+) -> Option<Option<(usize, usize)>> {
+    let target =
+        crate::semantic::calls::find_state_in_machine(program, target_machine, target_state)?;
+    let parameters = program.state_parameters(target);
+    if !parameters.iter().any(|parameter| {
+        parameter.is_self
+            && crate::execution::terminal_unit::is_reference(program, parameter.type_reference)
+    }) {
+        return Some(None);
+    }
+    let site = crate::semantic::calls::find_call_site(
+        program,
+        machine,
+        state,
+        usize::try_from(coordinate.statement_index).ok()?,
+        usize::try_from(coordinate.call_ordinal).ok()?,
+    )?;
+    if !crate::semantic::calls::call_site_supplies_explicit_subject(program, &site, parameters) {
+        return Some(None);
+    }
+    let mut subject = None;
+    let mut count = 0;
+    for parameter in parameters {
+        if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
+            || program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        {
+            continue;
+        }
+        if parameter.is_self {
+            if subject.replace(count).is_some() {
+                return None;
+            }
+        }
+        count += 1;
+    }
+    Some(Some((subject?, count)))
 }
 
 fn local_initializer_result<'operation>(

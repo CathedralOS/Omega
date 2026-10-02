@@ -452,6 +452,7 @@ pub(in crate::execution) fn build_call_operation(
                 caller_parameters,
                 target_machine,
                 target_state,
+                &call_site,
                 &structural_arguments,
                 allow_field_path_projection,
             )
@@ -464,6 +465,7 @@ pub(in crate::execution) fn build_call_operation(
                 caller_parameters,
                 target_machine,
                 target_state,
+                &call_site,
                 &structural_arguments,
                 allow_field_path_projection,
             ) || projected_reference_record_operands_supported(

@@ -72,6 +72,31 @@ fn qualified_value_calls_run_their_declaration_whatever_the_leaf_spelling() {
     }
 }
 
+#[test]
+fn qualified_legacy_subject_binds_the_explicit_home_in_operand_order() {
+    let program = checked(
+        "data Point { value: i32; }
+         machine Point::less(&self, rhs: &Point) -> bool {
+             self.value < rhs.value
+         }
+         machine main() -> i32 {
+             let left: Point = Point { value: 1 };
+             let right: Point = Point { value: 2 };
+             let ascending: bool = Point::less(&left, &right);
+             let descending: bool = Point::less(&right, &left);
+             transition ascending && !descending {
+                 true -> 70
+                 false -> 71
+             }
+         }",
+    );
+    // main has no Point instance: self must name the first actual's storage,
+    // and swapping or skipping that operand changes the ordered result.
+    let outcome = run(&program, "main", &[]);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+}
+
 const BOUNDED_CONSOLE: &str = "pub data LineReadResult {
         case Invalid;
         case LineComplete(count: u64);

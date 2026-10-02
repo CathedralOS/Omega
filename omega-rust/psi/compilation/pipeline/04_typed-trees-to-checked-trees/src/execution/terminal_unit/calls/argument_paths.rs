@@ -844,6 +844,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
@@ -889,11 +890,20 @@ pub(crate) fn ordinary_projected_call_is_supported(
 
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
+    // Before completed-signature reconciliation, explicit operands retain
+    // every authored formal. Only an implicit borrowed subject is absent.
+    let explicit_subject = crate::semantic::calls::call_site_supplies_explicit_subject(
+        program,
+        call_site,
+        target_source_parameters,
+    );
     let target_parameters = target_source_parameters
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
-                && !(parameter.is_self && is_reference(program, parameter.type_reference))
+                && !(!explicit_subject
+                    && parameter.is_self
+                    && is_reference(program, parameter.type_reference))
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
@@ -920,7 +930,6 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 argument
                     .source_structural_result_binding_ordinal()
                     .is_some()
-                    && !target.is_self
                     && argument.path.iter().all(|segment| {
                         matches!(
                             segment,
@@ -994,7 +1003,6 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     return false;
                 };
                 if !source.qualifications.is_empty()
-                    || target.is_self
                     || caller_source_parameters
                         .get(source.position as usize)
                         .is_none()

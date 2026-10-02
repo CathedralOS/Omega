@@ -658,7 +658,15 @@ impl<'program> Evaluator<'program> {
         // application. Never reselect that machine by its display name or
         // mistake the namespace for a field on the caller's instance.
         if self.statement_receiver_is_namespace(call) {
-            return self.resolve_namespace_call(call.target_symbol, target, frame);
+            return self.resolve_namespace_call(
+                call.target_symbol,
+                target,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .len(),
+                frame,
+            );
         }
 
         // (1) Explicit receiver path to a contained sub-machine instance.
@@ -720,6 +728,7 @@ impl<'program> Evaluator<'program> {
         &self,
         target_symbol: SymbolHandle,
         target: &str,
+        argument_count: usize,
         frame: &Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         let resolved = self
@@ -729,17 +738,11 @@ impl<'program> Evaluator<'program> {
                     "qualified call target `{target}` has no resolved state"
                 ))
             })?;
-        // Legacy receiver signatures bind through self_cell, not ordinary
-        // arguments. Do not silently drop an explicit receiver or substitute
-        // the caller's instance on this static route.
-        if self
-            .program
-            .state_parameters(resolved.1)
-            .iter()
-            .any(|parameter| parameter.is_self)
-        {
+        // Namespace qualification supplies no operand. The ordinary evaluator
+        // and frame binder consume every explicit formal, including legacy self.
+        if argument_count != self.program.state_parameters(resolved.1).len() {
             return Err(Halt::Unsupported(format!(
-                "qualified call target `{target}` retains an implicit receiver"
+                "qualified call target `{target}` requires all declared arguments"
             )));
         }
         Ok(resolved)

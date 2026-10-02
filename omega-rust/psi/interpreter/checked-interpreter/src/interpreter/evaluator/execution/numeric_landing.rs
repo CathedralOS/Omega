@@ -202,19 +202,47 @@ impl Evaluator<'_> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Vec<EvaluatedArgument>> {
+        let explicit_subject = self.state_arguments_include_subject(state, arguments.len())?;
         let destinations: Vec<_> = self
             .program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
+            .filter(|parameter| explicit_subject || !parameter.is_self)
             .map(|parameter| parameter.type_reference)
             .collect();
         let mut evaluated = Vec::with_capacity(arguments.len());
         for (ordinal, argument) in arguments.iter().copied().enumerate() {
-            let destination = destinations.get(ordinal).copied().unwrap_or_default();
+            let destination = destinations[ordinal];
             let argument = self.eval_state_argument(argument, destination, frame)?;
             evaluated.push(argument);
         }
         Ok(evaluated)
+    }
+
+    /// Evaluation and frame binding consume the same exact formal roster.
+    /// Legacy receiver spelling may omit self; a fully positional call cannot
+    /// substitute ambient storage or shift the following operand destinations.
+    pub(in crate::interpreter::evaluator) fn state_arguments_include_subject(
+        &self,
+        state: &State,
+        argument_count: usize,
+    ) -> EvalResult<bool> {
+        let parameters = self.program.state_parameters(state);
+        if argument_count == parameters.len() {
+            return Ok(true);
+        }
+        if argument_count
+            == parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count()
+        {
+            return Ok(false);
+        }
+        unsupported(format!(
+            "call to `{}` supplies {argument_count} arguments for {} declared parameters",
+            state.name.as_str(),
+            parameters.len(),
+        ))
     }
 }

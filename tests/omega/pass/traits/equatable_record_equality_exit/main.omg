@@ -28,7 +28,7 @@ data OverridePoint {
 
 OverridePointEquatable: OverridePoint satisfies Equatable;
 
-machine OverridePoint::equals(&self, rhs: &OverridePoint) -> bool {
+machine OverridePoint::equals(point: &OverridePoint, rhs: &OverridePoint) -> bool {
     false
 }
 
@@ -41,20 +41,20 @@ data Main {
     overridden_b: OverridePoint;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = Point { x: 3, y: 7, z: 11 };
-    self.b = Point { x: 3, y: 7, z: 11 };
-    self.c = Point { x: 3, y: 9, z: 11 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = Point { x: 3, y: 7, z: 11 };
+    main.b = Point { x: 3, y: 7, z: 11 };
+    main.c = Point { x: 3, y: 9, z: 11 };
 
-    let same: bool = self.a == self.b;
+    let same: bool = main.a == main.b;
 
     transition same {
-        true -> check_callable(&mut self)
-        _ -> missed(&mut self)
+        true -> check_callable(main)
+        _ -> missed(main)
     }
 
     state check_callable(main: &mut Main) {
-        let callable: bool = main.a.equals(&main.b);
+        let callable: bool = Point::equals(&main.a, &main.b);
 
         transition callable {
             true -> check_callable_unequal(main)
@@ -63,7 +63,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state check_callable_unequal(main: &mut Main) {
-        let callable: bool = main.a.equals(&main.c);
+        let callable: bool = Point::equals(&main.a, &main.c);
 
         transition callable {
             false -> check_unequal(main)

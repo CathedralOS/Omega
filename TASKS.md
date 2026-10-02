@@ -228,21 +228,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
   with passing the record, which 64b8f4c5db03 made reachable for data-rooted
   indices.
 
-- **STATIC-SYNTHESIZED-EQUALITY-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
-  A satisfier of a SYNTHESIZED trait operation cannot name its subject, because
-  the synthesis calls it receiver-style from inside the compiler. One fixture.
-  Measured 2026-10-02. `pass/traits/equatable_record_equality_exit` declares
-  `PointEquatable: Point satisfies Equatable;` and overrides
-  `OverridePoint::equals`. With the override naming its subject, and both
-  authored `main.a.equals(&main.b)` call sites respelled
-  `Point::equals(&main.a, &main.b)`, it still reports "state `equals` expects 2
-  argument(s), got 1" -- so the remaining caller is the `==` operator's own
-  expansion over the synthesized structural equality, which is not a source
-  call site to requalify.
-  Scope: the synthesized equality expansion has to supply the subject argument
-  when the selected `equals` names one. Acceptance: that fixture checks and
-  meets its native oracle with the override naming its subject.
-
 - **STATIC-DERIVED-ACCESSOR-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   The three `PlacedField` accessors in `source/library/core/layout.omg` cannot
   migrate by renaming, because the machine that satisfies the requirement is

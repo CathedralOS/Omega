@@ -41,6 +41,19 @@ impl CallSite<'_> {
     }
 }
 
+/// Whether an already typed call supplies its subject in the positional roster.
+/// Ordinary source validation owns namespace selection and exact arity. All
+/// checking consumers must agree whether the legacy self formal consumes an
+/// explicit occurrence before completed-signature erasure is applied.
+pub(crate) fn call_site_supplies_explicit_subject(
+    program: &typed_trees::TypedTrees,
+    site: &CallSite<'_>,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> bool {
+    parameters.iter().any(|parameter| parameter.is_self)
+        && call_site_argument_expressions(program, site).len() == parameters.len()
+}
+
 /// The compiler-owned collection or text view an authored call selects, or
 /// `None` when the call is not a view.
 ///

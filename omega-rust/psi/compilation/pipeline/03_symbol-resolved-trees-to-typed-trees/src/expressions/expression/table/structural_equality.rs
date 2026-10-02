@@ -12,7 +12,9 @@
 //! bytes whose garbage compare is masked by the false tag compare.
 //!
 //! A hand-written `Type::equals` wins (check-then-synthesize): `==` lowers to
-//! a value call targeting it instead of expanding.
+//! an ordinary static call targeting it instead of expanding. The data name
+//! selects the declaration; both compared values are explicit shared operands.
+//! Receiver spelling never decides which equality operand reaches the callee.
 //!
 //! Generated tag guards use typed CaseMembership rather than value equality.
 //! Their RHS is a classifier, not a payload constructor, and their subject is
@@ -27,9 +29,9 @@
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::equatable::{
-    DataEqualityShape, FieldEquality, data_definition_by_name_from, data_equality_shape,
-    equatable_conformance_declared, field_equality, synthesized_equals_state_symbol,
-    value_type_base_name, written_equals_state_symbol,
+    DataEqualityShape, FieldEquality, data_definition_by_name_from, data_definition_by_symbol,
+    data_equality_shape, equatable_conformance_declared, field_equality,
+    synthesized_equals_state_symbol, value_type_base_name, written_equals_state_symbol,
 };
 use crate::lowerer::name::lower_name;
 use arena::HandleSpan;
@@ -37,6 +39,9 @@ use diagnostics::Diagnostic;
 use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
+
+#[cfg(test)]
+mod tests;
 
 /// One `==` operand, classified for expansion. A PLACE is lowered once and
 /// its handle shared by every synthesized member read; a LITERAL is never
@@ -52,8 +57,9 @@ enum Operand {
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
     /// Expand calls to the compiler-owned `equals` surface in the caller's
     /// storage scope, exactly like `==`. Generated calls can pass through a
-    /// name alias before their final state symbol is assigned, so recognize
-    /// them from the receiver's conformance and lack of an authored override.
+    /// name alias before their final state symbol is assigned. Normalize the
+    /// namespace or value receiver to the same two operands, then authenticate
+    /// their declaration before expanding the one compiler-owned operation.
     pub(super) fn try_lower_synthesized_equatable_call(
         &mut self,
         expression: resolved::expression::ExpressionHandle,
@@ -65,16 +71,55 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let Some(program) = self.program else {
             return Ok(None);
         };
-        let Some(type_name) = self.operand_data_type_name(call.receiver) else {
-            return Ok(None);
+        let arguments = self.source.expression_handles(call.arguments);
+        let namespace = match self.source.expression(call.receiver) {
+            resolved::expression::ExpressionNode::Name(path) => {
+                data_definition_by_symbol(program, path.symbol)
+            }
+            _ => None,
         };
-        let Some(data) = data_definition_by_name_from(
-            program,
-            &type_name,
-            self.source.source_span(call.receiver),
-        ) else {
-            return Ok(None);
+        let (data, left, right) = if let Some(data) = namespace {
+            let [left, right] = arguments else {
+                return Ok(None);
+            };
+            (data, *left, *right)
+        } else {
+            let [right] = arguments else {
+                return Ok(None);
+            };
+            let Some(type_name) = self.operand_data_type_name(call.receiver) else {
+                return Ok(None);
+            };
+            let Some(data) = data_definition_by_name_from(
+                program,
+                &type_name,
+                self.source.source_span(call.receiver),
+            ) else {
+                return Ok(None);
+            };
+            (data, call.receiver, *right)
         };
+        // Namespace selection is not operand typing. An unrelated pair must
+        // stay an ordinary call so its declared parameter checks can reject it.
+        for operand in [left, right] {
+            // A mutable loan may attenuate at the ordinary shared formal, but
+            // expanding it into reads would erase its authored formation.
+            if matches!(self.source.expression(operand),
+                resolved::expression::ExpressionNode::Borrow(borrow)
+                    if borrow.access != language_semantics::ReferenceAccess::Shared)
+            {
+                return Ok(None);
+            }
+            let Some(type_name) = self.operand_data_type_name(operand) else {
+                return Ok(None);
+            };
+            if data_definition_by_name_from(program, &type_name, self.source.source_span(operand))
+                .is_none_or(|operand_data| operand_data.symbol != data.symbol)
+            {
+                return Ok(None);
+            }
+        }
+        let type_name = data.name.as_str();
         if !equatable_conformance_declared(program, data)
             || written_equals_state_symbol(program, data).is_some()
         {
@@ -87,26 +132,21 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 ))
             })?;
         self.finalize_synthesized_equatable_call_selection(expression, synthesized_target)?;
-        let [argument] = self.source.expression_handles(call.arguments) else {
-            return Ok(None);
-        };
-        // `other: &Self` lends its operand: `a.equals(&b)` compares the same
-        // values `a == b` does, so the comparison reads the loan's referent.
-        // Comparing against the loan itself would leave the operands' types
-        // unequal, and ownership would then see the receiver as a moved value
-        // rather than an observed one.
-        let right = match self.source.expression(*argument) {
+        // Both call spellings observe the referents of shared arguments.
+        // This is one expansion after operand normalization, with each place
+        // lowered once by structural equality's ordinary operand owner.
+        let observed_operand = |operand| match self.source.expression(operand) {
             resolved::expression::ExpressionNode::Borrow(borrow)
                 if borrow.access == language_semantics::ReferenceAccess::Shared =>
             {
                 borrow.target
             }
-            _ => *argument,
+            _ => operand,
         };
         let equality = resolved::expression::TableBinaryExpression {
-            left: call.receiver,
+            left: observed_operand(left),
             operator: resolved::expression::BinaryOperator::Equal,
-            right,
+            right: observed_operand(right),
         };
         if let Some(lowered) = self.try_lower_structural_equality(&equality)? {
             return Ok(Some(lowered));
@@ -320,9 +360,42 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
 
         if let Some(equals_state) = written_equals_state_symbol(program, data) {
-            let receiver = self.lower(binary.left)?;
-            let argument = self.lower(binary.right)?;
-            let arguments = self.target().insert_expression_handles(vec![argument]);
+            // Namespace selection matches authored `Type::equals(&left,
+            // &right)`. Static call checking consumes every declared formal,
+            // including a legacy self formal, without an implicit operand.
+            let mut members = HandleSpan::empty();
+            self.target()
+                .push_name_path_member(&mut members, lower_name(&data.name));
+            let mut member_symbols = HandleSpan::empty();
+            self.target()
+                .push_name_path_member_symbol(&mut member_symbols, data.symbol);
+            let receiver = self
+                .target()
+                .insert(typed::expression::ExpressionNode::Name(
+                    typed::expression::TableNamePath {
+                        members,
+                        member_symbols,
+                        head_symbol: data.symbol,
+                        symbol: data.symbol,
+                    },
+                ));
+            // Each operand is lowered once in authored order. Shared loans
+            // express equality's observation; the ordinary call and borrow
+            // checks still validate the selected declaration and live places.
+            let mut arguments = Vec::with_capacity(2);
+            for operand in [binary.left, binary.right] {
+                let target = self.lower(operand)?;
+                let argument = self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Borrow(
+                        typed::expression::TableBorrowExpression {
+                            target,
+                            access: language_semantics::ReferenceAccess::Shared,
+                        },
+                    ));
+                arguments.push(argument);
+            }
+            let arguments = self.target().insert_expression_handles(arguments);
             let call = self
                 .target()
                 .insert(typed::expression::ExpressionNode::Call(
