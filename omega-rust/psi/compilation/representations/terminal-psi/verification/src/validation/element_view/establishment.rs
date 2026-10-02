@@ -2,13 +2,13 @@
 
 use crate::validation::{
     BTreeSet, IntegerSign, IntegerType, ModuleError, OperationKind, PlaceId, ScalarType,
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
-/// The structural type reached by a structural argument's path: each `Field`
-/// step resolves inside a `Record`, each `Referent` step crosses a `Reference`
-/// carrier. Returns the collection type the path names.
+/// Resolve ordinary storage projections through the shared type walker.
+/// Reference crossings and byte windows retain their distinct semantics;
+/// neither is an implicit field/index projection.
 pub(in crate::validation) fn path_end_type(
     module: &TerminalModule,
     mut current: StructuralTypeId,
@@ -20,15 +20,14 @@ pub(in crate::validation) fn path_end_type(
             .iter()
             .find(|item| item.id == current)?;
         current = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
-                let field = fields.iter().find(|field| &field.identity == identity)?;
-                if field.relevance != terminal_psi::BindingRelevance::Relevant {
-                    return None;
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
+            (StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_), _) => {
+                terminal_semantics::canonical_static_projection(
+                    module.structural_types.iter(),
+                    current,
+                    std::slice::from_ref(segment),
+                )?
+                .1
+                .id
             }
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent

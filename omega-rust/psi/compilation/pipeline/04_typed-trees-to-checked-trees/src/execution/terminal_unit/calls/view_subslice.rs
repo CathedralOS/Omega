@@ -617,15 +617,10 @@ fn array_collection(
     };
     let (mut projected, path) =
         super::projected_argument_path(program, state.symbol, statement_index, &place)?;
-    if !path
-        .iter()
-        .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-    {
-        return None;
-    }
     // Parameter access describes the one root reference already lowered to
-    // its referent. A reference below a field needs an explicit Referent
-    // crossing; the field-only projection cannot silently erase that hop.
+    // its referent. The shared projection resolver owns field/index typing;
+    // the selected collection must itself be an array. A nested reference
+    // cannot silently lose the explicit Referent crossing it requires.
     if path.is_empty()
         && matches!(root, CheckedStorageRoot::Parameter { .. })
         && let Some(reference) = validation::reference_shell(program, projected)
