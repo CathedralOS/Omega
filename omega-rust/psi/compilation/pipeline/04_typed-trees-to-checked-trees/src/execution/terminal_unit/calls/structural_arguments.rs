@@ -137,10 +137,25 @@ pub(crate) fn structural_call_arguments(
                 output.push(literal);
                 continue;
             }
-            // Range admission depends on storage and view custody, not on the
-            // callee's result. Both families stage at their argument position.
+            // A shared range is one evaluated descriptor operation. Failure
+            // to establish its custody or endpoint evidence cannot fall back
+            // to presenting the source as a fixed byte-window loan.
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && let Some(subslice) = view_subslice::admit(
+                && validation::shared_subslice_expression(program, expression).is_some()
+            {
+                if view_subslice::narrows_into_qualified_formal(
+                    program,
+                    caller_machine,
+                    caller_state,
+                    caller_parameters,
+                    target.type_reference,
+                    expression,
+                    statement_index,
+                ) {
+                    arm("call operation: structural arguments: range into a qualified view formal");
+                    return None;
+                }
+                let subslice = view_subslice::admit(
                     program,
                     facts,
                     caller_machine,
@@ -153,26 +168,9 @@ pub(crate) fn structural_call_arguments(
                         call_ordinal: u32::try_from(call.call_ordinal).ok()?,
                         argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                     },
-                )
-            {
+                )?;
                 output.push(subslice.argument());
                 continue;
-            }
-            // A range the lane above refused only because its formal is
-            // domain-qualified has no other lowering; name that boundary.
-            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && view_subslice::narrows_into_qualified_formal(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    caller_parameters,
-                    target.type_reference,
-                    expression,
-                    statement_index,
-                )
-            {
-                arm("call operation: structural arguments: range into a qualified view formal");
-                return None;
             }
             // A fixed range projection must still name the builtin slice
             // operation. Canonical storage identity alone does not authorize
@@ -980,12 +978,12 @@ pub(crate) fn call_claim_transfers(
         if argument.byte_sequence_literal().is_some() || view_subslice::is_view_subslice(argument) {
             // Literal admission reconstructs either an immutable shared view
             // or a fresh unrestricted bounded owner with plain byte domains.
-            // A range is a fresh shared view of a view or of a field's
-            // array. None supplies a claim. Any ownership event must still be
+            // A range is a fresh shared view of its resolved collection.
+            // None supplies a claim. Any ownership event must still be
             // accounted for by the complete event-roster check below.
             let owned_literal = argument.byte_sequence_literal().is_some()
                 && argument.access == CheckedStructuralAccess::Owned;
-            if (!argument.path.is_empty() && !view_subslice::is_field_range(argument))
+            if (argument.byte_sequence_literal().is_some() && !argument.path.is_empty())
                 || (!owned_literal && argument.access != CheckedStructuralAccess::SharedBorrow)
             {
                 return None;

@@ -803,11 +803,11 @@ pub(crate) fn ordinary_projected_call_is_supported(
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
-    // A range over a fixed-array field carries the field projection to the
-    // collection its lowering views whole; it presents a fresh shared view,
-    // not a projected subloan of its root.
+    // A range descriptor's path selects its backing collection, already
+    // checked by range admission. The callee receives the descriptor itself,
+    // not a projected subloan, regardless of how the collection was reached.
     let projected = |argument: &CheckedUnitStructuralArgumentPlan| {
-        !argument.path.is_empty() && !super::view_subslice::is_field_range(argument)
+        !argument.path.is_empty() && !super::view_subslice::is_view_subslice(argument)
     };
     if !arguments.iter().any(projected) {
         return true;

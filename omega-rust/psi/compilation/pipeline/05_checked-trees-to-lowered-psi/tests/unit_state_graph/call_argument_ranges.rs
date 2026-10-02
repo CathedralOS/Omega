@@ -353,3 +353,20 @@ fn nested_byte_array_ranges_use_the_same_primitive_storage() {
     let lowered = lower(source).expect("nested backing uses the shared range producer");
     assert_eq!(counts(&lowered), [2]);
 }
+
+#[test]
+fn projected_array_ranges_compose_with_ordinary_calls() {
+    let source = r#"
+        boundary trait Output { machine count(value: u64) reaches Output; }
+        data Root {}
+        machine Root::report(values: &[u8]) reaches Output {
+            Output::count(values.len);
+        }
+        machine Root::enter() reaches Output {
+            let rows: [[u8; 2]; 2] = [[3, 5], [7, 9]];
+            Root::report(&rows[1][..]);
+        }
+    "#;
+    let lowered = lower(source).expect("a collection projection does not transfer an owned claim");
+    assert_eq!(counts(&lowered), [2]);
+}

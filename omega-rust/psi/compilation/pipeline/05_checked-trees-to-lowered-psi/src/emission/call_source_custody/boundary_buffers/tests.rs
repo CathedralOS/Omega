@@ -2,6 +2,97 @@
 use super::*;
 
 #[test]
+fn range_arguments_delegate_to_exact_descriptor_replay() {
+    for boundary in [false, true] {
+        let declaration = if boundary {
+            "boundary trait Output { machine write(bytes: &[u8]) reaches Output; }"
+        } else {
+            "boundary trait Output { machine count(value: u64) reaches Output; }
+             data Root {}
+             machine Root::report(bytes: &[u8]) reaches Output {
+                 Output::count(bytes.len);
+             }"
+        };
+        let (storage, call) = if boundary {
+            (
+                "let bytes: [u8; 2] = [7, 9];",
+                "Output::write(&bytes[0..2]);",
+            )
+        } else {
+            (
+                "let rows: [[u8; 2]; 2] = [[3, 5], [7, 9]];",
+                "Root::report(&rows[1][0..2]);",
+            )
+        };
+        let checked = crate::front_end::checked_program(&format!(
+            "{declaration} machine send() reaches Output {{ {storage} {call} }}"
+        ));
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("send"))
+            .unwrap_or_else(|error| {
+                panic!("a derived descriptor is not a direct backing loan (boundary: {boundary}): {error:?}")
+            });
+
+        for mutation in ["root", "path", "access", "endpoint", "expression"] {
+            let mut changed = checked.clone();
+            let plans = &mut changed.facts.flow.terminal_unit_effects;
+            let argument = plans
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.operations)
+                .chain(
+                    plans
+                        .composed_machines
+                        .iter_mut()
+                        .flat_map(|machine| &mut machine.states)
+                        .flat_map(|state| &mut state.operations),
+                )
+                .filter_map(|operation| operation.call_mut())
+                .flat_map(|call| &mut call.structural_arguments)
+                .find(|argument| crate::unit::attached_unit::view_ranges::range(argument).is_some())
+                .expect("the call retains a derived range descriptor");
+            match mutation {
+                "access" => argument.access = CheckedStructuralAccess::MutableBorrow,
+                "path" => {
+                    argument
+                        .path
+                        .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                            0,
+                        ))
+                }
+                _ => {
+                    let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                        root,
+                        expression,
+                        start,
+                        ..
+                    } = &mut argument.source
+                    else {
+                        panic!("the authored byte range retains its byte descriptor");
+                    };
+                    match mutation {
+                        "root" => {
+                            *root = checked_trees::CheckedStorageRoot::OwnedLocal {
+                                symbol: SymbolHandle::invalid(),
+                            };
+                        }
+                        "endpoint" => *start = None,
+                        "expression" => {
+                            *expression = checked_trees::expression::ExpressionHandle::invalid();
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            assert!(
+                crate::lower_machine(&changed, crate::TerminalMachineSelection::Name("send"))
+                    .is_err(),
+                "{mutation} must fail authoritative range replay (boundary: {boundary})"
+            );
+        }
+    }
+}
+
+#[test]
 fn owned_byte_boundary_loan_replays_whole_local_and_shared_access() {
     for actual in ["line", "&line"] {
         let source = format!(

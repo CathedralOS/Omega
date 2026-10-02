@@ -191,27 +191,8 @@ pub(in crate::execution) fn admit(
     established.then_some(subslice)
 }
 
-/// Whether `argument` narrows a fixed-array field rather than an established
-/// view: an exclusive range whose path is the record-field projection to the
-/// array its lowering views whole before narrowing. That path names the
-/// collection a fresh shared view establishes, not a projected subloan of the
-/// root, so projection admission and claim accounting treat the argument
-/// like any other whole view.
-pub(crate) fn is_field_range(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
-    matches!(
-        argument.source,
-        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
-    ) && !argument.path.is_empty()
-        && argument
-            .path
-            .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-        && argument.access == CheckedStructuralAccess::SharedBorrow
-}
-
-/// Whether `argument` is an exclusive range over a view or a fixed-array
-/// field, of either view family.
+/// Whether `argument` produces a range descriptor. Its path selects the
+/// backing collection; it does not transfer an owned subtree to the callee.
 pub(crate) fn is_view_subslice(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
     matches!(
         argument.source,

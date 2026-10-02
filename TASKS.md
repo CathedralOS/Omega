@@ -1024,30 +1024,27 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Current application `3e82e5fc5763`, with std
-  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, reaches one API borrow
-  diagnostic on macOS ARM64 using compiler `465700e9bc3` plus the finite-root
-  cycle-frame and primitive-loan repair. Reproduction: `omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1. The unchanged
-  `measure_value` now releases its payload loan when it stops forwarding it;
-  forwarding an independent byte view no longer prolongs that loan. Returning
-  calls retain their whole-run loans and unresolved origins remain conservative.
-  Cyclic write frames now follow finite storage-root substitutions rather than
-  require parameter permutations, removing the 12 whole-receiver false positives.
-  Primitive state loans use ordinary plain-storage address transfers and one
-  entry/block store lookup. The cyclic acquire-release and forwarded write-through
-  regressions, plus `borrows/runtime_released_loan_with_forwarded_view_exit`,
-  execute with native and interpreted exit 70 on macOS ARM64. Unbounded projected
-  root cycles stay opaque; conflicting loans and forged shared authority reject.
+  Current candidate application `74beda02c779`, with std
+  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
+  reaches six session-package borrow diagnostics on macOS ARM64 using compiler
+  `64c3c65ffb8`. Reproduction: `omega update --project
+  samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
+  `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
+  ranges conflict with the mutable receiver's reported whole-`self` writes.
+  Candidate API payload writeback and scan construction/sealing repairs are
+  checkpointed but unpublished because the application remote denied writes;
+  resolve publication before advancing the application gitlink.
 
-  The first remaining refusal is `ValuedStructField::copy_from_bytes`:
-  `value_arm` replaces `self.field_data` while holding its shared payload loan
-  in the same state. Clone/update first, then transition with only the owned
-  replacement and scalar result to a writeback state, then rerun the unchanged
-  package-review command to discover the next dependency.
-  The downstream scan package is not yet reached by this review. Its
-  `seal_store` still needs construction separated from shared sealing: retained
-  candidate windows cannot coexist with mutable forwarding of their arenas.
+  Inspect receiver write-frame completeness and result-origin rebasing through
+  `assemble`/`build`, `PointerScanResults::new` and
+  `restore_materialization_state`. The traced route retains candidate windows in
+  external result entries, sorts disjoint `target_addresses`, and updates scalar
+  metadata on the new result; no candidate-arena write was found. The owning
+  paths are checking's receiver footprint/write-frame analysis and flow mutation
+  summaries. Distinguish a genuinely opaque frame from lost field or result
+  identity before changing application code. Windows remain live after their
+  temporary formals disappear: a later arena write must still reject. Then rerun
+  the same package-review command and the documented native application oracle.
 
   The public macOS native command stops at missing exact-target package review;
   the existing Linux lock names a different checkout's local source identities.

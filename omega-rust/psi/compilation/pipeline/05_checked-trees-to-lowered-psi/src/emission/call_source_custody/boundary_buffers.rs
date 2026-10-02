@@ -1,4 +1,6 @@
-//! Byte loans retain their authored field, array, or borrowed-view root.
+//! Direct byte loans retain their authored field, array, or borrowed-view root.
+//! Derived range descriptors belong to ordered argument staging, whose shared
+//! range owner replays their source and endpoints before producing the operand.
 
 use super::{authored, projected_receivers};
 use crate::lowering_error::LoweringError;
@@ -66,6 +68,15 @@ pub(super) fn validate(
         checked, planned, &signature,
     )?;
     for (position, argument) in positions.into_iter().zip(arguments) {
+        // Both ordinary and composed call schedules send these operands through
+        // byte_subslices::emit: locate rejoins the authored argument and access,
+        // then view_ranges checks storage identity, operator meaning and bound
+        // evidence. A consumer without that staging rejects the missing operand
+        // place. Reinterpreting the descriptor here as a direct backing loan
+        // would demand a different source and discard its endpoint evidence.
+        if crate::unit::attached_unit::view_ranges::range(argument).is_some() {
+            continue;
+        }
         let Some(expected_access) = byte_view_access(&signature.parameters[position as usize])
         else {
             continue;

@@ -384,6 +384,62 @@ fn arrival_view_measures_its_dominating_establishment() {
 }
 
 #[test]
+fn projected_array_arrival_measures_the_selected_collection() {
+    let mut module = arrival(StructuralAccess::SharedBorrow);
+    let outer = id(11, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: outer,
+        identity: "test::NestedArray".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: id(ARRAY, StructuralTypeId::new),
+            length: 2,
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].structural_type = outer;
+    let OperationKind::EstablishElementView { source, .. } =
+        &mut machine.blocks[0].operations[0].kind
+    else {
+        panic!("entry establishes the collection view");
+    };
+    source.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(1)];
+    let axioms = read_axioms(&module);
+    assert!(axioms.contains(&arrival_extent()));
+    assert!(!axioms.contains(&Proposition::Equal(value(LENGTH), literal(2))));
+    let proof = read_bound(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default())
+        .expect("the selected inner array supplies its own extent after transfer");
+
+    let mut changed_extent = module.clone();
+    let array = changed_extent
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == id(ARRAY, StructuralTypeId::new))
+        .unwrap();
+    array.shape = StructuralTypeShape::FixedArray {
+        element: id(ELEMENT, StructuralTypeId::new),
+        length: 3,
+    };
+    assert!(!read_axioms(&changed_extent).contains(&arrival_extent()));
+    assert!(
+        verify_module_for_interpretation(&changed_extent, &proof, &AdmissionProfile::default())
+            .is_err(),
+        "a certificate for another collection extent cannot replay"
+    );
+
+    let OperationKind::EstablishElementView { source, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("entry still establishes the collection view");
+    };
+    source.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(2)];
+    assert!(
+        validate_module_for_interpretation(&module).is_err(),
+        "an out-of-bounds collection path cannot supply extent evidence"
+    );
+}
+
+#[test]
 fn arrival_extent_crosses_staging_arrivals_of_one_descriptor() {
     let module = joined(false, PRODUCED);
     assert!(read_axioms(&module).contains(&arrival_extent()));

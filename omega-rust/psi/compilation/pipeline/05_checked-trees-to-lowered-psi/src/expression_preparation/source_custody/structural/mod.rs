@@ -22,11 +22,10 @@ use symbols::SymbolHandle;
 
 pub(crate) mod byte_literals;
 mod dispatch;
+mod owned_places;
 mod record;
 mod slice_view;
 mod structural_case;
-pub(crate) use slice_view::authored_collection_path;
-mod owned_places;
 mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
 #[cfg(test)]
