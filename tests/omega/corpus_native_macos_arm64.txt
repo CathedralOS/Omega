@@ -122,10 +122,10 @@ pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted built 2322ms exit:70 @bed5f45e9185+wt
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt
-pass/calls/cyclic_affine_call_result_exit built 4106ms exit:70 @48d34a64a938+wt
+pass/calls/cyclic_affine_call_result_exit built 1366ms exit:70 @1da616075c39+wt
 pass/calls/cyclic_copy_arguments_exit built 1282ms exit:70 @b3f2ae787684+wt
 pass/calls/cyclic_mutable_borrow_block_parameter_call built 2512ms exit:0 @bed5f45e9185+wt
-pass/calls/cyclic_projected_borrow_call_exit built 3929ms exit:70 @48d34a64a938+wt
+pass/calls/cyclic_projected_borrow_call_exit built 1360ms exit:70 @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+wt
 pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt
@@ -195,7 +195,7 @@ pass/calls/runtime_mut_ref_forward_exit built 1147ms exit:70 @48008365d839
 pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70 @fb2178def922
 pass/calls/runtime_mutable_local_parameter_write_exit built 756ms exit:171 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit built 1235ms exit:70
-pass/calls/runtime_nested_local_field_store_exit built 1243ms exit:42 @20d5eb8f7510+wt
+pass/calls/runtime_nested_local_field_store_exit built 1817ms exit:42 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
 pass/calls/runtime_option_value_call_exit built 950ms exit:70
@@ -356,7 +356,7 @@ pass/control_flow/guarded_leaf_branch_expansion checked 206ms
 pass/control_flow/guarded_mid_arm_return built 1546ms exit:70 @bed5f45e9185+wt
 pass/control_flow/guarded_transition_dispatch_exit built 1188ms exit:0 stdout:match @765e6c51624f+wt
 pass/control_flow/guarded_unit_completion_exit built 927ms exit:70 @1a4aae106a02+wt
-pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
+pass/control_flow/guarded_value_transition_roster built 1429ms exit:11 @1da616075c39+wt
 pass/control_flow/indexed_record_state_argument_exit built 1014ms exit:70 @1a4aae106a02+wt
 pass/control_flow/nested_affine_record_state_cycle_exit built 1007ms exit:70 @fb3ce7840d9b+wt
 pass/control_flow/nested_parameter_receiver_call checked 179ms
@@ -389,7 +389,7 @@ pass/control_flow/scalar_loop_interior_header_exit built 1452ms exit:87 @4800836
 pass/control_flow/self_case_payload_both_arms_exit built 755ms exit:70
 pass/control_flow/shared_state_disjoint_receiver_store_exit built 1438ms exit:70 @da17a13c769f+wt
 pass/control_flow/state_local_operand_edge_call_exit built 1759ms exit:70 @f05a17605282+wt
-pass/control_flow/structural_result_transition_tail built 1404ms exit:10 @15f38e49aac2
+pass/control_flow/structural_result_transition_tail built 1377ms exit:10 @1da616075c39+wt
 pass/control_flow/sum_field_storage_roundtrip built 1074ms exit:70 @7a6595c07f7b+wt
 pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e21b659
 pass/control_flow/transition_operand_schedule checked 189ms
@@ -1145,13 +1145,13 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1562ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1678ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 7)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 3605ms exit:70 @6bd4d1a87ff4+wt
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 35434ms exit:70 @5fb2e19e1f1+wt
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 4092ms exit:70 @1da616075c39+wt
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 45899ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1646ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 4)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1422ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
-pass/wire/runtime_wire_exact_array_without_count_exit built 7111ms exit:70 @6bd4d1a87ff4+wt
+pass/wire/runtime_wire_exact_array_without_count_exit built 6346ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit incomplete 22588ms @6ec9ff444c14+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 163884ms exit:70 @5fb2e19e1f1+wt

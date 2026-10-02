@@ -27,37 +27,37 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let msg: TelemetryValue = TelemetryValue {
         readings: [1, 2, 3, 4]
     };
 
-    Telemetry::encode(&msg, &mut self.buffer, &mut self.written);
+    Telemetry::encode(&msg, &mut main.buffer, &mut main.written);
 
-    transition self.written == 7 {
-        true -> check_bytes()
-        false -> bad()
+    transition main.written == 7 {
+        true -> check_bytes(main)
+        false -> bad(main)
     }
 
-    state check_bytes(&mut self) {
-        let ok: bool = self.buffer[0] == 0
-            && self.buffer[1] == 0
-            && self.buffer[2] == 4
-            && self.buffer[3] == 1
-            && self.buffer[4] == 2
-            && self.buffer[5] == 3
-            && self.buffer[6] == 4;
+    state check_bytes(main: &mut Main) {
+        let ok: bool = main.buffer[0] == 0
+            && main.buffer[1] == 0
+            && main.buffer[2] == 4
+            && main.buffer[3] == 1
+            && main.buffer[4] == 2
+            && main.buffer[5] == 3
+            && main.buffer[6] == 4;
         transition ok {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

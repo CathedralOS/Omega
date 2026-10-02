@@ -1268,9 +1268,9 @@ pass/calls/case_scrutinee_self_dispatch_exit checked 1513ms @2d8ed253669f
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
-pass/calls/cyclic_affine_call_result_exit checked 3282ms @48d34a64a938+wt
+pass/calls/cyclic_affine_call_result_exit checked 1353ms @1da616075c39+wt
 pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms @ca8c127c90c5
-pass/calls/cyclic_projected_borrow_call_exit checked 3328ms @48d34a64a938+wt
+pass/calls/cyclic_projected_borrow_call_exit checked 1337ms @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 3489ms @48d34a64a938+wt
 pass/calls/field_path_byte_subslice_exit checked 3105ms @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
@@ -1340,7 +1340,7 @@ pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 2466ms @2d8ed253669f
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
-pass/calls/runtime_nested_local_field_store_exit checked 1211ms @20d5eb8f7510+wt
+pass/calls/runtime_nested_local_field_store_exit checked 1769ms @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms @2d8ed253669f
@@ -1501,7 +1501,7 @@ pass/control_flow/guarded_jump_field_view_forward rejected 149ms @882f6744a121+w
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
-pass/control_flow/guarded_value_transition_roster checked 1554ms @15f38e49aac2+wt
+pass/control_flow/guarded_value_transition_roster checked 1378ms @1da616075c39+wt
 pass/control_flow/nested_affine_record_state_cycle_exit checked 884ms @fb3ce7840d9b
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/nested_structural_call_operand_exit checked 916ms @ff183e7f95fb+wt
@@ -1533,7 +1533,7 @@ pass/control_flow/scalar_loop_interior_header_exit checked 1748ms @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms @2d8ed253669f
 pass/control_flow/shared_state_disjoint_receiver_store_exit checked 1312ms @da17a13c769f
 pass/control_flow/state_local_operand_edge_call_exit checked 1919ms @f05a17605282+wt
-pass/control_flow/structural_result_transition_tail checked 1440ms @15f38e49aac2+wt
+pass/control_flow/structural_result_transition_tail checked 1353ms @1da616075c39+wt
 pass/control_flow/sum_field_storage_roundtrip checked 1418ms @2d8ed253669f
 pass/control_flow/termination_index_distance_compile checked 978ms @ca8c127c90c5
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
@@ -2289,14 +2289,13 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 713ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 3)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1638ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3195ms @6bd4d1a87ff4+wt
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit incomplete 18471ms @6ec9ff444c14+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775808 unproved; the module is not shown invalid
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3975ms @1da616075c39+wt
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 43414ms @1da616075c39+wt
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 706ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 4)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
-pass/wire/runtime_wire_exact_array_without_count_exit checked 6968ms @6bd4d1a87ff4+wt
+pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit rejected 364ms @4e4bfed13aee+wt
 	build-time evaluation of `CompactBinary::plan` failed for `CounterMessage`: machine `CompactBinary::plan` takes 2 argument(s); the build-time position supplied 1
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit incomplete 41105ms @6ec9ff444c14+wt

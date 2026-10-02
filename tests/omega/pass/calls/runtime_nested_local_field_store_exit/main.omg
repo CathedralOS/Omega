@@ -5,25 +5,25 @@ data Row { address: u64; value: u64; calls: u64 in Wrapping; }
 data Source { mask: u64; calls: u64 in Wrapping; }
 data Main { console: Binding<Console>; }
 
-machine Row::address(&mut self) -> u64 {
-    self.calls += 1;
-    self.address
+machine Row::address(row: &mut Row) -> u64 {
+    row.calls += 1;
+    row.address
 }
-machine Source::read(&mut self, address: u64) -> u64 {
-    self.calls += 1;
-    address ^ self.mask
+machine Source::read(source: &mut Source, address: u64) -> u64 {
+    source.calls += 1;
+    address ^ source.mask
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut source: Source = Source { mask: 7, calls: 0 };
     let mut row: Row = Row { address: 45, value: 0, calls: 0 };
     // The receiver and inner call are evaluated before storing the outer result.
     // Counters detect omitted or duplicated calls; no authored temporary
     // rewrites the nested call into a different compilation route.
-    row.value = source.read(row.address());
+    row.value = Source::read(&mut source, Row::address(&mut row));
     transition row.value == 42 && row.address == 45 && row.calls == 1 && source.calls == 1 {
-        true -> success(&mut self)
-        false -> failure(&mut self)
+        true -> success(main)
+        false -> failure(main)
     }
     state success(main: &mut Main) { main.console.exit_process(42); }
     state failure(main: &mut Main) { main.console.exit_process(1); }

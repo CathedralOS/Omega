@@ -28,15 +28,15 @@ data Main {
     good_verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Era 0, tag 0, then zero encoded with two groups instead of one.
     let overlong_payload: [u8; 4] = [0, 0, 128, 0];
     let overlong: ScalarValue = ScalarValue { value: 7 };
     Scalar::decode(
         &mut overlong,
         &overlong_payload,
-        &mut self.overlong_read,
-        &mut self.overlong_verdict,
+        &mut main.overlong_read,
+        &mut main.overlong_verdict,
     );
 
     // The tenth group may contain only bit 63. A terminal payload of two would
@@ -49,8 +49,8 @@ machine Main::main(&mut self) reaches Console {
     Scalar::decode(
         &mut overflow,
         &overflow_payload,
-        &mut self.overflow_read,
-        &mut self.overflow_verdict,
+        &mut main.overflow_read,
+        &mut main.overflow_verdict,
     );
 
     // u64::MAX is the legal ten-group boundary: nine 0xFF groups and a final 1.
@@ -62,20 +62,20 @@ machine Main::main(&mut self) reaches Console {
     Scalar::decode(
         &mut good,
         &good_payload,
-        &mut self.good_read,
-        &mut self.good_verdict,
+        &mut main.good_read,
+        &mut main.good_verdict,
     );
 
     transition {
-        self.overlong_verdict == WireVerdict::Sound -> accepted_overlong()
-        self.overflow_verdict == WireVerdict::Sound -> accepted_overflow()
-        self.good_verdict == WireVerdict::Sound
-            && good.value == 18446744073709551615 -> proven()
-        _ -> broken()
+        main.overlong_verdict == WireVerdict::Sound -> accepted_overlong(main)
+        main.overflow_verdict == WireVerdict::Sound -> accepted_overflow(main)
+        main.good_verdict == WireVerdict::Sound
+            && good.value == 18446744073709551615 -> proven(main)
+        _ -> broken(main)
     }
 
-    state accepted_overlong(&mut self)  { self.console.exit_process(66); }
-    state accepted_overflow(&mut self)  { self.console.exit_process(68); }
-    state proven(&mut self)             { self.console.exit_process(70); }
-    state broken(&mut self)             { self.console.exit_process(71); }
+    state accepted_overlong(main: &mut Main)  { main.console.exit_process(66); }
+    state accepted_overflow(main: &mut Main)  { main.console.exit_process(68); }
+    state proven(main: &mut Main)             { main.console.exit_process(70); }
+    state broken(main: &mut Main)             { main.console.exit_process(71); }
 }
