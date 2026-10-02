@@ -520,11 +520,13 @@ execution and native exit/output. A moved refusal is still unfinished work.
   The three `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call`
   fixtures use local `WindowBuffer` storage and static calls; all three execute
   with native and checked-interpreter exit 0 on Windows at `bcc4f637ab1c`.
-  `pass/borrows/static_record_reference_return_exit` additionally exercises
-  invocation-local records with returned shared/mutable references, including
-  shared whole-record and field returns from mutable parameters. Windows native
-  and checked interpretation both exit 0; source-free Terminal execution also
-  retains the exact backing. No receiver flag supplies the return origin.
+  `pass/borrows/static_record_reference_return_exit`,
+  `static_projected_local_reference_exit` and `transition_shared_borrow_result`
+  exercise local owners with returned shared/mutable references, projected
+  arguments and transition-tail returns. Windows native and checked interpretation
+  produce their authored exits (0, 0 and 181); source-free Terminal execution
+  retains the exact backing. Loan carriers release before their local owners
+  are discarded. No receiver flag supplies the return origin.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,

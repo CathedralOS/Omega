@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": null, "load1_start": null, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -57,6 +57,9 @@ pass/borrows/borrow_domain_window_write_and_call checked 405ms @0484de104502
 pass/borrows/borrow_guarded_window_write_and_call checked 405ms @0484de104502
 pass/borrows/borrow_returned_window_write_and_call checked 402ms @0484de104502
 pass/borrows/borrow_stated_index_disequality_mut checked 428ms @0484de104502
+pass/borrows/static_projected_local_reference_exit built 3156ms exit:0 interpreter-exit:0 interpreter:agrees @66fdca30c71e
+pass/borrows/static_record_reference_return_exit built 7118ms exit:0 interpreter-exit:0 interpreter:agrees @66fdca30c71e
+pass/borrows/transition_shared_borrow_result built 2942ms exit:181 interpreter-exit:181 interpreter:agrees @66fdca30c71e
 pass/build/conditional_root_binding built 501ms @0484de104502
 pass/build/described_runner_entry_left_exit built 1196ms exit:11 @0484de104502
 pass/build/described_runner_entry_right_exit built 1180ms exit:37 @0484de104502

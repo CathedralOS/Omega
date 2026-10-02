@@ -113,6 +113,75 @@ fn affine_descriptor_cleanup_keeps_borrowed_backing_without_an_owned_home() {
 }
 
 #[test]
+fn cleanup_releases_a_carrier_before_discarding_its_backing() {
+    for reverse_order in [false, true] {
+        let (mut function, mut live, _) = fixture();
+        let backing = PlaceId::new(1).unwrap();
+        let carrier = PlaceId::new(2).unwrap();
+        let backing_type = StructuralTypeId::new(1).unwrap();
+        let reference_type = StructuralTypeId::new(2).unwrap();
+        function.structural_parameters[0].access = StructuralAccess::Owned;
+        function.operations.clear();
+        live.views.clear();
+        live.address_joins.clear();
+        live.references.insert(
+            (carrier, Vec::new()),
+            super::super::references::ReferenceCustody {
+                identity: (carrier, Vec::new()),
+                root: super::super::references::ReferenceRoot::Place(backing),
+                parent: None,
+                operation: Some(OperationId::new(1).unwrap()),
+                result: StructuralOperationResult {
+                    place: carrier,
+                    structural_type: reference_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    claims: Vec::new(),
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                },
+                referent: backing_type,
+            },
+        );
+        let catalog: StructuralTypeCatalog = [
+            StructuralTypeDeclaration {
+                id: backing_type,
+                identity: "Backing".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: reference_type,
+                identity: "&Backing".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: backing_type,
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+        ]
+        .into_iter()
+        .collect();
+        let mut actions = [
+            TerminalAffineCleanupAction::DiscardRoot(carrier),
+            TerminalAffineCleanupAction::DiscardRoot(backing),
+        ];
+        if reverse_order {
+            actions.reverse();
+        }
+        assert_eq!(
+            plain_home_cleanup(
+                &function,
+                &mut live,
+                &StructuralTypeLookup::new(&catalog),
+                &actions,
+            )
+            .unwrap(),
+            !reverse_order
+        );
+        assert_eq!(live.references.is_empty(), !reverse_order);
+    }
+}
+
+#[test]
 fn affine_descriptor_cleanup_rejects_metadata_drift_missing_liveness_and_duplicates() {
     for mutation in 0..7 {
         let (mut function, mut live, catalog) = fixture();

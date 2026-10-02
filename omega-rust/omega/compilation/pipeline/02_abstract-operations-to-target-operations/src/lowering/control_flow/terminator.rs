@@ -178,18 +178,17 @@ pub(super) fn plain_home_cleanup(
                     // path's carrier; no owned backing home is created or moved.
                     continue;
                 }
-                // A bare `&` local's root discard names its loan carrier:
-                // the ordered pass below releases the carrier's own leaf
-                // through `discard_owned`, which suspends-loan semantics
-                // already enforce. A root a sibling edge already drained
-                // re-admits for the same roster. Only owned homes take the
-                // early check.
+                // Cleanup is sequential: releasing a carrier can make its
+                // backing eligible for the next discard. Do not validate all
+                // roots against the pre-cleanup frontier or reorder them by
+                // PlaceId. The authored action order is part of the contract.
                 if live
                     .references
                     .keys()
                     .any(|(carrier, _)| *carrier == *place)
                     || live.drained_loan_roots.contains(place)
                 {
+                    super::references::discard_owned(function, structural_types, live, *place)?;
                     continue;
                 }
                 if !live_home_or_arrival(live, function, *place)
@@ -197,6 +196,7 @@ pub(super) fn plain_home_cleanup(
                 {
                     return Ok(false);
                 }
+                super::references::discard_owned(function, structural_types, live, *place)?;
             }
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 if !residual_cleanup(
@@ -213,13 +213,6 @@ pub(super) fn plain_home_cleanup(
             }
             TerminalAffineCleanupAction::InvokeNominal(_) => return Ok(false),
         }
-    }
-    // Admission is staged before custody moves: a discarded owner also ends
-    // every reference leaf it carries, in the verified reverse-declaration
-    // order. This removes loan custody, never referent storage. Residual
-    // discards carry plain subtrees only, so they move no loan custody.
-    for place in discarded_roots {
-        super::references::discard_owned(function, structural_types, live, place)?;
     }
     Ok(true)
 }

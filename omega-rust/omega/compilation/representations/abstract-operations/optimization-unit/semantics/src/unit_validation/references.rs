@@ -511,8 +511,9 @@ pub(crate) fn is_reference_projection(
         && source.access != terminal_psi::StructuralAccess::Owned
 }
 
-/// The referent type an establishment or projection may name. Direct entry
-/// loans retain exact static projections; carrier projections end in `Referent`.
+/// Direct storage loans use the same contract for arrival parameters and local
+/// operation results. Their field/index paths never dereference a permission
+/// carrier; those projections end in `Referent` and retain their own checks.
 pub(crate) fn reference_source_type(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -526,37 +527,32 @@ pub(crate) fn reference_source_type(
     ) {
         return None;
     }
-    if !source.path.is_empty()
-        && source.path.iter().all(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
-    {
-        let parameter = direct_reference_parameter(function, source)?;
-        return leaf_type(types, parameter.structural_type, &source.path);
+    if source.path.iter().all(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        let contract = structural_source_contract(function, source.place, false)?;
+        if !access_covers(contract.access, source.access)
+            || contract.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !contract.is_unqualified()
+            || contract.has_result_evidence()
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == source.place)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == source.place)
+        {
+            return None;
+        }
+        return leaf_type(types, contract.structural_type, &source.path);
     }
-    if !source.path.is_empty() {
-        return projected_carrier_type(function, types, source);
-    }
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
-    {
-        direct_reference_parameter(function, source)?;
-        return primitive_scalar_type(types, parameter.structural_type).or_else(|| {
-            (matches!(
-                types.get(&parameter.structural_type).map(|row| &row.shape),
-                Some(terminal_psi::StructuralTypeShape::Record { .. })
-            ) && plain_referent_storage(types, parameter.structural_type))
-            .then_some(parameter.structural_type)
-        });
-    }
-    let result = primitive_local_result(function, source.place)?;
-    primitive_scalar_type(types, result.structural_type)
+    projected_carrier_type(function, types, source)
 }
 
 fn direct_reference_parameter<'a>(
@@ -584,33 +580,6 @@ fn direct_reference_parameter<'a>(
             .iter()
             .all(|claim| claim.input.root != source.place))
     .then_some(parameter)
-}
-
-fn primitive_scalar_type(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    matches!(
-        types
-            .get(&structural_type)
-            .map(|declaration| &declaration.shape),
-        Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
-    )
-    .then_some(structural_type)
-}
-
-fn primitive_local_result(
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-) -> Option<&terminal_psi::StructuralOperationResult> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishPrimitiveLocal { result, .. } if result.place == place => Some(result),
-            _ => None,
-        })
 }
 
 /// An owned argument that carries at least one reference leaf moves the loans

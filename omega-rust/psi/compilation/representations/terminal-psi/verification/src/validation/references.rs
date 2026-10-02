@@ -344,11 +344,12 @@ fn source_authority(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source.place)
+        .or_else(|| super::block_views::parameter(machine, source.place))
         .map_or(StructuralAccess::Owned, |parameter| parameter.access);
     let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() else {
-        return (source.path.is_empty()
-            || projected_parameter_type(module, machine, source).is_some())
-        .then_some(carrier);
+        return direct_storage_type(module, machine, source)
+            .is_some()
+            .then_some(carrier);
     };
     let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
     // A reference leaf grants its own referent access; the storage a
@@ -972,65 +973,27 @@ pub(super) fn source_type(
     {
         return None;
     }
-    if !source.path.is_empty() {
-        return projected_carrier_type(module, machine, source)
-            .or_else(|| projected_parameter_type(module, machine, source));
-    }
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
-    {
-        if !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-        ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || machine
-                .entry_claims
-                .iter()
-                .any(|claim| claim.input == source.place)
-            || machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == source.place)
-        {
-            return None;
-        }
-        // A `&mut` parameter's referent is the loaned primitive itself; a
-        // `&'a` shared parameter's is its whole named storage.
-        if parameter.access == StructuralAccess::MutableBorrow
-            && !mutable_referent(module, parameter.structural_type)
-        {
-            return None;
-        }
-        return Some(parameter.structural_type);
-    }
-    let result = super::primitive_storage::local_result(machine, source.place)?;
-    super::primitive_storage::scalar_type(module, result.structural_type)?;
-    Some(result.structural_type)
+    projected_carrier_type(module, machine, source)
+        .or_else(|| direct_storage_type(module, machine, source))
 }
 
-/// A static projected ingress retains its complete field/index coordinate.
-/// This is borrowed original storage, never an owned copy or a view descriptor.
-fn projected_parameter_type(
+/// Parameters, block parameters and operation results all name storage through
+/// their published signatures. A direct borrow retains its complete field/index
+/// coordinate; it neither copies storage nor dereferences a permission carrier.
+/// Reference traversal stays on the carrier path, with its own access checks.
+fn direct_storage_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    let parameter = machine
-        .structural_parameters
+    let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
+    if source
+        .path
         .iter()
-        .find(|parameter| parameter.place == source.place)?;
-    if source.path.is_empty()
-        || !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-        )
-        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+        .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+        || signature.multiplicity == StructuralMultiplicity::Linear
+        || !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
         || machine
             .entry_claims
             .iter()
@@ -1039,10 +1002,21 @@ fn projected_parameter_type(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == source.place)
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                operation.result.structural().is_some_and(|result| {
+                    result.place == source.place
+                        && (!result.claims.is_empty()
+                            || !result.qualification_establishments.is_empty())
+                })
+            })
     {
         return None;
     }
-    leaf_reference_type(module, parameter.structural_type, &source.path)
+    leaf_reference_type(module, signature.structural_type, &source.path)
 }
 
 pub(super) fn validate_establishment(
@@ -1303,7 +1277,7 @@ fn normalized_source(
         }
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
-    } else if projected_parameter_type(module, machine, source).is_some() {
+    } else if direct_storage_type(module, machine, source).is_some() {
         if live
             .iter()
             .any(|reference| origin_root(&reference.root) == source.place)

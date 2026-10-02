@@ -1225,6 +1225,15 @@ pub(crate) fn validate_consumer(
     let Some(call) = operation.call() else {
         return unsupported("structural result use requires an ordinary or boundary call");
     };
+    // Retained loans are admitted by the same reconstructed source/outcome
+    // custody as other structural calls, not by recognizing the caller's
+    // storage spelling. The loan's release is checked by validate_usage.
+    super::validate_custody(checked, caller.machine, caller.state, operation)?;
+    let loan_is_accounted = loan_free_call(checked, operation)
+        || (!call.is_boundary()
+            && call
+                .structural_custody()
+                .is_some_and(|custody| custody.reference_loan.is_valid()));
     // A structural call keeps its transfers in its custody record; a boundary
     // call's are its completion receipts.
     let (coordinate, target_machine, target_state, structural_arguments, claim_transfers) = (
@@ -1575,25 +1584,19 @@ pub(crate) fn validate_consumer(
             }
             continue;
         }
-        // A live result binding may lend one of its record's leaves, fixed
-        // elements, or its whole extent through an exclusive borrow, and a
-        // projected subtree through a shared one: the binding is not
-        // consumed, the projected path (empty for a whole-place loan) is
-        // already rejoined against the authored operand above, and the
-        // borrowed formal carries no claims. A whole-place shared loan keeps
-        // the general check below. The callee's result retains no loan, so
-        // no result custody can carry the loan past the call.
-        let loan_ends_at_call = loan_free_call(checked, operation);
+        // Lending a whole local or a projected subtree does not consume its
+        // owner. The authored path was rejoined above; a loan either ends at
+        // this call or survives in independently reconstructed result custody.
         let lent_access = match argument.access {
             checked_trees::CheckedStructuralAccess::MutableBorrow
-            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => true,
-            checked_trees::CheckedStructuralAccess::SharedBorrow => !argument.path.is_empty(),
+            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+            | checked_trees::CheckedStructuralAccess::SharedBorrow => true,
             checked_trees::CheckedStructuralAccess::Owned => false,
         };
-        let scalar_leaf_borrow = matches!(
+        let borrowed_storage = matches!(
             result.multiplicity,
             Multiplicity::Affine | Multiplicity::Unrestricted
-        ) && loan_ends_at_call
+        ) && loan_is_accounted
             && argument.path.iter().all(|segment| {
                 matches!(
                     segment,
@@ -1617,7 +1620,7 @@ pub(crate) fn validate_consumer(
                 .iter()
                 .all(|transfer| transfer.argument_index as usize != index);
         if !linear_result_move
-            && !scalar_leaf_borrow
+            && !borrowed_storage
             && (!matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
