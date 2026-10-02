@@ -328,34 +328,56 @@ pub(in crate::lowering) fn lower_structural_argument(
                 (selected_type, selected_shape, offset, length, stride)
             }
             path if exact_borrowed_projection => {
-                let (projected_type, projected_shape, offset) = resolve_structural_projection_path(
+                let projected = resolve_structural_projection_path(
                     source_structural_type,
                     path,
                     structural_types,
                     shape_cache,
                     active,
                 )
-                .map_err(|_| {
-                    LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee,
-                        place: argument.place,
-                    }
-                })?;
-                if !matches!(
-                    structural_types
-                        .get(&projected_type)
-                        .map(|declaration| &declaration.shape),
-                    Some(
-                        StructuralTypeShape::PrimitiveScalar(_)
-                            | StructuralTypeShape::Record { .. }
+                .ok()
+                .filter(|(projected_type, _, _)| {
+                    matches!(
+                        structural_types
+                            .get(projected_type)
+                            .map(|declaration| &declaration.shape),
+                        Some(
+                            StructuralTypeShape::PrimitiveScalar(_)
+                                | StructuralTypeShape::Record { .. }
+                        )
                     )
-                ) {
+                });
+                if let Some((projected_type, projected_shape, offset)) = projected {
+                    (projected_type, projected_shape, offset, None, None)
+                } else if let Some(field_offset) = stored_shared_view_field(
+                    source_structural_type,
+                    path,
+                    callee_parameter,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )? {
+                    // A stored shared view field below a fixed element is
+                    // lent exactly as one below plain fields: the argument
+                    // addresses the stored descriptor in place.
+                    (
+                        callee_parameter.structural_type,
+                        structural_shape(
+                            callee_parameter.structural_type,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )?,
+                        field_offset,
+                        None,
+                        None,
+                    )
+                } else {
                     return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                         callee,
                         place: argument.place,
                     });
                 }
-                (projected_type, projected_shape, offset, None, None)
             }
             [StructuralPathSegment::FixedIndex(index)] => {
                 let declaration = structural_types

@@ -1321,6 +1321,7 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
 pass/calls/runtime_enum_self_method_exit checked 1484ms @ca8c127c90c5
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
+pass/calls/runtime_fixed_element_view_field_loan_exit checked 718ms @9472a7c10267+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
 pass/calls/runtime_indexed_scalar_calls_exit checked 2511ms @2d8ed253669f

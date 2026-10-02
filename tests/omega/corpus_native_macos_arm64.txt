@@ -180,6 +180,7 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit built 616ms exit:70 @a82
 pass/calls/runtime_distinct_receiver_value_calls_exit built 675ms exit:70
 pass/calls/runtime_enum_self_method_exit built 2815ms exit:70 @fb2178def922
 pass/calls/runtime_explicit_discard_executes_exit built 696ms exit:70
+pass/calls/runtime_fixed_element_view_field_loan_exit built 1720ms exit:70 stdout:match @9472a7c10267+wt
 pass/calls/runtime_guard_call_vs_call_exit built 855ms exit:70
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 1284ms exit:70 @df0288f59fd+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1035ms exit:70 @68f254e61364+wt
