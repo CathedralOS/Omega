@@ -18,7 +18,7 @@ pub(crate) mod structural_paths;
 #[cfg(test)]
 mod tests;
 pub(crate) mod view_locals;
-pub(crate) use structural_fields::StructuralScalarFieldBinding;
+pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 
 /// The access of a readable loan a view or borrowed selection joins: a
 /// shared read or an exclusive borrow. A write-only loan lends no readable
@@ -78,7 +78,7 @@ pub(crate) struct ScalarBindings {
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     structural_locals: Vec<StructuralLocalBinding>,
     local_cases: Vec<structural_cases::LocalCaseBinding>,
-    structural_fields: Vec<StructuralScalarFieldBinding>,
+    structural_fields: StructuralFieldBindings,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
     /// Whole element-view parameters resolved to their scalar element type,
     /// absent for record elements (which have a length but no scalar read).
@@ -643,10 +643,10 @@ impl ScalarBindings {
 
     pub(crate) fn with_resolved_structural_observations(
         mut self,
-        fields: &[StructuralScalarFieldBinding],
+        fields: &StructuralFieldBindings,
         cases: &[structural_cases::StructuralCaseBinding],
     ) -> Self {
-        self.structural_fields = fields.to_vec();
+        self.structural_fields = fields.clone();
         self.structural_cases = cases.to_vec();
         self
     }
@@ -679,7 +679,7 @@ impl ScalarBindings {
             structural_parameters: Vec::new(),
             structural_locals: Vec::new(),
             local_cases: Vec::new(),
-            structural_fields: Vec::new(),
+            structural_fields: Default::default(),
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             view_locals: Vec::new(),
@@ -1292,16 +1292,30 @@ impl ScalarBindings {
         if position as usize >= self.parameter_count {
             return unsupported("runtime selector parameter names a non-parameter scalar");
         }
+        self.runtime_index_value(position)
+    }
+
+    pub(crate) fn runtime_index_local(
+        &self,
+        position: u32,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        if (position as usize) < self.parameter_count {
+            return unsupported("runtime selector local names a parameter scalar");
+        }
+        self.runtime_index_value(position)
+    }
+
+    fn runtime_index_value(&self, position: u32) -> Result<LoweredDirectExpression, LoweringError> {
         let (position, scalar_type) = self
             .authored
             .get(position as usize)
             .copied()
             .flatten()
             .ok_or(LoweringError::Unsupported(
-                "runtime selector has no established immutable scalar parameter",
+                "runtime selector has no established immutable scalar",
             ))?;
         if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
-            return unsupported("runtime selector parameter is not an integer");
+            return unsupported("runtime selector is not an integer");
         }
         Ok(LoweredDirectExpression::Parameter {
             position,

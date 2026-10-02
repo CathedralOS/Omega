@@ -387,6 +387,24 @@ fn substitute_boolean(
     }
 }
 
+fn substitute_path(
+    path: Vec<crate::emission::operation_emission::expressions::LoweredElementPathSegment>,
+    bound: &[EstablishedCasePayload],
+) -> Vec<crate::emission::operation_emission::expressions::LoweredElementPathSegment> {
+    use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
+    path.into_iter()
+        .map(|segment| match segment {
+            LoweredElementPathSegment::RuntimeIndex { selector, extent } => {
+                LoweredElementPathSegment::RuntimeIndex {
+                    selector: substitute_direct(selector, bound),
+                    extent: extent.map(|extent| substitute_direct(extent, bound)),
+                }
+            }
+            segment => segment,
+        })
+        .collect()
+}
+
 pub(crate) fn substitute_direct(
     expression: LoweredDirectExpression,
     bound: &[EstablishedCasePayload],
@@ -445,15 +463,7 @@ pub(crate) fn substitute_direct(
                 .into_iter()
                 .map(|inner| substitute_direct(inner, bound))
                 .collect(),
-            element_path: element_path
-                .into_iter()
-                .map(|segment| match segment {
-                    crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(selector) => {
-                        crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(substitute_direct(selector, bound))
-                    }
-                    segment => segment,
-                })
-                .collect(),
+            element_path: substitute_path(element_path, bound),
             scalar_type,
         },
         Direct::IndexedElementFieldRead {
@@ -481,9 +491,20 @@ pub(crate) fn substitute_direct(
             scalar_type,
         } => Direct::ByteSequenceFieldRead {
             source,
-            path,
+            path: substitute_path(path, bound),
             field,
             index: Box::new(substitute_direct(*index, bound)),
+            scalar_type,
+        },
+        Direct::ByteSequenceFieldLength {
+            source,
+            path,
+            field,
+            scalar_type,
+        } => Direct::ByteSequenceFieldLength {
+            source,
+            path: substitute_path(path, bound),
+            field,
             scalar_type,
         },
         Direct::SaturatingShiftLeft {
@@ -547,7 +568,6 @@ pub(crate) fn substitute_direct(
         expression @ (Direct::PrimitiveRead { .. }
         | Direct::ByteSequenceLength { .. }
         | Direct::ElementViewLength { .. }
-        | Direct::ByteSequenceFieldLength { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
@@ -656,6 +676,18 @@ pub(crate) fn direct_case_read_cases(
     cases
 }
 
+fn collect_path_case_reads<'e>(
+    path: &'e [crate::emission::operation_emission::expressions::LoweredElementPathSegment],
+    reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
+) {
+    for segment in path {
+        if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+            collect_direct_case_reads(selector, reads);
+            if let Some(extent) = extent { collect_direct_case_reads(extent, reads); }
+        }
+    }
+}
+
 fn collect_direct_case_reads<'e>(
     expression: &'e LoweredDirectExpression,
     reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
@@ -673,9 +705,24 @@ fn collect_direct_case_reads<'e>(
         }
         Direct::ByteSequenceRead { index, .. }
         | Direct::ElementViewRead { index, .. }
-        | Direct::IndexedPrimitiveRead { index, .. }
-        | Direct::IndexedElementFieldRead { index, .. }
-        | Direct::ByteSequenceFieldRead { index, .. } => collect_direct_case_reads(index, reads),
+        | Direct::IndexedElementFieldRead { index, .. } => collect_direct_case_reads(index, reads),
+        Direct::IndexedPrimitiveRead {
+            index,
+            inner_indexes,
+            element_path,
+            ..
+        } => {
+            collect_direct_case_reads(index, reads);
+            for selector in inner_indexes {
+                collect_direct_case_reads(selector, reads);
+            }
+            collect_path_case_reads(element_path, reads);
+        }
+        Direct::ByteSequenceFieldRead { path, index, .. } => {
+            collect_path_case_reads(path, reads);
+            collect_direct_case_reads(index, reads);
+        }
+        Direct::ByteSequenceFieldLength { path, .. } => collect_path_case_reads(path, reads),
         Direct::IntegerBinary { left, right, .. }
         | Direct::SaturatingShiftLeft { left, right, .. } => {
             collect_direct_case_reads(left, reads);
@@ -688,7 +735,6 @@ fn collect_direct_case_reads<'e>(
         | Direct::IntegerTrappingCast { operand, .. } => collect_direct_case_reads(operand, reads),
         Direct::Boolean { expression } => case_reads(expression, reads),
         Direct::ByteSequenceLength { .. }
-        | Direct::ByteSequenceFieldLength { .. }
         | Direct::ElementViewLength { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }

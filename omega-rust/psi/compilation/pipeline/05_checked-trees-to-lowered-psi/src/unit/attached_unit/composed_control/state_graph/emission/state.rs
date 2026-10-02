@@ -106,7 +106,7 @@ impl StateGraphEmission<'_, '_> {
             )?,
             primitive_storage: Vec::new(),
             scalar_bindings: None,
-            structural_fields: Vec::new(),
+            structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: state
                 .structural_parameters

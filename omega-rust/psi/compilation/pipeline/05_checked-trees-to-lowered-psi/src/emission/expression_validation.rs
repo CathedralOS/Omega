@@ -69,7 +69,6 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
-        | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {
             index,
@@ -81,15 +80,16 @@ pub(crate) fn validate_direct_parameter_types(
             inner_indexes
                 .iter()
                 .try_for_each(|inner| validate_direct_parameter_types(inner, parameter_types))?;
-            element_path.iter().try_for_each(|segment| match segment {
-                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(selector) => {
-                    validate_direct_parameter_types(selector, parameter_types)
-                }
-                _ => Ok(()),
-            })
+            validate_path_parameter_types(element_path, parameter_types)
+        }
+        LoweredDirectExpression::ByteSequenceFieldLength { path, .. } => {
+            validate_path_parameter_types(path, parameter_types)
+        }
+        LoweredDirectExpression::ByteSequenceFieldRead { path, index, .. } => {
+            validate_path_parameter_types(path, parameter_types)?;
+            validate_direct_parameter_types(index, parameter_types)
         }
         LoweredDirectExpression::ByteSequenceRead { index, .. }
-        | LoweredDirectExpression::ByteSequenceFieldRead { index, .. }
         | LoweredDirectExpression::IndexedElementFieldRead { index, .. }
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
@@ -114,6 +114,34 @@ pub(crate) fn validate_direct_parameter_types(
             validate_boolean_parameter_types(expression, parameter_types)
         }
     }
+}
+
+fn validate_path_parameter_types(
+    path: &[crate::emission::operation_emission::expressions::LoweredElementPathSegment],
+    parameter_types: &[ScalarType],
+) -> Result<(), LoweringError> {
+    use crate::emission::operation_emission::expressions::{
+        LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
+    };
+    let selectors = path.iter().filter_map(|segment| match segment {
+        LoweredElementPathSegment::RuntimeIndex { selector, extent } => Some((selector, extent)),
+        _ => None,
+    });
+    if selectors.clone().count() > TERMINAL_NESTED_SELECTOR_LIMIT {
+        return unsupported("field observation exceeds its selector namespace");
+    }
+    for (selector, extent) in selectors {
+        if let Some(extent) = extent {
+            validate_direct_parameter_types(extent, parameter_types)?;
+        }
+        validate_direct_parameter_types(selector, parameter_types)?;
+        if !matches!(selector.scalar_type(), ScalarType::Integer(integer)
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64 && !integer.is_address())
+        {
+            return unsupported("field observation selector requires an exact u64 value");
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {

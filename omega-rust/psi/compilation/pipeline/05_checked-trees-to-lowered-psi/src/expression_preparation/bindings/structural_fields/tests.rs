@@ -287,7 +287,7 @@ fn nested_observation(boolean: bool) -> CheckedScalarExpression {
 fn payload_bindings(
     mut declarations: Vec<StructuralTypeDeclaration>,
     member_type: StructuralTypeId,
-) -> Vec<super::StructuralScalarFieldBinding> {
+) -> super::StructuralFieldBindings {
     let sum = StructuralTypeId::new(100).unwrap();
     declarations.push(StructuralTypeDeclaration {
         id: sum,

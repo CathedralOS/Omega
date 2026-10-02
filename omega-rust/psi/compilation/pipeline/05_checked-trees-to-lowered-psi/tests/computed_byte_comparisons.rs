@@ -148,3 +148,77 @@ fn computed_byte_comparisons_retain_unannotated_fixed_array_views() {
         if arguments.as_slice() == [TerminalScalarValue::Boolean(true)])
     );
 }
+
+#[test]
+fn computed_byte_comparisons_observe_indexed_literal_field_stores() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8]::Utf8 requires valid_utf8(self);
+        boundary trait Output { machine flag(value: bool) reaches Output; }
+        data Room { name: &[u8] in Utf8; }
+        data Root { rooms: [Room; 3]; }
+        machine Root::enter(root: &mut Root) reaches Output {
+            let index: u64 = 1;
+            let room_slice: &mut [Room] = root.rooms.as_mut_slice();
+            room_slice[index].name = "expected";
+            transition room_slice[index].name == "expected" {
+                true -> finish(root)
+                false -> fail(root)
+            }
+            state finish(root: &mut Root) { Output::flag(true); }
+            state fail(root: &mut Root) { Output::flag(false); }
+        }
+        "#,
+    );
+    let lowered = lower(&checked).expect("indexed descriptor replacement and observation lower");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("indexed store authority and observation bounds replay");
+
+    let mut changed = checked.clone();
+    let handles: Vec<_> = changed
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect();
+    let mut altered = false;
+    for handle in handles {
+        let node = changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(handle);
+        let checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+            subject,
+            ..
+        } = &mut node.kind
+        else {
+            continue;
+        };
+        for segment in &mut subject.path {
+            if let checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) = segment {
+                assert_eq!(*index, 1);
+                *index = 0;
+                altered = true;
+            }
+        }
+    }
+    assert!(
+        altered,
+        "the projected comparison retains its exact element"
+    );
+    assert!(
+        matches!(
+            lower(&changed),
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        ),
+        "same-typed sibling storage cannot replace the source operand"
+    );
+}

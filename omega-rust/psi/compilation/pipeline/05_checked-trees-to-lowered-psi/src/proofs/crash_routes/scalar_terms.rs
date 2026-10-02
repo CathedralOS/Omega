@@ -118,7 +118,7 @@ pub(crate) fn checked_scalar_term_with_views(
     let expression = lower_checked_scalar_expression_with_parameters(
         expression,
         structural_parameters,
-        &[],
+        &Default::default(),
         &[],
         &[],
         element_views,
