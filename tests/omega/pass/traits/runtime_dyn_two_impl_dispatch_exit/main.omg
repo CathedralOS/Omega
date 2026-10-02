@@ -14,7 +14,7 @@ trait Shape {
 
 data Circle {}
 
-machine Circle::code(&mut self) -> i32 {
+machine Circle::code(circle: &mut Circle) -> i32 {
     transition {
         _ -> 9
     }
@@ -22,7 +22,7 @@ machine Circle::code(&mut self) -> i32 {
 
 data Square {}
 
-machine Square::code(&mut self) -> i32 {
+machine Square::code(square: &mut Square) -> i32 {
     transition {
         _ -> 4
     }
@@ -41,13 +41,13 @@ data Main {
     q: Square;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let a: i32 = Main::dispatch(&mut self.c);
-    let b: i32 = Main::dispatch(&mut self.q);
+machine Main::main(main: &mut Main) reaches Console {
+    let a: i32 = Main::dispatch(&mut main.c);
+    let b: i32 = Main::dispatch(&mut main.q);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

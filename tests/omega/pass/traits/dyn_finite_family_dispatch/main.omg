@@ -12,8 +12,8 @@ data Item {
     value: i32;
 }
 
-machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
-    transition { _ -> self.value }
+machine Item::code<Width: u32>(item: &Item) -> i32 satisfies Shape::code {
+    transition { _ -> item.value }
 }
 
 Primary: Item satisfies Shape {
@@ -24,9 +24,9 @@ data Main {
     item: Item;
 }
 
-machine Main::run(&mut self) {
-    self.item.value = 7;
-    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+machine Main::run(main: &mut Main) {
+    main.item.value = 7;
+    let erased: &dyn Shape = &main.item as &dyn Item::Primary;
     let half: i32 = erased.code<16>();
     let full: i32 = erased.code<32>();
 }

@@ -24,7 +24,8 @@ machine pick(x: i32) -> i32 {
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.d = 1;
-    main.vec = Main::delta(main, main.d);
+    let d_value: i32 = main.d;
+    main.vec = Main::delta(main, d_value);
     transition main.vec.x == 3 { true -> chk_y(main) _ -> bad(main, 71) }
     state chk_y(main: &mut Main) {
         transition main.vec.y == 4 { true -> chk_pick(main) _ -> bad(main, 72) }
