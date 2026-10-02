@@ -1411,9 +1411,9 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `fc625a0e0329`
-  plus the returned-reference window repair, macOS ARM64, source checking and
-  local package review succeed; closed stdin exits 200 during Terminal
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `b18805b6b40e`,
+  macOS ARM64, source checking and local package review succeed; closed stdin
+  exits 200 during Terminal
   production with `ControlCycleIneligible { block: 66, reason: BlockOperation
   { block: 66, operation: 76 } }`. The next dependency is cycle eligibility
   in `terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`;
