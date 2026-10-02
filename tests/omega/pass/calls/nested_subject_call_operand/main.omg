@@ -1,0 +1,26 @@
+// A nested call among a call's operands supplies the SAME subject.
+//
+// `Main::bump(main, Main::bump(main, 3))` is the explicit spelling of
+// `self.bump(self.bump(3))`. A receiver's loan is taken when the call is
+// ENTERED, after every operand has been evaluated, so the inner call holds
+// its loan only while it runs and has released it before the outer call is
+// entered. Spelled with a receiver this needed no rule, because a receiver
+// was never one of the call's arguments; spelled explicitly, the subject sits
+// in the operand roster beside the inner call's subject and the pairwise
+// exclusivity rule saw two mutable names.
+//
+// `fail/borrows/duplicate_retained_subject_arguments` is the counterpart that
+// must still reject: two RETAINED names, with nothing completing.
+//
+// Expected exit: 0.
+
+data Main { hits: u64 in Wrapping; }
+
+machine Main::bump(main: &mut Main, value: u64 in Wrapping) -> u64 in Wrapping {
+    main.hits = main.hits + 1;
+    value + 1
+}
+
+machine Main::main(main: &mut Main) -> u64 in Wrapping {
+    Main::bump(main, Main::bump(main, 3))
+}

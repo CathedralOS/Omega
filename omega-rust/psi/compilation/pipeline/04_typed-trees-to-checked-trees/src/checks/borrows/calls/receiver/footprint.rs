@@ -310,6 +310,78 @@ pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
 ) -> Option<usize> {
     super::local_jump(program, state_flow, call)?;
     let machine = whole_mutable_receiver_machine(program, state_flow, call)?;
+    retained_subject_access(program, facts, state_flow, call, machine)
+}
+
+/// The same access, for a call of ANY form.
+///
+/// A receiver's loan is taken when the call is ENTERED, after its operands are
+/// evaluated, so `self.bump(self.bump(3))` never holds two at once. The
+/// explicit subject is an argument, so the roster holds the outer call's
+/// subject beside the inner call's and the pairwise rule sees two mutable
+/// names. This names the outer one, and the caller may only use it to excuse a
+/// partner that already COMPLETED -- a genuine second live loan, as in
+/// `Main::bump(main, main)`, keeps its refusal.
+pub(in crate::checks::borrows::calls) fn entered_subject_access(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call: &BorrowCallFact,
+) -> Option<usize> {
+    // The callee names which of ITS parameters is the subject; the caller's
+    // argument in that position is the place to find in the roster. The jump
+    // form reads the parent off a receiver expression instead, which a static
+    // call does not have.
+    let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let parameters = program.state_parameters(target);
+    let callee = program.machine_holding_state(call.target_symbol)?;
+    let position = program.data_binding_position(callee.attached_data_symbol, parameters)?;
+    if parameters[position].is_self {
+        return None;
+    }
+    let site = crate::semantic::calls::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    // Only a roster that corresponds one-to-one with the parameters locates
+    // the subject by position; anything else keeps its ordinary exclusivity.
+    if arguments.len() != parameters.len() {
+        return None;
+    }
+    let parent = crate::flow::canonical_place_from_expression(program, *arguments.get(position)?)?;
+    let facts::PlaceRoot::Symbol(root_symbol) = parent.root else {
+        return None;
+    };
+    let caller = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
+    retained_access_for_parent(
+        program,
+        facts,
+        call,
+        caller,
+        attached_place(
+            program,
+            caller,
+            CapturedPlace {
+                root_symbol,
+                segments: parent.segments,
+            },
+        ),
+    )
+}
+
+/// The one RETAINED mutable access naming `call`'s subject parent, if exactly
+/// one does. A completed access is never it: the filter below drops them.
+fn retained_subject_access(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call: &BorrowCallFact,
+    machine: &typed_trees::machine::Machine,
+) -> Option<usize> {
     let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
     let parameter = program.data_binding_parameter(machine, program.state_parameters(target))?;
     if parameter.is_self {
@@ -336,14 +408,36 @@ pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
     // differently. Compare them in the same attached-storage coordinates
     // used by the footprint judgment; ordinary named parameter roots retain
     // their distinct identities.
-    let parent = attached_place(
+    retained_access_for_parent(
         program,
+        facts,
+        call,
         machine,
-        CapturedPlace {
-            root_symbol,
-            segments: parent.segments,
-        },
-    );
+        attached_place(
+            program,
+            machine,
+            CapturedPlace {
+                root_symbol,
+                segments: parent.segments,
+            },
+        ),
+    )
+}
+
+/// The one RETAINED mutable access of `parent`, if exactly one names it.
+///
+/// Access rows and expression places may spell the authored self root
+/// differently, so both sides are compared in the attached-storage
+/// coordinates the footprint judgment uses; ordinary named parameter roots
+/// retain their distinct identities. A completed access is never the answer:
+/// it no longer holds the loan the caller is reasoning about.
+fn retained_access_for_parent(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    call: &BorrowCallFact,
+    machine: &typed_trees::machine::Machine,
+    parent: CapturedPlace,
+) -> Option<usize> {
     let mut matching = facts
         .borrow
         .argument_accesses
