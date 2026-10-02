@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 1.09, "load1_start": 1.09, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 3.94, "load1_start": 4.2, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -115,8 +115,8 @@ pass/calls/mutual_cycle_tail_admitted_exit built 1134ms exit:70 @2d8ed253669f+wt
 pass/calls/named_target_payload_dispatch built 843ms @2d8ed253669f+wt
 pass/calls/negated_edge_guard_requires_exit built 1136ms exit:70 @2d8ed253669f+wt
 pass/calls/nested_call_init_transition built 1197ms @2d8ed253669f+wt
-pass/calls/nested_call_runtime_index_arg_exit built 1182ms exit:71 @2d8ed253669f+wt
-pass/calls/nested_call_tail_roots_exit built 6121ms exit:0 @2d8ed253669f+wt
+pass/calls/nested_call_runtime_index_arg_exit built 1640ms exit:70 @bf3e2b43fa1e
+pass/calls/nested_call_tail_roots_exit built 6102ms exit:0 @bf3e2b43fa1e+wt
 pass/calls/nested_indexed_scalar_arguments_exit built 1395ms exit:70 @a3bac00e54bb+wt
 pass/calls/nested_machine_continuation built 1256ms @2d8ed253669f+wt
 pass/calls/nested_self_call_argument_exit built 1133ms exit:70 @2d8ed253669f+wt
