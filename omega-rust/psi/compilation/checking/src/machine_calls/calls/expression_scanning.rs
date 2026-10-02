@@ -207,6 +207,7 @@ impl ValueCallSite<'_> {
             callee.state,
             self.executes,
             diagnostics,
+            &self.call.machine_arguments,
         );
     }
 }

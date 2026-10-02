@@ -45,7 +45,7 @@ pub(super) fn index(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..*context
+        ..context.replacement_context()
     };
     Some(index_reference(program, reference, &nested))
 }
@@ -90,7 +90,7 @@ pub(super) fn range_endpoint(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..*context
+        ..context.replacement_context()
     };
     Some(
         match program.type_reference_table.type_reference(reference) {
@@ -150,7 +150,7 @@ pub(super) fn array_length(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..*context
+        ..context.replacement_context()
     };
     Some(
         match program.type_reference_table.type_reference(reference) {

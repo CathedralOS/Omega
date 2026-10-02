@@ -1302,6 +1302,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms @ca8c127c90
 pass/calls/cyclic_projected_borrow_call_exit checked 1337ms @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 3489ms @48d34a64a938+wt
 pass/calls/field_path_byte_subslice_exit checked 3105ms @48d34a64a938+wt
+pass/calls/generic_reference_forwarding_exit checked 1035ms @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt

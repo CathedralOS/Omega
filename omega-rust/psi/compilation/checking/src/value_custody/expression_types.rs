@@ -128,6 +128,7 @@ pub fn argument_matches_type_reference_handle(
         argument,
         type_reference,
         reference_values::declared_value_matches_reference,
+        &[],
     )
 }
 
@@ -141,6 +142,20 @@ pub(crate) fn argument_matches_carrier(
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
+    argument_matches_carrier_with_substitutions(program, argument, type_reference, &[])
+}
+
+pub(crate) fn argument_matches_carrier_with_substitutions(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let (type_reference, required_substitutions) = reference_values::substituted_required_reference(
+        program,
+        type_reference,
+        required_substitutions,
+    );
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.
@@ -157,6 +172,7 @@ pub(crate) fn argument_matches_carrier(
             borrow.target,
             *referee,
             reference_values::value_carrier_matches_reference,
+            required_substitutions,
         );
     }
     argument_matches_type_reference_using(
@@ -164,6 +180,7 @@ pub(crate) fn argument_matches_carrier(
         argument,
         type_reference,
         reference_values::value_carrier_matches_reference,
+        required_substitutions,
     )
 }
 
@@ -172,7 +189,13 @@ fn argument_matches_type_reference_using(
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     correspondence: reference_values::ReferenceCorrespondence,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (type_reference, required_substitutions) = reference_values::substituted_required_reference(
+        program,
+        type_reference,
+        required_substitutions,
+    );
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
         if matches!(
             program.type_reference_table.type_reference(type_reference),
@@ -188,6 +211,7 @@ fn argument_matches_type_reference_using(
                     arm.value,
                     type_reference,
                     correspondence,
+                    required_substitutions,
                 )
             });
     }
@@ -205,6 +229,7 @@ fn argument_matches_type_reference_using(
                 inner_expression.target,
                 *referee,
                 correspondence,
+                required_substitutions,
             );
     }
 
@@ -217,7 +242,7 @@ fn argument_matches_type_reference_using(
             TypeReferenceNode::Reference { .. }
         )
     {
-        return correspondence(program, actual, type_reference, &[]);
+        return correspondence(program, actual, type_reference, &[], required_substitutions);
     }
 
     // An element projection selects a stored value; a range constructs a view
@@ -241,6 +266,7 @@ fn argument_matches_type_reference_using(
             argument,
             type_reference,
             correspondence,
+            required_substitutions,
         );
     }
 
@@ -260,32 +286,7 @@ fn argument_matches_type_reference_using(
             TypeReferenceNode::Reference { .. }
         )
     {
-        // An authored shared &T slot remains open during generic-call
-        // inference, as the Named type-parameter case below does. It is not a
-        // closed nominal mismatch: application checking must still bind T.
-        // Preserve this existing shared inference path without allowing a
-        // concrete referee mismatch or widening write-only permission.
-        if let TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Shared,
-            referee,
-            ..
-        } = program.type_reference_table.type_reference(type_reference)
-            && let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(*referee)
-            && symbol.is_valid()
-            && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-            && matches!(
-                program.type_reference_table.type_reference(actual),
-                TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable,
-                    ..
-                }
-            )
-        {
-            return true;
-        }
-        return correspondence(program, actual, type_reference, &[]);
+        return correspondence(program, actual, type_reference, &[], required_substitutions);
     }
 
     let argument_node = program.expression_table.expression(argument);
@@ -304,6 +305,7 @@ fn argument_matches_type_reference_using(
             indexed,
             type_reference,
             correspondence,
+            required_substitutions,
         )
     {
         return true;
@@ -328,6 +330,7 @@ fn argument_matches_type_reference_using(
                     argument,
                     *referee,
                     correspondence,
+                    required_substitutions,
                 )
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
@@ -345,6 +348,7 @@ fn argument_matches_type_reference_using(
                     argument,
                     *base_type,
                     correspondence,
+                    required_substitutions,
                 ))
         }
         TypeReferenceNode::FixedArray { .. } => matches!(

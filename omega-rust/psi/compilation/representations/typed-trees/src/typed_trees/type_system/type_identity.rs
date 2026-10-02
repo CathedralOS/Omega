@@ -34,6 +34,7 @@ pub use normalized_identities::{
 use crate::TypedTrees;
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
+use crate::typed_trees::type_system::type_identity::identity_context::SubstitutionSemantics;
 use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
 pub use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityQualification;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
@@ -281,12 +282,32 @@ impl TypedTrees {
     /// before owner qualification, preserving alpha-normalization without
     /// falsely assigning a package owner to a local telescope variable.
     pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(request, SubstitutionSemantics::Transitive)
+    }
+
+    /// Substitute an application tuple simultaneously. Each replacement is
+    /// normalized in its original scope, without applying the tuple again.
+    /// This preserves recursive permutations such as `f<A, B>` calling
+    /// `f<B, A>` and leaves nested references and qualifications intact.
+    pub fn type_identity_with_simultaneous_substitutions(
+        &self,
+        request: TypeIdentityRequest<'_>,
+    ) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(request, SubstitutionSemantics::Simultaneous)
+    }
+
+    fn type_identity_with_substitution_semantics(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        substitution_semantics: SubstitutionSemantics,
+    ) -> NormalizedTypeIdentity {
         NormalizedTypeIdentity(normalize_type_reference(
             self,
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
                 substitutions: request.substitutions,
+                substitution_semantics,
                 active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
@@ -311,6 +332,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders: request.binders,
                 substitutions: request.substitutions,
+                substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
                 exact_toolchain_sources: request.exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
@@ -340,6 +362,7 @@ impl TypedTrees {
             TypeIdentityContext {
                 binders: &[],
                 substitutions: &[],
+                substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
                 exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),

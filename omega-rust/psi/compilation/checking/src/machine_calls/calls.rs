@@ -35,6 +35,7 @@ pub use generic_requirement::{
 };
 mod inline_assembly;
 mod machine_parameter_arguments;
+mod type_arguments;
 use machine_parameter_arguments::validate_machine_parameter_arguments;
 mod receiver_calls;
 mod receiverless_calls;
@@ -510,44 +511,6 @@ pub(crate) fn float_requirement_retains_argument_policy(
             .any(|parameter| parameter.is_self)
 }
 
-/// The same argument validation as `validate_call_arguments_handles`, but the
-/// callee's `self` parameter is bound by an explicit argument instead of the
-/// receiver place: a static carrier call (`Receipt::ack(value)`,
-/// `Domain::content(&v)`) spells the declaration, so the first argument IS the
-/// `self` operand. Mirrors the lowering's `explicit_self` arity rule and the
-/// value-position path's `self_is_argument` threading.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_call_arguments_handles_with_self_argument(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    value_environment: &ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    target_name: &str,
-    parameters: &[StateParameter],
-    callee_state: Option<&State>,
-    writable_roots: &WritableRoots<'_, '_>,
-    self_is_argument: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_call_arguments_with_type_correspondence(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        arguments,
-        target_name,
-        parameters,
-        callee_state,
-        writable_roots,
-        false,
-        &[],
-        self_is_argument,
-        |argument, required| argument_matches_carrier(program, argument, required),
-        diagnostics,
-    );
-}
-
 fn validate_generic_bound_argument_types(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -933,6 +896,7 @@ fn validate_value_call_argument_classes(
     callee_state: &State,
     executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
+    static_arguments: &[typed_trees::expression::StaticMachineArgument],
 ) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
     // it consults the resolved state's return type AND the callee machine's
@@ -958,6 +922,22 @@ fn validate_value_call_argument_classes(
         return;
     }
 
+    let Some(type_bindings) = type_arguments::call_type_arguments(
+        program,
+        current_machine,
+        Some(current_state),
+        callee_machine,
+        callee_state,
+        static_arguments,
+        arguments,
+        self_is_argument,
+    ) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "call `{}` has an invalid static type argument correspondence",
+            callee_state.name
+        )));
+        return;
+    };
     // Short-circuit operands remain statically checked, but an invocation
     // that cannot execute has no runtime precondition obligation.
     if executes {
@@ -999,6 +979,23 @@ fn validate_value_call_argument_classes(
             .iter()
             .filter(|parameter| self_is_argument || !parameter.is_self),
     ) {
+        if !program.machine_type_parameters(callee_machine).is_empty()
+            && !crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
+                program,
+                *argument,
+                parameter.type_reference,
+                &type_bindings,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for state `{}` expects `{}`, got `{}`",
+                parameter.name,
+                callee_state.name,
+                program.display_type_reference_with_constraints(parameter.type_reference),
+                expression_type_name_handle(program, *argument),
+            )));
+            continue;
+        }
         crate::value_custody::literals::validate_suffix_landing(
             program,
             *argument,

@@ -387,3 +387,42 @@ fn fixed_array_lengths_match(
         _ => false,
     }
 }
+
+/// Infer only missing call type arguments from declaration-backed operands.
+/// Explicit selections stay fixed; ordinary argument correspondence separately
+/// checks access, qualifications and the complete substituted carrier.
+pub(in crate::machine_calls) fn infer_call_type_arguments(
+    program: &TypedTrees,
+    parameters: &[TypeParameter],
+    mut required: TypeReferenceHandle,
+    mut actual: TypeReferenceHandle,
+    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+) {
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(required)
+    {
+        required = *referee;
+        if let TypeReferenceNode::Reference { referee, .. } =
+            program.type_reference_table.type_reference(actual)
+        {
+            actual = *referee;
+        }
+    }
+    let generic_types = parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
+        .collect::<Vec<_>>();
+    let mut inferred = bindings
+        .iter()
+        .map(|(symbol, actual)| TypeBinding {
+            symbol: *symbol,
+            actual: *actual,
+        })
+        .collect::<Vec<_>>();
+    if required_type_matches_exact(program, actual, required, &generic_types, &mut inferred) {
+        *bindings = inferred
+            .into_iter()
+            .map(|binding| (binding.symbol, binding.actual))
+            .collect();
+    }
+}

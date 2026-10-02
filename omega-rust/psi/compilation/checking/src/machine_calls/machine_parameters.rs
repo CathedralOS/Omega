@@ -13,7 +13,9 @@ mod contract_facts;
 mod mathematical_occurrences;
 mod nominal_admission;
 mod type_refinement;
-pub(super) use type_refinement::required_type_matches_exact_with_subject;
+pub(super) use type_refinement::{
+    infer_call_type_arguments, required_type_matches_exact_with_subject,
+};
 
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;

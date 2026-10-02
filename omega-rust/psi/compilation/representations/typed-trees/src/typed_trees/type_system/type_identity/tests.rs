@@ -114,6 +114,7 @@ fn symbolic_range_endpoints_preserve_owner_slots_and_substitution() {
             exact_toolchain_sources: &[],
             missing_exact_nominal_owner: None,
             qualification,
+            ..Default::default()
         };
         let identity = |expression, context: &crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext<'_>| {
             crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_endpoint(&program, expression, false, context)
@@ -266,6 +267,7 @@ fn range_endpoint_substitution_normalizes_values_without_erasing_typed_failure()
             exact_toolchain_sources: &[],
             missing_exact_nominal_owner: None,
             qualification,
+            ..Default::default()
         };
         for replacement in [eight_expression, eight_atom] {
             let substitutions = [(binder, replacement)];
@@ -331,6 +333,7 @@ fn closed_range_endpoints_keep_canonical_numeric_formatting() {
             exact_toolchain_sources: &[],
             missing_exact_nominal_owner: None,
             qualification,
+            ..Default::default()
         };
         assert_eq!(
             crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_endpoint(&program, eight, false, &context),

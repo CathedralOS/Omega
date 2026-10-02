@@ -21,7 +21,10 @@ pub(super) fn reference_type_matches(
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let TypeReferenceNode::Reference {
         access: actual_access,
         referee: actual_referee,
@@ -44,7 +47,12 @@ pub(super) fn reference_type_matches(
             ..TypeIdentityRequest::ordinary(reference)
         })
     };
-    if actual_identity(actual) == program.normalized_type_identity(required) {
+    if actual_identity(actual)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
+    {
         return true;
     }
     if *actual_access == ReferenceAccess::WriteOnly
@@ -55,7 +63,10 @@ pub(super) fn reference_type_matches(
     {
         return false;
     }
-    actual_identity(*actual_referee) == program.normalized_type_identity(*required_referee)
+    actual_identity(*actual_referee) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*required_referee)
+        })
         // A shared view may forget a carrier predicate without changing its
         // contents. A raw mutable view could violate that predicate; retain
         // rejection until its invariant-window obligations are established.
@@ -69,6 +80,7 @@ pub(super) fn reference_type_matches(
                 *actual_referee,
                 *required_referee,
                 substitutions,
+                required_substitutions,
             ))
         // The required referee's own constraints remain the callee's claim:
         // an owned constrained array satisfies `&[u8] in D` only when its
@@ -80,6 +92,7 @@ pub(super) fn reference_type_matches(
             *actual_referee,
             *required_referee,
             substitutions,
+            required_substitutions,
         )
         // The same forget covers a constrained referee that is not an owned
         // array: `&[u8] in D` spells `Reference { Constrained { Slice } }`, so
@@ -92,12 +105,14 @@ pub(super) fn reference_type_matches(
                 *actual_referee,
                 *required_referee,
                 substitutions,
+                required_substitutions,
             ))
         || fixed_array_binds_open_length(
             program,
             *actual_referee,
             *required_referee,
             substitutions,
+            required_substitutions,
         )
 }
 
@@ -109,6 +124,7 @@ pub(super) type ReferenceCorrespondence = fn(
     TypeReferenceHandle,
     TypeReferenceHandle,
     &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool;
 
 /// Call carrier correspondence is used only before independent flow contract
@@ -119,14 +135,23 @@ pub(super) fn value_carrier_matches_reference(
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let TypeReferenceNode::Reference {
         access: ReferenceAccess::Shared,
         referee: required_referee,
         ..
     } = program.type_reference_table.type_reference(required)
     else {
-        return declared_value_matches_reference(program, actual, required, substitutions);
+        return declared_value_matches_reference(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        );
     };
     let actual_referee = match program.type_reference_table.type_reference(actual) {
         TypeReferenceNode::Reference {
@@ -136,7 +161,13 @@ pub(super) fn value_carrier_matches_reference(
         TypeReferenceNode::Reference { referee, .. } => *referee,
         _ => actual,
     };
-    shared_referee_matches(program, actual_referee, *required_referee, substitutions)
+    shared_referee_matches(
+        program,
+        actual_referee,
+        *required_referee,
+        substitutions,
+        required_substitutions,
+    )
 }
 
 /// Shared access compares the referee's carrier, independently of the facts
@@ -152,14 +183,19 @@ pub(super) fn value_carrier_matches_reference(
 fn shared_referee_matches(
     program: &TypedTrees,
     mut actual: TypeReferenceHandle,
-    mut required: TypeReferenceHandle,
+    required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (mut required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     if program.type_identity(TypeIdentityRequest {
         substitutions,
         ..TypeIdentityRequest::ordinary(actual)
-    }) == program.normalized_type_identity(required)
-    {
+    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+        substitutions: required_substitutions,
+        ..TypeIdentityRequest::ordinary(required)
+    }) {
         return true;
     }
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -192,9 +228,22 @@ fn shared_referee_matches(
     program.type_identity(TypeIdentityRequest {
         substitutions,
         ..TypeIdentityRequest::ordinary(actual)
-    }) == program.normalized_type_identity(required)
-        || owned_array_projects_to_slice(program, actual, required, substitutions)
-        || fixed_array_binds_open_length(program, actual, required, substitutions)
+    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+        substitutions: required_substitutions,
+        ..TypeIdentityRequest::ordinary(required)
+    }) || owned_array_projects_to_slice(
+        program,
+        actual,
+        required,
+        substitutions,
+        required_substitutions,
+    ) || fixed_array_binds_open_length(
+        program,
+        actual,
+        required,
+        substitutions,
+        required_substitutions,
+    )
 }
 
 /// A `const` binder in a fixed-array length is an inference slot, not a closed
@@ -213,7 +262,10 @@ fn fixed_array_binds_open_length(
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let TypeReferenceNode::FixedArray {
         element_type: required_element,
         length:
@@ -240,8 +292,10 @@ fn fixed_array_binds_open_length(
     if program.type_identity(TypeIdentityRequest {
         substitutions,
         ..TypeIdentityRequest::ordinary(*actual_element)
-    }) != program.normalized_type_identity(*required_element)
-    {
+    }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+        substitutions: required_substitutions,
+        ..TypeIdentityRequest::ordinary(*required_element)
+    }) {
         return false;
     }
     let Some(required_declared) = const_length_declared_type(program, *required_symbol) else {
@@ -354,6 +408,7 @@ pub(super) fn subslice_view_matches_reference(
     indexed: &typed_trees::expression::TableIndexedExpression,
     required: TypeReferenceHandle,
     correspondence: ReferenceCorrespondence,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     let mut substitutions = Vec::new();
     let Some(collection) =
@@ -367,7 +422,13 @@ pub(super) fn subslice_view_matches_reference(
     matches!(
         program.type_reference_table.type_reference(collection),
         TypeReferenceNode::Reference { .. }
-    ) && correspondence(program, collection, required, &substitutions)
+    ) && correspondence(
+        program,
+        collection,
+        required,
+        &substitutions,
+        required_substitutions,
+    )
 }
 
 pub(super) fn projected_matches_reference(
@@ -375,6 +436,7 @@ pub(super) fn projected_matches_reference(
     expression: ExpressionHandle,
     required: TypeReferenceHandle,
     correspondence: ReferenceCorrespondence,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     let mut substitutions = Vec::new();
     let Some(actual) = declared_value_type(program, expression, &mut substitutions) else {
@@ -383,7 +445,13 @@ pub(super) fn projected_matches_reference(
     let Some(actual) = substituted_reference(program, actual, &substitutions) else {
         return false;
     };
-    correspondence(program, actual, required, &substitutions)
+    correspondence(
+        program,
+        actual,
+        required,
+        &substitutions,
+        required_substitutions,
+    )
 }
 
 pub(super) fn declared_value_matches_reference(
@@ -391,7 +459,10 @@ pub(super) fn declared_value_matches_reference(
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let actual_identity = |reference| {
         program.type_identity(TypeIdentityRequest {
             substitutions,
@@ -410,20 +481,43 @@ pub(super) fn declared_value_matches_reference(
         program.type_reference_table.type_reference(actual),
         TypeReferenceNode::Reference { .. }
     ) {
-        return reference_type_matches(program, actual, required, substitutions);
+        return reference_type_matches(
+            program,
+            actual,
+            required,
+            substitutions,
+            required_substitutions,
+        );
     }
     // The existing implicit shared borrow of an owned field still needs that
     // field's actual type. Member syntax alone cannot match an arbitrary referee.
     *required_access == ReferenceAccess::Shared
-        && (actual_identity(actual) == program.normalized_type_identity(*required_referee)
-            || owned_array_projects_to_slice(program, actual, *required_referee, substitutions)
+        && (actual_identity(actual)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(*required_referee)
+            })
+            || owned_array_projects_to_slice(
+                program,
+                actual,
+                *required_referee,
+                substitutions,
+                required_substitutions,
+            )
             || owned_array_satisfies_constrained_referee(
                 program,
                 actual,
                 *required_referee,
                 substitutions,
+                required_substitutions,
             )
-            || fixed_array_binds_open_length(program, actual, *required_referee, substitutions))
+            || fixed_array_binds_open_length(
+                program,
+                actual,
+                *required_referee,
+                substitutions,
+                required_substitutions,
+            ))
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.
@@ -434,7 +528,10 @@ fn owned_array_projects_to_slice(
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let TypeReferenceNode::Slice {
         element_type: required_element,
     } = program.type_reference_table.type_reference(required)
@@ -462,7 +559,10 @@ fn owned_array_projects_to_slice(
         && program.type_identity(TypeIdentityRequest {
             substitutions,
             ..TypeIdentityRequest::ordinary(*actual_element)
-        }) == program.normalized_type_identity(*required_element)
+        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*required_element)
+        })
 }
 
 /// Constrained-referee correspondence: an owned `[u8; N] in D` carrier
@@ -476,7 +576,10 @@ fn owned_array_satisfies_constrained_referee(
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let mut required_carrier = required;
     let mut required_constraints = Vec::new();
     while let TypeReferenceNode::Constrained {
@@ -540,7 +643,10 @@ fn owned_array_satisfies_constrained_referee(
         || program.type_identity(TypeIdentityRequest {
             substitutions,
             ..TypeIdentityRequest::ordinary(*actual_element)
-        }) != program.normalized_type_identity(*required_element)
+        }) != program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*required_element)
+        })
     {
         return false;
     }
@@ -640,7 +746,10 @@ fn constrained_referee_forgets_qualification(
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
     let mut constrained = false;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(actual)
@@ -652,10 +761,13 @@ fn constrained_referee_forgets_qualification(
         && program.type_identity(TypeIdentityRequest {
             substitutions,
             ..TypeIdentityRequest::ordinary(actual)
-        }) == program.normalized_type_identity(required)
+        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(required)
+        })
 }
 
-fn substituted_reference(
+pub(super) fn substituted_reference(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -1007,3 +1119,23 @@ fn place_machine_symbol(
 
 #[cfg(test)]
 mod tests;
+
+/// A call's formal-to-actual environment is simultaneous: the replacement
+/// already belongs to the caller, including when caller and callee coincide.
+pub(super) fn substituted_required_reference<'bindings>(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &'bindings [(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> (
+    TypeReferenceHandle,
+    &'bindings [(symbols::SymbolHandle, TypeReferenceHandle)],
+) {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
+    {
+        (*actual, &[])
+    } else {
+        (reference, substitutions)
+    }
+}
