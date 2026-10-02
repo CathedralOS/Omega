@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 2.73, "load1_start": 2.73, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 2.02, "load1_start": 2.02, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -705,7 +705,7 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
-fail/layouts/recast_integer_at_store_requires_fit rejected 274ms expected @2517a050d7b4+wt
+fail/layouts/recast_integer_at_store_requires_fit rejected 563ms expected @a3bac00e54bb+wt
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
@@ -943,39 +943,39 @@ fail/ranges/loop_increment_index_unbounded rejected 793ms expected @2d8ed253669f
 	cannot prove index `self.i` is within length 4 in Main::main::body
 fail/ranges/sum_payload_non_case_guard_unproven rejected 725ms expected @2d8ed253669f
 	cannot prove requires contract for call use_v from Main::main: self.p::One.v in i32::Fifty
-fail/recast/interior_recast_footprint_rejected rejected 279ms expected @2d8ed253669f
+fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/interior_slice_runtime_offset_non_tiling rejected 309ms expected @2d8ed253669f
+fail/recast/interior_slice_runtime_offset_non_tiling rejected 174ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
-fail/recast/recast_borrow_polarity_escalation rejected 257ms expected @2d8ed253669f
+fail/recast/recast_borrow_polarity_escalation rejected 161ms expected @a3bac00e54bb+wt
 	machine `Bits::escalate` state `escalate`: recast borrow polarity must agree -- use `&x as &T` for a shared view or `&mut x as &mut T` for a writable view
-fail/recast/recast_conflicting_backing_loan rejected 747ms expected @2d8ed253669f
+fail/recast/recast_conflicting_backing_loan rejected 348ms expected @a3bac00e54bb+wt
 	state `mix` receives `x` as both mutable and read-only
-fail/recast/recast_mut_bool_as_unconstrained_byte rejected 64ms expected @43d1481401ed
+fail/recast/recast_mut_bool_as_unconstrained_byte rejected 145ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
-fail/recast/recast_mut_range_bit_sets_differ rejected 274ms expected @2d8ed253669f
+fail/recast/recast_mut_range_bit_sets_differ rejected 148ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
-fail/recast/recast_mut_record_fact_fenced rejected 293ms expected @2d8ed253669f
+fail/recast/recast_mut_record_fact_fenced rejected 169ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
-fail/recast/recast_mut_record_where_bounds_differ rejected 95ms expected @b5d2bc92c85f
+fail/recast/recast_mut_record_where_bounds_differ rejected 153ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
-fail/recast/recast_mut_record_where_write_out_of_range rejected 86ms expected @b5d2bc92c85f
+fail/recast/recast_mut_record_where_write_out_of_range rejected 148ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/recast/recast_position_fenced rejected 307ms expected @2d8ed253669f
+fail/recast/recast_position_fenced rejected 150ms expected @a3bac00e54bb+wt
 	a recast re-views storage at an executable position (`let v: &T = &x as &T`, a guard operand, a call argument, a nested expression); proof-only fact positions (`requires`/`ensures`) produce no runtime borrow and stay fenced
-fail/recast/recast_record_relational_where_fenced rejected 95ms expected @b5d2bc92c85f
+fail/recast/recast_record_relational_where_fenced rejected 162ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: recast target `Ordered` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
-fail/recast/recast_shared_domain_strengthening_rejected rejected 307ms expected @2d8ed253669f
+fail/recast/recast_shared_domain_strengthening_rejected rejected 159ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
-fail/recast/recast_shared_record_where_strengthening_rejected rejected 242ms expected @b5d2bc92c85f
+fail/recast/recast_shared_record_where_strengthening_rejected rejected 479ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `TightReading` are not representation-compatible
-fail/recast/recast_size_mismatch_rejected rejected 332ms expected @2d8ed253669f
+fail/recast/recast_size_mismatch_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
-fail/recast/reference_let_pun_requires_recast rejected 285ms expected @2d8ed253669f
+fail/recast/reference_let_pun_requires_recast rejected 155ms expected @a3bac00e54bb+wt
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
-fail/recast/slice_view_non_tiling_rejected rejected 298ms expected @2d8ed253669f
+fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
-fail/recast/unbounded_offset_names_the_bound rejected 229ms expected @2d8ed253669f
+fail/recast/unbounded_offset_names_the_bound rejected 163ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `read`: cannot bound the recast offset `off` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition off <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/relax/retired_relax_statement rejected 5ms expected @2d8ed253669f
 	tests/omega/fail/relax/retired_relax_statement/main.omg:8:5: `relax` is retired: invariant windows (ch11) supersede it -- write plainly; a momentary violation opens a window that must close before any read, call, or terminal exit
@@ -1234,7 +1234,7 @@ pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
-pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
+pass/borrows/shared_recast_loan_member_read checked 1532ms @a3bac00e54bb+wt
 pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
@@ -1302,7 +1302,7 @@ pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 4446ms @48d34a64a938+wt
 pass/calls/nested_call_tail_roots_exit checked 6248ms @2d8ed253669f
-pass/calls/nested_indexed_scalar_arguments_exit checked 1426ms @2d8ed253669f
+pass/calls/nested_indexed_scalar_arguments_exit checked 1419ms @a3bac00e54bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
 pass/calls/nested_value_call_arg_compile checked 1255ms @2d8ed253669f
@@ -1444,7 +1444,7 @@ pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms @2d8ed
 pass/collections/runtime_indexed_bounded_field_local_exit checked 1782ms @bea382792161+wt
 pass/collections/runtime_indexed_float_field_compare_exit checked 6745ms @bea382792161+wt
 pass/collections/runtime_indexed_record_field_read_exit checked 1347ms @2d8ed253669f
-pass/collections/runtime_indexed_struct_field_rmw_exit checked 1328ms @2d8ed253669f
+pass/collections/runtime_indexed_struct_field_rmw_exit checked 1315ms @a3bac00e54bb+wt
 pass/collections/runtime_indexed_successor_argument_exit checked 1468ms @2d8ed253669f
 pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms @2d8ed253669f
@@ -1567,7 +1567,7 @@ pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms @ca8c127c90c5
 pass/data/runtime_mixed_shape_exit checked 2078ms @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit checked 1016ms @3f4da4527c2d+wt
-pass/dependent/boundary_equality_recast_witness_compile checked 332ms @2d8ed253669f
+pass/dependent/boundary_equality_recast_witness_compile checked 370ms @a3bac00e54bb+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
@@ -1710,7 +1710,7 @@ pass/filesystem/native_metadata_nlink rejected 1964ms @2d8ed253669f
 pass/filesystem/native_read_dir_iter rejected 1340ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_wrapper_write_all_result rejected 14883ms @f136a75fbbc
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,ref\(constrained\(slice\(named\(name\(u8\)\)\)\,declared-domain\(name\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\)\)\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/runtime_local_host_result_dispatch_exit rejected 1250ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/windows_canonicalize_exit rejected 9045ms @2d8ed253669f
@@ -1720,7 +1720,7 @@ pass/filesystem/windows_raw_breadth_exit rejected 1316ms @2d8ed253669f
 pass/filesystem/windows_set_file_time_exit rejected 1023ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
 pass/filesystem/windows_wrapper_results_exit rejected 15480ms @f136a75fbbc
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,ref\(constrained\(slice\(named\(name\(u8\)\)\)\,declared-domain\(name\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\)\)\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/wrapper_lock_metadata_exit rejected 9876ms @f136a75fbbc
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 9760ms @f136a75fbbc
@@ -2010,28 +2010,28 @@ pass/range/data_parameter_counter_non_negative_exit checked 848ms @ec784d4d82e8+
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
-pass/recast/nested_operand_view_compile checked 287ms @2d8ed253669f
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 290ms @4e4bfed13aee+wt
+pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 777ms @a3bac00e54bb+wt
 	state `inspect` receives `main` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
 	state `write_values` receives `main` while local borrow `write` is still active (borrowed at statement 0; its last use is at statement 1)
 	statement 5 mutates `main.source[1].unsigned_value` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
-pass/recast/runtime_bool_representation_recast_exit checked 769ms @43d1481401ed
-pass/recast/runtime_float_range_representation_recast_exit checked 1496ms @43d1481401ed
-pass/recast/runtime_guarded_offset_recast_exit checked 1432ms @2d8ed253669f
-pass/recast/runtime_integer_bit_view_recast_exit checked 1473ms @2d8ed253669f
-pass/recast/runtime_interior_slice_congruent_offset_exit rejected 753ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
-pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 763ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1259ms @2d8ed253669f
-pass/recast/runtime_mutable_equivalent_range_recast_exit checked 769ms @ca8c127c90c5
-pass/recast/runtime_mutable_equivalent_record_recast_exit checked 2221ms @a2c11620030e
-pass/recast/runtime_nested_record_byte_store_exit checked 961ms @2517a050d7b4+wt
-pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1265ms @ca8c127c90c5
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 767ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
-pass/recast/runtime_shared_domain_weakening_recast_exit checked 1205ms @2d8ed253669f
-pass/recast/runtime_shared_record_float_range_weakening_exit checked 2665ms @f3aa5908ce43
+pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb+wt
+pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
+pass/recast/runtime_guarded_offset_recast_exit checked 1534ms @a3bac00e54bb+wt
+pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms @a3bac00e54bb+wt
+pass/recast/runtime_interior_slice_congruent_offset_exit rejected 876ms @a3bac00e54bb+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 883ms @a3bac00e54bb+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1046ms @a3bac00e54bb+wt
+pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms @a3bac00e54bb+wt
+pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms @a3bac00e54bb+wt
+pass/recast/runtime_nested_record_byte_store_exit checked 1232ms @a3bac00e54bb+wt
+pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms @a3bac00e54bb+wt
+pass/recast/runtime_record_array_view_mutable_write_exit rejected 972ms @a3bac00e54bb+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt
+pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms @a3bac00e54bb+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 928ms @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
 pass/relevance/erased_case_payload_field_exit checked 747ms @ca8c127c90c5
@@ -2312,14 +2312,14 @@ run/borrows/indexed_loan_element_write checked 748ms @ca8c127c90c5
 run/borrows/local_mut_borrow checked 2688ms @2d8ed253669f
 run/borrows/mut_record_loan_member_access checked 2773ms @2d8ed253669f
 run/borrows/probe_shared_len checked 2879ms @2d8ed253669f
-run/borrows/recast_mut_borrow checked 2530ms @2d8ed253669f
+run/borrows/recast_mut_borrow checked 889ms @a3bac00e54bb+wt
 run/borrows/reference_local_binding_routes checked 2522ms @2d8ed253669f
 run/borrows/reference_result_call_binding checked 2443ms @2d8ed253669f
 run/borrows/runtime_index_bounded_borrow checked 2876ms @2d8ed253669f
 run/borrows/shared_field_borrow checked 2583ms @2d8ed253669f
 run/borrows/shared_indexed_read checked 2944ms @2d8ed253669f
 run/borrows/shared_local_borrow checked 1108ms @18d68e27ec16+wt
-run/borrows/shared_recast_borrow checked 1879ms @2d8ed253669f
+run/borrows/shared_recast_borrow checked 894ms @a3bac00e54bb+wt
 run/borrows/shared_record_loan_member_read checked 3057ms @2d8ed253669f
 run/borrows/shared_runtime_index_borrow checked 3050ms @2d8ed253669f
 run/borrows/transition_shared_borrow checked 604ms @4e4bfed13aee+wt
