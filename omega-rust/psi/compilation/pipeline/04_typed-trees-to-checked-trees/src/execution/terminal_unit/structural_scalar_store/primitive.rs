@@ -99,7 +99,6 @@ pub(super) fn store_at(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let Some((authored_symbol, symbol, segments, authored_whole)) = storage_place(
         program,
@@ -108,7 +107,6 @@ pub(super) fn store_at(
         state,
         statement_index,
         assignment.target,
-        call_frames,
     ) else {
         return None;
     };
@@ -120,7 +118,6 @@ pub(super) fn store_at(
         statement_index,
         assignment.target,
         &segments,
-        call_frames,
     ) else {
         return None;
     };
@@ -215,7 +212,6 @@ pub(super) fn indexed_store(
         statement_index,
         assignment.target,
         &destination.place.segments,
-        None,
     )?;
     if let Some(index) = destination.dynamic_index {
         // `resolve` split the outermost selector into `dynamic_index` for
@@ -233,7 +229,6 @@ pub(super) fn indexed_store(
                 state,
                 statement_index,
                 assignment.target,
-                None,
             )?
             .runtime_segment(index)?,
         };
@@ -351,7 +346,6 @@ pub(super) fn array_literal_stores(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let expected = validation::closed_array_store_type(
         program,
@@ -365,7 +359,6 @@ pub(super) fn array_literal_stores(
         state,
         statement_index,
         assignment.target,
-        call_frames,
     )?;
     if !matches!(
         segments.last(),
@@ -408,7 +401,6 @@ pub(super) fn array_literal_stores(
         state,
         statement_index,
         assignment.target,
-        call_frames,
     )?;
     let path = checked_unit_path(program, &selectors, &segments)?;
     let elements = super::super::control::scalar_arrays::elements(
@@ -496,18 +488,14 @@ fn storage_place(
     state: &typed_trees::state::State,
     statement_index: u32,
     target: typed_trees::expression::ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
-    let ordinal = usize::try_from(statement_index).ok()?;
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
-        ordinal,
+        usize::try_from(statement_index).ok()?,
         target,
     )?;
-    // The binding's destination keeps the authored root spelling even when
-    // the written storage resolves through a reference local's rejoin.
-    let facts::PlaceRoot::Symbol(authored) = place.root else {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     let authored_whole = place.segments.is_empty();
@@ -515,7 +503,7 @@ fn storage_place(
         match super::super::receiver_aliases::aliases(program, facts, machine, state)
             .unwrap_or_default()
             .iter()
-            .find(|alias| alias.owner == authored)
+            .find(|alias| alias.owner == symbol)
         {
             Some(alias) => {
                 let mut segments = alias.segments.clone();
@@ -532,21 +520,9 @@ fn storage_place(
                 } else {
                     alias.root
                 };
-                (authored, root, segments, authored_whole)
+                (symbol, root, segments, authored_whole)
             }
-            None => {
-                let place = super::destination::rejoin_reference_local(
-                    program,
-                    state,
-                    ordinal,
-                    place,
-                    call_frames,
-                );
-                let facts::PlaceRoot::Symbol(symbol) = place.root else {
-                    return None;
-                };
-                (authored, symbol, place.segments, authored_whole)
-            }
+            None => (symbol, symbol, place.segments.clone(), authored_whole),
         },
     )
 }
@@ -629,7 +605,6 @@ fn primitive_path(
     statement_index: u32,
     target: typed_trees::expression::ExpressionHandle,
     segments: &[facts::PlaceSegment],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     let Some(last) = segments.last() else {
         return Some(Vec::new());
@@ -650,7 +625,6 @@ fn primitive_path(
         state,
         statement_index,
         target,
-        call_frames,
     )?;
     checked_unit_path(program, &selectors, segments)
 }
