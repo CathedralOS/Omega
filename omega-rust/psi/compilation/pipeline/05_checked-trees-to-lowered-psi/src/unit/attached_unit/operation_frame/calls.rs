@@ -154,15 +154,6 @@ impl OperationFrame<'_, '_> {
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
         self.results.push(declaration, discard_on_return);
-        if matches!(self.results, StructuralResults::Dense(_)) {
-            return structural_values::bind_local(
-                self.checked,
-                self.state,
-                operation,
-                declaration,
-                &mut self.evaluation.structural_locals,
-            );
-        }
         let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
             return unsupported("structural call result has no producing operation");
         };
@@ -175,6 +166,55 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural call did not establish its result",
             ))?;
+        if matches!(self.results, StructuralResults::Dense(_)) {
+            structural_values::bind_local(
+                self.checked,
+                self.state,
+                operation,
+                declaration,
+                &mut self.evaluation.structural_locals,
+            )?;
+            // A view local this call bound joins the view roster: its lengths
+            // and element reads resolve through the place the locals join
+            // named, and the produced type names which view family it is.
+            if let Some(carrier) = crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
+                produced.structural_type,
+                self.structural_types.declarations(),
+            ) {
+                let (_, source) = crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?;
+                if let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
+                    .checked
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .get(result.statement_index as usize)
+                    && local.symbol.is_valid()
+                    && self
+                        .evaluation
+                        .structural_locals
+                        .iter()
+                        .any(|binding| binding.symbol == local.symbol)
+                    && !self
+                        .evaluation
+                        .view_locals
+                        .iter()
+                        .any(|binding| binding.symbol == local.symbol)
+                {
+                    self.evaluation.view_locals.push(
+                        crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
+                            symbol: local.symbol,
+                            place: declaration.id,
+                            structural_type: produced.structural_type,
+                            carrier,
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                        },
+                    );
+                }
+            }
+            return Ok(());
+        }
         // Any call with a structural result, ordinary or boundary.
         let Some(coordinate) = operation
             .call()

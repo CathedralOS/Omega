@@ -760,6 +760,18 @@ pub fn structural_claim_path(
     Ok(path)
 }
 
+/// Whether a result type is a shared `&[T]` view: the same borrowed-view
+/// carrier `shared_borrowed_parts` describes for named referees, which its
+/// named-referent restriction keeps out of that predicate. The recorded
+/// binding stamps affine custody for either spelling.
+fn shared_slice_view_result(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    crate::slice_view_shell(program, reference, &[])
+        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared)
+}
+
 /// Ignores the recorded custody and reconstructs it from the exact call facts.
 /// Existing operand/source validation still checks every value binding and
 /// projection; this replay owns the claim correspondence, not call sequencing.
@@ -801,11 +813,20 @@ pub fn reconstruct_structural_call_custody(
         .iter()
         .find(|state| state.symbol == *target_state)
         .ok_or("structural call has no exact callee state")?;
-    if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || crate::machine_calls::reference_result_custody::result_multiplicity(
+    // A shared `&[T]` result is the same borrowed-view custody the mutable
+    // and named shells carry; `shared_borrowed_parts`' named-referent
+    // restriction leaves slice referees to `result_multiplicity`'s
+    // unrestricted fallback, but the recorded binding stamps affine custody.
+    let expected_multiplicity = if shared_slice_view_result(program, destination.return_type) {
+        Multiplicity::Affine
+    } else {
+        crate::machine_calls::reference_result_custody::result_multiplicity(
             program,
             destination.return_type,
-        ) != result.multiplicity
+        )
+    };
+    if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || expected_multiplicity != result.multiplicity
     {
         return Err("structural call result differs from the callee contract");
     }
@@ -817,6 +838,7 @@ pub fn reconstruct_structural_call_custody(
                 destination.return_type,
             )
             .is_some()
+            || shared_slice_view_result(program, destination.return_type)
             || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
                 program,
                 destination.return_type,

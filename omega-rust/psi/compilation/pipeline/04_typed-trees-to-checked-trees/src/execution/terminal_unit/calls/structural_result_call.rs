@@ -324,7 +324,15 @@ pub(super) fn build(
             result: CheckedUnitCallResult::Structural {
                 binding: result.clone(),
                 discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                    && !reference_loan.is_valid(),
+                    && !reference_loan.is_valid()
+                    && !crate::execution::terminal_unit::types::borrowed_slice_view(
+                        program,
+                        target_state.return_type,
+                    )
+                    && !crate::execution::terminal_unit::types::borrowed_named_view(
+                        program,
+                        target_state.return_type,
+                    ),
             },
             transfers: CheckedUnitCallTransfers::StructuralCustody(
                 checked_trees::CheckedStructuralCallCustodyPlan {

@@ -1184,6 +1184,37 @@ pub(crate) fn validate_usage(
         }
         return Ok(());
     }
+
+    // A borrowed-view result is affine for the loan's release vocabulary, but
+    // the storage it observes belongs to its producer or caller: the frontier
+    // holds no owned place for it, so no consuming use or cleanup row exists.
+    let loans_view = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.identity == result.type_identity)
+        .is_some_and(|declaration| match &declaration.shape {
+            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(carrier) => matches!(
+                carrier,
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                    | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
+            ),
+            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => true,
+            checked_trees::CheckedUnitStructuralTypeShape::Reference { access, .. } => {
+                *access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            _ => false,
+        });
+    if loans_view {
+        return if producer.discard || consumed || !projected_paths.is_empty() {
+            unsupported("borrowed view result acquired owned storage custody")
+        } else {
+            Ok(())
+        };
+    }
+
     if (projected_paths.is_empty() && producer.discard == (consumed || disposed))
         || (!projected_paths.is_empty() && producer.discard && !projected_residual_loaned)
         || (producer.coordinate.call_ordinal != 0

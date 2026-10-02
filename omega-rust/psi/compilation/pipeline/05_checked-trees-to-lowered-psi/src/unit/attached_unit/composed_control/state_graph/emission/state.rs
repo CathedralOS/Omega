@@ -12,8 +12,10 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration,
-    allocate_dense, edge_id, lookup_claim_id, terminal_scalar_type, unsupported,
+    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Operation, OperationKind,
+    OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator,
+    ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, place_id, terminal_scalar_type,
+    unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -700,6 +702,9 @@ impl StateGraphEmission<'_, '_> {
                             lookup_claim_id(&self.claims.source_claims, claim.claim_identity)
                         })
                         .collect::<Result<Vec<_>, _>>()?,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        ..
+                    } => Vec::new(),
                     _ => return unsupported("structural return has no whole claim source"),
                 };
                 if self.content_entry_claims.iter().any(|entry| {
@@ -727,6 +732,46 @@ impl StateGraphEmission<'_, '_> {
                                 "structural graph return parameter missing",
                             ))?
                             .place
+                    }
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        ref bytes,
+                    } => {
+                        // A literal return establishes its own immutable storage
+                        // in place: the declaration joins the literal roster and
+                        // the establishment runs in this state before the
+                        // terminator forwards the place — the same establishment
+                        // the dense route emits.
+                        let source = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                        let structural_type = crate::terminal_identities::lookup_type_id(
+                            &self.catalogs.type_ids,
+                            &result.type_identity,
+                        )?;
+                        let declaration_ordinal =
+                            crate::emission::next_byte_sequence_literal_ordinal(
+                                &self.catalogs.temporary_places,
+                            )?;
+                        self.catalogs.temporary_places.push(
+                            StructuralPlaceDeclaration {
+                                id: source,
+                                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                                    declaration_ordinal,
+                                    structural_type,
+                                },
+                            },
+                        );
+                        let producer = operations.allocate();
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id: producer,
+                            result: OperationResult::Unit,
+                            kind: OperationKind::EstablishByteSequenceLiteral {
+                                destination: source,
+                                bytes: bytes.clone(),
+                                qualifications: Vec::new(),
+                            },
+                        });
+                        source
                     }
                     _ => return unsupported("structural graph return needs a whole owned value"),
                 };
