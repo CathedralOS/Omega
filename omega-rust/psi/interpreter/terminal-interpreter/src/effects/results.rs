@@ -121,6 +121,12 @@ pub(crate) fn requires_materialized_host_custody(
         if !visited.insert(current) {
             continue;
         }
+        // Array consumers need actual element backing, even for an empty
+        // carrier. An opaque host identity cannot supply that payload; checked
+        // providers instead return through the ordinary suspended call frame.
+        if terminal_semantics::scalar_array_leaf_shape(types.values(), current).is_some() {
+            return true;
+        }
         let Some(declaration) = types.get(&current) else {
             return true;
         };
