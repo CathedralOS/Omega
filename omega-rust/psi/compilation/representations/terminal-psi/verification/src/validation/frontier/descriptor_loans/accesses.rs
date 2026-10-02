@@ -37,7 +37,22 @@ fn argument(
             None,
             position,
         ),
-        exclusive: argument.access != StructuralAccess::SharedBorrow,
+        // An unrestricted by-value operand is copied before the consumer
+        // runs. Its owned destination grants no write to the original
+        // storage, including the backing of a copied shared descriptor.
+        exclusive: match argument.access {
+            StructuralAccess::SharedBorrow => false,
+            StructuralAccess::Owned => {
+                crate::validation::structural::result_contracts::source_signature(
+                    machine,
+                    argument.place,
+                )
+                .is_none_or(|source| {
+                    source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                })
+            }
+            _ => true,
+        },
     }
 }
 
@@ -89,6 +104,15 @@ fn path_projection(
                 segment,
                 StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
             )
+        {
+            return (projection, Some(current));
+        }
+        // A fixed byte window is range geometry over an array, not a
+        // structural child or an indirect load. Its ordinary source/type
+        // validator checks byte element identity and bounds independently.
+        if matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+            && index + 1 == path.len()
+            && matches!(segment, StructuralPathSegment::FixedByteRange { .. })
         {
             return (projection, Some(current));
         }
