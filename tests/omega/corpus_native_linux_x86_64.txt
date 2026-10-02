@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 3.54, "load1_start": 0.5, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.3, "load1_start": 1.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -60,6 +60,7 @@ pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
+pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1421ms exit:70 @bd26d3a01ac1
 pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
@@ -78,7 +79,7 @@ pass/calls/by_value_case_param_self_write_exit built 936ms exit:70 @2d8ed253669f
 pass/calls/callback_private_materialization rejected 953ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 1040ms exit:70 @2d8ed253669f+wt
-pass/calls/caller_structural_result_indexed_borrow_exit built 1366ms exit:171 @9baafc0ace88
+pass/calls/caller_structural_result_indexed_borrow_exit built 1814ms exit:171 @bd26d3a01ac1
 pass/calls/case_arm_payload_receiver_arg rejected 868ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/calls/case_scrutinee_param_clone_exit rejected 819ms @2d8ed253669f+wt
@@ -87,7 +88,7 @@ pass/calls/case_scrutinee_self_dispatch_exit built 1055ms exit:0 @2d8ed253669f+w
 pass/calls/constant_result_requires_argument_accepted built 853ms @2d8ed253669f+wt
 pass/calls/copy_projection_from_borrowed_receiver built 966ms exit:70 @2d8ed253669f+wt
 pass/calls/cyclic_affine_call_result_exit built 1134ms exit:70 @2d8ed253669f+wt
-pass/calls/cyclic_mutable_borrow_block_parameter_call built 1390ms exit:0 @9baafc0ace88
+pass/calls/cyclic_mutable_borrow_block_parameter_call built 2259ms exit:0 @bd26d3a01ac1
 pass/calls/cyclic_projected_borrow_call_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 1231ms exit:70 @2d8ed253669f+wt
 pass/calls/field_path_byte_subslice_exit built 975ms exit:70 @2d8ed253669f+wt
@@ -142,21 +143,21 @@ pass/calls/runtime_let_mut_reassign_exit built 1243ms exit:2 @2d8ed253669f+wt
 pass/calls/runtime_lifetime_only_constructor_result_exit built 1727ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_loop_rotation_exit built 1175ms exit:1 @2d8ed253669f+wt
 pass/calls/runtime_measured_tail_recursion_exit built 958ms exit:70 @2d8ed253669f+wt
-pass/calls/runtime_mut_ref_forward_exit built 1359ms exit:70 @9baafc0ace88
+pass/calls/runtime_mut_ref_forward_exit built 1754ms exit:70 @bd26d3a01ac1
 pass/calls/runtime_mutable_call_before_transition_args_exit built 2424ms exit:70 @2d8ed253669f+wt
-pass/calls/runtime_mutable_local_parameter_write_exit built 1372ms exit:171 @9baafc0ace88
+pass/calls/runtime_mutable_local_parameter_write_exit built 2060ms exit:171 @bd26d3a01ac1
 pass/calls/runtime_nested_case_argument_exit built 2288ms exit:70 @233d30cb1ceb
 pass/calls/runtime_nested_value_call_guard_exit built 4782ms exit:70 @233d30cb1ceb
 pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_param_receiver_second_instance_exit built 1243ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 1001ms exit:70 @2d8ed253669f+wt
-pass/calls/runtime_reference_returned_slice_element_write_exit built 1368ms exit:181 @9baafc0ace88
-pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1586ms exit:70 @9baafc0ace88
+pass/calls/runtime_reference_returned_slice_element_write_exit built 1624ms exit:181 @bd26d3a01ac1
+pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 2683ms exit:70 @bd26d3a01ac1
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 947ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_shared_ref_param_member_exit built 1204ms exit:42 @2d8ed253669f+wt
 pass/calls/runtime_static_entry_context_exit built 490ms exit:0 @2d8ed253669f+wt
-pass/calls/runtime_std_math_sin_cos_exit built 23616ms exit:70 @9baafc0ace88
+pass/calls/runtime_std_math_sin_cos_exit built 23875ms exit:70 @bd26d3a01ac1
 pass/calls/runtime_structural_literal_call_initializer_exit built 991ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit built 998ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_value_call_dispatch_results_exit built 1145ms exit:70 @2d8ed253669f+wt
@@ -165,7 +166,7 @@ pass/calls/runtime_value_call_nested_entry_call_exit built 1059ms exit:70 @2d8ed
 pass/calls/runtime_value_call_return_types_exit built 2776ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_value_call_single_execution_exit built 1107ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 1310ms exit:70 @2d8ed253669f+wt
-pass/calls/runtime_value_call_terminal_exit built 20108ms exit:70 @9baafc0ace88
+pass/calls/runtime_value_call_terminal_exit built 29119ms exit:70 @bd26d3a01ac1
 pass/calls/serviceful_borrowed_scalar_exit built 1271ms exit:70 stdout:match @2d8ed253669f+wt
 pass/calls/state_and_machine_names_exit built 540ms exit:0 @2d8ed253669f+wt
 pass/calls/statement_call_recursive_overload_compile checked 322ms @2d8ed253669f+wt
