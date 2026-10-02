@@ -337,3 +337,19 @@ fn local_array_ranges_compose_with_scalar_results() {
     );
     assert_eq!(counts(&lowered), [2]);
 }
+
+#[test]
+fn nested_byte_array_ranges_use_the_same_primitive_storage() {
+    let source = r#"
+        boundary trait Output { machine count(value: u64) reaches Output; }
+        data Root {}
+        machine Root::length(values: &[u8]) -> u64 { values.len }
+        machine Root::compute() -> u64 {
+            let rows: [[u8; 2]; 2] = [[3, 5], [7, 9]];
+            Root::length(&rows[1][..])
+        }
+        machine Root::enter() reaches Output { Output::count(Root::compute()); }
+    "#;
+    let lowered = lower(source).expect("nested backing uses the shared range producer");
+    assert_eq!(counts(&lowered), [2]);
+}
