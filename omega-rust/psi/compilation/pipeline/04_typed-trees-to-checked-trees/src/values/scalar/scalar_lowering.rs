@@ -1341,12 +1341,14 @@ pub(super) fn selected_element(
             collection_type,
         ),
         None => {
-            if let Some((symbol, collection_type)) =
-                structural_fields::view_local_root(program, authored_parameters, indexed.collection)
-            {
+            if let Some((symbol, path, collection_type)) = structural_fields::view_local_place(
+                program,
+                authored_parameters,
+                indexed.collection,
+            ) {
                 (
                     checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-                    Vec::new(),
+                    path,
                     collection_type,
                 )
             } else {
@@ -1688,35 +1690,8 @@ fn view_member_nested_index_read(
     if enclosing.is_empty() {
         return None;
     }
-    let mut base = selection_expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(base) {
-        if member.case_variant.is_some() {
-            return None;
-        }
-        base = member.receiver;
-    }
-    let Some((symbol, view_type)) =
-        structural_fields::view_local_root(program, authored_parameters, base)
-    else {
-        return None;
-    };
-    let place = crate::flow::canonical_place_from_expression(program, selection_expression)?;
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
-    if root_symbol != symbol {
-        return None;
-    }
-    let mut view_record = view_type;
-    loop {
-        match program.type_reference_table.type_reference(view_record) {
-            TypeReferenceNode::Constrained { base_type, .. } => view_record = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => view_record = *referee,
-            _ => break,
-        }
-    }
-    let Some((path, mut element_type)) =
-        structural_fields::element_field_path(program, view_record, &place.segments)
+    let Some((symbol, path, mut element_type)) =
+        structural_fields::view_local_place(program, authored_parameters, selection_expression)
     else {
         return None;
     };

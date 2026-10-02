@@ -1,0 +1,72 @@
+// RUN CANARY (exit 70): an exclusive record-to-record recast view loaned
+// through a local carries its write authority through the loan ledger, so a
+// runtime-indexed field store through the view resolves to the loaned home
+// under the view's declared shape.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair {
+    low: i32;
+    high: i32;
+}
+
+data Src {
+    entries: [Pair; 2];
+    tag: i32;
+}
+
+data Dst {
+    entries: [Pair; 2];
+    tag: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    src: Src;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    Main::fill(main);
+    transition
+        main.src.entries[1].low == 7
+            && main.src.entries[1].high == 9
+            && main.src.tag == 3
+    {
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(90);
+    }
+}
+
+machine Main::fill(main: &mut Main) {
+    let view: &mut Dst = &mut main.src as &mut Dst;
+    view.tag = 3;
+    view.entries[1].low = 7;
+    transition main.src.entries[0].low == 0 {
+        true -> inner(main)
+        _ -> bad()
+    }
+
+    state inner(main: &mut Main) {
+        let view: &mut Dst = &mut main.src as &mut Dst;
+        let i: u32 = 1;
+        view.entries[i].high = 9;
+        transition main.src.entries[1].high == 9 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+
+    state done() {
+    }
+
+    state bad() {
+    }
+}
