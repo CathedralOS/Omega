@@ -871,20 +871,7 @@ pub(super) fn home(
         .iter()
         .flat_map(|block| &block.instructions)
         .filter_map(|row| {
-            let result = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishReference { result, .. }
-                | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
-                | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    result,
-                    ..
-                }
-                | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
-                | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
-                | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
-                | LegalizedScalarInstructionKind::EstablishCase { result, .. } => result,
-                LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
-                _ => return None,
-            };
+            let result = row.kind.get_structural_result()?;
             (result.place == place).then_some((row, result))
         });
     let (row, result) = selected.next()?;
@@ -927,12 +914,7 @@ pub(super) fn home(
         declaration.id == result.structural_type
             && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
     }) && (result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || !result.qualification_establishments.is_empty()
-        || !matches!(
-            row.kind,
-            LegalizedScalarInstructionKind::EstablishReference { .. }
-                | LegalizedScalarInstructionKind::Call(_)
-        ))
+        || !result.qualification_establishments.is_empty())
     {
         return None;
     }
@@ -1028,18 +1010,7 @@ pub(super) fn owned_store_destination(
         .iter()
         .flat_map(|block| &block.instructions)
         .filter_map(|row| {
-            let result = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishRecord { result, .. }
-                | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
-                | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
-                | LegalizedScalarInstructionKind::EstablishCase { result, .. }
-                | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
-                | LegalizedScalarInstructionKind::HostedReadByte { result, .. }
-                | LegalizedScalarInstructionKind::EstablishElementView { result, .. }
-                | LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => result,
-                LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
-                _ => return None,
-            };
+            let result = row.kind.get_structural_result()?;
             (result.place == expected.place).then_some((row.operation, result))
         });
     producers
