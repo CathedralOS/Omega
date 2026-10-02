@@ -39,12 +39,28 @@ mod tests;
 /// invalid outside every selection.
 type SourceArm = arena::Handle<checked_trees::expression::TableMatchArm>;
 
+/// Zero synthesis is justified by source omission, never by a zeroable type
+/// alone. An omitted member retains its constructor occurrence for identity.
+#[derive(Clone, Copy)]
+enum ValueOccurrence {
+    Authored(ExpressionHandle),
+    ImplicitZero(ExpressionHandle),
+}
+
+impl ValueOccurrence {
+    fn expression(self) -> ExpressionHandle {
+        match self {
+            Self::Authored(expression) | Self::ImplicitZero(expression) => expression,
+        }
+    }
+}
+
 /// One retained value node awaiting replay: the node, its authored
 /// occurrence and destination type, the selection arm it sits under, and the
 /// projected leaf a producing call feeds.
 type PendingValue = (
     CheckedStructuralValueHandle,
-    ExpressionHandle,
+    ValueOccurrence,
     TypeReferenceHandle,
     SourceArm,
     Option<ExpressionHandle>,
@@ -329,7 +345,11 @@ pub(crate) fn validate(
     }
     let mut pending = vec![(
         *value,
-        expression,
+        if expression.is_valid() {
+            ValueOccurrence::Authored(expression)
+        } else {
+            ValueOccurrence::ImplicitZero(expression)
+        },
         reference,
         arena::Handle::invalid(),
         None,
@@ -338,7 +358,8 @@ pub(crate) fn validate(
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
     let mut selected_leaves = Vec::new();
-    while let Some((handle, expression, reference, source_arm, projected_leaf)) = pending.pop() {
+    while let Some((handle, occurrence, reference, source_arm, projected_leaf)) = pending.pop() {
+        let expression = occurrence.expression();
         if !plans.nodes.is_valid(handle) || visited.contains(&handle) {
             return unsupported("structural construction has stale or reused value nodes");
         }
@@ -346,6 +367,15 @@ pub(crate) fn validate(
         let node = plans.nodes.get(handle);
         if node.expression != expression {
             return unsupported("structural construction exchanged authored value occurrences");
+        }
+        if matches!(occurrence, ValueOccurrence::ImplicitZero(_))
+            != matches!(
+                node.kind,
+                CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                    | CheckedStructuralValueKind::ZeroedStructural { .. }
+            )
+        {
+            return unsupported("structural zero synthesis changed its source omission");
         }
         match node.kind.clone() {
             // A borrowed `&[T]` or `&mut [T]` view rejoins its loan exactly:
@@ -681,7 +711,13 @@ pub(crate) fn validate(
                     return unsupported("array establishment changed its element roster");
                 }
                 for (element, authored_element) in elements.iter().zip(authored.iter()) {
-                    pending.push((*element, *authored_element, *element_type, source_arm, None));
+                    pending.push((
+                        *element,
+                        ValueOccurrence::Authored(*authored_element),
+                        *element_type,
+                        source_arm,
+                        None,
+                    ));
                 }
             }
             CheckedStructuralValueKind::Case(construction) => {
@@ -796,7 +832,7 @@ pub(crate) fn validate(
                         // source place and unrestricted copy permission.
                         pending.push((
                             source_handle,
-                            root.expression,
+                            ValueOccurrence::Authored(root.expression),
                             root.reference,
                             source_arm,
                             None,
@@ -820,7 +856,7 @@ pub(crate) fn validate(
                 if matches!(source_node.kind, CheckedStructuralValueKind::Call { .. }) {
                     pending.push((
                         source_handle,
-                        root.expression,
+                        ValueOccurrence::Authored(root.expression),
                         root.reference,
                         source_arm,
                         Some(expression),

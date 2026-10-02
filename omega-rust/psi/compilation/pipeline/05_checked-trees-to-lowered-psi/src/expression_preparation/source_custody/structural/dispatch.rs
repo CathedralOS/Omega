@@ -6,7 +6,7 @@
 use super::{
     CheckedScalarComputationHandle, CheckedScalarDispatchPattern, CheckedScalarExpressionRole,
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, MatchPattern, PrimitiveType,
-    Replay, TypeReferenceHandle, unsupported, validate_operand,
+    Replay, TypeReferenceHandle, ValueOccurrence, unsupported, validate_operand,
 };
 use arena::HandleSpan;
 use checked_trees::CheckedStructuralDispatchArm;
@@ -153,7 +153,7 @@ pub(super) fn validate(
         }
         pending.push((
             arm.value,
-            authored_arm.value,
+            ValueOccurrence::Authored(authored_arm.value),
             reference,
             arm.source_arm,
             None,
