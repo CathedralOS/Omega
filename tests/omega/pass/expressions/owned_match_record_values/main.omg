@@ -1,6 +1,6 @@
 data Payload { left: u64; right: u64; }
 data Envelope { leading: u64; payload: Payload; }
-machine Payload::get_right(&self) -> u64 { self.right }
+machine Payload::get_right(payload: &Payload) -> u64 { payload.right }
 
 machine choose(selected: u64, inner: bool, first: u64, second: u64) -> u64 {
     let marker: Payload = Payload { left: 37, right: 91 };
@@ -23,5 +23,5 @@ machine choose(selected: u64, inner: bool, first: u64, second: u64) -> u64 {
             leading: first
         }
     };
-    result.payload.get_right() ^ marker.left
+    Payload::get_right(&result.payload) ^ marker.left
 }

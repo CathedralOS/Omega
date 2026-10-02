@@ -535,7 +535,7 @@ pass/expressions/owned_match_interleaved_values checked 154ms
 pass/expressions/owned_match_mixed_values checked 196ms
 pass/expressions/owned_match_parameter_values checked 202ms
 pass/expressions/owned_match_projected_field checked 224ms
-pass/expressions/owned_match_record_values checked 207ms
+pass/expressions/owned_match_record_values checked 169ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 193ms
 pass/expressions/qualified_call_result_argument checked 204ms
 pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
@@ -1187,3 +1187,5 @@ run/borrows/shared_runtime_index_borrow built 1341ms exit:0 @48008365d839
 run/borrows/transition_shared_borrow built 1309ms exit:0 @48008365d839
 run/contained_health_loop_command_branch checked 192ms
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
+
+pass/contracts/ensures_named_parameter_arithmetic_exit built 445ms exit:0 @1fa864024c44+wt
