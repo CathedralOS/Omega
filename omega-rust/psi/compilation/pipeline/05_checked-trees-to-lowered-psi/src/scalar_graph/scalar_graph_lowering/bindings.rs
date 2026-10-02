@@ -623,7 +623,11 @@ fn prepare_operation(
         for (symbol, place) in &prepared.consumed {
             bindings.retire_structural_local(*symbol, *place)?;
         }
-        bindings.establish_structural_local(prepared.symbol, prepared.place)?;
+        bindings.establish_structural_local(
+            prepared.symbol,
+            prepared.place,
+            prepared.structural_type,
+        )?;
         Ok(PreparedOperation::Structural(prepared))
     } else {
         Ok(PreparedOperation::Unit(unit_operations::prepare(

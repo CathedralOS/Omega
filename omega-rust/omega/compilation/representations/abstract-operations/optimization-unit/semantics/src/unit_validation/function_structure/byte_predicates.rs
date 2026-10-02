@@ -43,7 +43,7 @@ pub(super) fn validate_indexed_byte_stores(
                         .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
                         && !predicates.implies(ascii);
                     if splits_scalars
-                        && !super::byte_field_freshness::established_on_every_path(
+                        && !super::structural_freshness::established_on_every_path(
                             function,
                             predecessors,
                             (block_position, node_position),
@@ -56,7 +56,7 @@ pub(super) fn validate_indexed_byte_stores(
                                         .is_some_and(|initial| initial.implies(ascii)))
                             },
                             |operation, root| {
-                                super::byte_field_freshness::changes_length(
+                                super::structural_freshness::structural_metadata_may_change(
                                     function,
                                     types,
                                     root,
@@ -138,7 +138,7 @@ pub(super) fn validate_indexed_byte_stores(
                             super::byte_field_freshness::overlaps(&exact_path, &written)
                         })
                 }
-                _ => super::byte_field_freshness::changes_length(
+                _ => super::structural_freshness::structural_metadata_may_change(
                     function,
                     types,
                     root,
@@ -146,7 +146,7 @@ pub(super) fn validate_indexed_byte_stores(
                     operation,
                 ),
             };
-            if !super::byte_field_freshness::established_on_every_path(
+            if !super::structural_freshness::established_on_every_path(
                 function,
                 predecessors,
                 (block_position, node_position),

@@ -139,6 +139,14 @@ independently check access, derived shape, placement, and argument/home identity
 A correctly derived callee signature does not validate an unrelated caller
 pointer, copied argument, or substituted plan.
 
+An ordinary call may borrow a structural payload through `Case` followed by
+that case's exact `Field`, retaining the original storage root and complete
+projection. Every selected case must be active for that root and prefix before
+the call's effects: verification uses current discriminator evidence, and
+execution checks the actual discriminator. Variant payloads overlay, so different
+case identities do not prove disjoint storage. This lends the original payload;
+it grants no owned transfer or additional escaping-reference result forms.
+
 An ordinary call may borrow a whole `BoundedOwned` byte owner or an inline
 bounded-owned field through its original root and complete static path. The
 callee's carrier capacity must equal the selected owner's capacity. Shared

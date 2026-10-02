@@ -18,7 +18,7 @@ use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId,
-    PrimitiveType, ScalarType, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -149,13 +149,17 @@ fn view_local_observation(
 /// custody: an established view re-loan or a projected source means the read
 /// is no longer the plain owned-place read this root names.
 fn owned_local_observation(
-    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     symbol: symbols::SymbolHandle,
 ) -> Result<PlaceId, LoweringError> {
     let mut matches = structural_locals
         .iter()
-        .filter(|(local, _)| *local == symbol);
-    let Some((_, source)) = matches.next() else {
+        .filter(|local| local.symbol == symbol);
+    let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
+        argument: source,
+        ..
+    }) = matches.next()
+    else {
         return unsupported("owned local observation lost its established place");
     };
     if !symbol.is_valid()
@@ -176,7 +180,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
-    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
@@ -1155,7 +1159,7 @@ fn lower_checked_boolean_expression_with_parameters(
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
-    structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {

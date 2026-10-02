@@ -47,6 +47,16 @@ impl LoanAccess {
     }
 }
 
+/// The exact published local carrier stays with its source name and custody.
+/// A reference result may retain its reference shell even when its argument
+/// access is shared; access alone therefore cannot recover this type.
+#[derive(Clone, Debug)]
+pub(crate) struct StructuralLocalBinding {
+    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) argument: StructuralArgument,
+    pub(crate) structural_type: StructuralTypeId,
+}
+
 #[derive(Clone)]
 pub(crate) struct ScalarBindings {
     /// The binding-ordinal namespace: the scalar formals, then every
@@ -66,7 +76,7 @@ pub(crate) struct ScalarBindings {
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
-    structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    structural_locals: Vec<StructuralLocalBinding>,
     local_cases: Vec<structural_cases::LocalCaseBinding>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
@@ -90,12 +100,18 @@ impl ScalarBindings {
         let position = self
             .structural_locals
             .iter()
-            .position(|(candidate, argument)| {
-                *candidate == symbol
-                    && argument.place == place
-                    && argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
-            })
+            .position(
+                |StructuralLocalBinding {
+                     symbol: candidate,
+                     argument,
+                     ..
+                 }| {
+                    *candidate == symbol
+                        && argument.place == place
+                        && argument.access == StructuralAccess::Owned
+                        && argument.path.is_empty()
+                },
+            )
             .ok_or(LoweringError::Unsupported(
                 "moved local lost its exact source home",
             ))?;
@@ -108,23 +124,25 @@ impl ScalarBindings {
         &mut self,
         symbol: symbols::SymbolHandle,
         place: PlaceId,
+        structural_type: StructuralTypeId,
     ) -> Result<(), LoweringError> {
         if !symbol.is_valid()
             || self
                 .structural_locals
                 .iter()
-                .any(|(candidate, _)| *candidate == symbol)
+                .any(|local| local.symbol == symbol)
         {
             return unsupported("structural local has invalid or repeated identity");
         }
-        self.structural_locals.push((
+        self.structural_locals.push(StructuralLocalBinding {
             symbol,
-            StructuralArgument {
+            structural_type,
+            argument: StructuralArgument {
                 place,
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             },
-        ));
+        });
         Ok(())
     }
 
@@ -183,7 +201,10 @@ impl ScalarBindings {
                 root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
                 ..
             } => {
-                let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
+                let mut locals = self
+                    .structural_locals
+                    .iter()
+                    .filter(|row| row.symbol == symbol);
                 match locals.next() {
                     Some(source) => {
                         // An owned local lends its whole place; a `&T` local
@@ -192,12 +213,12 @@ impl ScalarBindings {
                         // than fabricating ownership.
                         if !symbol.is_valid()
                             || locals.next().is_some()
-                            || !supports_borrow(source.1.access)
-                            || !source.1.path.is_empty()
+                            || !supports_borrow(source.argument.access)
+                            || !source.argument.path.is_empty()
                         {
                             return unsupported("computed borrow changes its local custody");
                         }
-                        source.1.place
+                        source.argument.place
                     }
                     None => {
                         let position = parameters
@@ -251,13 +272,23 @@ impl ScalarBindings {
         Ok(place)
     }
 
-    pub(crate) fn structural_parameter_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
-        let mut sources = self
+    /// Resolve the exact published carrier at a live source place.
+    pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
+        let mut types = self
             .structural_parameters
             .iter()
-            .filter(|(_, source)| source.place == place);
-        let (_, source) = sources.next()?;
-        sources.next().is_none().then_some(source.structural_type)
+            .filter(|(_, source)| source.place == place)
+            .map(|(_, source)| source.structural_type)
+            .chain(
+                self.structural_locals
+                    .iter()
+                    .filter(|local| local.argument.place == place)
+                    .map(|local| local.structural_type),
+            );
+        let structural_type = types.next()?;
+        types
+            .all(|candidate| candidate == structural_type)
+            .then_some(structural_type)
     }
 
     /// Borrow the established referent, not a copy of its scalar field values.
@@ -315,8 +346,10 @@ impl ScalarBindings {
         let mut matches = self
             .structural_locals
             .iter()
-            .filter(|(candidate, _)| *candidate == symbol);
-        let (_, source) = matches.next().ok_or(LoweringError::Unsupported(
+            .filter(|local| local.symbol == symbol);
+        let StructuralLocalBinding {
+            argument: source, ..
+        } = matches.next().ok_or(LoweringError::Unsupported(
             "case observation lost its local place",
         ))?;
         if !symbol.is_valid()
@@ -373,7 +406,10 @@ impl ScalarBindings {
                     return Ok(None);
                 }
                 if formals.next().is_some()
-                    || self.structural_locals.iter().any(|local| local.0 == symbol)
+                    || self
+                        .structural_locals
+                        .iter()
+                        .any(|local| local.symbol == symbol)
                 {
                     return unsupported("case observation has ambiguous formal custody");
                 }
@@ -725,8 +761,8 @@ impl ScalarBindings {
                 let mut candidates = self
                     .structural_locals
                     .iter()
-                    .filter(|(candidate, _)| *candidate == symbol);
-                let Some((_, argument)) = candidates.next() else {
+                    .filter(|local| local.symbol == symbol);
+                let Some(StructuralLocalBinding { argument, .. }) = candidates.next() else {
                     return unsupported("record byte observation lost its live local backing");
                 };
                 if candidates.next().is_some()
@@ -827,10 +863,7 @@ impl ScalarBindings {
     }
 
     /// Retain places established by the ordinary structural operation sequence.
-    pub(crate) fn with_structural_locals(
-        mut self,
-        locals: &[(symbols::SymbolHandle, StructuralArgument)],
-    ) -> Self {
+    pub(crate) fn with_structural_locals(mut self, locals: &[StructuralLocalBinding]) -> Self {
         self.structural_locals = locals.to_vec();
         self
     }
@@ -865,8 +898,13 @@ impl ScalarBindings {
                 // A `&T` local is itself a shared-borrow join result: the call
                 // loans the referent's exact established place onward under
                 // the same custody rather than copying the scalar out of it.
-                let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
-                let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+                let mut locals = self
+                    .structural_locals
+                    .iter()
+                    .filter(|row| row.symbol == symbol);
+                let StructuralLocalBinding {
+                    argument: source, ..
+                } = locals.next().ok_or(LoweringError::Unsupported(
                     "computed primitive borrow lost its established local",
                 ))?;
                 if !symbol.is_valid()
@@ -932,8 +970,13 @@ impl ScalarBindings {
         else {
             return unsupported("copied record requires an established local");
         };
-        let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
-        let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+        let mut locals = self
+            .structural_locals
+            .iter()
+            .filter(|row| row.symbol == symbol);
+        let StructuralLocalBinding {
+            argument: source, ..
+        } = locals.next().ok_or(LoweringError::Unsupported(
             "copied record lost its established local",
         ))?;
         if !symbol.is_valid()
@@ -956,8 +999,13 @@ impl ScalarBindings {
         if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
             argument.source
         {
-            let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
-            let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+            let mut locals = self
+                .structural_locals
+                .iter()
+                .filter(|row| row.symbol == symbol);
+            let StructuralLocalBinding {
+                argument: source, ..
+            } = locals.next().ok_or(LoweringError::Unsupported(
                 "computed owned structural operand lost its established local",
             ))?;
             if !symbol.is_valid()

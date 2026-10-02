@@ -614,7 +614,7 @@ pub(crate) fn emit(
     store: &checked_trees::CheckedByteSequenceStorePlan,
     root: StoreRoot<'_>,
     parameters: &[(u32, StructuralParameterDeclaration)],
-    locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -729,11 +729,16 @@ pub(crate) fn emit(
                         || !produced.projected_qualifications.is_empty()
                         || !produced.qualification_establishments.is_empty()
                         || !produced.claims.is_empty()
-                        || !locals.iter().any(|(_, local)| {
-                            local.place == *place
-                                && local.access == terminal_psi::StructuralAccess::Owned
-                                && local.path.is_empty()
-                        })
+                        || !locals.iter().any(
+                            |crate::expression_preparation::bindings::StructuralLocalBinding {
+                                 argument: local,
+                                 ..
+                             }| {
+                                local.place == *place
+                                    && local.access == terminal_psi::StructuralAccess::Owned
+                                    && local.path.is_empty()
+                            },
+                        )
                         || !structural_types.iter().any(|declaration| {
                             declaration.id == *structural_type
                                 && matches!(declaration.shape, StructuralTypeShape::Record { .. })
@@ -942,7 +947,7 @@ pub(crate) fn emit_owned_value(
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     parameters: &[(u32, StructuralParameterDeclaration)],
-    locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     structural_types: &[StructuralTypeDeclaration],
     places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -1221,7 +1226,7 @@ impl ByteEmission<'_> {
 struct ValueEmitter<'input> {
     plan: &'input CheckedByteSequenceValuePlan,
     parameters: &'input [(u32, StructuralParameterDeclaration)],
-    locals: &'input [(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    locals: &'input [crate::expression_preparation::bindings::StructuralLocalBinding],
     emission: ByteEmission<'input>,
 }
 
@@ -1232,11 +1237,10 @@ impl ValueEmitter<'_> {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
-        let mut locals = self
-            .locals
-            .iter()
-            .filter(|(candidate, _)| *candidate == symbol);
-        let (_, local) = locals.next().ok_or(LoweringError::Unsupported(
+        let mut locals = self.locals.iter().filter(|local| local.symbol == symbol);
+        let crate::expression_preparation::bindings::StructuralLocalBinding {
+            argument: local, ..
+        } = locals.next().ok_or(LoweringError::Unsupported(
             "byte value local has no established home",
         ))?;
         if locals.next().is_some()

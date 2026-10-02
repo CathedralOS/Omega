@@ -166,45 +166,13 @@ pub fn interior_member_borrow(parent: &StructuralArgument, child: &StructuralArg
 /// for the root.
 pub fn canonical_structural_path_tip<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    for segment in path {
-        let mut matching = declarations
-            .clone()
-            .filter(|declaration| declaration.id == root);
-        let declaration = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
-        root = match (segment, &declaration.shape) {
-            (
-                CanonicalStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
-                let mut matching = fields.iter().filter(|field| field.id == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
-                    return None;
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
-            }
-            (
-                CanonicalStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    let mut matching = declarations.filter(|declaration| declaration.id == root);
+    let selected = canonical_projection_type(declarations.clone(), root, path)?;
+    let mut matching = declarations.filter(|declaration| declaration.id == selected);
     let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
-    Some(declaration)
+    matching.next().is_none().then_some(declaration)
 }
 
 /// Resolve `path` from `root` to its tip declaration over runtime field
@@ -226,6 +194,20 @@ pub fn runtime_structural_path_tip<'a>(
 /// the case is active, grant readable access, or authorize copying the leaf.
 pub fn canonical_case_leaf_type<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    path.iter()
+        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+        .then_some(())?;
+    canonical_projection_type(types, root, path)
+}
+
+// Canonical and name-spelled paths use the same declaration-local namespaces.
+// This walker retains only structural children; scalar endpoint policy belongs
+// to the primitive/field observation owner.
+fn canonical_projection_type<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     mut root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -235,7 +217,6 @@ pub fn canonical_case_leaf_type<'a>(
         matching.next().is_none().then_some(selected)
     };
     let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
-    let mut saw_case = false;
     for segment in path {
         let shape = &declaration(root)?.shape;
         match segment {
@@ -253,7 +234,6 @@ pub fn canonical_case_leaf_type<'a>(
                 if matching.next().is_some() {
                     return None;
                 }
-                saw_case = true;
             }
             CanonicalStructuralPathSegment::Field(identity) => {
                 let fields = match case_fields.take() {
@@ -285,5 +265,5 @@ pub fn canonical_case_leaf_type<'a>(
             }
         }
     }
-    (saw_case && case_fields.is_none()).then_some(declaration(root)?.id)
+    case_fields.is_none().then_some(declaration(root)?.id)
 }

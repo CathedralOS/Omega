@@ -771,7 +771,8 @@ fn verify_source(
         }
     };
     // A dynamic descriptor lives at one exact place: its selection source is
-    // a static projection, so a runtime-selected element never matches.
+    // an unconditional static projection. Neither a runtime-selected element
+    // nor a projection requiring live case membership matches that contract.
     let expected_path = path
         .iter()
         .map(|segment| match segment {
@@ -787,7 +788,8 @@ fn verify_source(
                     end: *end,
                 })
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => None,
+            CheckedUnitStructuralPathSegment::Case(_)
+            | CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => None,
             CheckedUnitStructuralPathSegment::Referent => Some(StructuralPathSegment::Referent),
         })
         .collect::<Option<Vec<_>>>()

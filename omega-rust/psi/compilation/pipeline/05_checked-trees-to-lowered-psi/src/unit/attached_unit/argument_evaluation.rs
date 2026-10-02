@@ -59,7 +59,8 @@ pub(crate) struct Evaluation {
     pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
-    pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    pub(crate) structural_locals:
+        Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     /// The view family of each established immutable view local, so scalar
     /// observations rooted at one pick its length and read operations.
     pub(crate) view_locals:
@@ -394,7 +395,7 @@ impl Evaluation {
                 || self
                     .structural_locals
                     .iter()
-                    .any(|(symbol, _)| *symbol == local.symbol)
+                    .any(|binding| binding.symbol == local.symbol)
             {
                 return unsupported("structural value repeats or substitutes its local binding");
             }
@@ -410,20 +411,23 @@ impl Evaluation {
                     )?,
                 );
             }
-            self.structural_locals.push((
-                local.symbol,
-                StructuralArgument {
-                    place: produced.place(),
-                    path: Vec::new(),
-                    access: if shared_borrow.is_some() {
-                        StructuralAccess::SharedBorrow
-                    } else if mutable_borrow.is_some() {
-                        StructuralAccess::MutableBorrow
-                    } else {
-                        StructuralAccess::Owned
+            self.structural_locals.push(
+                crate::expression_preparation::bindings::StructuralLocalBinding {
+                    symbol: local.symbol,
+                    structural_type: produced.structural_type(),
+                    argument: StructuralArgument {
+                        place: produced.place(),
+                        path: Vec::new(),
+                        access: if shared_borrow.is_some() {
+                            StructuralAccess::SharedBorrow
+                        } else if mutable_borrow.is_some() {
+                            StructuralAccess::MutableBorrow
+                        } else {
+                            StructuralAccess::Owned
+                        },
                     },
                 },
-            ));
+            );
             // A view local's published place is what its lengths and element
             // reads observe; record the family its produced type declares.
             if let Some(carrier) =

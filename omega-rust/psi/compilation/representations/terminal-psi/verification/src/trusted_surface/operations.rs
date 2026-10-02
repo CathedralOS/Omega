@@ -131,6 +131,7 @@ const EFFECT_DEPS: &[&str] = &[
 const CALL_DEPS: &[&str] = &[
     "composition:call-instantiation",
     "formation:operation-validation",
+    "formation:active-case-projection",
 ];
 const NO_FACT_DEPS: &[&str] = &["formation:operation-validation"];
 
@@ -158,6 +159,8 @@ const CALL_SITES: &[&str] = &[
     TS_CALLS,
     TV_CALLS,
     OP_FACTS,
+    OP_FACTS_CASE_HOPS,
+    VAL_STRUCTURAL_OPS,
     VAL_OPS,
     VAL_CONTRACTS,
 ];
@@ -167,10 +170,23 @@ const NO_FACT_SITES: &[&str] = &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS];
 
 static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:establish-reference",
-    "a validated source place whose authority covers the declared access of the reference the operation establishes",
-    "the reference-establishment observation; it invalidates nothing and publishes no scalar equation",
-    EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
+    "a validated source place whose authority covers the declared reference access; every Case/Field ingress projection retains its original root and proves each case active before formation",
+    "the reference-establishment observation publishes no scalar equation; Case premises are checked before invalidation, and mutable record formation retires source-root observations because later writes can use a different carrier identity; release restores permission, not prior contents",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+        "formation:active-case-projection",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_REFERENCES,
+        OP_FACTS_CASE_HOPS,
+        VAL_STRUCTURAL_OPS,
+    ],
 );
 static OP_RELEASE_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:release-reference",
@@ -236,8 +252,8 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-leaf-copy",
-    "a readable live whole root and validated field/index path to an Unrestricted leaf, with every element-view selector retaining a runtime-index live-length obligation, or to a leaf a SharedBorrow reference result loans; a whole bounded-byte copy has the exact source carrier and primitive qualification roster, with no new establishment evidence or claims",
-    "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; a runtime-selected source path publishes no equation; a SharedBorrow result is an affine reference carrier rooted at the source, a shared loan until released, and publishes no equation",
+    "a readable live whole root and validated field/index path to an Unrestricted leaf, with every element-view selector retaining a runtime-index live-length obligation, or to an existing shared-reference descriptor that the copy relocates; a whole bounded-byte copy has the exact source carrier and primitive qualification roster, with no new establishment evidence or claims",
+    "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; a runtime-selected source path publishes no equation; a SharedBorrow result relocates an existing reference descriptor with its original loan origin and publishes no equation; borrowing a new payload uses an ordinary borrowed argument or EstablishReference, never an implicit owned snapshot or a new loan hidden in a copy",
     &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -1157,14 +1173,14 @@ static OP_CALL: TrustedSurfaceEntry = entry(
 );
 static OP_CALL_UNIT: TrustedSurfaceEntry = entry(
     "operation:call-unit",
-    "a validated direct call to a unit-result machine",
+    "a validated direct call to a unit-result machine, with every Case-qualified borrowed argument proved active at its original root before call invalidation",
     "parameter instantiations and requires obligations compose; no result equation exists",
     CALL_DEPS,
     CALL_SITES,
 );
 static OP_CALL_STRUCTURAL_SCALAR: TrustedSurfaceEntry = entry(
     "operation:call-structural-scalar",
-    "a validated call with a structural argument and scalar result",
+    "a validated call with a structural argument and scalar result, with every Case-qualified borrowed argument proved active at its original root before call invalidation",
     "the structural argument's claim custody composes with parameter instantiation, requires, and ensures",
     CALL_DEPS,
     CALL_SITES,

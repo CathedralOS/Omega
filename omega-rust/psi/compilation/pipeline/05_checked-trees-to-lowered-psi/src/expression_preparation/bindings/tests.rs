@@ -381,22 +381,27 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         ..Default::default()
     };
-    let bindings = ScalarBindings::new([]).with_structural_locals(&[(symbol, source.clone())]);
+    let local = |symbol, argument| super::StructuralLocalBinding {
+        symbol,
+        argument,
+        structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
+    };
+    let bindings = ScalarBindings::new([]).with_structural_locals(&[local(symbol, source.clone())]);
     for _ in 0..2 {
         assert_eq!(bindings.owned_argument(&argument).unwrap(), source);
     }
     for locals in [
         vec![],
-        vec![(other, source.clone())],
-        vec![(symbol, source.clone()), (symbol, source.clone())],
-        vec![(
+        vec![local(other, source.clone())],
+        vec![local(symbol, source.clone()), local(symbol, source.clone())],
+        vec![local(
             symbol,
             StructuralArgument {
                 access: StructuralAccess::SharedBorrow,
                 ..source.clone()
             },
         )],
-        vec![(
+        vec![local(
             symbol,
             StructuralArgument {
                 path: vec![terminal_psi::StructuralPathSegment::FixedIndex(0)],
@@ -428,7 +433,7 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
     changed.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
         ScalarBindings::new([])
-            .with_structural_locals(&[(invalid, source)])
+            .with_structural_locals(&[local(invalid, source)])
             .owned_argument(&changed)
             .is_err()
     );
@@ -639,14 +644,15 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
             StructuralAccess::WriteOnlyBorrow,
         ] {
             let bindings = if local {
-                ScalarBindings::new([]).with_structural_locals(&[(
+                ScalarBindings::new([]).with_structural_locals(&[super::StructuralLocalBinding {
                     symbol,
-                    StructuralArgument {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    argument: StructuralArgument {
                         place,
                         path: Vec::new(),
                         access,
                     },
-                )])
+                }])
             } else {
                 ScalarBindings::new([]).with_structural_parameters(&[(
                     0,
@@ -768,4 +774,83 @@ fn unnamed_call_results_keep_authored_local_reads_on_their_locals() {
             primitive_type: PrimitiveType::I32,
         }
     );
+}
+
+#[test]
+fn structural_local_types_preserve_reference_shells_and_reject_conflicting_carriers() {
+    use super::StructuralLocalBinding;
+    use super::structural_paths::{PreparedStructuralPathSegment, prepare_argument_path};
+    use semantic_vocabulary::StructuralTypeId;
+    use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+    let symbol = symbols::SymbolHandle::from_arena_index(1);
+    let place = PlaceId::new(41).unwrap();
+    let record_type = StructuralTypeId::new(3).unwrap();
+    let reference_type = StructuralTypeId::new(7).unwrap();
+    let local = StructuralLocalBinding {
+        symbol,
+        argument: StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+        structural_type: reference_type,
+    };
+    let types = [
+        StructuralTypeDeclaration {
+            id: record_type,
+            identity: "record".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+        StructuralTypeDeclaration {
+            id: reference_type,
+            identity: "reference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: record_type,
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+    ];
+    let bindings = ScalarBindings::new([]).with_structural_locals(std::slice::from_ref(&local));
+    assert_eq!(bindings.structural_place_type(place), Some(reference_type));
+    let path = [checked_trees::CheckedUnitStructuralPathSegment::Referent];
+    assert_eq!(
+        prepare_argument_path(
+            &path,
+            bindings.structural_place_type(place).unwrap(),
+            &types
+        )
+        .unwrap(),
+        [PreparedStructuralPathSegment::Static(
+            terminal_psi::StructuralPathSegment::Referent
+        )]
+    );
+    assert!(
+        prepare_argument_path(&path, record_type, &types).is_err(),
+        "access cannot substitute the referent for the produced reference carrier"
+    );
+    assert!(
+        prepare_argument_path(&path, reference_type, &types[..1]).is_err(),
+        "the exact published carrier must exist in this catalog"
+    );
+    let conflicting = StructuralLocalBinding {
+        structural_type: record_type,
+        ..local.clone()
+    };
+    assert_eq!(
+        ScalarBindings::new([])
+            .with_structural_locals(&[local, conflicting])
+            .structural_place_type(place),
+        None
+    );
+    assert_eq!(
+        bindings.structural_place_type(PlaceId::new(42).unwrap()),
+        None
+    );
+    let mut owned = ScalarBindings::new([]);
+    owned
+        .establish_structural_local(symbol, place, record_type)
+        .unwrap();
+    assert_eq!(owned.structural_place_type(place), Some(record_type));
+    owned.retire_structural_local(symbol, place).unwrap();
+    assert_eq!(owned.structural_place_type(place), None);
 }

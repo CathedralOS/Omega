@@ -244,32 +244,12 @@ pub(super) fn lower(
                     });
                 }
                 let place = bindings.borrowed_structural_place(argument, caller_machine, caller_parameters)?;
-                let path = if argument.path.iter().any(|segment| matches!(segment, checked_trees::CheckedUnitStructuralPathSegment::Case(_))) {
-                    let root_type = match bindings.structural_parameter_type(place) {
-                        Some(root_type) => root_type,
-                        None => {
-                            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source else {
-                                return unsupported("case argument has no declared source storage");
-                            };
-                            let call = checked.facts.flow.control.calls.get(source_call);
-                            let mut locals = checked.statement_table.statements(caller_authored.statement_nodes)
-                                .iter().take(call.statement_index).filter_map(|statement| match statement {
-                                    checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-                                    _ => None,
-                                });
-                            let local = locals.next().ok_or(LoweringError::Unsupported("case argument lost its exact prior local"))?;
-                            if locals.next().is_some() { return unsupported("case argument local is ambiguous"); }
-                            let identity = checked.normalized_type_identity(local.type_reference);
-                            let mut declarations = structural_types.iter().filter(|declaration| declaration.identity == identity.as_str());
-                            let declaration = declarations.next().ok_or(LoweringError::Unsupported("case argument local type is absent"))?;
-                            if declarations.next().is_some() { return unsupported("case argument local type is ambiguous"); }
-                            declaration.id
-                        }
-                    };
-                    crate::expression_preparation::bindings::structural_paths::prepare_argument_path(&argument.path, root_type, structural_types)?
-                } else {
-                    crate::expression_preparation::bindings::structural_paths::prepare_unscoped_path(&argument.path)?
-                };
+                let root_type = bindings.structural_place_type(place).ok_or(
+                    LoweringError::Unsupported("structural argument lost its exact published carrier"),
+                )?;
+                let path = crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                    &argument.path, root_type, structural_types,
+                )?;
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
                     place,

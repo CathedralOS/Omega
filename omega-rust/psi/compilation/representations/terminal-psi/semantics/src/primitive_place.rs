@@ -44,6 +44,14 @@ pub fn primitive_place_type<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<ScalarType> {
+    // Primitive reads/stores retain their own operation grammar. Case
+    // geometry for a borrowed argument does not authorize a direct payload read.
+    if path
+        .iter()
+        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
         let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
         if let StructuralTypeShape::Record { fields } = &declaration.shape {
@@ -73,6 +81,12 @@ pub fn fixed_array_place_shape<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<(ScalarType, u64)> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     let declaration = canonical_structural_path_tip(declarations.clone(), root, path)?;
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
@@ -92,13 +106,20 @@ pub fn fixed_array_place_shape<'a>(
 /// Fields step into structural children or end at a plain IEEE scalar. A literal
 /// index stays inside its extent; a runtime index selects an array element: its
 /// bound is the obligation of the operation carrying the path. `Referent`
-/// names no primitive leaf; a byte carrier's element is the u8 scalar.
+/// and `Case` name no direct primitive leaf; a byte carrier's element is the
+/// u8 scalar. Borrowed structural projection geometry has a separate contract.
 /// This grants no access authority.
 pub fn primitive_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ScalarType> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     walk_primitive_projection(declarations, root, path, |_| {})?.primitive_scalar()
 }
 
@@ -112,6 +133,12 @@ pub fn primitive_read_projection_type<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ScalarType> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     primitive_projection_type(declarations.clone(), root, path)
         .or_else(|| runtime_element_field(declarations, root, path).map(|(scalar, _)| scalar))
 }
@@ -129,6 +156,12 @@ pub fn runtime_element_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<(ScalarType, &'a StructuralTypeDeclaration)> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
         return None;
     };
@@ -173,6 +206,12 @@ pub fn canonical_primitive_path<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    if path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     let mut canonical = Some(Vec::with_capacity(path.len()));
     let tip = walk_primitive_projection(declarations, root, path, |step| {
         match (step, &mut canonical) {
@@ -748,6 +787,23 @@ mod case_projection_tests {
                 CanonicalStructuralPathSegment::Field(field)
             ]
         );
+        // Loan geometry does not change the direct primitive read/store
+        // contract: both runtime and canonical primitive paths reject Case.
+        let mut inline = types.clone();
+        let scalar = ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64);
+        let StructuralTypeShape::Sum { cases } = &mut inline[0].shape else {
+            panic!("sum");
+        };
+        cases[0].fields[0].field_type = StructuralFieldType::Scalar(scalar);
+        let canonical = [
+            CanonicalStructuralPathSegment::Case(case),
+            CanonicalStructuralPathSegment::Field(field),
+        ];
+        assert!(primitive_projection_type(inline.iter(), root, &path).is_none());
+        assert!(primitive_read_projection_type(inline.iter(), root, &path).is_none());
+        assert!(canonical_primitive_path(inline.iter(), root, &path).is_none());
+        assert!(primitive_place_type(inline.iter(), root, &canonical).is_none());
+        assert!(canonical_static_projection(inline.iter(), root, &path).is_none());
         let mut erased = types.clone();
         let StructuralTypeShape::Sum { cases } = &mut erased[0].shape else {
             panic!("sum");

@@ -1169,6 +1169,7 @@ fn borrowed_case_payload_module(reference: bool) -> TerminalModule {
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                     claims: Vec::new(),
+                    qualification_establishments: Vec::new(),
                 }),
                 kind: OperationKind::EstablishReference { source },
             },
@@ -1191,7 +1192,7 @@ fn borrowed_case_payload_module(reference: bool) -> TerminalModule {
             trivial_affine_discards: Vec::new(),
         };
         callee.structural_parameters = vec![StructuralParameterDeclaration {
-            place: PlaceId::new(1).unwrap(),
+            place: PlaceId::new(901).unwrap(),
             position: 0,
             is_self: false,
             structural_type: payload,
@@ -1201,7 +1202,7 @@ fn borrowed_case_payload_module(reference: bool) -> TerminalModule {
             projected_qualifications: Vec::new(),
         }];
         callee.structural_places = vec![StructuralPlaceDeclaration {
-            id: PlaceId::new(1).unwrap(),
+            id: PlaceId::new(901).unwrap(),
             kind: StructuralPlaceKind::Parameter {
                 position: 0,
                 is_self: false,
@@ -1306,6 +1307,8 @@ fn borrowed_case_payload_membership_expires_after_mutable_call() {
         edge: EdgeId::new(902).unwrap(),
         trivial_affine_discards: Vec::new(),
     };
+    mutation.structural_parameters[0].place = PlaceId::new(902).unwrap();
+    mutation.structural_places[0].id = PlaceId::new(902).unwrap();
     mutation.structural_parameters[0].structural_type = StructuralTypeId::new(1).unwrap();
     mutation.structural_parameters[0].access = StructuralAccess::MutableBorrow;
     let mut call = module.machines[0].blocks[1].operations[0].clone();
@@ -1337,6 +1340,8 @@ fn borrowed_case_payload_membership_expires_after_mutable_call() {
             &ProofBundle::default(),
             &AdmissionProfile::default()
         ),
-        Err(ModuleError::InvalidStructuralCaseObservation { .. })
+        Err(terminal_verifier::VerificationError::Module(
+            ModuleError::InvalidStructuralCaseObservation { .. }
+        ))
     ));
 }

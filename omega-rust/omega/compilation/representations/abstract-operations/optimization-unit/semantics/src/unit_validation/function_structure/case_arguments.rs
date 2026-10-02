@@ -119,9 +119,11 @@ fn membership_on_every_path(
     expected: bool,
 ) -> bool {
     let invalidates = |operation: &O, root| {
-        super::byte_field_freshness::changes_length(function, types, root, path, operation)
+        super::structural_freshness::structural_metadata_may_change(
+            function, types, root, path, operation,
+        )
     };
-    super::byte_field_freshness::established_on_every_path_with_edges(
+    super::structural_freshness::established_on_every_path_with_edges(
         function,
         predecessors,
         use_site,
@@ -182,7 +184,7 @@ fn membership_on_every_path(
                                     *observed_case == case && !expected
                                 };
                                 matches_case
-                                    && super::byte_field_freshness::established_on_every_path(
+                                    && super::structural_freshness::established_on_every_path(
                                         function,
                                         predecessors,
                                         site,

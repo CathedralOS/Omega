@@ -47,6 +47,9 @@ fn subloan(path: Vec<StructuralPathSegment>, access: StructuralAccess) -> PsiOpt
     for (position, segment) in path.iter().rev().enumerate() {
         let structural_type = id(7_100 + position as u64, StructuralTypeId::new);
         let shape = match segment {
+            StructuralPathSegment::Case(_) => {
+                panic!("case subloans require a fixture with active-case control-flow evidence")
+            }
             StructuralPathSegment::FixedByteRange { .. } => {
                 panic!("byte windows are not write-only subloan fixtures")
             }

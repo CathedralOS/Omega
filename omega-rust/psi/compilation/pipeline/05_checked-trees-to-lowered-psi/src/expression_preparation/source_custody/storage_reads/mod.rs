@@ -601,10 +601,10 @@ fn authored_indexed_primitive_read(
     )))
 }
 
-/// Write destinations intentionally exclude case payloads. Reads can extend
-/// that same root/index custody through an exact nominal case and its fields;
-/// the emitting path separately requires the case to hold at the read. Do not
-/// widen assignment paths or erase the case to make these observations agree.
+/// Read observations preserve the shared place replayer's exact root and
+/// projections. A retained case selects the existing case-payload observation
+/// and copy operations, whose emission separately requires live membership;
+/// this source-path join does not admit Case in primitive read or store paths.
 fn authored_read_path(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
@@ -654,6 +654,9 @@ fn authored_read_path(
             .map(|segment| match segment {
                 checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                     Ok(Segment::Field(identity.clone()))
+                }
+                checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                    Ok(Segment::Case(identity.clone()))
                 }
                 checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                     Ok(Segment::FixedIndex(*index))

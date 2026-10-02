@@ -345,7 +345,7 @@ pub(crate) struct WindowEvaluation<'a, 'calls> {
 fn resolve_window_place(
     plan: &CheckedUnitStructuralArgumentPlan,
     parameters: &[StructuralParameterDeclaration],
-    locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
@@ -538,6 +538,11 @@ fn spell_place(
     };
     for segment in &plan.path {
         match segment {
+            CheckedUnitStructuralPathSegment::Case(identity) => {
+                spelling.push_str(".[");
+                spelling.push_str(identity);
+                spelling.push(']');
+            }
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 spelling.push('.');
                 spelling.push_str(identity);

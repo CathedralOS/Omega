@@ -12,7 +12,7 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 /// destination's shape and the current ownership frontier.
 pub(crate) fn local_store_root<'a>(
     symbol: symbols::SymbolHandle,
-    locals: &'a [(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
     operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<
     (
@@ -21,9 +21,9 @@ pub(crate) fn local_store_root<'a>(
     ),
     LoweringError,
 > {
-    let (_, argument) = locals
+    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
         .iter()
-        .find(|(candidate, _)| *candidate == symbol)
+        .find(|local| local.symbol == symbol)
         .ok_or(LoweringError::Unsupported(
             "store names an unknown structural local",
         ))?;
@@ -50,7 +50,7 @@ pub(crate) fn local_store_root<'a>(
 /// Byte-owner writes instead retain their predicates in the byte operation.
 pub(crate) fn unqualified_local_store_root(
     symbol: symbols::SymbolHandle,
-    locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
     let (argument, produced) = local_store_root(symbol, locals, operations)?;

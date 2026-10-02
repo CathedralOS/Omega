@@ -130,7 +130,7 @@ impl MachineEmission<'_> {
                 checked,
                 plan.state,
                 operation,
-                declaration.id,
+                declaration,
                 &mut self.evaluation.structural_locals,
             )?;
         }

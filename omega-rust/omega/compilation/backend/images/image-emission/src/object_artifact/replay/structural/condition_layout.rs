@@ -88,14 +88,48 @@ fn replay_structural_shape(
                 .and_then(|size| u32::try_from(size).ok())?;
             ValueShape::integer(byte_size, element.alignment)
         }
-        terminal_psi::StructuralTypeShape::Sum { .. }
-        | terminal_psi::StructuralTypeShape::Mixed { .. } => {
-            return None;
+        terminal_psi::StructuralTypeShape::Sum { cases } => {
+            replay_sum_layout(&[], cases, declarations, cache, active)?.shape
+        }
+        terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+            replay_sum_layout(fields, cases, declarations, cache, active)?.shape
         }
     };
     active.remove(&structural_type);
     cache.insert(structural_type, shape);
     Some(shape)
+}
+
+/// Reconstruct the conventional tag, common fields and overlaid payloads
+/// from declarations. Geometry does not establish active-case permission.
+fn replay_sum_layout(
+    common: &[terminal_psi::StructuralFieldDeclaration],
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    declarations: &std::collections::BTreeMap<
+        StructuralTypeId,
+        &terminal_psi::StructuralTypeDeclaration,
+    >,
+    cache: &mut std::collections::BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut std::collections::BTreeSet<StructuralTypeId>,
+) -> Option<calling_conventions::ConventionalSumLayout> {
+    let common = common
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| replay_structural_field_shape(&field.field_type, declarations, cache, active))
+        .collect::<Option<Vec<_>>>()?;
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| {
+                    replay_structural_field_shape(&field.field_type, declarations, cache, active)
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
 }
 
 /// Reconstruct one complete native value shape from exact Terminal
@@ -132,8 +166,57 @@ pub(crate) fn replay_structural_projection(
     let mut active = std::collections::BTreeSet::new();
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
         let (selected_type, shape, local_offset) = match segment {
+            terminal_psi::StructuralPathSegment::Case(identity) => {
+                let declaration = declarations.get(&structural_type)?;
+                let (common, cases) = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                        (fields.as_slice(), cases)
+                    }
+                    _ => return None,
+                };
+                let mut matching_cases = cases
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, case)| case.id == *identity);
+                let (case_position, case) = matching_cases.next()?;
+                if matching_cases.next().is_some() {
+                    return None;
+                }
+                let Some(terminal_psi::StructuralPathSegment::Field(field_identity)) =
+                    segments.next()
+                else {
+                    return None;
+                };
+                let mut matching_fields = case
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .filter(|(_, field)| field.identity == *field_identity);
+                let (field_position, field) = matching_fields.next()?;
+                if matching_fields.next().is_some() {
+                    return None;
+                }
+                let terminal_psi::StructuralFieldType::Structural(selected) = field.field_type
+                else {
+                    return None;
+                };
+                let layout =
+                    replay_sum_layout(common, cases, &declarations, &mut cache, &mut active)?;
+                let field_offset = layout
+                    .cases
+                    .get(case_position)?
+                    .fields
+                    .get(field_position)?
+                    .byte_offset;
+                let shape =
+                    replay_structural_shape(selected, &declarations, &mut cache, &mut active)?;
+                (selected, shape, field_offset)
+            }
             terminal_psi::StructuralPathSegment::Referent
             | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
             | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => return None,
@@ -206,7 +289,8 @@ pub(crate) fn replay_runtime_projection(
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
     let mut elements = Vec::new();
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
         if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
             let declaration = declarations
                 .iter()
@@ -222,11 +306,15 @@ pub(crate) fn replay_runtime_projection(
             structural_type = element;
             selected_shape = Some(shape);
         } else {
-            let (selected_type, shape, local_offset) = replay_structural_projection(
-                structural_type,
-                std::slice::from_ref(segment),
-                declarations,
-            )?;
+            let pair;
+            let projection = if matches!(segment, terminal_psi::StructuralPathSegment::Case(_)) {
+                pair = [segment.clone(), segments.next()?.clone()];
+                pair.as_slice()
+            } else {
+                std::slice::from_ref(segment)
+            };
+            let (selected_type, shape, local_offset) =
+                replay_structural_projection(structural_type, projection, declarations)?;
             total_offset = total_offset.checked_add(local_offset)?;
             structural_type = selected_type;
             selected_shape = Some(shape);
@@ -432,3 +520,6 @@ pub(crate) fn replay_boolean_field_offset(
     }
     None
 }
+
+#[cfg(test)]
+mod tests;
