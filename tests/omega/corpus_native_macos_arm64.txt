@@ -357,6 +357,7 @@ pass/control_flow/guarded_transition_dispatch_exit built 1188ms exit:0 stdout:ma
 pass/control_flow/guarded_unit_completion_exit built 927ms exit:70 @1a4aae106a02+wt
 pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
 pass/control_flow/indexed_record_state_argument_exit built 1014ms exit:70 @1a4aae106a02+wt
+pass/control_flow/nested_affine_record_state_cycle_exit built 1007ms exit:70 @fb3ce7840d9b+wt
 pass/control_flow/nested_parameter_receiver_call checked 179ms
 pass/control_flow/nested_structural_call_operand_exit built 1218ms exit:58 @ff183e7f95fb
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 758ms exit:70

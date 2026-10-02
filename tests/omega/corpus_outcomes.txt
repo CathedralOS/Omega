@@ -1501,6 +1501,7 @@ pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
 pass/control_flow/guarded_value_transition_roster checked 1554ms @15f38e49aac2+wt
+pass/control_flow/nested_affine_record_state_cycle_exit checked 884ms @fb3ce7840d9b
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/nested_structural_call_operand_exit checked 916ms @ff183e7f95fb+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 1890ms @2d8ed253669f
