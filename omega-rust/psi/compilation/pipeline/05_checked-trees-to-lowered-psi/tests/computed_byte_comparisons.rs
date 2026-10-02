@@ -102,9 +102,13 @@ fn computed_byte_comparisons_reject_a_same_typed_substituted_source() {
         altered += 1;
     }
     assert!(altered > 0, "the computed operand was retained");
+    let error = lower(&checked).expect_err("equal carrier shape cannot substitute another operand");
     assert!(
-        lower(&checked).is_err(),
-        "equal carrier shape cannot substitute another operand"
+        matches!(
+            error,
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(_)
+        ),
+        "source correspondence must reject the substitution before Terminal proof: {error:?}"
     );
 }
 
