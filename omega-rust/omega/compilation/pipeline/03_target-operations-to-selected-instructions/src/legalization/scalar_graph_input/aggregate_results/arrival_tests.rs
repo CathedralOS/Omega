@@ -163,6 +163,24 @@ fn owned_array_arrival_replays_exact_home_and_rejects_substitution() {
                 legalized.plan().clone(),
             )
             .unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            let selected = crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
             for mutation in 0..3 {
                 let mut changed = targeted.clone();
                 let block = changed.functions[0]
