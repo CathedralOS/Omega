@@ -162,6 +162,32 @@ execution and native exit/output. A moved refusal is still unfinished work.
   migrate those three samples as acceptance. Do not widen the remaining
   machine-parameter-only sites without their own customer program.
 
+- **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
+  85 of 97 screen-clean `tests/omega/{pass,run}` fixtures are refused in the
+  static spelling, and the largest group is one shape: a call that lends the
+  data parameter and mentions it again in a later argument. A receiver hid
+  this, because the receiver was not an ordinary argument; written statically,
+  `Main::verify(main, main.k)` evaluates `main` into a mutable loan and then
+  reads `main.k` through it, which
+  [expressions](wiki/spec/language/expressions.md#evaluation-schedule) orders
+  left to right and [ownership](wiki/spec/language/ownership.md) refuses:
+  "Exclusivity prevents reading old contents through a second alias." The
+  refusal is correct; the authored program is what has to change.
+  Measured across those candidates, 22 call sites mention the lent root again:
+  9 pass `&mut main.field` beside `main`, 5 pass a bare field projection, 4 an
+  indexed projection, 2 a shared projection and 2 a computed expression. The
+  5 bare and 4 indexed are source-mechanical — read the projection into a local
+  before the call, which is also what the migration item asks for ("pass only
+  genuinely live values across states"). The 9 `&mut` ones are a second
+  exclusive loan of the same storage and need the call restructured so only the
+  projection is passed, or the callee to reach the field through the data it
+  already holds.
+  Acceptance: those fixtures build and meet their native oracles in the static
+  spelling with no exclusivity exception added to checking; a genuine second
+  exclusive loan still rejects, with a fixture naming that. This is source and
+  migration-tool work, not a checker change: do not widen call-argument
+  exclusivity to admit a live alias.
+
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
