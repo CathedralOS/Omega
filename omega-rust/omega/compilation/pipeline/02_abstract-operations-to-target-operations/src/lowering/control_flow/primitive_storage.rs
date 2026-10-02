@@ -139,7 +139,7 @@ pub(super) fn readable_byte_field(
     // pointer. Neither observation creates a borrow of that backing.
     if matching.next().is_some()
         || selected.relevance.is_erased()
-        || !matches!(
+        || !(matches!(
             selected.field_type.byte_sequence_carrier(),
             Some(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
@@ -147,7 +147,19 @@ pub(super) fn readable_byte_field(
                         access: Some(StructuralAccess::SharedBorrow),
                     }
             )
-        )
+        ) || matches!(
+            selected.field_type,
+            StructuralFieldType::Structural(child)
+                if types.get(&child).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ElementView { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                            )
+                    )
+                })
+        ))
     {
         return Err(unsupported());
     }

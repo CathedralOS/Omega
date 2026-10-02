@@ -200,15 +200,13 @@ impl Builder<'_, '_> {
         // for u8 or as an `ElementViewSubslice` source for wider scalar
         // elements — its endpoints stay element ordinals.
         let (window, container_place) = match place.segments.last() {
-            Some(facts::PlaceSegment::FixedRange { start, end }) if scalar_element => {
-                (
-                    Some((*start, *end)),
-                    crate::flow::CanonicalPlace {
-                        root: place.root,
-                        segments: place.segments[..place.segments.len() - 1].to_vec(),
-                    },
-                )
-            }
+            Some(facts::PlaceSegment::FixedRange { start, end }) if scalar_element => (
+                Some((*start, *end)),
+                crate::flow::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..place.segments.len() - 1].to_vec(),
+                },
+            ),
             _ => (None, place.clone()),
         };
         let Some((projected, mut path)) =
@@ -232,12 +230,14 @@ impl Builder<'_, '_> {
         }
         let (source, type_identity) = if let Some((start, end)) = window {
             if byte_element {
-                let Some(()) = crate::execution::terminal_unit::calls::fixed_byte_range_within_extent(
-                    self.program,
-                    projected,
-                    start,
-                    end,
-                ) else {
+                let Some(()) =
+                    crate::execution::terminal_unit::calls::fixed_byte_range_within_extent(
+                        self.program,
+                        projected,
+                        start,
+                        end,
+                    )
+                else {
                     return None;
                 };
                 path.push(
@@ -254,9 +254,7 @@ impl Builder<'_, '_> {
                 )
             } else {
                 let mut container = projected;
-                while let typed_trees::types::TypeReferenceNode::Constrained {
-                    base_type, ..
-                }
+                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. }
                 | typed_trees::types::TypeReferenceNode::Reference {
                     referee: base_type,
                     ..
@@ -267,10 +265,7 @@ impl Builder<'_, '_> {
                 let typed_trees::types::TypeReferenceNode::FixedArray {
                     length: typed_trees::types::FixedArrayLength::Literal(length),
                     ..
-                } = self
-                    .program
-                    .type_reference_table
-                    .type_reference(container)
+                } = self.program.type_reference_table.type_reference(container)
                 else {
                     return None;
                 };
@@ -302,11 +297,28 @@ impl Builder<'_, '_> {
                         start: Some(endpoint(start)?),
                         end: Some(endpoint(end)?),
                     },
-                    self.program
-                        .normalized_type_identity(expected)
-                        .into_string(),
+                    crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
+                        self.program,
+                        expected,
+                        &[],
+                        &[],
+                    ),
                 )
             }
+        } else if validation::slice_view_shell(self.program, projected, &[]).is_some() {
+            // A whole view over a place that is itself a view (`let view:
+            // &[i32] = value.readings` where the member is already `&[i32]`)
+            // names the view's own identity with the reference shell peeled —
+            // the loan's access binds on the member, not on the shape.
+            (
+                source,
+                crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
+                    self.program,
+                    expected,
+                    &[],
+                    &[],
+                ),
+            )
         } else {
             (
                 source,

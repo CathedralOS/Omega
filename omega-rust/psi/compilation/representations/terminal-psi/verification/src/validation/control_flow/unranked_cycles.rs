@@ -93,10 +93,13 @@ pub(super) fn ineligibility(
                     // is defined for a fixed array exactly as for a record,
                     // "its element leaf repeated".
                     || (parameter.access == StructuralAccess::SharedBorrow
-                        && block_views::mutable_records::borrowed_carrier_type(
+                        && (block_views::mutable_records::borrowed_carrier_type(
                             module,
                             parameter.structural_type,
-                        ))
+                        ) || crate::validation::record::shared_view_carrier_type(
+                            module,
+                            parameter.structural_type,
+                        )))
                     || ((parameter.access == StructuralAccess::SharedBorrow
                         || (parameter.access == StructuralAccess::MutableBorrow
                             && (machine.result == TerminalMachineResult::Unit
@@ -953,8 +956,14 @@ fn cycle_operation_eligible(
         OperationKind::StructuralLeafCopy { source, path } => {
             operation.result.structural().is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && crate::validation::record::completed_source(module, machine, result.place)
+                    && (crate::validation::record::completed_source(module, machine, result.place)
                         .is_some()
+                        || crate::validation::record::shared_view_member_source(
+                            module,
+                            machine,
+                            result.place,
+                        )
+                        .is_some())
             }) && crate::validation::structural::leaf_copy::validate(
                 module, machine, operation, *source, path,
             )

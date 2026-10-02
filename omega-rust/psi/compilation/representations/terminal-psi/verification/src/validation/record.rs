@@ -7,23 +7,48 @@ use super::{
 use terminal_psi::{RecordFieldValue, StructuralFieldDeclaration};
 
 pub(super) fn plain_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
-    record_type(module, root, false)
+    record_type(module, root, false, false)
 }
 
-/// Local construction can relocate checked reference carriers. Keep this
-/// separate from plain payload classification: plain calls and returns do not
-/// thereby acquire recursive reference transfer semantics.
+/// Local construction can relocate checked reference carriers and
+/// shared-view descriptors alike: the binding roster checks each relocated
+/// loan's source. Keep this separate from plain payload classification:
+/// plain calls and returns do not thereby acquire recursive reference
+/// transfer semantics.
 pub(super) fn constructible_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
-    record_type(module, root, true)
+    record_type(module, root, true, true)
 }
 
-fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool) -> bool {
+/// A record a shared loan may observe: every runtime member is plain storage
+/// or a shared-view descriptor (`&[T]`/`&[u8]` members), so borrowing the
+/// record reads its stored loans without moving them. Descriptor members
+/// carry no owned leaf cells — they relocate caller storage the loan source
+/// already names.
+pub(super) fn shared_view_carrier_type(module: &TerminalModule, root: StructuralTypeId) -> bool {
+    record_type(module, root, false, true)
+}
+
+/// Whether a member's shape is a shared-view descriptor (`&[T]` element
+/// view): the record stores a loan, not owned bytes.
+fn shared_view_member(module: &TerminalModule, child: StructuralTypeId) -> bool {
+    module.structural_types.iter().any(|item| {
+        item.id == child && matches!(item.shape, StructuralTypeShape::ElementView { .. })
+    })
+}
+
+fn record_type(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    references: bool,
+    shared_view_members: bool,
+) -> bool {
     fn field_valid(
         module: &TerminalModule,
         field: &StructuralFieldDeclaration,
         active: &mut Vec<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
         references: bool,
+        shared_view_members: bool,
     ) -> bool {
         // An erased member carries its declaration only: proof material
         // contributes no runtime field and needs no carrier recursion.
@@ -36,14 +61,26 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
             && match field.field_type {
                 StructuralFieldType::Structural(child) => {
                     (references && super::references::referent(module, child).is_some())
-                        || visit(module, child, active, complete, references)
+                        || (shared_view_members && shared_view_member(module, child))
+                        || visit(
+                            module,
+                            child,
+                            active,
+                            complete,
+                            references,
+                            shared_view_members,
+                        )
                 }
                 // A borrowed view is a relocated descriptor, not owned leaf
                 // storage: records carrying one stay plain but may be locally
                 // constructed, where the binding roster checks the loan source.
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) => references,
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                    ..
+                } => references || shared_view_members,
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                 )
@@ -60,6 +97,7 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
         active: &mut Vec<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
         references: bool,
+        shared_view_members: bool,
     ) -> bool {
         if complete.contains(&root) {
             return true;
@@ -85,27 +123,59 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
         // rejected — owning or returning them rides the borrowing lattice,
         // not this one.
         let valid = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields
-                .iter()
-                .all(|field| field_valid(module, field, active, complete, references)),
+            StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+                field_valid(
+                    module,
+                    field,
+                    active,
+                    complete,
+                    references,
+                    shared_view_members,
+                )
+            }),
             StructuralTypeShape::Mixed { fields, cases } => {
-                fields
-                    .iter()
-                    .all(|field| field_valid(module, field, active, complete, references))
-                    && cases.iter().all(|case| {
-                        case.fields
-                            .iter()
-                            .all(|field| field_valid(module, field, active, complete, references))
+                fields.iter().all(|field| {
+                    field_valid(
+                        module,
+                        field,
+                        active,
+                        complete,
+                        references,
+                        shared_view_members,
+                    )
+                }) && cases.iter().all(|case| {
+                    case.fields.iter().all(|field| {
+                        field_valid(
+                            module,
+                            field,
+                            active,
+                            complete,
+                            references,
+                            shared_view_members,
+                        )
                     })
+                })
             }
             StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
-                case.fields
-                    .iter()
-                    .all(|field| field_valid(module, field, active, complete, references))
+                case.fields.iter().all(|field| {
+                    field_valid(
+                        module,
+                        field,
+                        active,
+                        complete,
+                        references,
+                        shared_view_members,
+                    )
+                })
             }),
-            StructuralTypeShape::FixedArray { element, .. } => {
-                visit(module, *element, active, complete, references)
-            }
+            StructuralTypeShape::FixedArray { element, .. } => visit(
+                module,
+                *element,
+                active,
+                complete,
+                references,
+                shared_view_members,
+            ),
             StructuralTypeShape::PrimitiveScalar(_) => true,
             _ => false,
         };
@@ -121,6 +191,7 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
         &mut Vec::new(),
         &mut BTreeSet::new(),
         references,
+        shared_view_members,
     )
 }
 
@@ -385,7 +456,7 @@ pub(super) fn completed_source<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    completed_source_where(module, machine, place, plain_type)
+    completed_source_where(module, machine, place, plain_type, false)
 }
 
 /// The `completed_source` producer set under the constructible-type gate: a
@@ -398,9 +469,40 @@ pub(super) fn constructed_source<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    completed_source_where(module, machine, place, |module, root| {
-        constructible_type(module, root)
-    })
+    completed_source_where(
+        module,
+        machine,
+        place,
+        |module, root| constructible_type(module, root),
+        false,
+    )
+}
+
+/// The `completed_source` producer set under the view-descriptor gate: a copy
+/// of a stored `&[T]`/`&[u8]` member relocates the loan's descriptor only —
+/// the referent stays with the loan source, so the payload is custody-free
+/// the way a shared view itself is.
+pub(super) fn shared_view_member_source<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    completed_source_where(
+        module,
+        machine,
+        place,
+        |module, root| {
+            module.structural_types.iter().any(|row| {
+                row.id == root
+                    && match &row.shape {
+                        StructuralTypeShape::ElementView { .. } => true,
+                        StructuralTypeShape::ByteSequence(carrier) => carrier.is_borrowed(),
+                        _ => false,
+                    }
+            })
+        },
+        true,
+    )
 }
 
 fn completed_source_where<'a>(
@@ -408,6 +510,7 @@ fn completed_source_where<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
     payload: impl Fn(&TerminalModule, StructuralTypeId) -> bool,
+    strict_payload: bool,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
     machine
         .blocks
@@ -437,30 +540,31 @@ fn completed_source_where<'a>(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
                     && (payload(module, result.structural_type)
-                        // Zero establishment also owns bounded byte fields
-                        // whose declared predicates admit an empty live range.
-                        // Rejoin that constructor's checked contract instead
-                        // of treating all byte-bearing records as constructible.
-                        || (matches!(operation.kind, OperationKind::EstablishZeroedStructural { .. })
-                            && super::structural::operations::validate_establish_zeroed_structural(
-                                module, machine, operation,
-                            ).is_ok())
-                        // A verified copy or ordinary call preserves the exact owned subtree,
-                        // including bounded byte fields' live extent and
-                        // predicates. This admits completed snapshots, not
-                        // new byte-field constructors or borrowed carriers.
-                        || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                            && matches!(
-                                operation.kind,
-                                OperationKind::StructuralLeafCopy { .. }
-                                    | OperationKind::StructuralCaseLeafCopy { .. }
-                                    | OperationKind::CallStructural { .. }
-                                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                            )
-                            && super::structural::result_contracts::has_plain_owned_shape(
-                                module,
-                                result.structural_type,
-                            )))
+                        || (!strict_payload
+                            // Zero establishment also owns bounded byte fields
+                            // whose declared predicates admit an empty live range.
+                            // Rejoin that constructor's checked contract instead
+                            // of treating all byte-bearing records as constructible.
+                            && (matches!(operation.kind, OperationKind::EstablishZeroedStructural { .. })
+                                && super::structural::operations::validate_establish_zeroed_structural(
+                                    module, machine, operation,
+                                ).is_ok())
+                            // A verified copy or ordinary call preserves the exact owned subtree,
+                            // including bounded byte fields' live extent and
+                            // predicates. This admits completed snapshots, not
+                            // new byte-field constructors or borrowed carriers.
+                            || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                                && matches!(
+                                    operation.kind,
+                                    OperationKind::StructuralLeafCopy { .. }
+                                        | OperationKind::StructuralCaseLeafCopy { .. }
+                                        | OperationKind::CallStructural { .. }
+                                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                                )
+                                && super::structural::result_contracts::has_plain_owned_shape(
+                                    module,
+                                    result.structural_type,
+                                ))))
             })
         })
 }

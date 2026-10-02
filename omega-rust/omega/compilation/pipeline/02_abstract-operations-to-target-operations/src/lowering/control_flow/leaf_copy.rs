@@ -65,6 +65,23 @@ pub(super) fn copy(
         *structural_type
     } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
         parameter.structural_type
+    } else if let Some(parameter) = function
+        .block_entries
+        .iter()
+        .flat_map(|entry| &entry.structural_parameters)
+        .find(|parameter| parameter.place == *source)
+        .filter(|parameter| {
+            // A shared loan over a view-carrying record observes the carrier:
+            // copying a `&[T]` member reads the stored descriptor, never the
+            // backing cells, so the block param is a readable root.
+            abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
+                parameter,
+                |identity| types.get(&identity).copied(),
+                &types.values().map(|row| (*row).clone()).collect::<Vec<_>>(),
+            )
+        })
+    {
+        parameter.structural_type
     } else {
         super::structural_case::parameter_root(prepared, *source)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?

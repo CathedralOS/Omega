@@ -15,7 +15,7 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
 use crate::expression_preparation::bindings::LoanAccess;
-use checked_trees::CheckedUnitStructuralArgumentPlan;
+use checked_trees::{CheckedUnitStructuralArgumentPlan, types::TypeReferenceNode};
 
 /// A replay refusal, spelled for the view family whose loan it rejoins: a
 /// `BorrowedSliceView` holds a shared loan of the lent collection, a
@@ -67,12 +67,7 @@ pub(super) fn validate(
                 let end =
                     usize::try_from(checked.expression_table.constant_integer_value(range.end)?)
                         .ok()?;
-                Some(
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
-                        start: u64::try_from(start).ok()?,
-                        end: u64::try_from(end).ok()?,
-                    },
-                )
+                Some((start, end))
             })();
             let Some(window) = window else {
                 return unsupported(refusal!(loan, "lost its authored view call"));
@@ -85,8 +80,38 @@ pub(super) fn validate(
         return unsupported(refusal!(loan, "changed its planned access"));
     }
     let (root, mut checked_path) = authored_collection_path(checked, machine, authored, receiver)?;
-    if let Some(window) = window {
-        checked_path.push(window);
+    if let Some((start, end)) = window {
+        // A byte view records its window as a `FixedByteRange` path segment;
+        // a wider scalar element's window rides on the source plan's literal
+        // element ordinals — the recorded path stays the collection's.
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            start: source_start,
+            end: source_end,
+            ..
+        } = &argument.source
+        {
+            let endpoint = |endpoint: &Option<checked_trees::CheckedScalarExpression>,
+                            expected: i64| {
+                matches!(
+                    endpoint,
+                    Some(checked_trees::CheckedScalarExpression::IntegerLiteral { literal })
+                        if *literal == numerics::literals::IntegerLiteral::from_value(expected)
+                )
+            };
+            let (Ok(start), Ok(end)) = (i64::try_from(start), i64::try_from(end)) else {
+                return unsupported(refusal!(loan, "lost its authored view call"));
+            };
+            if !(endpoint(source_start, start) && endpoint(source_end, end)) {
+                return unsupported(refusal!(loan, "window does not match its element subslice"));
+            }
+        } else {
+            let (Ok(start), Ok(end)) = (u64::try_from(start), u64::try_from(end)) else {
+                return unsupported(refusal!(loan, "lost its authored view call"));
+            };
+            checked_path.push(
+                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
+            );
+        }
     }
     if checked_path != argument.path {
         return unsupported(refusal!(loan, "path does not match its projected path"));
@@ -97,7 +122,32 @@ pub(super) fn validate(
             loan,
             "lost its collection type"
         )))?;
-    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } =
+        argument.source
+    {
+        // A wider scalar element's plan records the lent view type the
+        // destination declared — the receiver-side proof is the literal
+        // fixed array the window subslices, checked against its declaration
+        // exactly the way the checked planner peeled it.
+        let mut container =
+            validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf);
+        while let TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = checked.type_reference_table.type_reference(container)
+        {
+            container = *base_type;
+        }
+        if !matches!(
+            checked.type_reference_table.type_reference(container),
+            TypeReferenceNode::FixedArray {
+                length: checked_trees::types::FixedArrayLength::Literal(_),
+                ..
+            }
+        ) {
+            return unsupported(refusal!(loan, "element view is not a fixed-array window"));
+        }
+    } else if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
         return unsupported(refusal!(loan, "does not project its collection"));
     }
     let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {

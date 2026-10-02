@@ -69,9 +69,13 @@ pub(super) fn validate(
                                 !matches!(
                                     declaration.field_type,
                                     terminal_psi::StructuralFieldType::Structural(_)
-                                        | terminal_psi::StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+                                        | terminal_psi::StructuralFieldType::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                        )
                                         | terminal_psi::StructuralFieldType::PredicateByteSequence {
-                                            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }, ..
+                                            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }, ..
                                         }
                                 ) || argument.access != terminal_psi::StructuralAccess::Owned
                                     || !argument.path.is_empty()

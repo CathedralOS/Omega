@@ -61,6 +61,9 @@ pub(super) fn validate_structural_block_bindings(
                                         abstract_operations::control_flow::address_joins::is_address_join_in(
                                             parameter,
                                             &module.structural_types,
+                                        ) || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+                                            parameter,
+                                            &module.structural_types,
                                         ) || parameter.multiplicity
                                             == terminal_psi::StructuralMultiplicity::Unrestricted
                                             && matches!(

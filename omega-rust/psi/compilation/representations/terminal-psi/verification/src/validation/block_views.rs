@@ -83,6 +83,7 @@ pub(super) fn validate_declarations(
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
                                     || super::record::plain_type(module, row.id)
+                                    || super::record::shared_view_carrier_type(module, row.id)
                                     || mutable_records::borrowed_carrier_type(module, row.id))))
                 })
                 || machine

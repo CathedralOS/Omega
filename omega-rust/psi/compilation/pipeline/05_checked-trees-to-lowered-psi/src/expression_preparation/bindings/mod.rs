@@ -178,7 +178,11 @@ impl ScalarBindings {
                 && source.projected_qualifications.is_empty()
         };
         let place = match argument.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                ..
+            } => {
                 let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
                 match locals.next() {
                     Some(source) => {
@@ -223,6 +227,13 @@ impl ScalarBindings {
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
+            }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
+                ..
             } => {
                 let (_, source) = self
                     .structural_parameters
