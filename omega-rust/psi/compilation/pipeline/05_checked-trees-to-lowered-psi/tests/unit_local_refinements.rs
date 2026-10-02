@@ -32,6 +32,7 @@ fn source(initializer: &str, named_state: bool) -> String {
     };
     format!(
         "machine finite_value() -> f32 in Finite {{ 0.5 }}
+         machine retain(value: f32 in Finite) -> f32 in Finite {{ value }}
          machine observe(output: &mut f32, marker: &mut i32) {{ {body} }}"
     )
 }
@@ -130,14 +131,14 @@ fn verify_and_execute(lowered: &lowered_psi::LoweredPsi) {
 
 #[test]
 fn finite_value_contracts_unit_locals_preserve_prefix_and_reload() {
-    for initializer in ["0.5", "finite_value()"] {
+    for initializer in ["0.5", "finite_value()", "retain(finite_value())"] {
         verify_and_execute(&lower(&source(initializer, false)));
     }
 }
 
 #[test]
 fn finite_value_contracts_named_state_unit_locals_preserve_prefix_and_reload() {
-    for initializer in ["0.5", "finite_value()"] {
+    for initializer in ["0.5", "finite_value()", "retain(finite_value())"] {
         verify_and_execute(&lower(&source(initializer, true)));
     }
 }
