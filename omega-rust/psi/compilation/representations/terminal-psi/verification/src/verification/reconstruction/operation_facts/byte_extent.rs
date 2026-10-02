@@ -235,6 +235,23 @@ pub(super) fn view_length_equation(
                 .flat_map(|block| &block.structural_parameters)
                 .find(|parameter| parameter.place == source)
                 .map(|parameter| parameter.structural_type)
+        })
+        .or_else(|| {
+            // A local descriptor names its borrowed view the same way a
+            // parameter does: its observed length is that descriptor's own
+            // extent, which travels across state edges under the same root.
+            machine
+                .structural_places
+                .iter()
+                .find_map(|place| match place.kind {
+                    StructuralPlaceKind::OperationResult {
+                        structural_type, ..
+                    }
+                    | StructuralPlaceKind::TrivialAffineLocal {
+                        structural_type, ..
+                    } if place.id == source => Some(structural_type),
+                    _ => None,
+                })
         })?;
     let declaration = module
         .structural_types

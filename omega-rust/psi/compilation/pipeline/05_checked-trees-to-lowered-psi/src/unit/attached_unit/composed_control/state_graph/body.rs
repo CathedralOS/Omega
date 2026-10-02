@@ -154,9 +154,18 @@ pub(super) fn validate(
         marker_kind.is_some() || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
             // A runtime-indexed dispatch's shared subject plans no operation:
             // each arm observes the borrowed element itself.
-            || crate::expression_preparation::source_custody::case_sources::is_erased_dispatch_subject(
+            || (crate::expression_preparation::source_custody::case_sources::is_erased_dispatch_subject(
                 checked, statements, index,
-            )
+            ) && !state.operations.iter().any(|operation| {
+                // The same planned-result test the loan markers use: a
+                // subslice-shaped subject forwarded into a guarded arm
+                // establishes its own view, so its statement produced a real
+                // operation and cannot recount as the dispatch's no-op
+                // subject.
+                operation
+                    .structural_result_binding()
+                    .is_some_and(|result| result.statement_index as usize == index)
+            }))
     };
     let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
     if prefix > end
