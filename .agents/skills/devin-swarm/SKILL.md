@@ -164,6 +164,25 @@ just joined (gate, repro run, release build — the natural sync points),
 and (c) whenever you message any worker for another reason (you already
 paid the interact call — sweep the other five while you're there).
 
+**Never end your turn with workers dark — arm an external wake.** The
+in-memory "I'll nudge them at the fence window" plan dies the moment the
+coordinator's own turn ends (settle, sleep, stop, context reset) — that is
+the recorded ~2h dark-worker failure: workers suspended on inactivity while
+their fence windows passed, and nothing external ever woke the coordinator
+to resume them. Before ANY turn ends while a worker is suspended mid-leg
+or parked behind a timed fence, you MUST either resume it now or create a
+scheduled self-wakeup (`devin_schedule_manage` create,
+`schedule_type="one_time"`, `target_devin_id=<your own session id>`,
+`scheduled_at` = the earliest pending wake time — never more than ~45min
+out, earlier if a fence drops sooner). The scheduled message IS the sweep:
+when it fires, sweep all worker statuses, resume anything holding a live
+leg or an expired fence, land drained verdicts, then arm the next wake
+before ending that turn too. A coordinator turn may only end with no wake
+armed when every worker is `running (working)` on a live leg AND has
+`notify_on_response` armed — and even then, arm the wake anyway; a worker
+that inactivity-suspends mid-leg produces no settle notification, so the
+armed wake is the only guaranteed recovery.
+
 **Settle notifications and `status_detail` can be stale.** A notification
 saying "waiting for a response" does not mean the worker is idle — it may
 have resumed, acknowledged the next leg, and gone back to work between the
