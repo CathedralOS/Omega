@@ -26,27 +26,45 @@ pub struct AbstractFunction {
 }
 
 impl AbstractFunction {
-    /// The parameter declaration a structural place arrives as: this
-    /// function's own parameter, or the parameter of the block that declares
-    /// it. Both are storage an operation addresses in place, unlike an
-    /// operation result or a literal, which have no caller-owned home.
+    /// The one exact declaration whose storage arrives at `place` through the
+    /// function entrance or a block edge. Terminal-to-abstract lowering has
+    /// already authenticated each place kind; this representation retains the
+    /// entry roster and every block's ordered `(block, position)` coordinates.
+    /// A duplicate spelling fails closed rather than selecting one by type.
     ///
-    /// A receiver collapses every state onto the one function parameter, while
-    /// a named data parameter gives each state its own block parameter, so
-    /// consulting only `structural_parameters` admits the receiver spelling of
-    /// a program and refuses the identical program spelled statically. Place
-    /// identities are unique within a function, so matching the place is
-    /// exact. Callers still read the returned access, multiplicity and
-    /// qualifications themselves; this answers only which storage it is.
+    /// A receiver may reuse its entrance place across states while a named
+    /// state parameter receives a new place. Storage operations must resolve
+    /// both through this query, then check access, multiplicity and qualifications;
+    /// consulting only the entrance roster makes equivalent programs disagree.
     pub fn arrival_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        self.structural_parameters
+        let mut found = None;
+        for parameter in self
+            .structural_parameters
             .iter()
-            .chain(
-                self.block_entries
-                    .iter()
-                    .flat_map(|entry| &entry.structural_parameters),
-            )
-            .find(|parameter| parameter.place == place)
+            .filter(|parameter| parameter.place == place)
+        {
+            if found.replace(parameter).is_some() {
+                return None;
+            }
+        }
+        for block in &self.block_entries {
+            for (position, parameter) in block.structural_parameters.iter().enumerate() {
+                if parameter.place != place {
+                    continue;
+                }
+                // Entry block parameters are forbidden by abstract-program
+                // validation: function formals live only in the signature.
+                // Block positions are dense and never carry receiver identity.
+                if block.block == self.entry
+                    || parameter.is_self
+                    || parameter.position as usize != position
+                    || found.replace(parameter).is_some()
+                {
+                    return None;
+                }
+            }
+        }
+        found
     }
 }
 
@@ -60,3 +78,6 @@ pub struct AbstractBlockEntry {
     pub parameters: Vec<AbstractParameter>,
     pub operation_offset: usize,
 }
+
+#[cfg(test)]
+mod tests;

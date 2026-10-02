@@ -44,7 +44,16 @@ fn record_store_requires_live_unsuspended_mutable_carrier() {
     let mut live = entry_references(&function, &types).unwrap();
     let path = [StructuralPathSegment::Referent];
     let check = |types: &BTreeMap<_, _>, live: &[LiveReference]| {
-        check_record_field_access(&function, types, function.entry, 0, live, place, &path)
+        check_record_field_access(
+            &function,
+            types,
+            function.entry,
+            0,
+            live,
+            place,
+            &path,
+            None,
+        )
     };
     assert!(check(&types, &live).is_ok());
     assert!(
@@ -52,7 +61,17 @@ fn record_store_requires_live_unsuspended_mutable_carrier() {
         "released or not-yet-established carrier"
     );
     assert!(
-        check_record_field_access(&function, &types, function.entry, 0, &live, place, &[]).is_err(),
+        check_record_field_access(
+            &function,
+            &types,
+            function.entry,
+            0,
+            &live,
+            place,
+            &[],
+            None,
+        )
+        .is_err(),
         "shell is not owned backing"
     );
 
@@ -78,8 +97,17 @@ fn record_store_requires_live_unsuspended_mutable_carrier() {
     let types = declarations.iter().map(|row| (row.id, row)).collect();
     let live = entry_references(&function, &types).unwrap();
     assert!(
-        check_record_field_access(&function, &types, function.entry, 0, &live, place, &path)
-            .is_err(),
+        check_record_field_access(
+            &function,
+            &types,
+            function.entry,
+            0,
+            &live,
+            place,
+            &path,
+            None,
+        )
+        .is_err(),
         "shared reference cannot write"
     );
 }

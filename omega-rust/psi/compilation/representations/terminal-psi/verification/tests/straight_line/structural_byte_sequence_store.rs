@@ -9,7 +9,8 @@ use super::{
     validate_module, verify_module,
 };
 use semantic_vocabulary::{PsiSemanticId, StructuralFieldId};
-use terminal_psi::{BindingRelevance, ByteSequenceCarrier};
+use terminal_psi::{BindingRelevance, ByteSequenceCarrier, StructuralArgument};
+use terminal_verifier::ModuleError;
 
 #[path = "structural_byte_sequence_store/indexed.rs"]
 mod indexed;
@@ -184,6 +185,107 @@ fn inline_literal_replacement_reconstructs_and_verifies_capacity() {
         );
         assert!(obligations[0].canonical_certificate);
         verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+    }
+}
+
+fn block_parameter_destination() -> (TerminalModule, ProofBundle) {
+    let (mut module, bundle) = fixture(StructuralAccess::MutableBorrow);
+    let machine = &mut module.machines[0];
+    let mut target_operations = machine.blocks[0].operations.split_off(2);
+    let OperationKind::StructuralByteSequenceFieldStore { destination, .. } =
+        &mut target_operations[1].kind
+    else {
+        unreachable!()
+    };
+    *destination = id(3);
+    let terminator = machine.blocks[0].terminator.clone();
+    machine.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: vec![StructuralArgument {
+            place: id(1),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        }],
+        edge: id(901),
+        target: id(901),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(3),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: id(901),
+            position: 0,
+        },
+    });
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: id(3),
+            position: 0,
+            is_self: false,
+            structural_type: id(1),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        id: id(901),
+        parameters: Vec::new(),
+        operations: target_operations,
+        terminator,
+    });
+    (module, bundle)
+}
+
+#[test]
+fn mutable_block_parameter_replacement_retains_exact_capacity_authority() {
+    let (module, bundle) = block_parameter_destination();
+    validate_module(&module).unwrap();
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+
+    let mut shared = module.clone();
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut shared.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    shared.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    assert_eq!(
+        validate_module(&shared).err(),
+        Some(ModuleError::InvalidStructuralByteSequenceFieldStore(id(4)))
+    );
+
+    for kind in [
+        StructuralPlaceKind::BlockParameter {
+            block: id(902),
+            position: 0,
+        },
+        StructuralPlaceKind::BlockParameter {
+            block: id(901),
+            position: 1,
+        },
+    ] {
+        let mut mismatched = module.clone();
+        mismatched.machines[0]
+            .structural_places
+            .iter_mut()
+            .find(|place| place.id == id(3))
+            .unwrap()
+            .kind = kind;
+        assert!(
+            matches!(
+                validate_module(&mismatched),
+                Err(ModuleError::InvalidBlockStructuralParameter { place, .. }) if place == id(3)
+            ),
+            "the block parameter declaration must retain its exact block and position"
+        );
     }
 }
 

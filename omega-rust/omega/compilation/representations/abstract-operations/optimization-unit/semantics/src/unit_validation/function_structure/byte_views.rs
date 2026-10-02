@@ -181,16 +181,12 @@ fn writable_byte_field_carrier(
         // producer to dominate this write. Shape resolution grants no storage.
         (owned.structural_type, path)
     } else {
-        let parameter = function.arrival_parameter(*destination)?;
+        let (structural_type, access) =
+            super::byte_field_freshness::byte_field_root(function, *destination)?;
         if !matches!(
-            parameter.access,
+            access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        ) || !terminal_psi::is_bounded_structural_scalar_store_path(path)
             || function
                 .entry_claim_declarations
                 .iter()
@@ -202,7 +198,7 @@ fn writable_byte_field_carrier(
         {
             return None;
         }
-        (parameter.structural_type, path)
+        (structural_type, path)
     };
     if !terminal_psi::is_bounded_structural_scalar_store_path(storage_path) {
         return None;

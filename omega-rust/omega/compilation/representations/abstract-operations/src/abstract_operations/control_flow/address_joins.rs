@@ -4,7 +4,7 @@
 //! through static projections. Mutable joins admit the same plain referents,
 //! whole or statically projected, while transferring the exact incoming
 //! mutable permission. Neither carrier copies the referent.
-//! A shared bounded byte owner loan (`owner_loans`) is also carried as its
+//! A shared or mutable bounded byte owner loan (`owner_loans`) is carried as its
 //! owner's address; it keeps the owner's plain byte qualifications, and each
 //! stage requires its edges to forward an identically qualified loan whole.
 //! Byte and element views keep their `{base, extent}` descriptor carriers.
@@ -27,7 +27,7 @@ pub fn is_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
-    super::owner_loans::is_shared_bounded_owner_loan(parameter, lookup)
+    super::owner_loans::is_bounded_owner_loan(parameter, lookup)
         || is_plain_address_join(parameter, lookup)
 }
 

@@ -133,7 +133,11 @@ impl BorrowedRegions {
             for (index, node) in block.nodes.iter().enumerate() {
                 let regions = super::written_or_exclusive_regions(function, types, &node.operation)
                     .into_iter()
-                    .map(|(place, path)| (place, resolve(&aliases, place, Projection::new(&path))))
+                    .map(|(place, region)| {
+                        let mut projection = Projection::new(&region.path);
+                        projection.indirect |= region.indirect;
+                        (place, resolve(&aliases, place, projection))
+                    })
                     .collect::<Vec<_>>();
                 if !regions.is_empty() {
                     writes.insert(

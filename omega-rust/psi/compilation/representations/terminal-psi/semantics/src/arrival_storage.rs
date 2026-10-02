@@ -6,30 +6,6 @@ use terminal_psi::{
     Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
 };
 
-/// A block's own structural parameter at the position its place records.
-/// Mirrors the machine-roster half below for the per-block roster.
-fn block_parameter(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<&StructuralParameterDeclaration> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)?;
-    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
-        return None;
-    };
-    machine
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)?
-        .structural_parameters
-        .get(position as usize)
-        .filter(|parameter| {
-            parameter.place == place && parameter.position == position && !parameter.is_self
-        })
-}
-
 /// The parameter declaration a structural place arrives as: the machine's own
 /// parameter at its declared position, or a block parameter in the block that
 /// declares it. Both are storage an operation addresses in place, unlike an
@@ -44,26 +20,74 @@ fn block_parameter(
 /// each is validated where it is declared, so the roster a root happens to sit
 /// in was spelling, not permission. Callers still read the returned access,
 /// multiplicity and qualifications themselves; this answers only which storage
-/// the place is.
+/// the place is. The place, owner and dense roster position must name exactly
+/// one declaration. Malformed duplicates and entry-block formals fail closed;
+/// operation results are not arrival storage.
 pub fn arrival_parameter<'machine>(
     machine: &'machine TerminalMachine,
     place: PlaceId,
 ) -> Option<&'machine StructuralParameterDeclaration> {
-    machine
-        .structural_parameters
+    let mut place_declarations = machine
+        .structural_places
         .iter()
-        .find(|parameter| {
-            parameter.place == place
-                && machine.structural_places.iter().any(|row| {
-                    row.id == place
-                        && row.kind
-                            == StructuralPlaceKind::Parameter {
-                                position: parameter.position,
-                                is_self: parameter.is_self,
-                            }
-                })
-        })
-        .or_else(|| block_parameter(machine, place))
+        .filter(|declaration| declaration.id == place);
+    let place_declaration = place_declarations.next()?;
+    if place_declarations.next().is_some() {
+        return None;
+    }
+
+    match place_declaration.kind {
+        StructuralPlaceKind::Parameter { position, is_self } => {
+            let parameter = machine.structural_parameters.get(position as usize)?;
+            (parameter.place == place
+                && parameter.position == position
+                && parameter.is_self == is_self
+                && machine
+                    .structural_parameters
+                    .iter()
+                    .filter(|candidate| candidate.place == place)
+                    .count()
+                    == 1
+                && machine.blocks.iter().all(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .all(|candidate| candidate.place != place)
+                }))
+            .then_some(parameter)
+        }
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            if block == machine.entry
+                || machine
+                    .structural_parameters
+                    .iter()
+                    .any(|candidate| candidate.place == place)
+            {
+                return None;
+            }
+            let mut owner_blocks = machine
+                .blocks
+                .iter()
+                .filter(|candidate| candidate.id == block);
+            let owner = owner_blocks.next()?;
+            if owner_blocks.next().is_some() {
+                return None;
+            }
+            let parameter = owner.structural_parameters.get(position as usize)?;
+            (parameter.place == place
+                && parameter.position == position
+                && !parameter.is_self
+                && machine
+                    .blocks
+                    .iter()
+                    .flat_map(|candidate| &candidate.structural_parameters)
+                    .filter(|candidate| candidate.place == place)
+                    .count()
+                    == 1)
+                .then_some(parameter)
+        }
+        _ => None,
+    }
 }
 
 /// The place in `predecessor` that denotes, on the edge into `block`, the same

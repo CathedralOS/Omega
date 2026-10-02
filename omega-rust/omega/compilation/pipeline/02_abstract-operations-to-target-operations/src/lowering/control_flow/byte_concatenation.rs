@@ -50,7 +50,7 @@ pub(super) fn lower(
         return Err(invalid());
     }
     for operand in [left, right] {
-        let (source, length) = match operand {
+        let (source, length, whole_source) = match operand {
             ByteSequenceOperand::Whole { source, length } => {
                 if live.lengths.get(length) != Some(source)
                     || !(live.views.contains_key(source)
@@ -62,7 +62,7 @@ pub(super) fn lower(
                 {
                     return Err(invalid());
                 }
-                (*source, *length)
+                (*source, *length, true)
             }
             ByteSequenceOperand::Field {
                 source,
@@ -89,10 +89,12 @@ pub(super) fn lower(
                 {
                     return Err(invalid());
                 }
-                (source.place, *length)
+                (source.place, *length, false)
             }
         };
-        if source == result.place || super::references::check_root_access(live, source) {
+        if source == result.place
+            || (whole_source && super::references::check_root_access(live, source))
+        {
             return Err(invalid());
         }
         let scalar = live

@@ -76,8 +76,14 @@ impl<'a> SharedLoans<'a> {
                 }))
             .then_some(place)
         };
-        for place in consumed {
-            if let Some(place) = conflicts(*place, self.regions_at(*place, &[])) {
+        // Publication replaces the whole result storage on cyclic re-entry,
+        // even for unrestricted producers with no disposal obligation.
+        for place in consumed
+            .iter()
+            .copied()
+            .chain(operation.result.structural().map(|result| result.place))
+        {
+            if let Some(place) = conflicts(place, self.regions_at(place, &[])) {
                 return Some(place);
             }
         }

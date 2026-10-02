@@ -1,0 +1,55 @@
+// State parameters retain the same byte-field write authority as entry
+// parameters. Concatenation snapshots the source before replacement.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+data Source { text: [u8; 8] in Utf8; }
+data Destination { text: [u8; 16] in Utf8; sibling: u64; }
+data Main {
+    console: Binding<Console>;
+    source: Source;
+    direct: Destination;
+    forwarded: Destination;
+}
+
+machine replace_direct(source: &Source, destination: &mut Destination) {
+    destination.text = source.text + "!";
+}
+
+machine replace_forwarded(source: &Source, destination: &mut Destination) {
+    transition { _ -> check(source, destination, 0) }
+    state check(source: &Source, destination: &mut Destination, position: u64) {
+        transition position < 3 {
+            true -> install(source, destination, position)
+            false -> done()
+        }
+    }
+    state install(source: &Source, destination: &mut Destination, position: u64) {
+        destination.text = source.text + "!";
+        transition { _ -> check(source, destination, position + 1) }
+    }
+    state done() {}
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.source.text = "Gate";
+    self.direct.sibling = 29;
+    self.forwarded.sibling = 37;
+    self.forwarded.text = "old contents";
+    replace_direct(&self.source, &mut self.direct);
+    self.source.text = "é";
+    replace_forwarded(&self.source, &mut self.forwarded);
+    transition self.direct.text == "Gate!"
+        && self.direct.text.len == 5
+        && self.direct.sibling == 29
+        && self.forwarded.text == "é!"
+        && self.forwarded.text.len == 3
+        && self.forwarded.sibling == 37
+        && self.source.text == "é" {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

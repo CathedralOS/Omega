@@ -435,7 +435,7 @@ rows! {
         "formation:control-flow-validation",
         SharedFormation,
         "the machine's blocks, edges, terminators, and declared cycle structure",
-        "validated control flow: successors, dominance, and cycle declarations agree before reconstruction relies on them",
+        "validated control flow: successors, dominance, and cycle declarations agree before reconstruction relies on them; unrestricted constructors share a disposal-free lifetime but retain each operation's initialization and evidence checks, while records and affine cases retain ordinary frontier replay and their applicable disposal rules",
         &["formation:module-structure"],
         &[tv!( "validation/control_flow.rs"), tv!( "validation/control_flow/block_checks.rs"), tv!( "validation/control_flow/block_graph.rs"), tv!( "validation/control_flow/definitions.rs"), tv!( "validation/control_flow/unranked_cycles.rs"), tv!( "control_graph.rs")]
     );
@@ -523,7 +523,7 @@ rows! {
         "formation:frontier",
         SharedFormation,
         "the machine's claim frontier, possible projected storage regions pinned by shared-borrow join parameters, and live whole owned homes backing exclusive state loans at each block and traversal point",
-        "the reconstructed frontier used by crash guards and cleanup checks is the validated one; shared state loans reject any overlapping possible origin after forwarding, while disjoint field writes remain legal and uncertain projections never narrow interference; exclusive state loans retain the backing home's affine disposal obligation through every arrival until exact normal-return disposition, copy-payload sources the owned-read gate exempts are availability-checked at every consuming establishment, and owned byte concatenations the gate exempts carry no affine debt and are availability-checked by byte-view use validation at every loan; claim-free bounded owned byte returns require the exact authenticated result contract and independent control-flow dominance, while partial moves, live claims and cleanup obligations still reject; exact unrestricted bounded-owned call results likewise have no disposal entry and must dominate every byte observation or loan; copied bounded-byte record operands are unrestricted but must already be available before the complete record establishes, and each member independently checks source capacity, access and predicate implication",
+        "the reconstructed frontier used by crash guards and cleanup checks is the validated one; every structural result publication rejects replacement of a root pinned by a shared successor loan or live reference, including on cyclic re-entry; shared state loans reject any overlapping possible origin after forwarding, while disjoint field writes remain legal and uncertain projections never narrow interference; exclusive state loans retain the backing home's affine disposal obligation through every arrival until exact normal-return disposition, copy-payload sources the owned-read gate exempts are availability-checked at every consuming establishment, and owned byte concatenations the gate exempts carry no affine debt and are availability-checked by byte-view use validation at every loan; claim-free bounded owned byte returns require the exact authenticated result contract and independent control-flow dominance, while partial moves, live claims and cleanup obligations still reject; exact unrestricted bounded-owned call results likewise have no disposal entry and must dominate every byte observation or loan; copied bounded-byte record operands are unrestricted but must already be available before the complete record establishes, and each member independently checks source capacity, access and predicate implication",
         &["scope:dominance-order"],
         &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_entry.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/operations.rs"), tv!( "validation/frontier/shared_loans.rs"), tv!( "validation/borrowed_windows.rs"), tv!( "validation/frontier/terminators.rs"), tv!( "validation/frontier/traversal.rs")]
     );
@@ -591,13 +591,21 @@ rows! {
         &["formation:contract-validation"],
         &[tv!( "validation/suspension_call_plan.rs")]
     );
+    FORM_STORAGE_REGIONS => (
+        "formation:storage-regions",
+        SharedFormation,
+        "authenticated structural declarations and a validated projected or canonical field path; live access authority remains the caller's independent obligation",
+        "storage geometry conservatively encloses runtime selectors and unresolved fields; reference indirection remains separate from the enclosing direct path, so truncating at a runtime index cannot manufacture disjointness; canonical fields rejoin exact declaration identities, while unknown or active-case geometry grants no disjointness; this geometry grants no reference, ownership or proof authority",
+        &["formation:contract-validation"],
+        &[ts!( "storage_regions.rs")]
+    );
     FORM_REFERENCES => (
         "formation:references",
         SharedFormation,
         "the machine's establish/release discipline over mutable primitive or plain-owned record referents and shared named referents, including exact relevant-field/fixed-index ingress projections",
-        "reference operations validate against declared custody — a minted, projected, or returned reference never exceeds its source's access, and shared carriers never move an ingress leaf; field observations require a live whole shared or mutable carrier with no live child or loan rooted at that carrier, while owned-root reads remain suspended until release; field writes through an explicit Referent require an available live affine mutable carrier with no live child; ordinary nonescaping calls may lend an exact relevant-field/fixed-index subtree below that crossing with attenuated access, preserving the full argument path while conservatively comparing the parent's origin for alias rejection; this does not admit projected reference establishment or local escapes; a whole mutable record result may select static paths beneath one formal ingress, with one permission conservatively pinning every candidate, exact reachable-return coverage and acyclic reference-result dependencies rather than circular signature evidence; every reference-returning declaration retains its complete exact source roster before observations are reconstructed",
+        "reference operations validate against declared custody — a minted, projected, or returned reference never exceeds its source's access, and shared carriers never move an ingress leaf; field observations require a live whole shared or mutable carrier with no live child or loan rooted at that carrier, while ordinary owned storage access compares its canonical operation region with every live origin candidate and carrier region, permitting disjoint siblings but suspending any overlap until release; field writes through an explicit Referent require an available live affine mutable carrier with no live child; ordinary nonescaping calls may lend an exact relevant-field/fixed-index subtree below that crossing with attenuated access, preserving the full argument path while conservatively comparing the parent's origin for alias rejection; this does not admit projected reference establishment or local escapes; a whole mutable record result may select static paths beneath one formal ingress, with one permission conservatively pinning every candidate, exact reachable-return coverage and acyclic reference-result dependencies rather than circular signature evidence; every reference-returning declaration retains its complete exact source roster before observations are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/references.rs")]
+        &[tv!( "validation/references.rs"), tv!( "validation/structural/access_regions.rs")]
     );
     FORM_PARTIAL_AFFINE => (
         "formation:partial-affine",

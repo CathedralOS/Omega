@@ -30,9 +30,7 @@ pub(super) fn replace(
                 obligation,
             } => {
                 let parameter = function
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == *destination)
+                    .arrival_parameter(*destination)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if !matches!(
                     parameter.access,
@@ -230,6 +228,18 @@ fn writable_byte_field(
         destination,
         path,
     );
+    if reference_destination.is_none()
+        && super::references::check_projected_access(
+            function,
+            live,
+            structural_types,
+            destination,
+            path,
+            Some(field),
+        )
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
     let (root, root_type, access, path) = if let Some(home) = owned_home.filter(|home| {
         structural_types
             .get(&home.structural_type())

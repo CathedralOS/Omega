@@ -1,4 +1,4 @@
-use super::{is_shared_bounded_owner_loan_in, is_shared_byte_view};
+use super::{is_bounded_owner_loan_in, is_shared_bounded_owner_loan_in, is_shared_byte_view};
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -91,4 +91,37 @@ fn mutable_receiver_affine_bounded_and_owner_formals_are_not_shared_byte_views()
     let owner = qualified_view(3, StructuralAccess::SharedBorrow);
     assert!(!shared_view(&owner));
     assert!(is_shared_bounded_owner_loan_in(&owner, &catalog()));
+}
+
+#[test]
+fn bounded_owner_transport_preserves_access_without_freezing_mutable_loans() {
+    let types = catalog();
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let owner = qualified_view(3, access);
+        assert!(is_bounded_owner_loan_in(&owner, &types));
+        assert_eq!(
+            is_shared_bounded_owner_loan_in(&owner, &types),
+            access == StructuralAccess::SharedBorrow
+        );
+    }
+    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
+        assert!(!is_bounded_owner_loan_in(
+            &qualified_view(3, access),
+            &types
+        ));
+    }
+    let mut owner = qualified_view(3, StructuralAccess::MutableBorrow);
+    owner.multiplicity = StructuralMultiplicity::Affine;
+    assert!(!is_bounded_owner_loan_in(&owner, &types));
+    owner.multiplicity = StructuralMultiplicity::Unrestricted;
+    let mut duplicate = types.clone();
+    duplicate.push(types[2].clone());
+    assert!(!is_bounded_owner_loan_in(&owner, &duplicate));
+    for carrier in [1, 2] {
+        owner.structural_type = id(carrier);
+        assert!(!is_bounded_owner_loan_in(&owner, &types));
+    }
 }

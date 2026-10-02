@@ -2067,7 +2067,8 @@ fn structural_result_call_rejects_substituted_result_home_and_plan() {
 fn selected_reference_result_retains_every_root_path() {
     let source = source_plan(
         r#"
-            data Holder { value: u64; }
+            domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+            data Holder { value: u64; label: [u8; 8] in Utf8; }
             data Bag { holders: [Holder; 3]; }
             data Main { bag: Bag; }
             machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
@@ -2078,7 +2079,10 @@ fn selected_reference_result_retains_every_root_path() {
                 }
             }
             machine Main::run(&mut self) {
+                self.bag.holders[2].label = "ok";
                 let selected: &mut Holder = pick(&mut self.bag, true);
+                let sibling_length: u64 = self.bag.holders[2].label.len;
+                selected.value = sibling_length;
             }
         "#,
     );
@@ -2102,6 +2106,27 @@ fn selected_reference_result_retains_every_root_path() {
                 .flat_map(|function| &function.graph.blocks)
                 .flat_map(|block| &block.operations)
                 .any(is_selected)
+        );
+        let sibling = terminal_psi::StructuralPathSegment::FixedIndex(2);
+        assert!(
+            target
+                .functions
+                .iter()
+                .flat_map(|function| &function.graph.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(operation,
+                TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. }
+                    if destination.path.contains(&sibling)))
+        );
+        assert!(
+            target
+                .functions
+                .iter()
+                .flat_map(|function| &function.graph.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(operation,
+                TargetUnitOperation::StructuralByteSequenceFieldLength { source, .. }
+                    if source.path.contains(&sibling)))
         );
         for mutation in 0..6 {
             let mut changed = target.clone();

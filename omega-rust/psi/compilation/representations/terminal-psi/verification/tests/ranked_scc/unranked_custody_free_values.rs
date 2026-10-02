@@ -19,6 +19,259 @@ use terminal_psi::{
     StructuralOperationResult,
 };
 
+fn owned_byte_cycle() -> TerminalModule {
+    use terminal_psi::{ByteSequenceCarrier, control_flow::ByteSequenceOperand};
+
+    let mut module = unranked_scalar_cycle();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: id(1, StructuralTypeId::new),
+            identity: "test::LiteralBytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
+        },
+        StructuralTypeDeclaration {
+            id: id(2, StructuralTypeId::new),
+            identity: "test::OwnedBytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity: 8,
+            }),
+        },
+    ];
+    let machine = &mut module.machines[0];
+    let length_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for (ordinal, bytes) in [(1, b"a".as_slice()), (2, b"b".as_slice())] {
+        let place = id(ordinal, PlaceId::new);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: (ordinal - 1) as u32,
+                structural_type: id(1, StructuralTypeId::new),
+            },
+        });
+        machine.blocks[0].operations.extend([
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(ordinal * 2 - 1, OperationId::new),
+                result: OperationResult::Unit,
+                kind: OperationKind::EstablishByteSequenceLiteral {
+                    destination: place,
+                    bytes: bytes.to_vec(),
+                    qualifications: Vec::new(),
+                },
+            },
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(ordinal * 2, OperationId::new),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: id(ordinal, ValueId::new),
+                    scalar_type: length_type,
+                }),
+                kind: OperationKind::ByteSequenceLength { source: place },
+            },
+        ]);
+    }
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(3, PlaceId::new),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(5, OperationId::new),
+            structural_type: id(2, StructuralTypeId::new),
+        },
+    });
+    machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(5, OperationId::new),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: id(3, PlaceId::new),
+            structural_type: id(2, StructuralTypeId::new),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishByteSequenceConcatenation {
+            left: ByteSequenceOperand::Whole {
+                source: id(1, PlaceId::new),
+                length: id(1, ValueId::new),
+            },
+            right: ByteSequenceOperand::Whole {
+                source: id(2, PlaceId::new),
+                length: id(2, ValueId::new),
+            },
+            capacity_obligation: id(1, semantic_vocabulary::ObligationId::new),
+        },
+    });
+    module
+}
+
+#[test]
+fn cyclic_owned_bytes_reconstruct_capacity_without_waiving_evidence() {
+    use terminal_verifier::{
+        reconstruct_interpretable_operation_obligations, validate_module_for_interpretation,
+    };
+
+    let module = owned_byte_cycle();
+    validate_module(&module).expect("fresh unrestricted backing is legal on every traversal");
+    let obligations = reconstruct_interpretable_operation_obligations(
+        validate_module_for_interpretation(&module).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(
+        obligations[0].obligation.proposition,
+        terminal_semantics::byte_sequence_concatenation_capacity_goal(
+            &module.machines[0].blocks[0].operations[4],
+            8,
+        )
+        .unwrap(),
+    );
+    assert!(
+        verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "cycle admission does not discharge the capacity obligation",
+    );
+}
+
+#[test]
+fn cyclic_owned_bytes_require_exact_dominating_lengths() {
+    use terminal_psi::control_flow::ByteSequenceOperand;
+
+    for corruption in ["other source length", "length after construction"] {
+        let mut module = owned_byte_cycle();
+        let operations = &mut module.machines[0].blocks[0].operations;
+        if corruption == "other source length" {
+            let OperationKind::EstablishByteSequenceConcatenation { left, .. } =
+                &mut operations[4].kind
+            else {
+                unreachable!()
+            };
+            // Both literals have length one, but equal numbers do not convey
+            // the other source's current-length identity.
+            *left = ByteSequenceOperand::Whole {
+                source: id(1, PlaceId::new),
+                length: id(2, ValueId::new),
+            };
+        } else {
+            operations.swap(3, 4);
+        }
+        assert!(validate_module(&module).is_err(), "{corruption}");
+    }
+}
+
+#[test]
+fn cyclic_owned_result_rebind_cannot_disturb_a_carried_shared_loan() {
+    use semantic_vocabulary::{BlockId, EdgeId};
+    use terminal_psi::{
+        Block, StructuralAccess, StructuralArgument, StructuralParameterDeclaration, Terminator,
+    };
+
+    let mut module = owned_byte_cycle();
+    // Shared successor loans already admit completed records, whereas direct
+    // loans of concatenation results have a separate source-admission gap.
+    // Exercise the generic publication fence through an admitted constructor.
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: id(2, StructuralTypeId::new),
+        identity: "test::OwnedRecord".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    }];
+    let machine = &mut module.machines[0];
+    machine
+        .structural_places
+        .retain(|place| place.id == id(3, PlaceId::new));
+    machine.blocks[0].operations.drain(..4);
+    machine.blocks[0].operations[0].kind = OperationKind::EstablishRecord { fields: Vec::new() };
+    let loop_block = machine.entry;
+    let preheader = id(2, BlockId::new);
+    let borrowed = id(5, PlaceId::new);
+    let initial = id(4, PlaceId::new);
+    let mut initial_constructor = machine.blocks[0].operations[0].clone();
+    initial_constructor.id = id(6, OperationId::new);
+    let OperationResult::Structural(result) = &mut initial_constructor.result else {
+        unreachable!()
+    };
+    result.place = initial;
+    machine.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: initial,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(6, OperationId::new),
+                structural_type: id(2, StructuralTypeId::new),
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: borrowed,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: loop_block,
+                position: 0,
+            },
+        },
+    ]);
+    machine.blocks[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: borrowed,
+            position: 0,
+            is_self: false,
+            structural_type: id(2, StructuralTypeId::new),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    let argument = |place| StructuralArgument {
+        place,
+        access: StructuralAccess::SharedBorrow,
+        path: Vec::new(),
+    };
+    let Terminator::Conditional { when_true, .. } = &mut machine.blocks[0].terminator else {
+        unreachable!()
+    };
+    when_true.structural_arguments.push(argument(borrowed));
+    machine.entry = preheader;
+    machine.blocks.push(Block {
+        id: preheader,
+        parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: vec![initial_constructor],
+        terminator: Terminator::Jump {
+            edge: id(13, EdgeId::new),
+            target: loop_block,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![argument(initial)],
+            residual_affine_discards: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    });
+    validate_module(&module)
+        .expect("the unrelated initial owner stays pinned, not the fresh result");
+    let Terminator::Conditional { when_true, .. } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.structural_arguments[0] = argument(id(3, PlaceId::new));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::SharedStructuralLoanDisturbed {
+            operation: id(5, OperationId::new),
+            place: id(3, PlaceId::new),
+        }),
+    );
+}
+
 fn scalar_boundary_cycle() -> TerminalModule {
     let mut module = unranked_scalar_cycle();
     let boundary = id(1, BoundaryMachineId::new);

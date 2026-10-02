@@ -272,11 +272,7 @@ pub(crate) fn replacement_preserves_predicates(
             source,
             ..
         } => {
-            let Some(parameter) = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *destination)
-            else {
+            let Some(parameter) = function.arrival_parameter(*destination) else {
                 return false;
             };
             (

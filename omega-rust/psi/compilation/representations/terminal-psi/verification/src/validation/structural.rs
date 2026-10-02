@@ -1,6 +1,7 @@
 //! Structural validation: what a structural value's fields, cases,
 //! operations, rosters and result contracts must satisfy.
 
+pub(super) mod access_regions;
 pub(crate) mod byte_sequence_fields;
 pub(crate) mod byte_sequence_store;
 pub(crate) mod byte_view_field_store;

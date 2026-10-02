@@ -73,7 +73,7 @@ pub(super) fn readable_byte_field(
     // Observations need not share the narrower store grammar. The semantic
     // check below constrains newly admitted deep paths to fixed storage before
     // the general projection resolver computes their physical extent.
-    if super::references::check_root_access(live, source)
+    if super::references::check_projected_access(function, live, types, source, path, Some(field))
         || function
             .entry_claims
             .iter()

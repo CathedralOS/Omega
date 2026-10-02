@@ -490,19 +490,7 @@ fn source_contract(
     live: &LiveDefinitions,
     place: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralMultiplicity)> {
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    {
-        return Some((parameter.structural_type, parameter.multiplicity));
-    }
-    if let Some(parameter) = function
-        .block_entries
-        .iter()
-        .flat_map(|entry| &entry.structural_parameters)
-        .find(|parameter| parameter.place == place)
-    {
+    if let Some(parameter) = function.arrival_parameter(place) {
         return Some((parameter.structural_type, parameter.multiplicity));
     }
     if let Some(home) = live.structural_homes.get(&place) {
@@ -785,10 +773,82 @@ pub(super) fn is_suspended_root(live: &LiveDefinitions, place: PlaceId) -> bool 
 /// Reads, writes and establishments cannot touch a suspended referent, and a
 /// live carrier is never owned data for primitive or aggregate access.
 pub(super) fn check_root_access(live: &LiveDefinitions, place: PlaceId) -> bool {
+    check_region_access(live, place, &[])
+}
+
+fn check_region_access(
+    live: &LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let overlaps = |other: &[StructuralPathSegment]| {
+        terminal_semantics::structural_paths_may_overlap(path, other)
+    };
     live.references
-        .values()
-        .any(|reference| reference.root.place() == place || reference.identity.0 == place)
-        || live.references.keys().any(|(carrier, _)| *carrier == place)
+        .iter()
+        .any(|((carrier, carrier_path), reference)| {
+            (*carrier == place && overlaps(carrier_path))
+                || (reference.identity.0 == place && overlaps(&reference.identity.1))
+                || (reference.root.place() == place
+                    && match &reference.root {
+                        ReferenceRoot::Place(_) => true,
+                        ReferenceRoot::Ingress(_, path) => overlaps(path),
+                        ReferenceRoot::Alternatives(_, paths) => {
+                            paths.iter().any(|path| overlaps(path))
+                        }
+                    })
+        })
+}
+
+/// Ordinary field observations and writes touch their exact region. Rejoin the
+/// current declaration/home before using shared geometry; a missing contract
+/// conservatively covers the entire root and never supplies disjointness.
+pub(super) fn check_projected_access(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> bool {
+    let Some((root, _)) = source_contract(function, live, place) else {
+        return check_root_access(live, place);
+    };
+    let region =
+        terminal_semantics::projected_storage_region(types.values().copied(), root, path, field);
+    check_region_access(live, place, region.direct_path())
+}
+
+pub(super) fn check_operation_access(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    operation: &AbstractOperation,
+    place: PlaceId,
+) -> bool {
+    match operation {
+        AbstractOperation::StructuralScalarFieldRead { path, field, .. } => {
+            let region =
+                source_contract(function, live, place).map_or_else(Vec::new, |(root, _)| {
+                    terminal_semantics::canonical_field_storage_region(
+                        types.values().copied(),
+                        root,
+                        path,
+                        *field,
+                    )
+                });
+            check_region_access(live, place, &region)
+        }
+        AbstractOperation::PrimitiveScalarRead { path, .. }
+        | AbstractOperation::StructuralCaseMembership { path, .. }
+        | AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
+            check_projected_access(function, live, types, place, path, None)
+        }
+        AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {
+            check_projected_access(function, live, types, place, path, Some(*field))
+        }
+        _ => check_root_access(live, place),
+    }
 }
 
 /// Validate every structural call argument under reference custody. Owned

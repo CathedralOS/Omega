@@ -708,6 +708,117 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
 }
 
 #[test]
+fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
+    use semantic_vocabulary::{ObligationId, StructuralDomainId};
+    use target_operations::TargetUnitScalarArgumentSource;
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for arrival in [false, true] {
+        let (mut function, mut target) = field_fixture(scalar);
+        let parameter = &mut function.structural_parameters[0];
+        parameter.is_self = false;
+        parameter.access = StructuralAccess::MutableBorrow;
+        parameter.qualifications = vec![StructuralDomainId::new(1).unwrap()];
+        target.graph.parameters[0].access = parameter.access;
+        target.graph.structural_types = vec![StructuralTypeDeclaration {
+            id: parameter.structural_type,
+            identity: "test::OwnedBytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity: 16,
+            }),
+        }]
+        .into();
+        let destination = parameter.place;
+        let source = PlaceId::new(2).unwrap();
+        let length = ValueId::new(1).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        let psi_operation = OperationId::new(1).unwrap();
+        function.operations[0] = AbstractOperation::ByteSequenceStore {
+            psi_operation,
+            destination,
+            source,
+            length,
+            obligation,
+        };
+        target.graph.blocks[0].operations[0] = TargetUnitOperation::ByteSequenceStore {
+            psi_operation,
+            destination,
+            source,
+            length: TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value: length,
+                scalar_type: scalar,
+            },
+            obligation,
+        };
+        if arrival {
+            let block = BlockId::new(2).unwrap();
+            let parameter = function.structural_parameters.remove(0);
+            target.graph.parameters.clear();
+            target.graph.blocks[0].block = block;
+            target.graph.blocks[0].structural_parameters = vec![parameter.clone()];
+            function
+                .block_entries
+                .push(abstract_operations::AbstractBlockEntry {
+                    block,
+                    structural_parameters: vec![parameter],
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                });
+        }
+        assert!(replacement_retained(
+            &function,
+            &function.operations[0],
+            &target
+        ));
+        for corruption in ["access", "type", "position", "qualification"] {
+            let mut changed = target.clone();
+            if arrival {
+                let parameter = &mut changed.graph.blocks[0].structural_parameters[0];
+                match corruption {
+                    "access" => parameter.access = StructuralAccess::SharedBorrow,
+                    "type" => parameter.structural_type = StructuralTypeId::new(2).unwrap(),
+                    "position" => parameter.position = 1,
+                    "qualification" => parameter.qualifications.clear(),
+                    _ => unreachable!(),
+                }
+            } else {
+                // The entry ABI omits semantic root qualifications; they remain
+                // checked by mandatory source replay, not fabricated ABI fields.
+                let parameter = &mut changed.graph.parameters[0];
+                match corruption {
+                    "access" => parameter.access = StructuralAccess::SharedBorrow,
+                    "type" => parameter.structural_type = StructuralTypeId::new(2).unwrap(),
+                    "position" => parameter.place = PlaceId::new(3).unwrap(),
+                    "qualification" => changed.graph.structural_types = Vec::new().into(),
+                    _ => unreachable!(),
+                }
+            }
+            assert!(
+                !replacement_retained(&function, &function.operations[0], &changed),
+                "arrival={arrival}, {corruption}"
+            );
+        }
+        // Even matching source/target declarations cannot grant shared storage
+        // write authority. The mandatory replay still owns liveness and proofs.
+        if arrival {
+            function.block_entries[0].structural_parameters[0].access =
+                StructuralAccess::SharedBorrow;
+            target.graph.blocks[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        } else {
+            function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
+        }
+        assert!(!replacement_retained(
+            &function,
+            &function.operations[0],
+            &target
+        ));
+    }
+}
+
+#[test]
 fn byte_replacement_membership_retains_every_operand_and_writable_access() {
     use semantic_vocabulary::ObligationId;
     use target_operations::TargetUnitScalarArgumentSource;

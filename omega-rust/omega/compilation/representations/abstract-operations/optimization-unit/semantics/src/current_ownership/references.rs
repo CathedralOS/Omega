@@ -29,6 +29,8 @@ const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
 mod alternative_result_tests;
 #[cfg(test)]
 mod record_store_tests;
+#[cfg(test)]
+mod region_access_tests;
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
@@ -327,7 +329,16 @@ fn check_window_access(
         Some(terminal_psi::StructuralPathSegment::Referent)
     );
     if crosses_reference {
-        check_record_field_access(function, types, block, node, live, root.place(), path)?;
+        check_record_field_access(
+            function,
+            types,
+            block,
+            node,
+            live,
+            root.place(),
+            path,
+            field,
+        )?;
     }
     let hole = window_hole(
         function,
@@ -378,10 +389,34 @@ fn check_root_access(
     live: &[LiveReference],
     place: PlaceId,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if live
-        .iter()
-        .any(|reference| origin_place(&reference.root) == place || reference.carrier == place)
-    {
+    check_region_access(function, block, node, live, place, &[])
+}
+
+/// A selected loan suspends every candidate region, not every sibling under
+/// their shared root. Whole-root consumers use the same rule with an empty
+/// path. Geometry grants no permission through a reference carrier.
+fn check_region_access(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    place: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Result<(), OptimizationUnitValidationError> {
+    let overlaps = |other: &[terminal_psi::StructuralPathSegment]| {
+        terminal_semantics::structural_paths_may_overlap(path, other)
+    };
+    if live.iter().any(|reference| {
+        (reference.carrier == place && overlaps(&reference.carrier_path))
+            || (origin_place(&reference.root) == place
+                && match &reference.root {
+                    ReferenceOrigin::Primitive(_) => true,
+                    ReferenceOrigin::IngressLeaf(identity) => overlaps(&identity.path),
+                    ReferenceOrigin::Alternatives { paths, .. } => {
+                        paths.iter().any(|path| overlaps(path))
+                    }
+                })
+    }) {
         return Err(invalid(
             function,
             block,
@@ -400,12 +435,14 @@ fn check_record_field_access(
     live: &[LiveReference],
     place: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
-        return check_root_access(function, block, node, live, place);
+        let region = super::storage_regions::projected(function, types, place, path, field);
+        return check_region_access(function, block, node, live, place, region.direct_path());
     }
     let valid_shape = crate::unit_validation::references::mutable_record_field_destination(
         function, types, place, path,
@@ -423,6 +460,49 @@ fn check_record_field_access(
             block,
             Some(node),
             "record field access has no active mutable reference carrier",
+        ));
+    }
+    Ok(())
+}
+
+/// A readable whole reference observes its referent under its live permission.
+/// Ordinary roots instead observe just the resolved storage region. Type alone
+/// cannot revive a released carrier or bypass an outstanding child loan.
+fn check_observation_access(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    place: PlaceId,
+    region: &[terminal_psi::StructuralPathSegment],
+) -> Result<(), OptimizationUnitValidationError> {
+    let access = structural_source_contract(function, place, false)
+        .and_then(|contract| types.get(&contract.structural_type))
+        .and_then(|declaration| match declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { access, .. } => Some(access),
+            _ => None,
+        });
+    let Some(access) = access else {
+        return check_region_access(function, block, node, live, place, region);
+    };
+    let mut carriers = live
+        .iter()
+        .filter(|reference| reference.carrier == place && reference.carrier_path.is_empty());
+    let available = carriers.next().is_some_and(|carrier| {
+        !live.iter().any(|child| origin_place(&child.root) == place || matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity))
+    }) && carriers.next().is_none();
+    if !available
+        || !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+    {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "observation has no active readable reference carrier",
         ));
     }
     Ok(())
@@ -801,15 +881,29 @@ pub(super) fn apply_operation(
     operation: &O,
     live: &mut Vec<LiveReference>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    // Every publication rebinds its result storage, regardless of producer
+    // family or disposal multiplicity. The validated current place catalog
+    // identifies the producer; a surviving loan pins that previous iteration.
+    if let Some(operation) = operation.psi_operation()
+        && live.iter().any(|reference| {
+            [origin_place(&reference.root), reference.carrier, reference.identity.place]
+                .into_iter()
+                .any(|place| function.structural_places.iter().any(|declaration| {
+                    declaration.id == place && matches!(declaration.kind,
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } if producer == operation)
+                }))
+        })
+    {
+        return Err(invalid(function, block, Some(node), "operation result remains pinned by live reference custody"));
+    }
     match operation {
         O::ReleaseReference { source, .. } => {
             return release(function, block, Some(node), live, *source);
         }
-        O::EstablishCase { result, fields, .. } => {
+        O::EstablishCase { fields, .. } => {
             // Plain case payloads carry owned data, not relocated references.
             // Static shape checks reject reference leaves; replay still owes
             // the live-loan check for every consumed child and fresh result.
-            check_root_access(function, block, node, live, result.place)?;
             for field in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
                     check_root_access(function, block, node, live, argument.place)?;
@@ -827,39 +921,61 @@ pub(super) fn apply_operation(
                 live,
             );
         }
-        O::PrimitiveScalarRead { source, .. }
-        | O::StructuralCaseMembership { source, .. }
-        | O::StructuralCase { source, .. }
-        | O::StructuralScalarFieldRead { source, .. } => {
-            // A scalar or case observation spelled on a live reference
-            // carrier reads through the loan's own authority — the referent
-            // observation the borrow exists to serve, not owned-data use of
-            // the carrier place. A write-only loan has no read authority.
-            if live.iter().any(|reference| reference.carrier == *source) {
-                let readable = structural_source_contract(function, *source, false)
-                    .and_then(|contract| structural_types.get(&contract.structural_type))
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::Reference {
-                                access: terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow,
-                                ..
-                            }
-                        )
-                    });
-                if !readable {
-                    check_root_access(function, block, node, live, *source)?;
-                }
-            } else {
-                check_root_access(function, block, node, live, *source)?;
-            }
+        O::PrimitiveScalarRead { source, path, .. }
+        | O::StructuralCaseMembership { source, path, .. } => {
+            let region =
+                super::storage_regions::projected(function, structural_types, *source, path, None);
+            check_observation_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *source,
+                region.direct_path(),
+            )?;
+        }
+        O::StructuralScalarFieldRead {
+            source,
+            path,
+            field,
+            ..
+        } => {
+            let region = super::storage_regions::canonical_field(
+                function,
+                structural_types,
+                *source,
+                path,
+                *field,
+            );
+            check_observation_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *source,
+                &region,
+            )?;
+        }
+        O::StructuralCase { source, .. } => {
+            check_observation_access(function, structural_types, block, node, live, *source, &[])?;
         }
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
         }
-        O::StructuralByteSequenceFieldLength { source, path, .. }
-        | O::StructuralByteSequenceFieldRead { source, path, .. } => {
+        O::StructuralByteSequenceFieldLength {
+            source,
+            path,
+            field,
+            ..
+        }
+        | O::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            ..
+        } => {
             check_record_field_access(
                 function,
                 structural_types,
@@ -868,19 +984,58 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 path,
+                Some(*field),
             )?;
         }
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             // These operands name byte storage, not reference carriers whose
             // own loan could authorize an observation through a referent.
-            check_root_access(function, block, node, live, left.source())?;
-            check_root_access(function, block, node, live, right.source())?;
+            for operand in [left, right] {
+                match operand {
+                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                        check_root_access(function, block, node, live, *source)?
+                    }
+                    terminal_psi::control_flow::ByteSequenceOperand::Field {
+                        source,
+                        field,
+                        ..
+                    } => check_record_field_access(
+                        function,
+                        structural_types,
+                        block,
+                        node,
+                        live,
+                        source.place,
+                        &source.path,
+                        Some(*field),
+                    )?,
+                }
+            }
         }
-        O::WriteOnlyPrimitiveStore { destination, .. } => {
-            check_root_access(function, block, node, live, destination.place())?
+        O::WriteOnlyPrimitiveStore {
+            destination, path, ..
+        } => {
+            let region = super::storage_regions::projected(
+                function,
+                structural_types,
+                destination.place(),
+                path,
+                None,
+            );
+            check_region_access(
+                function,
+                block,
+                node,
+                live,
+                destination.place(),
+                region.direct_path(),
+            )?;
         }
         O::StructuralScalarFieldStore {
-            destination, path, ..
+            destination,
+            path,
+            field,
+            ..
         } => {
             check_record_field_access(
                 function,
@@ -890,11 +1045,13 @@ pub(super) fn apply_operation(
                 live,
                 destination.place(),
                 path,
+                Some(*field),
             )?;
         }
         O::StructuralByteSequenceFieldStore {
             destination,
             path,
+            field,
             source,
             ..
         } => {
@@ -906,11 +1063,15 @@ pub(super) fn apply_operation(
                 live,
                 *destination,
                 path,
+                Some(*field),
             )?;
             check_root_access(function, block, node, live, *source)?;
         }
         O::StructuralByteSequenceFieldByteStore {
-            destination, path, ..
+            destination,
+            path,
+            field,
+            ..
         } => {
             check_record_field_access(
                 function,
@@ -920,10 +1081,8 @@ pub(super) fn apply_operation(
                 live,
                 *destination,
                 path,
+                Some(*field),
             )?;
-        }
-        O::EstablishPrimitiveLocal { result, .. } => {
-            check_root_access(function, block, node, live, result.place)?
         }
         O::MoveStructuralField {
             source,

@@ -327,6 +327,10 @@ mutable or write-only parameter, or an established owned primitive local.
 A projected primitive store retains the corresponding mutable/write-only borrow
 or whole established owned root; unrestricted and affine roots are admitted,
 while linear, qualified and claim-bearing roots require further support.
+An entry parameter and a state parameter use the same declaration-based
+access rules. The place must name that parameter's exact owner and position;
+forwarding through a state does not grant new access or discard predicates.
+This applies to bounded-byte field replacement as well as scalar stores.
 Field-store admission independently checks the
 complete home declaration, path, field, access, qualifications/claims,
 scalar type, and dominating definition. Owned destinations must be established

@@ -1214,6 +1214,38 @@ pub(super) fn scalar_store_footprints_retained(
     }
 }
 
+/// Access policy belongs to the declared storage, not whether its address
+/// arrived through the entry ABI or a state edge. Their transport identities
+/// are independently checked by `read_access` below.
+fn parameter_access(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    purpose: AccessPurpose,
+) -> bool {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    if parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.projected_qualifications.is_empty()
+        || (parameter.access == StructuralAccess::WriteOnlyBorrow
+            && purpose == AccessPurpose::Field)
+    {
+        return false;
+    }
+    // Whole-owner replacement preserves the declared predicate roster through
+    // mandatory source/selection replay. Other observations keep their fence.
+    if purpose != AccessPurpose::ByteOwnerReplacement {
+        return parameter.qualifications.is_empty();
+    }
+    types.iter().any(|declaration| {
+        declaration.id == parameter.structural_type
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+    })
+}
+
 fn read_access(
     function: &AbstractFunction,
     target: &TargetFunction,
@@ -1234,26 +1266,7 @@ fn read_access(
     {
         let retained = target.graph.parameters.get(position)?;
         if parameter.position as usize != position
-            || !(matches!(
-                parameter.access,
-                StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
-                || (parameter.access == StructuralAccess::WriteOnlyBorrow && observes_byte_length))
-            || parameter.multiplicity == StructuralMultiplicity::Linear
-            // Whole-owner replacement carries the declared predicate roster;
-            // mandatory object/source replay checks its exact preservation and
-            // the source proof. Other field observations retain their fence.
-            || (!parameter.qualifications.is_empty()
-                && purpose != AccessPurpose::ByteOwnerReplacement)
-            || (purpose == AccessPurpose::ByteOwnerReplacement
-                && !target.graph.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.structural_type
-                        && matches!(declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            ))
-                }))
-            || !parameter.projected_qualifications.is_empty()
+            || !parameter_access(parameter, &target.graph.structural_types, purpose)
             || retained.place != place
             || retained.structural_type != parameter.structural_type
             || retained.access != parameter.access
@@ -1267,10 +1280,11 @@ fn read_access(
         }
     }
     for block in &function.block_entries {
-        for parameter in block
+        for (position, parameter) in block
             .structural_parameters
             .iter()
-            .filter(|parameter| parameter.place == place)
+            .enumerate()
+            .filter(|(_, parameter)| parameter.place == place)
         {
             // A block loan observes the original pointer retained by its
             // exact graph declaration, just as an owned arrival observes its
@@ -1283,22 +1297,19 @@ fn read_access(
                     parameter,
                     &target.graph.structural_types,
                 );
-            if purpose == AccessPurpose::ByteOwnerReplacement
+            if block.block == function.entry
+                || parameter.position as usize != position
+                || parameter.is_self
                 || !(parameter.access == StructuralAccess::Owned
                     || shared_view_carrier
                     || abstract_operations::control_flow::address_joins::is_address_join_in(
                         parameter,
                         &target.graph.structural_types,
                     ))
-                || parameter.multiplicity == StructuralMultiplicity::Linear
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
+                || !parameter_access(parameter, &target.graph.structural_types, purpose)
                 || !target.graph.blocks.iter().any(|candidate| {
                     candidate.block == block.block
-                        && candidate
-                            .structural_parameters
-                            .iter()
-                            .any(|retained| retained == parameter)
+                        && candidate.structural_parameters.get(position) == Some(parameter)
                 })
                 || access
                     .replace((parameter.access, parameter.structural_type))

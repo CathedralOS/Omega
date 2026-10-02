@@ -145,6 +145,97 @@ fn fixture() -> TerminalModule {
 }
 
 #[test]
+fn bounded_owner_arrivals_replay_exact_access_source_and_qualifications() {
+    use optimization_unit::{
+        attach_verified_module_context, reconstruct_psi_optimization_unit_seed,
+    };
+    use optimization_unit_semantics::validate_psi_optimization_unit;
+    use semantic_vocabulary::{DomainSemanticId, FuelScheduleIdentity, StructuralDomainId};
+
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut module = fixture();
+        module.structural_types[0].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 16 });
+        let domain = StructuralDomainId::new(1).unwrap();
+        module
+            .structural_domains
+            .push(terminal_psi::StructuralDomainDeclaration {
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: "test::Utf8".into(),
+                carrier: module.structural_types[0].id,
+                content_projection: None,
+                byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+                establishment_routes: Vec::new(),
+            });
+        let machine = &mut module.machines[0];
+        machine.structural_parameters[0].access = access;
+        machine.structural_parameters[0].qualifications = vec![domain];
+        machine.blocks[1].structural_parameters[0].access = access;
+        machine.blocks[1].structural_parameters[0].qualifications = vec![domain];
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].access = access;
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the exact borrowed owner contract verifies at both arrivals");
+        let plan = super::super::lower_decoded_verified_module(&verified).unwrap();
+        let seed = |plan: &abstract_operations::AbstractOperationPlan| {
+            let mut unit =
+                reconstruct_psi_optimization_unit_seed(plan, FuelScheduleIdentity::new(1).unwrap())
+                    .unwrap();
+            attach_verified_module_context(&mut unit, &module).unwrap();
+            unit
+        };
+        validate_psi_optimization_unit(&seed(&plan)).expect("owner address transfer replays");
+        for corruption in ["source", "access", "qualification"] {
+            let mut changed = plan.clone();
+            if corruption == "qualification" {
+                changed.functions[0].structural_parameters[0]
+                    .qualifications
+                    .clear();
+            } else {
+                let abstract_operations::AbstractOperation::Jump {
+                    structural_bindings,
+                    ..
+                } = &mut changed.functions[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                if corruption == "source" {
+                    structural_bindings[0].argument.place = PlaceId::new(99).unwrap();
+                } else {
+                    structural_bindings[0].argument.access = StructuralAccess::WriteOnlyBorrow;
+                }
+            }
+            // Reconstruct derived rows from the hostile current graph: stale
+            // identities must not be the reason the receiving check rejects.
+            let rejected = reconstruct_psi_optimization_unit_seed(
+                &changed,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .map(|mut unit| {
+                attach_verified_module_context(&mut unit, &module).unwrap();
+                validate_psi_optimization_unit(&unit).is_err()
+            })
+            .unwrap_or(true);
+            assert!(rejected, "{access:?}: {corruption}");
+        }
+    }
+}
+
+#[test]
 fn shared_view_block_parameters_retain_their_declarations() {
     let mut module = fixture();
     assert_eq!(validate_structural_block_bindings(&module), Ok(()));
@@ -348,10 +439,11 @@ fn address_joins_reject_widened_access_windows_and_descriptor_projections() {
         machine: MachineId::new(1).unwrap(),
         edge,
     });
-    // An exclusive primitive join has no address carrier yet.
+    // Mutable primitive joins have an address carrier; write-only arrivals
+    // remain outside this receiving contract.
     let mut exclusive = address_join_fixture(Vec::new());
     exclusive.machines[0].blocks[1].structural_parameters[0].access =
-        StructuralAccess::MutableBorrow;
+        StructuralAccess::WriteOnlyBorrow;
     assert_eq!(
         validate_structural_block_bindings(&exclusive),
         Err(LoweringError::UnsupportedStructuralBlockParameters {

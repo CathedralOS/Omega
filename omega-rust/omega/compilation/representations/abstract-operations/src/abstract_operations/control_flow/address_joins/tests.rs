@@ -202,13 +202,13 @@ fn empty_record_address_joins_retain_access_and_exact_catalog_identity() {
 }
 
 #[test]
-fn exclusive_owned_descriptor_and_loan_bearing_joins_stay_closed() {
+fn owned_write_only_descriptor_and_loan_bearing_joins_stay_closed() {
     let types = catalog();
-    for access in [
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::Owned,
-    ] {
+    assert!(is_address_join(
+        &parameter(1, StructuralAccess::MutableBorrow),
+        &types
+    ));
+    for access in [StructuralAccess::WriteOnlyBorrow, StructuralAccess::Owned] {
         assert!(!is_address_join(&parameter(1, access), &types));
     }
     // Descriptor fields, references, byte views, recursive catalogs and
@@ -228,7 +228,7 @@ fn exclusive_owned_descriptor_and_loan_bearing_joins_stay_closed() {
 }
 
 #[test]
-fn shared_bounded_owner_loans_join_by_address_with_their_qualifications() {
+fn bounded_owner_loans_join_by_address_with_their_access_and_qualifications() {
     let mut types = catalog();
     types.push(declaration(
         8,
@@ -237,17 +237,14 @@ fn shared_bounded_owner_loans_join_by_address_with_their_qualifications() {
     let mut qualified = parameter(8, StructuralAccess::SharedBorrow);
     qualified.qualifications = vec![semantic_vocabulary::StructuralDomainId::new(1).unwrap()];
     assert!(is_address_join(&qualified, &types));
+    qualified.access = StructuralAccess::MutableBorrow;
+    assert!(is_address_join(&qualified, &types));
     assert!(is_address_join(
         &parameter(8, StructuralAccess::SharedBorrow),
         &types
     ));
-    // An exclusive or owned owner, a projected roster and a receiver stay
-    // outside the shared owner-loan carrier.
-    for access in [
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::Owned,
-    ] {
+    // Owned and write-only formals do not acquire this borrowed carrier.
+    for access in [StructuralAccess::WriteOnlyBorrow, StructuralAccess::Owned] {
         assert!(!is_address_join(&parameter(8, access), &types));
     }
     let mut receiver = parameter(8, StructuralAccess::SharedBorrow);
