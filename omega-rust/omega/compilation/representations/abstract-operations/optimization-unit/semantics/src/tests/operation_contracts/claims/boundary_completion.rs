@@ -22,6 +22,7 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id,

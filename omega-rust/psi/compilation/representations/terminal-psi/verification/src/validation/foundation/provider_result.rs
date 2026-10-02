@@ -13,8 +13,9 @@
 //! declaration's scalar `requires` already obliges every caller: translated
 //! into the candidate's parameters, each candidate row must be a declaration
 //! row, so the installed candidate's precondition holds at every call. Its
-//! own `ensures` are verified in its body and never reach callers, whose
-//! `BoundaryCall` imports no provider guarantee.
+//! own `ensures` are verified in its body. Every normal guarantee published by
+//! the requirement must occur in that verified roster after positional
+//! substitution; callers import only the requirement's guarantee.
 //!
 //! Boundary structural `requires` rows are deliberately absent from both
 //! arms: they are caller-admission checks on the structural arguments, not
@@ -85,7 +86,44 @@ fn candidate_requires_are_declared(
         .all(|row| declared.contains(row))
 }
 
+/// A checked provider may strengthen a normal guarantee, but every row its
+/// callers consume must already be a verified guarantee of that provider.
+fn candidate_ensures_are_declared(
+    boundary: &BoundaryMachineDeclaration,
+    candidate: &TerminalMachine,
+) -> bool {
+    if boundary.scalar_ensures.is_empty() {
+        return true;
+    }
+    let Some(formals) = boundary.scalar_contract_parameters() else {
+        return false;
+    };
+    if formals.len() != candidate.parameters.len() {
+        return false;
+    }
+    let mut substitutions = formals
+        .iter()
+        .zip(&candidate.parameters)
+        .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, formal.scalar_type)))
+        .collect::<BTreeMap<_, _>>();
+    if let Some(formal) = boundary.scalar_contract_result() {
+        let TerminalMachineResult::Scalar(actual) = &candidate.result else {
+            return false;
+        };
+        substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
+    }
+    boundary.scalar_ensures.iter().all(|row| {
+        candidate
+            .contract
+            .ensures
+            .contains(&substitute_proposition_values(row, &substitutions))
+    })
+}
+
 pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &TerminalMachine) -> bool {
+    if !candidate_ensures_are_declared(boundary, candidate) {
+        return false;
+    }
     match (&boundary.result, &candidate.result) {
         (BoundaryMachineResult::Unit, TerminalMachineResult::Unit) => true,
         (BoundaryMachineResult::Scalar(required), TerminalMachineResult::Scalar(actual)) => {

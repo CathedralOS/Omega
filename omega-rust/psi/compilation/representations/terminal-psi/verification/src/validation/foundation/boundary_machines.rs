@@ -50,7 +50,8 @@ pub(super) fn validate_boundary_machines(
             return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
         }
         super::super::crash::validate_boundary_crash_routes(boundary)?;
-        validate_boundary_scalar_requires(boundary)?;
+        validate_boundary_scalar_contract(boundary, false)?;
+        validate_boundary_scalar_contract(boundary, true)?;
         if boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
             && boundary.attachment.is_some()
         {
@@ -125,21 +126,31 @@ pub(super) fn validate_boundary_machines(
 /// declaration-local scalar formals only, the crash routes' telescope. Every
 /// call instantiates them at its own actuals, so a row may not name a
 /// structural place, an opaque or float term, or any caller or provider value.
-fn validate_boundary_scalar_requires(
+fn validate_boundary_scalar_contract(
     boundary: &BoundaryMachineDeclaration,
+    normal_return: bool,
 ) -> Result<(), ModuleError> {
-    if boundary.scalar_requires.is_empty() {
+    let rows = if normal_return {
+        &boundary.scalar_ensures
+    } else {
+        &boundary.scalar_requires
+    };
+    if rows.is_empty() {
         return Ok(());
     }
+    let mut parameters = boundary
+        .scalar_contract_parameters()
+        .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?;
+    if normal_return && let Some(result) = boundary.scalar_contract_result() {
+        parameters.push(result);
+    }
     let context = PropositionContext::from_value_types(
-        boundary
-            .scalar_contract_parameters()
-            .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+        parameters
             .iter()
             .map(|parameter| (parameter.id, parameter.scalar_type)),
     )
     .map_err(ModuleError::MalformedProposition)?;
-    for proposition in &boundary.scalar_requires {
+    for proposition in rows {
         if !proposition.visit_value_ids(|_| {}) {
             return Err(ModuleError::UnsupportedBoundaryRequiresProposition(
                 boundary.id,

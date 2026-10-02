@@ -48,6 +48,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

@@ -89,6 +89,9 @@ pub struct BoundaryMachineDeclaration {
     /// same index, the row instantiated at that call's scalar actuals. A
     /// selected provider cannot weaken what callers must establish.
     pub scalar_requires: Vec<Proposition>,
+    /// Normal-return guarantees in the scalar-formal namespace. A scalar result
+    /// uses the position immediately following the input scalar parameters.
+    pub scalar_ensures: Vec<Proposition>,
     /// Exact portable schemas authorized by this requirement's domain routes.
     /// These rows describe per-occurrence capacity but introduce no authority;
     /// installation must still bind a concrete occurrence and cardinality.
@@ -125,6 +128,19 @@ impl BoundaryMachineDeclaration {
             .iter()
             .enumerate()
             .filter_map(move |(position, found)| (*found == kind).then_some(position))
+    }
+
+    /// Result pseudo-value shares the contract telescope, after all inputs.
+    pub fn scalar_contract_result(&self) -> Option<ValueDeclaration> {
+        Some(ValueDeclaration {
+            id: ValueId::new(
+                u64::try_from(self.scalar_parameters.len())
+                    .ok()?
+                    .checked_add(1)?,
+            )?,
+            scalar_type: self.result.scalar()?,
+            qualifications: Default::default(),
+        })
     }
 
     /// Reconstruct declaration-local scalar formals for contract validation and

@@ -156,6 +156,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
     parameter.place = place_id(700);
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(700),

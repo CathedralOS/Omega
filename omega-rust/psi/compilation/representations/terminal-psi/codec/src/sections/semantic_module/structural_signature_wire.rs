@@ -102,6 +102,10 @@ pub(crate) fn encode_boundary_machine(
     for proposition in &declaration.scalar_requires {
         encode_proposition(writer, proposition, 0)?;
     }
+    writer.len("boundary scalar ensures", declaration.scalar_ensures.len())?;
+    for proposition in &declaration.scalar_ensures {
+        encode_proposition(writer, proposition, 0)?;
+    }
     writer.len(
         "program-local root introduction schemas",
         declaration.program_local_root_introductions.len(),
@@ -287,6 +291,7 @@ pub(crate) fn decode_boundary_machine(
             })
         })?,
         scalar_requires: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
+        scalar_ensures: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
         program_local_root_introductions: decode_counted(reader, |reader| {
             let argument_index = reader.u32()?;
             let source_parameter_position = reader.u32()?;

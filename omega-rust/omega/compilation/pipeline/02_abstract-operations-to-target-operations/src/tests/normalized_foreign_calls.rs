@@ -231,6 +231,7 @@ fn declaration(
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         parameter_order: std::iter::repeat_n(
             terminal_psi::BoundaryParameterKind::Scalar,

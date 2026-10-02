@@ -65,6 +65,7 @@ pub(super) fn provider_module() -> TerminalModule {
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),

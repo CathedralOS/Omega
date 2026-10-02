@@ -247,6 +247,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             parameter_order: Vec::new(),
             fixed_service_reach: Vec::new(),
@@ -404,6 +405,7 @@ mod tests {
             boundary_machines: vec![
                 BoundaryMachineDeclaration {
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
+                    scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),
                     id: submit,
                     identity: custody.callable_identity.clone(),
@@ -437,6 +439,7 @@ mod tests {
                 },
                 BoundaryMachineDeclaration {
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
+                    scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),
                     id: reclaim,
                     identity: "Reader::reclaim".to_owned(),

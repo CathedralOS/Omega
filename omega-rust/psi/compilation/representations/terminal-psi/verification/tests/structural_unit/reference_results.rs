@@ -1851,6 +1851,7 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
     parameter.place = place_id(40);
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: boundary_id(1),
         identity: "primitive_boundary".into(),
@@ -2115,6 +2116,7 @@ fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
                 parameter.structural_type = structural_type_id(3);
                 module.boundary_machines.push(BoundaryMachineDeclaration {
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
+                    scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),
                     id: boundary_id(1),
                     identity: "stored_reference_boundary".into(),

@@ -8,7 +8,7 @@ use terminal_psi::VocabularyMarker;
 // at block offset 264 and module offset 309 (end); these are part of the
 // current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 112, 0, 115, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 113, 0, 115, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -327,6 +327,7 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             id: boundary,
             identity: "Installer::step".into(),
@@ -791,4 +792,53 @@ fn element_view_write_requires_a_valid_module_to_encode() {
     assert!(encode_module(&module).is_err());
     let raw = super::encode_raw(&module).expect("raw encoding skips validation");
     assert!(decode_module(&raw).is_err());
+}
+
+#[test]
+fn boundary_scalar_guarantees_preserve_bytes_and_exact_result_namespace() {
+    use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, ValueId};
+    let mut module = fixed_boundary_service_module();
+    let value = ValueId::new(1).unwrap();
+    module.boundary_machines[0].result =
+        terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Boolean);
+    module.boundary_machines[0].scalar_ensures = vec![Proposition::Equal(
+        ScalarTerm::value(value, ScalarType::Boolean),
+        ScalarTerm::boolean(true),
+    )];
+    module.machines[0].blocks[0].operations[0].result =
+        terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            id: value,
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        });
+    let bytes = encode_module(&module).expect("result guarantee in its own telescope");
+    let reloaded = decode_module(&bytes).expect("canonical result guarantee");
+    assert_eq!(
+        reloaded.boundary_machines[0].scalar_ensures,
+        module.boundary_machines[0].scalar_ensures
+    );
+    assert_eq!(encode_module(&reloaded).unwrap(), bytes);
+    module.boundary_machines[0].scalar_ensures[0] = Proposition::Equal(
+        ScalarTerm::value(value, ScalarType::Boolean),
+        ScalarTerm::boolean(false),
+    );
+    assert_ne!(
+        encode_module(&module).unwrap(),
+        bytes,
+        "contract changes change artifact identity"
+    );
+    module.boundary_machines[0].scalar_ensures[0] = Proposition::Equal(
+        ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+        ScalarTerm::boolean(true),
+    );
+    let forged = super::encode_raw(&module).unwrap();
+    assert!(
+        matches!(
+            decode_module(&forged),
+            Err(CodecError::InvalidModule(
+                terminal_verifier::ModuleError::MalformedProposition(_)
+            ))
+        ),
+        "a guarantee cannot name a caller value or another result coordinate"
+    );
 }

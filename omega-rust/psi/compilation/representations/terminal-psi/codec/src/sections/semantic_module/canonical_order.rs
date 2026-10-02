@@ -404,6 +404,14 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "boundary scalar requires propositions",
             ));
         }
+        for proposition in &declaration.scalar_ensures {
+            validate_canonical_proposition(proposition, 0)?;
+        }
+        if !canonical_propositions_strictly_increase(&declaration.scalar_ensures)? {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary scalar ensures propositions",
+            ));
+        }
         if !strictly_increasing(declaration.published_service_ceiling.iter().copied()) {
             return Err(CodecError::NonCanonicalOrder(
                 "boundary published service ceiling by ServiceId",

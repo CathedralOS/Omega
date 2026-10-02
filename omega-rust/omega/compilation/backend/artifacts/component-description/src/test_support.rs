@@ -117,6 +117,7 @@ pub fn provider_module(
     let mut module = bare_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: requirement_identity.to_owned(),

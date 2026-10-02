@@ -78,6 +78,7 @@ fn owned_byte_call(boundary: bool) -> TerminalModule {
             structural_parameters: vec![formal],
             result: BoundaryMachineResult::Unit,
             requires: Vec::new(),
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
