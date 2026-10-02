@@ -123,14 +123,20 @@ fn has_calling_interface(
     {
         return false;
     }
-    let [plan] = program.trait_machine_signatures(policy) else {
+    let mut plans = program
+        .trait_machine_signatures(policy)
+        .iter()
+        .filter(|signature| signature.name.as_str() == "plan");
+    let Some(plan) = plans.next() else {
         return false;
     };
+    if plans.next().is_some() {
+        return false;
+    }
     let [signature] = program.state_signature_parameters(plan) else {
         return false;
     };
-    plan.name.as_str() == "plan"
-        && program.state_signature_type_parameters(plan).is_empty()
+    program.state_signature_type_parameters(plan).is_empty()
         && plan.native_callback_parameters.is_empty()
         && !signature.is_self
         && !signature.is_const
