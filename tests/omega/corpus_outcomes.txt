@@ -1311,6 +1311,7 @@ pass/calls/requires_operand_flip_discharge checked 3157ms @527c7c316c6f+wt
 pass/calls/retained_receiver_argument_order_exit checked 719ms @be20683757eb+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
+pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382792161+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1642ms @ca8c127c90c5
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f

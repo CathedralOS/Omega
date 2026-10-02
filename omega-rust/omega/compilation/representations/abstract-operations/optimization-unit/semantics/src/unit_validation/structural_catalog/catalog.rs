@@ -139,7 +139,10 @@ pub(super) fn index_structural_types(
         }
         // A borrow carrier is one borrow permission over one referent: a
         // primitive scalar leaf or a whole plain aggregate, whose address
-        // transports the storage like the scalar leaf.
+        // transports the storage like the scalar leaf. A service binding is
+        // also a referent: lending a binding field (`&mut main.console`) to a
+        // state declares the carrier type, while checking keeps every routed
+        // binding out of reference locals, so no carrier holds its address.
         if let terminal_psi::StructuralTypeShape::Reference {
             referent, access, ..
         } = &declaration.shape
@@ -152,6 +155,7 @@ pub(super) fn index_structural_types(
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
                             | terminal_psi::StructuralTypeShape::Record { .. }
                             | terminal_psi::StructuralTypeShape::Sum { .. }
+                            | terminal_psi::StructuralTypeShape::FusedServiceBinding
                     )
                 ),
                 terminal_psi::StructuralAccess::WriteOnlyBorrow => matches!(
