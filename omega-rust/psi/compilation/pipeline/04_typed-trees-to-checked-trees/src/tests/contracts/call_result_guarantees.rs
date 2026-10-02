@@ -168,3 +168,24 @@ fn caller_result_relations_require_capture_preservation_not_purity() {
         );
     }
 }
+
+#[test]
+fn predicate_inputs_do_not_require_unrelated_actuals_to_be_places() {
+    for (actual, accepted) in [("expected", true), ("other", false)] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 machine produce(input: u64, unused: u64) -> Count
+                 ensures result.remaining == input
+                 {{ Count {{ remaining: input }} }}
+                 machine consume(value: Count, expected: u64, unused: u64)
+                 requires value.remaining == expected {{}}
+                 machine caller(expected: u64, other: u64, offset: u8) {{
+                     let value: Count = produce(expected, (offset as u64) + 1);
+                     consume(value, {actual}, (offset as u64) + 2);
+                 }}"
+            ),
+            accepted,
+        );
+    }
+}

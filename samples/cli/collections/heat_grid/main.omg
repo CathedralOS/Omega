@@ -1,9 +1,9 @@
 // HEAT GRID -- dependent-typed row-major indexing (chapter 12, rungs
 // R0+R1a): a flat `cells: [u8; 12]` viewed as a 3x4 grid, walked with the
 // DIRECT `cells[y * 4 + x]` spelling. The walkers' coordinates are
-// DEPENDENT STATE CONTRACTS (`requires 0 <= y && y <= self.max_y`) -- the bound
+// DEPENDENT STATE CONTRACTS (`requires 0 <= y && y <= grid.max_y`) -- the bound
 // names a field, the caller PROVES each hop on its arm (the back-edge
-// guard `y + 1 <= self.max_y` is the whole proof), and the index's bound
+// guard `y + 1 <= grid.max_y` is the whole proof), and the index's bound
 // discharges by interval product through the fields' declared ranges
 // (max_y<=2, max_x<=3 => y*4+x in [0..=11] < 12). No linear-counter
 // workaround, no re-guard states, no bounds checks at runtime.
@@ -17,66 +17,65 @@
 // Expected exit: 45
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
-data Main where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
-    console: Binding<Console>;
+data Grid where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     cells: [u8; 12];
     max_y: u32;
     max_x: u32;
     hottest: u32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.max_y = 2;
-    self.max_x = 3;
-    self.cells[11] = 40;
-    transition { _ -> row(0) }
+machine main() reaches Console {
+    let mut grid: Grid;
+    grid.max_y = 2;
+    grid.max_x = 3;
+    grid.cells[11] = 40;
+    transition { _ -> row(&mut grid, 0) }
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    state row(&mut self, y: u32)
-        requires 0 <= y && y <= self.max_y
+    state row(grid: &mut Grid, y: u32)
+        requires 0 <= y && y <= grid.max_y
     {
-        transition { _ -> cell(y, 0) }
+        transition { _ -> cell(grid, y, 0) }
     }
-    state cell(&mut self, y: u32, x: u32)
-        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    state cell(grid: &mut Grid, y: u32, x: u32)
+        requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
             ((narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
             + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping)) as u8;
-        let cur: u8 = self.cells[y * 4 + x];
+        let cur: u8 = grid.cells[y * 4 + x];
         let next: u8 = ((cur as u8 in Wrapping) + (bump as u8 in Wrapping)) as u8;
-        self.cells[y * 4 + x] = next;
+        grid.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
-        transition heat > self.hottest {
-            true -> hotter(y, x, heat)
-            _ -> step(y, x)
+        transition heat > grid.hottest {
+            true -> hotter(grid, y, x, heat)
+            _ -> step(grid, y, x)
         }
     }
-    state hotter(&mut self, y: u32, x: u32, heat: u32)
-        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    state hotter(grid: &mut Grid, y: u32, x: u32, heat: u32)
+        requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
-        self.hottest = heat;
-        transition { _ -> step(y, x) }
+        grid.hottest = heat;
+        transition { _ -> step(grid, y, x) }
     }
-    state step(&mut self, y: u32, x: u32)
-        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    state step(grid: &mut Grid, y: u32, x: u32)
+        requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
-        transition x + 1 <= self.max_x {
-            true -> cell(y, x + 1)
-            _ -> next_row(y)
+        transition x + 1 <= grid.max_x {
+            true -> cell(grid, y, x + 1)
+            _ -> next_row(grid, y)
         }
     }
-    state next_row(&mut self, y: u32)
-        requires 0 <= y && y <= self.max_y
+    state next_row(grid: &mut Grid, y: u32)
+        requires 0 <= y && y <= grid.max_y
     {
-        transition y + 1 <= self.max_y {
-            true -> row(y + 1)
-            _ -> done()
+        transition y + 1 <= grid.max_y {
+            true -> row(grid, y + 1)
+            _ -> done(grid)
         }
     }
-    state done(&mut self) {
-        let code: i32 = narrow_u32_to_i32_trapping(self.hottest);
-        self.console.exit_process(code);
+    state done(grid: &mut Grid) {
+        let code: i32 = narrow_u32_to_i32_trapping(grid.hottest);
+        Console::exit_process(code);
     }
 }
