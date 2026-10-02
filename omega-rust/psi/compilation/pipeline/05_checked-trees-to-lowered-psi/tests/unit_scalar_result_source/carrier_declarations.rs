@@ -94,3 +94,33 @@ fn returned_window_carrier_coverage_keeps_initializer_calls_and_view_establishme
         );
     }
 }
+
+#[test]
+fn returned_window_alias_lifetime_does_not_include_unrelated_completion_values() {
+    // Different final expressions share the same alias lifetime: the outside
+    // carrier was last used by its store, not by completion evaluation.
+    for tail in ["held.len", "2", "held.len + 0"] {
+        let source = RETURNED_WINDOW.replace("    held.len\n", &format!("    {tail}\n"));
+        let original = crate::front_end::checked_program(&source);
+        publish(&original).unwrap_or_else(|error| panic!("{tail}: {error}"));
+        let (handle, last_use) = original
+            .facts
+            .borrow
+            .loans
+            .iter()
+            .find(|(_, loan)| original.symbols.name(loan.owner_symbol) == "outside")
+            .map(|(handle, loan)| (handle, loan.last_use_statement_index))
+            .expect("outside loan");
+        let mut changed = original.clone();
+        changed
+            .facts
+            .borrow
+            .loans
+            .get_mut(handle)
+            .last_use_statement_index = last_use + 1;
+        assert!(
+            publish(&changed).is_err(),
+            "unrelated completion cannot extend the alias lifetime"
+        );
+    }
+}

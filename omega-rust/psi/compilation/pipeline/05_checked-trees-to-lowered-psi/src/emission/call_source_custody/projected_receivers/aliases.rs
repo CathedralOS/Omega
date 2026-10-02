@@ -395,14 +395,29 @@ pub(crate) fn parameter_source(
                 checked.statement_table.expression_handles(call.arguments),
             ),
             StatementNode::Expression(expression) => {
-                let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
-                else {
-                    return unsupported("receiver alias suffix contains a non-call expression");
-                };
-                (
-                    receiver_root(checked, call.receiver)?,
-                    checked.expression_table.expression_handles(call.arguments),
-                )
+                // Completion expressions are ordinary source uses. An
+                // unrelated value cannot extend this loan's interval; a
+                // referent observation spends it just as a local initializer
+                // or transition guard does. Actual carrier escapes still go
+                // through the receiver/argument checks below.
+                if !contains_owner(checked, *expression, owner) {
+                    continue;
+                }
+                if owner_mentions_are_member_reads(checked, *expression, owner) {
+                    (owner, &[][..])
+                } else {
+                    let ExpressionNode::Call(call) =
+                        checked.expression_table.expression(*expression)
+                    else {
+                        return unsupported(
+                            "receiver alias escapes through a completion expression",
+                        );
+                    };
+                    (
+                        receiver_root(checked, call.receiver)?,
+                        checked.expression_table.expression_handles(call.arguments),
+                    )
+                }
             }
             // A store through the erased carrier is a use, not an escape: the
             // target's root decides whether this statement spends the alias,
