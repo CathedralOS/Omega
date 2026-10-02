@@ -7,10 +7,11 @@ use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
 use super::domain::{AllocationDomain, build_domains};
+use super::prepared_affinities::PreparedAffinities;
 use super::prepared_conflicts::PreparedConflicts;
 use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
 use register_homes::FunctionAllocationLegality;
-use selected_instructions::{CopyAffinity, FunctionLiveRanges};
+use selected_instructions::FunctionLiveRanges;
 
 pub(crate) fn compute_function(
     function: usize,
@@ -28,6 +29,7 @@ pub(crate) fn compute_function(
             domain_of.insert(member.virtual_register, domain_index);
         }
     }
+    let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
     let conflicts = PreparedConflicts::new(&domains, &domain_of, ranges, physical);
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     // Keep selection's canonical roster, but give neighbor and affinity queries
@@ -71,8 +73,7 @@ pub(crate) fn compute_function(
             &viable,
             &active,
             &homes,
-            &ranges.copy_affinities,
-            &domain_of,
+            &affinities,
             &conflicts,
         )?
         .ok_or(RegisterHomeError::NoCompatibleHome {
@@ -149,11 +150,9 @@ fn preferred_view(
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    affinities: &[CopyAffinity],
-    domain_of: &BTreeMap<VirtualRegisterId, usize>,
+    affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts<'_>,
 ) -> Result<Option<RegisterViewId>, RegisterHomeError> {
-    let domain = &domains[domain_index];
     let candidates = viable[domain_index].as_slice();
     let mut keeping = Vec::with_capacity(candidates.len());
     for &view in candidates {
@@ -174,27 +173,15 @@ fn preferred_view(
     } else {
         &keeping
     };
-    let outlooks = partner_outlooks(
-        domain_index,
-        domains,
-        viable,
-        active,
-        homes,
-        affinities,
-        domain_of,
-        conflicts,
-    );
+    let outlooks = partner_outlooks(domain_index, viable, active, homes, affinities, conflicts);
     let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
     for &view in pool {
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
-        for affinity in affinities {
-            let Some(partner) = affinity_partner(domain, *affinity) else {
-                continue;
-            };
-            if homes.get(&partner) == Some(&view) {
+        for affinity in affinities.get_domain_affinities(domain_index) {
+            if homes.get(&affinity.partner) == Some(&view) {
                 guaranteed += 1;
-            } else if let Some(&partner_domain) = domain_of.get(&partner)
+            } else if let Some(partner_domain) = affinity.partner_domain
                 && let Some(outlook) = outlooks.get(&partner_domain)
                 && viable[partner_domain].binary_search(&view).is_ok()
             {
@@ -242,7 +229,7 @@ fn stolen_coalesces(
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    affinities: &[CopyAffinity],
+    affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts<'_>,
 ) -> Result<usize, RegisterHomeError> {
     let mut stolen = 0;
@@ -259,12 +246,8 @@ fn stolen_coalesces(
         {
             continue;
         }
-        for affinity in affinities {
-            let coalesces = (domains[neighbor].contains(affinity.source)
-                && homes.get(&affinity.destination) == Some(&view))
-                || (domains[neighbor].contains(affinity.destination)
-                    && homes.get(&affinity.source) == Some(&view));
-            if coalesces {
+        for affinity in affinities.get_domain_affinities(neighbor) {
+            if homes.get(&affinity.partner) == Some(&view) {
                 stolen += 1;
             }
         }
@@ -293,21 +276,15 @@ struct PartnerOutlook {
 /// or cast a vote.
 fn partner_outlooks(
     domain_index: usize,
-    domains: &[AllocationDomain<'_>],
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    affinities: &[CopyAffinity],
-    domain_of: &BTreeMap<VirtualRegisterId, usize>,
+    affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts<'_>,
 ) -> BTreeMap<usize, PartnerOutlook> {
-    let domain = &domains[domain_index];
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
-    for affinity in affinities {
-        let Some(partner) = affinity_partner(domain, *affinity) else {
-            continue;
-        };
-        let Some(&partner_domain) = domain_of.get(&partner) else {
+    for affinity in affinities.get_domain_affinities(domain_index) {
+        let Some(partner_domain) = affinity.partner_domain else {
             continue;
         };
         if partner_domain != domain_index
@@ -317,15 +294,9 @@ fn partner_outlooks(
             outlooks.entry(partner_domain).or_default().pending += 1;
         }
     }
-    for affinity in affinities {
-        for (member, other) in [
-            (affinity.source, affinity.destination),
-            (affinity.destination, affinity.source),
-        ] {
-            if let (Some(&partner_domain), Some(&home)) =
-                (domain_of.get(&member), homes.get(&other))
-                && let Some(outlook) = outlooks.get_mut(&partner_domain)
-            {
+    for (&partner_domain, outlook) in &mut outlooks {
+        for affinity in affinities.get_domain_affinities(partner_domain) {
+            if let Some(&home) = homes.get(&affinity.partner) {
                 *outlook.assigned.entry(home).or_default() += 1;
             }
         }
@@ -379,19 +350,6 @@ fn strands_neighbor(
         }
     }
     Ok(false)
-}
-
-fn affinity_partner(
-    domain: &AllocationDomain<'_>,
-    affinity: CopyAffinity,
-) -> Option<VirtualRegisterId> {
-    if domain.contains(affinity.source) {
-        Some(affinity.destination)
-    } else if domain.contains(affinity.destination) {
-        Some(affinity.source)
-    } else {
-        None
-    }
 }
 
 fn select_domain(

@@ -3,6 +3,7 @@
 mod conflicts;
 mod domain;
 mod placement;
+mod prepared_affinities;
 mod prepared_conflicts;
 
 #[cfg(test)]

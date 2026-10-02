@@ -1856,8 +1856,11 @@ the complete product bar; focused successes below do not establish that baseline
 
   Full game acceptance remains open. Allocation placement now visits only
   active constrained neighbors, retaining domain/candidate order and independent
-  replay; all 41 allocator controls pass, including comparison with the original
-  algorithm. On macOS ARM64, the closed-stdin command at `2131c361cb` reached
+  replay. Copy-affinity incidence is prepared once per domain instead of
+  rescanning unrelated edges for each candidate; parallel-edge multiplicity and
+  tied-domain ordering remain unchanged. All 43 allocator controls pass,
+  including 960 ranking comparisons with the original algorithm and independent
+  replay. On macOS ARM64, the closed-stdin command at `2131c361cb` reached
   `RegisterAllocation(RuntimeSpill(Rewrite(WorkBudgetExceeded)))` after 601
   seconds. Native realization now permits 1,000,000 validation steps per pass
   instead of 100,000, without changing candidate/commit limits or admission;
