@@ -105,6 +105,17 @@ impl OperationFrame<'_, '_> {
         value: ValueDeclaration,
         staged: bool,
     ) -> Result<Option<ValueDeclaration>, LoweringError> {
+        let names_local = coordinate.call_ordinal == 0
+            && crate::emission::call_source_custody::initializers::initializes_immutable_local(
+                self.checked,
+                self.state,
+                coordinate,
+            )?;
+        let value = if names_local {
+            self.refine_scalar_local_value(coordinate.statement_index, value)?
+        } else {
+            value
+        };
         if staged {
             return Ok(Some(value));
         }
@@ -115,12 +126,6 @@ impl OperationFrame<'_, '_> {
         )? {
             let position = self.values.len();
             self.values.push(value);
-            let names_local =
-                crate::emission::call_source_custody::initializers::initializes_immutable_local(
-                    self.checked,
-                    self.state,
-                    coordinate,
-                )?;
             if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
                 if names_local {
                     bindings.append(
