@@ -1120,6 +1120,11 @@ the complete product bar; focused successes below do not establish that baseline
     have explicit exits 1/70/70 and recorded macOS native results. Preserve
     `fail/borrows/mutable_record_state_alias` as the rejection control and
     finish other-host coverage; do not reopen the old three-gate repair.
+    `calls/local_records_mixed_record_result_arguments_exit` executes unchanged
+    with native/interpreter exit 70 on Linux x86-64 at `9782e38b64a` after fresh
+    local package review. Its committed foreign-checkout `omega.lock` prevented
+    the ordinary product command before compilation; test locks and admissions
+    must stay local. The fixture README records preparation and the outer run.
   - Preserve one portable check golden without hiding semantic differences.
     Target-name/fingerprint normalization already exists, but host-selected
     providers can still change the actual refusal. Attribute those changes
