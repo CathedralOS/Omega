@@ -417,6 +417,15 @@ fn projected_output_call_fixture(
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         });
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place(10),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
     function.declared_places.insert(place(10));
     let field = |number, name: &str, field_type| StructuralFieldDeclaration {
         id: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
