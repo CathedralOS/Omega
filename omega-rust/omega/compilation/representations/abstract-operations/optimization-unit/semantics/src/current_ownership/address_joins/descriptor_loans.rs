@@ -237,6 +237,7 @@ fn known_descriptor_use(
             | O::Return { .. }
             | O::ReturnUnit { .. }
             | O::Crash { .. }
+            | O::EstablishRecord { .. }
     )
 }
 
