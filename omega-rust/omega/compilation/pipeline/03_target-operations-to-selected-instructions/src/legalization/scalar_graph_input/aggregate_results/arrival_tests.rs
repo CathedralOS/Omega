@@ -198,9 +198,18 @@ fn owned_array_arrival_replays_exact_home_and_rejects_substitution() {
                         else {
                             return None;
                         };
-                        successor.structural_bindings.first_mut()
+                        successor.structural_bindings.iter_mut().find(|binding| {
+                            mutation != 0
+                                || length == 0
+                                || matches!(
+                                    binding.transport,
+                                    selected_instructions::SelectedStructuralTransport::WholeValue {
+                                        ..
+                                    }
+                                )
+                        })
                     })
-                    .expect("the owned value retains its semantic edge binding");
+                    .expect("the owned value retains its semantic or physical edge binding");
                 match mutation {
                     0 => {
                         binding.transport = if length == 0 {
