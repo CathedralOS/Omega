@@ -3,6 +3,27 @@ use checked_trees::CheckedUnitStructuralPathSegment as Segment;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
+#[test]
+fn bare_reference_return_uses_exact_parameter_and_only_reduces_access() {
+    let program = crate::front_end::typed_program(
+        "data Node { value: i32; }
+         data Other { value: i32; }
+         machine shared(value: &mut Node) -> &Node { value }
+         machine wrong(value: &mut Node) -> &Other { value }
+         machine strengthen(value: &Node) -> &mut Node { value }
+         machine unreadable(value: &write Node) -> &Node { value }",
+    );
+    for machine in program.machines() {
+        let state = &program.machine_states(machine)[0];
+        assert_eq!(
+            super::source_parameter(&program, state),
+            (machine.name.as_str() == "shared").then_some(0),
+            "{}",
+            machine.name.as_str(),
+        );
+    }
+}
+
 fn source() -> typed_trees::TypedTrees {
     crate::front_end::typed_program(
         "data Context { values: [i32; 2]; stored: &mut i32; }

@@ -615,6 +615,11 @@ execution and native exit/output. A moved refusal is still unfinished work.
   The three `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call`
   fixtures use local `WindowBuffer` storage and static calls; all three execute
   with native and checked-interpreter exit 0 on Windows at `bcc4f637ab1c`.
+  `pass/borrows/static_record_reference_return_exit` additionally exercises
+  invocation-local records with returned shared/mutable references, including
+  shared whole-record and field returns from mutable parameters. Windows native
+  and checked interpretation both exit 0; source-free Terminal execution also
+  retains the exact backing. No receiver flag supplies the return origin.
   **VIEW-LOAN-COMPOSITION** retains the byte-storage composition work; do not
   restore the superseded integer-subslice blockers or local-only lowering paths.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their

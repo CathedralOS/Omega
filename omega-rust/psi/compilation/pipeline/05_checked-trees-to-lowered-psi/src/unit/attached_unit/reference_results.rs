@@ -73,8 +73,17 @@ pub(super) fn validate_establishment(
                 parameter.access,
                 CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
             )
-            && parameter.access == source.access
-            && parameter.type_identity == source.type_identity
+            && validation::reference_result_custody::tail_return_expression(&checked.typed, state)
+                .and_then(|expression| {
+                    validation::reference_result_custody::initializer_source(
+                        &checked.typed,
+                        state,
+                        expression,
+                        state.return_type,
+                    )
+                })
+                .as_ref()
+                == Some(source)
             && parameter.qualifications.is_empty()
             && source.path.is_empty()
     } else if let Some((position, expected)) =
@@ -157,7 +166,7 @@ pub(super) fn validate_establishment(
         expected == *source
     } else if let CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } = source.source {
         // A `collection[0..collection.len]` completion names the carrier
-        // parameter itself — or, for `self.field[0..len]`, the projected
+        // parameter itself — or, for `context.field[0..len]`, the projected
         // `&`-field's referent leaf — rather than a derived subslice place.
         let authored = (|| {
             let statements = checked
@@ -201,10 +210,8 @@ pub(super) fn validate_establishment(
             {
                 return None;
             }
-            // The collection's root selects the carrier: a membered path
-            // walks receivers down to the head `Name`; `self` is not a state
-            // parameter, so a `None` authored position on a receiver root
-            // falls back to the `is_self` structural formal below.
+            // The collection's root selects its exact explicit parameter.
+            // A missing root is not recoverable from attachment metadata.
             let mut cursor = indexed.collection;
             let mut depth = 0usize;
             loop {
@@ -215,7 +222,7 @@ pub(super) fn validate_establishment(
                             .state_parameters(state)
                             .iter()
                             .position(|authored| authored.symbol == path.head_symbol);
-                        break Some((position, depth));
+                        break Some((position?, depth));
                     }
                     ExpressionNode::Member(member) => {
                         depth += 1;
@@ -228,15 +235,8 @@ pub(super) fn validate_establishment(
         let Some((authored_position, member_depth)) = authored else {
             return unsupported("reference completion has no exact ingress source");
         };
-        let authored_position = match authored_position {
-            Some(position) => position,
-            None if parameter.is_self => parameter.position as usize,
-            None => {
-                return unsupported("reference completion has no exact ingress source");
-            }
-        };
         // `x[0..x.len]` re-borrows the parameter itself (path stays empty);
-        // `self.view[0..len]` names the stored `&` field's referent leaf, one
+        // `context.view[0..len]` names the stored `&` field's referent leaf, one
         // `Referent` segment past the field projections — the verifier's
         // projected carrier type independently enforces the leaf identity.
         let expected_path_len = if member_depth == 0 {

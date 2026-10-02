@@ -14,24 +14,46 @@ use terminal_psi::{OperationKind, Terminator};
 
 #[test]
 fn returned_shared_record_field_reads_replay_without_source() {
-    execute_returned_record_field_read("");
+    execute_returned_record_field_read("", "");
 }
 
 #[test]
 fn returned_mutable_record_field_reads_replay_without_source() {
-    execute_returned_record_field_read("mut ");
+    execute_returned_record_field_read("mut ", "mut ");
 }
 
-fn execute_returned_record_field_read(access: &str) {
-    let checked = crate::front_end::checked_program(&format!(
+#[test]
+fn returned_shared_record_field_from_mutable_parameter_replays_without_source() {
+    execute_returned_record_field_read("mut ", "");
+}
+
+#[test]
+fn returned_shared_record_from_mutable_parameter_replays_without_source() {
+    execute_record_field_read(
+        "data Node { value: i32; }
+         data Holder { node: Node; }
+         machine first(holder: &mut Holder) -> &Holder { holder }
+         machine exercise(holder: &mut Holder) -> i32 {
+             let seen: &Holder = first(holder);
+             seen.node.value
+         }",
+    );
+}
+
+fn execute_returned_record_field_read(input_access: &str, result_access: &str) {
+    execute_record_field_read(&format!(
         "data Node {{ value: i32; }}
          data Holder {{ node: Node; }}
-         machine first(holder: &{access}Holder) -> &{access}Node {{ transition {{ _ -> &{access}holder.node }} }}
-         machine exercise(holder: &{access}Holder) -> i32 {{
-             let seen: &{access}Node = first(holder);
+         machine first(holder: &{input_access}Holder) -> &{result_access}Node {{ transition {{ _ -> &{result_access}holder.node }} }}
+         machine exercise(holder: &{input_access}Holder) -> i32 {{
+             let seen: &{result_access}Node = first(holder);
              seen.value
          }}",
     ));
+}
+
+fn execute_record_field_read(source: &str) {
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("exercise"),

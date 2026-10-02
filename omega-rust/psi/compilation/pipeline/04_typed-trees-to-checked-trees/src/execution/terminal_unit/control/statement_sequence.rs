@@ -86,22 +86,18 @@ fn returned_parameter(
             .is_some_and(|source| source.symbol == path.symbol)
     })?;
     let source = source_parameters.get(parameter.position as usize)?;
-    if let Some((_, access)) = super::super::reference_results::parts(program, state.return_type) {
+    if let Some(source) = super::super::reference_results::initializer_source(
+        program,
+        state,
+        *expression,
+        state.return_type,
+    ) {
         if super::super::reference_results::source_parameter(program, state)?
             != parameter.position as usize
-            || parameter.access != access
             || !parameter.qualifications.is_empty()
         {
             return None;
         }
-        let source = CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path: Vec::new(),
-            type_identity: parameter.type_identity.clone(),
-            access,
-        };
         return Some(CheckedUnitStructuralReturnPlan {
             source: source.source.clone(),
             type_identity: program
@@ -221,11 +217,11 @@ fn returned_reference_leaf(
 }
 
 /// A `&'a V` named-result completion borrows the referent it names from one
-/// immutable structural carrier, either directly or through a field. The borrow is the
+/// readable structural carrier, either directly or through a field. The borrow is the
 /// result — there are no subslice endpoints and no separate slice length.
 /// Unlike `returned_reference_leaf`'s `&mut` record rosters the carrier may
-/// itself be the shared-borrow receiver, so `SharedBorrow` is admitted beside
-/// `Owned`.
+/// itself be borrowed. A mutable input can lend shared observation; its
+/// exclusivity does not require the output to remain mutable.
 fn returned_named_view(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -270,13 +266,16 @@ fn returned_named_view(
         .position(|parameter| parameter.symbol == symbol)?;
     let carrier = &authored[position];
     if carrier.is_self
-        || carrier.is_mutable
         || !matches!(
             crate::execution::terminal_unit::types::structural_access_for_type_reference(
                 program,
                 carrier.type_reference,
             ),
-            Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned)
+            Some(
+                CheckedStructuralAccess::SharedBorrow
+                    | CheckedStructuralAccess::MutableBorrow
+                    | CheckedStructuralAccess::Owned
+            )
         )
     {
         return None;

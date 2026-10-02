@@ -19,11 +19,31 @@ machine read_mutable(holder: &mut Holder) -> i32 {
     selected.value
 }
 
+machine observe(holder: &mut Holder) -> &Holder {
+    holder
+}
+
+machine observe_node(holder: &mut Holder) -> &Node {
+    transition { _ -> &holder.node }
+}
+
+machine read_shared_from_mutable(holder: &mut Holder) -> i32 {
+    let selected: &Holder = observe(holder);
+    selected.node.value
+}
+
+machine read_shared_field_from_mutable(holder: &mut Holder) -> i32 {
+    let node: &Node = observe_node(holder);
+    node.value
+}
+
 machine main() crashes Trap {
     let mut holder: Holder = Holder { node: Node { value: 37 } };
     let first: i32 = read_shared(&holder);
     let second: i32 = read_mutable(&mut holder);
-    transition first == 37 && second == 37 && holder.node.value == 37 {
+    let third: i32 = read_shared_from_mutable(&mut holder);
+    let fourth: i32 = read_shared_field_from_mutable(&mut holder);
+    transition first == 37 && second == 37 && third == 37 && fourth == 37 && holder.node.value == 37 {
         true -> passed()
         false -> failed()
     }
