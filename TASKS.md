@@ -211,6 +211,14 @@ execution and native exit/output. A moved refusal is still unfinished work.
   are migrated apart from their satisfier and meet their native oracles
   (e827c44563ab), so each now holds exactly the two `self` spellings this item
   and Q4 own -- they are the acceptance set and need no further migration first.
+  Three CORPUS customers reach the same refusal, which is better evidence than
+  the samples because the corpus gate scores them:
+  `pass/providers/{runtime_boundary_array_construction_exit,
+  runtime_boundary_primitive_array_argument_exit,
+  runtime_foreign_leaf_borrowed_byte_argument_exit}` report
+  "selected checked adapter `named-callable(..self\(no\)..)`" once their
+  `ArrayReaderProvider::inspect` / `MeasureProvider::measure` satisfier names its
+  subject.
   `samples/gui/{window_app,window_demo,windowed_calculator}` hold 60 more across
   30 satisfiers and are NOT partially migratable the way the nine were: their
   satisfier bodies read the data, so keeping the receiver on the signature alone
@@ -253,6 +261,21 @@ execution and native exit/output. A moved refusal is still unfinished work.
   borrow `__hoist_1` is still active" -- a hoisted index temp's loan conflicting
   with passing the record, which 64b8f4c5db03 made reachable for data-rooted
   indices.
+
+- **STATIC-SYNTHESIZED-EQUALITY-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
+  A satisfier of a SYNTHESIZED trait operation cannot name its subject, because
+  the synthesis calls it receiver-style from inside the compiler. One fixture.
+  Measured 2026-10-02. `pass/traits/equatable_record_equality_exit` declares
+  `PointEquatable: Point satisfies Equatable;` and overrides
+  `OverridePoint::equals`. With the override naming its subject, and both
+  authored `main.a.equals(&main.b)` call sites respelled
+  `Point::equals(&main.a, &main.b)`, it still reports "state `equals` expects 2
+  argument(s), got 1" -- so the remaining caller is the `==` operator's own
+  expansion over the synthesized structural equality, which is not a source
+  call site to requalify.
+  Scope: the synthesized equality expansion has to supply the subject argument
+  when the selected `equals` names one. Acceptance: that fixture checks and
+  meets its native oracle with the override naming its subject.
 
 - **STATIC-DERIVED-ACCESSOR-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   The three `PlacedField` accessors in `source/library/core/layout.omg` cannot
