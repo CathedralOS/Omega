@@ -149,7 +149,7 @@ fn replacement_reads_the_old_source_before_defining_its_result() {
     let mut flow = repeated_formation();
     let birth = flow.steps.get_mut(&position(1)).unwrap();
     birth.inputs = vec![place(1)];
-    birth.derivation = Some((place(1), place(1)));
+    birth.derivations = vec![(place(1), place(1))];
     let live = flow.live_positions(position(1), place(1));
     assert!(
         live.contains(&position(0)),
@@ -164,7 +164,7 @@ fn derived_child_keeps_its_parent_cohort_after_the_parent_name_is_replaced() {
     let child = flow.steps.get_mut(&position(3)).unwrap();
     child.inputs = vec![place(1)];
     child.definitions = vec![place(2)];
-    child.derivation = Some((place(1), place(2)));
+    child.derivations = vec![(place(1), place(2))];
     flow.steps
         .get_mut(&position(2))
         .unwrap()
@@ -309,6 +309,158 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
     let flow = DescriptorFlow::new(&function, &BTreeMap::new());
     assert_eq!(flow.steps[&position(0)].definitions, vec![place(1)]);
     assert!(flow.steps[&position(1)].definitions.is_empty());
+}
+
+#[test]
+fn record_observation_keeps_every_contained_descriptor_backing_live() {
+    let descriptor_type = StructuralTypeId::new(1).unwrap();
+    let record_type = StructuralTypeId::new(2).unwrap();
+    let fields = [1, 2].map(|number| semantic_vocabulary::StructuralFieldId::new(number).unwrap());
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: descriptor_type,
+            identity: "test::View".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                },
+            ),
+        },
+        StructuralTypeDeclaration {
+            id: record_type,
+            identity: "test::Pair".into(),
+            shape: StructuralTypeShape::Record {
+                fields: fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, field)| StructuralFieldDeclaration {
+                        id: *field,
+                        identity: format!("view{index}"),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(descriptor_type),
+                    })
+                    .collect(),
+            },
+        },
+    ];
+    let types = declarations.iter().map(|row| (row.id, row)).collect();
+    for observe_record in [false, true] {
+        // Exercise the actual operation adapter, including two independent
+        // descriptor births. No direct use of either child follows capture.
+        let mut function = receiver_fixture(scalar(2), false);
+        let mut second = function.blocks[0].nodes[0].clone();
+        let O::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            ..
+        } = &mut second.operation
+        else {
+            unreachable!()
+        };
+        *psi_operation = instruction(5);
+        result.place = place(2);
+        *source = place(10);
+        let mut record_result = result.clone();
+        record_result.place = place(3);
+        record_result.structural_type = record_type;
+        let mut record = second.clone();
+        record.operation = O::EstablishRecord {
+            psi_operation: instruction(6),
+            result: record_result,
+            fields: fields
+                .iter()
+                .enumerate()
+                .map(|(index, field)| terminal_psi::RecordFieldInitializer {
+                    field: *field,
+                    value: terminal_psi::RecordFieldValue::Structural(
+                        terminal_psi::StructuralArgument {
+                            place: place(index as u64 + 1),
+                            access: StructuralAccess::Owned,
+                            path: Vec::new(),
+                        },
+                    ),
+                })
+                .collect(),
+        };
+        let first_write = function.blocks[0].nodes[2].clone();
+        let mut second_write = first_write.clone();
+        if let O::ByteSequenceWrite {
+            psi_operation,
+            destination,
+            ..
+        } = &mut second_write.operation
+        {
+            *psi_operation = instruction(7);
+            *destination = place(10);
+        }
+        let mut nodes = vec![
+            function.blocks[0].nodes[0].clone(),
+            second,
+            record,
+            first_write,
+            second_write,
+        ];
+        if observe_record {
+            for (index, field) in fields.iter().enumerate() {
+                let mut observation = nodes[0].clone();
+                observation.operation = O::StructuralByteSequenceFieldLength {
+                    psi_operation: instruction(index as u64 + 8),
+                    result: abstract_operations::AbstractResult {
+                        value: value(index as u64 + 8),
+                        scalar_type: ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
+                        ),
+                    },
+                    source: place(3),
+                    path: Vec::new(),
+                    field: *field,
+                };
+                nodes.push(observation);
+            }
+        }
+        function.blocks[0].nodes = nodes;
+        for (result, producer, structural_type) in [
+            (place(2), instruction(5), descriptor_type),
+            (place(3), instruction(6), record_type),
+        ] {
+            function
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: result,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                });
+            function.declared_places.insert(result);
+        }
+        function.declared_places.insert(place(10));
+        let regions = BorrowedRegions::new(
+            &function,
+            &types,
+            &crate::current_ownership::CallAccesses::default(),
+        );
+        let loans = DescriptorLoans::new(&function, &regions, &types);
+        assert_eq!(loans.loans.len(), 2);
+        for (node, backing) in [(3, place(9)), (4, place(10))] {
+            assert_eq!(
+                loans.conflicted_operation(
+                    &regions,
+                    position(node).0,
+                    node,
+                    &function.blocks[0].nodes[node as usize].operation,
+                    &[],
+                ),
+                observe_record.then_some(backing),
+                "contained descriptor backing {backing:?}, observed: {observe_record}"
+            );
+        }
+    }
 }
 
 #[test]
