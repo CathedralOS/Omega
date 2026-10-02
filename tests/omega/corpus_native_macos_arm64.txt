@@ -1056,14 +1056,14 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1360ms @4800836
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms
-pass/text/copy_record_view_field_state_transfer_exit rejected 937ms @5676dbe78a95+wt
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/unit.rs", line: 662, column: 20 } }))
+pass/text/copy_record_view_field_state_transfer_exit built 1444ms exit:70 @ef2ef25a3ab8+wt
 pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c144+wt
 pass/text/local_bounded_text_case_result_loan_exit built 1698ms exit:70 @48008365d839
 pass/text/local_bounded_text_scalar_loan_exit built 6611ms exit:70 @48008365d839
 pass/text/local_record_byte_field_copy_exit built 1021ms exit:70 stdout:match @9484e48a74ff+wt
 pass/text/nested_mutable_receiver_byte_result_exit built 1214ms exit:70 @f7deb06aff79+wt
 pass/text/nested_owned_byte_record_literal_exit built 1189ms exit:70 @ae42075f1dcc+wt
+pass/text/owned_arrival_view_descriptor_forwarded_exit built 1713ms exit:70 @ef2ef25a3ab8+wt
 pass/text/owned_byte_call_result_field_exit built 1201ms exit:70 @5826c9701ec3+wt
 pass/text/owned_record_byte_field_read_exit built 1345ms exit:70 @745e4632e4d0
 pass/text/runtime_alias_string_write built 688ms @fb2178def922

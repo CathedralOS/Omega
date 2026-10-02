@@ -1,0 +1,68 @@
+// RUN (exit 70). A `[copy]` record holding a shared text view and a scalar
+// crosses three state edges by value. `inspect(self.badge)` copies the record
+// out of the receiver into the successor's owned parameter; `confirm(badge)`
+// and `last_byte(badge)` then forward that owned arrival whole into the next
+// state. The view field travels as its two-word descriptor beside the scalar:
+// every copy keeps the literal's image backing and extent, and copy permission
+// neither establishes the field's predicate nor extends its loan. Each state
+// reads its own copy: the extent and the scalar, then the bytes and the
+// scalar, then one indexed byte.
+//
+//   label = "north" (5 bytes, label[4] = 'h' = 104), rank = 9
+//
+// exits: 70 = every state saw the view and the rank; 71 = wrong extent or
+// rank after the first edge; 72 = wrong bytes or rank after the second edge;
+// 73 = wrong extent or byte after the third edge.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Badge [copy] {
+    label: &[u8] in Utf8;
+    rank: u64;
+}
+
+data Main {
+    console: Binding<Console>;
+    badge: Badge;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.badge.label = "north";
+    self.badge.rank = 9;
+    transition { _ -> inspect(self.badge) }
+
+    state inspect(&mut self, badge: Badge) {
+        transition badge.label.len == 5 && badge.rank == 9 {
+            true -> confirm(badge)
+            false -> finish(71)
+        }
+    }
+
+    state confirm(&mut self, badge: Badge) {
+        transition badge.label == "north" && badge.rank == 9 {
+            true -> last_byte(badge)
+            false -> finish(72)
+        }
+    }
+
+    state last_byte(&mut self, badge: Badge) {
+        transition badge.label.len > 4 {
+            true -> matched(badge.label[4] == 104)
+            false -> finish(73)
+        }
+    }
+
+    state matched(&mut self, same: bool) {
+        transition same {
+            true -> finish(70)
+            false -> finish(73)
+        }
+    }
+
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}
