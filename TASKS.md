@@ -204,12 +204,18 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `atom("self", if parameter.is_self { "yes" } else { "no" })`, so a named
   subject reads `self(no)` where the requirement's adapter expects `self(yes)`
   and the identities cannot match.
-  Customers: `samples/cli/{algorithms/binary_search_viz,algorithms/sort_visualizer,
-  rendering/bouncing_console,rendering/ripple_field,rendering/tick_marquee,
-  simulation/cellular_automaton,simulation/game_of_life_glider,
-  simulation/langtons_ant,simulation/random_walk}`. All nine meet their native
-  oracles today and reach only this refusal once migrated, so they are a clean
-  acceptance set.
+  Customers. The nine `samples/cli/{algorithms/binary_search_viz,
+  algorithms/sort_visualizer,rendering/bouncing_console,rendering/ripple_field,
+  rendering/tick_marquee,simulation/cellular_automaton,
+  simulation/game_of_life_glider,simulation/langtons_ant,simulation/random_walk}`
+  are migrated apart from their satisfier and meet their native oracles
+  (e827c44563ab), so each now holds exactly the two `self` spellings this item
+  and Q4 own -- they are the acceptance set and need no further migration first.
+  `samples/gui/{window_app,window_demo,windowed_calculator}` hold 60 more across
+  30 satisfiers and are NOT partially migratable the way the nine were: their
+  satisfier bodies read the data, so keeping the receiver on the signature alone
+  reports "uses `window_gui_provider`, which is not a declared local, parameter,
+  field, or type in this state". They migrate with this item or not at all.
   **Three sites in a chain, the first two measured as fixable and digest-safe,
   the third a real semantics question. Attempted and reverted 2026-10-02 because
   the first two alone leave no green customer.**

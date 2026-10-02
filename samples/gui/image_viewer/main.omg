@@ -84,150 +84,150 @@ data Main {
     pumped: i32 [0..=16];
 }
 
-machine Main::main(&mut self) reaches Clock + Console + FilesystemHost + Gui + Input {
+machine Main::main(main: &mut Main) reaches Clock + Console + FilesystemHost + Gui + Input {
     // "#32770\0" -- the predefined dialog class (draggable top-level window).
-    self.cls[0] = 35;
-    self.cls[1] = 51;
-    self.cls[2] = 50;
-    self.cls[3] = 55;
-    self.cls[4] = 55;
-    self.cls[5] = 48;
-    self.cls[6] = 0;
+    main.cls[0] = 35;
+    main.cls[1] = 51;
+    main.cls[2] = 50;
+    main.cls[3] = 55;
+    main.cls[4] = 55;
+    main.cls[5] = 48;
+    main.cls[6] = 0;
     // "omega viewer\0"
-    self.title[0] = 111;
-    self.title[1] = 109;
-    self.title[2] = 101;
-    self.title[3] = 103;
-    self.title[4] = 97;
-    self.title[5] = 32;
-    self.title[6] = 118;
-    self.title[7] = 105;
-    self.title[8] = 101;
-    self.title[9] = 119;
-    self.title[10] = 101;
-    self.title[11] = 114;
-    self.title[12] = 0;
+    main.title[0] = 111;
+    main.title[1] = 109;
+    main.title[2] = 101;
+    main.title[3] = 103;
+    main.title[4] = 97;
+    main.title[5] = 32;
+    main.title[6] = 118;
+    main.title[7] = 105;
+    main.title[8] = 101;
+    main.title[9] = 119;
+    main.title[10] = 101;
+    main.title[11] = 114;
+    main.title[12] = 0;
     // BITMAPINFOHEADER for the DECODED buffer: 64x64 top-down 32bpp BI_RGB
     // (2097153 = planes 1 | bitcount 32 packed into one i32).
-    self.info[0] = 40;
-    self.info[1] = 64;
-    self.info[2] = 0 - 64;
-    self.info[3] = 2097153;
-    self.current = 0;
-    transition { _ -> load() }
+    main.info[0] = 40;
+    main.info[1] = 64;
+    main.info[2] = 0 - 64;
+    main.info[3] = 2097153;
+    main.current = 0;
+    transition { _ -> load(main) }
 
     // --- load the current image from disk (also re-entered on every flip) ---
-    state load(&mut self) {
-        transition self.current == 0 { true -> open0() _ -> load1() }
+    state load(main: &mut Main) {
+        transition main.current == 0 { true -> open0(main) _ -> load1(main) }
     }
-    state load1(&mut self) {
-        transition self.current == 1 { true -> open1() _ -> open2() }
+    state load1(main: &mut Main) {
+        transition main.current == 1 { true -> open1(main) _ -> open2(main) }
     }
     // Each image is tried at the sample dir first, then one level up -- so the
     // exe works launched from the sample folder OR double-clicked in build\.
     // (build.omg has no asset-copying yet; when it does, the fallback can go.)
-    state open0(&mut self) {
+    state open0(main: &mut Main) {
         // 32768 = O_BINARY (msvcrt): BMP bytes must not ride text-mode CRLF
         // translation (0x0D 0x0A pairs collapse) or the ^Z end-of-file rule.
-        self.fd = self.raw.open("img0.bmp", 32768);
-        transition self.fd >= 0 { true -> read_file() _ -> open0_up() }
+        main.fd = main.raw.open("img0.bmp", 32768);
+        transition main.fd >= 0 { true -> read_file(main) _ -> open0_up(main) }
     }
-    state open0_up(&mut self) {
-        self.fd = self.raw.open("../img0.bmp", 32768);
-        transition { _ -> read_file() }
+    state open0_up(main: &mut Main) {
+        main.fd = main.raw.open("../img0.bmp", 32768);
+        transition { _ -> read_file(main) }
     }
-    state open1(&mut self) {
-        self.fd = self.raw.open("img1.bmp", 32768);
-        transition self.fd >= 0 { true -> read_file() _ -> open1_up() }
+    state open1(main: &mut Main) {
+        main.fd = main.raw.open("img1.bmp", 32768);
+        transition main.fd >= 0 { true -> read_file(main) _ -> open1_up(main) }
     }
-    state open1_up(&mut self) {
-        self.fd = self.raw.open("../img1.bmp", 32768);
-        transition { _ -> read_file() }
+    state open1_up(main: &mut Main) {
+        main.fd = main.raw.open("../img1.bmp", 32768);
+        transition { _ -> read_file(main) }
     }
-    state open2(&mut self) {
-        self.fd = self.raw.open("img2.bmp", 32768);
-        transition self.fd >= 0 { true -> read_file() _ -> open2_up() }
+    state open2(main: &mut Main) {
+        main.fd = main.raw.open("img2.bmp", 32768);
+        transition main.fd >= 0 { true -> read_file(main) _ -> open2_up(main) }
     }
-    state open2_up(&mut self) {
-        self.fd = self.raw.open("../img2.bmp", 32768);
-        transition { _ -> read_file() }
+    state open2_up(main: &mut Main) {
+        main.fd = main.raw.open("../img2.bmp", 32768);
+        transition { _ -> read_file(main) }
     }
-    state read_file(&mut self) {
-        transition self.fd >= 0 { true -> read_go() _ -> load_failed() }
+    state read_file(main: &mut Main) {
+        transition main.fd >= 0 { true -> read_go(main) _ -> load_failed(main) }
     }
-    state read_go(&mut self) {
-        self.n = self.raw.read(self.fd, &mut self.buffer, 16384);
-        self.rc = self.raw.close(self.fd);
-        transition self.n == 12342 { true -> decode_init() _ -> load_failed() }
+    state read_go(main: &mut Main) {
+        main.n = main.raw.read(main.fd, &mut main.buffer, 16384);
+        main.rc = main.raw.close(main.fd);
+        transition main.n == 12342 { true -> decode_init(main) _ -> load_failed(main) }
     }
 
     // --- decode: 24bpp bottom-up BGR -> top-down 0x00RRGGBB ---
     // File row 0 is the visual BOTTOM row, so dst starts at the last pixel row
     // (63*64 = 4032) and jumps back 128 after each row (64 forward within the
     // row, 192 back to the previous visual row's start).
-    state decode_init(&mut self) {
-        self.src = 54;
-        self.dst = 4032;
-        self.col = 0;
-        transition { _ -> px_b() }
+    state decode_init(main: &mut Main) {
+        main.src = 54;
+        main.dst = 4032;
+        main.col = 0;
+        transition { _ -> px_b(main) }
     }
-    state px_b(&mut self) {
-        transition self.src < 16384 { true -> px_b_go() _ -> load_failed() }
+    state px_b(main: &mut Main) {
+        transition main.src < 16384 { true -> px_b_go(main) _ -> load_failed(main) }
     }
-    state px_b_go(&mut self) {
-        self.b = self.buffer[self.src] as i32;
-        self.src = self.src + 1;
-        transition self.src < 16384 { true -> px_g() _ -> load_failed() }
+    state px_b_go(main: &mut Main) {
+        main.b = main.buffer[main.src] as i32;
+        main.src = main.src + 1;
+        transition main.src < 16384 { true -> px_g(main) _ -> load_failed(main) }
     }
-    state px_g(&mut self) {
-        self.g = self.buffer[self.src] as i32;
-        self.src = self.src + 1;
-        transition self.src < 16384 { true -> px_r() _ -> load_failed() }
+    state px_g(main: &mut Main) {
+        main.g = main.buffer[main.src] as i32;
+        main.src = main.src + 1;
+        transition main.src < 16384 { true -> px_r(main) _ -> load_failed(main) }
     }
-    state px_r(&mut self) {
-        self.r = self.buffer[self.src] as i32;
-        self.px = (self.r << 16) | (self.g << 8) | self.b;
-        transition self.src < 16384 { true -> px_advance() _ -> load_failed() }
+    state px_r(main: &mut Main) {
+        main.r = main.buffer[main.src] as i32;
+        main.px = (main.r << 16) | (main.g << 8) | main.b;
+        transition main.src < 16384 { true -> px_advance(main) _ -> load_failed(main) }
     }
-    state px_advance(&mut self) {
-        self.src = self.src + 1;
-        transition self.dst < 4096 { true -> px_put() _ -> load_failed() }
+    state px_advance(main: &mut Main) {
+        main.src = main.src + 1;
+        transition main.dst < 4096 { true -> px_put(main) _ -> load_failed(main) }
     }
-    state px_put(&mut self) {
-        self.pixels[self.dst] = self.px;
-        self.dst = self.dst + 1;
-        transition self.col < 63 { true -> px_next_col() _ -> row_done() }
+    state px_put(main: &mut Main) {
+        main.pixels[main.dst] = main.px;
+        main.dst = main.dst + 1;
+        transition main.col < 63 { true -> px_next_col(main) _ -> row_done(main) }
     }
-    state px_next_col(&mut self) {
-        self.col = self.col + 1;
-        transition { _ -> px_b() }
+    state px_next_col(main: &mut Main) {
+        main.col = main.col + 1;
+        transition { _ -> px_b(main) }
     }
-    state row_done(&mut self) {
-        self.col = 0;
+    state row_done(main: &mut Main) {
+        main.col = 0;
         // dst sits one past the finished visual row's end. The bottom-up walk
         // is complete exactly when that row was the visual TOP row (dst == 64);
         // otherwise step back to the previous visual row's start (dst - 128,
         // proven in range by this guard).
-        transition self.dst >= 128 { true -> prev_row() _ -> decoded() }
+        transition main.dst >= 128 { true -> prev_row(main) _ -> decoded(main) }
     }
-    state prev_row(&mut self) {
-        self.dst = self.dst - 128;
-        transition { _ -> px_b() }
+    state prev_row(main: &mut Main) {
+        main.dst = main.dst - 128;
+        transition { _ -> px_b(main) }
     }
 
     // --- first decode creates the window; flips just re-present ---
-    state decoded(&mut self) {
-        transition self.hwnd > 0 { true -> present() _ -> create_window() }
+    state decoded(main: &mut Main) {
+        transition main.hwnd > 0 { true -> present(main) _ -> create_window(main) }
     }
-    state create_window(&mut self) {
+    state create_window(main: &mut Main) {
         // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so the client area is
         // roughly 512x512 (the 64x64 image stretched 8x).
-        self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 160, 120, 528, 551);
-        transition self.hwnd > 0 { true -> dc() _ -> bad() }
+        main.hwnd = main.gui.window_create(main.cls, main.title, 282001408, 160, 120, 528, 551);
+        transition main.hwnd > 0 { true -> dc(main) _ -> bad(main) }
     }
-    state dc(&mut self) {
-        self.hdc = self.gui.get_dc(self.hwnd);
-        transition self.hdc > 0 { true -> present() _ -> bad() }
+    state dc(main: &mut Main) {
+        main.hdc = main.gui.get_dc(main.hwnd);
+        transition main.hdc > 0 { true -> present(main) _ -> bad(main) }
     }
 
     // --- pump: drain up to 16 queued messages through DefWindowProc ---
@@ -237,136 +237,136 @@ machine Main::main(&mut self) reaches Clock + Console + FilesystemHost + Gui + I
     // button's posted WM_NCLBUTTONDOWN (161) with wParam HTCLOSE (20), and a
     // queue-visible WM_SYSCOMMAND (274) whose wParam is SC_CLOSE (0xF060,
     // low hit-test nibble masked).
-    state pump_init(&mut self) {
-        self.pumped = 0;
-        transition { _ -> pump_loop() }
+    state pump_init(main: &mut Main) {
+        main.pumped = 0;
+        transition { _ -> pump_loop(main) }
     }
-    state pump_loop(&mut self) {
-        self.have = self.gui.msg_peek(self.message);
-        transition self.have > 0 { true -> pump_check_close() _ -> liveness() }
+    state pump_loop(main: &mut Main) {
+        main.have = main.gui.msg_peek(main.message);
+        transition main.have > 0 { true -> pump_check_close(main) _ -> liveness(main) }
     }
-    state pump_check_close(&mut self) {
-        self.msg_code = self.message[1] % 65536;
-        transition self.msg_code == 16 { true -> quit_self() _ -> pump_check_xdown() }
+    state pump_check_close(main: &mut Main) {
+        main.msg_code = main.message[1] % 65536;
+        transition main.msg_code == 16 { true -> quit_self(main) _ -> pump_check_xdown(main) }
     }
-    state pump_check_xdown(&mut self) {
-        transition self.msg_code == 161 { true -> pump_check_xhit() _ -> pump_check_syscommand() }
+    state pump_check_xdown(main: &mut Main) {
+        transition main.msg_code == 161 { true -> pump_check_xhit(main) _ -> pump_check_syscommand(main) }
     }
-    state pump_check_xhit(&mut self) {
+    state pump_check_xhit(main: &mut Main) {
         // Only the close button's hit-test code quits; any other non-client
         // press (caption drag, resize borders) dispatches normally.
-        transition self.message[2] == 20 { true -> quit_self() _ -> pump_handle() }
+        transition main.message[2] == 20 { true -> quit_self(main) _ -> pump_handle(main) }
     }
-    state pump_check_syscommand(&mut self) {
-        transition self.msg_code == 274 { true -> pump_check_sysclose() _ -> pump_handle() }
+    state pump_check_syscommand(main: &mut Main) {
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main) _ -> pump_handle(main) }
     }
-    state pump_check_sysclose(&mut self) {
-        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> pump_handle() }
+    state pump_check_sysclose(main: &mut Main) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> pump_handle(main) }
     }
-    state pump_handle(&mut self) {
-        self.translated = self.gui.msg_translate(self.message);
-        self.dispatched = self.gui.msg_dispatch(self.message);
-        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    state pump_handle(main: &mut Main) {
+        main.translated = main.gui.msg_translate(main.message);
+        main.dispatched = main.gui.msg_dispatch(main.message);
+        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
     }
-    state pump_next(&mut self) {
-        self.pumped = self.pumped + 1;
-        transition { _ -> pump_loop() }
+    state pump_next(main: &mut Main) {
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump_loop(main) }
     }
 
     // --- quit paths: closed window or ESC; flip paths: RIGHT/LEFT edges ---
-    state liveness(&mut self) {
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> focus_check() _ -> closed() }
+    state liveness(main: &mut Main) {
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> focus_check(main) _ -> closed(main) }
     }
     // GetAsyncKeyState is GLOBAL: without this gate, an ESC (or arrow) pressed
     // in ANY app -- even the Ctrl+Shift+Esc chord -- would drive this window.
-    state focus_check(&mut self) {
-        self.fw = self.gui.foreground_window();
-        transition self.fw == self.hwnd { true -> esc_check() _ -> present() }
+    state focus_check(main: &mut Main) {
+        main.fw = main.gui.foreground_window();
+        transition main.fw == main.hwnd { true -> esc_check(main) _ -> present(main) }
     }
-    state esc_check(&mut self) {
-        self.escape = self.input.key_state(27);
-        transition self.escape > 0 { true -> quit_self() _ -> next_check() }
+    state esc_check(main: &mut Main) {
+        main.escape = main.input.key_state(27);
+        transition main.escape > 0 { true -> quit_self(main) _ -> next_check(main) }
     }
-    state quit_self(&mut self) {
-        self.killed = self.gui.window_destroy(self.hwnd);
-        transition { _ -> closed() }
+    state quit_self(main: &mut Main) {
+        main.killed = main.gui.window_destroy(main.hwnd);
+        transition { _ -> closed(main) }
     }
     // Edge-detect the arrows (key_state reports HELD): flip only on the
     // 0 -> held transition, so holding the key is one flip, not sixty.
-    state next_check(&mut self) {
-        self.next_key = self.input.key_state(39);
-        transition self.next_key > 0 && self.next_held == 0 { true -> next_edge() _ -> next_level() }
+    state next_check(main: &mut Main) {
+        main.next_key = main.input.key_state(39);
+        transition main.next_key > 0 && main.next_held == 0 { true -> next_edge(main) _ -> next_level(main) }
     }
-    state next_edge(&mut self) {
-        self.next_held = 1;
-        transition self.current < 2 { true -> next_up() _ -> next_wrap() }
+    state next_edge(main: &mut Main) {
+        main.next_held = 1;
+        transition main.current < 2 { true -> next_up(main) _ -> next_wrap(main) }
     }
-    state next_up(&mut self) {
-        self.current = self.current + 1;
-        transition { _ -> load() }
+    state next_up(main: &mut Main) {
+        main.current = main.current + 1;
+        transition { _ -> load(main) }
     }
-    state next_wrap(&mut self) {
-        self.current = 0;
-        transition { _ -> load() }
+    state next_wrap(main: &mut Main) {
+        main.current = 0;
+        transition { _ -> load(main) }
     }
-    state next_level(&mut self) {
-        transition self.next_key > 0 { true -> prev_check() _ -> next_release() }
+    state next_level(main: &mut Main) {
+        transition main.next_key > 0 { true -> prev_check(main) _ -> next_release(main) }
     }
-    state next_release(&mut self) {
-        self.next_held = 0;
-        transition { _ -> prev_check() }
+    state next_release(main: &mut Main) {
+        main.next_held = 0;
+        transition { _ -> prev_check(main) }
     }
-    state prev_check(&mut self) {
-        self.prev_key = self.input.key_state(37);
-        transition self.prev_key > 0 && self.prev_held == 0 { true -> prev_edge() _ -> prev_level() }
+    state prev_check(main: &mut Main) {
+        main.prev_key = main.input.key_state(37);
+        transition main.prev_key > 0 && main.prev_held == 0 { true -> prev_edge(main) _ -> prev_level(main) }
     }
-    state prev_edge(&mut self) {
-        self.prev_held = 1;
-        transition self.current > 0 { true -> prev_down() _ -> prev_wrap() }
+    state prev_edge(main: &mut Main) {
+        main.prev_held = 1;
+        transition main.current > 0 { true -> prev_down(main) _ -> prev_wrap(main) }
     }
-    state prev_down(&mut self) {
-        self.current = self.current - 1;
-        transition { _ -> load() }
+    state prev_down(main: &mut Main) {
+        main.current = main.current - 1;
+        transition { _ -> load(main) }
     }
-    state prev_wrap(&mut self) {
-        self.current = 2;
-        transition { _ -> load() }
+    state prev_wrap(main: &mut Main) {
+        main.current = 2;
+        transition { _ -> load(main) }
     }
-    state prev_level(&mut self) {
-        transition self.prev_key > 0 { true -> present() _ -> prev_release() }
+    state prev_level(main: &mut Main) {
+        transition main.prev_key > 0 { true -> present(main) _ -> prev_release(main) }
     }
-    state prev_release(&mut self) {
-        self.prev_held = 0;
-        transition { _ -> present() }
+    state prev_release(main: &mut Main) {
+        main.prev_held = 0;
+        transition { _ -> present(main) }
     }
 
     // --- present + pace ---
-    state present(&mut self) {
-        self.copied = self.gui.blit(self.hdc, 512, 512, 64, 64, self.pixels, self.info);
-        transition self.copied == 64 { true -> pace() _ -> present_failed() }
+    state present(main: &mut Main) {
+        main.copied = main.gui.blit(main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main) _ -> present_failed(main) }
     }
-    state present_failed(&mut self) {
+    state present_failed(main: &mut Main) {
         // A failed blit right after the user closed the window is the normal
         // shutdown race, not an error.
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> bad() _ -> closed() }
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> bad(main) _ -> closed(main) }
     }
-    state pace(&mut self) {
-        self.clock.sleep(15);
-        transition { _ -> pump_init() }
+    state pace(main: &mut Main) {
+        main.clock.sleep(15);
+        transition { _ -> pump_init(main) }
     }
 
-    state closed(&mut self) {
-        self.console.write_line("viewer closed -- goodbye (exit 0)");
-        self.console.exit_process(0);
+    state closed(main: &mut Main) {
+        main.console.write_line("viewer closed -- goodbye (exit 0)");
+        main.console.exit_process(0);
     }
-    state load_failed(&mut self) {
-        self.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
-        self.console.exit_process(1);
+    state load_failed(main: &mut Main) {
+        main.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
+        main.console.exit_process(1);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
+        main.console.exit_process(1);
     }
 }
