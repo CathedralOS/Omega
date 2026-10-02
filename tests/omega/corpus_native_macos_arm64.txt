@@ -208,7 +208,7 @@ pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
 pass/calls/runtime_reference_returned_slice_element_write_exit built 3300ms exit:181 @8b265e4e6ad8+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1776ms exit:70 @48008365d839
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 725ms exit:70
-pass/calls/runtime_shared_ref_param_member_exit built 2091ms exit:42 @fb2178def922
+pass/calls/runtime_shared_ref_param_member_exit built 855ms exit:42 @2f8006be6cc9+wt
 pass/calls/runtime_static_entry_context_exit built 560ms exit:0 @48008365d839
 pass/calls/runtime_std_math_sin_cos_exit built 20695ms exit:70 @48008365d839
 pass/calls/runtime_structural_literal_call_initializer_exit built 1055ms exit:70
@@ -1066,7 +1066,7 @@ pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
-pass/termination/runtime_shrinking_slice_recursion_exit built 1216ms exit:70 @4599062860c1
+pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1360ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 195ms

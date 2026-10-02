@@ -26,41 +26,38 @@ data Main {
     total: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
-    self.entries[0].value = 10;
-    self.entries[1].value = 20;
-    self.entries[2].value = 15;
-    self.entries[3].value = 25;
+machine Main::main(main: &mut Main) reaches Console {
+    main.entries[0].value = 10;
+    main.entries[1].value = 20;
+    main.entries[2].value = 15;
+    main.entries[3].value = 25;
 
-    let view: &[Entry] = self.entries.as_slice();
+    let view: &[Entry] = main.entries.as_slice();
+    main.total = Main::accumulate(view, 0);
 
-    transition {
-        _ -> self.accumulate(view, 0)
+    transition main.total {
+        70 -> matched(main)
+        _ -> missed(main)
+    }
+
+    state matched(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
 
-machine Main::accumulate(&mut self, items: &[Entry], take: u32 in Wrapping)
+// The running total is CARRIED and RETURNED rather than accumulated into the
+// caller's record: `items` is a shared view of `main.entries`, and taking
+// `&mut Main` beside it would mutate the record a live shared child freezes.
+// The shrinking-slice recursion this fixture exists to cover is unchanged.
+machine Main::accumulate(items: &[Entry], carried: u32 in Wrapping)
 terminates by items -> Slice::Length;
-reaches Console {
-    self.total = self.total + take;
-
+-> u32 in Wrapping {
     transition items.len > 0 {
-        true -> accumulate(items[1..], items[0].value)
-        false -> finished()
-    }
-
-    state finished(&mut self) {
-        transition self.total {
-            70 -> matched()
-            _ -> missed()
-        }
-    }
-
-    state matched(&mut self) {
-        self.console.exit_process(70);
-    }
-
-    state missed(&mut self) {
-        self.console.exit_process(71);
+        true -> accumulate(items[1..], carried + items[0].value)
+        false -> (carried)
     }
 }
