@@ -25,11 +25,13 @@ use validation::{
     validate_checked_machine_specialization_commitments,
 };
 
-/// Close provider receiver provisioning after assembling the source closure,
+/// Close provider subject provisioning after assembling the source closure,
 /// before retention or proof production validates it. The ordinary method keeps
-/// its receiver, including when direct calls coexist with installed calls.
+/// its declared subject, including when direct calls coexist with installed calls.
 /// Only the installation entry is adapted:
 /// it constructs a plain empty provider and lends it through an ordinary call.
+/// Named subjects keep their ordinary parameter and lack of attachment; the
+/// installation entry, rather than a relaxed signature check, supplies them.
 /// This is executable custody, not permission inferred from zero-sized layout.
 /// Nonempty providers need persistent installation storage, not per-call zeros.
 pub(crate) fn realize_receiver_adapters(
@@ -120,13 +122,6 @@ pub(crate) fn realize_receiver_adapters(
         {
             continue;
         }
-        let Some(receiver) = candidate
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.is_self)
-        else {
-            continue;
-        };
         let source = source_owners
             .iter()
             .find(|(_, target)| *target == candidate.id)
@@ -134,6 +129,85 @@ pub(crate) fn realize_receiver_adapters(
             .ok_or(LoweringError::Unsupported(
                 "provider adapter has no exact source owner",
             ))?;
+        let source_machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == source)
+            .ok_or(LoweringError::Unsupported(
+                "provider adapter source owner has no declaration",
+            ))?;
+        let entry = checked.typed.machine_states(source_machine).first().ok_or(
+            LoweringError::Unsupported("provider adapter source owner has no entry"),
+        )?;
+        let subject_position = checked
+            .typed
+            .traits()
+            .iter()
+            .find_map(|definition| {
+                checked
+                    .typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| {
+                        checked
+                            .typed
+                            .normalized_trait_requirement_overload_identity(definition, signature)
+                            .identity()
+                            == row.requirement_identity
+                    })
+                    .and_then(|signature| {
+                        checked
+                            .typed
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .position(|parameter| parameter.is_self)
+                    })
+            })
+            .or_else(|| {
+                checked
+                    .typed
+                    .state_parameters(entry)
+                    .iter()
+                    .position(|parameter| parameter.is_self)
+            });
+        let Some(subject_position) = subject_position.filter(|position| {
+            checked
+                .typed
+                .state_parameters(entry)
+                .get(*position)
+                .is_some_and(|parameter| {
+                    checked
+                        .typed
+                        .parameter_declares_attached_data(source_machine, parameter)
+                })
+        }) else {
+            continue;
+        };
+        // The checked roster retains authored positions independently of dense
+        // structural slots. Join the requirement's subject position through
+        // that roster, never through type uniqueness or receiver spelling: a
+        // second parameter of the provider type is still a distinct argument.
+        let retained = match candidate.result {
+            terminal_psi::TerminalMachineResult::Scalar(_) => {
+                super::CheckedScalarCallee::find_for_unit_call(checked, source)?
+                    .structural_parameters()
+            }
+            _ => {
+                callable_candidate(checked, source)?
+                    .entry()?
+                    .structural_parameters
+            }
+        };
+        if retained.len() != candidate.structural_parameters.len() {
+            return unsupported("provider subject roster disagrees with its lowered signature");
+        }
+        let Some(position) = retained.iter().position(|parameter| {
+            usize::try_from(parameter.position).ok() == Some(subject_position)
+        }) else {
+            continue;
+        };
+        let receiver = &candidate.structural_parameters[position];
         let envelope = checked
             .facts
             .contract_plans
@@ -151,7 +225,9 @@ pub(crate) fn realize_receiver_adapters(
             .ok_or(LoweringError::Unsupported(
                 "provider receiver has no structural type",
             ))?;
-        if candidate.attachment != Some(receiver.structural_type)
+        if candidate
+            .attachment
+            .is_some_and(|attachment| attachment != receiver.structural_type)
             || !matches!(&receiver_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty())
             || !matches!(
                 receiver.access,
@@ -219,7 +295,7 @@ pub(crate) fn realize_receiver_adapters(
         });
         let mut structural_arguments = Vec::new();
         for parameter in &candidate.structural_parameters {
-            let place = if parameter.is_self {
+            let place = if parameter.place == receiver.place {
                 receiver_place
             } else {
                 let mut declaration = parameter.clone();
