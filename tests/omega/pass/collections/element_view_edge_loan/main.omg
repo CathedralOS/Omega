@@ -16,72 +16,72 @@ data Main {
     at: u64 [0..=3];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.cells[0].value = 5;
-    self.bag.cells[1].value = 3;
-    self.bag.cells[2].value = 5;
-    self.bag.cells[3].value = 7;
-    self.at = 2;
-    self.fill_literal();
-    self.fill_field();
-    self.fill_local();
-    self.fill_param(3);
-    self.read_shared(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.cells[0].value = 5;
+    main.bag.cells[1].value = 3;
+    main.bag.cells[2].value = 5;
+    main.bag.cells[3].value = 7;
+    main.at = 2;
+    Main::fill_literal(main);
+    Main::fill_field(main);
+    Main::fill_local(main);
+    Main::fill_param(main, 3);
+    Main::read_shared(main, 0);
     transition
-        self.bag.cells[2].value == 20
-            && self.bag.cells[1].value == 9
-            && self.bag.cells[0].value == 5
-            && self.bag.cells[3].value == 9
+        main.bag.cells[2].value == 20
+            && main.bag.cells[1].value == 9
+            && main.bag.cells[0].value == 5
+            && main.bag.cells[3].value == 9
     {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }
 
-machine Main::fill_literal(&mut self) {
-    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
-    self.set_at(&mut cells[2], 40);
+machine Main::fill_literal(main: &mut Main) {
+    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    Main::set_at(&mut cells[2], 40);
 }
 
-machine Main::fill_field(&mut self) {
-    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
-    self.set_at(&mut cells[self.at], 20);
+machine Main::fill_field(main: &mut Main) {
+    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    Main::set_at(&mut cells[main.at], 20);
 }
 
-machine Main::fill_local(&mut self) {
+machine Main::fill_local(main: &mut Main) {
     let i: u64 = 1;
-    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
-    self.set_at(&mut cells[i], 9);
+    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    Main::set_at(&mut cells[i], 9);
 }
 
-machine Main::fill_param(&mut self, k: u64) requires k < 4 {
-    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
-    self.set_at(&mut cells[k], 9);
+machine Main::fill_param(main: &mut Main, k: u64) requires k < 4 {
+    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    Main::set_at(&mut cells[k], 9);
 }
 
-machine Main::read_shared(&mut self, k: u64) requires k < 4 {
-    let cells: &[Cell] = self.bag.cells.as_slice();
-    self.inspect(&cells[k]);
+machine Main::read_shared(main: &mut Main, k: u64) requires k < 4 {
+    let cells: &[Cell] = main.bag.cells.as_slice();
+    Main::inspect(&cells[k]);
 }
 
-machine Main::set_at(&mut self, cell: &mut Cell, v: i32) {
+machine Main::set_at(cell: &mut Cell, v: i32) {
     cell.value = v;
 }
 
-machine Main::inspect(&mut self, cell: &Cell) {
+machine Main::inspect(cell: &Cell) {
     transition cell.value == 5 {
         true -> done()
         _ -> miss()
     }
 
-    state done(&mut self) { }
-    state miss(&mut self) { }
+    state done() { }
+    state miss() { }
 }
