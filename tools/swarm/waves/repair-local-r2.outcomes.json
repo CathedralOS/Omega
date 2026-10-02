@@ -1,0 +1,250 @@
+{
+  "wave": "repair-local-r2",
+  "report_generated_utc": "2026-10-02",
+  "launch": "local in-session subagents",
+  "note": "Local repair wave coordinating up to 6 concurrent subagents on bounded unclaimed board slices. Tank raised 3 -> 4 -> 6 by owner request. Two free-model rate-limit die-offs recovered via resume + coordinator WIP-commits; all preserved work landed or is parked with evidence. Repair queue ended claim-saturated: remaining reds resolve to live foreign claims or owner decisions.",
+  "rollup": {
+    "landed": 14,
+    "attribution_only": 6,
+    "superseded": 2,
+    "dead_spawn": 1,
+    "blocked_claims": 2,
+    "total_slots": 25
+  },
+  "sessions": [
+    {
+      "name": "codec-verification",
+      "item": "GENERATED-CODEC-ADMISSION",
+      "session_id": "85701735",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["7554763a90", "4f68e31f09"],
+      "notes": "Generated codecs stay compiler-admitted under probe verification; trust-boundary reports + rejection tests. Item open: Derived agreement path is separate machinery."
+    },
+    {
+      "name": "corpus-red-tail",
+      "item": "CORPUS-RED-TAIL",
+      "session_id": "3f074480",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["e581dbafeb", "c955ab333d"],
+      "notes": "Provider attachment requirements ordered by field declaration position; uses_caller_folder fixture repaired. 7 survivors attributed to owning claims; re-pin lines queued in claim notes."
+    },
+    {
+      "name": "writer-ownership",
+      "item": "INSTALLED-WRITER-OWNERSHIP",
+      "session_id": "45a9f0e8",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["6851ae76db"],
+      "notes": "Residual cleanup (README links, optional isa-aarch64); core landed earlier by c9f20a2e2b."
+    },
+    {
+      "name": "fail-calls-masking",
+      "item": "FAIL-CALLS-MASKING",
+      "session_id": "d8a387df",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["c0f2f08f20"],
+      "notes": "Masked value-call canary was a landed capability; promoted to pass/calls with runtime oracle."
+    },
+    {
+      "name": "aarch64-wrapper",
+      "item": "AARCH64-WRAPPER",
+      "session_id": "68dba4de",
+      "result": "superseded",
+      "item_closed": true,
+      "commits": [],
+      "notes": "Item already discharged on main by a42b82af74 (impl 442a7015dd); hosted AArch64 profiles route through bind_hosted_receiver. Verified, no edits."
+    },
+    {
+      "name": "c2l-cyclic-call-panic",
+      "item": "C2L-CYCLIC-CALL-PANIC",
+      "session_id": "18ba1806",
+      "result": "superseded",
+      "item_closed": true,
+      "commits": [],
+      "notes": "Panic already fixed upstream by 891194236a; surviving cyclic tests pass."
+    },
+    {
+      "name": "baseline-lint-tail",
+      "item": "BASELINE-LINT-TAIL",
+      "session_id": "50eb9f41",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["29327e78bf", "4fa4bd56d2"],
+      "notes": "9 commits in 2 batches; workspace clippy -D warnings fully green at 4fa4bd56d2."
+    },
+    {
+      "name": "capability-review-red",
+      "item": "CAPABILITY-REVIEW-RED",
+      "session_id": "0c7ac8bf",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["ea623706db"],
+      "notes": "Red test was a stale fixture (revert slip 7f5612d541 dropped Binding import); package-manager suite 554 pass."
+    },
+    {
+      "name": "nominal-field-flow",
+      "item": "NOMINAL-FIELD-FLOW",
+      "session_id": "59a03a92",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["002a15faa9", "a6a395ae9b"],
+      "notes": "5 commits: required-side Constrained{Slice,Utf8} referee matching; 4 text fixtures moved downstream to unit-plan/provider gates."
+    },
+    {
+      "name": "native-execution-measure",
+      "item": "RC-NATIVE-MATRIX-LINUX-X86-64",
+      "session_id": "ccdbc049",
+      "result": "attribution_only",
+      "item_closed": false,
+      "commits": [],
+      "notes": "716 fixtures measured: 176 built, 126 executed, 0 linux-native failures. All executions static-lane ELF; DT_RELAENT still lacks a green import-bearing fixture. Golden-ready capture at build/native-leg/."
+    },
+    {
+      "name": "c2l-proof-search",
+      "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+      "session_id": "d9f6fe96",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["1dda4f2f48", "970aa154b4"],
+      "notes": "Bound roster rounds + unconditional proof-work accounting; dedup revalidation measured 2-3x on ring_law_conformance and runtime_nat_structural_recursion_exit."
+    },
+    {
+      "name": "pcc-ledger",
+      "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
+      "session_id": "154b8bab",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["efd2123b9e", "72cb0a9fe5"],
+      "notes": "Crash-obligation replay suite (13 tests) + mechanical evidence-grounding checks so Proved rows cannot join unobserved. Bullet-3 audit proved a twin-sited cleanup-hook soundness hole (unsourced entry_claims/ensures/partitions enter the frontier); patch spec preserved in claim notes, blocked on Codex BYTE-OWNER claims."
+    },
+    {
+      "name": "check-closure",
+      "item": "CHECK-CLOSURE-ONCE",
+      "session_id": "d79c9b84",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["93884eb967", "a9e9bc60bc", "df8a7ddcb2"],
+      "notes": "Typed-frontier memo across review passes (root bound pass 14.7s -> ~2s); carry-forward dedup proven unsound-by-construction and pinned with a design boundary; preliminary-vs-settled accounting separated."
+    },
+    {
+      "name": "guarded-leaf",
+      "item": "GUARDED-LEAF",
+      "session_id": "35610655",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["8afcd8232e"],
+      "notes": "guarded_leaf_branch_expansion fixture repair: checker was right; cells reseated before service-reaching calls."
+    },
+    {
+      "name": "corpus-residual-sweep",
+      "item": "CORPUS-RESIDUAL-SWEEP",
+      "session_id": "acfe9f4e",
+      "result": "attribution_only",
+      "item_closed": true,
+      "commits": [],
+      "notes": "Full per-row attribution roster in claim notes; third missing-fragment row was recording debt. Surfaced unowned Clock/TimeHost provider gap and regalloc spill, both spawned as legs."
+    },
+    {
+      "name": "regalloc-spill",
+      "item": "REGALLOC-SPILL",
+      "session_id": "61e6f4f7",
+      "result": "attribution_only",
+      "item_closed": false,
+      "commits": [],
+      "notes": "Root cause proven via throwaway patches: stale VirtualRegisterOrigin::InstructionResult.instruction stamped before helper emits in stage-03 construction. Ownership sits in zergling-z6's 03_ claim; evidence + audit list on its claim ticket."
+    },
+    {
+      "name": "clock-provider",
+      "item": "CLOCK-PROVIDER",
+      "session_id": "9c02bd86",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["cd3e643f64"],
+      "notes": "Selectable std Clock provider for linux_x86_64, linux_arm64, windows_x86_64; macOS blocked on documented lowering ceiling; runtime syscall marshalling is a separate residual."
+    },
+    {
+      "name": "rejection-clusters",
+      "item": "REJECTION-CLUSTER-TRIAGE",
+      "session_id": "243438a6",
+      "result": "dead_spawn",
+      "item_closed": false,
+      "commits": [],
+      "notes": "Killed by rate limiter before producing work."
+    },
+    {
+      "name": "rejection-clusters-b",
+      "item": "REJECTION-CLUSTER-TRIAGE",
+      "session_id": "74110541",
+      "result": "attribution_only",
+      "item_closed": true,
+      "commits": [],
+      "notes": "All clusters attributed to live claims or deliberate machinery; 2 golden re-pins queued. Scratch notes preserved at build/swarm/repair-local-r2/parked/rejection-clusters/."
+    },
+    {
+      "name": "incomplete-channel",
+      "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+      "session_id": "cababf77",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["c1667cc963", "f451e1c90e"],
+      "notes": "Proof-search exhaustion now publishes Incomplete end-to-end, witnessed on native_wrapper_write_all_result; ordinary proof failures still Reject. C2L acceptance bullet discharged."
+    },
+    {
+      "name": "unit-plan-omission",
+      "item": "UNIT-PLAN-OMISSION",
+      "session_id": "a4c809ca",
+      "result": "attribution_only",
+      "item_closed": false,
+      "commits": [],
+      "notes": "154-rejection cluster triaged: 5+ deliberate sub-causes; phase->site map and ordered next-slice list in ticket 61f11982 notes. No safe mechanical subset."
+    },
+    {
+      "name": "proof-contract",
+      "item": "PROOF-CONTRACT-MIGRATION",
+      "session_id": "b98daaad",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["fa9ad8f9f0", "093d2e23b7", "2426646546", "52b983c6d2", "b0e18f6566"],
+      "notes": "Checked mathematical signature reaches Terminal evidence end-to-end; fixed core vocabulary classifies by canonical symbol identity and is installed as root symbols; core::* call targets and name paths bind fixed symbols. Transitional spelling fallback now unreachable from production inputs; its retirement + hidden-witness route replacement blocked on Codex 04/src/proof/ claim."
+    },
+    {
+      "name": "console-host",
+      "item": "CONSOLE-HOST",
+      "session_id": "51f67333",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["3b0581899f", "2e412932de"],
+      "notes": "Premise disproven honestly: Console is authored-provider-complete; no canonical toolchain mint added. runtime_text_builder routed through omega_language_std::console; doc pins why."
+    },
+    {
+      "name": "provider-fixtures",
+      "item": "PROVIDER-FIXTURES",
+      "session_id": "14b9eefa",
+      "result": "landed",
+      "item_closed": true,
+      "commits": ["140dd7aef4"],
+      "notes": "4 stale fused-provider fixtures repaired content-side (std Clock/Console migration); all reach honest downstream gates."
+    },
+    {
+      "name": "translation-validation",
+      "item": "TRANSLATION-VALIDATION",
+      "session_id": "30124d3b",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["301a853db2"],
+      "notes": "Installed-provider internal calls bind boundary physical evidence. Remaining families upstream-blocked: float arithmetic, BuiltinFunction, forwarded/register-indirect calls, non-FMA intrinsics."
+    },
+    {
+      "name": "local-data-cluster",
+      "item": "LOCAL-DATA-CLUSTER-REPAIR",
+      "session_id": "330a9711",
+      "result": "landed",
+      "item_closed": false,
+      "commits": ["0aeaaa6d21"],
+      "notes": "4 commits: fused foreign states resolve under owning machine (rejoins-0-identity root cause), borrowed structural referents through fused unit custody, projected shared tails admitted. Survived psi/compilation rename + overlapping Codex byte-owner redesigns. Verifier references.rs residual parked at build/swarm/repair-local-r2/parked/local-data-cluster/ under foreign claim."
+    }
+  ]
+}
