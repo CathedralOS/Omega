@@ -1,0 +1,110 @@
+// Composite values supplied directly as internal state arguments. Each source
+// family arrives in a fresh owned parameter and is observed there:
+//
+//   literal    take_literal(Pair { a: 1, b: 2 }, 3)   unconditional edge
+//   field      take_field(self.pair)                    guarded edge
+//   call       take_call(make(&mut self.counter, 5), 6) guarded edge; the
+//                                                       unselected arm's call
+//                                                       must leave no effect
+//   local      take_local(local)                        unconditional edge
+//   affine     take_owned(settle(3))                    guarded edge; the
+//                                                       non-copy result dies
+//                                                       at the target's exits
+//   reference  take_view(&self.pair)                    borrowed control
+//
+// The scalar arguments beside the composites keep their own policy. The call
+// arm pins once-only evaluation after edge selection: `counter.made` counts
+// every `make`, and only the selected arm's call may run. Checksum:
+//   literal 1 + 2 + 3, field 10 + 20, call 5 + 50 + 6 = 97; the local's
+//   7 + 8 and the affine 3 each return to 97 after their own offsets; less
+//   the view's 10 + 20, plus three per `made` call: 97 - 30 + 3 = 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+
+data Owned {
+    value: i32 in Wrapping;
+}
+
+data Counter {
+    made: i32 in Wrapping;
+}
+
+data Main {
+    console: Binding<Console>;
+    pair: Pair;
+    counter: Counter;
+    total: i32 in Wrapping;
+}
+
+machine make(counter: &mut Counter, seed: i32 in Wrapping) -> Pair {
+    counter.made = counter.made + 1;
+    Pair { a: seed, b: seed * 10 }
+}
+
+machine settle(value: i32 in Wrapping) -> Owned {
+    Owned { value: value }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.pair = Pair { a: 10, b: 20 };
+    self.counter.made = 0;
+    self.total = 0;
+    transition { _ -> take_literal(Pair { a: 1, b: 2 }, 3) }
+
+    state take_literal(&mut self, pair: Pair, extra: i32 in Wrapping) {
+        self.total = self.total + pair.a + pair.b + extra;
+        transition self.total == 6 {
+            true -> take_field(self.pair)
+            false -> bad(71)
+        }
+    }
+
+    state take_field(&mut self, pair: Pair) {
+        self.total = self.total + pair.a + pair.b;
+        transition self.total == 36 {
+            true -> take_call(make(&mut self.counter, 5), 6)
+            false -> take_call(make(&mut self.counter, 9), 0)
+        }
+    }
+
+    state take_call(&mut self, pair: Pair, extra: i32 in Wrapping) {
+        self.total = self.total + pair.a + pair.b + extra;
+        let local: Pair = Pair { a: 7, b: 8 };
+        transition self.counter.made == 1 && self.total == 97 {
+            true -> take_local(local)
+            false -> bad(72)
+        }
+    }
+
+    state take_local(&mut self, pair: Pair) {
+        self.total = self.total + pair.a + pair.b - 15;
+        transition self.total == 97 {
+            true -> take_owned(settle(3))
+            false -> bad(73)
+        }
+    }
+
+    state take_owned(&mut self, owned: Owned) {
+        self.total = self.total + owned.value - 3;
+        transition self.total == 97 {
+            true -> take_view(&self.pair)
+            false -> bad(75)
+        }
+    }
+
+    state take_view(&mut self, pair: &Pair) {
+        self.total = self.total - pair.a - pair.b + self.counter.made * 3;
+        transition self.total == 70 && pair.a == 10 && pair.b == 20 {
+            true -> good()
+            false -> bad(74)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

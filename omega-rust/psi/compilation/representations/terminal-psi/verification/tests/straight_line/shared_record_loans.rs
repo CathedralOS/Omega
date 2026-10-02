@@ -929,3 +929,133 @@ fn structural_result(place: u64, structural_type: u64) -> OperationResult {
         claims: Vec::new(),
     })
 }
+
+#[test]
+fn shared_state_loans_protect_only_their_regions_through_forwarding() {
+    for forwarded in [false, true] {
+        for written_field in ["first", "second"] {
+            let mut module = pair_module(StructuralMultiplicity::Affine);
+            let machine = &mut module.machines[0];
+            machine.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(INTEGER_VALUE),
+                scalar_type: ScalarType::Integer(i32_type()),
+            });
+            if forwarded {
+                machine.structural_places.push(StructuralPlaceDeclaration {
+                    id: id(SECOND_VIEW),
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: id(SIBLING_BLOCK),
+                        position: 0,
+                    },
+                });
+                let end = machine.blocks[1].terminator.clone();
+                machine.blocks[1].terminator = Terminator::Jump {
+                    edge: id(903),
+                    target: id(SIBLING_BLOCK),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: vec![loan_argument(VIEW, &[])],
+                    trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
+                };
+                machine.blocks.push(Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: vec![shared_parameter(SECOND_VIEW, 0, PAYLOAD_TYPE)],
+                    id: id(SIBLING_BLOCK),
+                    parameters: Vec::new(),
+                    operations: vec![read_flag(902, SECOND_VIEW, 2)],
+                    terminator: end,
+                });
+            }
+            machine.blocks.last_mut().unwrap().operations.insert(
+                0,
+                Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: id(904),
+                    result: OperationResult::Unit,
+                    kind: OperationKind::StructuralScalarFieldStore {
+                        destination: id(ROOT),
+                        path: vec![StructuralPathSegment::Field(written_field.to_owned())],
+                        field: id(1),
+                        value: id(INTEGER_VALUE),
+                        range_obligation: None,
+                    },
+                },
+            );
+            let result = verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            );
+            if written_field == "second" {
+                result.unwrap_or_else(|error| {
+                    panic!("disjoint field, forwarded={forwarded}: {error:?}")
+                });
+            } else {
+                assert!(
+                    matches!(
+                        validate_module(&module),
+                        Err(ModuleError::SharedStructuralLoanDisturbed { .. })
+                    ),
+                    "loaned field must stay pinned, forwarded={forwarded}: {result:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_shared_state_join_protects_every_possible_incoming_field() {
+    let mut module = pair_module(StructuralMultiplicity::Affine);
+    let machine = &mut module.machines[0];
+    machine.parameters.extend([
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(FLAG_VALUE),
+            scalar_type: ScalarType::Boolean,
+        },
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(INTEGER_VALUE),
+            scalar_type: ScalarType::Integer(i32_type()),
+        },
+    ]);
+    let edge = |identity, field| SuccessorEdge {
+        edge: id(identity),
+        target: id(JOIN_BLOCK),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![loan_argument(ROOT, &[field])],
+        trivial_affine_discards: Vec::new(),
+    };
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: id(FLAG_VALUE),
+        when_true: edge(901, "first"),
+        when_false: edge(903, "second"),
+    };
+    machine.blocks[1].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(904),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: id(ROOT),
+                path: vec![StructuralPathSegment::Field("second".to_owned())],
+                field: id(1),
+                value: id(INTEGER_VALUE),
+                range_obligation: None,
+            },
+        },
+    );
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::SharedStructuralLoanDisturbed { .. })
+    ));
+}

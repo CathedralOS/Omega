@@ -198,6 +198,10 @@ calls observe those current bindings; affine reads after consumption reject.
 Successor binding consumes all affine sources before establishing destinations,
 allowing swaps and self-loops without duplication or overwriting a live owner.
 Every arrival, including a backedge, must establish the same structural frontier.
+Shared state loans retain every possible borrowed origin and its canonical field
+region through forwarding. Writes and exclusive calls reject overlapping regions;
+a disjoint sibling field remains writable. Unresolved origins and inexact paths
+stay conservative, and possible aliasing never grants access authority.
 Complete record construction uses ordinary field and custody replay within a
 cycle, including affine records with scalar or nested owned fields. Construction
 consumes affine children once and publishes the parent; selected edges must

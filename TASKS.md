@@ -1934,14 +1934,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   (`handle([30, 40])`, or a transferred `[i32; 2]` local) stops at
   `jump successor: parameter transfer`; represent and independently replay
   owned scalar-array block parameters with
-  **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**. A shared `&self.pair` argument
-  delivers, but a target state that stores a disjoint receiver field fails
-  Terminal verification with `SharedStructuralLoanDisturbed`. A nested owned
+  **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**. A nested owned
   constructor (`let holder = Holder { item: item }`) before the cyclic branch
   still omits the stage04 state cleanup plan at
   `execution/terminal_cleanup.rs::build_state_plan`; replay consumed local
   custody and the remaining edge disposal through the shared cleanup owner.
-  Keep `control_flow/{composite_state_parameter,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit}`
+  Keep `control_flow/{composite_state_parameter,shared_state_disjoint_receiver_store_exit,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit}`
   and `collections/runtime_initialized_array_state_loan_exit` as controls.
   Acceptance: each remaining source delivers its value natively and through
   Terminal reload, selected operands execute once after selection, and

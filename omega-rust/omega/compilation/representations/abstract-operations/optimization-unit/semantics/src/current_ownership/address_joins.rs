@@ -2,7 +2,7 @@
 //!
 //! An address join (`abstract_operations::control_flow::address_joins`) holds
 //! only its referent's address, so the lending root must stay live, unmoved and
-//! unwritten while the joined view can still be observed. The origins of one
+//! unwritten in the borrowed region while the joined view can still be observed. The origins of one
 //! join are the roots of every edge argument that binds it, transitively
 //! through earlier joins. Within the dominated scope, scalar observations and
 //! exact edge forwarding delimit the live loan: a later state which retains
@@ -11,7 +11,8 @@
 //! Inside that scope no operation may move, release, write or exclusively
 //! borrow a pinned root, and no edge may move or discard one. Shared reads
 //! and further shared loans stay legal, and a return ends every loan with the
-//! activation, so return cleanup may dispose the roots. Pins cover whole
+//! activation, so return cleanup may dispose the roots. Shared pins retain exact
+//! projections, allowing disjoint sibling writes. Their lifetimes cover whole
 //! blocks, and backward reachability includes backedges, not just dominance.
 //! Uses which may retain an untracked alias (including calls and descriptor
 //! construction) keep the original conservative whole-scope pin. Releasing
@@ -26,6 +27,7 @@
 //! target still names the home or a join carrying it. Transfers between
 //! mutable names retain the same backing.
 
+mod borrowed_regions;
 mod descriptor_loans;
 
 use crate::OptimizationUnitValidationError;
@@ -33,17 +35,19 @@ use crate::current_ownership::CurrentOwnership;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::ReferenceOrigin;
 use abstract_operations::AbstractOperation as O;
+use borrowed_regions::{BorrowedRegions, Projection, Region};
 use descriptor_loans::DescriptorLoans;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 
-/// Roots pinned in each block by the address joins whose scope includes it.
+/// Borrowed regions pinned by shared arrivals and owners suspended by mutable arrivals.
 #[derive(Default)]
 pub(super) struct AddressJoinPins {
+    borrowed_regions: BorrowedRegions,
     descriptor_loans: DescriptorLoans,
-    shared: BTreeMap<BlockId, BTreeSet<PlaceId>>,
+    shared: BTreeMap<BlockId, Vec<Region>>,
     exclusive: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     origins: BTreeMap<PlaceId, BTreeSet<PlaceId>>,
     dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
@@ -55,7 +59,8 @@ impl AddressJoinPins {
         function: &PsiOptimizationFunction,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
-        let descriptor_loans = DescriptorLoans::new(function, structural_types);
+        let borrowed_regions = BorrowedRegions::new(function, structural_types);
+        let descriptor_loans = DescriptorLoans::new(function, &borrowed_regions);
         let joins = function
             .blocks
             .iter()
@@ -107,6 +112,7 @@ impl AddressJoinPins {
             .collect::<BTreeSet<_>>();
         if address_joins.is_empty() {
             return Self {
+                borrowed_regions,
                 descriptor_loans,
                 ..Self::default()
             };
@@ -154,24 +160,18 @@ impl AddressJoinPins {
                     .insert(block.id);
             }
         }
-        let mut pins = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
+        let mut pins = BTreeMap::<BlockId, Vec<Region>>::new();
         for (join, owner) in &joins {
             let live_blocks =
                 shared_join_live_blocks(function, *join, *owner, &origins, &predecessors);
-            let roots = origins
-                .get(join)
-                .into_iter()
-                .flatten()
-                .filter(|root| !joins.contains_key(root))
-                .copied()
-                .collect::<Vec<_>>();
+            let regions = borrowed_regions.resolve(*join, Projection::new(&[]));
             for (block, dominating) in &dominators {
                 if (block == owner || dominating.contains(owner))
                     && live_blocks.as_ref().is_none_or(|live| live.contains(block))
                 {
                     pins.entry(*block)
                         .or_default()
-                        .extend(roots.iter().copied());
+                        .extend(regions.iter().cloned());
                 }
             }
         }
@@ -208,6 +208,7 @@ impl AddressJoinPins {
             .collect::<Vec<_>>();
         if mutable_joins.is_empty() {
             return Self {
+                borrowed_regions,
                 descriptor_loans,
                 shared: pins,
                 exclusive: BTreeMap::new(),
@@ -329,6 +330,7 @@ impl AddressJoinPins {
             }
         }
         Self {
+            borrowed_regions,
             descriptor_loans,
             shared: pins,
             exclusive,
@@ -350,10 +352,13 @@ impl AddressJoinPins {
         moved: impl IntoIterator<Item = PlaceId>,
     ) -> Result<(), OptimizationUnitValidationError> {
         let moved = moved.into_iter().collect::<Vec<_>>();
-        if let Some(place) = self
-            .descriptor_loans
-            .conflicted_operation(function, block, node, operation, &moved)
-        {
+        if let Some(place) = self.descriptor_loans.conflicted_operation(
+            &self.borrowed_regions,
+            block,
+            node,
+            operation,
+            &moved,
+        ) {
             return Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
                     machine: function.machine,
@@ -394,10 +399,9 @@ impl AddressJoinPins {
         let Some(pinned) = self.shared.get(&block) else {
             return Ok(());
         };
-        let disturbed = moved
-            .into_iter()
-            .chain(written_or_exclusive(operation))
-            .find(|place| pinned.contains(place));
+        let disturbed = self
+            .borrowed_regions
+            .conflicted_operation(pinned, (block, node), &moved);
         match disturbed {
             Some(place) => Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
@@ -424,10 +428,13 @@ impl AddressJoinPins {
         destination: &[terminal_psi::StructuralParameterDeclaration],
         frontier: &CurrentOwnership,
     ) -> Result<(), OptimizationUnitValidationError> {
-        if let Some(place) =
-            self.descriptor_loans
-                .conflicted_edge(function, block, node, edge, destination)
-        {
+        if let Some(place) = self.descriptor_loans.conflicted_edge(
+            &self.borrowed_regions,
+            block,
+            node,
+            edge,
+            destination,
+        ) {
             return Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
                     machine: function.machine,
@@ -583,14 +590,21 @@ impl AddressJoinPins {
                 }
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
             })
-            .map(|(binding, _)| binding.argument.place)
-            .chain(edge.trivial_affine_discards.iter().copied())
+            .map(|(binding, _)| (binding.argument.place, binding.argument.path.as_slice()))
+            .chain(
+                edge.trivial_affine_discards
+                    .iter()
+                    .map(|place| (*place, &[][..])),
+            )
             .chain(
                 edge.residual_affine_discards
                     .iter()
-                    .map(|discard| discard.place),
+                    .map(|discard| (discard.place, discard.path.as_slice())),
             )
-            .find(|place| pinned.contains(place) && read_after(place));
+            .find(|(place, path)| {
+                self.borrowed_regions.overlaps(pinned, *place, path) && read_after(place)
+            })
+            .map(|(place, _)| place);
         match disturbed {
             Some(place) => Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
@@ -802,14 +816,6 @@ fn mutation_regions(operation: &O) -> Vec<MutationRegion<'_>> {
         } => region(source.place(), path, *field),
         _ => Vec::new(),
     }
-}
-
-/// Whole-root pins deliberately conservatively cover every projected mutation.
-fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
-    mutation_regions(operation)
-        .into_iter()
-        .map(|region| region.place)
-        .collect()
 }
 
 /// Resolve each mutation to the known projection it may disturb. A dynamic

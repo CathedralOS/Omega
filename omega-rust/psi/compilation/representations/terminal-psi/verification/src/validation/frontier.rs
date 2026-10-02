@@ -15,12 +15,13 @@ use super::{
     ModuleError, OperationId, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, partial_affine_residuals, partial_affine_root_type,
+    TerminalModule, partial_affine_residuals, partial_affine_root_type,
 };
 
 mod block_entry;
 mod block_parameters;
 mod operations;
+mod shared_loans;
 mod terminators;
 mod traversal;
 
@@ -231,10 +232,9 @@ pub(super) struct FrontierWalk<'a> {
     pub(super) blocks: &'a BTreeMap<BlockId, &'a terminal_psi::Block>,
     pub(super) dominators: &'a crate::control_graph::DominatorTree,
     pub(super) parameter_order: &'a [&'a StructuralParameterDeclaration],
-    /// Referent roots pinned by each block's shared-borrow parameters: the
-    /// union over every incoming edge's shared arguments, transitively
-    /// closed through shared parameters that reborrow earlier views.
-    pub(super) shared_loans: &'a BTreeMap<BlockId, BTreeSet<PlaceId>>,
+    /// Possible storage regions pinned by shared state parameters after
+    /// composing their incoming projections through borrowed arrivals.
+    shared_loans: &'a shared_loans::SharedLoans<'a>,
     /// The ultimate place each borrowed block parameter may alias, with the
     /// canonical prefix beneath that place. Machine parameters and
     /// non-parameter places alias only themselves, so they need no row.
@@ -259,85 +259,11 @@ pub(super) fn validate_structural_frontier(
     let entry = block_entry::entry_frontier(module, machine)?;
     let parameter_order = block_parameters::disposal_order(machine, dominators);
     let order = traversal::block_order(machine.entry, blocks);
-    // Every shared successor argument pins its referent root for the whole
-    // duration of the block that binds it: a joined view observes the exact
-    // place the authored borrow named, so no operation inside the target may
-    // move that root, take an exclusive subloan on it, or mutate through it.
-    // A shared parameter bound from another shared parameter forwards the
-    // places that view observes, so the closure below is transitive.
-    let mut pinned = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
-    for block in &machine.blocks {
-        let mut successors = Vec::new();
-        match &block.terminator {
-            Terminator::Jump {
-                target,
-                structural_arguments,
-                ..
-            } => successors.push((*target, structural_arguments.as_slice())),
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                successors.push((when_true.target, when_true.structural_arguments.as_slice()));
-                successors.push((
-                    when_false.target,
-                    when_false.structural_arguments.as_slice(),
-                ));
-            }
-            _ => {}
-        }
-        for (target, arguments) in successors {
-            let Some(target_block) = blocks.get(&target) else {
-                continue;
-            };
-            for (argument, parameter) in arguments.iter().zip(&target_block.structural_parameters) {
-                if parameter.access == StructuralAccess::SharedBorrow {
-                    pinned
-                        .entry(parameter.place)
-                        .or_default()
-                        .insert(argument.place);
-                }
-            }
-        }
-    }
-    loop {
-        let mut expanded = pinned.clone();
-        for (parameter, roots) in &pinned {
-            for root in roots {
-                if let Some(next) = pinned.get(root) {
-                    expanded
-                        .entry(*parameter)
-                        .or_default()
-                        .extend(next.iter().copied());
-                }
-            }
-        }
-        if expanded == pinned {
-            break;
-        }
-        pinned = expanded;
-    }
-    let shared_loans: BTreeMap<BlockId, BTreeSet<PlaceId>> = machine
-        .blocks
-        .iter()
-        .map(|block| {
-            (
-                block.id,
-                block
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
-                    .flat_map(|parameter| {
-                        pinned.get(&parameter.place).into_iter().flatten().copied()
-                    })
-                    .collect(),
-            )
-        })
-        .collect();
+    let origins = super::borrowed_windows::borrowed_storage_origins(module, machine);
+    let shared_loans = shared_loans::SharedLoans::new(machine, &origins);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
-    let window_aliases = crate::validation::borrowed_windows::window_aliases(module, machine);
+    let window_aliases = crate::validation::borrowed_windows::window_aliases_from_origins(&origins);
     let walk = FrontierWalk {
         module,
         machine,
