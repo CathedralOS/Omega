@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.11, "load1_start": 3.11, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 1.77, "load1_start": 1.57, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -988,6 +988,8 @@ fail/recast/recast_size_mismatch_rejected rejected 161ms expected @a3bac00e54bb+
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
 fail/recast/reference_let_pun_requires_recast rejected 155ms expected @a3bac00e54bb+wt
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
+fail/recast/scalar_parameter_view_footprint_rejected rejected 311ms expected @9782e38b64ab+wt
+	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
 fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
 fail/recast/unbounded_offset_names_the_bound rejected 163ms expected @a3bac00e54bb+wt
@@ -1811,8 +1813,8 @@ pass/float/runtime_named_float_to_integer_conversion_exit checked 5157ms @2d8ed2
 pass/float/runtime_named_fma_sequence_exit checked 16819ms @2d8ed253669f
 pass/float/runtime_named_format_conversion_exit checked 6217ms @2d8ed253669f
 pass/float/runtime_std_is_finite_exit checked 5045ms @2d8ed253669f
-pass/float/runtime_total_order_satisfiers_exit rejected 4322ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/float/runtime_total_order_satisfiers_exit rejected 3536ms @9782e38b64ab+wt
+	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow lost its established local"))
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms @163770eba39c
 pass/float/x86_fma_plan_association rejected 4263ms @2d8ed253669f
@@ -2067,6 +2069,7 @@ pass/recast/runtime_nested_record_byte_store_exit checked 1232ms @a3bac00e54bb+w
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms @a3bac00e54bb+wt
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 972ms @a3bac00e54bb+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms @a3bac00e54bb+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 928ms @a1e2cd93d1e7

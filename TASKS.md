@@ -3162,6 +3162,25 @@ completion syntax or other terminal service is a prerequisite.
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
+  On base `9782e38b64ab`, Linux x86-64 checked/native production rejects
+  `runtime_scalar_parameter_shared_views_exit` while the checked interpreter
+  returns 70. Admitting runtime scalar parameters as shared-loan backing roots
+  in stage 04 `terminal_unit/control/statement_sequence/local_data.rs` makes
+  ordinary shared integer reads and equal-width float bit views run with both
+  engines returning 70 (`python tools/corpus_gate.py --both --filter
+  recast/runtime_scalar_parameter_shared_views_exit`). The wider `f32`-to-`u64`
+  view remains rejected for unequal footprint. The unchanged total-order
+  customer (`omega run --both
+  tests/omega/pass/float/runtime_total_order_satisfiers_exit/main.omg`;
+  [reproducer](tests/omega/pass/float/runtime_total_order_satisfiers_exit/README.md))
+  advances from an omitted scalar callee body to stage 05
+  `computed primitive borrow lost its established local`; interpreter exit 70.
+  Next acceptance is native exit 70 after retaining a scalar parameter's backing
+  home and its shared representation-view loan through borrowed helper calls in
+  `expression_preparation/bindings::ScalarBindings::primitive_borrow`.
+  Ordinary package-review acceptance can independently stop the public command
+  at exit 200; the corpus command uses reviewed fixture policy.
+
   Keep `runtime_bool_representation_recast_exit` and
   `runtime_float_range_representation_recast_exit` as native/interpreter
   exit-70 controls. Scalar and record-leaf cross-carrier observations use
