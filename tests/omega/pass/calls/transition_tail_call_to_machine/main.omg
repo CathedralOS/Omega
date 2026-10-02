@@ -3,17 +3,17 @@
 // transition arms"); an internal state target stays a jump. Each machine in
 // this chain observes what reached it and tail-calls the next:
 //
-//   main              stores `stored = 5`, then `_ -> Main::with_argument(&mut self, 7)`:
+//   main              stores `stored = 5`, then `_ -> Main::with_argument(main, 7)`:
 //                     a tail call with an ordinary argument after a store.
 //   with_argument     checks `value == 7 && stored == 5` (else 71) and jumps
-//                     to an internal state whose `_ -> Main::without_arguments(&mut self)`
+//                     to an internal state whose `_ -> Main::without_arguments(main)`
 //                     tail-calls with no arguments and no preceding store.
-//   without_arguments makes an ordinary call (`Main::mark(&mut self)`), then jumps to an
+//   without_arguments makes an ordinary call (`Main::mark(main)`), then jumps to an
 //                     internal state that checks `marks == 1` (else 72) and
-//                     jumps again to tail-call `Main::finish(&mut self)`.
+//                     jumps again to tail-call `Main::finish(main)`.
 //
 // Tail calls here sit in unconditional arms. A tail call directly in a guarded
-// arm (`true -> Main::finish(&mut self)`) is pinned separately by
+// arm (`true -> Main::finish(main)`) is pinned separately by
 // `calls/conditional_arm_tail_call_to_machine_exit`.
 //   finish            exits 70.
 //
