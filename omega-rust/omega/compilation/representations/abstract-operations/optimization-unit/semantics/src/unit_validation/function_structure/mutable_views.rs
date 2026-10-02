@@ -11,7 +11,6 @@ use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 /// keep retired authority alive after an explicit whole-name handoff.
 pub(crate) struct CurrentMutableBorrows {
     mutable: BTreeSet<PlaceId>,
-    descriptor_views: BTreeSet<PlaceId>,
     arrivals: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     possible_arrivals: BTreeMap<BlockId, BTreeSet<PlaceId>>,
 }
@@ -28,6 +27,37 @@ pub(crate) fn current_mutable_borrows(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> CurrentMutableBorrows {
+    let produced = function
+        .blocks
+        .iter()
+        .map(|block| {
+            let views = block
+                .nodes
+                .iter()
+                .filter_map(|node| {
+                    let source =
+                        super::super::operation_contracts::structural_operation_result_contract(
+                            function,
+                            &node.operation,
+                        )?;
+                    let result = source.operation_result()?;
+                    (source.access == StructuralAccess::MutableBorrow
+                        && types
+                            .get(&source.structural_type)
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        ByteSequenceCarrier::BorrowedView { .. }
+                                    ) | StructuralTypeShape::ElementView { .. }
+                                )
+                            }))
+                    .then_some(result.place)
+                })
+                .collect::<BTreeSet<_>>();
+            (block.id, views)
+        })
+        .collect::<BTreeMap<_, _>>();
     let mutable = function
         .structural_parameters
         .iter()
@@ -46,7 +76,7 @@ pub(crate) fn current_mutable_borrows(
                             declaration.shape,
                             StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BorrowedView { .. }
-                            )
+                            ) | StructuralTypeShape::ElementView { .. }
                         ) || {
                             // A mutable record join carries the same exclusive
                             // permission as an incoming mutable record. Its
@@ -62,16 +92,17 @@ pub(crate) fn current_mutable_borrows(
                     })
         })
         .map(|parameter| parameter.place)
+        .chain(produced.values().flatten().copied())
         .collect::<BTreeSet<_>>();
     if mutable.is_empty() {
         return CurrentMutableBorrows {
             mutable,
-            descriptor_views: BTreeSet::new(),
             arrivals: BTreeMap::new(),
             possible_arrivals: BTreeMap::new(),
         };
     }
-    // Keep the existing descriptor-specific duplicate and handoff rules.
+    // A whole descriptor handoff retires its exclusive spelling even when
+    // the receiving parameter attenuates it to shared access.
     // Record arguments instead retain their per-occurrence access: several
     // shared observations are legal, and a shared reborrow does not transfer
     // the parent's exclusive permission to a new mutable name.
@@ -93,11 +124,12 @@ pub(crate) fn current_mutable_borrows(
                             declaration.shape,
                             StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BorrowedView { .. }
-                            )
+                            ) | StructuralTypeShape::ElementView { .. }
                         )
                     })
         })
         .map(|parameter| parameter.place)
+        .chain(produced.values().flatten().copied())
         .collect::<BTreeSet<_>>();
     let entry = function
         .structural_parameters
@@ -163,6 +195,8 @@ pub(crate) fn current_mutable_borrows(
                     reached = true;
                     let mut carried = previous[&predecessor.id].clone();
                     let mut possible_carried = previous_possible[&predecessor.id].clone();
+                    carried.extend(produced[&predecessor.id].iter().copied());
+                    possible_carried.extend(produced[&predecessor.id].iter().copied());
                     for binding in &edge.structural_bindings {
                         let attenuated_block_name = binding.argument.access
                             == StructuralAccess::SharedBorrow
@@ -187,10 +221,10 @@ pub(crate) fn current_mutable_borrows(
                         // backing. Invocation resources keep their lifetime and
                         // can only restore through their own loan replay.
                         if mutable.contains(&binding.argument.place)
+                            && binding.argument.path.is_empty()
                             && (descriptor_views.contains(&binding.argument.place)
                                 || attenuated_block_name
-                                || (binding.argument.access == StructuralAccess::MutableBorrow
-                                    && binding.argument.path.is_empty()))
+                                || binding.argument.access == StructuralAccess::MutableBorrow)
                         {
                             carried.remove(&binding.argument.place);
                             possible_carried.remove(&binding.argument.place);
@@ -222,7 +256,6 @@ pub(crate) fn current_mutable_borrows(
     }
     CurrentMutableBorrows {
         mutable,
-        descriptor_views,
         arrivals,
         possible_arrivals,
     }
@@ -233,16 +266,13 @@ pub(super) fn validate(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let CurrentMutableBorrows {
-        mutable,
-        descriptor_views,
-        arrivals,
-        ..
+        mutable, arrivals, ..
     } = current_mutable_borrows(function, types);
     if mutable.is_empty() {
         return Ok(());
     }
     for block in &function.blocks {
-        let available = &arrivals[&block.id];
+        let mut available = arrivals[&block.id].clone();
         for (position, node) in block.nodes.iter().enumerate() {
             let invalid = |place| OptimizationUnitValidationError::StructuralPlaceNotAvailable {
                 machine: function.machine,
@@ -250,32 +280,46 @@ pub(super) fn validate(
                 node: position as u32,
                 place,
             };
-            let mut seen = BTreeSet::new();
-            for place in super::structural_roots::operation_place_inputs(&node.operation) {
-                if mutable.contains(&place)
-                    && (!available.contains(&place)
-                        || (node.successors.is_empty()
-                            && descriptor_views.contains(&place)
-                            && !seen.insert(place)))
-                {
+            // Availability is per name. Each operation's contract separately
+            // checks argument access and path overlap; repeated shared reads
+            // or disjoint projected loans do not repeat exclusive authority.
+            for place in super::structural_roots::operation_place_accesses(&node.operation) {
+                if mutable.contains(&place) && !available.contains(&place) {
                     return Err(invalid(place));
                 }
             }
             for edge in &node.successors {
-                let mut seen = BTreeMap::new();
-                for binding in &edge.structural_bindings {
+                for (position, binding) in edge.structural_bindings.iter().enumerate() {
                     let place = binding.argument.place;
                     if !mutable.contains(&place) {
                         continue;
                     }
-                    if let Some(prior) = seen.insert(place, binding.argument.access)
-                        && (descriptor_views.contains(&place)
-                            || prior != StructuralAccess::SharedBorrow
-                            || binding.argument.access != StructuralAccess::SharedBorrow)
-                    {
-                        return Err(invalid(place));
+                    for prior in &edge.structural_bindings[..position] {
+                        if prior.argument.place != place {
+                            continue;
+                        }
+                        let shared = prior.argument.access == StructuralAccess::SharedBorrow;
+                        let other_shared =
+                            binding.argument.access == StructuralAccess::SharedBorrow;
+                        // Terminal edges admit repeated shared observations
+                        // and disjoint shared/mutable subloans, but retain the
+                        // single mutable arrival per root rule.
+                        if (!shared && !other_shared)
+                            || (shared != other_shared
+                                && terminal_semantics::structural_paths_may_overlap(
+                                    &prior.argument.path,
+                                    &binding.argument.path,
+                                ))
+                        {
+                            return Err(invalid(place));
+                        }
                     }
                 }
+            }
+            if let Some((_, result)) = node.operation.structural_result()
+                && mutable.contains(&result.place)
+            {
+                available.insert(result.place);
             }
             if let O::ByteSequenceWrite {
                 destination,

@@ -6,15 +6,21 @@ use crate::validation::{
     StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
-/// Resolve ordinary storage projections through the shared type walker.
-/// Reference crossings and byte windows retain their distinct semantics;
-/// neither is an implicit field/index projection.
-pub(in crate::validation) fn path_end_type(
+/// Resolve the collection and its access together. Owning a descriptor's
+/// storage never grants access beyond the reference it contains: every
+/// dereference must itself cover the requested loan, including intermediate
+/// references beneath fields or array elements.
+pub(in crate::validation) fn source_collection_type(
     module: &TerminalModule,
-    mut current: StructuralTypeId,
-    path: &[StructuralPathSegment],
+    machine: &TerminalMachine,
+    source: &terminal_psi::StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    for segment in path {
+    let (mut current, access) = source_root(machine, source.place)?;
+    let can_supply = super::super::structural::operations::structural_access_can_supply;
+    if !can_supply(access, source.access) {
+        return None;
+    }
+    for segment in &source.path {
         let declaration = module
             .structural_types
             .iter()
@@ -29,9 +35,10 @@ pub(in crate::validation) fn path_end_type(
                 .1
                 .id
             }
-            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
-                *referent
-            }
+            (
+                StructuralPathSegment::Referent,
+                StructuralTypeShape::Reference { referent, access },
+            ) if can_supply(*access, source.access) => *referent,
             // A byte window keeps its fixed-array backing's element type: the
             // view minted here reads `u8` elements out of the container the
             // path names, and the segment's own contract bounds it.
@@ -61,34 +68,36 @@ pub(in crate::validation) fn collection_element(
         })
 }
 
-/// The readable root type a collection view may borrow. An argument's access
-/// cannot grant authority absent from its backing: both shared and mutable
-/// views expose reads, so write-only parameters cannot establish either one.
-pub(in crate::validation) fn source_root_type(
+/// Arrival custody comes from the exact declaration. A structural result owns
+/// its produced value's storage; its producer and type must rejoin the place
+/// declaration. Reference permission remains a separate path-step judgment.
+fn source_root(
     machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<StructuralTypeId> {
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    {
-        return (parameter.access != StructuralAccess::WriteOnlyBorrow)
-            .then_some(parameter.structural_type);
+) -> Option<(StructuralTypeId, StructuralAccess)> {
+    if let Some(parameter) = terminal_semantics::arrival_parameter(machine, place) {
+        return Some((parameter.structural_type, parameter.access));
     }
-    if let Some(parameter) = crate::validation::block_views::parameter(machine, place) {
-        return (parameter.access != StructuralAccess::WriteOnlyBorrow)
-            .then_some(parameter.structural_type);
-    }
-    machine
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = machine
         .structural_places
         .iter()
-        .find_map(|row| match row.kind {
-            StructuralPlaceKind::OperationResult {
-                structural_type, ..
-            } if row.id == place => Some(structural_type),
-            _ => None,
-        })
+        .find(|declaration| declaration.id == place)?
+        .kind
+    else {
+        return None;
+    };
+    let result = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?
+        .result
+        .structural()?;
+    (result.place == place && result.structural_type == structural_type)
+        .then_some((structural_type, StructuralAccess::Owned))
 }
 
 pub(in crate::validation) fn validate_establishment(
@@ -155,8 +164,7 @@ pub(in crate::validation) fn validate_establishment(
     if source.access != StructuralAccess::SharedBorrow {
         return Err(invalid());
     }
-    let root = source_root_type(machine, source.place).ok_or_else(invalid)?;
-    let collection = path_end_type(module, root, &source.path).ok_or_else(invalid)?;
+    let collection = source_collection_type(module, machine, source).ok_or_else(invalid)?;
     if collection_element(module, collection) != Some(element) {
         return Err(invalid());
     }
@@ -164,7 +172,7 @@ pub(in crate::validation) fn validate_establishment(
 }
 
 /// The view's collection root must exist on every arrival; projections into it
-/// are resolved by `path_end_type`.
+/// are resolved by `source_collection_type`.
 pub(in crate::validation) fn validate_uses(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,

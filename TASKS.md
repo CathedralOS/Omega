@@ -2128,21 +2128,17 @@ crash and native exit behavior. Use affected check/native corpus slices under
   declines instead of reloading a changed selector at observation.
   Preserve `pass/borrows/shared_recast_loan_member_read`'s native/interpreted
   exit 0 and canonical place ordering beside provider attachments. Extend
-  captured loans through remaining producer/read/call compositions. A whole
-  `&mut [T]` view local forwards its own binding to a `&mut [T]` successor
-  parameter: its loan release stays the one owner, stage 05 keeps the view and
-  its backing local's home until return, and `&mut [T]` view parameters admit
-  length and element reads. `storage/runtime_local_slice_forward_exit` now stops
-  in trusted Terminal verification (`InvalidStructuralSuccessorArgument`). It
-  needs (1) `block_views::validate_successor` to admit a whole `MutableBorrow`
-  argument naming an available, unqualified, claim-free affine
-  `EstablishMutableElementView` result of the parameter's element-view type and
-  (2) `block_views::mutable_availability` to count such produced views as
-  exclusive names, so the target's view parameter is available; with both the
-  checked interpreter exits 70. Native execution then needs Omega stage 00
-  `structural_scalar_fields::lower_store` to accept a `MutableBorrow`
-  element-view parameter destination with a runtime-indexed record-element
-  field path. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
+  captured loans through remaining producer/read/call compositions. Whole mutable
+  view locals now retain their backing and exclusive permission through named
+  state transfers: `storage/runtime_local_slice_forward_exit` and
+  `storage/runtime_parameter_slice_forward_exit` both execute with native and
+  interpreter exit **70** on macOS ARM64. The latter checks caller-visible
+  writes across two states and untouched sibling fields. Descriptor cleanup
+  remains separate from transferred permission; stale names and shared backing
+  cannot acquire mutation authority. The prepared product command
+  `omega run --both tests/omega/pass/storage/runtime_local_slice_forward_exit/main.omg`
+  also reports native/interpreter exit **70**. Coordinate record re-views with
+  **RECAST-SOURCE-POSITIONS**.
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70

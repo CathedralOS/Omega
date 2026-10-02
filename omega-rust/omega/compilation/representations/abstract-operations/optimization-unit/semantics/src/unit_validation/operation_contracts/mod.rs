@@ -27,7 +27,7 @@ mod values;
 
 pub(crate) use records::constructible;
 pub(crate) use structural_access::{
-    structural_operation_result_contract, structural_source_contract,
+    structural_access_can_supply, structural_operation_result_contract, structural_source_contract,
 };
 
 #[cfg(test)]

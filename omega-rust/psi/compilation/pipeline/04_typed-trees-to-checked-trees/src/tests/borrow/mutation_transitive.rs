@@ -138,6 +138,184 @@ fn state_handoff_rejects_parent_field_backed_by_dead_local() {
 }
 
 #[test]
+fn state_handoff_retains_local_backing_through_owned_loan_carriers() {
+    for (setup, carrier, parameter, observe) in [
+        (
+            "let view: &Counter = &local;",
+            "view",
+            "view: &Counter",
+            "let observed: u64 = view.value;",
+        ),
+        (
+            "let view: &mut Counter = &mut local;",
+            "view",
+            "view: &mut Counter",
+            "view.value = 9;",
+        ),
+        (
+            "let carrier: Carrier = Carrier { held: &local };",
+            "carrier",
+            "carrier: Carrier",
+            "let observed: u64 = carrier.held.value;",
+        ),
+        (
+            "let carrier: Envelope<Carrier> = Envelope { item: Carrier { held: &local } };",
+            "carrier",
+            "carrier: Envelope<Carrier>",
+            "let observed: u64 = carrier.item.held.value;",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            data Counter {{ value: u64; }}
+            data Carrier {{ held: &Counter; }}
+            data Envelope<T> {{ item: T; }}
+            machine update() {{
+                let local: Counter = Counter {{ value: 7 }};
+                {setup}
+                transition {{ _ -> finish({carrier}) }}
+                state finish({parameter}) {{ {observe} }}
+            }}
+            "#
+        );
+        crate::tests::front_end::checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{setup}: {diagnostics:?}"));
+    }
+}
+
+#[test]
+fn state_handoff_retains_local_array_backing_through_view_binding() {
+    let source = r#"
+        data Counter { value: u64; }
+        data Room { counters: [Counter; 2]; }
+        machine update() {
+            let room: Room = Room {
+                counters: [Counter { value: 7 }, Counter { value: 8 }]
+            };
+            let view: &mut [Counter] = room.counters.as_mut_slice();
+            transition { _ -> finish(view) }
+            state finish(view: &mut [Counter]) {
+                view[0].value = 9;
+            }
+        }
+    "#;
+    crate::tests::front_end::checked_program_result(source)
+        .expect("a whole view binding transfers its local backing with the loan");
+}
+
+#[test]
+fn state_handoff_rejects_local_backing_stored_through_parent_alias() {
+    let source = r#"
+        data Context { held: &u64; }
+        machine update(context: &mut Context) {
+            let local: u64 = 7;
+            let alias: &mut Context = &mut context;
+            alias.held = &local;
+            transition { _ -> finish(context) }
+            state finish(context: &mut Context) {
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    let diagnostics = crate::tests::front_end::checked_program_result(source)
+        .expect_err("an alias does not make caller-owned storage activation-owned");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("whose storage ends at the source state exit")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn state_handoff_carrier_custody_tracks_reference_crossings() {
+    use checked_trees::BorrowLoanOwnerSegment::{DynamicIndex, Field, FixedIndex};
+    let program = typed_program(
+        "data Carrier { held: &u64; }
+         data Context { slots: [Carrier; 2]; }
+         data Wrapper { context: &mut Context; }
+         machine examine(owned: Context, borrowed: &mut Context, wrapped: Wrapper) {}",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "examine")
+        .expect("fixture machine");
+    let state = &program.machine_states(machine)[0];
+    let field = |owner: &str, name: &str| {
+        let definition = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == owner)
+            .expect("declared carrier");
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(Field(field.symbol))
+                }
+                _ => None,
+            })
+            .expect("declared field")
+    };
+    let held = field("Carrier", "held");
+    let slots = field("Context", "slots");
+    let context = field("Wrapper", "context");
+    for (owner, path, owned) in [
+        ("borrowed", vec![], true),
+        ("owned", vec![slots, FixedIndex(0), held], true),
+        ("owned", vec![slots, DynamicIndex, held], true),
+        ("borrowed", vec![slots, FixedIndex(0), held], false),
+        ("wrapped", vec![context], true),
+        ("wrapped", vec![context, slots, FixedIndex(0), held], false),
+        ("wrapped", vec![context, slots, DynamicIndex, held], false),
+    ] {
+        let parameter = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| program.symbols.name(parameter.symbol) == owner)
+            .expect("declared parameter");
+        assert_eq!(
+            crate::flow::loan_carrier_has_owned_storage(
+                &program,
+                state.symbol,
+                0,
+                parameter.symbol,
+                &path,
+            ),
+            owned,
+            "{owner}: {path:?}",
+        );
+    }
+}
+
+#[test]
+fn state_handoff_rejects_local_backing_stored_through_owned_wrapper() {
+    let source = r#"
+        data Context { held: &u64; }
+        data Wrapper { context: &mut Context; }
+        machine update(context: &mut Context) {
+            let local: u64 = 7;
+            let wrapper: Wrapper = Wrapper { context: &mut context };
+            wrapper.context.held = &local;
+            transition { _ -> finish(context) }
+            state finish(context: &mut Context) {
+                let observed: u64 = context.held;
+            }
+        }
+    "#;
+    let diagnostics = crate::tests::front_end::checked_program_result(source)
+        .expect_err("owned wrapper storage cannot confer ownership on its borrowed referent");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("whose storage ends at the source state exit")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn state_handoff_retires_replaced_parent_field_loan() {
     for assignments in [
         "context.held = &context.item; context.held = caller_value;",

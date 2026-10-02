@@ -117,6 +117,47 @@ pub(crate) fn project_type_reference_from_segments(
     project_type_reference_from_segment_iter(program, current, segments)
 }
 
+/// Whether the slot carrying a loan belongs to this activation's binding or
+/// owned aggregate. A reference in the final slot is the carried value; a
+/// reference crossed before that slot instead reaches storage owned elsewhere.
+/// Retained owner paths already rebase stores through tracked local aliases.
+/// Unknown projection types cannot establish owned storage.
+pub(crate) fn loan_carrier_has_owned_storage(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    owner_symbol: SymbolHandle,
+    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
+) -> bool {
+    let Some(mut current) =
+        symbol_type_reference_in_state(program, state_symbol, statement_index, owner_symbol)
+    else {
+        return false;
+    };
+    let mut substitutions = Vec::new();
+    for segment in owner_path {
+        current = substituted_type_reference(program, current, &substitutions);
+        if crate::borrow::reference_borrow_access_kind(program, current).is_some() {
+            return false;
+        }
+        let projected = match segment {
+            checked_trees::BorrowLoanOwnerSegment::Case(_) => Some(current),
+            checked_trees::BorrowLoanOwnerSegment::Field(symbol) => {
+                field_type_reference(program, current, *symbol, &mut substitutions)
+            }
+            checked_trees::BorrowLoanOwnerSegment::FixedIndex(_)
+            | checked_trees::BorrowLoanOwnerSegment::DynamicIndex => {
+                indexed_element_type_reference(program, current, &substitutions)
+            }
+        };
+        let Some(projected) = projected else {
+            return false;
+        };
+        current = projected;
+    }
+    current.is_valid()
+}
+
 /// The element type a collection reference projects at an index hop — the
 /// same element a half-open window shares with its collection, so
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element

@@ -66,7 +66,7 @@ pub(super) fn validate_block(
     );
     if let Some(mutable) = mutable_views.get(&block_id) {
         available_structural.retain(|place| {
-            !crate::validation::block_views::is_mutable_parameter(machine, *place)
+            !crate::validation::block_views::is_mutable_name(machine, *place)
                 && (mutable_records.is_none()
                     || crate::validation::block_views::mutable_records::owned_home(
                         module, machine, *place,

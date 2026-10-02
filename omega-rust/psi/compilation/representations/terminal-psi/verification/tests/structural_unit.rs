@@ -24,6 +24,8 @@ mod parameter_returns;
 mod partial_affine_moves;
 #[path = "structural_unit/primitive_snapshots.rs"]
 mod primitive_snapshots;
+#[path = "structural_unit/produced_block_views.rs"]
+mod produced_block_views;
 #[path = "structural_unit/provider_attachments_and_cleanup_targets.rs"]
 mod provider_attachments_and_cleanup_targets;
 #[path = "structural_unit/reference_results.rs"]

@@ -885,10 +885,18 @@ pub(super) fn validate_operation(
                         && optimized.blocks.iter().any(|entry| {
                             entry.id == *block && entry.structural_parameters.contains(parameter)
                         })
-                        && abstract_operations::control_flow::address_joins::is_address_join_in(
-                            parameter,
-                            &unit.structural_types,
-                        )
+                        && optimized.arrival_parameter(*place) == Some(parameter)
+                        && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty()
+                        && optimized
+                            .entry_claim_declarations
+                            .iter()
+                            .all(|claim| claim.input != *place)
+                        && optimized
+                            .content_entry_claims
+                            .iter()
+                            .all(|claim| claim.input.root != *place)
                 }
                 (
                     abstract_operations::StructuralScalarStoreDestination::OwnedResult {

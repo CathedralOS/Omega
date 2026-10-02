@@ -1,4 +1,10 @@
 //! Exact block-local parameter declarations and simultaneous edge bindings.
+//!
+//! Exclusive view names move across edges regardless of whether a signature,
+//! a previous arrival, or a checked view operation established them. Rejoin
+//! the producer's access lineage before admitting the transfer, and intersect
+//! availability over every incoming edge. Dominance alone cannot resurrect
+//! the original name after a successor took its exclusive permission.
 
 use super::{
     BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, OperationKind, PlaceId, StructuralAccess,
@@ -457,13 +463,11 @@ pub(super) fn validate_successor(
                 && source.qualifications == expected.qualifications
                 && source.projected_qualifications == expected.projected_qualifications
         } else if expected.access == StructuralAccess::MutableBorrow {
-            mutable_records::owned_home(module, machine, argument.place).is_some_and(|home| {
-                available.contains(&argument.place)
-                    && home.structural_type == expected.structural_type
-                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
-                    && expected.qualifications.is_empty()
-                    && expected.projected_qualifications.is_empty()
-            })
+            expected.multiplicity == StructuralMultiplicity::Unrestricted
+                && expected.qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && mutable_loan_root(module, machine, argument, available)
+                    == Some(expected.structural_type)
         } else if expected.access == StructuralAccess::Owned {
             // The operation independently establishes its exact result. A whole
             // owned edge transfers that value regardless of aggregate syntax.
@@ -659,30 +663,7 @@ fn shared_loan_root(
     // the view's element type, exactly as a record field loan roots at the
     // record. Byte views keep the whole-view rule above — their elements
     // carry no structural projection.
-    if let Some(result) = super::element_view::subslice::borrowed_result(machine, argument.place)
-        .filter(|_| available.contains(&argument.place))
-    {
-        return Some(result.structural_type);
-    }
-    // A mutable view lends the same projected shared loan while its exclusive
-    // loan lives: the affine result names the descriptor, and the shared
-    // observer reads beneath it for the edge's duration.
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| match &operation.kind {
-            OperationKind::EstablishMutableElementView { .. } => {
-                operation.result.structural().filter(|result| {
-                    result.place == argument.place
-                        && result.multiplicity == StructuralMultiplicity::Affine
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                        && result.claims.is_empty()
-                })
-            }
-            _ => None,
-        })
+    super::element_view::subslice::borrowed_result(machine, argument.place)
         .filter(|_| available.contains(&argument.place))
         .map(|result| result.structural_type)
 }
@@ -690,7 +671,8 @@ fn shared_loan_root(
 /// The declared type at an exclusive successor loan's root. A signature or
 /// block parameter presents writable custody only through the access
 /// lattice — `Owned` or `MutableBorrow` storage can lend exclusively —
-/// while a locally owned record's producer supplies its exact type. Linear
+/// while a produced home or view supplies its independently checked type and
+/// access. Linear
 /// custody cannot lend at all. Non-signature roots must still dominate the
 /// edge through `available`; machine parameters are established at entry
 /// and dominate every block.
@@ -717,8 +699,22 @@ fn mutable_loan_root(
         .then_some(parameter.structural_type);
     }
     mutable_records::owned_home(module, machine, argument.place)
+        .or_else(|| mutable_view_result(machine, argument.place))
         .filter(|_| available.contains(&argument.place))
         .map(|result| result.structural_type)
+}
+
+/// A view producer's checked access lineage supplies authority, not its affine
+/// multiplicity alone. This also covers narrowed views without granting a
+/// shared source exclusive access or treating descriptor ownership as ownership
+/// of the referent. Formation validates the exact result type and custody.
+fn mutable_view_result(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<&terminal_psi::StructuralOperationResult> {
+    super::element_view::view_loan_result(machine, place)
+        .filter(|(_, access)| *access == StructuralAccess::MutableBorrow)
+        .map(|(result, _)| result)
 }
 
 /// Mutable view and plain-record names transfer at an edge; ordinary calls only reborrow them.
@@ -760,8 +756,9 @@ pub(super) fn mutable_availability(
                     .iter()
                     .filter_map(|operation| operation.result.structural())
                     .filter(|result| {
-                        record_loans
-                            && mutable_records::owned_home(module, machine, result.place).is_some()
+                        (record_loans
+                            && mutable_records::owned_home(module, machine, result.place).is_some())
+                            || mutable_view_result(machine, result.place).is_some()
                     })
                     .map(|result| result.place)
                     .collect::<BTreeSet<_>>(),
@@ -886,9 +883,9 @@ pub(super) fn mutable_availability(
                         && (universe.contains(&parameter.place)
                             || (source_available.contains(&argument.place)
                                 && parameter.access == StructuralAccess::SharedBorrow
-                                && self::parameter(machine, argument.place).is_some_and(
+                                && (self::parameter(machine, argument.place).is_some_and(
                                     |source| source.access == StructuralAccess::MutableBorrow,
-                                )))
+                                ) || mutable_view_result(machine, argument.place).is_some())))
                     {
                         incoming.remove(&argument.place);
                     }
@@ -951,11 +948,12 @@ pub(super) fn mutable_availability(
     available
 }
 
-pub(super) fn is_mutable_parameter(machine: &TerminalMachine, place: PlaceId) -> bool {
+pub(super) fn is_mutable_name(machine: &TerminalMachine, place: PlaceId) -> bool {
     machine
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == place)
         .or_else(|| parameter(machine, place))
         .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+        || mutable_view_result(machine, place).is_some()
 }

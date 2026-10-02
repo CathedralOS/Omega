@@ -153,10 +153,14 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
 
         for (loan_handle, loan) in &active_loans {
-            // The carried reference's backing must survive the state exit,
-            // independently of spatial interference with the parent carrier.
-            // Source replay and the active roster retain replacement/expiry;
-            // a loan removed before this exact edge cannot appear here.
+            // Owned carrier storage can transfer its loan to a successor while
+            // retaining the backing home until the loan chain ends. A store
+            // through borrowed storage has no such custody: the destination
+            // survives independently of this activation and cannot retain its
+            // local backing. Replay retains exact owner paths through aliases;
+            // reference leaves are values, while crossing one leaves the
+            // carrier's owned storage. Spatial compatibility alone cannot
+            // establish this lifetime distinction.
             if super::super::statements::local_jump(program, state_flow, borrow_call).is_some()
                 && access.end_before_access.is_none()
                 && access.root_symbol == loan.owner_symbol
@@ -167,6 +171,13 @@ pub(super) fn check_call_access_conflicts<'p>(
                 )
                 && program.symbols.get(loan.root_symbol).kind == symbols::SymbolKind::Local
                 && program.symbols.get(loan.root_symbol).parent == state_flow.state_symbol
+                && !crate::flow::loan_carrier_has_owned_storage(
+                    program,
+                    state_flow.state_symbol,
+                    borrow_call.statement_index,
+                    loan.owner_symbol,
+                    facts.borrow.loan_owner_path(loan),
+                )
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives a carried loan of local `{}`, whose storage ends at the source state exit",
