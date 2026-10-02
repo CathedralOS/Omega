@@ -180,7 +180,7 @@ pass/calls/runtime_dispatch_binary_call_argument_exit built 551ms exit:70 @f711d
 pass/calls/runtime_dispatch_float_terminal_exit built 2925ms exit:70 @fb2178def922
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit built 623ms exit:70 @a822939054ad
 pass/calls/runtime_dispatch_result_enum_case_exit built 1806ms exit:70 @fb2178def922
-pass/calls/runtime_dispatch_slice_element_terminal_exit built 616ms exit:70 @a822939054ad
+pass/calls/runtime_dispatch_slice_element_terminal_exit built 972ms exit:70 @2c44d70118d1+wt
 pass/calls/runtime_distinct_receiver_value_calls_exit built 675ms exit:70
 pass/calls/runtime_enum_self_method_exit built 2815ms exit:70 @fb2178def922
 pass/calls/runtime_explicit_discard_executes_exit built 696ms exit:70
@@ -265,14 +265,14 @@ pass/collections/case_array_literal_nested_store_exit built 670ms exit:9 @480083
 pass/collections/case_array_literal_row_store_exit built 728ms exit:3 @48008365d839
 pass/collections/cyclic_shared_plain_array_parameter_exit built 39901ms exit:42 @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store built 1426ms exit:0 @bed5f45e9185+wt
-pass/collections/element_view_borrow_local built 710ms exit:181 @48008365d839
+pass/collections/element_view_borrow_local built 966ms exit:181 @2c44d70118d1+wt
 pass/collections/element_view_edge_loan built 779ms exit:70 @48008365d839
 pass/collections/element_view_field_write built 657ms exit:181 @48008365d839
 pass/collections/element_view_indexed_read built 719ms exit:181 @48008365d839
 pass/collections/element_view_indexed_write built 447ms @48008365d839
 pass/collections/element_view_runtime_field_write built 626ms exit:181 @48008365d839
 pass/collections/element_view_runtime_loan_read built 631ms exit:181 @48008365d839
-pass/collections/element_view_whole_write built 850ms exit:181 @48008365d839
+pass/collections/element_view_whole_write built 1023ms exit:181 @2c44d70118d1+wt
 pass/collections/element_view_write_transition built 615ms exit:181 @48008365d839
 pass/collections/indexed_row_array_literal_store built 1410ms exit:7 @bed5f45e9185+wt
 pass/collections/mutable_slice_view_edge_release built 594ms exit:181 @48008365d839
@@ -1113,7 +1113,7 @@ pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
 pass/text/state_parameter_byte_replacement_exit built 1031ms exit:70 @63377f7122bb+wt
 pass/text/utf8_boundary_established checked 211ms
-pass/text/view_field_literal_store_outlives_helper_exit built 1409ms exit:70 @5676dbe78a95+wt
+pass/text/view_field_literal_store_outlives_helper_exit built 1073ms exit:70 @2c44d70118d1+wt
 pass/text/zii_default_string_equality_exit built 1614ms exit:70 @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit built 940ms exit:70
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922

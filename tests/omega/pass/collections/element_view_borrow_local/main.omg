@@ -15,17 +15,17 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.fill_literal(&mut self.bag);
-    self.fill_local(&mut self.bag);
-    self.fill_param(&mut self.bag, 3);
+machine Main::main(main: &mut Main) reaches Console {
+    Main::fill_literal(&mut main.bag);
+    Main::fill_local(&mut main.bag);
+    Main::fill_param(&mut main.bag, 3);
     transition
-        self.bag.cells[2].value == 7
-            && self.bag.cells[1].value == 5
-            && self.bag.cells[3].value == 9
+        main.bag.cells[2].value == 7
+            && main.bag.cells[1].value == 5
+            && main.bag.cells[3].value == 9
     {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {
@@ -37,7 +37,7 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::fill_literal(&mut self, bag: &mut Bag) {
+machine Main::fill_literal(bag: &mut Bag) {
     let cells: &mut [Cell] = bag.cells.as_mut_slice();
     let cell: &mut Cell = &mut cells[2];
     cell.value = 7;
@@ -49,7 +49,7 @@ machine Main::fill_literal(&mut self, bag: &mut Bag) {
     }
 }
 
-machine Main::fill_local(&mut self, bag: &mut Bag) {
+machine Main::fill_local(bag: &mut Bag) {
     let cells: &mut [Cell] = bag.cells.as_mut_slice();
     let pick: i32 = 1;
     let other: &mut Cell = &mut cells[pick];
@@ -62,7 +62,7 @@ machine Main::fill_local(&mut self, bag: &mut Bag) {
     }
 }
 
-machine Main::fill_param(&mut self, bag: &mut Bag, at: u64) requires at < 4 {
+machine Main::fill_param(bag: &mut Bag, at: u64) requires at < 4 {
     let cells: &mut [Cell] = bag.cells.as_mut_slice();
     let target: &mut Cell = &mut cells[at];
     target.value = 9;

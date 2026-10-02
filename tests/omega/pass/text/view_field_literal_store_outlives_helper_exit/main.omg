@@ -18,45 +18,45 @@ data Main {
     room: Room;
 }
 
-machine Main::name_door(&mut self) {
-    self.name = "Door";
+machine Main::name_door(main: &mut Main) {
+    main.name = "Door";
 }
 
-machine Main::relabel(&mut self, room: &mut Room) {
+machine Main::relabel(room: &mut Room) {
     room.label = "Gate keeper";
 }
 
-machine Main::scribble(&mut self) -> u64 {
+machine Main::scribble() -> u64 {
     let noise: &[u8] = "XXXXXXXXXXXXXXXXXXXXXXXX";
     (noise.len)
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.name_door();
-    self.relabel(&mut self.room);
-    let noise: u64 = self.scribble();
+machine Main::main(main: &mut Main) reaches Console {
+    Main::name_door(main);
+    Main::relabel(&mut main.room);
+    let noise: u64 = Main::scribble();
 
-    transition self.name.len == 4 && self.room.label.len == 11 && noise == 24 {
-        true -> contents()
-        false -> wrong_extent()
+    transition main.name.len == 4 && main.room.label.len == 11 && noise == 24 {
+        true -> contents(main)
+        false -> wrong_extent(main)
     }
 
-    state contents(&mut self) {
-        transition self.name == "Door" && self.room.label == "Gate keeper" {
-            true -> good()
-            false -> wrong_bytes()
+    state contents(main: &mut Main) {
+        transition main.name == "Door" && main.room.label == "Gate keeper" {
+            true -> good(main)
+            false -> wrong_bytes(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state wrong_extent(&mut self) {
-        self.console.exit_process(71);
+    state wrong_extent(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state wrong_bytes(&mut self) {
-        self.console.exit_process(72);
+    state wrong_bytes(main: &mut Main) {
+        main.console.exit_process(72);
     }
 }
