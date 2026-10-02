@@ -2062,13 +2062,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   element-view parameter destination with a runtime-indexed record-element
   field path. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
 
-  Whole shared view locals still need qualified call-type adaptation. A
-  checked reduction passing `prefix` directly after a subslice binding rejects
-  with `expects &[u8][in Text], got named value`, despite retained primitive
-  membership. `checking/src/machine_calls/calls.rs::validate_call_arguments_with_type_correspondence`
-  rejects before contract proof. Range-produced arguments execute; rejoin a
-  local descriptor's reference type without discarding its byte facts.
-
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70
   controls: callee writes through captured whole-local loans remain visible

@@ -1457,20 +1457,6 @@ pub(crate) fn validate_consumer(
                 source_position,
             )?;
         }
-        let owned_byte_result = owned_byte_result_qualifications(
-            checked,
-            caller,
-            &producer,
-            argument,
-            parameter,
-            signature
-                .parameters
-                .get(source_position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "byte result argument has no authored formal",
-                ))?
-                .type_reference,
-        )?;
         // A linear result chained into the next structural call keeps its
         // exact returned claim lineage across both calls.
         if linear_result_move
@@ -1644,9 +1630,10 @@ pub(crate) fn validate_consumer(
                     } else {
                         result.multiplicity
                     }
-                // Argument construction replay above already checked the
-                // copied operand's exact qualification roster.
-                || (!parameter.qualifications.is_empty() && !argument_construction && !owned_byte_result)
+                // Qualification obligations belong to the emitted call's
+                // semantic check, independently of this source custody join.
+                // In particular, a subslice's primitive byte predicates are
+                // derived from its exact producer without result annotations.
                 || parameter.fused_service_erasure.is_some()
                 || target_entry_claims
                     .iter()
@@ -1659,74 +1646,6 @@ pub(crate) fn validate_consumer(
         }
     }
     Ok(())
-}
-
-/// Ordinary byte results retain the exact primitive predicates their callee
-/// returns. Match that completed custody to the authored receiving signature;
-/// equal capacity alone cannot introduce, erase, or substitute a domain.
-fn owned_byte_result_qualifications(
-    checked: &CheckedTrees,
-    caller: &CallerView<'_>,
-    producer: &Producer<'_>,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-    formal: checked_trees::types::TypeReferenceHandle,
-) -> Result<bool, LoweringError> {
-    let Some(call) = caller.operations[producer.operation_index]
-        .call()
-        .filter(|call| !call.is_boundary())
-    else {
-        return Ok(false);
-    };
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, call.target.state)?;
-    let returned = state.return_type;
-    let Some(capacity) = validation::bounded_byte_buffer_capacity(&checked.typed, returned) else {
-        return Ok(false);
-    };
-    if argument.access != checked_trees::CheckedStructuralAccess::Owned || !argument.path.is_empty()
-    {
-        return Ok(false);
-    }
-    let custody = call.structural_custody().ok_or(LoweringError::Unsupported(
-        "ordinary byte result has no completed custody",
-    ))?;
-    let declared = validation::structural_result_qualifications(&checked.typed, returned)
-        .map_err(LoweringError::Unsupported)?;
-    let required = validation::structural_result_qualifications(&checked.typed, formal)
-        .map_err(LoweringError::Unsupported)?;
-    let carrier = super::super::parameters::structural_carrier_type(checked, returned)?;
-    if producer.result.multiplicity != Multiplicity::Unrestricted
-        || parameter.multiplicity != Multiplicity::Unrestricted
-        || parameter.access != argument.access
-        || validation::bounded_byte_buffer_capacity(&checked.typed, formal) != Some(capacity)
-        || !validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            returned,
-        )
-        || !validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            formal,
-        )
-        || producer.result.type_identity != checked.normalized_type_identity(carrier).as_str()
-        || argument.type_identity != producer.result.type_identity
-        || parameter.type_identity != argument.type_identity
-        || declared != required
-        || custody.result_qualifications != declared
-        || parameter.qualifications != required
-        || !parameter.projected_qualifications.is_empty()
-        || !custody.returned_claim_transfers.is_empty()
-        || custody.reference_loan.is_valid()
-    {
-        return unsupported("ordinary byte result changes its declared carrier or predicates");
-    }
-    super::validate_custody(
-        checked,
-        caller.machine,
-        caller.state,
-        &caller.operations[producer.operation_index],
-    )?;
-    Ok(true)
 }
 
 /// Reconstruct a whole local array loan independently of its argument plan.

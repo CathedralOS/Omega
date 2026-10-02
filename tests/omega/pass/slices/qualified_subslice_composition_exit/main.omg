@@ -21,7 +21,7 @@ machine Main::relay(main: &Main, bytes: &[u8] in Ascii) reaches Console {
 
 machine Main::cut(main: &Main, prefix: &[u8] in Ascii) reaches Console {
     let empty: &[u8] = prefix[0..0];
-    Main::inspect(main, empty[0..0], prefix);
+    Main::inspect(main, empty, prefix);
 }
 
 machine Main::inspect(main: &Main, empty: &[u8] in Ascii, prefix: &[u8] in Ascii) reaches Console {

@@ -10,6 +10,9 @@ use typed_trees::name::Identifier;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ProofFactOwner<'program> {
     DataDefaultDomain(&'program str),

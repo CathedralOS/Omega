@@ -3,7 +3,7 @@
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter,
     TypeReferenceHandle, TypeReferenceNode, TypedTrees, ValueEnvironment, WritableRoots,
-    argument_matches_type_reference_handle, declared_place_type, declared_receiver_type_reference,
+    argument_matches_carrier, declared_place_type, declared_receiver_type_reference,
     declared_reference_access, validate_call_arguments_with_type_correspondence,
 };
 /// The requirement already selected its trait telescope. Raw signature handles
@@ -87,7 +87,7 @@ pub(super) fn validate_requirement_call_arguments(
                     ),
                 };
             }
-            argument_matches_type_reference_handle(program, argument, required)
+            argument_matches_carrier(program, argument, required)
         },
         diagnostics,
     );

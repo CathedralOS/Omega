@@ -10,7 +10,7 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::{
-    argument_matches_type_reference_handle, expression_type_name_handle, report_cross_class_store,
+    argument_matches_carrier, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
 };
 use crate::value_custody::locals::WritableRoots;
@@ -541,7 +541,7 @@ pub(crate) fn validate_call_arguments_handles_with_self_argument(
         false,
         &[],
         self_is_argument,
-        |argument, required| argument_matches_type_reference_handle(program, argument, required),
+        |argument, required| argument_matches_carrier(program, argument, required),
         diagnostics,
     );
 }
@@ -618,7 +618,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         retain_arithmetic_policy,
         argument_environments,
         false,
-        |argument, required| argument_matches_type_reference_handle(program, argument, required),
+        |argument, required| argument_matches_carrier(program, argument, required),
         diagnostics,
     );
 }

@@ -1113,9 +1113,6 @@ pub(crate) fn validate_transfer_shape(
                     && !case_receiver_borrow
                     && !(argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()))
-                || (!target.qualifications.is_empty()
-                    && !bounded_owner_borrow
-                    && !bounded_owned_value)
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {
                     arguments
