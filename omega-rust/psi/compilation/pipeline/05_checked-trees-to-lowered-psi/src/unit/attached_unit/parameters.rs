@@ -27,6 +27,8 @@ use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_c
 use semantic_vocabulary::ValueId;
 #[cfg(test)]
 mod borrowed_service_tests;
+mod reference_sources;
+pub(crate) use reference_sources::lower_reference_source;
 mod service_forward;
 pub(in crate::unit::attached_unit) use service_forward::validate_parameter as validate_service_parameter;
 mod source_path;

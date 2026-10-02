@@ -1,5 +1,5 @@
 use crate::flow::{
-    effective_member_symbol, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+    effective_member_symbol, effective_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -21,10 +21,8 @@ pub(super) fn contextual_effective_member_symbol(
         statement_index,
         receiver,
         machine_symbol,
-    ) && let Some(symbol) =
-        resolve_member_symbol_from_type_symbol(program, type_symbol, member.member.as_str())
-    {
-        return symbol;
+    ) {
+        return effective_member_symbol_from_type_symbol(program, receiver, type_symbol, member);
     }
 
     effective_member_symbol(program, receiver, member)

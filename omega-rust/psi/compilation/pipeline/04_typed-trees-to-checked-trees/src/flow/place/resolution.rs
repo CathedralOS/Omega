@@ -761,6 +761,23 @@ pub(crate) fn effective_member_symbol(
     )
 }
 
+/// Resolve a member against the declaration supplied by a contextual place
+/// owner, preserving the same case and retained-symbol checks as expression
+/// type resolution.
+pub(crate) fn effective_member_symbol_from_type_symbol(
+    program: &typed_trees::TypedTrees,
+    receiver: ExpressionHandle,
+    type_symbol: SymbolHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> SymbolHandle {
+    effective_member_symbol_from_position(
+        program,
+        receiver,
+        Some(MemberPosition::Declaration(type_symbol)),
+        member,
+    )
+}
+
 /// `effective_member_symbol` with the receiver's type position already
 /// resolved — member-chain walks share one receiver walk between the symbol
 /// answer and the position hop instead of resolving it once per use.

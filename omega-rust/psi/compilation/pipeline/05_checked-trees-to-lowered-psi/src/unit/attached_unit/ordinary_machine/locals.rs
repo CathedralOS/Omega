@@ -22,21 +22,17 @@ impl MachineEmission<'_> {
         if result.binding_ordinal as usize != self.structural_result_places.len() {
             return unsupported("reference result binding is not dense");
         }
-        let arguments = parameters::lower_structural_arguments(
-            std::slice::from_ref(source),
+        let argument = parameters::lower_reference_source(
+            source,
             self.structural_types,
             self.parameters,
             &self.local_places,
             &self.structural_result_places,
-            &[],
             &self.primitive_local_places,
-            None,
-            &mut std::iter::empty(),
-            None,
         )?;
         let declaration = reference_results::emit(
             result,
-            arguments[0].clone(),
+            argument,
             self.type_ids,
             &mut self.next_place,
             &mut self.operations,
