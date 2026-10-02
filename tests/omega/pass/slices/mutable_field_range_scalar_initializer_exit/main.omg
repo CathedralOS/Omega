@@ -1,0 +1,29 @@
+data WindowBuffer {
+    items: [i32; 4];
+    marker: i32;
+}
+
+machine stamp(values: &mut [i32]) -> u64 {
+    transition values.len >= 2 {
+        true -> write(values)
+        false -> 0
+    }
+    state write(values: &mut [i32]) -> u64 {
+        values[0] = 7;
+        values[1] = 9;
+        values.len
+    }
+}
+
+machine main() crashes Trap {
+    let mut context: WindowBuffer;
+    let matched: bool = stamp(&mut context.items[1..3]) == 2;
+    transition matched && context.items[0] == 0 && context.items[1] == 7
+        && context.items[2] == 9 && context.items[3] == 0
+        && context.marker == 0 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

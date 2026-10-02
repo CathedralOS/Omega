@@ -265,6 +265,9 @@ pub(crate) fn subslice_computation_argument(
         },
     )?;
     let argument = subslice.argument();
+    // The ordinary range admission already rejoins the explicit actual with
+    // its formal. A scalar expression changes no loan: retain that exact
+    // access and require the borrow ledger to agree, as a statement call does.
     (exact_structural_borrow_access(
         program,
         borrow,
@@ -272,9 +275,9 @@ pub(crate) fn subslice_computation_argument(
         state.symbol,
         call,
         &place,
-        CheckedStructuralAccess::SharedBorrow,
+        argument.access,
         &[],
-    )? == CheckedStructuralAccess::SharedBorrow)
+    )? == argument.access)
         .then_some(argument)
 }
 

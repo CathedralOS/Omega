@@ -1108,3 +1108,105 @@ fn case_argument_path_rejects_sibling_case_field_substitution() {
         "a case alone is not a borrowed value"
     );
 }
+
+#[test]
+fn mutable_range_scalar_initializer_retains_one_call_and_exact_borrow_evidence() {
+    let checked = checked(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/mutable_field_range_scalar_initializer_exit/main.omg"
+    )));
+    let owner = machine(&checked.typed, "main");
+    let state = &checked.machine_states(owner)[0];
+    let target = checked.machine_states(machine(&checked.typed, "stamp"))[0].symbol;
+    let plans = &checked.facts.values.scalar_computations;
+    let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 };
+    let site = checked_trees::CheckedSubsliceSite::CallArgument {
+        call_ordinal: 0,
+        argument_ordinal: 0,
+    };
+    for role in [
+        CheckedScalarExpressionRole::SubsliceStart { site },
+        CheckedScalarExpressionRole::SubsliceEnd { site },
+    ] {
+        assert!(
+            checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(state.symbol, 1, role)
+                .is_some(),
+            "the nested scalar call retains its exact range endpoint"
+        );
+    }
+    assert!(plans.root_at(state.symbol, 1, role).is_some());
+    let calls = plans
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| {
+            if let checked_trees::CheckedScalarComputationKind::Call {
+                source_call,
+                target_state,
+                structural_arguments,
+                ..
+            } = node.kind
+            {
+                (target_state == target).then_some((source_call, structural_arguments))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let [(source_call, arguments)] = calls.as_slice() else {
+        panic!("the scalar comparison must retain exactly one stamp invocation");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
+        plans.structural_arguments.span_or_empty(*arguments)
+    else {
+        panic!("the exact range operand");
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(matches!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+    ));
+
+    let original = checked.facts.flow.control.calls.get(*source_call);
+    let borrow_call = checked
+        .facts
+        .borrow
+        .calls
+        .iter()
+        .find(|(_, call)| {
+            call.target_symbol == original.target_symbol
+                && call.statement_index == original.statement_index
+                && call.call_ordinal == original.call_ordinal
+        })
+        .unwrap()
+        .0;
+    // Synchronizing both rosters cannot turn a shared access fact into the
+    // explicit mutable actual's authority. Reconstruct the whole initializer
+    // so its call cannot silently survive after losing its borrow evidence.
+    let mut flow = checked.facts.flow.clone();
+    let mut borrow = checked.facts.borrow.clone();
+    let mut accesses = borrow
+        .argument_accesses
+        .span(original.accesses)
+        .unwrap()
+        .to_vec();
+    assert_eq!(accesses.len(), 1);
+    assert_eq!(accesses[0].kind, checked_trees::BorrowAccessKind::Mutable);
+    accesses[0].kind = checked_trees::BorrowAccessKind::Read;
+    let accesses = borrow.argument_accesses.insert_many(accesses);
+    borrow.calls.get_mut(borrow_call).accesses = accesses;
+    flow.control.calls.get_mut(*source_call).accesses = accesses;
+    let rebuilt = crate::values::build_checked_scalar_computation_plans(
+        &checked.typed,
+        &checked.facts.operators,
+        &flow,
+        &borrow,
+        &checked.facts.proof,
+        &checked.facts.values.scalar_expressions,
+        &[],
+    );
+    assert!(rebuilt.root_at(state.symbol, 1, role).is_none());
+}

@@ -105,7 +105,6 @@ pub(crate) fn lower_call_arguments(
             .count();
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
-    let mut structural_index = 0usize;
     let mut scalar_erased_index = 0usize;
     let mut proof_erased_index = 0usize;
     let proof_only = validation::proof_only_classification(program);
@@ -183,43 +182,6 @@ pub(crate) fn lower_call_arguments(
             continue;
         }
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
-            let argument_ordinal = u32::try_from(structural_index).ok()?;
-            structural_index = structural_index.checked_add(1)?;
-            let site = checked_trees::CheckedSubsliceSite::CallArgument {
-                call_ordinal: u32::try_from(call_ordinal).ok()?,
-                argument_ordinal,
-            };
-            for (endpoint, role, expression) in
-                crate::values::scalar::subslice_endpoints::subslice_endpoints(
-                    program,
-                    operators,
-                    argument,
-                    site,
-                    |endpoint| {
-                        lower_return_expression(
-                            program,
-                            operators,
-                            endpoint,
-                            parameters,
-                            authored_parameters,
-                            parameter_types,
-                            locals,
-                            PrimitiveType::U64,
-                            exact_integer_casts,
-                        )
-                    },
-                )
-            {
-                output.push((
-                    endpoint,
-                    CheckedLocatedScalarExpression {
-                        state: state.symbol,
-                        statement_ordinal,
-                        role,
-                        expression,
-                    },
-                ));
-            }
             continue;
         };
         if target.is_self
