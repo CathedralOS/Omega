@@ -122,10 +122,10 @@ pub(super) fn validate_boundary_machines(
     Ok(())
 }
 
-/// A boundary's scalar `requires` rows are propositions over its
-/// declaration-local scalar formals only, the crash routes' telescope. Every
-/// call instantiates them at its own actuals, so a row may not name a
-/// structural place, an opaque or float term, or any caller or provider value.
+/// Boundary scalar contracts use their declaration-local telescope. Normal
+/// guarantees additionally admit the declared result coordinate. Structural
+/// places, opaque identities and values from callers or providers are excluded;
+/// each call substitutes its actuals only after this namespace is validated.
 fn validate_boundary_scalar_contract(
     boundary: &BoundaryMachineDeclaration,
     normal_return: bool,

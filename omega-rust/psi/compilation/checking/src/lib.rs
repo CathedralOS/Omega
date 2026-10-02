@@ -333,3 +333,5 @@ pub use program_validation::{
     validate_generic_machine_contract_entailment, validate_program, validate_specialized_program,
     validate_specialized_program_deferring_quotient_requests,
 };
+
+pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;

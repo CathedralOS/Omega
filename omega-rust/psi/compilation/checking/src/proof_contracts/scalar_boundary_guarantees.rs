@@ -12,7 +12,7 @@ use checked_trees::{
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 use typed_trees::{TypedTrees, machine::Machine, types::PrimitiveType};
 
-pub(super) fn lower(
+pub fn derive_scalar_boundary_guarantees(
     program: &TypedTrees,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
@@ -75,6 +75,9 @@ fn meaning_consequence(
         Some((result, application))
     })?;
     application.validate().ok()?;
+    if !source_equation_matches(program, facts, machine, expression, application) {
+        return None;
+    }
     let row = numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(
         &application.contract,
     )?;
@@ -95,6 +98,17 @@ fn meaning_consequence(
     let [state] = program.machine_states(machine) else {
         return None;
     };
+    if program.primitive_type_reference(state.return_type) != Some(primitive_type)
+        || !language_core::signature_reserves_result(
+            program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| program.symbols.name(parameter.symbol)),
+        )
+    {
+        return None;
+    }
     let parameters = program
         .state_parameters(state)
         .iter()
@@ -122,9 +136,11 @@ fn meaning_consequence(
         if source.owner_machine != machine.symbol || source.fallback.primitive != primitive_type {
             return None;
         }
-        let position = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == source.parameter)?;
+        let position = parameters.iter().position(|parameter| {
+            parameter.symbol == source.parameter
+                && program.primitive_type_reference(parameter.type_reference)
+                    == Some(primitive_type)
+        })?;
         Some(Scalar::Parameter {
             position,
             primitive_type,
@@ -156,6 +172,105 @@ fn meaning_consequence(
         left: Box::new(Boolean::Not(Box::new(condition))),
         right: Box::new(compare(Compare::Equal, result.clone(), result)),
     })
+}
+
+/// Rejoin the retained proof coordinates to this declaration's authored
+/// equation. Changing both the retained consequence and its plan must not
+/// replace the mathematical producer, operand order, or result source.
+fn source_equation_matches(
+    program: &TypedTrees,
+    facts: &checked_trees::CheckFacts,
+    machine: &Machine,
+    expression: typed_trees::expression::ExpressionHandle,
+    application: &checked_trees::CheckedFloatSemanticApplication,
+) -> bool {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return false;
+    }
+    let projection_source = |expression, expected: Option<symbols::SymbolHandle>| {
+        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            return false;
+        };
+        let Some((_, primitive, _, _)) =
+            super::float_projection_invocations::exact_projection_operation(program, call)
+        else {
+            return false;
+        };
+        if primitive
+            != match application.format {
+                IeeeFloatFormat::Binary32 => PrimitiveType::F32,
+                IeeeFloatFormat::Binary64 => PrimitiveType::F64,
+            }
+        {
+            return false;
+        }
+        let [operand] = program.expression_table.expression_handles(call.arguments) else {
+            return false;
+        };
+        let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
+            return false;
+        };
+        match expected {
+            Some(symbol) => path.symbol == symbol,
+            None => matches!(program.expression_table.name_path_members(path.members), [name]
+                if name.as_str() == "result"),
+        }
+    };
+    [(binary.left, binary.right), (binary.right, binary.left)]
+        .into_iter()
+        .any(|(result, meaning)| {
+            if !projection_source(result, None) {
+                return false;
+            }
+            let ExpressionNode::Call(call) = program.expression_table.expression(meaning) else {
+                return false;
+            };
+            let Some(operator) =
+                typed_trees::operator::resolve_named_expression_call(program, call)
+            else {
+                return false;
+            };
+            let Some((_, contract)) =
+                crate::exact_toolchain_float_semantic_contract(program, operator)
+            else {
+                return false;
+            };
+            if contract != application.contract {
+                return false;
+            }
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            if arguments.len() != application.operands.len() {
+                return false;
+            }
+            arguments
+                .iter()
+                .zip(&application.operands)
+                .all(|(expression, operand)| match operand {
+                    Operand::Format(format) => {
+                        crate::exact_toolchain_float_format_const(program, *expression)
+                            == Some(*format)
+                    }
+                    Operand::Meaning(value) => {
+                        let Some(projection) = facts
+                            .proof
+                            .float_meaning_projections
+                            .iter()
+                            .find(|projection| projection.result.id == *value)
+                        else {
+                            return false;
+                        };
+                        let Source::DirectMachineParameter(source) = projection.source else {
+                            return false;
+                        };
+                        source.owner_machine == machine.symbol
+                            && projection_source(*expression, Some(source.parameter))
+                    }
+                })
+        })
 }
 
 fn compare(kind: Compare, left: Scalar, right: Scalar) -> Boolean {

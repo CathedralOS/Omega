@@ -113,10 +113,12 @@ fn candidate_ensures_are_declared(
         substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
     }
     boundary.scalar_ensures.iter().all(|row| {
+        let expected = substitute_proposition_values(row, &substitutions);
         candidate
             .contract
             .ensures
-            .contains(&substitute_proposition_values(row, &substitutions))
+            .iter()
+            .any(|clause| clause.proposition == expected)
     })
 }
 
