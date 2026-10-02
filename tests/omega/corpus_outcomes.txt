@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.36, "load1_start": 2.36, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.61, "load1_start": 2.61, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2075,6 +2075,7 @@ pass/relevance/erased_parameter_named_transition_forward checked 298ms @2d8ed253
 pass/relevance/erased_parameter_proof_only checked 1239ms @2d8ed253669f
 pass/relevance/erased_receiver_proof_machine_call checked 280ms @2d8ed253669f
 pass/relevance/erased_record_parameter_exit checked 1321ms @2d8ed253669f
+pass/slices/bounded_byte_parameter_range_exit checked 531ms @f7f8668f6b87+wt
 pass/slices/byte_sequence_literal_tail_return_compile rejected 358ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms @ed38350cbc69+wt

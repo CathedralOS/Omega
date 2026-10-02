@@ -193,9 +193,9 @@ struct Replay<'a> {
 /// The semantic referent declaration bound to one argument place: the root
 /// structural type and the access that declaration grants. Operation
 /// establishments own their storage; caller and block parameters keep their
-/// declared access. `local_loan` marks an unrestricted, unqualified,
-/// claim-free operation result: the only local home Terminal verification lets
-/// a call borrow through the exact fixed-array window relation. `operation_home`
+/// declared access. `local_loan` marks a non-linear, unqualified,
+/// claim-free operation home whose collection projection may be lent through
+/// the common exact window relation. `operation_home`
 /// marks addressable aggregate storage established in this body, independently
 /// of the other operands or the result of a call that borrows it.
 struct RootDeclaration {
@@ -226,8 +226,8 @@ impl RootDeclaration {
             position: declared.position,
             is_self: false,
             structural_type: self.structural_type,
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            access: semantic.access,
+            multiplicity: self.multiplicity,
+            access: self.access,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         })
@@ -3830,15 +3830,7 @@ fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, Abs
 fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclaration> {
     let mut roots = BTreeMap::new();
     for operation in &source.operations {
-        // Terminal lends whole only plain array constructions, zeroed locals
-        // and call results; the window geometry still requires a fixed array.
-        let plain_loan = |result: &StructuralOperationResult| {
-            result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
-        };
-        let (place, structural_type, multiplicity, local_loan, operation_home) = match operation {
+        let (place, structural_type, multiplicity, operation_home) = match operation {
             AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
@@ -3848,7 +3840,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             | AbstractOperation::BoundaryCall {
                 result: AbstractBoundaryResult::Structural(result),
                 ..
-            } => (result.place, result.structural_type, result.multiplicity, plain_loan(result), true),
+            } => (result.place, result.structural_type, result.multiplicity, true),
             AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishStructuralLocal { result, .. }
@@ -3856,25 +3848,32 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             // Extraction transfers the field into a distinct owned root;
             // its later call operand is not the borrowed source root.
             | AbstractOperation::MoveStructuralField { result, .. } => {
-                (result.place, result.structural_type, result.multiplicity, false, true)
+                (result.place, result.structural_type, result.multiplicity, true)
             }
             // Primitive storage and byte views are not aggregate backing homes.
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. } => {
-                (result.place, result.structural_type, result.multiplicity, false, false)
+                (result.place, result.structural_type, result.multiplicity, false)
             }
             AbstractOperation::EstablishByteSequenceLiteral {
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Unrestricted, false, false),
+            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Unrestricted, false),
             AbstractOperation::EstablishTrivialAffineLocal {
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Affine, false, true),
+            } => (place.id, structural_type.id, terminal_psi::StructuralMultiplicity::Affine, true),
             _ => continue,
         };
+        let local_loan = operation_home
+            && operation.structural_result().is_some_and(|(_, result)| {
+                result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            });
         roots.entry(place).or_insert(RootDeclaration {
             structural_type,
             multiplicity,

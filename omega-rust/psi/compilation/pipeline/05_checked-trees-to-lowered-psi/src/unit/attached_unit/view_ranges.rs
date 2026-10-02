@@ -64,7 +64,7 @@ pub(crate) struct RangeStorage {
     collection: Vec<CheckedUnitStructuralPathSegment>,
     structural_type: StructuralTypeId,
     family: ViewFamily,
-    array_element: Option<StructuralTypeId>,
+    collection_element: Option<StructuralTypeId>,
     access: checked_trees::CheckedStructuralAccess,
 }
 
@@ -79,7 +79,7 @@ pub(crate) struct CollectionView {
 
 impl RangeStorage {
     pub(crate) fn requires_establishment(&self) -> bool {
-        self.array_element.is_some()
+        self.collection_element.is_some()
     }
 
     /// Bind the replayed source to the current activation's storage. Array
@@ -93,9 +93,9 @@ impl RangeStorage {
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (machine, authored) =
             crate::expression_preparation::source_custody::authored_state(checked, state)?;
-        let (place, establishment) = if let Some(element) = self.array_element {
+        let (place, establishment) = if let Some(element) = self.collection_element {
             let destination = destination.ok_or(LoweringError::Unsupported(
-                "array range has no reserved whole-view descriptor",
+                "collection range has no reserved whole-view descriptor",
             ))?;
             let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
@@ -233,7 +233,14 @@ pub(crate) fn storage(
         {
             return unsupported("range collection is not readable");
         }
-        reference = shell.referee;
+        // Bounded byte references are pointer carriers with their own exact
+        // identity. Other root references use their referent representation.
+        if !matches!(
+            validation::byte_sequence_carrier(&checked.typed, reference, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
+        ) {
+            reference = shell.referee;
+        }
     }
     let reference = super::parameters::structural_carrier_type(checked, reference)?;
     let identity = checked.normalized_type_identity(reference);
@@ -249,10 +256,26 @@ pub(crate) fn storage(
         .ok_or(LoweringError::Unsupported(
             "range result has no exact Terminal type",
         ))?;
-    let array_element = match collection.shape {
-        terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
-            validate_element(element, view, range.family, declarations)?;
-            Some(element)
+    let collection_element = match collection.shape {
+        terminal_psi::StructuralTypeShape::FixedArray { element, .. } => Some(element),
+        terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+        ) if range.family == ViewFamily::Bytes && view.shape.is_borrowed_byte_view() => {
+            let byte = crate::emission::scalar_types::terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U8,
+            )?;
+            Some(
+                declarations
+                    .iter()
+                    .find(|declaration| {
+                        declaration.shape
+                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte)
+                    })
+                    .map(|declaration| declaration.id)
+                    .ok_or(LoweringError::Unsupported(
+                        "bounded byte backing has no exact primitive element declaration",
+                    ))?,
+            )
         }
         _ if collection.id == view.id
             && source.path.is_empty()
@@ -265,13 +288,19 @@ pub(crate) fn storage(
         }
         _ => return unsupported("range collection is neither backing nor its exact descriptor"),
     };
+    if let Some(element) = collection_element {
+        terminal_semantics::collection_backing(declarations.iter(), collection.id, element).ok_or(
+            LoweringError::Unsupported("range backing changed its exact collection element"),
+        )?;
+        validate_element(element, view, range.family, declarations)?;
+    }
     Ok(RangeStorage {
         symbol,
         root: range.root,
         collection: source.path,
         structural_type: view.id,
         family: range.family,
-        array_element,
+        collection_element,
         access: argument.access,
     })
 }

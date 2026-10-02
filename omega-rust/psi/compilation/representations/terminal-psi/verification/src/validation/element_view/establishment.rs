@@ -52,19 +52,23 @@ pub(in crate::validation) fn source_collection_type(
     Some(current)
 }
 
-/// The element type of the contiguous collection the source path names.
-pub(in crate::validation) fn collection_element(
+/// Rejoin the source's element extent without treating a pointer carrier as
+/// inline bytes. Borrowed bounded byte backing produces a byte descriptor;
+/// it cannot reinterpret an existing byte carrier as an element view.
+pub(in crate::validation) fn collection_source_matches(
     module: &TerminalModule,
     collection: StructuralTypeId,
-) -> Option<StructuralTypeId> {
-    module
-        .structural_types
-        .iter()
-        .find_map(|declaration| match declaration.shape {
-            StructuralTypeShape::FixedArray { element, .. } if declaration.id == collection => {
-                Some(element)
-            }
-            _ => None,
+    element: StructuralTypeId,
+    view_type: StructuralTypeId,
+) -> bool {
+    let Some(backing) =
+        terminal_semantics::collection_backing(module.structural_types.iter(), collection, element)
+    else {
+        return false;
+    };
+    backing.storage == terminal_semantics::CollectionStorage::Inline
+        || module.structural_types.iter().any(|declaration| {
+            declaration.id == view_type && declaration.shape.is_borrowed_byte_view()
         })
 }
 
@@ -177,7 +181,7 @@ pub(in crate::validation) fn validate_establishment(
         return Err(invalid());
     }
     let collection = source_collection_type(module, machine, source).ok_or_else(invalid)?;
-    if collection_element(module, collection) != Some(element) {
+    if !collection_source_matches(module, collection, element, result.structural_type) {
         return Err(invalid());
     }
     Ok(())

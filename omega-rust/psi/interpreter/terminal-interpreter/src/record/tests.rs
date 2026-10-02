@@ -555,6 +555,30 @@ fn zeroed_affine_record_retains_its_disposal_until_the_exit() {
         path: Vec::new(),
         structural_type: result.structural_type,
     };
+    machine.blocks[0].operations.extend([
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(2).unwrap(),
+            result: OperationResult::Scalar(scalar(2)),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(42),
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(3).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: disposal.place,
+                path: Vec::new(),
+                field: StructuralFieldId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+                range_obligation: None,
+            },
+        },
+    ]);
     let Terminator::ReturnUnit {
         trivial_affine_discards,
         ..
@@ -585,7 +609,7 @@ fn zeroed_affine_record_retains_its_disposal_until_the_exit() {
             .live_affine_frontier()
             .cloned()
             .collect::<Vec<_>>(),
-        [disposal]
+        [disposal.clone()]
     );
     assert_eq!(
         execution
@@ -594,6 +618,28 @@ fn zeroed_affine_record_retains_its_disposal_until_the_exit() {
             .copied()
             .collect::<Vec<_>>(),
         [unsigned(0)]
+    );
+    meter.replenish(2).unwrap();
+    assert!(matches!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert_eq!(
+        execution
+            .structural_scalar_fields
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [unsigned(42)]
+    );
+    assert_eq!(
+        execution
+            .live_affine_frontier()
+            .cloned()
+            .collect::<Vec<_>>(),
+        [disposal]
     );
     meter.replenish(100).unwrap();
     assert_eq!(

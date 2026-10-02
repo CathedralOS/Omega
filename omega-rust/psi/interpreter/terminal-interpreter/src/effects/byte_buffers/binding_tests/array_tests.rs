@@ -621,7 +621,7 @@ fn shared_fixed_array_call_after_write_observes_current_backing() {
 }
 
 #[test]
-fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
+fn array_field_loans_preserve_affine_owner_and_reject_mixed_or_linear_source() {
     for mixed in [false, true] {
         let mut execution = array_execution(3);
         let fields = vec![StructuralFieldDeclaration {
@@ -682,13 +682,40 @@ fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
                     )
                     .is_ok()
             );
+            let source = &mut std::sync::Arc::get_mut(&mut execution.program)
+                .map(|program| &mut program.machines)
+                .unwrap()
+                .get_mut(&execution.current_machine)
+                .unwrap()
+                .structural_parameters[0];
+            source.multiplicity = StructuralMultiplicity::Affine;
+            source.access = StructuralAccess::Owned;
+            let debt = terminal_psi::StructuralAffineDiscard {
+                place: source.place,
+                structural_type: source.structural_type,
+                path: Vec::new(),
+            };
+            execution.live_affine_frontier.insert(debt.clone());
+            assert!(
+                execution
+                    .prepare_structural_call_arguments(
+                        MachineId::new(2).unwrap(),
+                        std::slice::from_ref(&actual)
+                    )
+                    .is_ok(),
+                "a borrowed field preserves its affine backing owner"
+            );
+            assert_eq!(
+                execution.live_affine_frontier.iter().collect::<Vec<_>>(),
+                vec![&debt]
+            );
             std::sync::Arc::get_mut(&mut execution.program)
                 .map(|program| &mut program.machines)
                 .unwrap()
                 .get_mut(&execution.current_machine)
                 .unwrap()
                 .structural_parameters[0]
-                .multiplicity = StructuralMultiplicity::Affine;
+                .multiplicity = StructuralMultiplicity::Linear;
             assert!(
                 execution
                     .prepare_structural_call_arguments(MachineId::new(2).unwrap(), &[actual])

@@ -22,6 +22,7 @@ mod byte_carriers;
 mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
 mod call_composition;
+mod collection_backing;
 mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;
@@ -63,6 +64,7 @@ pub use call_composition::{
     fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
+pub use collection_backing::{CollectionBacking, CollectionStorage, collection_backing};
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{
     canonical_primitive_path, canonical_static_projection, fixed_array_place_shape,

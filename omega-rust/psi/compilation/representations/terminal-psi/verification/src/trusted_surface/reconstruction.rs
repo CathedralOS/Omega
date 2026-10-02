@@ -397,7 +397,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:byte-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a validated byte-sequence length observation of a borrowed machine or block parameter, or a byte-sequence operation or structural field whose extent is independently known, including a view established from an exact fixed-u8 array with validated element type and readable backing",
+    premises: "a validated byte-sequence length observation of a borrowed machine or block parameter, or a byte-sequence operation or structural field whose extent is independently known, including a view established from exact fixed-u8 array backing, inline or a bounded reference, with validated element type and readable backing",
     conclusion: "the observation equals that exact borrowed parameter's own ViewExtent, never another descriptor's extent or an assumed capacity; independent producer/backing/arrival evidence additionally supplies exact lengths; declaration-derived upper bounds on bounded-owned fields, whole formals and exact completed ordinary owned-byte call result snapshots are never equality with capacity; callee construction capacity, result custody and dominance remain checked, as do owned concatenation and byte-field replacement capacity obligations",
     dependencies: &[
         "fact:structural-effect-observation",
@@ -410,6 +410,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/collection_backing.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_extent.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_concatenation.rs",
@@ -474,6 +475,7 @@ static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/length.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/subslice.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/collection_backing.rs",
     ],
     soundness: TRUSTED,
 };

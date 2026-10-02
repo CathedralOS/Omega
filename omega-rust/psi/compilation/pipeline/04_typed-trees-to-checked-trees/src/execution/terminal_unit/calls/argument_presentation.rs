@@ -3,7 +3,8 @@
 //! This owner decides representation compatibility only. Call admission keeps
 //! source access, multiplicity, predicate obligations and live-loan custody.
 use crate::execution::terminal_unit::types::{
-    base_type_identity, byte_sequence_carrier, substituted_formal_type,
+    base_type_identity, base_type_identity_with_substitutions, byte_sequence_carrier,
+    byte_sequence_type_identity, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode, TypedTrees};
 
@@ -37,6 +38,21 @@ pub(crate) fn is_admitted(
         byte_sequence_carrier(program, projected_type, &[]),
         byte_sequence_carrier(program, formal, substitutions),
     ) {
+        // A fixed byte reference preserves its pointer carrier identity,
+        // while caller storage names the exact array referent. Equal base
+        // identity proves the element and declared extent; the formal's
+        // carrier identity remains authoritative at the receiving boundary.
+        (
+            None | Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }),
+        ) => {
+            byte_sequence_type_identity(program, formal, &[], substitutions)
+                .is_some_and(|identity| identity == target_identity)
+                && base_type_identity(program, projected_type, &[]).is_some_and(|identity| {
+                    base_type_identity_with_substitutions(program, formal, &[], substitutions)
+                        .is_some_and(|expected| identity == expected)
+                })
+        }
         (
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
             Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),

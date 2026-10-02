@@ -560,10 +560,10 @@ fn owned_owner_home(
 
 /// An owned local array lent by borrow presents the same fixed backing an
 /// incoming borrowed parameter would. Terminal verification admits exactly this
-/// loan for an unrestricted, unqualified, claim-free operation result; the
+/// loan for a non-linear, unqualified, claim-free operation result; the
 /// shared window relation checks the path against that original backing.
-/// The presented declaration carries the argument's own access
-/// for window geometry while the home itself stays owned by this activation.
+/// The declaration retains the home's owned access and multiplicity; lending
+/// a view does not transfer or erase the owner's disposal debt.
 /// `Ok(None)` means the home is not lendable through this parameter's view.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn local_array_loan(
@@ -585,7 +585,7 @@ pub(in crate::lowering) fn local_array_loan(
             argument.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         )
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || result.multiplicity == StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
@@ -598,7 +598,7 @@ pub(in crate::lowering) fn local_array_loan(
         is_self: false,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
-        access: argument.access,
+        access: StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };

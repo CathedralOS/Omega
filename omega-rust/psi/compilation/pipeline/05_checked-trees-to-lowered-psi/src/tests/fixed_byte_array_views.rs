@@ -167,7 +167,9 @@ fn fixed_byte_windows_publish_and_execute_repeated_call_loans() {
                         &mut terminal_fuel::TerminalFuelMeter::unbounded(),
                         &mut AcceptTerminalEffects
                     )
-                    .unwrap(),
+                    .unwrap_or_else(|error| {
+                        panic!("window {start}..{end}, field={field}: {error:?}")
+                    }),
                 TerminalExecutionStatus::Complete(_)
             ));
             let mut expected = [17, 128, 255];
@@ -185,5 +187,104 @@ fn fixed_byte_windows_publish_and_execute_repeated_call_loans() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn bounded_byte_parameter_range_executes_the_authored_caller() {
+    let checked = crate::front_end::checked_program(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/bounded_byte_parameter_range_exit/main.omg"
+    )));
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("the caller and bounded helper publish")
+    .into_artifact();
+    let mut changed_capacity = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let bounded = changed_capacity
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+            ) => Some(capacity),
+            _ => None,
+        })
+        .expect("the actual helper retains its bounded formal");
+    assert_eq!(*bounded, 3);
+    *bounded = 4;
+    assert!(
+        terminal_verifier::validate_module(&changed_capacity).is_err(),
+        "the caller's three-byte field cannot satisfy a four-byte reference"
+    );
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(100_000),
+                &mut AcceptTerminalEffects,
+            )
+            .unwrap_or_else(|error| panic!("authored bounded caller execution: {error:?}")),
+        TerminalExecutionStatus::Complete(terminal_interpreter::TerminalExecutionResult::Unit,),
+        "the authored guard observes [17, 0, 255] and marker 42 after both calls"
+    );
+}
+
+#[test]
+fn bounded_byte_range_establishment_rejects_access_and_descriptor_drift() {
+    let artifact = array_fixture(3, false, Some((1, 3)));
+    let original = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    for mutation in ["source access", "element", "element descriptor"] {
+        let mut module = original.clone();
+        let operation = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishMutableElementView { .. }
+                )
+            })
+            .expect("bounded backing establishes an ordinary descriptor");
+        let result_type = operation.result.structural().unwrap().structural_type;
+        let terminal_psi::OperationKind::EstablishMutableElementView {
+            source, element, ..
+        } = &mut operation.kind
+        else {
+            unreachable!()
+        };
+        match mutation {
+            "source access" => source.access = terminal_psi::StructuralAccess::SharedBorrow,
+            "element" => *element = result_type,
+            "element descriptor" => {
+                let declaration = module
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == result_type)
+                    .unwrap();
+                assert!(declaration.shape.is_borrowed_byte_view());
+                declaration.shape =
+                    terminal_psi::StructuralTypeShape::ElementView { element: *element };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_verifier::validate_module(&module).is_err(),
+            "bounded byte establishment accepted {mutation}"
+        );
     }
 }

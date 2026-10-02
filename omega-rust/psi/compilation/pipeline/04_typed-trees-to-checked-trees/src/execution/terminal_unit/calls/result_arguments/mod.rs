@@ -207,8 +207,13 @@ pub(super) fn argument(
             byte_window.or_else(|| {
                 projected_borrowed_path(program, machine, state, call.statement_index, place)
                     .filter(|(projected, _)| {
-                        base_type_identity(program, *projected, &[])
-                            .is_some_and(|identity| identity == target_identity)
+                        super::argument_presentation::is_admitted(
+                            program,
+                            *projected,
+                            parameter.type_reference,
+                            target_identity,
+                            &[],
+                        )
                     })
                     .map(|(_, path)| path)
             })

@@ -91,22 +91,19 @@ pub(super) fn establishment_collection_length(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Option<u64> {
-    let source = match &operation.kind {
-        OperationKind::EstablishElementView { source, .. }
-        | OperationKind::EstablishMutableElementView { source, .. } => source,
+    let (source, element) = match &operation.kind {
+        OperationKind::EstablishElementView {
+            source, element, ..
+        }
+        | OperationKind::EstablishMutableElementView {
+            source, element, ..
+        } => (source, *element),
         _ => return None,
     };
     let root = source_root_type(machine, source.place)?;
     let collection = path_end_type(module, root, &source.path)?;
-    module
-        .structural_types
-        .iter()
-        .find_map(|declaration| match declaration.shape {
-            StructuralTypeShape::FixedArray { length, .. } if declaration.id == collection => {
-                Some(length)
-            }
-            _ => None,
-        })
+    terminal_semantics::collection_backing(module.structural_types.iter(), collection, element)
+        .map(|backing| backing.length)
 }
 
 /// Retain both the source's extent and equality with a previous observation.

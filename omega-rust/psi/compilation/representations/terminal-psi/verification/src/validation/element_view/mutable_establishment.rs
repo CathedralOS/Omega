@@ -1,7 +1,7 @@
 //! Mutable element-view establishment over a contiguous structural collection.
 
 use crate::validation::element_view::establishment::{
-    collection_element, collection_view_result_matches, source_collection_type,
+    collection_source_matches, collection_view_result_matches, source_collection_type,
 };
 use crate::validation::{
     BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
@@ -53,7 +53,7 @@ pub(in crate::validation) fn validate_establishment(
         return Err(invalid());
     }
     let collection = source_collection_type(module, machine, source).ok_or_else(invalid)?;
-    if collection_element(module, collection) != Some(element) {
+    if !collection_source_matches(module, collection, element, result.structural_type) {
         return Err(invalid());
     }
     Ok(())

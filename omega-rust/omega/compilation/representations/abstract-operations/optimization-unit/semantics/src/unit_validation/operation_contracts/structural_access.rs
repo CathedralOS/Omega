@@ -349,57 +349,25 @@ pub(crate) fn structural_arguments_match(
                 )
                 .is_some()
         };
-        // Terminal also lends completed plain array results. Recover the
-        // producer's contract, not just machine parameters: a local array
-        // retains its owned backing while the call sees a temporary view.
-        // The borrowed declaration below is only the geometry presentation;
-        // actual access, availability and overlap are checked independently.
-        // Source admission is independent of projection: the shared window
-        // relation below checks the complete path and bounds against this home.
-        let array_result_loan = matches!(
-            argument.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) && source.access == terminal_psi::StructuralAccess::Owned
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.is_unqualified()
-            && source
-                .operation_result
-                .is_some_and(|result| result.claims.is_empty())
-            && terminal_semantics::scalar_array_leaf_shape(
-                types.values().copied(),
-                source.structural_type,
-            )
-            .is_some();
-        // A state edge rebinds a loan without removing its ability to lend a
-        // window: a block parameter presents its exact declaration as a
-        // machine parameter does.
+        // The resolved source contract owns access and custody for every
+        // current home. Geometry may present that backing through a loan,
+        // without replacing owned authority or recognizing producer families.
         let fixed_array_presentation = matches!(
             projection,
             StructuralProjectionPolicy::Unit
                 | StructuralProjectionPolicy::Projected
                 | StructuralProjectionPolicy::Boundary
-        ) && (caller
-            .structural_parameters
-            .iter()
-            .chain(
-                caller
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .any(presents_fixed_array)
-            || (array_result_loan
-                && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {
-                    place: argument.place,
-                    position: parameter.position,
-                    is_self: false,
-                    structural_type: source.structural_type,
-                    multiplicity: source.multiplicity,
-                    access: argument.access,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                })))
+        ) && !source.has_result_evidence()
+            && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {
+                place: argument.place,
+                position: parameter.position,
+                is_self: false,
+                structural_type: source.structural_type,
+                multiplicity: source.multiplicity,
+                access: source.access,
+                qualifications: source.qualifications.to_vec(),
+                projected_qualifications: source.projected_qualifications.to_vec(),
+            })
             && !caller
                 .entry_claim_declarations
                 .iter()

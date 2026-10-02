@@ -3,7 +3,7 @@ use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_layout::{
-    direct_scalar_field_offset, resolve_structural_projection_path, root_array_projection_metadata,
+    direct_scalar_field_offset, resolve_structural_projection_path,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -641,29 +641,36 @@ fn established_source(
         &mut shape_cache,
         &mut active,
     )?;
-    let declaration = structural_types.get(&projected_type).ok_or_else(invalid)?;
-    let StructuralTypeShape::FixedArray {
-        element: array_element,
-        length,
-    } = declaration.shape
-    else {
-        return Err(invalid());
-    };
-    if array_element != element {
-        return Err(invalid());
-    }
-    // Stride belongs to the element layout, including when the collection
-    // contains no elements. Dividing by extent loses that valid empty view.
-    let (_, element_stride) = root_array_projection_metadata(
+    let collection = terminal_semantics::collection_backing(
+        structural_types.values().copied(),
         projected_type,
+        element,
+    )
+    .ok_or_else(invalid)?;
+    let length = collection.length;
+    let element_shape = crate::lowering::structural_layout::structural_shape(
+        element,
         structural_types,
         &mut shape_cache,
         &mut active,
     )?;
-    let element_stride = element_stride.ok_or_else(invalid)?;
+    let element_stride = crate::lowering::structural_layout::checked_align_up_u32(
+        element_shape.byte_size,
+        u32::from(element_shape.alignment),
+    )
+    .ok_or_else(invalid)?;
     if element_stride == 0
-        || u64::from(element_stride).checked_mul(length)
-            != Some(u64::from(projected_shape.byte_size))
+        || match collection.storage {
+            terminal_semantics::CollectionStorage::Inline => {
+                u64::from(element_stride).checked_mul(length)
+                    != Some(u64::from(projected_shape.byte_size))
+            }
+            // The carrier contains one pointer, not capacity bytes. Dynamic
+            // narrowing is a following subslice over the established descriptor.
+            terminal_semantics::CollectionStorage::Borrowed => {
+                projected_shape.byte_size != 8 || byte_window.is_some()
+            }
+        }
     {
         return Err(invalid());
     }

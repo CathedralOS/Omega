@@ -1,0 +1,34 @@
+data Buffer {
+    items: [u8; 3];
+    marker: u8;
+}
+
+machine put(out: &mut [u8], byte: u8) {
+    transition out.len > 0 {
+        true -> store(out, byte)
+        false -> done()
+    }
+    state store(out: &mut [u8], byte: u8) { out[0] = byte; }
+    state done() {}
+}
+
+machine narrow(out: &mut [u8; 3]) {
+    put(&mut out[1..3], 65);
+    put(&mut out[1..3], 0);
+}
+
+machine main() crashes Trap {
+    let mut buffer: Buffer;
+    buffer.items[0] = 17;
+    buffer.items[1] = 128;
+    buffer.items[2] = 255;
+    buffer.marker = 42;
+    narrow(&mut buffer.items);
+    transition buffer.items[0] == 17 && buffer.items[1] == 0
+        && buffer.items[2] == 255 && buffer.marker == 42 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

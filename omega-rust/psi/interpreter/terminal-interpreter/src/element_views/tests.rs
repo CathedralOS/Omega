@@ -655,3 +655,288 @@ fn terminal_mutable_element_subslice_writes_original_scalar_home_and_restored_pa
             .is_none()
     );
 }
+
+fn bounded_byte_collection() -> (TerminalExecution, Operation) {
+    use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+    use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
+    use crate::values::StructuralRuntimePlace;
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration};
+    let (mut execution, mut operation) = runtime_subslice();
+    let source = PlaceId::new(1).unwrap();
+    let view_type = StructuralTypeId::new(2).unwrap();
+    let bounded_type = StructuralTypeId::new(3).unwrap();
+    let array_type = StructuralTypeId::new(4).unwrap();
+    let byte_type = StructuralTypeId::new(5).unwrap();
+    operation.kind = OperationKind::EstablishMutableElementView {
+        destination: PlaceId::new(2).unwrap(),
+        source: terminal_psi::StructuralArgument {
+            place: source,
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        },
+        element: byte_type,
+    };
+    let program = Arc::get_mut(&mut execution.program).unwrap();
+    for (id, shape) in [
+        (
+            view_type,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            }),
+        ),
+        (
+            bounded_type,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                access: Some(StructuralAccess::MutableBorrow),
+                capacity: 3,
+            }),
+        ),
+        (
+            array_type,
+            StructuralTypeShape::FixedArray {
+                element: byte_type,
+                length: 3,
+            },
+        ),
+        (
+            byte_type,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        ),
+    ] {
+        program.structural_types.insert(
+            id,
+            StructuralTypeDeclaration {
+                id,
+                identity: format!("type-{}", id.get()).into(),
+                shape,
+            },
+        );
+    }
+    let machine = program
+        .machines
+        .get_mut(&execution.current_machine)
+        .unwrap();
+    machine.structural_parameters[0].structural_type = bounded_type;
+    machine
+        .blocks
+        .get_mut(&execution.current)
+        .unwrap()
+        .operations[0] = operation.clone();
+    let source_value = execution.structural_values.get_mut(&source).unwrap();
+    source_value.structural_type = bounded_type;
+    let backing = StructuralRuntimePlace::from(&*source_value);
+    execution
+        .structural_byte_arrays
+        .insert(backing.clone(), ByteSequenceView::new(vec![17, 128, 255]));
+    execution.byte_sequence_values.insert(
+        source,
+        ByteSequenceBinding::MutableArray {
+            array: ArrayStorage::from(backing),
+            array_type,
+            offset: 0,
+            length: 3,
+            referent: source_value.clone(),
+        },
+    );
+    execution.element_view_values.clear();
+    (execution, operation)
+}
+
+#[test]
+fn bounded_byte_collection_establishment_preserves_home_and_capacity() {
+    use crate::byte_sequences::binding::ByteSequenceBinding;
+    let (mut execution, operation) = bounded_byte_collection();
+    let source = PlaceId::new(1).unwrap();
+    let destination = PlaceId::new(2).unwrap();
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    assert_eq!(execution.byte_sequence_length(source).unwrap(), 3);
+    assert_eq!(execution.byte_sequence_length(destination).unwrap(), 3);
+    assert_eq!(
+        execution.structural_values[&source].structural_type,
+        StructuralTypeId::new(3).unwrap()
+    );
+    assert_eq!(
+        execution.structural_values[&destination].structural_type,
+        StructuralTypeId::new(2).unwrap()
+    );
+    let ByteSequenceBinding::MutableArray {
+        array,
+        offset,
+        length,
+        ..
+    } = &execution.byte_sequence_values[&destination]
+    else {
+        panic!("original array loan")
+    };
+    assert_eq!(array.referent.opaque_identity, 100);
+    assert!(array.referent.path.is_empty());
+    assert_eq!((*offset, *length), (0, 3));
+    execution.values.insert(
+        ValueId::new(2).unwrap(),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: IntegerValue::Unsigned(0),
+        },
+    );
+    execution.values.insert(
+        ValueId::new(3).unwrap(),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            value: IntegerValue::Unsigned(3),
+        },
+    );
+    execution
+        .execute_byte_sequence_write(&Operation {
+            id: semantic_vocabulary::OperationId::new(2).unwrap(),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::ByteSequenceWrite {
+                destination,
+                index: ValueId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+                length: ValueId::new(3).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            },
+        })
+        .unwrap();
+    assert_eq!(
+        execution.structural_byte_array(100, &[]).unwrap(),
+        &[17, 0, 255]
+    );
+    assert_eq!(execution.byte_sequence_read(source, 1).unwrap(), 0);
+}
+
+#[test]
+fn bounded_byte_collection_host_input_publishes_storage_and_descriptor_atomically() {
+    let (mut execution, operation) = bounded_byte_collection();
+    execution.structural_byte_arrays.clear();
+    execution.byte_sequence_values.clear();
+    let input = crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue {
+        argument_index: 0,
+        path: Vec::new(),
+        bytes: vec![17, 128, 255],
+    };
+    assert!(
+        execution
+            .bind_byte_arrays(&[input.clone(), input.clone()])
+            .is_err()
+    );
+    assert!(execution.structural_byte_arrays.is_empty());
+    assert!(execution.byte_sequence_values.is_empty());
+    execution
+        .bind_byte_arrays(std::slice::from_ref(&input))
+        .unwrap();
+    assert_eq!(
+        execution
+            .byte_sequence_length(PlaceId::new(1).unwrap())
+            .unwrap(),
+        3
+    );
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    assert_eq!(
+        execution
+            .byte_sequence_read(PlaceId::new(2).unwrap(), 2)
+            .unwrap(),
+        255
+    );
+    assert!(execution.bind_byte_arrays(&[input]).is_err());
+    assert_eq!(
+        execution.structural_byte_array(100, &[]).unwrap(),
+        &[17, 128, 255]
+    );
+}
+
+#[test]
+fn bounded_byte_collection_rejects_capacity_access_and_home_drift() {
+    use crate::byte_sequences::binding::ByteSequenceBinding;
+    for mutation in ["capacity", "access", "home", "element", "typed descriptor"] {
+        let (mut execution, operation) = bounded_byte_collection();
+        match mutation {
+            "capacity" => {
+                let declaration = Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .structural_types
+                    .get_mut(&StructuralTypeId::new(3).unwrap())
+                    .unwrap();
+                let StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) = &mut declaration.shape
+                else {
+                    panic!("bounded")
+                };
+                *capacity = 4;
+            }
+            "access" => {
+                Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .machines
+                    .get_mut(&execution.current_machine)
+                    .unwrap()
+                    .structural_parameters[0]
+                    .access = StructuralAccess::SharedBorrow;
+            }
+            "home" => {
+                let ByteSequenceBinding::MutableArray { array, .. } = execution
+                    .byte_sequence_values
+                    .get_mut(&PlaceId::new(1).unwrap())
+                    .unwrap()
+                else {
+                    panic!("array")
+                };
+                array.referent.opaque_identity = 101;
+            }
+            "element" => {
+                Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .structural_types
+                    .get_mut(&StructuralTypeId::new(5).unwrap())
+                    .unwrap()
+                    .shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                ));
+            }
+            "typed descriptor" => {
+                Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .structural_types
+                    .get_mut(&StructuralTypeId::new(2).unwrap())
+                    .unwrap()
+                    .shape = StructuralTypeShape::ElementView {
+                    element: StructuralTypeId::new(5).unwrap(),
+                };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            execution
+                .execute_establish_element_view(&operation)
+                .is_err(),
+            "{mutation}"
+        );
+        assert!(
+            !execution
+                .structural_values
+                .contains_key(&PlaceId::new(2).unwrap()),
+            "{mutation}"
+        );
+        assert!(
+            !execution
+                .byte_sequence_values
+                .contains_key(&PlaceId::new(2).unwrap()),
+            "{mutation}"
+        );
+        assert!(execution.live_affine_frontier.is_empty(), "{mutation}");
+        assert_eq!(
+            execution.structural_byte_array(100, &[]).unwrap(),
+            &[17, 128, 255],
+            "{mutation}"
+        );
+    }
+}

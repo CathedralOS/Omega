@@ -1,20 +1,19 @@
 //! A local array lent through a borrowed byte window or element view.
 //!
 //! Terminal verification admits one loan of activation-local storage as a
-//! fixed-array view: an unrestricted, unqualified, claim-free plain array
+//! fixed-array view: a non-linear, unqualified, claim-free collection
 //! result with an independently checked window, presented through the argument's own
 //! shared or exclusive borrow. The call receives a descriptor over the array's
 //! exact extent while the argument keeps naming the producing home; no copy or
 //! descriptor allocation replaces the backing. Parameter windows keep their
 //! entrance route in `exclusive`; this route rejoins the dominating producer.
 use super::{
-    AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess,
-    StructuralArgument, TargetStructuralArgument, ValueShape,
+    AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
+    TargetStructuralArgument, ValueShape,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::aggregate_results::{node_site, precedes};
 use crate::legalization::scalar_graph_input::structural_case;
-use abstract_operations::{AbstractBoundaryResult, AbstractStructuralCallResult};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
@@ -41,15 +40,15 @@ pub(super) fn argument(
         return Ok(None);
     };
     let types = &plan.structural_types;
-    // The home presents its backing through this loan exactly as Terminal's
-    // array-result loan does; its own owned access is unchanged.
+    // The home retains its actual owned custody. Borrowed presentation and
+    // exact field geometry are decided by the common collection-loan contract.
     let presented = StructuralParameterDeclaration {
         place: result.place,
         position: destination.position,
         is_self: false,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
-        access: semantic.access,
+        access: StructuralAccess::Owned,
         qualifications: result.qualifications.clone(),
         projected_qualifications: result.projected_qualifications.clone(),
     };
@@ -74,22 +73,7 @@ pub(super) fn argument(
         (None, None) => return Ok(None),
     };
     let producer_site = node_site(caller, |operation| {
-        matches!(operation,
-            AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
-            | AbstractOperation::EstablishZeroedStructural { psi_operation, result: actual }
-            | AbstractOperation::EstablishStructuralLocal { psi_operation, result: actual }
-            | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
-            | AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result: actual, .. },
-                ..
-            }
-            | AbstractOperation::BoundaryCall {
-                psi_operation,
-                result: AbstractBoundaryResult::Structural(actual),
-                ..
-            }
-            if *psi_operation == producer && actual == result)
+        operation.structural_result() == Some((producer, result))
     })
     .ok_or(LegalizationError::custody())?;
     let carrier = crate::structural_inputs::structural_reference_input::shape(
@@ -106,7 +90,7 @@ pub(super) fn argument(
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || result.multiplicity == StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
