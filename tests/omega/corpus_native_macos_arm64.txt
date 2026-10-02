@@ -168,7 +168,7 @@ pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
 pass/calls/qualified_record_call_result_field_exit built 1818ms exit:70 @33d47d475b22+wt
 pass/calls/requires_carrier_ceiling_vacuous built 3069ms exit:70 @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt
-pass/calls/retained_receiver_argument_order_exit built 873ms exit:70 @be20683757eb+wt
+pass/calls/retained_receiver_argument_order_exit built 915ms exit:70 @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
@@ -474,7 +474,7 @@ pass/domains/local_alias_domain_transfer checked 148ms
 pass/domains/match_domain_patterns checked 177ms
 pass/domains/module_domain_narrow_import_spelling checked 143ms
 pass/domains/record_interval_domain_member_exit built 857ms exit:70 @aff5e029f28c+wt
-pass/domains/record_literal_view_member_store_exit built 1324ms exit:70 stdout:match @c3ad5f6e051f+wt
+pass/domains/record_literal_view_member_store_exit built 1047ms exit:70 stdout:match @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 148ms
 pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_result_domain_machine_overload_exit built 1950ms exit:70 @48008365d839
