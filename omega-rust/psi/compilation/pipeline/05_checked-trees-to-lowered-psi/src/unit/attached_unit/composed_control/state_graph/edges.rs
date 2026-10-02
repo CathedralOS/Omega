@@ -238,10 +238,28 @@ pub(super) fn validate_bindings(
                 "Unit graph transferred result missing",
             ))?;
             // An owned local moves into the target; a view local lends its
-            // shared view, which owns nothing and so leaves no partition.
+            // shared view, which owns nothing and so leaves no partition. A
+            // `&mut [T]` view local's affine binding is the exclusive loan
+            // custody its `let` established; the target's mutable view
+            // parameter continues that same loan.
+            let expression = arguments
+                .get(explicit_argument_position(target.position))
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph result argument missing",
+                ))?;
+            let borrowed_local = matches!(
+                checked.expression_table.expression(*expression),
+                ExpressionNode::Borrow(_)
+            );
             let shared_view = target.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
+            let mutable_view = target.access
+                == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && !borrowed_local
+                && target.multiplicity == Multiplicity::Unrestricted
+                && result.multiplicity == Multiplicity::Affine;
             let mutable_local = target.access
                 == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && borrowed_local
                 && plan.states.first().is_some_and(|entry| {
                     entry.state == state.state
                         && matches!(
@@ -264,9 +282,10 @@ pub(super) fn validate_bindings(
                 || target.is_self
                 || !(target.access == checked_trees::CheckedStructuralAccess::Owned
                     || (shared_view && result.multiplicity == Multiplicity::Unrestricted)
+                    || mutable_view
                     || mutable_local)
                 || !target.qualifications.is_empty()
-                || (!mutable_local && target.multiplicity != result.multiplicity)
+                || (!mutable_local && !mutable_view && target.multiplicity != result.multiplicity)
                 || target.type_identity != result.type_identity
             {
                 return unsupported("Unit graph transferred result custody drifted");
@@ -278,12 +297,6 @@ pub(super) fn validate_bindings(
             else {
                 return unsupported("Unit graph result source local missing");
             };
-            let argument_position = explicit_argument_position(target.position);
-            let expression = arguments
-                .get(argument_position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph result argument missing",
-                ))?;
             let actual = if mutable_local {
                 let ExpressionNode::Borrow(borrow) =
                     checked.expression_table.expression(*expression)
@@ -314,8 +327,15 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph result argument lost its actual local");
             }
-            if shared_view {
-                view_local_result(checked, source, state, local.symbol, edge.statement_ordinal)?;
+            if shared_view || mutable_view {
+                view_local_result(
+                    checked,
+                    source,
+                    state,
+                    local.symbol,
+                    edge.statement_ordinal,
+                    target.access,
+                )?;
             } else {
                 result_custody::validate(checked, plan.machine, source, local, result)?;
             }
@@ -342,9 +362,14 @@ pub(super) fn validate_bindings(
                     }
                     &source.type_identity
                 }
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    view_local_result(checked, source, state, symbol, edge.statement_ordinal)?
-                }
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => view_local_result(
+                    checked,
+                    source,
+                    state,
+                    symbol,
+                    edge.statement_ordinal,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow,
+                )?,
                 checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
                     return unsupported(
                         "Unit graph borrowed transfer source is an owned local, not a view",
@@ -1154,14 +1179,19 @@ pub(super) fn validate_bindings(
 }
 
 /// The type identity of the view local `symbol` that the state body
-/// established before `statement`: the unique shared view result an
-/// `as_slice` loan or a subslice binding published for that `let`.
+/// established before `statement`, lent at `access`: the unique view result
+/// an `as_slice`/`as_mut_slice` loan or a subslice binding published for that
+/// `let`. A shared view's binding is an unrestricted observation. A mutable
+/// view's binding is the affine custody of the exclusive loan its `let` took,
+/// which only a local declared `&mut [T]` holds; a shared view local never
+/// lends mutably.
 fn view_local_result<'a>(
     checked: &CheckedTrees,
     source: &checked_trees::state::State,
     state: &'a CheckedComposedUnitControlStatePlan,
     symbol: symbols::SymbolHandle,
     statement: u32,
+    access: checked_trees::CheckedStructuralAccess,
 ) -> Result<&'a String, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
     let mut matching = state.operations.iter().filter_map(|operation| {
@@ -1171,20 +1201,34 @@ fn view_local_result<'a>(
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
             _ => return None,
         };
-        matches!(
-            statements.get(result.statement_index as usize),
+        match statements.get(result.statement_index as usize) {
             Some(checked_trees::statement::StatementNode::LocalData(local))
-                if local.symbol == symbol && !local.is_mutable
-        )
-        .then_some(result)
+                if local.symbol == symbol && !local.is_mutable =>
+            {
+                Some((result, local, operation))
+            }
+            _ => None,
+        }
     });
-    let result = matching.next().ok_or(LoweringError::Unsupported(
+    let (result, local, operation) = matching.next().ok_or(LoweringError::Unsupported(
         "Unit graph view local has no establishment",
     ))?;
-    if matching.next().is_some()
-        || result.statement_index >= statement
-        || result.multiplicity != Multiplicity::Unrestricted
-    {
+    let lent = match access {
+        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+            result.multiplicity == Multiplicity::Unrestricted
+        }
+        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+            result.multiplicity == Multiplicity::Affine
+                && matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                )
+                && validation::slice_view_shell(&checked.typed, local.type_reference, &[])
+                    .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)
+        }
+        _ => false,
+    };
+    if matching.next().is_some() || result.statement_index >= statement || !lent {
         return unsupported("Unit graph view local establishment drifted");
     }
     Ok(&result.type_identity)

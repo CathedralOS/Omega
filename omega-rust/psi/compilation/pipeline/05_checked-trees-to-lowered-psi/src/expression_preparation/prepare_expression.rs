@@ -91,10 +91,13 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     Ok(expression)
 }
 
+/// The whole view parameter at `position`, for a length or element read. An
+/// exclusive `&mut [T]` view grants observation as well as mutation, so its
+/// lengths and element reads observe the parameter place exactly as a shared
+/// view's do; a write-only or owned parameter grants no observation here.
 fn view_observation_parameter(
     position: u32,
     parameters: &[(u32, StructuralParameterDeclaration)],
-    length_only: bool,
 ) -> Result<&StructuralParameterDeclaration, LoweringError> {
     let parameter = parameters
         .iter()
@@ -104,9 +107,10 @@ fn view_observation_parameter(
         .ok_or(LoweringError::Unsupported(
             "view observation has no exact structural parameter",
         ))?;
-    if !(parameter.access == StructuralAccess::SharedBorrow
-        || (length_only && parameter.access == StructuralAccess::MutableBorrow))
-        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+    if !matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return unsupported(
             "view observation requires an exact whole view with access for this observation",
@@ -196,11 +200,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             scalar_type: count_type,
                         });
                     }
-                    let parameter = view_observation_parameter(
-                        parameter_position,
-                        structural_parameters,
-                        true,
-                    )?;
+                    let parameter =
+                        view_observation_parameter(parameter_position, structural_parameters)?;
                     (
                         parameter.place,
                         parameter_view_carrier(element_views, parameter.structural_type),
@@ -903,11 +904,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
                         });
                     }
-                    let parameter = view_observation_parameter(
-                        parameter_position,
-                        structural_parameters,
-                        false,
-                    )?;
+                    let parameter =
+                        view_observation_parameter(parameter_position, structural_parameters)?;
                     (
                         parameter.place,
                         parameter_view_carrier(element_views, parameter.structural_type),

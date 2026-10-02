@@ -1824,12 +1824,22 @@ fn successor_bindings(
                 });
             }
             // A whole view local forwards the view its `let` published: the
-            // target re-borrows that same shared place exactly as a forwarded
-            // view parameter does, so the edge names the local's result
-            // binding just as an owned local's move does.
+            // target re-borrows that same place exactly as a forwarded view
+            // parameter does, so the edge names the local's result binding
+            // just as an owned local's move does. The binding, not the lent
+            // root, stays the loan subject: substituting `room.exits` for
+            // `exits` would mint a second loan instead of continuing the one
+            // the `let` captured. A shared target takes a shared view local;
+            // a `&mut [T]` target takes only a local that itself holds the
+            // exclusive view loan (checked against the result below).
             let shared_view = target.access == CheckedStructuralAccess::SharedBorrow
                 && target_parameters.get(target.position as usize).is_some_and(|parameter| {
                     calls::view_subslice::view_kind(program, parameter.type_reference).is_some()
+                });
+            let mutable_view = target.access == CheckedStructuralAccess::MutableBorrow
+                && target_parameters.get(target.position as usize).is_some_and(|parameter| {
+                    validation::slice_view_shell(program, parameter.type_reference, &[])
+                        .is_some_and(|view| view.access == language_core::ReferenceAccess::Mutable)
                 });
             let mutable_local = source_index == 0
                 && matches!(edge, SuccessorEdge::Jump)
@@ -1837,7 +1847,7 @@ fn successor_bindings(
                 && target.multiplicity == Multiplicity::Unrestricted
                 && matches!(program.expression_table.expression(expression), ExpressionNode::Borrow(borrow)
                     if borrow.access == language_core::ReferenceAccess::Mutable);
-            if target.access == CheckedStructuralAccess::Owned || shared_view || mutable_local {
+            if target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view || mutable_local {
                 mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
@@ -1848,7 +1858,19 @@ fn successor_bindings(
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
                         if result.type_identity != target.type_identity
-                            || (!mutable_local && result.multiplicity != target.multiplicity) { return None; }
+                            || (!mutable_local && !mutable_view && result.multiplicity != target.multiplicity) { return None; }
+                        if mutable_view {
+                            // The local's own declaration must hold the
+                            // exclusive view: its binding is then the affine
+                            // loan custody `let` planning gave a `&mut` view.
+                            // A shared view local never gains mutation here.
+                            let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
+                            if local.is_mutable
+                                || result.multiplicity != Multiplicity::Affine
+                                || !validation::slice_view_shell(program, local.type_reference, &[])
+                                    .is_some_and(|view| view.access == language_core::ReferenceAccess::Mutable)
+                            { return None; }
+                        }
                         if mutable_local {
                             let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
                             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else { return None; };

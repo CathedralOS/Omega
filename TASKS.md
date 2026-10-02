@@ -1708,8 +1708,21 @@ crash and native exit behavior. Use affected check/native corpus slices under
   declines instead of reloading a changed selector at observation.
   Preserve `pass/borrows/shared_recast_loan_member_read`'s native/interpreted
   exit 0 and canonical place ordering beside provider attachments. Extend
-  captured loans through remaining producer/read/call/state-forwarding
-  compositions. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
+  captured loans through remaining producer/read/call compositions. A whole
+  `&mut [T]` view local forwards its own binding to a `&mut [T]` successor
+  parameter: its loan release stays the one owner, stage 05 keeps the view and
+  its backing local's home until return, and `&mut [T]` view parameters admit
+  length and element reads. `storage/runtime_local_slice_forward_exit` now stops
+  in trusted Terminal verification (`InvalidStructuralSuccessorArgument`). It
+  needs (1) `block_views::validate_successor` to admit a whole `MutableBorrow`
+  argument naming an available, unqualified, claim-free affine
+  `EstablishMutableElementView` result of the parameter's element-view type and
+  (2) `block_views::mutable_availability` to count such produced views as
+  exclusive names, so the target's view parameter is available; with both the
+  checked interpreter exits 70. Native execution then needs Omega stage 00
+  `structural_scalar_fields::lower_store` to accept a `MutableBorrow`
+  element-view parameter destination with a runtime-indexed record-element
+  field path. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70
@@ -2987,13 +3000,18 @@ completion syntax or other terminal service is a prerequisite.
     (`runtime_mutable_equivalent_record_recast_exit`,
     `runtime_shared_record_float_range_weakening_exit`), `structural field
     store: target place` (`runtime_record_array_view_mutable_write_exit`),
-    `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`,
-    and `runtime_interior_slice_view_mutable_write_exit` at `conditional
-    successors: parameter transfer`, where its `&mut [u8]` view local is
-    forwarded to a successor state) and
-    `structural call binding` (`runtime_interior_slice_congruent_offset_exit`);
-    they share referee-record declaration minting and element-view
-    establishment.
+    `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`;
+    `runtime_interior_slice_view_mutable_write_exit` and
+    `runtime_interior_slice_congruent_offset_exit` at `conditional successors:
+    parameter transfer`, state 0 statement 2). Their `&mut place as &mut [T]`
+    locals are exclusive place-loan carriers that establish no view, so there is
+    no binding to forward. Terminal has no operation for either view: a mutable
+    byte window at a runtime offset over a fixed `[u8; N]` field
+    (`ByteSequenceSubslice` and `ElementViewSubslice` produce immutable windows
+    only), or a byte-to-element re-view (`EstablishElementView` and
+    `EstablishMutableElementView` require the collection's own element type).
+    That vocabulary and its verifier rules are a trusted-surface dependency.
+    Record views share referee-record declaration minting.
 
   `nested_operand_view_compile` checks without an executable entry. Immutable
   `&mut` place-loan locals read their loaned place in scalar operands; other
