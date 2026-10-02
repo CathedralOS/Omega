@@ -8,8 +8,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) {
-    let view: &[u8] = main.items.as_slice();
-    main.items.push(7);
+    let view: &[u8] = Vec::as_slice(&main.items);
+    Vec::push(&mut main.items, 7);
     read_alias(view);
 }
 

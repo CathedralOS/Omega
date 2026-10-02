@@ -293,7 +293,7 @@ pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit
 pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit built 1014ms exit:1 @adebde5085aa+wt
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
-pass/collections/runtime_fixed_vec_round_trip_exit built 1644ms exit:70 @a5f40f5895bf+wt
+pass/collections/runtime_fixed_vec_round_trip_exit built 1057ms exit:70 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7
 pass/collections/runtime_indexed_boolean_field_guard_exit built 1484ms exit:70 @bea382792161+wt

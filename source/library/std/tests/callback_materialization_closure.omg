@@ -134,4 +134,4 @@ pub boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
 }
 
 data Main { }
-machine Main::main(&mut self) { }
+machine Main::main(main: &mut Main) { }

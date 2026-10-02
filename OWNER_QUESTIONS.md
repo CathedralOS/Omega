@@ -232,3 +232,57 @@ octets in the image's read-only literal pool and addresses them PC-relatively,
 so a stored literal view outlives every activation. A `[copy]` Room now crosses
 the state edge as a whole copy whose view keeps its source loan; both customers
 stop at `room.label = source.label`, the store this decision governs.
+
+### Q4 - How does a trait requirement name its subject without a receiver?
+
+Named decision: `trait-requirement-subject-binding`.
+
+**Customers:** `source/library/core/layout.omg` declares the three granular
+placed-field requirements and their boundary satisfiers entirely in receiver
+form -- `pub trait Readable<T> { machine read(&self) -> T; }` and `boundary
+machine PlacedField::read<T>(&self) -> T satisfies Readable<T>::read;` -- and
+likewise for `DestructiveRead::take` and `Writable::write`. Six declarations,
+one authored consumer (`pass/layouts/placed_view_source_access_compile`). They
+are the only receivers left in `source/library/core/` besides `Vec`'s two
+concrete ones, which migrate without a question.
+
+**Contracts checked and found silent:**
+- [Machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+  states the rule and its reach: "All machines are static declarations. There is
+  no special `self` parameter" and "Trait requirements and satisfiers use the
+  same explicit parameter correspondence." So these six are in scope; it does
+  not say what replaces the receiver.
+- [Conformances](wiki/spec/language/conformances.md) shows only the satisfier
+  side of a CONCRETE subject: "The requirement likewise declares its explicit
+  mutable argument. Selecting `Counter` as the conformance subject supplies no
+  implicit value argument; requirement matching substitutes the subject type
+  into ordinary parameter types." Every trait declaration it shows is either
+  subjectless (`machine plan(schema: Schema) -> Plan`) or elided; none declares
+  a parameter whose type is the subject, and the document mentions an "optional
+  subject" of the conformance without giving the trait side a spelling.
+- [Generics](wiki/spec/language/generics.md) binds value and type indices but
+  names no trait-subject binder.
+
+The requirement's parameter type has to mention a type the trait does not
+currently name. Two spellings are available and they are not equivalent:
+
+1. The subject becomes an ordinary leading trait binder --
+   `pub trait Readable<Subject, T> { machine read(source: &Subject) -> T; }`.
+   This needs no new vocabulary and makes the substitution rule above literal,
+   but it changes every trait's arity and so every `satisfies` edge and generic
+   bound that names it.
+2. The trait keeps its arity and the subject is spelled by a reserved type, as
+   in `machine read(source: &Self) -> T`. This leaves existing applications
+   alone, and adds one implicitly bound type name to the language -- the thing
+   the static contract removed for values.
+
+**Recommendation:** (1), because the static contract's stated reason for
+removing the receiver is that qualification "contributes no argument or
+storage"; a reserved `Self` reintroduces exactly one implicitly bound name at
+the type level. The cost is mechanical and bounded: these are the only authored
+trait requirements with a receiver.
+
+Until this is settled the six declarations stay as they are, and
+STATIC-MACHINE-MIGRATION cannot claim the library is complete. They are not an
+implementation gap: no compiler change makes a receiver-form trait requirement
+into a static one without choosing a spelling.
