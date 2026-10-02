@@ -205,21 +205,20 @@ impl StructuralFieldType {
     /// live bytes and length. This resolves storage only; copied predicates
     /// still require independent evidence at their consuming operation.
     pub fn leaf_copy_shape(&self) -> Option<StructuralTypeShape> {
-        match self {
-            Self::ByteSequence(carrier @ ByteSequenceCarrier::BoundedOwned { .. })
-            | Self::PredicateByteSequence {
-                carrier: carrier @ ByteSequenceCarrier::BoundedOwned { .. },
-                ..
-            } => Some(StructuralTypeShape::ByteSequence(*carrier)),
+        match self.byte_sequence_carrier() {
+            Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+                Some(StructuralTypeShape::ByteSequence(carrier))
+            }
             // The copy yields a whole borrowed view TYPE, whose identity
             // peels the reference shell, so the field's own access does not
-            // travel with it.
-            Self::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
+            // travel with it — nor do its byte predicates, which the
+            // consuming operation proves independently.
+            Some(ByteSequenceCarrier::BorrowedView { .. }) => {
                 Some(StructuralTypeShape::ByteSequence(
                     ByteSequenceCarrier::BorrowedView { access: None },
                 ))
             }
-            other => other.canonical_leaf_shape(),
+            _ => self.canonical_leaf_shape(),
         }
     }
 }

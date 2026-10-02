@@ -65,8 +65,7 @@ pub use value_custody::scalar_case_constructor::{
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{
-    has_cleanup_owned_contents, has_linear_owned_contents,
-    has_owned_or_qualified_shared_view_fields, has_owned_or_shared_view_contents,
+    has_cleanup_owned_contents, has_linear_owned_contents, has_owned_or_shared_view_contents,
     has_owned_or_shared_view_fields, has_plain_owned_contents,
     has_plain_owned_contents_with_numeric_constraints,
     has_plain_owned_contents_with_represented_constraints,
@@ -235,7 +234,10 @@ pub use value_custody::placed_views::{
     bind_checked_atomic_resident_access,
 };
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
-pub use value_custody::places::{unwrapped_type_reference, zeroed_structural_parts};
+pub use value_custody::places::{
+    declared_carriers_match, peel_declared_constraints, unwrapped_type_reference,
+    zeroed_structural_parts,
+};
 pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastScalarLayout, RecastScalarProjection,
     ValidatedLiteralIndexedRecastFootprint, recast_record_source_leaf, recast_scalar_layout,

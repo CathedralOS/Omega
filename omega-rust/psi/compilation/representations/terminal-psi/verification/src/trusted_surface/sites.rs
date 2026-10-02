@@ -369,7 +369,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/structural.rs",
-        sha256: Some("bf7e8b02791385c06fdfa300ffafd403e5835d2ebd00a1191072aee3f0ddbac3"),
+        sha256: Some("b3f6a17af4c51594089f8e69bcc5f4966424988eade91c524b0ccb5f3aed6285"),
         inventory_machinery: false,
     },
     ImplementationSite {

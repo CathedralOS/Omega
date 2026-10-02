@@ -74,34 +74,25 @@ pub(crate) fn validate_structural_root_operations(
                 producer,
                 result,
             } => {
-                place_kinds.get(&result.place) == Some(&StructuralPlaceKind::OperationResult { producer: *producer, structural_type: result.structural_type })
-                && result.claims.is_empty()
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    let (operation, actual) = match &node.operation {
-                        O::EstablishRecord { psi_operation, result, .. }
-                        | O::EstablishZeroedStructural { psi_operation, result }
-                        | O::EstablishScalarArray { psi_operation, result, .. }
-                        | O::EstablishReference { psi_operation, result, .. }
-                        | O::EstablishCase { psi_operation, result, .. }
-                        | O::StructuralLeafCopy { psi_operation, result, .. }
-                        | O::MoveStructuralField { psi_operation, result, .. }
-                        | O::CallStructural {
-                            psi_operation,
-                            result: AbstractStructuralCallResult::Structural { result, .. },
-                            ..
-                        }
-                        // A view local is a loan descriptor
-                        // rather than a record home, but it
-                        // is the exact authored carrier an
-                        // indexed field store writes through.
-                        | O::EstablishElementView { psi_operation, result, .. }
-                        | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
-                        _ => return false,
-                    };
-                    operation == producer && actual == result
-                })
+                place_kinds.get(&result.place)
+                    == Some(&StructuralPlaceKind::OperationResult {
+                        producer: *producer,
+                        structural_type: result.structural_type,
+                    })
+                    && result.claims.is_empty()
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.nodes)
+                        .any(|node| {
+                            node.operation
+                                .structural_result()
+                                .is_some_and(|(operation, actual)| {
+                                    operation == *producer && actual == result
+                                })
+                        })
             }
             // An owned arrival's home is established by its own block entry:
             // the exact non-entry block declaration at that place, owned and

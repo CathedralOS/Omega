@@ -1065,10 +1065,7 @@ pub(super) fn validate_bindings(
                 && (validation::has_plain_owned_contents_with_represented_constraints(
                     &checked.typed,
                     reference,
-                ) || validation::has_owned_or_qualified_shared_view_fields(
-                    &checked.typed,
-                    reference,
-                ));
+                ) || validation::has_owned_or_shared_view_fields(&checked.typed, reference));
             if transfer.target_parameter_index as usize != position
                 || !matches!(
                     checked.expression_table.expression(tested_root),

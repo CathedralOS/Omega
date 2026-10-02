@@ -707,9 +707,7 @@ pub(super) fn needs_copied_place_root(
         return false;
     }
     crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
-        .is_some_and(|leaf| {
-            program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
-        })
+        .is_some_and(|leaf| validation::declared_carriers_match(program, leaf, expected))
 }
 
 /// An omitted runtime field's zero value is admitted only for a
@@ -1247,9 +1245,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
         )?;
-        if self.program.normalized_type_identity(projected)
-            != self.program.normalized_type_identity(expected)
-        {
+        if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }
         // The structural-type registry names a `&[T]` leaf by its borrowed
@@ -1257,8 +1253,8 @@ impl Builder<'_, '_> {
         // so a view leaf records its unwrapped referee's identity. Arithmetic
         // policy likewise changes operations, not storage: owned leaves name
         // the policy-free carrier registered by ShapeCollector::add_type.
-        // Keep `projected` below and the exact comparison above qualified;
-        // carrier equality cannot substitute for semantic type correspondence.
+        // Keep `projected` below and the carrier comparison above qualified
+        // by the declared leaf, never its text.
         let type_identity =
             if crate::execution::terminal_unit::types::borrowed_slice_view(self.program, projected)
             {
@@ -1626,7 +1622,7 @@ impl Builder<'_, '_> {
                     self.program,
                     reference,
                 )
-                || (validation::has_owned_or_qualified_shared_view_fields(self.program, reference)
+                || (validation::has_owned_or_shared_view_fields(self.program, reference)
                     && qualified_views_are_quoted(self.program, reference, &literal))
         };
         // A custody domain on the declared type (`Region in Owned`) qualifies
