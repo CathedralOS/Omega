@@ -1,0 +1,35 @@
+// Shared parameter views preserve both ordinary values and raw IEEE bits.
+// The reference local owns no copied structural result. Each read observes the
+// original parameter through its checked loan and representation-view pair.
+// Expected exit: 70 in native and checked interpretation.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine read_integer(value: i32) -> i32 {
+    let view: &i32 = &value;
+    view
+}
+
+machine read_bits32(value: f32) -> u32 {
+    let view: &u32 = &value as &u32;
+    view
+}
+
+machine read_bits64(value: f64) -> u64 {
+    let view: &u64 = &value as &u64;
+    view
+}
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let integer: i32 = read_integer(-17);
+    let bits32: u32 = read_bits32(1.0f32);
+    let bits64: u64 = read_bits64(1.0);
+    transition integer == -17 && bits32 == 1065353216
+        && bits64 == 4607182418800017408 {
+        true -> finish(main, 70)
+        _ -> finish(main, 71)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

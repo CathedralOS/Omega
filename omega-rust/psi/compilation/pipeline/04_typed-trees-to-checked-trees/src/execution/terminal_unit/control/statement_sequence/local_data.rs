@@ -9,6 +9,13 @@
 //! closed scalar array, a mutable primitive local and a scalar computation
 //! establish their binding directly. What remains is a call initializer:
 //! its result binding goes back to the sequence, which plans the call.
+//!
+//! Place-loan locals precede structural construction: an alias has no new
+//! result home. Runtime scalar parameters are backing roots alongside
+//! structural parameters and earlier locals; their view reads retain the
+//! parameter's declared carrier for ordinary representation-view replay.
+//! Passing such an alias onward still requires its backing storage to be
+//! established by lowering; admitting the read does not fabricate that home.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
@@ -806,6 +813,19 @@ fn shared_place_loan_referent(
             structural_parameters
                 .iter()
                 .any(|parameter| parameter.position as usize == position)
+                // Scalar parameters own storage too. The shared local retains
+                // a checked alias of that exact parameter, rather than a new
+                // structural result; its reads preserve the source carrier
+                // through the ordinary representation-view operation. Erased
+                // and const formals have no runtime storage to lend.
+                || {
+                    let parameter = &program.state_parameters(state)[position];
+                    !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                }
         });
     let local_root = program
         .state_local_declaration(state, symbol)
