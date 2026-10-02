@@ -6,7 +6,7 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
-use crate::custody::resolve_structural_arguments;
+use crate::custody::{resolve_structural_arguments, project_structural_value};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -177,7 +177,14 @@ impl TerminalExecution {
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
-        let access = if let Some(parameter) = machine
+        if self
+            .live_claims
+            .values()
+            .any(|claim| claim.place == Some(root))
+        {
+            return Err(invalid());
+        }
+        let (access, parameter_root) = if let Some(parameter) = machine
             .structural_parameters
             .iter()
             .chain(
@@ -196,7 +203,7 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            parameter.access
+            (parameter.access, true)
         } else {
             // Admission already verified the exact producer and its declaration
             // custody. Execution must find that home's current instance; it
@@ -219,41 +226,66 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            StructuralAccess::Owned
+            (StructuralAccess::Owned, false)
         };
-        // Reads resolve the current established home, including an owned local.
-        // This does not add a local destination: replacement and indexed writes
-        // retain the exclusive borrowed-parameter contract.
-        if (requires_mutation
-            && (!matches!(
-                access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || !machine
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == root)))
-            || (requires_mutation && !terminal_psi::is_bounded_structural_scalar_store_path(path))
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(root))
-        {
-            return Err(invalid());
-        }
-        // Read-only paths may cross multiple arrays and records. The shared
-        // resolver checks every static hop and rejects dynamic indices or
-        // reference crossings; stores keep their own bounded grammar above.
-        let parent = resolve_structural_arguments(
-            &self.program.structural_types,
-            &self.structural_values,
-            &[StructuralArgument {
-                place: root,
-                path: path.to_vec(),
-                access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(invalid)?;
+        let parent = if let Some(view) = self.element_view_values.get(&root) {
+            if parameter_root && requires_mutation && access != StructuralAccess::MutableBorrow {
+                return Err(invalid());
+            }
+            let descriptor_type = self.live_structural_type(root)?;
+            let StructuralTypeShape::ElementView { element } = self
+                .program
+                .structural_types
+                .get(&descriptor_type)
+                .ok_or_else(invalid)?
+                .shape
+            else {
+                return Err(invalid());
+            };
+            let (collection, selected_path) =
+                view.structural_projection(path, requires_mutation)?;
+            let StructuralTypeShape::FixedArray {
+                element: backing_element,
+                ..
+            } = self
+                .program
+                .structural_types
+                .get(&collection.structural_type)
+                .ok_or_else(invalid)?
+                .shape
+            else {
+                return Err(invalid());
+            };
+            if element != backing_element {
+                return Err(invalid());
+            }
+            project_structural_value(&self.program.structural_types, &collection, &selected_path)?
+        } else {
+            // Authority belongs to the current binding, including an arrival
+            // parameter. The static projection resolver checks every selected hop;
+            // the operation-wide selector pass already checked dynamic bounds.
+            if requires_mutation
+                && !matches!(
+                    access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                )
+            {
+                return Err(invalid());
+            }
+            resolve_structural_arguments(
+                &self.program.structural_types,
+                &self.structural_values,
+                &[StructuralArgument {
+                    place: root,
+                    path: path.to_vec(),
+                    access,
+                }],
+            )?
+            .pop()
+            .ok_or_else(invalid)?
+        };
         let declaration = self
             .program
             .structural_types

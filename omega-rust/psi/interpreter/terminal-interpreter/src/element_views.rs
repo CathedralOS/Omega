@@ -1,18 +1,11 @@
 //! Frame-local views over contiguous structural collections.
 //!
-//! An element view is a shared descriptor, not a copy: `backing` holds one
-//! snapshot of the source collection's scalar elements and `window` selects
-//! the visible element range. Subslices share the backing with a narrowed
-//! window, matching `ByteSequenceView`; elements are language scalars, so no
-//! target layout claim enters the interpreter. The verifier guarantees the
-//! source collection is not written while a shared view of it is live, so a
-//! captured snapshot cannot diverge from the borrower's contents.
-//!
-//! Contents and write-throughs use ordinary primitive-place access. Root
-//! payload arrays, projected leaves and byte storage therefore have one
-//! resolution owner, including empty collections that perform no leaf read.
-//! Mutable views keep their exclusive home; shared descriptors retire with
-//! their frame without manufacturing affine disposal debt.
+//! Scalar views retain their element snapshot; structural views retain the original
+//! storage identity and collection path. Neither descriptor copies an owned
+//! structural element. A window selects the same backing across local bindings,
+//! calls and state transfer, without relying on a frame-local source place ID.
+//! The verified loan controls interference; execution preserves its access and
+//! exact bounds when resolving a field below the descriptor.
 
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
@@ -46,16 +39,25 @@ pub(crate) struct ElementViewHome {
 
 #[derive(Clone)]
 pub(crate) struct ElementView {
-    backing: Arc<[TerminalScalarValue]>,
+    backing: ElementViewBacking,
     window: Range<usize>,
     home: Option<Arc<ElementViewHome>>,
+}
+
+#[derive(Clone)]
+enum ElementViewBacking {
+    Scalars(Arc<[TerminalScalarValue]>),
+    Structural {
+        collection: TerminalStructuralValue,
+        access: StructuralAccess,
+    },
 }
 
 impl ElementView {
     pub(crate) fn new(elements: Vec<TerminalScalarValue>) -> Self {
         let length = elements.len();
         Self {
-            backing: elements.into(),
+            backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: None,
         }
@@ -66,10 +68,52 @@ impl ElementView {
     pub(crate) fn new_mutable(elements: Vec<TerminalScalarValue>, home: ElementViewHome) -> Self {
         let length = elements.len();
         Self {
-            backing: elements.into(),
+            backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: Some(Arc::new(home)),
         }
+    }
+
+    fn structural(
+        collection: TerminalStructuralValue,
+        length: usize,
+        access: StructuralAccess,
+    ) -> Self {
+        Self {
+            backing: ElementViewBacking::Structural { collection, access },
+            window: 0..length,
+            home: None,
+        }
+    }
+
+    /// Resolve a selected element into its original collection. Selectors have
+    /// already been evaluated by the operation-wide runtime-index owner.
+    pub(crate) fn structural_projection(
+        &self,
+        path: &[StructuralPathSegment],
+        writing: bool,
+    ) -> Result<(TerminalStructuralValue, Vec<StructuralPathSegment>), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let ElementViewBacking::Structural { collection, access } = &self.backing else {
+            return Err(invalid());
+        };
+        if writing && *access != StructuralAccess::MutableBorrow {
+            return Err(invalid());
+        }
+        let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first() else {
+            return Err(invalid());
+        };
+        let index = usize::try_from(*index).map_err(|_| invalid())?;
+        if index >= self.len() {
+            return Err(invalid());
+        }
+        let selected = self.window.start.checked_add(index).ok_or_else(invalid)?;
+        let mut path = Vec::with_capacity(path.len());
+        path.push(StructuralPathSegment::FixedIndex(
+            u64::try_from(selected).map_err(|_| invalid())?,
+        ));
+        path.extend_from_slice(suffix);
+        Ok((collection.clone(), path))
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -77,16 +121,30 @@ impl ElementView {
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&TerminalScalarValue> {
-        self.backing[self.window.clone()].get(index)
+        let ElementViewBacking::Scalars(elements) = &self.backing else {
+            return None;
+        };
+        elements.get(self.window.clone())?.get(index)
     }
 
     /// Share the backing under a narrowed window, mirroring
     /// `ByteSequenceView::subslice`. A derived window is immutable: the home
     /// does not transfer, since a narrowed write target was never verified.
     pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
-        self.backing[self.window.clone()].get(start..end)?;
+        if start > end || end > self.len() {
+            return None;
+        }
+        let backing = match &self.backing {
+            ElementViewBacking::Scalars(elements) => {
+                ElementViewBacking::Scalars(Arc::clone(elements))
+            }
+            ElementViewBacking::Structural { collection, .. } => ElementViewBacking::Structural {
+                collection: collection.clone(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        };
         Some(Self {
-            backing: Arc::clone(&self.backing),
+            backing,
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
             home: None,
         })
@@ -205,13 +263,15 @@ impl TerminalExecution {
         }) {
             return Err(invalid());
         }
-        let Some(&StructuralTypeShape::PrimitiveScalar(element_scalar)) = self
+        let element_scalar = match &self
             .program
             .structural_types
             .get(&element)
-            .map(|declaration| &declaration.shape)
-        else {
-            return Err(invalid());
+            .ok_or_else(invalid)?
+            .shape
+        {
+            StructuralTypeShape::PrimitiveScalar(scalar) => Some(*scalar),
+            _ => None,
         };
         let descriptor = &self
             .program
@@ -227,9 +287,9 @@ impl TerminalExecution {
                 if descriptor.is_borrowed_byte_view()
                     && access == StructuralAccess::SharedBorrow
                     && element_scalar
-                        == ScalarType::Integer(
+                        == Some(ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
-                        ) => {}
+                        )) => {}
             _ => return Err(invalid()),
         }
         if self.structural_values.contains_key(&result.place)
@@ -275,12 +335,14 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
-        let mut elements = Vec::with_capacity(extent);
+        let mut elements = Vec::with_capacity(if element_scalar.is_some() { extent } else { 0 });
         let mut path = source.path.clone();
-        for position in 0..collection_length {
-            path.push(StructuralPathSegment::FixedIndex(position));
-            elements.push(self.read_primitive_place(source.place, &path, element_scalar)?);
-            path.pop();
+        if let Some(element_scalar) = element_scalar {
+            for position in 0..collection_length {
+                path.push(StructuralPathSegment::FixedIndex(position));
+                elements.push(self.read_primitive_place(source.place, &path, element_scalar)?);
+                path.pop();
+            }
         }
         match descriptor {
             StructuralTypeShape::ByteSequence(_) => {
@@ -305,7 +367,16 @@ impl TerminalExecution {
                 );
             }
             _ => {
-                let view = if access == StructuralAccess::MutableBorrow {
+                let view = if element_scalar.is_none() {
+                    let collection = crate::custody::resolve_structural_arguments(
+                        &self.program.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(source),
+                    )?
+                    .pop()
+                    .ok_or_else(invalid)?;
+                    ElementView::structural(collection, extent, access)
+                } else if access == StructuralAccess::MutableBorrow {
                     ElementView::new_mutable(
                         elements,
                         ElementViewHome {
@@ -383,7 +454,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
-        let Some(existing) = view.backing.get(position) else {
+        let Some(existing) = view.get(index) else {
             return Err(invalid());
         };
         if existing.scalar_type() != element.scalar_type() {
@@ -397,7 +468,10 @@ impl TerminalExecution {
         let Some(view) = self.element_view_values.get_mut(destination) else {
             return Err(invalid());
         };
-        Arc::make_mut(&mut view.backing)[position] = element;
+        let ElementViewBacking::Scalars(elements) = &mut view.backing else {
+            return Err(invalid());
+        };
+        Arc::make_mut(elements)[position] = element;
         Ok(OperationFlow::Advance)
     }
 
@@ -547,3 +621,6 @@ impl TerminalExecution {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
