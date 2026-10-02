@@ -52,8 +52,12 @@ impl NativeRealizationRequest<'_> {
     /// Product-owned per-pass ceilings, identical for the program and callbacks.
     /// Identity staging meters traversal as well as optimizer iterations.
     pub fn optimization_budget(&self) -> optimization_core::OptimizationWorkBudget {
+        // Spill validation charges whole-plan traversal and slot-liveness scans,
+        // not just changed instructions. A complete application exceeds 100,000
+        // steps while recovering register pressure. Give validation more room
+        // without changing candidate/commit limits or bypassing independent replay.
         optimization_core::OptimizationWorkBudget::new(
-            1_000_000, 100_000, 100_000, 100_000, 100_000,
+            1_000_000, 100_000, 1_000_000, 100_000, 100_000,
         )
         .expect("compiler baseline optimizer ceilings are nonzero")
     }
