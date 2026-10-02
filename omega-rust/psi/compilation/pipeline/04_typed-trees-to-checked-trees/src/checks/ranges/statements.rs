@@ -175,12 +175,16 @@ pub(super) fn bound_reference_referent_extent(
         .filter(|origin| {
             origin.local_symbol == local_symbol
                 && origin.local_segments.is_empty()
-                && origin.source_root != local_symbol
+                && origin
+                    .source
+                    .as_ref()
+                    .is_none_or(|source| source.root != local_symbol)
         });
     let origin = referents.next()?;
     if referents.next().is_some() {
         return None;
     }
+    let source = origin.source.as_ref()?;
     let (place, exact) = crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
     if !exact {
         return None;
@@ -194,10 +198,10 @@ pub(super) fn bound_reference_referent_extent(
     .and_then(|reference| fixed_array_type_length(program, reference))
     .or_else(|| {
         facts
-            .exact_length(&origin.source_path)
+            .exact_length(&source.path)
             .and_then(|length| usize::try_from(length).ok())
     });
-    let minimum = facts.minimum_length(&origin.source_path);
+    let minimum = facts.minimum_length(&source.path);
     Some(ReferentExtent { exact, minimum })
 }
 

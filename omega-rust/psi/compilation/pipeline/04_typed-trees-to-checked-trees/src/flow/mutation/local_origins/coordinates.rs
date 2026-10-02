@@ -14,26 +14,27 @@ pub(crate) fn origin_place(
     statement_index: usize,
     origin: &validation::LocalWriteOrigin,
 ) -> Option<(CanonicalPlace, bool)> {
-    if origin.collection_coarse
-        && let Some(place) = structural_origin(program, state, statement_index, origin)
+    let source = origin.source.as_ref()?;
+    if source.collection_coarse
+        && let Some(place) = structural_origin(program, state, statement_index, source)
     {
         return Some(place);
     }
-    place_from_origin_path(program, state, statement_index, &origin.source_path)
-        .map(|place| (place, !origin.collection_coarse))
+    place_from_origin_path(program, state, statement_index, &source.path)
+        .map(|place| (place, !source.collection_coarse))
 }
 
 fn structural_origin(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
-    origin: &validation::LocalWriteOrigin,
+    source: &validation::LocalWriteSource,
 ) -> Option<(CanonicalPlace, bool)> {
-    let mut place = canonical_place_from_symbol(origin.source_root)?;
+    let mut place = canonical_place_from_symbol(source.root)?;
     // Existing storage-frame consumers retain the authored self parameter,
     // not the machine's display name, as their caller namespace.
     if crate::semantic::calls::find_state_with_machine(program, state.symbol)
-        .is_some_and(|(machine, _)| machine.symbol == origin.source_root)
+        .is_some_and(|(machine, _)| machine.symbol == source.root)
         && let Some(receiver) = program
             .state_parameters(state)
             .iter()
@@ -42,7 +43,7 @@ fn structural_origin(
         place.root = facts::PlaceRoot::Symbol(receiver.symbol);
     }
     canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
-    for segment in &origin.source_segments {
+    for segment in &source.segments {
         if place_segment_has_unresolved_identity(*segment) {
             return None;
         }

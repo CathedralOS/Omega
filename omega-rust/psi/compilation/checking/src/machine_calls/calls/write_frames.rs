@@ -57,7 +57,7 @@ pub(crate) use boundary_calls::{boundary_trait_call_signature, boundary_trait_si
 pub(crate) use call_targets::free_machine_entry_state;
 pub(crate) use call_targets::machine_state_by_symbol;
 pub(crate) use caller_aliases::expression_has_calls;
-pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin};
+pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin, LocalWriteSource};
 pub(crate) use demand::CallFrameCaches;
 pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};

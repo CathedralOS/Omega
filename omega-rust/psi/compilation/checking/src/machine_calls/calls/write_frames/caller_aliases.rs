@@ -99,9 +99,10 @@ pub(crate) enum CallerWriteSite<'query> {
     Expression(ExpressionHandle),
 }
 
-/// Transient caller-prefix evidence for projecting a local reference into
-/// another place representation. Coarse storage paths cannot acquire a field
-/// or index suffix when the consumer transports a write through this origin.
+/// Transient caller-prefix inventory for projecting local references into
+/// another place representation. Unknown sources remain explicit rows: the
+/// consumer first selects overlapping leaves, then requires their sources.
+/// Omitting an unknown row would misclassify its referent as private storage.
 #[derive(Clone)]
 pub struct LocalWriteOrigin {
     pub local_symbol: SymbolHandle,
@@ -109,14 +110,36 @@ pub struct LocalWriteOrigin {
     /// A type-derived array leaf uses Index with a zero expression handle to
     /// denote any element. This is may-write evidence, never access authority.
     pub local_segments: Vec<facts::PlaceSegment>,
-    pub source_path: String,
+    pub source: Option<LocalWriteSource>,
+}
+
+/// Proven referent of a local reference leaf. Coarse storage paths cannot
+/// acquire a field or index suffix when a consumer transports a write.
+#[derive(Clone)]
+pub struct LocalWriteSource {
+    pub path: String,
     pub collection_coarse: bool,
     /// Structural selectors retained before string-path coarsening. Consumers
     /// must validate the declaration path; runtime selectors are not snapshots.
     /// A zero root withholds primitive-coordinate precision without removing
     /// the coarse source path.
-    pub source_root: SymbolHandle,
-    pub source_segments: Vec<facts::PlaceSegment>,
+    pub root: SymbolHandle,
+    pub segments: Vec<facts::PlaceSegment>,
+}
+
+impl From<FramePlaceOrigin> for LocalWriteSource {
+    fn from(origin: FramePlaceOrigin) -> Self {
+        Self {
+            path: origin.path,
+            collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
+            root: if origin.source.builtin_coordinates {
+                origin.source.root
+            } else {
+                SymbolHandle::invalid()
+            },
+            segments: origin.source.segments,
+        }
+    }
 }
 
 /// The direct assignment effect, excluding calls evaluated in its operands.
@@ -279,24 +302,12 @@ pub(super) fn local_write_origins_before_statement(
         .stored
         .into_iter()
         .flat_map(|local| local.references)
-        .map(|leaf| {
-            // This public query promises a complete source roster. Unknown
-            // rows cannot be omitted: consumers would call their writes private.
-            let origin = leaf.origin?;
-            Some(LocalWriteOrigin {
-                local_symbol: leaf.local_symbol,
-                local_segments: leaf.local_segments,
-                source_path: origin.path,
-                collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
-                source_root: if origin.source.builtin_coordinates {
-                    origin.source.root
-                } else {
-                    SymbolHandle::invalid()
-                },
-                source_segments: origin.source.segments,
-            })
+        .map(|leaf| LocalWriteOrigin {
+            local_symbol: leaf.local_symbol,
+            local_segments: leaf.local_segments,
+            source: leaf.origin.map(LocalWriteSource::from),
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     if evidence.aliases.is_empty() && evidence.divergent.is_empty() {
         return Some(origins);
     }
@@ -325,14 +336,7 @@ pub(super) fn local_write_origins_before_statement(
     let alias_origin = |local_symbol, origin: FramePlaceOrigin| LocalWriteOrigin {
         local_symbol,
         local_segments: Vec::new(),
-        source_path: origin.path,
-        collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
-        source_root: if origin.source.builtin_coordinates {
-            origin.source.root
-        } else {
-            SymbolHandle::invalid()
-        },
-        source_segments: origin.source.segments,
+        source: Some(LocalWriteSource::from(origin)),
     };
     for (name, origin) in evidence.aliases {
         origins.push(alias_origin(local_symbol(&name)?, origin));

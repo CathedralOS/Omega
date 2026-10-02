@@ -44,6 +44,135 @@ fn storage_place_label(
     label
 }
 
+fn partial_carrier_storage_writes(body: &str) -> Option<Vec<String>> {
+    let program = typed_program(&format!(
+        "data Entry {{ observed: &u64; }}
+         data Carrier<'entries, 'output> {{
+             entries: &'entries mut [Entry]; output: &'output mut u64; count: u64;
+         }}
+         machine make<'entries, 'output>(
+             entries: &'entries mut [Entry], output: &'output mut u64
+         ) -> Carrier<'entries, 'output> {{
+             Carrier {{ entries: entries, output: output, count: 0 }}
+         }}
+         machine write(entries: &mut [Entry], output: &mut u64, observed: &u64) {{
+             let mut carrier: Carrier = make(entries, output);
+             {body}
+         }}"
+    ));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write")
+        .expect("writer");
+    let state = &program.machine_states(machine)[0];
+    let statements = program.statement_table.statements(state.statement_nodes);
+    crate::flow::statement_storage_writes(
+        &program,
+        machine.symbol,
+        state.symbol,
+        statements.len() - 1,
+        statements.last().expect("store"),
+        validation::CallFrameResolver::new(&program).as_ref(),
+    )
+    .map(|places| {
+        let mut labels = places
+            .iter()
+            .map(|place| storage_place_label(&program, place))
+            .collect::<Vec<_>>();
+        labels.sort();
+        labels
+    })
+}
+
+#[test]
+fn partial_carrier_origins_preserve_disjoint_private_storage() {
+    assert_eq!(
+        partial_carrier_storage_writes("carrier.count = 7;"),
+        Some(vec![
+            "carrier.count".to_owned(),
+            "carrier.entries".to_owned()
+        ]),
+    );
+}
+
+#[test]
+fn partial_carrier_origins_preserve_known_sibling_referents() {
+    // Keep both the actual referent and its known local access route. The
+    // unknown entries leaf may alias any write and must also lose its facts.
+    assert_eq!(
+        partial_carrier_storage_writes("carrier.output = 7;"),
+        Some(vec![
+            "carrier.entries".to_owned(),
+            "carrier.output".to_owned(),
+            "output".to_owned(),
+        ]),
+    );
+}
+
+#[test]
+fn partial_carrier_origins_do_not_hide_unknown_referent_writes() {
+    assert_eq!(
+        partial_carrier_storage_writes("carrier.entries[0] = Entry { observed: observed };"),
+        None,
+    );
+}
+
+#[test]
+fn partial_carrier_origins_do_not_preserve_replaced_value_evidence() {
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        "data Entry { observed: &u64; }
+         data Carrier<'entries, 'output> {
+             entries: &'entries mut [Entry]; output: &'output mut u64; count: u64;
+         }
+         machine make<'entries, 'output>(
+             entries: &'entries mut [Entry], output: &'output mut u64
+         ) -> Carrier<'entries, 'output> {
+             Carrier { entries: entries, output: output, count: 0 }
+         }
+         machine require_zero(value: u64) requires value == 0; {}
+         machine write(entries: &mut [Entry], output: &mut u64) {
+             let mut carrier: Carrier = make(entries, output);
+             carrier.output = 0;
+             carrier.output = 7;
+             require_zero(carrier.output);
+         }",
+    )
+    .expect_err("the overwritten zero cannot discharge the later call");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("value == 0")),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
+fn partial_carrier_metadata_call_preserves_a_disjoint_receiver_observation() {
+    crate::tests::front_end::checked_program_result(
+        "data Entry { observed: &u64; }
+         data Carrier<'entries, 'output> {
+             entries: &'entries mut [Entry]; output: &'output mut u64; count: u64;
+         }
+         machine make<'entries, 'output>(
+             entries: &'entries mut [Entry], output: &'output mut u64
+         ) -> Carrier<'entries, 'output> {
+             Carrier { entries: entries, output: output, count: 0 }
+         }
+         machine Carrier::set_count(&mut self) { self.count = 7; }
+         data Owner { observed: u64; output: u64; }
+         machine Owner::inspect(&mut self, entries: &mut [Entry], observed: &u64) -> bool {
+             let mut carrier: Carrier = make(entries, &mut self.output);
+             carrier.set_count();
+             observed == 59 && carrier.count == 7
+         }
+         machine Owner::run(&mut self, entries: &mut [Entry]) -> bool {
+             self.inspect(entries, &self.observed)
+         }",
+    )
+    .expect("private metadata writes cannot widen into a live disjoint receiver loan");
+}
+
 #[test]
 fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
     let cases = [
@@ -224,7 +353,10 @@ fn stored_aggregate_metadata_requires_exact_live_local_identity() {
         if let Some(origins) = origins {
             assert_eq!(origins.len(), 1);
             assert_eq!(origins[0].local_symbol, exact);
-            assert_eq!(origins[0].source_path, "self.value");
+            assert_eq!(
+                origins[0].source.as_ref().expect("known origin").path,
+                "self.value"
+            );
         }
         let frame = resolver.inferred_state_write_frame(caller, state);
         assert_eq!(frame.is_complete(), complete, "{name}: raw frame");

@@ -368,9 +368,11 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    /// Recover the exact prefix origins shared with inferred state frames.
-    /// `None` means the prefix cannot establish every write-capable local's
-    /// origin; a consumer must not treat such locals as private storage.
+    /// Recover the prefix reference inventory shared with inferred state frames.
+    /// Unknown sources stay attached to their leaf selectors. Consumers may
+    /// select disjoint storage, but an overlapping unknown must remain opaque;
+    /// exact-origin queries also retain unknown candidates when checking uniqueness.
+    /// `None` means the prefix cannot establish even this complete inventory.
     pub fn local_write_origins_before_statement(
         &self,
         current_machine: &Machine,

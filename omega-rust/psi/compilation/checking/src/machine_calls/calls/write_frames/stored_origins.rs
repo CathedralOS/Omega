@@ -158,9 +158,11 @@ pub(super) struct StoredWriteOrigin {
 /// establish its sources. This is unknown evidence, never an empty footprint.
 pub(super) fn unresolved_origins(
     program: &TypedTrees,
+    machine: &Machine,
     local: &TableLocalData,
     include_shared: bool,
 ) -> Option<StoredLocalOrigins> {
+    local_declaration_state(program, machine, local)?;
     let mut origins = type_origins::declared_origins_for_query(
         program,
         local.symbol,
@@ -174,6 +176,35 @@ pub(super) fn unresolved_origins(
     // Unknown transport cannot establish conserved input identity.
     origins.moves.clear();
     Some(origins)
+}
+
+/// Unknown referents do not permit unknown local identities. Both exact
+/// transfer and type-only inventory must name this actual live declaration,
+/// not a same-spelled local in another state or a stale symbol generation.
+fn local_declaration_state<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    local: &TableLocalData,
+) -> Option<&'program typed_trees::state::State> {
+    if !local.symbol.is_valid() {
+        return None;
+    }
+    let declaration = program.symbols.get(local.symbol);
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == declaration.parent)?;
+    (declaration.kind == symbols::SymbolKind::Local
+        && program.symbols.name(local.symbol) == local.name.as_str()
+        && program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, typed_trees::statement::StatementNode::LocalData(candidate)
+                if std::ptr::eq(candidate, local))
+            }))
+    .then_some(state)
 }
 
 pub(super) fn declaration_origins(
@@ -200,28 +231,10 @@ pub(super) fn declaration_origins_for_query(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<StoredLocalOrigins> {
-    if super::type_reference_is_reference(program, local.type_reference) || !local.symbol.is_valid()
-    {
+    if super::type_reference_is_reference(program, local.type_reference) {
         return None;
     }
-    let declaration = program.symbols.get(local.symbol);
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == declaration.parent)?;
-    if declaration.kind != symbols::SymbolKind::Local
-        || program.symbols.name(local.symbol) != local.name.as_str()
-        || !program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                matches!(statement, typed_trees::statement::StatementNode::LocalData(candidate)
-                if std::ptr::eq(candidate, local))
-            })
-    {
-        return None;
-    }
+    let state = local_declaration_state(program, machine, local)?;
     // A declared-zeroed local (`let room: Room;`) has no initializer to walk.
     // Its declaration frontier is the type-derived symbolic may-set — the same
     // seed a by-value state parameter receives — so a later field store to its

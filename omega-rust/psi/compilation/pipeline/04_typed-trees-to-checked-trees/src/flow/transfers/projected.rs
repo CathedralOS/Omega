@@ -346,7 +346,10 @@ pub(super) fn bound_reference_referent_place(
         .filter(|origin| {
             origin.local_symbol == local_symbol
                 && origin.local_segments.is_empty()
-                && origin.source_root != local_symbol
+                && origin
+                    .source
+                    .as_ref()
+                    .is_none_or(|source| source.root != local_symbol)
         });
     let origin = referents.next()?;
     if referents.next().is_some() {
