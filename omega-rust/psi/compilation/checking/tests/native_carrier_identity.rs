@@ -57,6 +57,17 @@ fn public_calling_vocabulary_is_recognized_by_content_not_package_filename() {
 }
 
 #[test]
+fn calling_vocabulary_identity_survives_a_source_comment() {
+    let vocabulary = include_str!("../../../../../source/library/std/calling.omg");
+    let commented = format!("// The public calling contract is unchanged.\n{vocabulary}");
+    let program = typed(&commented, "public_abi.omg", SourceOrigin::User);
+    assert!(
+        validation::standard_calling_traits(&program).is_some(),
+        "source formatting cannot remove the resolved calling contract"
+    );
+}
+
+#[test]
 fn exact_core_vector_still_requires_an_explicit_native_adapter() {
     let errors = validation::validate_program(&typed(VECTOR, "vec.omg", SourceOrigin::Toolchain))
         .expect_err("core descriptor cannot become a default foreign ABI record");
