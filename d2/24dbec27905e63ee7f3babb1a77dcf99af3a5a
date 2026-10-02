@@ -1,0 +1,4 @@
+owner: Codex / cloud independent canary
+provenance: agent=codex model=unreported effort=unreported source_thread=01a0ef92-c353-722f-9292-b9178f0b1010; 41 cloud and 28 recovery tests passed; removes artificial digest dependency only
+ticket: f1e1e9e00c4e413fb49f8d44bb38d395
+published_utc: 2026-10-02T18:40:43.069311+00:00
