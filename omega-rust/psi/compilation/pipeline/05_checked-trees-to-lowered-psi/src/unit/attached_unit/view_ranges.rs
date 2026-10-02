@@ -65,6 +65,7 @@ pub(crate) struct RangeStorage {
     structural_type: StructuralTypeId,
     family: ViewFamily,
     array_element: Option<StructuralTypeId>,
+    access: checked_trees::CheckedStructuralAccess,
 }
 
 /// One ordinary collection-view operation, shared by scalar and Unit schedules.
@@ -101,10 +102,10 @@ impl RangeStorage {
                     symbol: self.symbol,
                 },
                 path: self.collection.clone(),
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                access: self.access,
                 type_identity: String::new(),
             };
-            let source = bindings.shared_structural_argument(
+            let source = bindings.borrowed_structural_argument(
                 &argument,
                 machine,
                 checked.state_parameters(authored),
@@ -119,12 +120,15 @@ impl RangeStorage {
                 }),
             )
         } else {
-            let (symbol, place) = bindings.shared_view_source(
+            let (symbol, place) = bindings.borrowed_view_source(
                 self.root,
                 checked.state_parameters(authored),
                 checked,
                 self.structural_type,
                 self.family == ViewFamily::Bytes,
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    self.access,
+                ),
             )?;
             if symbol != self.symbol || !self.collection.is_empty() {
                 return unsupported("range descriptor changed its storage identity");
@@ -137,6 +141,9 @@ impl RangeStorage {
                 place,
                 structural_type: self.structural_type,
                 family: self.family,
+                access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    self.access,
+                ),
             },
             establishment,
         ))
@@ -155,15 +162,18 @@ pub(crate) fn storage(
     let range = range(argument).ok_or(LoweringError::Unsupported(
         "range storage has no range operation",
     ))?;
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-        return unsupported("range storage requires a shared loan");
+    if !matches!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+            | checked_trees::CheckedStructuralAccess::MutableBorrow
+    ) {
+        return unsupported("range storage requires a readable loan");
     }
     let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    let operation = validation::shared_subslice_expression(&checked.typed, range.expression)
-        .ok_or(LoweringError::Unsupported(
-            "range storage lost its shared expression",
-        ))?;
+    let operation = validation::subslice_expression(&checked.typed, range.expression).ok_or(
+        LoweringError::Unsupported("range storage lost its readable expression"),
+    )?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("range storage lost its collection");
     };
@@ -213,6 +223,11 @@ pub(crate) fn storage(
         )
         && let Some(shell) = validation::reference_shell(&checked.typed, reference)
     {
+        if argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+            && shell.access != language_core::ReferenceAccess::Mutable
+        {
+            return unsupported("range storage escalated shared backing authority");
+        }
         if shell.access != language_core::ReferenceAccess::Shared
             && shell.access != language_core::ReferenceAccess::Mutable
         {
@@ -257,6 +272,7 @@ pub(crate) fn storage(
         structural_type: view.id,
         family: range.family,
         array_element,
+        access: argument.access,
     })
 }
 
@@ -302,16 +318,29 @@ pub(crate) fn establish(
                 qualification_establishments: Vec::new(),
                 place: view.place,
                 structural_type: view.structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                multiplicity: if view.source.access == terminal_psi::StructuralAccess::MutableBorrow
+                {
+                    terminal_psi::StructuralMultiplicity::Affine
+                } else {
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                },
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
         ),
-        kind: terminal_psi::OperationKind::EstablishElementView {
-            destination: view.place,
-            source: view.source.clone(),
-            element: view.element,
+        kind: if view.source.access == terminal_psi::StructuralAccess::MutableBorrow {
+            terminal_psi::OperationKind::EstablishMutableElementView {
+                destination: view.place,
+                source: view.source.clone(),
+                element: view.element,
+            }
+        } else {
+            terminal_psi::OperationKind::EstablishElementView {
+                destination: view.place,
+                source: view.source.clone(),
+                element: view.element,
+            }
         },
     });
     StructuralPlaceDeclaration {
@@ -331,6 +360,7 @@ pub(crate) struct ViewRangeSource {
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) family: ViewFamily,
+    pub(crate) access: terminal_psi::StructuralAccess,
 }
 
 /// Where the range sits and what the checked plan retained for it.
@@ -369,6 +399,7 @@ pub(crate) fn emit(
     view_subslice::emit(
         source.family,
         source.place,
+        source.access,
         start.as_ref(),
         end.as_ref(),
         destination,
@@ -427,8 +458,8 @@ pub(crate) fn replay(
 > {
     let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
-    let operation = validation::shared_subslice_expression(&checked.typed, site.expression).ok_or(
-        LoweringError::Unsupported("view subslice has no shared range operation"),
+    let operation = validation::subslice_expression(&checked.typed, site.expression).ok_or(
+        LoweringError::Unsupported("view subslice has no readable range operation"),
     )?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("view subslice has no authored indexed expression");
@@ -514,7 +545,7 @@ pub(crate) fn replay(
     ))
 }
 
-/// The immutable view local an `EstablishViewSubslice` binds: its result
+/// The view local an `EstablishViewSubslice` binds: its result
 /// statement must be that `let`, whose initializer is exactly the retained
 /// range and whose declared type is the result's view type.
 pub(crate) fn binding_local<'a>(
@@ -547,12 +578,34 @@ pub(crate) fn binding_local<'a>(
     else {
         return unsupported("view subslice binding lost its authored local");
     };
+    let declared = validation::reference_shell(&checked.typed, local.type_reference).ok_or(
+        LoweringError::Unsupported("range local lost its declared reference"),
+    )?;
+    let access = match declared.access {
+        language_core::ReferenceAccess::Shared => {
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        }
+        language_core::ReferenceAccess::Mutable => {
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        }
+        _ => return unsupported("range local has unreadable access"),
+    };
     if local.is_mutable
         || !local.symbol.is_valid()
         || local.initial_value != *expression
-        || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || !matches!(
+            source.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
+        )
+        || source.access != access
         || source.type_identity != result.type_identity
-        || result.multiplicity != language_semantics::Multiplicity::Unrestricted
+        || result.multiplicity
+            != if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow {
+                language_semantics::Multiplicity::Affine
+            } else {
+                language_semantics::Multiplicity::Unrestricted
+            }
     {
         return unsupported("view subslice binding changed its local, range or custody");
     }

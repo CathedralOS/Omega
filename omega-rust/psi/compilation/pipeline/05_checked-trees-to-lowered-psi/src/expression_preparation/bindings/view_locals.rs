@@ -56,6 +56,7 @@ pub(crate) struct ViewLocalBinding {
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) carrier: ViewCarrier,
+    pub(crate) access: terminal_psi::StructuralAccess,
 }
 
 /// The unique established view local `symbol` names.

@@ -510,7 +510,7 @@ pub use attached_storage::{
 pub use builtin_coordinates::place_has_builtin_coordinates;
 pub use builtin_coordinates::{
     assignment_target_selectors, collection_length_receiver, has_builtin_subslice_meaning,
-    shared_subslice_expression,
+    subslice_expression,
 };
 pub use exact_self_field::exact_attached_field;
 pub use exact_self_field::exact_self_field;

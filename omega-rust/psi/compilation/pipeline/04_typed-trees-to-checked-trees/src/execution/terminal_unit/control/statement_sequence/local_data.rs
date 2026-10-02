@@ -257,7 +257,7 @@ pub(super) fn plan(
     // A `let` narrowing an established view binds the range the
     // argument lane admits for a call operand: one admission, one
     // source vocabulary, keyed at this statement's binding site.
-    // The result is a shared view in the structural namespace, so
+    // The result retains its checked access in the structural namespace, so
     // edges, calls and observations read it as any view local.
     local_phase("statement sequence: local data: view subslice");
     if let Some(subslice) = crate::execution::terminal_unit::calls::view_subslice::admit(
@@ -284,7 +284,12 @@ pub(super) fn plan(
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity,
-            multiplicity: Multiplicity::Unrestricted,
+            // The local holds the exclusive loan once, as ordinary mutable
+            // structural results do; parameter reference shells are separate.
+            multiplicity: match subslice.range.access {
+                CheckedStructuralAccess::MutableBorrow => Multiplicity::Affine,
+                _ => Multiplicity::Unrestricted,
+            },
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));

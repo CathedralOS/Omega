@@ -36,17 +36,20 @@ pub fn collection_length_receiver(
     .then_some(member.receiver)
 }
 
-/// Resolve the range operation of a shared subslice occurrence. Explicit
-/// shared borrowing changes access, not the indexed operation whose meaning
-/// and endpoints must be checked. Never erase exclusive or write-only access.
-/// The caller retains the original occurrence for its custody checks.
-pub fn shared_subslice_expression(
+/// Resolve the indexed geometry of a readable subslice occurrence. This
+/// query grants no access: each consumer retains the authored borrow and
+/// checks its access against the requested view and source loan. Write-only
+/// borrowing cannot supply the length observation required by narrowing.
+pub fn subslice_expression(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let operation = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
+            if matches!(
+                borrow.access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            ) =>
         {
             borrow.target
         }

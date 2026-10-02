@@ -141,7 +141,7 @@ pub(crate) fn structural_call_arguments(
             // to establish its custody or endpoint evidence cannot fall back
             // to presenting the source as a fixed byte-window loan.
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && validation::shared_subslice_expression(program, expression).is_some()
+                && validation::subslice_expression(program, expression).is_some()
             {
                 if view_subslice::narrows_into_qualified_formal(
                     program,

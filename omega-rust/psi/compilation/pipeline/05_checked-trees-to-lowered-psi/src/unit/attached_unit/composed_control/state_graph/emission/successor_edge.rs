@@ -472,7 +472,7 @@ impl StateGraphEmission<'_, '_> {
                                 checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
                                 state_parameters, &edge_evaluation, destination, bindings, &edge_values,
                                 next_value, operations, self.catalogs, &mut self.structural_places,
-                                &target_parameter.type_identity,
+                                &target_parameter.type_identity, target_parameter.access,
                             )?;
                             self.structural_places.push(emitted);
                             destination

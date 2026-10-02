@@ -176,6 +176,7 @@ pub(crate) enum LoweredScalarEffect {
     /// structural slot; `end` absent is the source's own length observation.
     ByteSequenceSubslice {
         source: PlaceId,
+        access: terminal_psi::StructuralAccess,
         start: LoweredDirectExpression,
         end: Option<LoweredDirectExpression>,
         place: PlaceId,
@@ -184,6 +185,7 @@ pub(crate) enum LoweredScalarEffect {
     /// Derive a borrowed element window over the same contiguous elements.
     ElementViewSubslice {
         source: PlaceId,
+        access: terminal_psi::StructuralAccess,
         start: LoweredDirectExpression,
         end: Option<LoweredDirectExpression>,
         place: PlaceId,

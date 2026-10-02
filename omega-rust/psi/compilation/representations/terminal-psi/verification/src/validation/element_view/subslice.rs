@@ -1,48 +1,15 @@
 //! Exact immutable element-view subslices; establishment is checked at every use.
 
 use crate::validation::{
-    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralMultiplicity, StructuralPlaceKind,
-    StructuralTypeShape, TerminalMachine, TerminalModule, ValueId,
+    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralPlaceKind, StructuralTypeShape,
+    TerminalMachine, TerminalModule, ValueId,
 };
 
 pub(in crate::validation) fn borrowed_result(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralOperationResult> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| {
-            if operation.id != producer
-                || !matches!(
-                    operation.kind,
-                    OperationKind::EstablishElementView { .. }
-                        | OperationKind::ElementViewSubslice { .. }
-                )
-            {
-                return None;
-            }
-            operation.result.structural().filter(|result| {
-                result.place == place
-                    && result.structural_type == structural_type
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-            })
-        })
+    crate::validation::element_view::view_loan_result(machine, place).map(|(result, _)| result)
 }
 
 pub(in crate::validation) fn validate(

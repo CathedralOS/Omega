@@ -24,6 +24,9 @@ pub(in crate::validation) fn mutable_result(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralOperationResult> {
+    if let Some((result, access)) = super::view_loan_result(machine, place) {
+        return (access == StructuralAccess::MutableBorrow).then_some(result);
+    }
     let declaration = machine
         .structural_places
         .iter()
@@ -44,7 +47,9 @@ pub(in crate::validation) fn mutable_result(
                 || matches!(
                     operation.kind,
                     OperationKind::EstablishElementView { .. }
+                        | OperationKind::EstablishMutableElementView { .. }
                         | OperationKind::ElementViewSubslice { .. }
+                        | OperationKind::ByteSequenceSubslice { .. }
                 )
             {
                 return None;

@@ -402,7 +402,11 @@ pub(crate) fn lower_scalar_graph_successor(
                         "scalar successor subslice target is absent",
                     ))?;
                 let checked_trees::expression::ExpressionNode::Indexed(indexed) =
-                    checked.expression_table.expression(expression)
+                    checked.expression_table.expression(
+                        validation::subslice_expression(&checked.typed, expression).ok_or(
+                            LoweringError::Unsupported("scalar successor lost range expression"),
+                        )?,
+                    )
                 else {
                     return unsupported("scalar successor subslice lost its indexed source");
                 };
@@ -449,14 +453,14 @@ pub(crate) fn lower_scalar_graph_successor(
                         },
                     },
                 )?;
-                let source = scalar_bindings.shared_structural_argument(
+                let source = scalar_bindings.borrowed_structural_argument(
                     &checked_trees::CheckedUnitStructuralArgumentPlan {
                         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                             parameter_index,
                         },
                         path: Vec::new(),
                         type_identity: retained_source.type_identity.clone(),
-                        access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+                        access: retained_target.access,
                     },
                     source_custody::authored_state(checked, source_state)?.0,
                     checked
@@ -473,6 +477,7 @@ pub(crate) fn lower_scalar_graph_successor(
                 structural_effects.push(if element {
                     prepared_graph::LoweredScalarEffect::ElementViewSubslice {
                         source: source.place,
+                        access: crate::expression_preparation::bindings::structural_paths::terminal_access(retained_target.access),
                         start,
                         end,
                         place,
@@ -481,6 +486,7 @@ pub(crate) fn lower_scalar_graph_successor(
                 } else {
                     prepared_graph::LoweredScalarEffect::ByteSequenceSubslice {
                         source: source.place,
+                        access: crate::expression_preparation::bindings::structural_paths::terminal_access(retained_target.access),
                         start,
                         end,
                         place,
@@ -490,7 +496,10 @@ pub(crate) fn lower_scalar_graph_successor(
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access:
+                        crate::expression_preparation::bindings::structural_paths::terminal_access(
+                            retained_target.access,
+                        ),
                 });
             }
             _ => {
