@@ -244,26 +244,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         // The hook body is an ordinary checked Unit body; the edge invokes
         // whatever it carries. Selection stays pinned — this owner's attached
         // `T::drop` state, the recorded contract identity, no scalar
-        // arguments, and at most the borrowed `self` receiver the edge lends.
-        let borrowed_receiver = |parameter: &super::CheckedUnitStructuralParameterPlan| {
-            parameter.is_self
-                && matches!(
-                    parameter.access,
-                    super::CheckedStructuralAccess::MutableBorrow
-                        | super::CheckedStructuralAccess::WriteOnlyBorrow
-                )
-                && parameter.type_identity == cleanup.type_identity
-        };
-        if target.state != cleanup.cleanup_state
-            || target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-            || contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-            || target.attachment_type_identity.as_deref() != Some(cleanup.type_identity.as_str())
-            || target
-                .structural_parameters
-                .iter()
-                .any(|parameter| !borrowed_receiver(parameter))
-            || !target.scalar_parameters.is_empty()
-        {
+        // arguments, and at most the exclusive borrowed receiver the edge lends.
+        super::validate_nominal_cleanup_target(target, cleanup)?;
+        if contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint {
             return unsupported("ordered nominal cleanup target is not exact and bounded");
         }
         if !roots.contains(&cleanup.cleanup_machine) {
@@ -427,8 +410,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         {
             continue;
         }
-        // A hook that keeps a borrowed `self` receiver declares it as its
-        // terminal `is_self` structural parameter; that parameter is the place
+        // A hook that keeps a borrowed subject declares it as an ordinary
+        // structural parameter; that parameter is the place
         // the edge lends and the proof root any requirement clause uses.
         let hook_receiver_place = {
             let hook_index = closure
@@ -450,7 +433,13 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     machine
                         .structural_parameters
                         .iter()
-                        .find(|parameter| parameter.is_self)
+                        .find(|parameter| {
+                            matches!(
+                                parameter.access,
+                                terminal_psi::StructuralAccess::MutableBorrow
+                                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                            )
+                        })
                         .map(|parameter| parameter.place)
                 })
         };
@@ -591,12 +580,16 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             ))?;
         // The lowered hook body is ordinary terminal control; the signature
         // pins are what remain exact — owned by the consumed type, a `Unit`
-        // result, no scalar arguments, at most the borrowed `self` receiver.
+        // result, no scalar arguments, at most the exclusive borrowed receiver.
         let borrowed_receiver_declared =
             |parameter: &terminal_psi::StructuralParameterDeclaration| {
-                parameter.is_self
+                parameter.position == 0
                     && parameter.structural_type == cleanup.structural_type
-                    && parameter.access != terminal_psi::StructuralAccess::Owned
+                    && matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    )
             };
         if target.attachment != Some(cleanup.structural_type)
             || !target.parameters.is_empty()

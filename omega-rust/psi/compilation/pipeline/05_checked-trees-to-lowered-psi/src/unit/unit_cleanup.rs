@@ -18,7 +18,9 @@ use super::{
     lower_unit_closure, machine_id, obligation_id, place_id, unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralParameterPlan};
+use checked_trees::{
+    CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitNominalAffineCleanupPlan,
+};
 use symbols::SymbolHandle;
 mod ordered;
 mod partial;
@@ -40,9 +42,10 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
 /// A nominal consuming member (a seeded `drop<T>` specialization) emitted the
 /// ordinary complete-only body; its return edge still invokes the exact
 /// owner-attached `::drop` hook the roster selected for each parameter. A hook
-/// that keeps a borrowed `self` receiver declares it as its terminal `is_self`
-/// parameter; collect each emitted hook's receiver place so the edge can lend
-/// the consumed place into the callee frame.
+/// that keeps a borrowed subject declares an ordinary structural parameter;
+/// its name and legacy `self` spelling do not select the operand. Retain the
+/// selected hook's nominal owner independently of implicit attachment storage,
+/// then collect its exact receiver place for the edge's loan.
 pub(super) fn patch_nominal_cleanup_members(
     checked: &CheckedTrees,
     entry: SymbolHandle,
@@ -50,13 +53,53 @@ pub(super) fn patch_nominal_cleanup_members(
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
 ) -> Result<(), LoweringError> {
+    for nominal in &checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+    {
+        for cleanup in &nominal.cleanups {
+            let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
+                continue;
+            };
+            let target = unique_unit_machine(
+                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+                cleanup.cleanup_machine,
+            )?;
+            validate_nominal_cleanup_target(target, cleanup)?;
+            let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
+            let emitted = machines
+                .iter_mut()
+                .find(|machine| machine.id == target_id)
+                .ok_or(LoweringError::Unsupported(
+                    "nominal cleanup target was not emitted",
+                ))?;
+            if emitted
+                .attachment
+                .is_some_and(|attachment| attachment != owner)
+            {
+                return unsupported("nominal cleanup target owner identity drifted");
+            }
+            // Terminal attachment names semantic ownership, not an implicit
+            // argument. A static named subject still carries the same selected
+            // T::drop owner while its ordinary parameter carries the storage.
+            emitted.attachment = Some(owner);
+        }
+    }
     let cleanup_receivers: std::collections::BTreeMap<MachineId, PlaceId> = machines
         .iter()
         .filter_map(|machine| {
             machine
                 .structural_parameters
                 .iter()
-                .find(|parameter| parameter.is_self)
+                .find(|parameter| {
+                    matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    )
+                })
                 .map(|parameter| (machine.id, parameter.place))
         })
         .collect();
@@ -124,13 +167,8 @@ fn patch_nominal_cleanup_member(
             UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             cleanup.cleanup_machine,
         )?;
-        if cleanup_target.state != cleanup.cleanup_state
-            || cleanup_target.contract_report_fingerprint
-                != cleanup.cleanup_contract_report_fingerprint
-            || cleanup_target.attachment_type_identity.as_deref()
-                != Some(cleanup.type_identity.as_str())
-            || lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type
-        {
+        validate_nominal_cleanup_target(cleanup_target, cleanup)?;
+        if lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type {
             return unsupported("nominal cleanup member target identity drifted");
         }
         let hook_machine = lookup_machine_id(machine_ids, cleanup.cleanup_machine)?;
@@ -160,6 +198,33 @@ fn patch_nominal_cleanup_member(
     }
     let edge = block.terminator.edge();
     block.terminator = Terminator::ReturnUnitNominalAffine { edge, cleanups };
+    Ok(())
+}
+
+fn validate_nominal_cleanup_target(
+    target: &CheckedUnitEffectMachinePlan,
+    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+) -> Result<(), LoweringError> {
+    if target.state != cleanup.cleanup_state
+        || target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
+        || target
+            .attachment_type_identity
+            .as_deref()
+            .is_some_and(|owner| owner != cleanup.type_identity)
+        || !target.scalar_parameters.is_empty()
+        || target.structural_parameters.len() > 1
+        || target.structural_parameters.iter().any(|parameter| {
+            parameter.position != 0
+                || parameter.type_identity != cleanup.type_identity
+                || !matches!(
+                    parameter.access,
+                    CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow
+                )
+        })
+    {
+        return unsupported("nominal cleanup target selection or borrowed subject drifted");
+    }
     Ok(())
 }
 

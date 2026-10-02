@@ -14,6 +14,10 @@ pub(super) fn nominal_cleanup_contract_receiver(
     module: &TerminalModule,
     cleanup_machine: MachineId,
 ) -> Option<PlaceId> {
+    let target = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup_machine)?;
     module
         .machines
         .iter()
@@ -23,6 +27,15 @@ pub(super) fn nominal_cleanup_contract_receiver(
             (cleanup.cleanup_machine == cleanup_machine)
                 .then_some(cleanup.cleanup_receiver)
                 .flatten()
+        })
+        // Executable receivers already have their authored parameter kind in
+        // the proposition context. Only an absent, proof-only root needs the
+        // synthetic cleanup declaration and special contract scope.
+        .filter(|receiver| {
+            !target
+                .structural_places
+                .iter()
+                .any(|place| place.id == *receiver)
         })
 }
 
@@ -733,12 +746,15 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         // The hook body is ordinary terminal control — it is verified as an
         // ordinary machine elsewhere. What stays exact here is the selection
         // pairing: the target is owned by the consumed type, returns `Unit`,
-        // takes no scalar arguments, and carries at most the borrowed `self`
+        // takes no scalar arguments, and carries at most the exclusive borrowed
         // receiver the edge lends.
         let borrowed_receiver = |parameter: &terminal_psi::StructuralParameterDeclaration| {
-            parameter.is_self
+            parameter.position == 0
                 && parameter.structural_type == cleanup.structural_type
-                && parameter.access != StructuralAccess::Owned
+                && matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
         };
         if target.id == machine.id
             || cleanup.requirement_obligations.len() != target.contract.requires.len()
@@ -755,7 +771,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         {
             return Err(invalid(block.id));
         }
-        // A declared `self` receiver is exactly the place the edge lends —
+        // A declared borrowed receiver is exactly the place the edge lends —
         // `cleanup_receiver` names it. A contextual proof root without a
         // declared parameter keeps its validity-scoped identity.
         if let Some(receiver) = target.structural_parameters.first()
@@ -847,9 +863,13 @@ pub(super) fn valid_nominal_cleanup_requirements(
     };
     // A receiver may name the target's own borrowed `self` parameter — the
     // place the edge lends — but never any other declared structural place.
-    let receiver_is_self_parameter = target.structural_parameters.iter().any(|parameter| {
-        parameter.is_self
-            && parameter.access != StructuralAccess::Owned
+    let receiver_parameter = target.structural_parameters.iter().find(|parameter| {
+        parameter.position == 0
+            && parameter.structural_type == cleanup.structural_type
+            && matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
             && parameter.place == receiver
     });
     if cleanup.requirement_obligations.len() != target.contract.requires.len()
@@ -859,19 +879,16 @@ pub(super) fn valid_nominal_cleanup_requirements(
             .flat_map(|machine| &machine.structural_places)
             .any(|place| {
                 place.id == receiver
-                    && !(receiver_is_self_parameter
-                        && place.kind
+                    && !(receiver_parameter.is_some_and(|parameter| {
+                        place.kind
                             == StructuralPlaceKind::Parameter {
-                                position: target
-                                    .structural_parameters
-                                    .first()
-                                    .map_or(0, |parameter| parameter.position),
-                                is_self: true,
+                                position: parameter.position,
+                                is_self: parameter.is_self,
                             }
-                        && target
-                            .structural_places
-                            .iter()
-                            .any(|candidate| candidate.id == receiver))
+                    }) && target
+                        .structural_places
+                        .iter()
+                        .any(|candidate| candidate.id == receiver))
             })
         || module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
