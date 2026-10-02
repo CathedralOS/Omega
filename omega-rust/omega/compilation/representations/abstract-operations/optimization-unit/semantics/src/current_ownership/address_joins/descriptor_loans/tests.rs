@@ -592,6 +592,30 @@ fn projected_output_call_fixture(
         crash_continuations: Vec::new(),
     };
     let mut function = receiver_fixture(call, observe_after_write);
+    // A shared subslice's access is reconstructed through its actual source,
+    // not inferred from its unrestricted result row. Retain that source's
+    // declaration beside the unrelated writable output parameter below.
+    function
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place(9),
+            position: 1,
+            is_self: false,
+            structural_type: identity(1),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place(9),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
     function
         .structural_parameters
         .push(StructuralParameterDeclaration {
@@ -614,6 +638,9 @@ fn projected_output_call_fixture(
             },
         });
     function.declared_places.insert(place(10));
+    function
+        .structural_parameters
+        .sort_by_key(|parameter| parameter.position);
     let field = |number, name: &str, field_type| StructuralFieldDeclaration {
         id: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
         identity: name.into(),
@@ -843,4 +870,178 @@ fn a_non_escaping_call_does_not_retire_later_descriptor_observations() {
         Some(place(9)),
         "a write before the final observation still disturbs the loan"
     );
+}
+
+#[test]
+fn carried_view_call_observation_respects_mutable_child_lifetime() {
+    use terminal_psi::{
+        BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralArgument,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    };
+    let view_type = StructuralTypeId::new(1).unwrap();
+    let scalar_type = StructuralTypeId::new(2).unwrap();
+    let record_type = StructuralTypeId::new(3).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: view_type,
+            identity: "test::Elements".into(),
+            shape: StructuralTypeShape::ElementView {
+                element: scalar_type,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: scalar_type,
+            identity: "test::Boolean".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        },
+        StructuralTypeDeclaration {
+            id: record_type,
+            identity: "test::Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    identity: "view".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(view_type),
+                }],
+            },
+        },
+    ];
+    let types = declarations.iter().map(|row| (row.id, row)).collect();
+    for (call_after_birth, direct_child) in [(false, false), (true, false), (true, true)] {
+        let call = O::CallStructural {
+            psi_operation: instruction(7),
+            callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: if direct_child { place(1) } else { place(3) },
+                access: StructuralAccess::SharedBorrow,
+                path: Vec::new(),
+            }],
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: abstract_operations::AbstractStructuralCallResult::Unit,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        let mut function = receiver_fixture(call, true);
+        function
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: place(9),
+                position: 0,
+                is_self: false,
+                structural_type: view_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        function.structural_places.push(StructuralPlaceDeclaration {
+            id: place(9),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
+        let O::ByteSequenceSubslice { result, .. } = &function.blocks[0].nodes[0].operation else {
+            unreachable!()
+        };
+        let mut mutable_result = result.clone();
+        mutable_result.multiplicity = StructuralMultiplicity::Affine;
+        let mut shared_result = result.clone();
+        shared_result.place = place(2);
+        let mut record_result = result.clone();
+        record_result.place = place(3);
+        record_result.structural_type = record_type;
+        let mut mutable = function.blocks[0].nodes[0].clone();
+        mutable.operation = O::ElementViewSubslice {
+            psi_operation: instruction(1),
+            result: mutable_result,
+            source: place(9),
+            start: value(1),
+            end: value(2),
+            length: value(3),
+            obligation: ObligationId::new(1).unwrap(),
+        };
+        let mut shared = mutable.clone();
+        shared.operation = O::ElementViewSubslice {
+            psi_operation: instruction(5),
+            result: shared_result,
+            source: place(9),
+            start: value(1),
+            end: value(2),
+            length: value(3),
+            obligation: ObligationId::new(2).unwrap(),
+        };
+        let mut record = mutable.clone();
+        record.operation = O::EstablishRecord {
+            psi_operation: instruction(6),
+            result: record_result,
+            fields: vec![RecordFieldInitializer {
+                field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                value: RecordFieldValue::Structural(StructuralArgument {
+                    place: place(2),
+                    access: StructuralAccess::Owned,
+                    path: Vec::new(),
+                }),
+            }],
+        };
+        let call = function.blocks[0].nodes[1].clone();
+        let mut observation = function.blocks[0].nodes[3].clone();
+        observation.operation = O::ElementViewLength {
+            psi_operation: instruction(4),
+            source: place(1),
+            result: abstract_operations::AbstractResult {
+                value: value(4),
+                scalar_type: ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                ),
+            },
+        };
+        function.blocks[0].nodes = if call_after_birth {
+            vec![shared, record, mutable, call, observation]
+        } else {
+            vec![shared, record, call, mutable, observation]
+        };
+        for (place, producer, structural_type) in [
+            (place(2), instruction(5), view_type),
+            (place(3), instruction(6), record_type),
+        ] {
+            function.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                },
+            });
+            function.declared_places.insert(place);
+        }
+        let regions = BorrowedRegions::new(
+            &function,
+            &BTreeMap::new(),
+            &types,
+            &crate::current_ownership::CallAccesses::default(),
+        );
+        let loans = DescriptorLoans::new(&function, &regions, &types);
+        assert_eq!(loans.loans.len(), 2);
+        assert_eq!(loans.loans[0].access, StructuralAccess::SharedBorrow);
+        assert_eq!(loans.loans[1].access, StructuralAccess::MutableBorrow);
+        let call_position = if call_after_birth { 3 } else { 2 };
+        assert_eq!(
+            loans.conflicted_operation(
+                &regions,
+                position(call_position).0,
+                call_position,
+                &function.blocks[0].nodes[call_position as usize].operation,
+                &[],
+            ),
+            (call_after_birth && !direct_child).then_some(place(3)),
+            "carried view call after birth: {call_after_birth}, direct child: {direct_child}"
+        );
+    }
 }
