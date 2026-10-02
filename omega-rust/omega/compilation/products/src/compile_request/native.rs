@@ -54,10 +54,12 @@ impl NativeRealizationRequest<'_> {
     pub fn optimization_budget(&self) -> optimization_core::OptimizationWorkBudget {
         // Spill validation charges whole-plan traversal and slot-liveness scans,
         // not just changed instructions. A complete application exceeds 100,000
-        // steps while recovering register pressure. Give validation more room
+        // steps while recovering register pressure. Callee-save derivation also
+        // charges functions, blocks, instructions, operands and writes as both
+        // validation steps and iterations. Give both traversal counters room
         // without changing candidate/commit limits or bypassing independent replay.
         optimization_core::OptimizationWorkBudget::new(
-            1_000_000, 100_000, 1_000_000, 100_000, 100_000,
+            1_000_000, 100_000, 1_000_000, 100_000, 1_000_000,
         )
         .expect("compiler baseline optimizer ceilings are nonzero")
     }

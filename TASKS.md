@@ -1857,26 +1857,24 @@ the complete product bar; focused successes below do not establish that baseline
   qualified byte values; six related native controls execute 70 and seven
   invalid ownership/domain/capacity cases reject on `94940a170e`.
 
-  Full game acceptance remains open. Allocation placement now visits only
-  active constrained neighbors, retaining domain/candidate order and independent
-  replay. Copy-affinity incidence is prepared once per domain instead of
-  rescanning unrelated edges for each candidate; parallel-edge multiplicity and
-  tied-domain ordering remain unchanged. All 43 allocator controls pass,
-  including 960 ranking comparisons with the original algorithm and independent
-  replay. On macOS ARM64, the closed-stdin command at `2131c361cb` reached
-  `RegisterAllocation(RuntimeSpill(Rewrite(WorkBudgetExceeded)))` after 601
-  seconds. Native realization now permits 1,000,000 validation steps per pass
-  instead of 100,000, without changing candidate/commit limits or admission;
-  all 52 selected runtime-spill controls, including exact-budget rejection,
-  pass. Both game commands on `14a2b507ea` remain in progress without execution
-  receipts; OS sampling places the closed-stdin run in completed recovery's
-  independent replay. `05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs`
-  no longer repeats that complete replay before every caller enters
-  `RetainedAllocation::try_from`: the retained boundary alone owns full-result
-  admission, with per-step semantic checks unchanged. Re-drive both unchanged
-  game commands through this single admission boundary and require actual exit
-  0, initial-room/goodbye output, and command help for the second run. Small
-  transport controls are not evidence that the full game runs. Retain exact access,
+  Full game acceptance remains open. On macOS ARM64, the closed-stdin command
+  at `14a2b507ea` completes allocation but exits 200 after 8,762 seconds in
+  `FunctionRelativeRealization(CalleeSavedRequirements(BudgetExceeded))`:
+  callee-save traversal requires 124,286 iteration units against 100,000.
+  `compilation/products/src/compile_request/native.rs` now allows 1,000,000
+  iterations per pass, matching validation steps; candidate/commit limits and
+  independent admission remain unchanged. These iterations count visited
+  functions, blocks, instructions, operands and writes, not optimizer retries.
+  Allocation already limits placement queries to constrained neighbors and
+  prepared copy-affinity incidence, preserving ranking and parallel-edge
+  multiplicity. Full recovery replay belongs solely to
+  `RetainedAllocation::try_from`, with per-step semantic checks unchanged.
+  Re-drive both unchanged game commands through this boundary and require
+  actual exit 0, the initial Gate room and authored goodbye. The help run must
+  print paths and command help twice, versus once under EOF: their initial
+  display alone does not prove command dispatch. The raised-budget EOF rerun
+  is still in progress without an execution receipt. Small transport controls are
+  not evidence that the full game runs. Retain exact access,
   qualifications, source-length/capacity evidence, every possible origin,
   ranking, live-root rebind rejection and same-typed-sibling rejection. Keep
   `borrows/qualified_byte_owner_exclusive_call_exit`,
