@@ -13,7 +13,7 @@ pub data RemoteJournal {
 }
 
 pub machine RemoteJournal::append_and_send(
-    &mut self,
+    remote_journal: &mut RemoteJournal,
     descriptor: i32,
     endpoint: &[u8],
     bytes: &[u8]
@@ -22,6 +22,6 @@ reaches FilesystemHost, NetworkHost
 invokes FilesystemHost;
 invokes NetworkHost;
 {
-    self.written = self.files.write(descriptor, bytes);
-    self.network.send(endpoint, bytes);
+    remote_journal.written = remote_journal.files.write(descriptor, bytes);
+    remote_journal.network.send(endpoint, bytes);
 }

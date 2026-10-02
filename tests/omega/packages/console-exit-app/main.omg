@@ -6,9 +6,9 @@ use omega_language_std::console;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.console.write_line("console-exit-app");
-    self.console.exit_process(70);
+    main.console.write_line("console-exit-app");
+    main.console.exit_process(70);
 }

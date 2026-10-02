@@ -21,15 +21,15 @@ pub machine Helper::shared() -> i32 {
     transition { _ -> 7 }
 }
 
-pub uefi_x86_64 machine Helper::paradigm_internal(&self) -> i32 {
+pub uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
-pub uefi_x86_64 machine Helper::record_paradigm_event(&mut self) {
+pub uefi_x86_64 machine Helper::record_paradigm_event(helper: &mut Helper) {
     transition { _ -> done() }
     state done() { }
 }
 
-pub uefi_x86_64 machine Helper::paradigm_caller(&self) -> i32 {
-    transition { _ -> (self.paradigm_internal()) }
+pub uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
+    transition { _ -> (Helper::paradigm_internal(helper)) }
 }
