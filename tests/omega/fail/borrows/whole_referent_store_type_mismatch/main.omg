@@ -20,6 +20,6 @@ machine settle(verdict: &mut Verdict) {
     verdict = Outcome::Won;
 }
 
-machine Main::main(&mut self) {
-    settle(&mut self.verdict);
+machine Main::main(main: &mut Main) {
+    settle(&mut main.verdict);
 }

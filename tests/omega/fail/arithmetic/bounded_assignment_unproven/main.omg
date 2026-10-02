@@ -5,7 +5,7 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; x: i32 [0..=100]; }
-machine Main::main(&mut self) {
-    self.x = 9999;
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) {
+    main.x = 9999;
+    main.console.exit_process(0);
 }

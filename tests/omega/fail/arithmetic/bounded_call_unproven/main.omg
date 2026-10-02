@@ -5,8 +5,8 @@ data Main {
     health: i32;
 }
 
-machine Main::main(&mut self) {
-    wounded(self.health);
+machine Main::main(main: &mut Main) {
+    wounded(main.health);
 }
 
 machine wounded(value: i32)

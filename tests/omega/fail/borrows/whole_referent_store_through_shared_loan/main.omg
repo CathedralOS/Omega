@@ -15,6 +15,6 @@ machine settle(verdict: &Verdict) {
     verdict = Verdict::Sound;
 }
 
-machine Main::main(&mut self) {
-    settle(&self.verdict);
+machine Main::main(main: &mut Main) {
+    settle(&main.verdict);
 }

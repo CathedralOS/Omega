@@ -17,9 +17,9 @@ machine consume(entries: [Entry; 2]) {
     let first: Entry = entries[0];
 }
 
-machine Main::main(&mut self) {
-    self.entries = [Entry { value: 3 }, Entry { value: 4 }];
-    let view: &[Entry] = self.entries.as_slice();
-    consume(self.entries);
+machine Main::main(main: &mut Main) {
+    main.entries = [Entry { value: 3 }, Entry { value: 4 }];
+    let view: &[Entry] = main.entries.as_slice();
+    consume(main.entries);
     let first: Entry = view[0];
 }

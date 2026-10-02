@@ -1,2 +1,2 @@
-cannot prove requires contract for call index from Main::main: 3 < self.values.len
+cannot prove requires contract for call index from Main::main: 3 < main.values.len
 needs fact `index < items.len` here

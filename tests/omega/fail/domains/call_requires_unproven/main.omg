@@ -24,6 +24,6 @@ ensures
     player.health = 10;
 }
 
-machine Main::main(&mut self) {
-    heal(&mut self.player);
+machine Main::main(main: &mut Main) {
+    heal(&mut main.player);
 }

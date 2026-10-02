@@ -8,8 +8,8 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(&mut self) reaches PortIo {
+machine Main::main(main: &mut Main) reaches PortIo {
     asm where clobbers rax, rdx, r10, r15 {
-        in self.byte, 0x3F8
+        in main.byte, 0x3F8
     }
 }

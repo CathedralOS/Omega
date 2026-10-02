@@ -18,7 +18,7 @@ data Main {
     level: Level;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.level = Level::Lit { amount: 11 };
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.level = Level::Lit { amount: 11 };
+    main.console.exit_process(0);
 }

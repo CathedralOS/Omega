@@ -5,9 +5,9 @@ data Main {
     value: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     asm where
-        requires self.value
+        requires main.value
         clobbers none
     {
         hlt

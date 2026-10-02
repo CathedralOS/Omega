@@ -5,8 +5,8 @@
 // relating `right` to `count`'s rank.
 data Main {}
 
-machine Main::main(&mut self) -> u32 {
-    transition { _ -> Main::count(&mut self, 5) }
+machine Main::main(main: &mut Main) -> u32 {
+    transition { _ -> Main::count(main, 5) }
 }
 
 machine Main::count(main: &mut Main, remaining: u32 [0..=9])

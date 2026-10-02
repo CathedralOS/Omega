@@ -16,34 +16,34 @@ data Main {
     sum: i32 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.nums[0] = 1;
-    self.nums[1] = 2;
-    self.nums[2] = 3;
-    self.nums[3] = 4;
-    self.j = 3;
-    self.sum = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.nums[0] = 1;
+    main.nums[1] = 2;
+    main.nums[2] = 3;
+    main.nums[3] = 4;
+    main.j = 3;
+    main.sum = 0;
 
     transition {
-        _ -> loop_()
+        _ -> loop_(main)
     }
 
-    state loop_(&mut self) {
-        transition self.j >= 0 - 10 {
-            true -> body()
-            _ -> done()
+    state loop_(main: &mut Main) {
+        transition main.j >= 0 - 10 {
+            true -> body(main)
+            _ -> done(main)
         }
     }
 
-    state body(&mut self) {
-        self.sum = self.sum + (self.nums[self.j] as i32 in Trapping);
-        self.j = self.j - 1;
+    state body(main: &mut Main) {
+        main.sum = main.sum + (main.nums[main.j] as i32 in Trapping);
+        main.j = main.j - 1;
         transition {
-            _ -> loop_()
+            _ -> loop_(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 }

@@ -9,6 +9,6 @@ data Main {
     name: &[u8] in Utf8;
 }
 
-machine Main::main(&mut self) {
-    self.name = "\xff";
+machine Main::main(main: &mut Main) {
+    main.name = "\xff";
 }

@@ -11,8 +11,8 @@ pub data Main {
     service: Binding<WaitService>;
 }
 
-boundary machine Main::main(&mut self)
+boundary machine Main::main(main: &mut Main)
 invokes WaitService;
 {
-    block self.service.wait();
+    block main.service.wait();
 }

@@ -15,45 +15,45 @@ data Main {
     acc: i32 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.nums[0] = 1;
-    self.nums[1] = 2;
-    self.nums[2] = 3;
-    self.nums[3] = 4;
-    self.i = 0;
-    self.acc = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.nums[0] = 1;
+    main.nums[1] = 2;
+    main.nums[2] = 3;
+    main.nums[3] = 4;
+    main.i = 0;
+    main.acc = 0;
 
     transition {
-        _ -> loop_()
+        _ -> loop_(main)
     }
 
-    state loop_(&mut self) {
-        transition self.i != 7 {
-            true -> body()
-            _ -> done()
+    state loop_(main: &mut Main) {
+        transition main.i != 7 {
+            true -> body(main)
+            _ -> done(main)
         }
     }
 
-    state body(&mut self) {
-        self.acc = self.acc + (self.nums[self.i] as i32 in Trapping);
-        self.i = self.i + 1;
+    state body(main: &mut Main) {
+        main.acc = main.acc + (main.nums[main.i] as i32 in Trapping);
+        main.i = main.i + 1;
         transition {
-            _ -> loop_()
+            _ -> loop_(main)
         }
     }
 
-    state done(&mut self) {
-        transition self.acc == 10 {
-            true -> good()
-            _ -> bad()
+    state done(main: &mut Main) {
+        transition main.acc == 10 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

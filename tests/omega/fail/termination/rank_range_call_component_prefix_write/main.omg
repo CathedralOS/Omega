@@ -4,8 +4,8 @@
 // entry-relative ranking no longer describes the call's actual arguments.
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> Main::scan_a(&mut self, 0, 4) }
+machine Main::main(main: &mut Main) -> u64 {
+    transition { _ -> Main::scan_a(main, 0, 4) }
 }
 
 machine bump(value: &mut u64) {

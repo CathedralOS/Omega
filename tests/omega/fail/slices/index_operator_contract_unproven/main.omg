@@ -9,6 +9,6 @@ data Main {
     values: [i32; 3];
 }
 
-machine Main::main(&mut self) {
-    let last: i32 = self.values[3];
+machine Main::main(main: &mut Main) {
+    let last: i32 = main.values[3];
 }

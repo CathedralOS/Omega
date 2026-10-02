@@ -30,11 +30,11 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let cell: &mut Cell = Bag::pick(&mut self.bag);
-    // `cell` keeps ALL of `self.bag` loaned (receiver-wide elision), so even
+machine Main::main(main: &mut Main) reaches Console {
+    let cell: &mut Cell = Bag::pick(&mut main.bag);
+    // `cell` keeps ALL of `main.bag` loaned (receiver-wide elision), so even
     // the disjoint `other` field is off limits while it lives.
-    self.bag.other = 5;
+    main.bag.other = 5;
     cell.value = 7;
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }

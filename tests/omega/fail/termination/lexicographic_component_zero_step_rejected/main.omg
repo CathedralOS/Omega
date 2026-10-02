@@ -11,9 +11,9 @@ measure Progress::Steps lexicographic { outer, inner }
 
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
+machine Main::main(main: &mut Main) -> u64 {
     transition {
-        _ -> Main::scan_a(&mut self, Progress { outer: 1, inner: 8 })
+        _ -> Main::scan_a(main, Progress { outer: 1, inner: 8 })
     }
 }
 

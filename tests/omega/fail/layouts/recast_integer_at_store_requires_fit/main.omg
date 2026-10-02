@@ -54,7 +54,7 @@ data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 data Main { bytes: [u8; 1]; }
 
-machine Main::main(&mut self) {
-    let view: &mut RawView = &mut self.bytes[0] as &mut RawView;
+machine Main::main(main: &mut Main) {
+    let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     view.value.value = 128;
 }

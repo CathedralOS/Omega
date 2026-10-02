@@ -8,8 +8,8 @@ measure Countdown::Remaining(value: u32) -> u32 { value }
 
 data Main {}
 
-machine Main::main(&mut self) -> u32 {
-    transition { _ -> Main::scan_a(&mut self, 5) }
+machine Main::main(main: &mut Main) -> u32 {
+    transition { _ -> Main::scan_a(main, 5) }
 }
 
 machine Main::scan_a(main: &mut Main, remaining: u32 [0..=5])

@@ -10,20 +10,20 @@ data Main {
     sp: i32;
 }
 
-machine Main::main(&mut self, sp_in: i32) reaches Console {
-    self.sp = sp_in;
-    transition self.sp >= 0 && self.sp < 16 {
-        true -> push(self.sp)
-        false -> other()
+machine Main::main(main: &mut Main, sp_in: i32) reaches Console {
+    main.sp = sp_in;
+    transition main.sp >= 0 && main.sp < 16 {
+        true -> push(main)
+        false -> other(main)
     }
 
-    state other(&mut self) {
-        transition { _ -> push(self.sp) }
+    state other(main: &mut Main) {
+        transition { _ -> push(main) }
     }
 
-    state push(v: i32) requires v >= 0 && v < 16 {
-        let mut y: i32 = v;
-        transition y == 7 { true -> m() false -> m() }
+    state push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
+        let mut y: i32 = main.sp;
+        transition y == 7 { true -> m(main) false -> m(main) }
     }
-    state m(&mut self) { self.console.exit_process(1); }
+    state m(main: &mut Main) { main.console.exit_process(1); }
 }

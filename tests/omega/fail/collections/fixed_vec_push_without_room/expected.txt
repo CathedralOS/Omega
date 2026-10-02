@@ -1,1 +1,1 @@
-cannot prove requires contract for call push from Main::main: self.vec.length < self.vec.items.len
+cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len

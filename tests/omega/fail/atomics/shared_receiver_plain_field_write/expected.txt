@@ -1,1 +1,1 @@
-assignment cannot write `count` because it is not mutable in this state
+assignment cannot write `counter` because it is not mutable in this state

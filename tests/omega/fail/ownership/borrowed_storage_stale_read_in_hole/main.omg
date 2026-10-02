@@ -4,9 +4,9 @@
 data Inventory { slots: i32; }
 data Main { inventory: Inventory; }
 
-machine Main::peek(&mut self) -> i32 {
-    let taken: Inventory = self.inventory;
-    let seen: i32 = self.inventory.slots;
-    self.inventory = move taken;
+machine Main::peek(main: &mut Main) -> i32 {
+    let taken: Inventory = main.inventory;
+    let seen: i32 = main.inventory.slots;
+    main.inventory = move taken;
     seen
 }

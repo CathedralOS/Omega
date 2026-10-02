@@ -12,11 +12,11 @@ data Main {
     yv: i32;
 }
 
-machine Main::main(&mut self, yv_in: i32) reaches Console {
-    self.yv = yv_in;
-    transition self.yv >= 0 && self.yv <= 9 {
-        true -> stale(&mut self)
-        false -> bad(&mut self)
+machine Main::main(main: &mut Main, yv_in: i32) reaches Console {
+    main.yv = yv_in;
+    transition main.yv >= 0 && main.yv <= 9 {
+        true -> stale(main)
+        false -> bad(main)
     }
 
     state stale(main: &mut Main) {

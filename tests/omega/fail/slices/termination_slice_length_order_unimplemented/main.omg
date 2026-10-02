@@ -17,20 +17,20 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> u64 {
-    let view: &[Entry] = self.entries.as_slice();
+machine Main::main(main: &mut Main) -> u64 {
+    let view: &[Entry] = main.entries.as_slice();
 
     transition {
-        _ -> self.walk(view, 0)
+        _ -> Main::walk(main, view, 0)
     }
 }
 
-machine Main::walk(&mut self, entries: &[Entry], index: u64)
+machine Main::walk(main: &mut Main, entries: &[Entry], index: u64)
 terminates by entries -> Slice::Length;
 -> u64
 {
     transition index < entries.len {
-        true -> walk(entries, index + 1)
+        true -> walk(main, entries, index + 1)
         false -> index
     }
 }
