@@ -285,7 +285,7 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
 }
 
 #[test]
-fn owned_transport_keeps_byte_predicates_and_rejects_view_descriptors() {
+fn owned_transport_keeps_byte_predicates_and_shared_view_field_descriptors() {
     use terminal_psi::{
         BindingRelevance, ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet,
         StructuralAccess, StructuralFieldDeclaration,
@@ -295,15 +295,64 @@ fn owned_transport_keeps_byte_predicates_and_rejects_view_descriptors() {
     let nested = StructuralTypeId::new(2).unwrap();
     let mut predicates = ByteSequencePredicateSet::EMPTY;
     predicates.insert(ByteSequencePredicate::ValidUtf8);
-    for carrier in [
-        ByteSequenceCarrier::BoundedOwned { capacity: 9 },
-        ByteSequenceCarrier::BoundedView {
-            access: Some(StructuralAccess::SharedBorrow),
-            capacity: 9,
-        },
-        ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        },
+    // Per carrier: the two-record array whose records hold the carrier as a
+    // field, then the two-element array of the carrier itself, then the
+    // carrier as a root.
+    for (carrier, field_array, leaf_array, leaf_root) in [
+        // A bounded owner travels with its length word and inline capacity
+        // wherever it sits.
+        (
+            ByteSequenceCarrier::BoundedOwned { capacity: 9 },
+            Some(48),
+            Some(48),
+            Some(17),
+        ),
+        // A bounded view's extent lives in its declaration, not its stored
+        // pointer; owned transport does not carry it.
+        (
+            ByteSequenceCarrier::BoundedView {
+                access: Some(StructuralAccess::SharedBorrow),
+                capacity: 9,
+            },
+            None,
+            None,
+            None,
+        ),
+        // A shared view field travels as its pointer and extent, as a
+        // reference field travels as its address; the copy keeps the
+        // source's loan. An array element or root view stays a descriptor
+        // rather than becoming an owned aggregate.
+        (
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+            Some(32),
+            None,
+            None,
+        ),
+        // An exclusive or write-only view cannot be duplicated by a copy.
+        (
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::WriteOnlyBorrow),
+            },
+            None,
+            None,
+            None,
+        ),
+        (
+            ByteSequenceCarrier::BorrowedView { access: None },
+            None,
+            None,
+            None,
+        ),
     ] {
         for qualified in [false, true] {
             let field_type = if qualified {
@@ -338,23 +387,19 @@ fn owned_transport_keeps_byte_predicates_and_rejects_view_descriptors() {
             ];
             assert_eq!(
                 owned_aggregate_shape(root, &declarations),
-                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
-                    .then_some(ValueShape::integer(48, 8)),
+                field_array.map(|size| ValueShape::integer(size, 8)),
                 "carrier {carrier:?}, qualified {qualified}",
             );
-            // A declared byte leaf has the same transport restriction. A
-            // bounded byte root is itself owned aggregate payload, its length
-            // word and inline capacity; a view root stays a descriptor.
             declarations[1].shape = StructuralTypeShape::ByteSequence(carrier);
             assert_eq!(
                 owned_aggregate_shape(root, &declarations),
-                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
-                    .then_some(ValueShape::integer(48, 8)),
+                leaf_array.map(|size| ValueShape::integer(size, 8)),
+                "carrier {carrier:?}",
             );
             assert_eq!(
                 owned_aggregate_shape(nested, &declarations),
-                matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
-                    .then_some(ValueShape::integer(17, 8)),
+                leaf_root.map(|size| ValueShape::integer(size, 8)),
+                "carrier {carrier:?}",
             );
         }
     }
