@@ -681,8 +681,12 @@ def measurement_stamp(golden) -> str | None:
         relative = Path(golden).resolve().relative_to(ROOT).as_posix()
     except ValueError:
         relative = None
+    # `git status --porcelain` writes `XY path` per line, but git_out strips
+    # the whole buffer, so a first line like ` M x` arrives as `M x`; parse
+    # the path after the status token instead of a fixed column.
     dirty = any(
-        line[3:].split(" -> ")[-1].strip().strip('"') != relative
+        line.strip().split(None, 1)[-1].split(" -> ")[-1].strip().strip('"')
+        != relative
         for line in status.splitlines() if line)
     return revision[:12] + ("+wt" if dirty else "")
 
