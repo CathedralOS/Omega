@@ -72,6 +72,12 @@ pub(super) struct Destination<'a> {
     /// carrier the authored store writes at, distinct from the rejoined
     /// leaf's own primitive.
     pub(super) recast_view: Option<typed_trees::types::PrimitiveType>,
+    /// The local root is an exclusive borrowed view established by the loan
+    /// ledger (`let view: &mut T = ...`), not owned storage: its referent
+    /// extents admit runtime element selectors whatever the referee's
+    /// declared shape — slice, record, or fixed array — where an owned
+    /// record local lowers a static carrier only.
+    pub(super) view_loan: bool,
     /// The target's admitted element selectors, when every indexed step is
     /// an element of a declared fixed array.
     selectors: Option<super::selectors::TargetSelectors>,
@@ -211,6 +217,7 @@ pub(super) fn resolve<'a>(
                 place,
                 dynamic_index,
                 recast_view,
+                view_loan: false,
                 selectors,
                 root_type: *referee,
                 root_owner,
@@ -240,6 +247,7 @@ pub(super) fn resolve<'a>(
                 place,
                 dynamic_index,
                 recast_view: None,
+                view_loan: false,
                 selectors,
                 root_type: local.type_reference,
                 root_owner: crate::facts::field_domain::data_definition_for_field_type(
@@ -340,6 +348,7 @@ fn owned_local_root<'a>(
         place,
         dynamic_index,
         recast_view: None,
+        view_loan: false,
         selectors,
         root_type: local.type_reference,
         root_owner: crate::facts::field_domain::data_definition_for_field_type(
@@ -536,18 +545,6 @@ impl<'a> Destination<'a> {
         }
         let owner = owner?;
         final_owner(owner).then_some(Carrier { path, owner })
-    }
-
-    /// Whether this destination roots at an established view local: an
-    /// exclusive borrowed-view root's referent is a slice, so a runtime
-    /// element selector is a legal carrier hop where an owned record local
-    /// keeps static carriers only.
-    pub(super) fn view_local_root(&self, program: &TypedTrees) -> bool {
-        matches!(self.root, Root::Local { .. })
-            && matches!(
-                program.type_reference_table.type_reference(self.root_type),
-                TypeReferenceNode::Slice { .. }
-            )
     }
 
     /// The canonical mutation-summary spelling of this destination's place:
@@ -933,6 +930,7 @@ fn borrowed_view_local_root<'a>(
         place,
         dynamic_index,
         recast_view: None,
+        view_loan: true,
         selectors,
         root_type: referee,
         root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),

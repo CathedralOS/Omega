@@ -645,6 +645,47 @@ pub(super) fn owned_local_place(
     Some((root, path, carrier))
 }
 
+/// A member path over an immutable borrowed view local (`view.entries`, or
+/// `view` whole) selects below the local's referent record: the `ViewLocal`
+/// root, the field path the members spell through that record, and the
+/// selected collection's declared type. The whole local selects its
+/// referent itself with an empty path.
+pub(super) fn view_local_place(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut base = expression;
+    while let ExpressionNode::Member(member) = program.expression_table.expression(base) {
+        if member.case_variant.is_some() {
+            return None;
+        }
+        base = member.receiver;
+    }
+    let (symbol, view_type) = view_local_root(program, parameters, base)?;
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+        return None;
+    };
+    if root_symbol != symbol {
+        return None;
+    }
+    let mut view_record = view_type;
+    loop {
+        match program.type_reference_table.type_reference(view_record) {
+            TypeReferenceNode::Constrained { base_type, .. } => view_record = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => view_record = *referee,
+            _ => break,
+        }
+    }
+    let (path, selected_type) = element_field_path(program, view_record, &place.segments)?;
+    Some((symbol, path, selected_type))
+}
+
 /// Empty spelling resolution is builtin only when the exact operand types
 /// independently carry the builtin index meaning.
 pub(super) fn indexed_read_is_builtin(

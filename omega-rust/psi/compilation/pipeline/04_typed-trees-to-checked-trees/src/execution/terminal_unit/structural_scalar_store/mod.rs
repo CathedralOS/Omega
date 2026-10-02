@@ -433,17 +433,15 @@ fn plan_assignment(
     };
     // Byte-field and whole-sum stores, and the scalar-graph lane's record
     // locals, lower a static carrier only: none of them evaluates a selector.
-    // An established view local is the exception — its referent is a slice
-    // whose runtime extent is the live bound, and its selector evaluates in
-    // the same assignment namespace a parameter-rooted store's would.
+    // An exclusive borrowed-view local is the exception — whatever the
+    // referee's declared shape, its selector evaluates in the same assignment
+    // namespace a parameter-rooted store's would, and the loan ledger already
+    // established the write authority emission resolves to the loaned home.
     let static_carrier = !carrier
         .path
         .iter()
         .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)));
-    if !static_carrier
-        && matches!(destination.root, Root::Local { .. })
-        && !destination.view_local_root(program)
-    {
+    if !static_carrier && matches!(destination.root, Root::Local { .. }) && !destination.view_loan {
         return None;
     }
     if let Some(capacity) = byte_leaf {
