@@ -14,14 +14,13 @@
 //! ("codecs are ordinary checked library machines whose generated bodies are
 //! Admitted").
 //!
-//! Generation is deliberately narrow and only ever narrows a red wall:
+//! Generation follows the supported wire storage shapes:
 //!
 //! * Only `data` declarations in product-scope sources whose non-erased
 //!   members are all `#N`-identified fields of a directly expressible shape
-//!   (u32/u64/i32/i64/bool scalars and fixed `[scalar; N]` arrays).
-//!   Borrowed-slice, text, `FixedVec`, nested-message, variant, retired, or
-//!   parameterized schemas decline — their calls keep meeting the intrinsic
-//!   wall instead of meeting generated walls.
+//!   (scalars, fixed arrays, borrowed slices, `FixedVec`, and scalar-member
+//!   nested messages). Borrowed non-byte slices can encode but need owning
+//!   destination storage to decode. Unsupported shapes decline generation.
 //! * Only operations with at least one statement call site whose argument
 //!   types render exactly (a borrow of a named `let` local or of a `self`
 //!   field). Every site for one (schema, operation) must agree on one
@@ -29,6 +28,12 @@
 //!   standing wall.
 //! * Never for uncalled pairs: an unused generated machine whose body meets
 //!   an open wall would newly fail a program that currently compiles.
+//! * Storage shape is independent of predicate validation. Encoding reads
+//!   established values; decoding must execute the destination's declared
+//!   predicates before assignment. The parser's bound subject occurrences
+//!   supply substitution, and ordinary source checking verifies each guarded
+//!   store. Neither a matching carrier nor compiler-generated origin grants a
+//!   domain. Unavailable predicate source declines decoding, not encoding.
 //!
 //! The emitted state chains mirror `wire_encode_body`/`wire_decode_body` in
 //! the checked interpreter byte-for-byte: current-era varint, per-field tag
@@ -37,10 +42,12 @@
 //! (truncation, eleventh group, tenth payload above one, overlong zero
 //! terminal), the sticky `bad` flag with every operation still running after
 //! a violation, and the final cursor/verdict write-throughs. One deliberate
-//! divergence: a repeated-body open whose length is out of range runs the
+//! difference: a repeated-body open whose length is out of range runs the
 //! element reads with `end = 0` rather than the interpreter's wrapped cursor
 //! sum — u64 `+` would trap where the interpreter only flags — and the close
 //! check flags `bad` either way.
+//! A failed domain guard also skips replacement: Invalid leaves partial output
+//! unspecified, but it cannot expose invalid bytes in an established field.
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -329,7 +336,7 @@ pub(crate) fn generated_wire_codec_source(
     }
 }
 
-/// A domain's parser-bound value occurrences belong to its scalar carrier,
+/// A domain's parser-bound value occurrences belong to its declared carrier,
 /// not the generated decoder's destination record (also named `value`).
 struct DomainPredicate {
     carrier: String,
@@ -345,6 +352,10 @@ struct DomainPredicate {
 struct StorePredicate {
     segments: Vec<String>,
 }
+
+/// Shape admission is separate from executable validation. Encoding consumes
+/// an already-qualified value; only decoding needs to establish its predicates.
+type StoreFacts = Result<Vec<StorePredicate>, ()>;
 
 impl StorePredicate {
     fn from_source(sources: &SourceMap, span: SourceSpan, subjects: &[SourceSpan]) -> Self {
@@ -399,11 +410,7 @@ fn collect_domains(
         if !product_sources.contains(&domain.name.source_span().source_id.0) {
             continue;
         }
-        let TypeReferenceNode::Named(carrier) = syntax_trees
-            .tables
-            .type_references
-            .type_reference(domain.target_type)
-        else {
+        let Some(carrier) = type_text(syntax_trees, domain.target_type) else {
             continue;
         };
         for index in 0..domain.facts.count() {
@@ -416,7 +423,7 @@ fn collect_domains(
                     .entry(domain.name.as_str().to_owned())
                     .or_default()
                     .push(DomainPredicate {
-                        carrier: carrier.as_str().to_owned(),
+                        carrier: carrier.clone(),
                         predicate: StorePredicate::from_source(sources, span, &subjects),
                     });
             }
@@ -437,7 +444,7 @@ fn constraint_facts(
     domains: &HashMap<String, Vec<DomainPredicate>>,
     constraints: &[syntax_trees::types::TypeConstraintNode],
     base_name: &str,
-) -> Result<Vec<StorePredicate>, ()> {
+) -> StoreFacts {
     let mut facts = Vec::new();
     for constraint in constraints {
         match constraint {
@@ -490,7 +497,7 @@ fn constraint_facts(
 }
 
 /// The store-side fact texts a value field constrains the member with
-/// (subject occurrences retained for operand substitution). `Err` marks a field
+/// (subject occurrences retained for operand substitution). `None` marks a field
 /// that does not carry the member's shape — emitting a machine over it
 /// would fail checking itself, so the caller declines the operation.
 /// `array_length` peels a fixed array first for element stores, matching
@@ -502,30 +509,55 @@ fn value_field_facts(
     field: Option<TypeReferenceHandle>,
     expected: ScalarKind,
     array_length: Option<usize>,
-) -> Result<Vec<StorePredicate>, ()> {
-    let Some(mut handle) = field else {
-        return Err(());
-    };
+) -> Option<StoreFacts> {
+    let mut handle = field?;
     if let Some(length) = array_length {
         let TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(declared),
         } = syntax_trees.tables.type_references.type_reference(handle)
         else {
-            return Err(());
+            return None;
         };
         if *declared != length {
-            return Err(());
+            return None;
         }
         handle = *element_type;
     }
-    let mut facts = Vec::new();
-    if let TypeReferenceNode::Constrained {
+    let (handle, facts) = store_type_facts(syntax_trees, sources, domains, handle, expected.name());
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) if name.as_str() == expected.name() => {
+            Some(facts.and_then(|facts| {
+                // Boolean decoding stores `raw != 0`, not the integer operand
+                // used by scalar guards. Do not substitute the wrong carrier.
+                if expected == ScalarKind::Bool && !facts.is_empty() {
+                    Err(())
+                } else {
+                    Ok(facts)
+                }
+            }))
+        }
+        _ => None,
+    }
+}
+
+/// Peeling storage never discards its qualifications. Both scalar stores and
+/// borrowed-view replacement validate these predicates on the decoded operand
+/// before exposing it through a domain-qualified destination.
+fn store_type_facts(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
+    mut handle: TypeReferenceHandle,
+    carrier: &str,
+) -> (TypeReferenceHandle, StoreFacts) {
+    let mut facts = Ok(Vec::new());
+    while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
     } = syntax_trees.tables.type_references.type_reference(handle)
     {
-        facts.extend(constraint_facts(
+        let additional = constraint_facts(
             syntax_trees,
             sources,
             domains,
@@ -533,14 +565,15 @@ fn value_field_facts(
                 .tables
                 .type_references
                 .constraints(*constraints),
-            expected.name(),
-        )?);
+            carrier,
+        );
+        facts = facts.and_then(|mut facts| {
+            facts.extend(additional?);
+            Ok(facts)
+        });
         handle = *base_type;
     }
-    match syntax_trees.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) if name.as_str() == expected.name() => Ok(facts),
-        _ => Err(()),
-    }
+    (handle, facts)
 }
 
 /// The field-name -> declared-type map for a `data` declaration (used to read
@@ -2044,8 +2077,8 @@ fn signature_value_type(signature: &[String]) -> &str {
 /// Pre-pass over members: the value type's declared field must carry the
 /// member's scalar (or element scalar) shape, and the domain/range facts it
 /// constrains retain their subject for the store guard.
-/// `None` — mismatched or unverifiable — declines the operation before any
-/// machine text is emitted, keeping the call on the intrinsic wall.
+/// `None` marks mismatched storage. Unavailable predicates stay as per-member
+/// errors so encoding can use the shape while decoding declines before emission.
 fn member_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
@@ -2054,25 +2087,21 @@ fn member_facts(
     schemas: &[(String, Vec<WireMemberShape>)],
     value_type: &str,
     members: &[WireMemberShape],
-) -> Option<Vec<Vec<StorePredicate>>> {
+) -> Option<Vec<StoreFacts>> {
     let value_fields = data_fields.get(value_type)?;
     let mut all = Vec::with_capacity(members.len());
     for member in members {
-        // A borrowed-slice member carries no store-side scalar facts to
-        // collect: the check is only that the value type's field is the same
-        // `&[E]` view the schema declares.
+        // A view's storage shape and its destination predicates are independent
+        // obligations: matching &[E] cannot establish a qualified byte domain.
         if let MemberShape::BorrowedSlice { element } = &member.shape {
-            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
-                return None;
+            let field_handle = value_fields.get(member.name.as_str()).copied()?;
+            let element_name = match element {
+                SliceElement::Byte => "u8",
+                SliceElement::Scalar(kind) => kind.name(),
             };
-            let mut field_handle = field_handle;
-            if let TypeReferenceNode::Constrained { base_type, .. } = syntax_trees
-                .tables
-                .type_references
-                .type_reference(field_handle)
-            {
-                field_handle = *base_type;
-            }
+            let carrier = format!("[{element_name}]");
+            let (field_handle, facts) =
+                store_type_facts(syntax_trees, sources, domains, field_handle, &carrier);
             let TypeReferenceNode::Reference {
                 referee, access, ..
             } = syntax_trees
@@ -2085,14 +2114,14 @@ fn member_facts(
             if access.is_exclusive() {
                 return None;
             }
-            let mut referee = *referee;
             // `&([E] in Domain)`: the slice's qualification binds inside the
-            // reference — peel it to compare element storage shapes.
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                syntax_trees.tables.type_references.type_reference(referee)
-            {
-                referee = *base_type;
-            }
+            // reference; retain its predicates as well as outer qualifications.
+            let (referee, referee_facts) =
+                store_type_facts(syntax_trees, sources, domains, *referee, &carrier);
+            let facts = facts.and_then(|mut facts| {
+                facts.extend(referee_facts?);
+                Ok(facts)
+            });
             let TypeReferenceNode::Slice { element_type } =
                 syntax_trees.tables.type_references.type_reference(referee)
             else {
@@ -2101,16 +2130,14 @@ fn member_facts(
             if slice_element_of_type(syntax_trees, *element_type) != Some(*element) {
                 return None;
             }
-            all.push(Vec::new());
+            all.push(facts);
             continue;
         }
         // A `FixedVec<E, N>` member's value field must spell the same
         // instantiation; the element's own domain/range facts ride every
         // element store's guard exactly like a fixed array's.
         if let MemberShape::FixedVec { element, capacity } = &member.shape {
-            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
-                return None;
-            };
+            let field_handle = value_fields.get(member.name.as_str()).copied()?;
             let TypeReferenceNode::Generic {
                 base_name,
                 arguments,
@@ -2133,19 +2160,14 @@ fn member_facts(
             {
                 return None;
             }
-            let Ok(facts) = value_field_facts(
+            let facts = value_field_facts(
                 syntax_trees,
                 sources,
                 domains,
                 Some(arguments[0]),
                 *element,
                 None,
-            ) else {
-                return None;
-            };
-            if *element == ScalarKind::Bool && !facts.is_empty() {
-                return None;
-            }
+            )?;
             all.push(facts);
             continue;
         }
@@ -2155,9 +2177,7 @@ fn member_facts(
         // intrinsic wall, and the sub-member store guards re-collect the
         // scalar facts at emission.
         if let MemberShape::NestedMessage { schema } = &member.shape {
-            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
-                return None;
-            };
+            let field_handle = value_fields.get(member.name.as_str()).copied()?;
             let TypeReferenceNode::Named(value_name) = syntax_trees
                 .tables
                 .type_references
@@ -2165,34 +2185,28 @@ fn member_facts(
             else {
                 return None;
             };
-            let Some(nested_fields) = data_fields.get(value_name.as_str()) else {
-                return None;
-            };
-            let Some((_, sub_members)) = schemas
+            let nested_fields = data_fields.get(value_name.as_str())?;
+            let (_, sub_members) = schemas
                 .iter()
-                .find(|(name, _)| name.as_str() == schema.as_str())
-            else {
-                return None;
-            };
+                .find(|(name, _)| name.as_str() == schema.as_str())?;
+            let mut requirements = Ok(Vec::new());
             for sub in sub_members {
                 let MemberShape::Scalar(kind) = &sub.shape else {
                     return None;
                 };
-                let Ok(facts) = value_field_facts(
+                let facts = value_field_facts(
                     syntax_trees,
                     sources,
                     domains,
                     nested_fields.get(sub.name.as_str()).copied(),
                     *kind,
                     None,
-                ) else {
-                    return None;
-                };
-                if *kind == ScalarKind::Bool && !facts.is_empty() {
-                    return None;
-                }
+                )?;
+                // Nested guards are emitted per field, but failure to resolve
+                // any predicate must decline decoding before text is emitted.
+                requirements = requirements.and(facts.map(|_| Vec::new()));
             }
-            all.push(Vec::new());
+            all.push(requirements);
             continue;
         }
         let (expected, array_length) = match &member.shape {
@@ -2202,19 +2216,14 @@ fn member_facts(
             | MemberShape::FixedVec { .. }
             | MemberShape::NestedMessage { .. } => unreachable!("handled above"),
         };
-        let Ok(facts) = value_field_facts(
+        let facts = value_field_facts(
             syntax_trees,
             sources,
             domains,
             value_fields.get(member.name.as_str()).copied(),
             expected,
             array_length,
-        ) else {
-            return None;
-        };
-        if expected == ScalarKind::Bool && !facts.is_empty() {
-            return None;
-        }
+        )?;
         all.push(facts);
     }
     Some(all)
@@ -2258,7 +2267,7 @@ fn nested_sub_facts(
                 nested_fields.get(sub.name.as_str()).copied(),
                 *kind,
                 None,
-            )
+            )?
             .ok()?,
         );
     }
@@ -2486,6 +2495,9 @@ fn emit_decode_machine(
     ) else {
         return;
     };
+    let Ok(facts_by_member) = facts_by_member.into_iter().collect::<Result<Vec<_>, _>>() else {
+        return;
+    };
     // A borrowed slice of non-`u8` elements decodes through owning storage —
     // the zero-copy re-view has nothing to point at — so that member kind
     // keeps the whole machine unemitted rather than dangling a content stage.
@@ -2667,8 +2679,41 @@ fn emit_decode_machine(
                     "start: u64, end: u64",
                     &format!("start <= end && end <= {}", emitter.limit),
                     &format!(
-                        "        value.{} = buffer[start..end];\n        transition {{ _ -> {}(value, buffer, read, verdict, end, bad) }}\n",
-                        member.name, after
+                        "        let decoded: &[u8] = buffer[start..end];\n        transition {{ _ -> {view_ok}_validate(value, buffer, read, verdict, end, bad, decoded) }}\n"
+                    ),
+                );
+                // Runtime checks establish exactly the view passed to the
+                // store. Invalid bytes leave the destination untouched; the
+                // codec contract leaves partial output unspecified on Invalid,
+                // but ordinary checked fields must retain their invariants.
+                let requires = facts_by_member[member_index]
+                    .iter()
+                    .map(|fact| format!("({})", fact.instantiate("decoded")))
+                    .collect::<Vec<_>>()
+                    .join(" && ");
+                let write = format!("{view_ok}_write");
+                let validation = if requires.is_empty() {
+                    format!(
+                        "        transition {{ _ -> {write}(value, buffer, read, verdict, at, bad, decoded) }}\n"
+                    )
+                } else {
+                    format!(
+                        "        transition {requires} {{\n            true -> {write}(value, buffer, read, verdict, at, bad, decoded)\n            _ -> {after}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+                    )
+                };
+                emitter.state(
+                    &format!("{view_ok}_validate"),
+                    "decoded: &[u8]",
+                    "",
+                    &validation,
+                );
+                emitter.state(
+                    &write,
+                    "decoded: &[u8]",
+                    &requires,
+                    &format!(
+                        "        value.{} = decoded;\n        transition {{ _ -> {after}(value, buffer, read, verdict, at, bad) }}\n",
+                        member.name
                     ),
                 );
                 emitter.state(
@@ -2740,6 +2785,67 @@ fn emit_decode_machine(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn generated_byte_codec(domain: &str) -> Option<String> {
+        let source = format!(
+            r#"{domain}
+            data Message {{ #0 label: &[u8] in Text; }}
+            data Sample {{ label: &[u8] in Text; }}
+            data Verdict {{ case Invalid; case Sound; }}
+            data Main {{ buffer: [u8; 16]; read: u64; verdict: Verdict; }}
+            machine Main::main(main: &mut Main) {{
+                let sample: Sample;
+                Message::encode(&sample, &mut main.buffer, &mut main.read);
+                Message::decode(&mut sample, &main.buffer, &mut main.read, &mut main.verdict);
+            }}"#
+        );
+        let mut sources = SourceMap::default();
+        let source_id = sources.add("wire.omg".into(), source.clone()).source_id;
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        generated_wire_codec_source(&syntax, &sources)
+    }
+
+    #[test]
+    fn byte_view_decode_guards_the_declared_predicates_before_storage() {
+        let generated = generated_byte_codec(
+            "domain [u8]::Text(bytes) requires valid_utf8(bytes) && no_nul(bytes);",
+        )
+        .expect("both ordinary codec bodies");
+        assert!(generated.contains("machine Message::encode"));
+        assert!(generated.contains("machine Message::decode"));
+        assert!(generated.contains("transition (valid_utf8(decoded) && no_nul(decoded))"));
+        assert!(
+            generated.contains("decoded: &[u8]) requires (valid_utf8(decoded) && no_nul(decoded))")
+        );
+        assert!(generated.contains("value.label = decoded;"));
+        assert!(!generated.contains("value.label = buffer[start..end];"));
+        let validation = generated
+            .split("state field_0_view_validate")
+            .nth(1)
+            .unwrap()
+            .split("state field_0_view_write")
+            .next()
+            .unwrap();
+        assert!(validation.contains("true -> field_0_view_write"));
+        assert!(
+            validation.contains("_ -> decode_finish(value, buffer, read, verdict, at, bad + 1)")
+        );
+        assert!(!validation.contains("value.label ="));
+    }
+
+    #[test]
+    fn unavailable_decode_predicates_do_not_prevent_encoding() {
+        for domain in ["", "domain u32::Text(number) requires number <= 10;"] {
+            let generated =
+                generated_byte_codec(domain).expect("encoding needs only storage shape");
+            assert!(generated.contains("machine Message::encode"));
+            assert!(!generated.contains("machine Message::decode"));
+        }
+    }
 
     fn predicates(source: &str, domain: &str, operand: &str) -> Vec<String> {
         let mut sources = SourceMap::default();

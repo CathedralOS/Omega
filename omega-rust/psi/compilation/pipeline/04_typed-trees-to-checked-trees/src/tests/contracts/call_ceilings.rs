@@ -60,6 +60,94 @@ fn builtin_call_keeps_unrelated_live_facts() {
     }
 }
 
+#[test]
+fn byte_predicate_calls_keep_unrelated_live_facts() {
+    for predicate in ["valid_utf8", "no_nul", "ascii_only", "non_empty"] {
+        check(
+            &format!(
+                r#"{DEFINITIONS}
+                machine Record::probe(&mut self) {{
+                    self.out.bytes = "XXX";
+                    let checked: bool = {predicate}(self.other.bytes);
+                    let observed: u8 = self.out.bytes[2];
+                }}"#
+            ),
+            true,
+        );
+    }
+}
+
+#[test]
+fn byte_predicate_guard_preserves_field_domains_on_both_arms() {
+    let source = r#"
+        domain [u8]::Text(bytes) requires valid_utf8(bytes);
+        data Record { label: &[u8] in Text; }
+        machine probe(value: &mut Record, bytes: &[u8]) {
+            transition valid_utf8(bytes) {
+                true -> valid(value, bytes)
+                false -> invalid(value)
+            }
+            state valid(value: &mut Record, bytes: &[u8]) requires valid_utf8(bytes) {
+                value.label = bytes;
+            }
+            state invalid(value: &mut Record) {}
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn declared_byte_predicate_name_does_not_hide_storage_writes() {
+    let source = r#"
+            data Record { count: u64; }
+            machine valid_utf8(slot: &mut Record) -> bool {
+                slot.count = 0;
+                transition { _ -> true }
+            }
+            machine needs_seven(value: u64) requires value == 7 {}
+            machine probe(record: &mut Record) {
+                record.count = 7;
+                let checked: bool = valid_utf8(record);
+                needs_seven(record.count);
+            }
+        "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect_err("the declared machine invalidates the argument's scalar fact");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call needs_seven")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn byte_predicate_calls_do_not_restore_prior_mutated_facts() {
+    let source = r#"
+        data Record { count: u64; }
+        machine replace(record: &mut Record, bytes: &[u8]) -> &[u8] {
+            record.count = 0;
+            transition { _ -> bytes }
+        }
+        machine needs_seven(value: u64) requires value == 7 {}
+        machine probe(record: &mut Record, bytes: &[u8]) {
+            record.count = 7;
+            let decoded: &[u8] = replace(record, bytes);
+            let checked: bool = valid_utf8(decoded);
+            needs_seven(record.count);
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect_err("observing a call result cannot erase its operand's mutation");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call needs_seven")),
+        "{diagnostics:#?}"
+    );
+}
+
 /// The retirement observed through scalar facts a call never hands back:
 /// `count == 7` survives a call exactly where the call could not write.
 fn check_scalar_survivals(source: &str, retired: &[&str], surviving: &[&str]) {
