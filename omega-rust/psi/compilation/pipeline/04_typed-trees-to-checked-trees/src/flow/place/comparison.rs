@@ -8,7 +8,12 @@ pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment
     }
 }
 
+/// Whether two segment spellings select the same storage at one program point.
+/// Runtime `Index` operands compare by structural expression identity — a
+/// `buffer[a..b]` spelled inside a `requires` clause selects the same window the
+/// body's re-spelled `buffer[a..b]` selects, even though the arena nodes differ.
 pub(crate) fn canonical_place_segments_equal(
+    program: &typed_trees::TypedTrees,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
@@ -47,13 +52,23 @@ pub(crate) fn canonical_place_segments_equal(
             },
         ) => left_start == right_start && left_end == right_end,
         (
+            facts::PlaceSegment::FixedIndex { index },
+            facts::PlaceSegment::Index { expression },
+        )
+        | (
+            facts::PlaceSegment::Index { expression },
+            facts::PlaceSegment::FixedIndex { index },
+        ) => expression_static_index(program, expression).is_some_and(|value| value == index),
+        (
             facts::PlaceSegment::Index {
                 expression: left_expression,
             },
             facts::PlaceSegment::Index {
                 expression: right_expression,
             },
-        ) => left_expression == right_expression,
+        ) => program
+            .expression_table
+            .expressions_structurally_equal(left_expression, right_expression),
         _ => false,
     }
 }
@@ -62,6 +77,7 @@ use checked_trees::expression::ExpressionHandle;
 
 #[allow(dead_code)]
 pub(crate) fn canonical_place_overlaps_segments(
+    program: &typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
@@ -70,8 +86,27 @@ pub(crate) fn canonical_place_overlaps_segments(
         .take(shared_len)
         .zip(right.iter().take(shared_len))
         .all(|(left_segment, right_segment)| {
-            canonical_place_segments_equal(*left_segment, *right_segment)
+            canonical_place_segments_equal(program, *left_segment, *right_segment)
         })
+}
+
+/// Whether two canonical places name the same storage at one program point:
+/// the event-normalized roots match and every segment pair selects the same
+/// storage. The one place-equality operation fact lookups share — a fact read
+/// must only match a place provably identical to its subject.
+pub(crate) fn canonical_places_agree(
+    program: &typed_trees::TypedTrees,
+    left: &super::CanonicalPlace,
+    right: &super::CanonicalPlace,
+) -> bool {
+    crate::flow::ownership::normalized_event_place_root(program, left.root)
+        == crate::flow::ownership::normalized_event_place_root(program, right.root)
+        && left.segments.len() == right.segments.len()
+        && left
+            .segments
+            .iter()
+            .zip(right.segments.iter())
+            .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
 }
 
 pub(crate) fn canonical_place_segments_may_overlap(

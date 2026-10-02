@@ -205,7 +205,6 @@ fn payloads_at_place<'a>(
     if let Some(payload) = literal_assignment_payload(program, subject) {
         return vec![payload];
     }
-    let subject_root = normalized_event_place_root(program, subject.root);
     contexts
         .into_iter()
         .flat_map(|context| {
@@ -226,9 +225,7 @@ fn payloads_at_place<'a>(
                     semantic,
                     semantic.places.get(place),
                 )?;
-                if normalized_event_place_root(program, candidate.root) != subject_root
-                    || candidate.segments != subject.segments
-                {
+                if !crate::flow::canonical_places_agree(program, &candidate, subject) {
                     return None;
                 }
                 if has_completed_call_snapshot(program, semantic, context, fact) {

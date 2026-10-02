@@ -50,7 +50,7 @@ pub(in crate::checks::contracts) fn segments_cover_subject(
             .iter()
             .zip(subject.iter())
             .all(|(candidate, subject)| {
-                crate::flow::canonical_place_segments_equal(*candidate, *subject)
+                crate::flow::canonical_place_segments_equal(program, *candidate, *subject)
                     || segment_covers_subject(program, *candidate, *subject)
             })
 }
@@ -163,7 +163,7 @@ fn recorded_element_extent(
                     if at == position {
                         matches!(candidate, facts::PlaceSegment::FixedIndex { .. })
                     } else {
-                        crate::flow::canonical_place_segments_equal(*candidate, *subject)
+                        crate::flow::canonical_place_segments_equal(program, *candidate, *subject)
                     }
                 })
         {
@@ -293,9 +293,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
                         semantic.places.get(place),
                     )
                     .is_some_and(|candidate| {
-                        normalized_event_place_root(program, candidate.root)
-                            == normalized_event_place_root(program, subject.root)
-                            && candidate.segments == subject.segments
+                        crate::flow::canonical_places_agree(program, &candidate, subject)
                     })
             })
     })
@@ -417,9 +415,7 @@ impl AssignedValues<'_> {
                         self.semantic,
                         self.semantic.places.get(place),
                     )?;
-                    (normalized_event_place_root(self.program, candidate.root)
-                        == normalized_event_place_root(self.program, subject.root)
-                        && candidate.segments == subject.segments)
+                    crate::flow::canonical_places_agree(self.program, &candidate, subject)
                         .then_some(variant)
                 })
         })

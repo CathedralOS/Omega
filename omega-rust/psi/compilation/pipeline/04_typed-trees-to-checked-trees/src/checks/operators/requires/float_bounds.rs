@@ -206,7 +206,7 @@ fn expression_has_place(
     expected: &CanonicalPlace,
 ) -> bool {
     canonical_place_from_expression(program, expression)
-        .is_some_and(|place| places_equal(program, &place, expected))
+        .is_some_and(|place| crate::flow::canonical_places_agree(program, &place, expected))
 }
 
 fn fact_has_place(
@@ -219,18 +219,7 @@ fn fact_has_place(
         return false;
     };
     crate::flow::canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-        .is_some_and(|place| places_equal(program, &place, expected))
-}
-
-fn places_equal(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
-    crate::flow::normalized_event_place_root(program, left.root)
-        == crate::flow::normalized_event_place_root(program, right.root)
-        && left.segments.len() == right.segments.len()
-        && left
-            .segments
-            .iter()
-            .zip(&right.segments)
-            .all(|(left, right)| crate::flow::canonical_place_segments_equal(*left, *right))
+        .is_some_and(|place| crate::flow::canonical_places_agree(program, &place, expected))
 }
 
 fn point_owner(point: ProgramPoint) -> SymbolHandle {

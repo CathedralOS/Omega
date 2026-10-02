@@ -212,6 +212,7 @@ fn accepts_disjoint_member_borrow_arguments() {
             .span_or_empty(accesses[1].segments),
     );
     assert!(!canonical_place_overlaps_segments(
+        &typed,
         facts
             .borrow
             .access_segments

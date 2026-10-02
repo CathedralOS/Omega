@@ -917,7 +917,7 @@ fn place_segments_proven_equal(
                     .is_some_and(|right| left == right)
             })
         }
-        _ => crate::flow::canonical_place_segments_equal(left, right),
+        _ => crate::flow::canonical_place_segments_equal(program, left, right),
     }
 }
 

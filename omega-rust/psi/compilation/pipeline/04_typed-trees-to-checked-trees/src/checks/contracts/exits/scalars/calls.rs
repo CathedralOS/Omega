@@ -162,7 +162,7 @@ impl ExitScalars<'_, '_> {
                 ) else {
                     continue;
                 };
-                if candidate.root != subject.root || candidate.segments != subject.segments {
+                if !crate::flow::canonical_places_agree(self.program, &candidate, &subject) {
                     continue;
                 }
                 let FactPayload::AssignedValue { value } = fact.payload else {

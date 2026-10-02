@@ -288,7 +288,7 @@ pub(crate) fn rebase_exact_local_place(
             .segments
             .iter()
             .zip(&origin.local_segments)
-            .all(|(left, right)| canonical_place_segments_equal(*left, *right))
+            .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
     {
         return None;
     }

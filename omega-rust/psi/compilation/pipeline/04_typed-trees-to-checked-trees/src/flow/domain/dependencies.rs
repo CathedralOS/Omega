@@ -159,6 +159,6 @@ fn compute_domain_dependency_segments(
     }
 
     visiting.remove(&domain_key);
-    dedupe_dependency_segments(&mut dependencies);
+    dedupe_dependency_segments(program, &mut dependencies);
     dependencies
 }
