@@ -8,12 +8,16 @@
 //! ordinary whole-input fence. This proves interference only, not loan closure.
 
 use super::address_joins::borrowed_regions::{BorrowedRegions, Projection};
-use super::storage_regions::written_or_exclusive_regions;
+use super::storage_regions::{storage_cannot_retain_loan, written_or_exclusive_regions};
+use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
+use terminal_psi::{
+    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 #[derive(Clone)]
 struct ParameterMutation {
@@ -39,8 +43,9 @@ impl CallAccesses {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let mut result = Self::default();
+        let mut closed_storage = BTreeMap::new();
         for machine in functions.keys() {
-            result.reconstruct(*machine, functions, types);
+            result.reconstruct(*machine, functions, types, &mut closed_storage);
         }
         result
     }
@@ -50,6 +55,7 @@ impl CallAccesses {
         machine: MachineId,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        closed_storage: &mut BTreeMap<StructuralTypeId, bool>,
     ) {
         if self.functions.contains_key(&machine) {
             return;
@@ -63,7 +69,7 @@ impl CallAccesses {
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
             if let O::CallStructural { callee, .. } = &node.operation {
-                self.reconstruct(*callee, functions, types);
+                self.reconstruct(*callee, functions, types, closed_storage);
                 if !self.functions.get(callee).is_some_and(Option::is_some) {
                     return;
                 }
@@ -83,17 +89,27 @@ impl CallAccesses {
                 completion_receipts,
                 ..
             } = &node.operation
-                && (structural_arguments
-                    .iter()
-                    .any(|argument| argument.access == StructuralAccess::Owned)
-                    || !completion_claim_sources.is_empty()
+                && (structural_arguments.iter().any(|argument| {
+                    argument.access == StructuralAccess::Owned
+                        || !structural_source_contract(function, argument.place, true).is_some_and(
+                            |source| {
+                                boundary_storage_is_closed(
+                                    types,
+                                    source.structural_type,
+                                    &argument.path,
+                                    closed_storage,
+                                )
+                            },
+                        )
+                }) || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty())
             {
-                // Service reach grants no storage authority. Direct borrowed
-                // actuals have the declared access and exact referent projection
-                // checked by the boundary-call contract, so the ordinary write
-                // inventory bounds their effects. Owned carriers and completion
-                // custody need a separate mapping of carried authority.
+                // A borrowed record may contain a mutable reference: its
+                // boundary callee can then write outside the record's bytes.
+                // Exact outer access alone cannot bound that carried authority.
+                // Closed referents and direct view payloads use the ordinary
+                // backing inventory; other carriers and completion custody
+                // require an additional authority mapping.
                 return;
             }
             if let O::Return {
@@ -189,5 +205,120 @@ impl CallAccesses {
                 .collect();
         }
         written_or_exclusive_regions(function, types, operation)
+    }
+}
+
+fn boundary_storage_is_closed(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    source: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    established: &mut BTreeMap<StructuralTypeId, bool>,
+) -> bool {
+    let Some(selected) = resolve_structural_path(types, source, path) else {
+        return false;
+    };
+    // A direct descriptor is already a backing alias in BorrowedRegions.
+    // A descriptor nested inside a record is not that record's own backing.
+    if path.is_empty() {
+        match types.get(&selected).map(|declaration| &declaration.shape) {
+            Some(StructuralTypeShape::ByteSequence(carrier)) if carrier.is_borrowed() => {
+                return true;
+            }
+            Some(StructuralTypeShape::ElementView { element }) => {
+                return storage_cannot_retain_loan(types, *element, established);
+            }
+            _ => {}
+        }
+    }
+    storage_cannot_retain_loan(types, selected, established)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+
+    #[test]
+    fn descriptor_loans_boundary_summary_rejects_nested_carried_authority() {
+        let identity = |number| StructuralTypeId::new(number).unwrap();
+        let record = |child| StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "payload".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(identity(child)),
+            }],
+        };
+        let declarations = [
+            StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Boolean),
+            record(1),
+            StructuralTypeShape::Reference {
+                referent: identity(1),
+                access: StructuralAccess::MutableBorrow,
+            },
+            record(3),
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            }),
+            record(5),
+            StructuralTypeShape::ElementView {
+                element: identity(2),
+            },
+            StructuralTypeShape::ElementView {
+                element: identity(4),
+            },
+            StructuralTypeShape::FusedServiceBinding,
+            record(10),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, shape)| StructuralTypeDeclaration {
+            id: identity(index as u64 + 1),
+            identity: format!("test::Storage{index}"),
+            shape,
+        })
+        .collect::<Vec<_>>();
+        let types = declarations.iter().map(|row| (row.id, row)).collect();
+        let mut established = BTreeMap::new();
+        for (number, closed) in [
+            (1, true),
+            (2, true),
+            (3, false),
+            (4, false),
+            (5, true),
+            (6, false),
+            (7, true),
+            (8, false),
+            (9, false),
+            (10, false),
+            (11, false),
+        ] {
+            assert_eq!(
+                boundary_storage_is_closed(&types, identity(number), &[], &mut established),
+                closed,
+                "boundary storage type {number}"
+            );
+        }
+        let path = [StructuralPathSegment::Field("payload".into())];
+        assert!(boundary_storage_is_closed(
+            &types,
+            identity(2),
+            &path,
+            &mut established,
+        ));
+        for number in [4, 6] {
+            assert!(!boundary_storage_is_closed(
+                &types,
+                identity(number),
+                &path,
+                &mut established,
+            ));
+        }
+        assert!(!boundary_storage_is_closed(
+            &types,
+            identity(2),
+            &[StructuralPathSegment::Field("missing".into())],
+            &mut established,
+        ));
     }
 }

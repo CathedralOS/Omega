@@ -11,15 +11,15 @@
 //! Unknown escapes conservatively retain the loan until the activation ends.
 //! Possible origins establish interference only, never permission or equality.
 
+use super::super::storage_regions::storage_cannot_retain_loan;
 use super::borrowed_regions::{BorrowedRegions, Position, Projection, Region};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
-    StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
+#[cfg(test)]
+use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
 struct DescriptorLoan {
     regions: Vec<Region>,
@@ -239,67 +239,6 @@ fn known_descriptor_use(
             | O::Crash { .. }
             | O::EstablishRecord { .. }
     )
-}
-
-/// This is a storage property, not a constructor whitelist. Every case and
-/// nested element must be closed owned data; missing or recursive declarations
-/// cannot prove absence of an alias. Mark an in-progress declaration false so
-/// cycles fail conservatively. Reuse the result across this function's calls;
-/// storage declarations do not change while the descriptor flow is built.
-fn storage_cannot_retain_loan(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-    established: &mut BTreeMap<StructuralTypeId, bool>,
-) -> bool {
-    if let Some(result) = established.get(&structural_type) {
-        return *result;
-    }
-    established.insert(structural_type, false);
-    let Some(declaration) = types.get(&structural_type) else {
-        return false;
-    };
-    let result = match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(_) => true,
-        StructuralTypeShape::ByteSequence(carrier) => !carrier.is_borrowed(),
-        StructuralTypeShape::Record { fields } => {
-            fields_cannot_retain_loan(types, fields, established)
-        }
-        StructuralTypeShape::FixedArray { element, .. } => {
-            storage_cannot_retain_loan(types, *element, established)
-        }
-        StructuralTypeShape::Sum { cases } => cases
-            .iter()
-            .all(|case| fields_cannot_retain_loan(types, &case.fields, established)),
-        StructuralTypeShape::Mixed { fields, cases } => {
-            fields_cannot_retain_loan(types, fields, established)
-                && cases
-                    .iter()
-                    .all(|case| fields_cannot_retain_loan(types, &case.fields, established))
-        }
-        StructuralTypeShape::FusedServiceBinding
-        | StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ElementView { .. } => false,
-    };
-    established.insert(structural_type, result);
-    result
-}
-
-fn fields_cannot_retain_loan(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    fields: &[StructuralFieldDeclaration],
-    established: &mut BTreeMap<StructuralTypeId, bool>,
-) -> bool {
-    fields.iter().all(|field| match &field.field_type {
-        StructuralFieldType::Scalar(_)
-        | StructuralFieldType::BoundedInteger(_)
-        | StructuralFieldType::IeeeFloat(_) => true,
-        StructuralFieldType::ByteSequence(carrier)
-        | StructuralFieldType::PredicateByteSequence { carrier, .. } => !carrier.is_borrowed(),
-        StructuralFieldType::Structural(child) => {
-            storage_cannot_retain_loan(types, *child, established)
-        }
-        StructuralFieldType::Erased { .. } => field.relevance.is_erased(),
-    })
 }
 
 /// Current-value transport, separate from the conservative backing-region
