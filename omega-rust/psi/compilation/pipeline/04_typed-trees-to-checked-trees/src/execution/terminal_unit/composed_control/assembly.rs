@@ -50,30 +50,15 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
 }
 
 pub(in crate::execution::terminal_unit) fn finish(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     attachment_type_identity: Option<String>,
     provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     states: Vec<CheckedComposedUnitControlStatePlan>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
-    let body_qualifications = facts
-        .qualifications
-        .for_machine(machine.symbol)
-        .map(|fact| {
-            fact.body_committed
-                .iter()
-                .copied()
-                .filter(|domain| {
-                    !matches!(
-                        *domain,
-                        language_semantics::SemanticDomainTable::WRAPPING
-                            | language_semantics::SemanticDomainTable::SATURATING
-                            | language_semantics::SemanticDomainTable::TRAPPING
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let body_qualifications =
+        super::super::types::body_structural_qualifications(program, facts, machine.symbol);
     if !body_qualifications.is_empty() {
         return None;
     }

@@ -537,7 +537,7 @@ pass/generics/generic_seq_consuming_map_filter checked 294ms @2d8ed253669f+wt
 pass/generics/machine_bound_satisfied_at_call checked 300ms @2d8ed253669f+wt
 pass/generics/machine_type_equations checked 354ms @2d8ed253669f+wt
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 284ms @2d8ed253669f+wt
-pass/generics/omitted_data_binder_range_equation checked 349ms @2d8ed253669f+wt
+pass/generics/omitted_data_binder_range_equation built 1130ms exit:92 @f64782b89114+wt
 pass/generics/open_computed_quantity_result rejected 769ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
 pass/generics/ranged_const_parameter_attached_shape built 773ms @2d8ed253669f+wt

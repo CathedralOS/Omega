@@ -12,11 +12,13 @@
 /// provenance obligation, it does not remove the predicates -- so each
 /// predicate is true of every member and an unrecognized one costs only
 /// precision, never soundness. A predicate naming anything but `self` and a
-/// closed integer literal is simply not read.
+/// closed integer literal or selected closed integer index is simply not read.
 ///
-/// An ALIAS expands to constituent requirements this reader does not walk, and
-/// an INDEXED family's bound carries a retained index identity a bare interval
-/// cannot represent; both decline.
+/// An alias expands to constituent requirements this reader does not walk.
+/// An indexed family contributes bounds only after its exact normalized
+/// application supplies every closed integer index. The summary never changes
+/// that application identity: it describes values of this selected instance,
+/// not compatibility between different indices or a way to infer an index.
 pub fn declared_domain_predicate_bounds(
     program: &typed_trees::TypedTrees,
     domain: &typed_trees::types::DomainConstraint,
@@ -94,19 +96,17 @@ fn predicate_interval(
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<PredicateInterval> {
     use typed_trees::types::DomainConstraintSubject;
-    if domain.subject != DomainConstraintSubject::Declared || !domain.arguments.is_empty() {
+    if domain.subject != DomainConstraintSubject::Declared {
         return None;
     }
     let definition = program
         .domain_definitions()
         .iter()
         .find(|definition| definition.symbol == domain.symbol)?;
-    if definition.alias.is_some()
-        || !definition.index_arguments.is_empty()
-        || !typed_trees::domain::index_parameters(program, definition).is_empty()
-    {
+    if definition.alias.is_some() {
         return None;
     }
+    let indices = closed_index_bindings(program, definition, domain)?;
     let mut interval = PredicateInterval {
         minimum: None,
         maximum: None,
@@ -117,20 +117,21 @@ fn predicate_interval(
             interval.exact = false;
             continue;
         };
-        interval.exact &= self_predicate_bounds(program, *expression, &mut |minimum, maximum| {
-            if let Some(minimum) = minimum {
-                interval.minimum = Some(match interval.minimum.take() {
-                    Some(prior) => minimum.max(prior),
-                    None => minimum,
-                });
-            }
-            if let Some(maximum) = maximum {
-                interval.maximum = Some(match interval.maximum.take() {
-                    Some(prior) => maximum.min(prior),
-                    None => maximum,
-                });
-            }
-        });
+        interval.exact &=
+            self_predicate_bounds(program, *expression, &indices, &mut |minimum, maximum| {
+                if let Some(minimum) = minimum {
+                    interval.minimum = Some(match interval.minimum.take() {
+                        Some(prior) => minimum.max(prior),
+                        None => minimum,
+                    });
+                }
+                if let Some(maximum) = maximum {
+                    interval.maximum = Some(match interval.maximum.take() {
+                        Some(prior) => maximum.min(prior),
+                        None => maximum,
+                    });
+                }
+            });
     }
     Some(interval)
 }
@@ -141,6 +142,7 @@ fn predicate_interval(
 fn self_predicate_bounds(
     program: &typed_trees::TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
+    indices: &[(symbols::SymbolHandle, numerics::bignum::BigInt)],
     bound: &mut impl FnMut(Option<numerics::bignum::BigInt>, Option<numerics::bignum::BigInt>),
 ) -> bool {
     use numerics::bignum::BigInt;
@@ -152,8 +154,8 @@ fn self_predicate_bounds(
         return false;
     };
     if binary.operator == BinaryOperator::And {
-        let left = self_predicate_bounds(program, binary.left, bound);
-        let right = self_predicate_bounds(program, binary.right, bound);
+        let left = self_predicate_bounds(program, binary.left, indices, bound);
+        let right = self_predicate_bounds(program, binary.right, indices, bound);
         return left && right;
     }
     let left_is_self = expression_is_bare_self(program, binary.left);
@@ -165,7 +167,21 @@ fn self_predicate_bounds(
         (false, true) => (binary.left, false),
         _ => return false,
     };
-    let Some(value) = crate::closed_integer_range_bound(program, literal) else {
+    let Some(value) = crate::closed_integer_range_bound(program, literal).or_else(|| {
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(literal)
+        else {
+            return None;
+        };
+        (program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1)
+            .then(|| indices.iter().find(|(symbol, _)| *symbol == path.symbol))
+            .flatten()
+            .map(|(_, value)| value.clone())
+    }) else {
         return false;
     };
     let one = BigInt::from_i64(1);
@@ -190,6 +206,96 @@ fn self_predicate_bounds(
     bound(low, high);
     true
 }
+
+/// Bind the declaration's static telescope without consulting runtime values
+/// or flow bounds. Exact normalized identity and carrier checks keep a summary
+/// of `AtMost<256>` from authorizing `AtMost<512>` or an open application.
+fn closed_index_bindings(
+    program: &typed_trees::TypedTrees,
+    definition: &typed_trees::domain::DomainDefinition,
+    domain: &typed_trees::types::DomainConstraint,
+) -> Option<Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    use numerics::bignum::BigInt;
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+
+    let parameters = typed_trees::domain::index_parameters(program, definition);
+    if parameters.len() != domain.arguments.len()
+        || definition.index_arguments.len() != parameters.len()
+        || typed_trees::domain::has_generic_carrier(program, definition)
+    {
+        return None;
+    }
+    if parameters.is_empty() {
+        return Some(Vec::new());
+    }
+    // The declaration's head must name its index binders in telescope order.
+    // A computed or reordered head is not permission to solve an equation for
+    // a binder or substitute one index's value into another index's predicate.
+    if !parameters
+        .iter()
+        .zip(&definition.index_arguments)
+        .all(|(parameter, argument)| {
+            matches!(program.type_reference_table.type_reference(*argument),
+            TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol)
+        })
+    {
+        return None;
+    }
+    let identity = typed_trees::domain::indexed_domain_instance_name(
+        program,
+        definition,
+        parameters,
+        &domain.arguments,
+    )
+    .ok()?;
+    if !domain.semantic_id.is_valid()
+        || program.semantic_domains.name(domain.semantic_id) != Some(identity.as_str())
+    {
+        return None;
+    }
+    parameters
+        .iter()
+        .zip(&domain.arguments)
+        .map(|(parameter, argument)| {
+            let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                return None;
+            };
+            if !parameter.symbol.is_valid() {
+                return None;
+            }
+            let carrier = program.primitive_type_reference(type_reference)?;
+            let (minimum, maximum) =
+                crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
+            let value = match program.type_reference_table.type_reference(*argument) {
+                TypeReferenceNode::Named { name, .. } => {
+                    if let Some(canonical) = CanonicalConstValue::from_atom(name.as_str()) {
+                        if PrimitiveType::from_name(&canonical.type_name) != Some(carrier) {
+                            return None;
+                        }
+                        let DecodedCanonicalConstValue::Integer { value, .. } =
+                            canonical.decode_encoding()?
+                        else {
+                            return None;
+                        };
+                        BigInt::from_i128(value)
+                    } else {
+                        BigInt::from_decimal_str(name.as_str())?
+                    }
+                }
+                TypeReferenceNode::ConstExpression(expression) => {
+                    crate::closed_integer_range_bound(program, *expression)?
+                }
+                _ => return None,
+            };
+            (minimum <= value && value <= maximum).then_some((parameter.symbol, value))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;
 
 /// The bare `self` subject of a domain predicate: a name with no receiver and
 /// no field path. `self.field` is a different value and states nothing about

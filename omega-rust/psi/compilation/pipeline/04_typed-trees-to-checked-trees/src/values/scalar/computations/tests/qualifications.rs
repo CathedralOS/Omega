@@ -4,6 +4,47 @@ use crate::values::scalar::computations::tests::checked_source;
 use crate::values::scalar::semantic_casts;
 
 #[test]
+fn predicate_domain_mint_lands_anonymous_integer_at_authored_cast_carrier() {
+    let checked = checked_source(
+        "domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+         machine mint() -> u64 in AtMost<256> { 1 as u64 in AtMost<256> }",
+        false,
+    );
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .roots
+        .iter()
+        .next()
+        .expect("mint return computation")
+        .1;
+    let node = plans.nodes.get(root.root);
+    let CheckedScalarComputationKind::AuthoredCast {
+        source_expression,
+        operand,
+        ..
+    } = node.kind
+    else {
+        panic!("predicate mint keeps the authored cast");
+    };
+    let ExpressionNode::Cast(cast) = checked.expression_table.expression(source_expression) else {
+        panic!("authored cast source");
+    };
+    let input = plans.nodes.get(operand);
+    assert_eq!(input.primitive_type, super::PrimitiveType::U64);
+    assert_eq!(input.value_source, cast.value);
+    assert!(matches!(input.kind, CheckedScalarComputationKind::Value(_)));
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .for_machine(root.machine)
+            .unwrap()
+            .body_committed
+            .contains(&cast.semantic_domain_id)
+    );
+}
+
+#[test]
 fn same_format_float_policy_erasure_retains_scalar_payloads() {
     for carrier in ["f32", "f64"] {
         for (parameters, operand) in [

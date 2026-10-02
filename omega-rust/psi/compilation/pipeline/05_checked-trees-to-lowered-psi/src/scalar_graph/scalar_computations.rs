@@ -758,7 +758,19 @@ impl<'a> Expansion<'a> {
                 let operand_expression = parameter(input_types.len(), operand_type);
                 let conversion = match domain {
                     ArithmeticDomain::Exact => {
-                        if source_type.can_widen_to(target_type) {
+                        if source_type == target_type {
+                            if operand_type != result_type {
+                                return unsupported(
+                                    "same-carrier authored cast requires an explicit qualification edge",
+                                );
+                            }
+                            // Exact qualification into an interval changes no
+                            // payload bits. Custody has replayed the authored
+                            // cast; the bounded destination still owes its own
+                            // range proof. Narrowing vocabulary requires a
+                            // genuinely different carrier.
+                            operand_expression
+                        } else if source_type.can_widen_to(target_type) {
                             LoweredDirectExpression::IntegerWiden {
                                 scalar_type: result_type.scalar_type,
                                 operand: Box::new(operand_expression),
@@ -793,7 +805,7 @@ impl<'a> Expansion<'a> {
                 };
                 let bound = self.binding(
                     &operand_types,
-                    operand_types.len(),
+                    input_types.len(),
                     target,
                     LoweredScalarBinding::Expression(conversion),
                 );
