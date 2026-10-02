@@ -201,7 +201,6 @@ fn assignment_borrow_loans(
     if !is_reference_type(program, target_type) && !is_borrow_carrying_data(program, target_type) {
         return Vec::new();
     }
-
     let synthetic_local = checked_trees::statement::TableLocalData {
         symbol: target.root_symbol,
         name: owner_name.clone(),
@@ -418,13 +417,45 @@ fn reference_local_borrow_loans(
         ),
         checked_trees::expression::ExpressionNode::Indexed(_)
         | checked_trees::expression::ExpressionNode::Member(_)
-        | checked_trees::expression::ExpressionNode::Name(_) => borrow_access_place(
-            program,
-            state.symbol,
-            statement_index,
-            local_data.initial_value,
-            machine_symbol,
-        ),
+        | checked_trees::expression::ExpressionNode::Name(_) => {
+            // A range-indexed value is itself a borrowed window and always
+            // installs the backing loan. Every other place spelling installs
+            // its loans only when the place's own declared type carries them:
+            // storing a scalar's bits lends nothing, so no loan roots at a
+            // non-borrow source place.
+            let windowed = matches!(
+                program
+                    .expression_table
+                    .expression(local_data.initial_value),
+                checked_trees::expression::ExpressionNode::Indexed(indexed)
+                    if matches!(
+                        program.expression_table.expression(indexed.index),
+                        checked_trees::expression::ExpressionNode::Range(_)
+                    )
+            );
+            let value_carries_borrow = windowed
+                || crate::flow::expression_type_reference_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    local_data.initial_value,
+                )
+                .is_some_and(|value_type| {
+                    is_reference_type(program, value_type)
+                        || is_borrow_carrying_data(program, value_type)
+                });
+            if value_carries_borrow {
+                borrow_access_place(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    local_data.initial_value,
+                    machine_symbol,
+                )
+            } else {
+                None
+            }
+        }
         _ => None,
     };
     let Some(place) = explicit_reborrow_place.or(inferred_place) else {
