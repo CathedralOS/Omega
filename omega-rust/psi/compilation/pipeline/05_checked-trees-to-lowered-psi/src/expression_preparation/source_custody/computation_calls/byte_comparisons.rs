@@ -53,6 +53,21 @@ pub(crate) fn validate(
     subject: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let (operand, _, _) = operands(checked, expression)?;
+    validate_operand_provenance(checked, state, statement, operand, operand_type, subject)
+}
+
+/// Every byte-content query re-derives its operand's authored provenance the
+/// same way: the comparison or predicate cannot substitute the operand's
+/// type reference, storage root, projection path, carrier identity, or
+/// access attenuation.
+pub(crate) fn validate_operand_provenance(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    operand: ExpressionHandle,
+    operand_type: checked_trees::types::TypeReferenceHandle,
+    subject: &CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
     let (machine, state) = super::authored_state(checked, state)?;
     let target =
         validation::expression_result_type_reference(&checked.typed, machine, state, operand)

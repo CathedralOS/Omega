@@ -38,6 +38,7 @@ pub(crate) fn type_roots(
                 }
             }
             Computation::ByteSequenceLiteralComparison { subject, .. }
+            | Computation::ByteSequencePredicate { subject, .. }
             | Computation::CaseMembership {
                 subject: Argument::Place(subject),
                 ..

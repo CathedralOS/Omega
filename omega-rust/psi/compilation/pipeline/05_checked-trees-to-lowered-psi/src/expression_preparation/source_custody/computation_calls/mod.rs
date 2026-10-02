@@ -12,6 +12,7 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
 mod borrowed_nominal_arguments;
 pub(crate) mod byte_comparisons;
+pub(crate) mod byte_predicates;
 mod dispatch;
 mod mixed_arguments;
 mod operand_scopes;
@@ -99,6 +100,35 @@ pub(crate) fn validate_computation_calls(
                     *operand_type,
                     subject,
                 )?;
+            }
+            CheckedScalarComputationKind::ByteSequencePredicate {
+                operand_type,
+                source_expression,
+                subject,
+                ..
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                if node.primitive_type != PrimitiveType::Bool {
+                    return unsupported("byte predicate evaluation is not Boolean");
+                }
+                byte_predicates::validate(
+                    checked,
+                    state,
+                    statement,
+                    *source_expression,
+                    *operand_type,
+                    subject,
+                )?;
+                // The predicate computation claims its authored call
+                // expression exactly like a Call computation does.
+                calls.push(*source_expression);
             }
             CheckedScalarComputationKind::StructuralField {
                 source_expression,

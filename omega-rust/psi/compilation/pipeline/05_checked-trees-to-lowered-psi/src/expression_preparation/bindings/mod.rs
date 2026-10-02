@@ -1247,6 +1247,29 @@ impl ScalarBindings {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }
+            CheckedBooleanExpression::ByteSequencePredicate { path, .. } => {
+                for segment in path.iter_mut() {
+                    let checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) =
+                        segment
+                    else {
+                        continue;
+                    };
+                    match index {
+                        checked_trees::CheckedRuntimeIndex::Parameter { position }
+                        | checked_trees::CheckedRuntimeIndex::Local { position } => {
+                            *position = u32::try_from(self.authored_position(*position as usize)?)
+                                .map_err(|_| {
+                                    LoweringError::Unsupported(
+                                        "byte predicate selector overflows its position carrier",
+                                    )
+                                })?;
+                        }
+                        _ => {
+                            return unsupported("byte predicate cannot rebind a captured selector");
+                        }
+                    }
+                }
+            }
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }

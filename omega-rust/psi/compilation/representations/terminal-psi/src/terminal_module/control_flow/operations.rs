@@ -460,6 +460,15 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Evaluate one declared byte predicate over one already-observed byte
+    /// sequence. The operand's own dominating length observation fixes the
+    /// extent the predicate reads; the source place and its custody stay
+    /// intact. Field operands retain the parent root and exact field
+    /// identity, like a concatenation operand.
+    ByteSequencePredicate {
+        operand: ByteSequenceOperand,
+        predicate: crate::ByteSequencePredicate,
+    },
     /// Establish one immutable borrowed element view over the contiguous
     /// elements of a structural collection place. The result carries the
     /// collection's own stored extent under a shared loan; no elements copy.
@@ -1000,6 +1009,7 @@ impl OperationKind {
                 *index = map(*index);
                 *length = map(*length);
             }
+            Self::ByteSequencePredicate { operand, .. } => operand.remap_length(map),
             Self::ByteSequenceSubslice {
                 start, end, length, ..
             }

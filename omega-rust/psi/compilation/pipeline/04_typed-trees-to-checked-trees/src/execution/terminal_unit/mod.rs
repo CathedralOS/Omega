@@ -747,12 +747,16 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .nodes
         .iter()
         .filter_map(|(_, node)| {
-            let checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
-                operand_type,
-                ..
-            } = node.kind
-            else {
-                return None;
+            let operand_type = match node.kind {
+                checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                    operand_type,
+                    ..
+                }
+                | checked_trees::CheckedScalarComputationKind::ByteSequencePredicate {
+                    operand_type,
+                    ..
+                } => operand_type,
+                _ => return None,
             };
             shapes.add_type(operand_type, &[], &[])
         })

@@ -86,6 +86,7 @@ pub(crate) fn checked_boolean_scalar_term(
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             return unsupported("structural equality requires structural signature lowering");
@@ -456,6 +457,7 @@ fn checked_boolean_scalar_term_from_lowered(
     match expression {
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
             unsupported("storage observation requires an occurrence-bound crash predicate")
         }

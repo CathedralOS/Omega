@@ -144,6 +144,15 @@ pub enum CheckedScalarComputationKind {
         source_expression: typed_trees::expression::ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },
+    /// Evaluate one declared byte predicate over an evaluated byte carrier at
+    /// its authored evaluation point. The operand owns any descriptor
+    /// preparation; the predicate's reads happen only after that preparation.
+    ByteSequencePredicate {
+        predicate: language_semantics::byte_predicates::ByteSequencePredicate,
+        operand_type: typed_trees::types::TypeReferenceHandle,
+        source_expression: typed_trees::expression::ExpressionHandle,
+        subject: CheckedUnitStructuralArgumentPlan,
+    },
     /// Read one scalar field at its authored evaluation point without moving
     /// the containing owner or assigning it a scalar parameter position.
     StructuralField {

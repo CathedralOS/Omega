@@ -227,6 +227,7 @@ pub(crate) fn lower_boolean_value_decision(
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => {
             unreachable!("non-short-circuit expressions return above")
         }

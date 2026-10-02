@@ -43,6 +43,10 @@ pub enum LoweringError {
     /// Terminal verifies indexed reads on byte-sequence fields, but Omega has
     /// no target-neutral abstract operation for realizing the field read yet.
     UnsupportedStructuralByteSequenceFieldRead(semantic_vocabulary::OperationId),
+    /// Terminal verifies byte-sequence predicate evaluation, but Omega has no
+    /// target-neutral abstract operation or byte-scan codegen realizing the
+    /// evaluation yet.
+    UnsupportedByteSequencePredicate(semantic_vocabulary::OperationId),
     /// A verified Trapping primitive's operands did not rejoin its result
     /// carrier, or a shift count or conversion source was not an integer.
     VerifiedTrappingIntegerMalformed(semantic_vocabulary::OperationId),

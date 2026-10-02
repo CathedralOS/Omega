@@ -1,5 +1,7 @@
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, LoweredElementPathSegment,
+};
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::ScalarType;
 
@@ -38,6 +40,17 @@ pub(crate) fn validate_boolean_parameter_types(
         }
         LoweredBooleanReturnExpression::IndexedCaseMembership { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
+        }
+        LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
+            for segment in path {
+                if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+                    validate_direct_parameter_types(selector, parameter_types)?;
+                    if let Some(extent) = extent {
+                        validate_direct_parameter_types(extent, parameter_types)?;
+                    }
+                }
+            }
+            Ok(())
         }
     }
 }
@@ -154,6 +167,7 @@ pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -186,6 +200,7 @@ pub(crate) fn validate_short_circuit_expression(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed Boolean validation")

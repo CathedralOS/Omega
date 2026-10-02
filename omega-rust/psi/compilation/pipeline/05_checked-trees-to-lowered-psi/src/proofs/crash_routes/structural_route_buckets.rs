@@ -161,6 +161,9 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::ByteSequenceEqual { .. } => {
                 unsupported("byte-sequence equality lowers as an atomic proposition")
             }
+            CheckedBooleanExpression::ByteSequencePredicate { .. } => {
+                unsupported("byte-sequence predicate evaluation lowers as an atomic proposition")
+            }
             CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
                 unsupported("payload-less sum equality lowers through case-membership propositions")
             }
@@ -531,6 +534,7 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contains_structural_atomic_proposition(operand),

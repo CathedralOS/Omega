@@ -1248,6 +1248,11 @@ impl Builder<'_, '_> {
         {
             return Some(comparison);
         }
+        if expected_type == PrimitiveType::Bool
+            && let Some(predicate) = self.byte_predicate(expression)
+        {
+            return Some(predicate);
+        }
         if !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some(value) = lower_return_expression(
                 self.program,

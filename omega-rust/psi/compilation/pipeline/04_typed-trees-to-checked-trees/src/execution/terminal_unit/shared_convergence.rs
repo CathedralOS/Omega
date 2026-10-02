@@ -175,6 +175,7 @@ fn shared_boolean_runtime_inputs(
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | checked_trees::CheckedBooleanExpression::ByteSequencePredicate { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
         checked_trees::CheckedBooleanExpression::Parameter { .. }

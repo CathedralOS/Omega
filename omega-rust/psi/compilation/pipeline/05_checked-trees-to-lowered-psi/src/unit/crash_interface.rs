@@ -120,6 +120,12 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::Local { .. } => false,
+        CheckedBooleanExpression::ByteSequencePredicate { root, .. } => {
+            // Only an operand rooted at an authored state parameter is contract
+            // vocabulary; view-local and owned-local operands name body-local
+            // custody, which widens the cause to the unconditional route.
+            root.parameter().is_some()
+        }
         CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }

@@ -661,6 +661,19 @@ impl<'a> Expansion<'a> {
                 target,
                 site,
             )?,
+            CheckedScalarComputationKind::ByteSequencePredicate {
+                source_expression,
+                predicate,
+                subject,
+                ..
+            } => self.byte_predicate(
+                source_expression,
+                predicate,
+                &subject,
+                input_types,
+                target,
+                site,
+            )?,
             CheckedScalarComputationKind::StructuralField { subject, field, .. } => {
                 let (site_machine, site_authored) =
                     crate::expression_preparation::source_custody::authored_state(

@@ -264,6 +264,7 @@ impl EntryOperands<'_> {
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
+            | CheckedBooleanExpression::ByteSequencePredicate { .. }
             | CheckedBooleanExpression::PayloadlessSumEqual { .. }
             | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
         }

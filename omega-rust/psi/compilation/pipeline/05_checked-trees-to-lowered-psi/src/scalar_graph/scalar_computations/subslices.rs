@@ -50,7 +50,8 @@ pub(crate) fn prepare(
                     .iter()
                     .filter_map(CheckedScalarComputationStructuralArgument::as_place)
                     .collect(),
-                CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
+                CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
+                | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                     vec![subject]
                 }
                 _ => Vec::new(),

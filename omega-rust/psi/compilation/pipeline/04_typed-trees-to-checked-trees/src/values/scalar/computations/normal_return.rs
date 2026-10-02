@@ -20,6 +20,7 @@ pub(super) fn boolean_result(
         CheckedScalarComputationKind::SelectedComparison { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+        | CheckedScalarComputationKind::ByteSequencePredicate { .. }
         | CheckedScalarComputationKind::CaseMembership { .. }
         | CheckedScalarComputationKind::BooleanToInteger { .. }
         | CheckedScalarComputationKind::AuthoredCast { .. } => None,

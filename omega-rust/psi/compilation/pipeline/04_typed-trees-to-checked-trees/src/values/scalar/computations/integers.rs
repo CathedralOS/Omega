@@ -650,7 +650,8 @@ impl Builder<'_, '_> {
                 CheckedScalarComputationKind::CaseMembership { .. } => {}
                 CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }
-                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+                | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
             }
         }
         false

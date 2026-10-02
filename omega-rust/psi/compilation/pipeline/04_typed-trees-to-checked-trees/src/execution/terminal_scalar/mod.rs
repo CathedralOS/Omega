@@ -1360,6 +1360,9 @@ fn computation_reads_position(
             | checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 subject,
                 ..
+            }
+            | checked_trees::CheckedScalarComputationKind::ByteSequencePredicate {
+                subject, ..
             } => {
                 if structural_place_reads_position(subject, position) {
                     return true;
@@ -1577,6 +1580,7 @@ fn boolean_expression_reads_position(
             left.parameter_position == position || right.parameter_position == position
         }
         Boolean::StructuralCaseMembership { subject, .. } => subject.parameter_position == position,
+        Boolean::ByteSequencePredicate { root, .. } => root.parameter() == Some(position),
         Boolean::Not(operand) => boolean_expression_reads_position(operand, position),
         Boolean::Equal { left, right }
         | Boolean::And { left, right }

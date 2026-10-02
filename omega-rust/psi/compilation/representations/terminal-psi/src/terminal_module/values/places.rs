@@ -251,6 +251,14 @@ impl OperationKind {
                     }
                 }
             }
+            Self::ByteSequencePredicate { operand, .. } => match operand {
+                crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                    *source = map(*source, StructuralAccess::SharedBorrow);
+                }
+                crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
+                    source.place = map(source.place, source.access);
+                }
+            },
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 for field in fields {
                     match &mut field.value {
@@ -366,6 +374,11 @@ impl OperationKind {
                     {
                         projections.push(argument_projection(source));
                     }
+                }
+            }
+            Self::ByteSequencePredicate { operand, .. } => {
+                if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand {
+                    projections.push(argument_projection(source));
                 }
             }
             Self::EstablishReference { source }
@@ -529,6 +542,11 @@ impl OperationKind {
                     {
                         paths.push(&mut source.path);
                     }
+                }
+            }
+            Self::ByteSequencePredicate { operand, .. } => {
+                if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand {
+                    paths.push(&mut source.path);
                 }
             }
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {

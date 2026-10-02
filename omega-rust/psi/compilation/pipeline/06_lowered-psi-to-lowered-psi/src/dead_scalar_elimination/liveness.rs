@@ -217,6 +217,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             values.extend([left.length(), right.length()]);
         }
+        O::ByteSequencePredicate { operand, .. } => values.push(operand.length()),
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => {
             values.extend([*index, *length])

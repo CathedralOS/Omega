@@ -59,6 +59,27 @@ pub(super) fn is_structural_boolean_return_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
+            path.iter().all(|segment| match segment {
+                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
+                    selector,
+                    extent,
+                } => {
+                    is_branch_free_structural_scalar_expression(
+                        selector,
+                        scalar_parameters,
+                        available_locals,
+                    ) && extent.as_ref().is_none_or(|extent| {
+                        is_branch_free_structural_scalar_expression(
+                            extent,
+                            scalar_parameters,
+                            available_locals,
+                        )
+                    })
+                }
+                _ => true,
+            })
+        }
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
@@ -176,6 +197,27 @@ pub(super) fn is_branch_free_structural_boolean_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
+            path.iter().all(|segment| match segment {
+                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
+                    selector,
+                    extent,
+                } => {
+                    is_branch_free_structural_scalar_expression(
+                        selector,
+                        scalar_parameters,
+                        available_locals,
+                    ) && extent.as_ref().is_none_or(|extent| {
+                        is_branch_free_structural_scalar_expression(
+                            extent,
+                            scalar_parameters,
+                            available_locals,
+                        )
+                    })
+                }
+                _ => true,
+            })
+        }
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
@@ -220,6 +262,7 @@ pub(super) fn boolean_local_reference_count(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => 0,
     }
 }
@@ -262,6 +305,7 @@ pub(super) fn inline_boolean_local(
             ..
         }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression.clone(),
     }
 }

@@ -12,6 +12,8 @@ pub(crate) mod binding;
 pub(crate) mod concatenation;
 pub(crate) mod field_index_store;
 pub(crate) mod field_store;
+pub(crate) mod operands;
+pub(crate) mod predicate;
 pub(crate) mod store;
 pub(crate) mod subslice;
 pub(crate) mod write;

@@ -913,6 +913,7 @@ fn boolean_expression_needs_no_bindings(
         | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
     }

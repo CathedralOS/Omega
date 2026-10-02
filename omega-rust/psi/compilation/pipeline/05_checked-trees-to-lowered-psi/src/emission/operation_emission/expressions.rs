@@ -374,7 +374,7 @@ fn selector_obligation(operation: u64, ordinal: usize) -> semantic_vocabulary::O
     )
 }
 
-fn emit_prepared_path(
+pub(crate) fn emit_prepared_path(
     path: &[LoweredElementPathSegment],
     first_ordinal: usize,
     parameters: &[ValueDeclaration],
@@ -399,7 +399,7 @@ fn emit_prepared_path(
         .collect()
 }
 
-fn path_with_current_bounds(
+pub(crate) fn path_with_current_bounds(
     path: &[terminal_psi::StructuralPathSegment],
     operation: u64,
 ) -> Vec<terminal_psi::StructuralPathSegment> {

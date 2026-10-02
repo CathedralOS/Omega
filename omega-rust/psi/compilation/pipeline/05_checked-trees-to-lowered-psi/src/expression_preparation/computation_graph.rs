@@ -105,6 +105,7 @@ pub(crate) fn reachable_nodes(
                 }
             }
             CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+            | CheckedScalarComputationKind::ByteSequencePredicate { .. }
             | CheckedScalarComputationKind::Value(_)
             | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Select {

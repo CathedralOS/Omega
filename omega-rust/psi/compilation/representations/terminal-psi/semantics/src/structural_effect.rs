@@ -84,6 +84,7 @@ pub enum StructuralEffectAction {
     ReadByteSequence,
     WriteByteSequence,
     EstablishByteSequenceSubslice,
+    EvaluateByteSequencePredicate,
     EstablishElementView,
     EstablishMutableElementView,
     ReadElementViewLength,
@@ -233,7 +234,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 32] = [
+    pub const ALL: [Self; 33] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -362,6 +363,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectAction::EstablishByteSequenceSubslice,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ByteSequencePredicate,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Boolean,
+                StructuralEffectCustody::ExactImmutableByteView,
+                StructuralEffectAction::EvaluateByteSequencePredicate,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
             ),
         },
         Self {
@@ -589,6 +600,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::ByteSequenceWrite
             | OperationSemanticTag::ByteSequenceRead
             | OperationSemanticTag::ByteSequenceSubslice
+            | OperationSemanticTag::ByteSequencePredicate
             | OperationSemanticTag::EstablishElementView
             | OperationSemanticTag::EstablishMutableElementView
             | OperationSemanticTag::ElementViewLength
@@ -662,6 +674,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ByteSequenceRead,
         OperationSemanticTag::ByteSequenceWrite,
         OperationSemanticTag::ByteSequenceSubslice,
+        OperationSemanticTag::ByteSequencePredicate,
         OperationSemanticTag::EstablishElementView,
         OperationSemanticTag::EstablishMutableElementView,
         OperationSemanticTag::ElementViewLength,
@@ -784,6 +797,14 @@ pub enum StructuralEffectObservation {
     },
     ByteSequenceLengthRead {
         source: PlaceId,
+        result: ValueId,
+    },
+    /// Evaluate one declared predicate over the operand's exact live extent.
+    /// Reads stay inside the operand's own dominating length observation, so
+    /// no index certificate exists; the result is the predicate's verdict.
+    ByteSequencePredicateEvaluated {
+        operand: terminal_psi::control_flow::ByteSequenceOperand,
+        predicate: terminal_psi::ByteSequencePredicate,
         result: ValueId,
     },
     /// Read from the exact immutable view after discharging index < length.
@@ -991,6 +1012,7 @@ impl StructuralEffectObservation {
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceSubslice { .. }
+            | Self::ByteSequencePredicateEvaluated { .. }
             | Self::ElementViewEstablished { .. }
             | Self::ElementViewLengthRead { .. }
             | Self::ElementViewRead { .. }
@@ -1034,6 +1056,9 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::EstablishByteSequenceSubslice => {
             OperationSemanticTag::ByteSequenceSubslice
+        }
+        StructuralEffectAction::EvaluateByteSequencePredicate => {
+            OperationSemanticTag::ByteSequencePredicate
         }
         StructuralEffectAction::EstablishElementView => OperationSemanticTag::EstablishElementView,
         StructuralEffectAction::EstablishMutableElementView => {
@@ -1126,6 +1151,13 @@ fn validate_structural_effect_schema(
                 StructuralEffectAction::ObserveCaseMembership => {
                     schema.result == StructuralEffectResultShape::Boolean
                         && schema.custody == StructuralEffectCustody::ExactReadableSumProjection
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EvaluateByteSequencePredicate => {
+                    schema.result == StructuralEffectResultShape::Boolean
+                        && schema.custody == StructuralEffectCustody::ExactImmutableByteView
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
@@ -1592,6 +1624,14 @@ pub fn structural_effect_leaf_observation_in(
             OperationKind::ByteSequenceLength { source },
         ) => StructuralEffectObservation::ByteSequenceLengthRead {
             source: *source,
+            result: operation.result.expect_scalar().id,
+        },
+        (
+            StructuralEffectAction::EvaluateByteSequencePredicate,
+            OperationKind::ByteSequencePredicate { operand, predicate },
+        ) => StructuralEffectObservation::ByteSequencePredicateEvaluated {
+            operand: operand.clone(),
+            predicate: *predicate,
             result: operation.result.expect_scalar().id,
         },
         (
@@ -2274,7 +2314,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 32);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 33);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
