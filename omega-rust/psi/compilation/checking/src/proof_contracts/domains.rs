@@ -1,3 +1,5 @@
+mod runtime_predicates;
+pub use runtime_predicates::{scalar_membership_carrier, scalar_membership_predicates};
 mod scalar_tags;
 #[cfg(test)]
 mod tests;

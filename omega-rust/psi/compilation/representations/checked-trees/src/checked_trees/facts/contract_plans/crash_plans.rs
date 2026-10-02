@@ -46,6 +46,16 @@ impl CrashRouteBucket {
     }
 }
 
+/// Source correspondence for one membership in the invocation requirement roster.
+/// Predicate projection may duplicate or omit a subject occurrence, so replay
+/// retains its checked value explicitly instead of recovering it from a formula.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedRuntimeMembershipSubject {
+    pub fact_ordinal: u32,
+    pub membership: crate::domain::ProofMembershipFact,
+    pub subject: crate::CheckedScalarExpression,
+}
+
 /// The published and body-derived halves of CRASH-CONTRACT remain independent:
 /// published route buckets are contract identity, while checked sites are
 /// implementation evidence and never enter that fingerprint. Path guards,
@@ -60,6 +70,7 @@ pub struct CrashPlan {
     /// `None` means at least one authored requirement is outside that
     /// vocabulary; consumers must not publish a partial terminal contract.
     structural_runtime_requirements: Option<Vec<crate::CheckedBooleanExpression>>,
+    runtime_membership_subjects: Vec<CheckedRuntimeMembershipSubject>,
     /// The same complete lowering for unbound machine `ensures` clauses:
     /// post-state observations over the exact parameter places. `None`
     /// means at least one authored guarantee is outside that vocabulary;
@@ -84,6 +95,7 @@ impl CrashPlan {
             interface: CrashInterface::PublishedCeiling,
             published,
             structural_runtime_requirements: None,
+            runtime_membership_subjects: Vec::new(),
             structural_runtime_guarantees: None,
             checked_sites: Vec::new(),
             checked_calls: Vec::new(),
@@ -116,6 +128,18 @@ impl CrashPlan {
     ) -> Self {
         self.structural_runtime_requirements = requirements;
         self
+    }
+
+    pub fn with_runtime_membership_subjects(
+        mut self,
+        subjects: Vec<CheckedRuntimeMembershipSubject>,
+    ) -> Self {
+        self.runtime_membership_subjects = subjects;
+        self
+    }
+
+    pub fn runtime_membership_subjects(&self) -> &[CheckedRuntimeMembershipSubject] {
+        &self.runtime_membership_subjects
     }
 
     pub fn structural_runtime_requirements(&self) -> Option<&[crate::CheckedBooleanExpression]> {

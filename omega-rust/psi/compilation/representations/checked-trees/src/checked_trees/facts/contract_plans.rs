@@ -25,7 +25,7 @@ mod scalar_contracts;
 #[cfg(test)]
 mod tests;
 
-pub use crash_plans::{CrashPlan, CrashRouteBucket};
+pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
     CrashRouteBucketId, CrashRouteGuard,

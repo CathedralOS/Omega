@@ -174,6 +174,10 @@ pub(super) fn lower(
                     "proof-gated structural arithmetic lacks a complete checked requirement package",
                 ),
             )?;
+            crate::unit::runtime_requirements::validate_runtime_memberships(
+                checked,
+                signature.source,
+            )?;
             let requirements = checked_requirements
                 .iter()
                 .map(|requirement| {

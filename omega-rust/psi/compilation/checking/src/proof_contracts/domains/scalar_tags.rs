@@ -197,7 +197,7 @@ fn vacuous_scalar_tag(
     valid
 }
 
-fn exact_instance(
+pub(super) fn exact_instance(
     program: &TypedTrees,
     domain: &DomainDefinition,
     arguments: &[TypeReferenceHandle],
