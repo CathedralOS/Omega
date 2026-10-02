@@ -577,6 +577,7 @@ pass/float/exact_fractional_integer_boundary_exit built 3465ms exit:70 @48008365
 pass/float/f32_arg_const_arith_landed_exit built 6672ms exit:70 @fb2178def922
 pass/float/f32_per_operation_rounding_exit built 7304ms exit:77 @fb2178def922
 pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee+wt
+pass/float/finite_signature_transport_exit built 3690ms exit:77 @6d55eb9c43a4+wt
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
 pass/float/float_to_int_exact_proofs_exit rejected 2385ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)

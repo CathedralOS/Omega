@@ -1975,23 +1975,21 @@ crash and native exit behavior. Use affected check/native corpus slices under
   NaN and both infinities without changing IEEE storage or arithmetic policy.
   Ordinary interval relationships use `where`, `requires`, and `ensures`.
 
-  Current frontier (macOS ARM64, 2026-10-01): a machine
-  `retain(value: f32 in Finite) -> f32 in Finite` returning `value`, called
-  with `0.5` into a `f32 in Finite` local, fails Terminal production with
-  `scalar qualification requires non-vacuous or unsupported evidence`.
-  `expression_preparation/qualifications.rs` admits the core predicate only
-  where a state-arrival row carries it. Carry the required entry, result,
-  and local facts through their real proof owners and independent replay;
-  do not erase the predicate to make catalog construction succeed.
-  Separately, machines with unranked state loops drop exclusive declaration
-  rows because current cycle requirements cannot observe a mutable loan;
-  their acyclic callers therefore restore no such rows. State-arrival
-  facts over those loans remain unfinished. Coordinate signature and result
-  consumers with **STATIC-MACHINE-MIGRATION**, and state-edge consumers with
-  **COMPOSITE-TRANSITION-ARGUMENT**.
+  Current frontier (macOS ARM64, 2026-10-01): an attached machine whose
+  `f32` field has `where 0.0 <= value <= 1.0` loops three times, temporarily
+  writes `2.0`, restores `0.25`, and returns. A following observer call fails
+  `OperationProofUnavailable` at its first Unit call requirement. The same
+  fill and observer without the loop, and the loop followed by direct exit,
+  both execute with exit **70** in both engines. Carry exclusive declaration
+  guarantees through normal return and independently replay their state-arrival
+  rows. Remove the blanket mutable-borrow cycle refusal only when writes and
+  crash paths invalidate facts correctly. The customer is
+  `float/state_loop_field_refinement_restoration_exit`; coordinate state-edge
+  consumers with **COMPOSITE-TRANSITION-ARGUMENT**.
 
   Acceptance: published Terminal reloads/verifies and the finite signature
-  program executes with exit **77**; invalid non-finite arguments/results
+  customer `float/finite_signature_transport_exit` executes with exit **77**;
+  invalid non-finite arguments/results
   reject, and a restored exclusive field invariant survives a state loop and
   normal return. Retain the existing controls, all executing in both engines:
   `float/finite_core_domain_range_discharge` (**77**), the three
