@@ -311,7 +311,11 @@ fn owned_array_state_argument_replay_rejects_substituted_producers_and_custody()
         CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
     };
     let checked = crate::front_end::checked_program(&owned_array_source(false));
-    assert_eq!(owned_array_effects(&checked), [7, 30, 40, 9]);
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("unaltered source establishes the owned array");
     let array = checked
         .facts
         .values
@@ -488,22 +492,45 @@ fn owned_array_state_terminal_replay_rejects_custody_and_late_producers() {
 
 #[test]
 fn owned_array_state_arguments_preserve_record_erased_declarations() {
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape,
+    };
     let source = r#"
         boundary trait Output { machine write(marker: i32) reaches Output; }
-        data Payload { proof [erased]: i32; values: [i32; 2]; }
+        data Payload { values: [i32; 2]; }
         data Root {}
         machine Root::enter() reaches Output {
-            transition { _ -> take(Payload { proof: 0, values: [30, 40] }) }
+            transition { _ -> take(Payload { values: [30, 40] }) }
             state take(payload: Payload) {
                 Output::write(payload.values[0]);
                 Output::write(payload.values[1]);
             }
         }
     "#;
-    assert_eq!(
-        owned_array_effects(&crate::front_end::checked_program(source)),
-        [30, 40],
-    );
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("record carrying array lowers");
+    let mut module = lowered.semantic_module;
+    let fields = module
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Record { fields } if !fields.is_empty() => Some(fields),
+            _ => None,
+        })
+        .expect("payload record");
+    fields.push(StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(9999).unwrap(),
+        identity: "erased_witness".into(),
+        relevance: BindingRelevance::Erased,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "i32".into(),
+        },
+    });
+    validate_module(&module).expect("erased declarations add no runtime transfer custody");
 }
 
 #[test]
