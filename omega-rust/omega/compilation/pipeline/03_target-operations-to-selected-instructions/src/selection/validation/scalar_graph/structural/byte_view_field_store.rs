@@ -20,6 +20,7 @@ pub(super) fn replace(
         destination,
         field,
         source,
+        indices,
     } = &row.kind
     else {
         return Err(replay.invalid());
@@ -28,33 +29,32 @@ pub(super) fn replace(
         .structural
         .as_ref()
         .ok_or_else(|| replay.invalid())?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == destination.place)
+    let root_type = crate::selection::field_bytes::root_type(function, destination)
         .ok_or_else(|| replay.invalid())?;
+    let geometry = crate::structural_inputs::structural_reference_input::projected_byte_field(
+        root_type,
+        &destination.path,
+        *field,
+        &signature.structural_types,
+    )
+    .ok_or_else(|| replay.invalid())?;
     if row.result.is_some()
-        || parameter.semantic.access != destination.access
         || !matches!(
             destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
-        || !parameter.semantic.projected_qualifications.is_empty()
         || *source == destination.place
         || crate::selection::established_view_input::literal_view_type(function, *source).is_none()
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &geometry.elements,
+        )
     {
         return Err(replay.invalid());
     }
-    let descriptor_offset =
-        crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
-            parameter.semantic.structural_type,
-            &destination.path,
-            *field,
-            &signature.structural_types,
-        )
-        .ok_or_else(|| replay.invalid())?;
+    let descriptor_offset = geometry.descriptor_offset.ok_or_else(|| replay.invalid())?;
     let extent_offset = descriptor_offset
         .checked_add(8)
         .ok_or_else(|| replay.invalid())?;
@@ -65,13 +65,21 @@ pub(super) fn replace(
         .find(|(place, _)| place == source)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| replay.invalid())?;
-    let root = replay
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == destination.place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| replay.invalid())?;
+    let root = super::primitive_locals::backing_pointer(
+        function,
+        replay,
+        row,
+        destination.place,
+        descriptor_offset,
+    )?;
+    let root = super::runtime_address::scale(
+        replay,
+        row,
+        destination.place,
+        descriptor_offset,
+        root,
+        indices,
+    )?;
     let load64 = replay
         .constraints
         .keys
@@ -112,13 +120,14 @@ pub(super) fn replace(
         &[literal, extent],
         &provenance(row),
     )?;
-    memory(
+    super::runtime_address::footprint(
         replay,
         row,
         destination.place,
         descriptor_offset,
         8,
-        SelectedMemoryAccessRole::WritePlace,
+        indices,
+        super::runtime_address::Written::Structural,
     )?;
     replay.check_instruction(
         SelectedInstructionKind::Store {
@@ -129,13 +138,14 @@ pub(super) fn replace(
         &[root, backing],
         &provenance(row),
     )?;
-    memory(
+    super::runtime_address::footprint(
         replay,
         row,
         destination.place,
         extent_offset,
         8,
-        SelectedMemoryAccessRole::WritePlace,
+        indices,
+        super::runtime_address::Written::Structural,
     )?;
     replay.check_instruction(
         SelectedInstructionKind::Store {

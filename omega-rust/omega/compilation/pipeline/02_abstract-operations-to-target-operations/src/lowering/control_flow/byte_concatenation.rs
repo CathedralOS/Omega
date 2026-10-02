@@ -72,6 +72,7 @@ pub(super) fn lower(
                 let authority = super::primitive_storage::readable_byte_field(
                     function,
                     types,
+                    prepared,
                     live,
                     source.place,
                     &source.path,

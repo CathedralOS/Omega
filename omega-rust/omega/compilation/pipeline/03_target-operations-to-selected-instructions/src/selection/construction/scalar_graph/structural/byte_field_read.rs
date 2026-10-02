@@ -25,13 +25,15 @@ pub(in crate::selection) fn read_byte(
         length,
         obligation,
         accepted_fact,
+        indices,
     } = &row.kind
     else {
         return Err(invalid());
     };
     let definition = row.result.ok_or_else(invalid)?;
-    let geometry = crate::selection::field_bytes::FieldBytes::resolve(function, source, *field)
-        .ok_or_else(|| invalid())?;
+    let geometry =
+        crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, indices)
+            .ok_or_else(|| invalid())?;
     let payload_offset = geometry.offset();
     let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
     let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
@@ -46,13 +48,15 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(invalid());
     }
-    let root = builder
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == source.place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+    let root = super::primitive_locals::backing_pointer(
+        function,
+        builder,
+        row,
+        source.place,
+        payload_offset,
+    )?;
+    let root =
+        super::runtime_address::scale(builder, row, source.place, payload_offset, root, indices)?;
     let payload = transport_register(builder, source.place, payload_offset)?;
     match geometry {
         crate::selection::field_bytes::FieldBytes::Inline(_) => builder.emit(
@@ -68,13 +72,14 @@ pub(in crate::selection) fn read_byte(
             provenance(row),
         )?,
         crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
-            memory(
+            super::runtime_address::footprint(
                 builder,
                 row,
                 source.place,
                 payload_offset,
                 8,
-                SelectedMemoryAccessRole::ReadPlace,
+                indices,
+                super::runtime_address::Written::None,
             )?;
             builder.emit(
                 SelectedInstructionKind::Load64 {

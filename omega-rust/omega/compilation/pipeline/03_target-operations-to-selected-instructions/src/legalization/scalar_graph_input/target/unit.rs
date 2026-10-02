@@ -94,6 +94,39 @@ pub(super) fn validate_operation(
         optimized,
         types: unit.structural_types.as_slice(),
     };
+    let projected_bytes = match target {
+        TargetUnitOperation::StructuralByteSequenceFieldLength {
+            source,
+            field,
+            indices,
+            ..
+        }
+        | TargetUnitOperation::StructuralByteSequenceFieldRead {
+            source,
+            field,
+            indices,
+            ..
+        } => Some((source, field, indices)),
+        TargetUnitOperation::StructuralByteViewFieldStore {
+            destination,
+            field,
+            indices,
+            ..
+        } => Some((destination, field, indices)),
+        _ => None,
+    };
+    if let Some((source, field, indices)) = projected_bytes {
+        let geometry = super::super::structural_fields::byte_geometry(
+            optimized,
+            source,
+            *field,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
+        if !runtime_indices_rejoin(indices, &geometry.elements, sources) {
+            return Err(LegalizationError::custody());
+        }
+    }
     match (target, abstracted) {
         (
             TargetUnitOperation::AtomicAccess {
@@ -341,6 +374,7 @@ pub(super) fn validate_operation(
                 index,
                 length,
                 obligation,
+                ..
             },
             AbstractOperation::StructuralByteSequenceFieldRead {
                 psi_operation: expected_operation,
@@ -435,6 +469,7 @@ pub(super) fn validate_operation(
                 destination,
                 field,
                 source,
+                ..
             },
             AbstractOperation::StructuralByteViewFieldStore {
                 psi_operation: expected_operation,
@@ -645,6 +680,7 @@ pub(super) fn validate_operation(
                 result,
                 source,
                 field,
+                ..
             },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => {
@@ -1017,4 +1053,53 @@ pub(super) fn runtime_indices_rejoin(
                     .iter()
                     .any(|(identity, known)| *identity == element.index && *known == index.operand)
         })
+}
+
+#[cfg(test)]
+mod indexed_byte_fields {
+    use super::{Source, runtime_indices_rejoin};
+    use crate::structural_inputs::structural_reference_input::RuntimeElement;
+    use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, ScalarType, ValueId};
+    use target_operations::TargetStructuralRuntimeIndex;
+
+    #[test]
+    fn indexed_byte_fields_require_exact_available_selectors_and_stride() {
+        let value = ValueId::new(1).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let source = Source::Parameter {
+            parameter_index: 0,
+            source_value: value,
+            scalar_type,
+        };
+        let elements = [RuntimeElement {
+            index: value,
+            obligation: ObligationId::new(1).unwrap(),
+            stride: 24,
+            extent: None,
+        }];
+        let indices = [TargetStructuralRuntimeIndex {
+            operand: source,
+            stride: 24,
+        }];
+        let available = [(value, source)];
+        assert!(runtime_indices_rejoin(&indices, &elements, &available));
+        assert!(!runtime_indices_rejoin(&[], &elements, &available));
+        assert!(!runtime_indices_rejoin(&indices, &elements, &[]));
+        let mut changed = indices.clone();
+        changed[0].stride = 16;
+        assert!(!runtime_indices_rejoin(&changed, &elements, &available));
+        changed = indices.clone();
+        changed[0].operand = Source::Parameter {
+            parameter_index: 0,
+            source_value: ValueId::new(2).unwrap(),
+            scalar_type,
+        };
+        assert!(!runtime_indices_rejoin(&changed, &elements, &available));
+        changed[0].operand = Source::Parameter {
+            parameter_index: 1,
+            source_value: value,
+            scalar_type,
+        };
+        assert!(!runtime_indices_rejoin(&changed, &elements, &available));
+    }
 }

@@ -258,7 +258,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
                     structural_fields::indexed_read_retained(abstracted, operation, targeted)
                         && structural_fields::indexed_read_footprint_retained(
-                            structural_fields::reads_through_descriptor(abstracted, operation, targeted),
+                            abstracted,
+                            targeted,
                             operation,
                             &selected.memory_accesses,
                         )
@@ -266,6 +267,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::StructuralByteViewFieldStore { .. } => {
                     structural_fields::view_replacement_retained(abstracted, operation, targeted)
                         && structural_fields::view_replacement_footprints_retained(
+                            abstracted,
+                            targeted,
                             operation,
                             &selected.memory_accesses,
                         )
@@ -284,9 +287,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::retained(abstracted, operation, targeted)
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
-                AbstractOperation::StructuralScalarFieldRead { .. }
-                | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
+                AbstractOperation::StructuralScalarFieldRead { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
+                }
+                AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
+                    structural_fields::retained(abstracted, operation, targeted)
+                        && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 // A call that forwards descriptors has no shared-image lane,
                 // whatever its result kind.

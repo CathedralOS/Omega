@@ -872,3 +872,101 @@ fn case_payload_projection_retains_prefix_stride_and_exact_case_field() {
     cases[0].fields[0].relevance = BindingRelevance::Erased;
     assert_eq!(super::project(root, &path, &types), None);
 }
+
+#[test]
+fn indexed_byte_field_geometry_keeps_carrier_stride_and_descriptor_offsets() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId, ValueId};
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration,
+    };
+    let record = StructuralTypeId::new(1).unwrap();
+    let view = StructuralTypeId::new(2).unwrap();
+    let array = StructuralTypeId::new(3).unwrap();
+    let field = StructuralFieldId::new(2).unwrap();
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let types = vec![
+        StructuralTypeDeclaration {
+            id: record,
+            identity: "Record".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "prefix".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(count),
+                    },
+                    StructuralFieldDeclaration {
+                        id: field,
+                        identity: "bytes".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::ByteSequence(
+                            ByteSequenceCarrier::BorrowedView {
+                                access: Some(StructuralAccess::SharedBorrow),
+                            },
+                        ),
+                    },
+                ],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "View".into(),
+            shape: StructuralTypeShape::ElementView { element: record },
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "Array".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: record,
+                length: 3,
+            },
+        },
+    ];
+    let index = ValueId::new(1).unwrap();
+    let obligation = ObligationId::new(1).unwrap();
+    let path = [StructuralPathSegment::RuntimeIndex { index, obligation }];
+    for (root, extent) in [(view, None), (array, Some(3))] {
+        let geometry = super::projected_byte_field(root, &path, field, &types).unwrap();
+        assert_eq!(geometry.length_offset, 16);
+        assert_eq!(geometry.descriptor_offset, Some(8));
+        assert_eq!(geometry.capacity, None);
+        assert_eq!(geometry.elements.len(), 1);
+        let element = &geometry.elements[0];
+        assert_eq!(
+            (
+                element.index,
+                element.obligation,
+                element.stride,
+                element.extent
+            ),
+            (index, obligation, 24, extent)
+        );
+        assert!(!super::runtime_indices_match(&[], &geometry.elements));
+        let indices = vec![legalized_operations::LegalizedRuntimeIndexOperand {
+            operand: abstract_operations::AbstractResult {
+                value: index,
+                scalar_type: count,
+            },
+            stride: 24,
+            extent,
+            obligation,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([0; 32]),
+        }];
+        assert!(super::runtime_indices_match(&indices, &geometry.elements));
+        let mut wrong = indices.clone();
+        wrong[0].stride = 16;
+        assert!(!super::runtime_indices_match(&wrong, &geometry.elements));
+        wrong = indices.clone();
+        wrong[0].operand.value = ValueId::new(2).unwrap();
+        assert!(!super::runtime_indices_match(&wrong, &geometry.elements));
+        wrong = indices;
+        wrong[0].obligation = ObligationId::new(2).unwrap();
+        assert!(!super::runtime_indices_match(&wrong, &geometry.elements));
+    }
+    assert!(super::projected_byte_field(view, &[], field, &types).is_none());
+    assert!(
+        super::projected_byte_field(view, &path, StructuralFieldId::new(3).unwrap(), &types)
+            .is_none()
+    );
+}

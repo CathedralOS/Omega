@@ -128,7 +128,11 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => {
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                indices, ..
+            }
+            | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
@@ -160,28 +164,31 @@ impl LegalizedScalarInstruction {
                 ..
             } => [*index, *value, *length].into_iter().for_each(visit),
             LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
-                index,
-                length,
-                ..
-            }
             | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
                 [*index, *length].into_iter().for_each(visit)
             }
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+                indices,
+                index,
+                length,
+                ..
+            } => indices
+                .iter()
+                .map(|index| index.operand.value)
+                .chain([*index, *length])
+                .for_each(visit),
             LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. }
             | LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::StoreStructuralField { .. }
-            | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
             | LegalizedScalarInstructionKind::EstablishElementView { .. }
@@ -361,6 +368,7 @@ pub enum LegalizedScalarInstructionKind {
     /// One inline field byte read under the field's current length
     /// observation; selection reconstructs the field's offset.
     StructuralByteSequenceFieldRead {
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
         index: ValueId,
@@ -370,6 +378,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     /// Exact bounded-field metadata subject; selection reconstructs its offset.
     StructuralByteSequenceFieldLength {
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
     },
@@ -393,6 +402,7 @@ pub enum LegalizedScalarInstructionKind {
     /// One shared view field's descriptor, replaced by an established
     /// literal view's pointer and extent; the original root stays authoritative.
     StructuralByteViewFieldStore {
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         destination: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
         source: semantic_vocabulary::PlaceId,

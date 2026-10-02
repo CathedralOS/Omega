@@ -379,8 +379,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     length,
                     obligation,
                     accepted_fact,
+                    indices,
                 } => {
                     bytes.push(90);
+                    encode_runtime_indices(bytes, indices);
                     super::structural_types::encode_structural_argument(bytes, source);
                     for identity in [field.get(), index.get(), length.get(), obligation.get()] {
                         bytes.extend_from_slice(&identity.to_le_bytes());
@@ -390,8 +392,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                     source,
                     field,
+                    indices,
                 } => {
                     bytes.push(27);
+                    encode_runtime_indices(bytes, indices);
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                 }
@@ -451,8 +455,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     destination,
                     field,
                     source,
+                    indices,
                 } => {
                     bytes.push(92);
+                    encode_runtime_indices(bytes, indices);
                     super::structural_types::encode_structural_argument(bytes, destination);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                     bytes.extend_from_slice(&source.get().to_le_bytes());

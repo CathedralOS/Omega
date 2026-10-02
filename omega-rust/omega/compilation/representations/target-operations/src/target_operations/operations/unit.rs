@@ -235,6 +235,7 @@ pub enum TargetUnitOperation {
         index: TargetUnitScalarArgumentSource,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
@@ -242,6 +243,7 @@ pub enum TargetUnitOperation {
         result: AbstractResult,
         source: StructuralArgument,
         field: StructuralFieldId,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// One ordered scalar definition; residence is assigned downstream, not
     /// prescribed as a stack slot by target lowering.
@@ -275,6 +277,7 @@ pub enum TargetUnitOperation {
         destination: StructuralArgument,
         field: StructuralFieldId,
         source: PlaceId,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// Mutate one inline byte under the exact current field-length observation.
     StructuralByteSequenceFieldByteStore {

@@ -314,7 +314,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => storage_instructions::validate_structural_scalar_field_read(
-            actual, node, optimized, plan, custody,
+            actual, node, optimized, plan, unit, custody,
         )?,
         (
             LegalizedScalarInstructionKind::BitwiseAnd { left, right },
@@ -713,6 +713,7 @@ pub(super) fn validate(
         )?,
         (
             LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                indices,
                 destination,
                 field,
                 source,
@@ -723,6 +724,17 @@ pub(super) fn validate(
                 ..
             },
         ) => {
+            if *indices
+                != scalar_graph_input::structural_fields::byte_index_operands(
+                    optimized,
+                    unit,
+                    operation,
+                    destination,
+                    *field,
+                )?
+            {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
             if Some(destination.clone())
                 != scalar_graph_input::structural_fields::view_replacement(
                     optimized,

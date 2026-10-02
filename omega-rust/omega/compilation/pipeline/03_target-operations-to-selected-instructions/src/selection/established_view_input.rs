@@ -7,6 +7,9 @@ use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
+mod access;
+pub(super) use access::element_view_access;
+
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)
         || source

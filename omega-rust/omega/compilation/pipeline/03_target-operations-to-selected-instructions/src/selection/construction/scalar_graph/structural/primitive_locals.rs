@@ -99,44 +99,7 @@ pub(in crate::selection) fn read(
     let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
         .ok_or_else(|| invalid())?;
     let definition = row.result.ok_or_else(|| invalid())?;
-    let view_home = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == place)
-        .copied();
-    let pointer = if view_home.is_some()
-        || crate::selection::established_view_input::element_view_type(source, place).is_some()
-    {
-        // A view root's pointer names its descriptor; the read starts from
-        // the loan's backing pointer plus any derived view's byte offset.
-        let backing = super::element_views::element_backing_pointer(builder, row, place)?;
-        if let Some(view) = view_home {
-            let base =
-                crate::selection::construction::scalar_graph::structural::transport_register(
-                    builder,
-                    place,
-                    byte_offset,
-                )?;
-            builder.emit(
-                SelectedInstructionKind::ByteViewAddress,
-                builder.constraints.keys.add_i64,
-                &[backing, view.byte_offset, base],
-                crate::selection::construction::scalar_graph::structural::provenance(row),
-            )?;
-            base
-        } else {
-            backing
-        }
-    } else {
-        builder
-            .transport
-            .pointers
-            .iter()
-            .find(|(stored, _)| *stored == place)
-            .map(|(_, pointer)| *pointer)
-            .ok_or_else(|| invalid())?
-    };
+    let pointer = backing_pointer(source, builder, row, place, byte_offset)?;
     let pointer = if matches!(&row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
         if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
@@ -148,7 +111,10 @@ pub(in crate::selection) fn read(
     // A primitive leaf reached through runtime elements scales each selector
     // into the address first; every other read loads at its static offset.
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
-        LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
+        LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
+        | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. } => {
+            indices
+        }
         _ => &[],
     };
     let pointer =
@@ -244,4 +210,53 @@ pub(super) fn normalize_signed_load(
         },
     )?;
     Ok(normalized)
+}
+
+pub(super) fn backing_pointer(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let view_home = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == place)
+        .copied();
+    Ok(
+        if view_home.is_some()
+            || crate::selection::established_view_input::element_view_type(source, place).is_some()
+        {
+            // A view root's pointer names its descriptor; the read starts from
+            // the loan's backing pointer plus any derived view's byte offset.
+            let backing = super::element_views::element_backing_pointer(builder, row, place)?;
+            if let Some(view) = view_home {
+                let base =
+                    crate::selection::construction::scalar_graph::structural::transport_register(
+                        builder,
+                        place,
+                        byte_offset,
+                    )?;
+                builder.emit(
+                    SelectedInstructionKind::ByteViewAddress,
+                    builder.constraints.keys.add_i64,
+                    &[backing, view.byte_offset, base],
+                    crate::selection::construction::scalar_graph::structural::provenance(row),
+                )?;
+                base
+            } else {
+                backing
+            }
+        } else {
+            builder
+                .transport
+                .pointers
+                .iter()
+                .find(|(stored, _)| *stored == place)
+                .map(|(_, pointer)| *pointer)
+                .ok_or_else(|| invalid())?
+        },
+    )
 }

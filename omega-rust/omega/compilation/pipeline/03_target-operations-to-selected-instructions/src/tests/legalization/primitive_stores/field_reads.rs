@@ -420,6 +420,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                     result,
                     source: argument,
                     field,
+                    ..
                 } = changed.functions[0].graph.blocks[0].operations[1].clone()
                 else {
                     panic!("metadata read");

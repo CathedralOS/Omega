@@ -396,3 +396,75 @@ fn indexed_byte_field_length_freshness_examines_backedges_and_missing_arrivals()
     let missing = BTreeMap::from([(loop_block, BTreeSet::new())]);
     assert!(validate(&function, &types, &missing).is_err());
 }
+
+#[test]
+fn indexed_descriptor_replacement_retires_the_previous_length() {
+    let unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
+        r#"
+        domain [u8]::Utf8 requires valid_utf8(self);
+        data Room { name: &[u8] in Utf8; }
+        data Record { rooms: [Room; 3]; }
+        machine Record::replace(root: &mut Record) {
+            let index: u64 = 1;
+            let room_slice: &mut [Room] = root.rooms.as_mut_slice();
+            room_slice[index].name = "expected";
+            transition room_slice[index].name == "expected" {
+                true -> finish(root)
+                false -> fail(root)
+            }
+            state finish(root: &mut Record) { }
+            state fail(root: &mut Record) { }
+        }
+    "#,
+    );
+    crate::validate_psi_optimization_unit(&unit).expect("actual indexed descriptor source admits");
+    let mut function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap()
+        .clone();
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|row| (row.id, row))
+        .collect::<BTreeMap<_, _>>();
+    let mut predecessors = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
+    for block in &function.blocks {
+        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            predecessors
+                .entry(edge.target)
+                .or_default()
+                .insert(block.id);
+        }
+    }
+    validate(&function, &types, &predecessors).unwrap();
+    let replacement = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| matches!(node.operation, O::StructuralByteViewFieldStore { .. }))
+        .unwrap()
+        .clone();
+    let (block, position) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, row)| {
+            row.nodes
+                .iter()
+                .position(|node| {
+                    matches!(node.operation, O::StructuralByteSequenceFieldRead { .. })
+                })
+                .map(|position| (block, position))
+        })
+        .unwrap();
+    // Keep the original observation and byte-bound fact, but interpose a
+    // descriptor replacement immediately before its read. This isolates
+    // freshness from independent provenance/operation identity validation.
+    function.blocks[block].nodes.insert(position, replacement);
+    assert!(
+        validate(&function, &types, &predecessors).is_err(),
+        "a replacement can change extent even when the same carrier and selector survive"
+    );
+}

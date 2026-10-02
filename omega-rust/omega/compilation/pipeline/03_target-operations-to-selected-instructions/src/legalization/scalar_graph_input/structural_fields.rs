@@ -231,20 +231,17 @@ pub(in crate::legalization) fn view_replacement(
             terminal_psi::StructuralAccess::MutableBorrow,
             resolved.path,
         )
-    } else if let Some(parameter) = function.arrival_parameter(*destination) {
+    } else {
+        let (root, access) = byte_field_root(function, *destination)?;
         if !matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::MutableBorrow
+            access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
+        ) {
             return None;
         }
-        (parameter.structural_type, parameter.access, path.clone())
-    } else {
-        return None;
+        (root, access, path.clone())
     };
     if source == destination
         || super::literals::declaration_producer(function, *source).is_none()
@@ -259,17 +256,48 @@ pub(in crate::legalization) fn view_replacement(
     {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
+    crate::structural_inputs::structural_reference_input::projected_byte_field(
         root_type,
         &projected_path,
         *field,
         types,
-    )?;
+    )?
+    .descriptor_offset?;
     Some(terminal_psi::StructuralArgument {
         place: *destination,
         access,
         path: path.clone(),
     })
+}
+
+pub(in crate::legalization) fn byte_index_operands(
+    function: &PsiOptimizationFunction,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    operation: semantic_vocabulary::OperationId,
+    source: &terminal_psi::StructuralArgument,
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError> {
+    let geometry = byte_geometry(function, source, field, &unit.structural_types)
+        .ok_or(crate::LegalizationError::custody())?;
+    crate::legalization::runtime_indices::operands(function, unit, operation, &geometry.elements)
+}
+
+pub(in crate::legalization) fn byte_geometry(
+    function: &PsiOptimizationFunction,
+    source: &terminal_psi::StructuralArgument,
+    field: semantic_vocabulary::StructuralFieldId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<crate::structural_inputs::structural_reference_input::ProjectedByteField> {
+    let (root, access) = byte_field_root(function, source.place)?;
+    if access != source.access {
+        return None;
+    }
+    crate::structural_inputs::structural_reference_input::projected_byte_field(
+        root,
+        &source.path,
+        field,
+        types,
+    )
 }
 
 /// The bounded byte field one indexed byte read observes, as the structural
@@ -303,24 +331,12 @@ pub(in crate::legalization) fn byte_read(
     {
         return None;
     }
-    // A bounded owner holds its bytes inline; a shared view field holds a
-    // descriptor whose pointer the read follows.
-    crate::structural_inputs::structural_reference_input::observed_byte_field_storage(
+    crate::structural_inputs::structural_reference_input::projected_byte_field(
         structural_type,
         path,
         *field,
         types,
-    )
-    .map(|_| ())
-    .or_else(|| {
-        crate::structural_inputs::structural_reference_input::observed_byte_view_field_descriptor(
-            structural_type,
-            path,
-            *field,
-            types,
-        )
-        .map(|_| ())
-    })?;
+    )?;
     Some(terminal_psi::StructuralArgument {
         place: *source,
         access,
@@ -354,11 +370,21 @@ pub(in crate::legalization) fn read(
     } = operation
     {
         let (structural_type, access) = byte_field_root(function, *source)?;
-        crate::structural_inputs::structural_reference_input::observed_byte_field_length(
+        if result.scalar_type
+            != ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .ok()?,
+            )
+        {
+            return None;
+        }
+        crate::structural_inputs::structural_reference_input::projected_byte_field(
             structural_type,
             path,
             *field,
-            result.scalar_type,
             types,
         )?;
         return Some((

@@ -21,38 +21,38 @@ pub(super) fn replace(
         destination,
         field,
         source,
+        indices,
     } = &row.kind
     else {
         return Err(invalid());
     };
     let signature = function.structural.as_ref().ok_or_else(invalid)?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == destination.place)
-        .ok_or_else(invalid)?;
+    let root_type =
+        crate::selection::field_bytes::root_type(function, destination).ok_or_else(|| invalid())?;
+    let geometry = crate::structural_inputs::structural_reference_input::projected_byte_field(
+        root_type,
+        &destination.path,
+        *field,
+        &signature.structural_types,
+    )
+    .ok_or_else(|| invalid())?;
     if row.result.is_some()
-        || parameter.semantic.access != destination.access
         || !matches!(
             destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         )
-        || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
-        || !parameter.semantic.projected_qualifications.is_empty()
         || *source == destination.place
         || crate::selection::established_view_input::literal_view_type(function, *source).is_none()
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices,
+            &geometry.elements,
+        )
     {
         return Err(invalid());
     }
-    let descriptor_offset =
-        crate::structural_inputs::structural_reference_input::byte_view_field_descriptor(
-            parameter.semantic.structural_type,
-            &destination.path,
-            *field,
-            &signature.structural_types,
-        )
-        .ok_or_else(invalid)?;
+    let descriptor_offset = geometry.descriptor_offset.ok_or_else(|| invalid())?;
     let extent_offset = descriptor_offset.checked_add(8).ok_or_else(invalid)?;
     let literal = builder
         .transport
@@ -61,13 +61,21 @@ pub(super) fn replace(
         .find(|(place, _)| place == source)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(invalid)?;
-    let root = builder
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == destination.place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+    let root = super::primitive_locals::backing_pointer(
+        function,
+        builder,
+        row,
+        destination.place,
+        descriptor_offset,
+    )?;
+    let root = super::runtime_address::scale(
+        builder,
+        row,
+        destination.place,
+        descriptor_offset,
+        root,
+        indices,
+    )?;
     let backing = transport_register(builder, *source, 0)?;
     memory(
         builder,
@@ -98,13 +106,14 @@ pub(super) fn replace(
         &[literal, extent],
         provenance(row),
     )?;
-    memory(
+    super::runtime_address::footprint(
         builder,
         row,
         destination.place,
         descriptor_offset,
         8,
-        SelectedMemoryAccessRole::WritePlace,
+        indices,
+        super::runtime_address::Written::Structural,
     )?;
     builder.emit(
         SelectedInstructionKind::Store {
@@ -116,13 +125,14 @@ pub(super) fn replace(
         provenance(row),
     )?;
     // The extent word commits the replacement and carries the fuel charge.
-    memory(
+    super::runtime_address::footprint(
         builder,
         row,
         destination.place,
         extent_offset,
         8,
-        SelectedMemoryAccessRole::WritePlace,
+        indices,
+        super::runtime_address::Written::Structural,
     )?;
     builder.emit(
         SelectedInstructionKind::Store {
