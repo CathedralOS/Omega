@@ -250,11 +250,12 @@ fn owned_arrival_layout_excludes_scalar_and_descriptor_roots() {
 #[test]
 fn owned_arrival_storage_preserves_erasure_and_nested_descriptor_geometry() {
     let mut plan = source(2);
-    for (relevance, field_type, expected) in [
+    for (relevance, field_type, expected, copied) in [
         (
             BindingRelevance::Erased,
             StructuralFieldType::Scalar(ScalarType::Boolean),
             ValueShape::integer(0, 1),
+            None,
         ),
         (
             BindingRelevance::Relevant,
@@ -262,6 +263,15 @@ fn owned_arrival_storage_preserves_erasure_and_nested_descriptor_geometry() {
                 access: Some(StructuralAccess::SharedBorrow),
             }),
             ValueShape::integer(16, 8),
+            Some(ValueShape::integer(16, 8)),
+        ),
+        (
+            BindingRelevance::Relevant,
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            }),
+            ValueShape::integer(16, 8),
+            None,
         ),
     ] {
         plan.structural_types = vec![StructuralTypeDeclaration {
@@ -281,13 +291,14 @@ fn owned_arrival_storage_preserves_erasure_and_nested_descriptor_geometry() {
             block_home_layout(&arrival(), &plan).unwrap().shape(),
             expected
         );
-        // Existing call-copy eligibility must not be broadened by storage replay.
-        assert!(
+        // Shared descriptors can travel in a whole-value copy; exclusive
+        // descriptors still have storage without permission to duplicate it.
+        assert_eq!(
             crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
                 id(1),
                 &plan.structural_types
-            )
-            .is_none()
+            ),
+            copied
         );
     }
 }
