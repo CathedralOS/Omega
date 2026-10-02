@@ -363,9 +363,8 @@ pub(super) fn validate_bindings(
         {
             // The authored operand is the construction, call, or copied place:
             // it is the one value the statement registers as rooted at that
-            // expression, its declared carrier is the target's, and its kind
-            // is a construction, call product, or copy. A copied place must
-            // replay its exact source/path and unrestricted leaf below; this
+            // expression and its declared carrier is the target's. A copied
+            // place must replay its exact source/path and unrestricted leaf below; this
             // is fresh destination storage, not a transfer of source custody.
             // The edge's
             // establishment is an ordinary one at the transition's own
@@ -402,24 +401,6 @@ pub(super) fn validate_bindings(
                     .normalized_type_identity(root.type_reference)
                     .into_string()
                     != target.type_identity
-                || !matches!(
-                    checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(root.root)
-                        .kind,
-                    checked_trees::CheckedStructuralValueKind::Record { .. }
-                        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                        | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
-                        | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-                        | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                        | checked_trees::CheckedStructuralValueKind::Case { .. }
-                        | checked_trees::CheckedStructuralValueKind::Call { .. }
-                        | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
-                        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-                )
             {
                 return unsupported("Unit graph established argument custody drifted");
             }
@@ -474,6 +455,10 @@ pub(super) fn validate_bindings(
                     _ => return unsupported("Unit graph operand is not call preparation"),
                 }
             }
+            // The operation's common source replay owns producer admission,
+            // including primitive arrays and composed values. Keeping another
+            // value-kind catalog on state edges would give the same operation
+            // different permissions solely because it feeds a successor.
             match establishment.as_ref() {
                 checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     value,

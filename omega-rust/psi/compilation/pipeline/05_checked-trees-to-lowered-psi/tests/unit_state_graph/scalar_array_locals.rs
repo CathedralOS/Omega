@@ -236,3 +236,171 @@ fn mutable_array_initializer_also_composes_with_an_ordinary_call() {
     .expect("mutable array storage uses the existing ordinary call loan");
     validate_module(&lowered.semantic_module).expect("mutable array call validates");
 }
+
+fn owned_array_source(local: bool) -> String {
+    let (prefix, argument) = if local {
+        ("let values: [i32; 2] = [30, 40];", "values")
+    } else {
+        ("", "[30, 40]")
+    };
+    format!(
+        "boundary trait Output {{ machine write(marker: i32) reaches Output; }}
+         data Root {{}}
+         machine Root::enter() reaches Output {{
+             {prefix}
+             transition {{ _ -> take(7, {argument}, 9) }}
+             state take(before: i32, values: [i32; 2], after: i32) {{
+                 Output::write(before);
+                 Output::write(values[0]);
+                 Output::write(values[1]);
+                 Output::write(after);
+             }}
+         }}"
+    )
+}
+
+fn owned_array_effects(checked: &checked_trees::CheckedTrees) -> Vec<i128> {
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("owned arrays use the ordinary structural state transfer");
+    let execution = super::interpret_terminal_artifact_measured(
+        &super::encode_module(&lowered.semantic_module).unwrap(),
+        &super::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+        &super::AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs::default(),
+        &mut terminal_interpreter::AcceptTerminalEffects,
+    )
+    .expect("owned array state transfer survives independent artifact replay");
+    assert_eq!(execution.value(), super::TerminalExecutionResult::Unit);
+    execution
+        .effects()
+        .iter()
+        .map(|effect| {
+            let super::TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+                panic!("expected scalar output");
+            };
+            let [
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Signed(value),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("one signed output value");
+            };
+            *value
+        })
+        .collect()
+}
+
+#[test]
+fn owned_array_state_arguments_preserve_literals_locals_and_scalar_positions() {
+    for local in [false, true] {
+        let checked = crate::front_end::checked_program(&owned_array_source(local));
+        assert_eq!(owned_array_effects(&checked), [7, 30, 40, 9]);
+    }
+}
+
+#[test]
+fn owned_array_state_argument_replay_rejects_substituted_producers_and_custody() {
+    use checked_trees::{
+        CheckedComposedUnitControlTerminatorPlan, CheckedStructuralControlTransferSourcePlan,
+        CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
+    };
+    let checked = crate::front_end::checked_program(&owned_array_source(false));
+    assert_eq!(owned_array_effects(&checked), [7, 30, 40, 9]);
+    let array = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .find_map(|(handle, node)| {
+            matches!(node.kind, CheckedStructuralValueKind::ScalarArray { .. }).then_some(handle)
+        })
+        .expect("authored primitive array");
+    for mutation in ["leaf order", "zeroed producer", "owned custody"] {
+        let mut changed = checked.clone();
+        if mutation == "owned custody" {
+            let edge = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.states)
+                .find_map(|state| match &mut state.terminator {
+                    CheckedComposedUnitControlTerminatorPlan::Jump { successor } => Some(successor),
+                    _ => None,
+                })
+                .expect("array state edge");
+            let establishment = edge
+                .transfers
+                .iter_mut()
+                .find_map(|transfer| match &mut transfer.source {
+                    CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                        establishment,
+                        ..
+                    } => Some(establishment),
+                    _ => None,
+                })
+                .expect("edge array establishment");
+            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
+                establishment.as_mut()
+            else {
+                panic!("structural array establishment");
+            };
+            result.multiplicity = language_semantics::Multiplicity::Affine;
+        } else {
+            let node = changed.facts.values.structural_values.nodes.get_mut(array);
+            if mutation == "zeroed producer" {
+                node.kind = CheckedStructuralValueKind::ZeroedStructural {};
+            } else {
+                let CheckedStructuralValueKind::ScalarArray { elements } = &mut node.kind else {
+                    panic!("primitive array leaf roster");
+                };
+                elements.swap(0, 1);
+            }
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .is_err(),
+            "independent source replay rejects {mutation}"
+        );
+    }
+}
+
+#[test]
+fn owned_array_state_operands_execute_once_only_on_the_selected_edge() {
+    let source = r#"
+        boundary trait Output { machine write(marker: i32) reaches Output; }
+        machine trace(value: i32) -> i32 reaches Output {
+            Output::write(value);
+            value
+        }
+        machine relay(selected: bool) reaches Output {
+            transition selected {
+                true -> take(trace(7), [trace(30), trace(40)], trace(9))
+                false -> take(trace(5), [trace(50), trace(60)], trace(8))
+            }
+            state take(before: i32, values: [i32; 2], after: i32) {
+                Output::write(before);
+                Output::write(values[0]);
+                Output::write(values[1]);
+                Output::write(after);
+            }
+        }
+        data Root {}
+        machine Root::enter() reaches Output { relay(true); relay(false); }
+    "#;
+    assert_eq!(
+        owned_array_effects(&crate::front_end::checked_program(source)),
+        [7, 30, 40, 9, 7, 30, 40, 9, 5, 50, 60, 8, 5, 50, 60, 8],
+    );
+}
