@@ -373,7 +373,7 @@ mod tests {
                 caller: entry,
                 block: SelectedBlockId(1),
                 instruction: SelectedInstructionId(1),
-                operation: OperationId::new(3).unwrap(),
+                owner: target_operations::CallSiteOwner::Operation(OperationId::new(3).unwrap()),
                 callee,
                 call_function_offset: 0,
                 call_section_offset: 0,

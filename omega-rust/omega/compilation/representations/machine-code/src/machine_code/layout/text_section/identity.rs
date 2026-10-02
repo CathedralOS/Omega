@@ -7,7 +7,7 @@ use super::{
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v10";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v11";
 
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
@@ -65,7 +65,20 @@ pub fn relocation_free_text_section_identity(
         hasher.update(resolution.caller.get().to_le_bytes());
         hasher.update(resolution.block.0.to_le_bytes());
         hasher.update(resolution.instruction.0.to_le_bytes());
-        hasher.update(resolution.operation.get().to_le_bytes());
+        match resolution.owner {
+            target_operations::CallSiteOwner::Operation(operation) => {
+                hasher.update([0]);
+                hasher.update(operation.get().to_le_bytes());
+            }
+            target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                hasher.update([1]);
+                hasher.update(edge.get().to_le_bytes());
+                hasher.update(action_ordinal.to_le_bytes());
+            }
+        }
         hasher.update(resolution.callee.get().to_le_bytes());
         hasher.update(resolution.call_function_offset.to_le_bytes());
         hasher.update(resolution.call_section_offset.to_le_bytes());
@@ -298,7 +311,7 @@ mod tests {
                     caller,
                     block: SelectedBlockId(0),
                     instruction: SelectedInstructionId(0),
-                    operation: OperationId::new(21).unwrap(),
+                    owner: target_operations::CallSiteOwner::Operation(OperationId::new(21).unwrap()),
                     callee,
                     call_function_offset: 0,
                     call_section_offset: 0,
@@ -343,8 +356,16 @@ mod tests {
             row.instruction = SelectedInstructionId(2)
         });
         assert_resolution_mutation_changes_identity(|row| {
-            row.operation = OperationId::new(32).unwrap()
+            row.owner = target_operations::CallSiteOwner::Operation(OperationId::new(32).unwrap())
         });
+        for (edge, action_ordinal) in [(31, 0), (31, 1), (32, 0)] {
+            assert_resolution_mutation_changes_identity(|row| {
+                row.owner = target_operations::CallSiteOwner::CleanupAction {
+                    edge: semantic_vocabulary::EdgeId::new(edge).unwrap(),
+                    action_ordinal,
+                };
+            });
+        }
         assert_resolution_mutation_changes_identity(|row| row.callee = MachineId::new(33).unwrap());
         assert_resolution_mutation_changes_identity(|row| row.call_function_offset += 1);
         assert_resolution_mutation_changes_identity(|row| row.call_section_offset += 1);

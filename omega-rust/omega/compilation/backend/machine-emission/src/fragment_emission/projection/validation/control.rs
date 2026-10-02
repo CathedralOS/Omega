@@ -11,6 +11,7 @@ use selected_instructions::{
 };
 
 pub(super) fn check(
+    function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
     actual: &Control,
@@ -19,8 +20,16 @@ pub(super) fn check(
     | SelectedInstructionKind::CallUnit { callee }
     | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
     {
+        let mut rows = function
+            .calls
+            .iter()
+            .filter(|row| row.instruction == instruction.id);
+        let row = rows
+            .next()
+            .ok_or(ResolvedFragmentEmissionError::ArtifactMismatch)?;
+        require(rows.next().is_none() && row.call.callee == callee)?;
         return require(
-            matches!(actual, Control::DirectInternalCall { callee: target } if *target == callee),
+            matches!(actual, Control::DirectInternalCall { callee: target, owner } if *target == callee && *owner == row.owner),
         );
     }
     if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {

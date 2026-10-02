@@ -446,7 +446,7 @@ mod tests {
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
-            control: FunctionFragmentControlProvenance::DirectInternalCall { callee },
+            control: FunctionFragmentControlProvenance::DirectInternalCall { callee, owner: target_operations::CallSiteOwner::Operation(semantic_vocabulary::OperationId::new(1).unwrap()) },
         };
         let ret = FunctionFragmentInstructionSpan {
             instruction: SelectedInstructionId(2),
@@ -684,6 +684,9 @@ mod tests {
         };
         controls[1].control = FunctionFragmentControlProvenance::DirectInternalCall {
             callee: MachineId::new(2).unwrap(),
+            owner: target_operations::CallSiteOwner::Operation(
+                semantic_vocabulary::OperationId::new(1).unwrap(),
+            ),
         };
         assert_eq!(
             apply(

@@ -19,6 +19,7 @@ use super::control;
 use crate::fragment_emission::projection::ResolvedFragmentEmissionError;
 
 pub(super) fn emit(
+    function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
     row: &ResolvedSelectedFormRow,
     bytes: &mut Vec<u8>,
@@ -29,7 +30,7 @@ pub(super) fn emit(
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let instruction = selected(block, row)?;
-    let control = control::provenance(block, instruction);
+    let control = control::provenance(function, block, instruction)?;
     let internal_machine_fixup = translate_fixup(row, instruction)?;
     let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
     let byte_literal_address_fixup = translate_byte_literal_fixup(row, instruction)?;

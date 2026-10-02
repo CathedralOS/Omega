@@ -7,19 +7,36 @@ use selected_instructions::{
 };
 
 pub(super) fn provenance(
+    function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
-) -> FunctionFragmentControlProvenance {
+) -> Result<
+    FunctionFragmentControlProvenance,
+    crate::fragment_emission::projection::ResolvedFragmentEmissionError,
+> {
     if let SelectedInstructionKind::CallScalar { callee }
     | SelectedInstructionKind::CallUnit { callee }
     | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
     {
-        return FunctionFragmentControlProvenance::DirectInternalCall { callee };
+        let mut rows = function
+            .calls
+            .iter()
+            .filter(|row| row.instruction == instruction.id);
+        let row = rows.next().ok_or(
+            crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch,
+        )?;
+        if rows.next().is_some() || row.call.callee != callee {
+            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+        }
+        return Ok(FunctionFragmentControlProvenance::DirectInternalCall {
+            callee,
+            owner: row.owner,
+        });
     }
     if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {
-        return FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal };
+        return Ok(FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal });
     }
-    match &block.terminator {
+    Ok(match &block.terminator {
         SelectedTerminator::Crash {
             instruction: terminal,
             psi_edge,
@@ -152,5 +169,5 @@ pub(super) fn provenance(
             psi_return_edge: *psi_return_edge,
         },
         _ => FunctionFragmentControlProvenance::None,
-    }
+    })
 }

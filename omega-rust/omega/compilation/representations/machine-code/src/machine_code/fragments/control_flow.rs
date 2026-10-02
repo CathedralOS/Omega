@@ -48,6 +48,7 @@ pub enum FunctionFragmentControlProvenance {
     },
     DirectInternalCall {
         callee: MachineId,
+        owner: target_operations::CallSiteOwner,
     },
     /// Direct evaluated normalized foreign call. The `{boundary, ordinal}`
     /// pair names the selected roster row owning the evaluated locator; the

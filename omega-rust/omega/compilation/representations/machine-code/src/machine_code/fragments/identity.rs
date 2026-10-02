@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v15";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v16";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -227,9 +227,23 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             encode_successor(hasher, successor);
         }
         FunctionFragmentControlProvenance::None => hasher.update([0]),
-        FunctionFragmentControlProvenance::DirectInternalCall { callee } => {
+        FunctionFragmentControlProvenance::DirectInternalCall { callee, owner } => {
             hasher.update([3]);
             hasher.update(callee.get().to_le_bytes());
+            match *owner {
+                target_operations::CallSiteOwner::Operation(operation) => {
+                    hasher.update([0]);
+                    hasher.update(operation.get().to_le_bytes());
+                }
+                target_operations::CallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal,
+                } => {
+                    hasher.update([1]);
+                    hasher.update(edge.get().to_le_bytes());
+                    hasher.update(action_ordinal.to_le_bytes());
+                }
+            }
         }
         FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal } => {
             hasher.update([6]);
