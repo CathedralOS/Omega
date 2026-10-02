@@ -16,7 +16,7 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
 
-pub(crate) fn children(
+pub fn children(
     program: &TypedTrees,
     node: &ExpressionNode,
     mut child: impl FnMut(ExpressionHandle),

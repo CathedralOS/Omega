@@ -74,6 +74,7 @@ pub(crate) fn validate_computation_calls(
         let authored_scope = operand_scopes::folded_match_scope(checked, authored_scope)?;
         match &node.kind {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                operand_type,
                 source_expression,
                 subject,
             } => {
@@ -88,7 +89,14 @@ pub(crate) fn validate_computation_calls(
                 if node.primitive_type != PrimitiveType::Bool {
                     return unsupported("byte content comparison is not Boolean");
                 }
-                byte_comparisons::validate(checked, state, statement, *source_expression, subject)?;
+                byte_comparisons::validate(
+                    checked,
+                    state,
+                    statement,
+                    *source_expression,
+                    *operand_type,
+                    subject,
+                )?;
             }
             CheckedScalarComputationKind::StructuralField {
                 source_expression,

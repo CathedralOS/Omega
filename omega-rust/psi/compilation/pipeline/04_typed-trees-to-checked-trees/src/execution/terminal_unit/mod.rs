@@ -733,6 +733,26 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     for identity in &retained_loan_identities {
         retained_type_identities.insert(identity.as_str());
     }
+    // Computed structural operands declare their descriptor even when no source
+    // binding has that type. This retains storage vocabulary, not evaluation or
+    // custody: the owning scalar computation still establishes it selectively.
+    let operand_identities = facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                operand_type,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            shapes.add_type(operand_type, &[], &[])
+        })
+        .collect::<Vec<_>>();
+    retained_type_identities.extend(operand_identities.iter().map(String::as_str));
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {
@@ -1160,6 +1180,17 @@ pub(super) fn structural_scalar_graph_signature(
         return None;
     }
     Some((structural, scalar, shapes.types.into_values().collect()))
+}
+
+/// A computed structural operand owns its storage vocabulary independently of
+/// source parameters. Access and evaluation remain with its operation plan.
+pub(super) fn scalar_operand_shapes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    let mut shapes = ShapeCollector::new(program);
+    shapes.add_type(reference, &[], &[])?;
+    Some(shapes.types.into_values().collect())
 }
 
 /// Construction and structural results share the same closed sum admission.

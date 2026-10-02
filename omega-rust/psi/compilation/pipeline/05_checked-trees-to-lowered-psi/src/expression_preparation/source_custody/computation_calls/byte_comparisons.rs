@@ -49,6 +49,7 @@ pub(crate) fn validate(
     state: symbols::SymbolHandle,
     statement: u32,
     expression: ExpressionHandle,
+    operand_type: checked_trees::types::TypeReferenceHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let (operand, _, _) = operands(checked, expression)?;
@@ -58,6 +59,9 @@ pub(crate) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "byte comparison operand lost its result type",
             ))?;
+    if target != operand_type {
+        return unsupported("byte comparison substituted its operand type reference");
+    }
     if matches!(
         subject.source,
         Source::ByteSequenceSubslice { .. } | Source::ElementViewSubslice { .. }
@@ -107,8 +111,18 @@ pub(crate) fn validate(
         }
         _ => return unsupported("byte comparison substituted its operand storage"),
     };
-    let carrier =
-        validation::reference_shell(&checked.typed, target).map_or(target, |shell| shell.referee);
+    let mut carrier = target;
+    loop {
+        match checked.type_reference_table.type_reference(carrier) {
+            checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                carrier = *referee
+            }
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                carrier = *base_type
+            }
+            _ => break,
+        }
+    }
     if subject.access != CheckedStructuralAccess::SharedBorrow
         || root != source.root
         || subject.path != source.path

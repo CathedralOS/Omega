@@ -95,7 +95,7 @@ mod byte_comparison_tests {
                 &checked,
                 binding.state,
                 binding.statement_ordinal,
-                    super::super::storage_reads::guard_subject(&checked, binding.expression),
+                super::super::storage_reads::guard_subject(&checked, binding.expression),
                 value,
             )
         };
@@ -269,6 +269,22 @@ impl Context<'_> {
         active.push(root);
         let node = plans.nodes.get(root);
         let valid = match &node.kind {
+            Computation::ByteSequenceLiteralComparison {
+                operand_type,
+                source_expression,
+                subject,
+            } => {
+                node.primitive_type == PrimitiveType::Bool
+                    && super::computation_calls::byte_comparisons::validate(
+                        self.checked,
+                        self.state,
+                        self.statement,
+                        *source_expression,
+                        *operand_type,
+                        subject,
+                    )
+                    .is_ok()
+            }
             Computation::StructuralField {
                 source_expression,
                 subject,
