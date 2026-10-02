@@ -4,6 +4,7 @@
 
 use proof_admission::{
     ProofNode, ProofRule, check_predicate_denotations, check_value_equality_denotation,
+    retain_original_predicate_citations,
 };
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use std::collections::BTreeSet;
@@ -69,7 +70,7 @@ pub(super) fn prove(
         &axioms,
         machine_parameters,
     )?;
-    retain_original_citations(
+    retain_original_predicate_citations(
         &mut proof,
         context,
         assumptions,
@@ -86,143 +87,6 @@ pub(super) fn prove(
             },
         }
     })
-}
-
-fn retain_original_citations(
-    proof: &mut ProofNode,
-    context: &PropositionContext,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    equations: &[ProofNode],
-) -> Option<()> {
-    let mut pending = vec![proof];
-    let mut remaining = 4096usize;
-    while let Some(proof) = pending.pop() {
-        remaining = remaining.checked_sub(1)?;
-        let original = match &proof.rule {
-            ProofRule::Assumption { index } => assumptions.get(*index),
-            ProofRule::SemanticAxiom { index } => Some(semantic_axioms.get(*index)?),
-            _ => None,
-        };
-        if let Some(original) = original {
-            if original != &proof.conclusion {
-                let premise = ProofNode {
-                    conclusion: original.clone(),
-                    rule: proof.rule.clone(),
-                };
-                let denotation = check_predicate_denotations(context, original, &[], &[]).ok()?;
-                if denotation.goal() == &proof.conclusion {
-                    proof.rule = ProofRule::PredicateDenotation {
-                        premise: Box::new(premise),
-                    };
-                } else {
-                    let transported = check_value_equality_denotation(
-                        context,
-                        original,
-                        equations.iter().map(|proof| &proof.conclusion),
-                    )
-                    .ok()?;
-                    if transported != proof.conclusion {
-                        return None;
-                    }
-                    proof.rule = ProofRule::ValueEqualityTransport {
-                        premise: Box::new(premise),
-                        equalities: equations.to_vec(),
-                    };
-                }
-            }
-            continue;
-        }
-        match &mut proof.rule {
-            // Locally discharged assumptions were introduced by the converted
-            // proof itself and do not refer to the ambient original roster.
-            ProofRule::Assumption { .. }
-            | ProofRule::SemanticAxiom { .. }
-            | ProofRule::Primitive(_)
-            | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
-            ProofRule::ValueEqualityTransport {
-                premise,
-                equalities,
-            } => {
-                pending.push(premise);
-                pending.extend(equalities);
-            }
-            ProofRule::ConjunctionIntroduction(children) => pending.extend(children),
-            ProofRule::ConjunctionElimination {
-                conjunction: child, ..
-            }
-            | ProofRule::DisjunctionIntroduction {
-                disjunct: child, ..
-            }
-            | ProofRule::ImplicationIntroduction { body: child }
-            | ProofRule::EqualitySymmetry { equality: child }
-            | ProofRule::PredicateDenotation { premise: child }
-            | ProofRule::IntegerOrderWeakening { relation: child }
-            | ProofRule::IntegerOrderDiscreteness { relation: child }
-            | ProofRule::IntegerAffineBound {
-                root_bound: child, ..
-            }
-            | ProofRule::IntegerCastBound {
-                root_bound: child, ..
-            } => pending.push(child),
-            ProofRule::DisjunctionElimination {
-                disjunction,
-                branches,
-            } => {
-                pending.push(disjunction);
-                pending.extend(branches);
-            }
-            ProofRule::ImplicationElimination {
-                implication: left,
-                premise: right,
-            }
-            | ProofRule::EqualityTransitivity {
-                left_equals_middle: left,
-                middle_equals_right: right,
-            }
-            | ProofRule::IntegerSubtractOrder {
-                difference: left,
-                positive: right,
-            }
-            | ProofRule::IntegerAddOrder {
-                sum: left,
-                positive: right,
-            }
-            | ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: left,
-                middle_less_or_equal_right: right,
-            }
-            | ProofRule::IntegerStrictOrderTransitivity {
-                left_to_middle: left,
-                middle_to_right: right,
-            }
-            | ProofRule::IntegerOrderSubstitution {
-                relation: left,
-                equality: right,
-                ..
-            }
-            | ProofRule::IntegerExactAddDefinitionBound {
-                left_bound: left,
-                right_bound: right,
-                ..
-            }
-            | ProofRule::IntegerExactSubtractDefinitionBound {
-                left_bound: left,
-                right_bound: right,
-                ..
-            } => {
-                pending.extend([left.as_mut(), right.as_mut()]);
-            }
-            ProofRule::IntegerSubtractAntitone {
-                smaller,
-                larger,
-                order,
-            } => {
-                pending.extend([smaller.as_mut(), larger.as_mut(), order.as_mut()]);
-            }
-        }
-    }
-    Some(())
 }
 
 #[cfg(test)]

@@ -21,6 +21,9 @@ use terminal_psi::CrashCertificate;
 mod implications;
 mod integer_order;
 mod order_chain;
+mod original_citations;
+
+pub use original_citations::retain_original_predicate_citations;
 
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
@@ -63,6 +66,59 @@ pub fn produce_denotation_certificates(
             })
         })
         .collect()
+}
+
+/// Produce an ordinary proof under the original premise roster, making the
+/// searched denotation lane explicit at every converted citation and result.
+/// This lets operation obligations share the crash certificate search without
+/// treating the converted roster as a new source of authority.
+pub fn produce_predicate_proof(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    produce_denotation_certificates(context, goal, requirements, semantic_axioms)
+        .into_iter()
+        .find_map(|certificate| {
+            let equations = semantic_axioms
+                .iter()
+                .enumerate()
+                .filter(|(_, proposition)| {
+                    certificate.with_value_equalities
+                        && matches!(proposition, Proposition::Equal(..))
+                })
+                .map(|(index, proposition)| ProofNode {
+                    conclusion: proposition.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
+                })
+                .collect::<Vec<_>>();
+            let mut proof = certificate.proof;
+            retain_original_predicate_citations(
+                &mut proof,
+                context,
+                requirements,
+                semantic_axioms,
+                &equations,
+            )?;
+            if &proof.conclusion != goal {
+                proof = ProofNode {
+                    conclusion: goal.clone(),
+                    rule: if certificate.with_value_equalities {
+                        ProofRule::ValueEqualityTransport {
+                            premise: Box::new(proof),
+                            equalities: equations,
+                        }
+                    } else {
+                        ProofRule::PredicateDenotation {
+                            premise: Box::new(proof),
+                        }
+                    },
+                };
+            }
+            crate::check_certificate(context, goal, requirements, semantic_axioms, &proof).ok()?;
+            Some(proof)
+        })
 }
 
 /// Establish a goal from the supplied premises by producing then re-deciding
