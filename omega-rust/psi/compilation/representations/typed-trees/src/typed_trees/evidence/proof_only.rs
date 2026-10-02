@@ -232,8 +232,8 @@ impl ProofOnlyClassification {
     /// Machine-stratum contagion (math roster N2d gateway): a free machine
     /// whose signature mentions proof-only data, or a by-value operation
     /// attached to proof-only data itself, is a PROOF MACHINE. The latter is a
-    /// proof-side receiver operation, not storage-backed runtime dispatch.
-    /// Borrowed or mutable receivers remain runtime consumption attempts, as
+    /// proof-side subject operation, not storage-backed runtime dispatch.
+    /// Borrowed or mutable subjects remain runtime consumption attempts, as
     /// do operations attached to runtime data even when another signature
     /// position mentions proof-only data.
     pub fn is_proof_machine(
@@ -245,33 +245,38 @@ impl ProofOnlyClassification {
             let attached_is_proof_only = program
                 .attached_data_definition(machine)
                 .is_some_and(|definition| self.is_proof_only(definition.symbol));
-            if !program.machine_has_receiver(machine) {
-                // A static-style attached operation carries no receiver to
-                // fence (`machine - Nat::subtract(left, right)`): whether it
-                // is proof-side is decided by the ordinary signature rule
-                // below, exactly like a free machine over the same data.
-                if !attached_is_proof_only {
-                    return false;
-                }
-            } else {
-                return attached_is_proof_only
-                    && program.machine_states(machine).iter().all(|state| {
-                        program
-                            .state_parameters(state)
-                            .iter()
-                            .find(|parameter| parameter.is_self)
-                            .is_some_and(|receiver| {
-                                !receiver.is_mutable
-                                    && receiver.type_reference.is_valid()
-                                    && !matches!(
-                                        program
-                                            .type_reference_table
-                                            .type_reference(receiver.type_reference),
-                                        TypeReferenceNode::Reference { .. }
-                                    )
-                            })
-                    });
+            if !attached_is_proof_only {
+                return false;
             }
+            // The SUBJECT carries the attached data under either spelling, so
+            // ask which parameter it is rather than looking for a receiver: a
+            // static subject is an ordinary parameter, and the signature rule
+            // below would otherwise read `main: &mut Main` as a proof-only
+            // mention and call the machine proof-side, skipping the
+            // attached-storage fence that the receiver spelling reached.
+            let mut subjects = program.machine_states(machine).iter().filter_map(|state| {
+                let parameters = program.state_parameters(state);
+                let index =
+                    program.data_binding_position(machine.attached_data_symbol, parameters)?;
+                let subject = &parameters[index];
+                Some(
+                    !subject.is_mutable
+                        && subject.type_reference.is_valid()
+                        && !matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(subject.type_reference),
+                            TypeReferenceNode::Reference { .. }
+                        ),
+                )
+            });
+            if let Some(first) = subjects.next() {
+                return first && subjects.all(|by_value| by_value);
+            }
+            // No single parameter denotes the data -- `Nat::subtract(left,
+            // right)` names it twice and neither is the subject -- so there is
+            // nothing to fence, and the ordinary signature rule below decides
+            // exactly as it does for a free machine over the same data.
         }
         // Erased parameters and locals are proof-side occurrences: a
         // proof-only type there does not turn the machine into a computed
