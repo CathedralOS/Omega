@@ -737,26 +737,11 @@ fn same_reads(
     let (Some(left), Some(right)) = (left, right) else {
         return false;
     };
-    let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
-        crate::flow::normalized_event_place_root(program, left.root)
-            == crate::flow::normalized_event_place_root(program, right.root)
-            && left.segments.len() == right.segments.len()
-            && left
-                .segments
-                .iter()
-                .zip(&right.segments)
-                .all(|(left, right)| match (*left, *right) {
-                    (
-                        facts::PlaceSegment::Index { expression: left },
-                        facts::PlaceSegment::Index { expression: right },
-                    ) => program
-                        .expression_table
-                        .expressions_structurally_equal(left, right),
-                    (left, right) => crate::flow::canonical_place_segments_equal(left, right),
-                })
-    };
     // Separate guard occurrences may copy the same typed selector tree into
     // different arena slots. Compare their meaning, not those allocation slots.
+    let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
+        crate::flow::canonical_places_agree(program, left, right)
+    };
     left.iter()
         .all(|read| right.iter().any(|other| equal(read, other)))
         && right

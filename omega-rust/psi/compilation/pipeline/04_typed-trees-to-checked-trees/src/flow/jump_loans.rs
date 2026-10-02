@@ -126,6 +126,7 @@ impl TargetRun {
                         && source.segments.iter().zip(&loan.segments).all(
                             |(source_segment, loan_segment)| {
                                 crate::flow::canonical_place_segments_equal(
+                                    program,
                                     *source_segment,
                                     *loan_segment,
                                 )

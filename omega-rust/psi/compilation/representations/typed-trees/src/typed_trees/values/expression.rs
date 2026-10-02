@@ -593,6 +593,11 @@ impl ExpressionTable {
                 self.expressions_structurally_equal(x.collection, y.collection)
                     && self.expressions_structurally_equal(x.index, y.index)
             }
+            (ExpressionNode::Range(x), ExpressionNode::Range(y)) => {
+                x.end_inclusive == y.end_inclusive
+                    && self.optional_expression_structurally_equal(x.start, y.start)
+                    && self.optional_expression_structurally_equal(x.end, y.end)
+            }
             (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
                 x.target_symbol == y.target_symbol
                     && x.target.as_str() == y.target.as_str()
@@ -601,6 +606,20 @@ impl ExpressionTable {
             }
             _ => false,
         }
+    }
+
+    /// A range bound that is absent on both sides denotes the same implicit
+    /// endpoint (element zero for `start`, the collection's length for `end`);
+    /// absent on one side it cannot be proved equal to a spelled bound.
+    fn optional_expression_structurally_equal(
+        &self,
+        a: ExpressionHandle,
+        b: ExpressionHandle,
+    ) -> bool {
+        if a.is_valid() != b.is_valid() {
+            return false;
+        }
+        !a.is_valid() || self.expressions_structurally_equal(a, b)
     }
 
     fn expression_spans_structurally_equal(

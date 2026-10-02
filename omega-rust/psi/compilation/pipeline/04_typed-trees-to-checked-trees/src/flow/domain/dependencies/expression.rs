@@ -200,7 +200,10 @@ pub(super) fn collect_dependency_paths_from_expression(
     }
 }
 
-pub(super) fn dedupe_dependency_segments(dependencies: &mut Vec<Vec<facts::PlaceSegment>>) {
+pub(super) fn dedupe_dependency_segments(
+    program: &typed_trees::TypedTrees,
+    dependencies: &mut Vec<Vec<facts::PlaceSegment>>,
+) {
     let mut unique: Vec<Vec<facts::PlaceSegment>> = Vec::with_capacity(dependencies.len());
     for dependency in dependencies.drain(..) {
         if !unique.iter().any(|existing| {
@@ -208,7 +211,7 @@ pub(super) fn dedupe_dependency_segments(dependencies: &mut Vec<Vec<facts::Place
                 && existing
                     .iter()
                     .zip(dependency.iter())
-                    .all(|(left, right)| canonical_place_segments_equal(*left, *right))
+                    .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
         }) {
             unique.push(dependency);
         }

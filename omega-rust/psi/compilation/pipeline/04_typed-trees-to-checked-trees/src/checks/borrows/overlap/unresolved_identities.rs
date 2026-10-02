@@ -145,16 +145,27 @@ fn assert_matrix(
 
 #[test]
 fn canonical_segment_equality_requires_known_nominal_identity() {
+    let program = typed_trees::TypedTrees::default();
     for (left, right) in unresolved_pairs() {
-        assert!(!crate::flow::canonical_place_segments_equal(left, right));
-        assert!(!crate::flow::canonical_place_segments_equal(right, left));
+        assert!(!crate::flow::canonical_place_segments_equal(
+            &program, left, right
+        ));
+        assert!(!crate::flow::canonical_place_segments_equal(
+            &program, right, left
+        ));
     }
     for known in [field(2), case(2)] {
-        assert!(crate::flow::canonical_place_segments_equal(known, known));
+        assert!(crate::flow::canonical_place_segments_equal(
+            &program, known, known
+        ));
     }
     for (left, right) in [(field(2), field(3)), (case(2), case(3))] {
-        assert!(!crate::flow::canonical_place_segments_equal(left, right));
-        assert!(!crate::flow::canonical_place_segments_equal(right, left));
+        assert!(!crate::flow::canonical_place_segments_equal(
+            &program, left, right
+        ));
+        assert!(!crate::flow::canonical_place_segments_equal(
+            &program, right, left
+        ));
     }
 }
 
