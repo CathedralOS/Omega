@@ -47,48 +47,48 @@ data Spread16 {
     index: u64 in Wrapping;
     slot: u64 in Wrapping;
 }
-machine Spread16::plan(&mut self, schema: Schema) -> Plan {
-    self.evaluate(schema, 256)
+machine Spread16::plan(spread16: &mut Spread16, schema: Schema) -> Plan {
+    Spread16::evaluate(spread16, schema, 256)
 }
 
-machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 256
 terminates by fuel;
 {
     let mut entries: [FieldEntry; 64];
-    self.index = 0;
-    transition { _ -> fill_loop(schema, fuel, entries) }
+    spread16.index = 0;
+    transition { _ -> fill_loop(spread16, schema, fuel, entries) }
 
-    state fill_loop(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    state fill_loop(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
     requires 1 <= fuel
     requires fuel <= 256 {
-        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
-            true -> place_field(schema, fuel - 1, entries)
+        transition fuel > 1 && spread16.index < 32 && spread16.index < schema.field_count {
+            true -> place_field(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state place_field(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    state place_field(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
     requires 1 <= fuel
     requires fuel <= 256 {
-        self.slot = self.index * 16;
-        transition fuel > 1 && self.index < 32 {
-            true -> write_field(schema, fuel - 1, entries)
+        spread16.slot = spread16.index * 16;
+        transition fuel > 1 && spread16.index < 32 {
+            true -> write_field(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state write_field(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    state write_field(spread16: &mut Spread16, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
     requires 1 <= fuel
     requires fuel <= 256 {
         let mut updated: [FieldEntry; 64] = entries;
-        let offset: u64 = self.slot as u64;
-        updated[self.index] = FieldEntry {
-            key: schema.fields[self.index].key,
+        let offset: u64 = spread16.slot as u64;
+        updated[spread16.index] = FieldEntry {
+            key: schema.fields[spread16.index].key,
             placement: FieldPlan::At { offset: offset },
         };
-        self.index = self.index + 1;
+        spread16.index = spread16.index + 1;
         transition fuel > 1 {
-            true -> fill_loop(schema, fuel - 1, updated)
+            true -> fill_loop(spread16, schema, fuel - 1, updated)
             _ -> done(schema, updated)
         }
     }
@@ -119,16 +119,16 @@ data Main {
     v: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.gdt.limit_low = 7;
-    self.gdt.base_low = 20;
-    self.gdt.flags = 3;
-    self.gdt.base_high = 40;
-    self.twin = self.gdt;
+machine Main::main(main: &mut Main) reaches Console {
+    main.gdt.limit_low = 7;
+    main.gdt.base_low = 20;
+    main.gdt.flags = 3;
+    main.gdt.base_high = 40;
+    main.twin = main.gdt;
 
-    transition self.twin.limit_low == 7 {
-        true -> check_low(&mut self)
-        false -> bad(&mut self)
+    transition main.twin.limit_low == 7 {
+        true -> check_low(main)
+        false -> bad(main)
     }
 
     state check_low(main: &mut Main) {

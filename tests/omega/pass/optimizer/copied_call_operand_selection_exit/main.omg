@@ -19,12 +19,12 @@ requires
     product
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let decided: i64 = scale(14i64, 3i64);
     transition decided == 42i64 {
-        true -> ok()
-        _ -> bad()
+        true -> ok(main)
+        _ -> bad(main)
     }
-    state ok(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state ok(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

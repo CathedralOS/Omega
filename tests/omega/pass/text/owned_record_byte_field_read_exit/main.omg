@@ -24,28 +24,28 @@ machine render_shared(label: &Label, output: &mut [u8; 16] in Utf8) {
     output = label.text + "?";
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.text = "Gate";
-    self.source.sibling = 29;
-    transition { _ -> render(self.source) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.text = "Gate";
+    main.source.sibling = 29;
+    transition { _ -> render(main) }
 
-    state render(&mut self, source: Label) {
-        render_owned(source, &mut self.owned_line);
-        render_shared(&self.source, &mut self.shared_line);
-        transition self.owned_line == "Gate!"
-            && self.owned_line.len == 5
-            && self.shared_line == "Gate?"
-            && self.shared_line.len == 5
-            && source.text == "Gate"
-            && source.text.len == 4
-            && source.sibling == 29
-            && self.source.text == "Gate"
-            && self.source.text.len == 4
-            && self.source.sibling == 29 {
-            true -> finish(70)
-            false -> finish(1)
+    state render(main: &mut Main) {
+        render_owned(main.source, &mut main.owned_line);
+        render_shared(&main.source, &mut main.shared_line);
+        transition main.owned_line == "Gate!"
+            && main.owned_line.len == 5
+            && main.shared_line == "Gate?"
+            && main.shared_line.len == 5
+            && main.source.text == "Gate"
+            && main.source.text.len == 4
+            && main.source.sibling == 29
+            && main.source.text == "Gate"
+            && main.source.text.len == 4
+            && main.source.sibling == 29 {
+            true -> finish(main, 70)
+            false -> finish(main, 1)
         }
     }
 
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

@@ -60,18 +60,18 @@ data Main {
     result: i32;
 }
 
-machine Main::main(&mut self) reaches Console + CText + Measure {
-    self.words.bytes[0] = 104;
-    self.words.bytes[1] = 101;
-    self.words.bytes[2] = 108;
-    self.words.bytes[3] = 108;
-    self.words.bytes[4] = 111;
-    self.words.bytes[5] = 0;
-    self.result = self.measure.measure(&self.words.bytes[1], &self.words);
-    transition self.result == 70 && self.words.bytes[1] == 101 {
-        true -> good()
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console + CText + Measure {
+    main.words.bytes[0] = 104;
+    main.words.bytes[1] = 101;
+    main.words.bytes[2] = 108;
+    main.words.bytes[3] = 108;
+    main.words.bytes[4] = 111;
+    main.words.bytes[5] = 0;
+    main.result = main.measure.measure(&main.words.bytes[1], &main.words);
+    transition main.result == 70 && main.words.bytes[1] == 101 {
+        true -> good(main)
+        _ -> bad(main)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

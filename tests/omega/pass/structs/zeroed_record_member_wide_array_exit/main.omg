@@ -22,26 +22,26 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag = Bag { tag: 7 };
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag = Bag { tag: 7 };
 
-    transition self.bag.wides[1].cells[1023] == 0 {
-        true -> check_first() _ -> bad()
+    transition main.bag.wides[1].cells[1023] == 0 {
+        true -> check_first(main) _ -> bad(main)
     }
-    state check_first(&mut self) {
-        transition self.bag.wides[0].cells[0] == 0 {
-            true -> check_count() _ -> bad()
+    state check_first(main: &mut Main) {
+        transition main.bag.wides[0].cells[0] == 0 {
+            true -> check_count(main) _ -> bad(main)
         }
     }
-    state check_count(&mut self) {
-        transition self.bag.wides[0].count == 0 && self.bag.tag == 7 {
-            true -> good() _ -> bad()
+    state check_count(main: &mut Main) {
+        transition main.bag.wides[0].count == 0 && main.bag.tag == 7 {
+            true -> good(main) _ -> bad(main)
         }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

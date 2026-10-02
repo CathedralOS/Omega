@@ -22,78 +22,78 @@ data Main where 0 <= k, k <= 3 {
     wh: u64 in Wrapping;
     wn: u64 in Wrapping;
 }
-machine Main::main(&mut self) reaches Console
+machine Main::main(main: &mut Main) reaches Console
 {
-    self.arr[1] = 5;
-    self.arr[2] = 7;
-    self.arr[3] = 42;
-    self.k = 2;
-    self.r = self.arr[self.k + 1];
-    transition self.r == 42 {
-        true -> a2()
-        false -> no()
+    main.arr[1] = 5;
+    main.arr[2] = 7;
+    main.arr[3] = 42;
+    main.k = 2;
+    main.r = main.arr[main.k + 1];
+    transition main.r == 42 {
+        true -> a2(main)
+        false -> no(main)
     }
-    state a2(&mut self)
+    state a2(main: &mut Main)
     {
-        self.acc = 100;
-        self.r = self.acc + self.arr[self.k + 1];
-        transition self.r == 142 {
-            true -> a3()
-            false -> no()
+        main.acc = 100;
+        main.r = main.acc + main.arr[main.k + 1];
+        transition main.r == 142 {
+            true -> a3(main)
+            false -> no(main)
         }
     }
-    state a3(&mut self)
+    state a3(main: &mut Main)
     {
-        self.arr[self.k + 1] = 99;
-        self.r = self.arr[3];
-        transition self.r == 99 {
-            true -> a4()
-            false -> no()
+        main.arr[main.k + 1] = 99;
+        main.r = main.arr[3];
+        transition main.r == 99 {
+            true -> a4(main)
+            false -> no(main)
         }
     }
-    state a4(&mut self)
+    state a4(main: &mut Main)
     {
-        self.r = self.arr[1 + self.k];
-        transition self.r == 99 {
-            true -> a5()
-            false -> no()
+        main.r = main.arr[1 + main.k];
+        transition main.r == 99 {
+            true -> a5(main)
+            false -> no(main)
         }
     }
-    state a5(&mut self)
+    state a5(main: &mut Main)
     {
-        transition self.k == 2 {
-            true -> a5b()
-            false -> no()
+        transition main.k == 2 {
+            true -> a5b(main)
+            false -> no(main)
         }
     }
-    state a5b(&mut self)
+    state a5b(main: &mut Main)
     {
-        self.r = self.arr[self.k - 1];
-        transition self.r == 5 {
-            true -> a6()
-            false -> no()
+        main.r = main.arr[main.k - 1];
+        transition main.r == 5 {
+            true -> a6(main)
+            false -> no(main)
         }
     }
-    state a6(&mut self)
+    state a6(main: &mut Main)
     {
-        self.wh = 1;
-        self.wn = 3;
-        transition self.wh + self.wn < 5 {
-            true -> a6b()
-            false -> no()
+        main.wh = 1;
+        main.wn = 3;
+        transition main.wh + main.wn < 5 {
+            true -> a6b(main)
+            false -> no(main)
         }
     }
-    state a6b(&mut self)
+    state a6b(main: &mut Main)
     {
-        self.arr[self.wh + self.wn] = 11;
-        self.r = self.arr[4];
-        transition self.r == 11 {
-            true -> yes()
-            false -> no()
+        main.arr[main.wh + main.wn] = 11;
+        main.r = main.arr[4];
+        transition main.r == 11 {
+            true -> yes(main)
+            false -> no(main)
         }
     }
-    state yes(&mut self)
-    { self.console.exit_process(1); }
-    state no(&mut self)
-    { self.console.exit_process(2); }
+    state yes(main: &mut Main)
+    { main.console.exit_process(1); }
+    state no(main: &mut Main)
+    { main.console.exit_process(2); }
 }

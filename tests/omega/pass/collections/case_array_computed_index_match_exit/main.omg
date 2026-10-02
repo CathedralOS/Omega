@@ -21,42 +21,42 @@ data Main {
     c: u32 in Wrapping;
     total: i32 in Wrapping;
 }
-machine Main::main(&mut self) reaches Console {
-    self.grid = [Cell::Wall, Cell::Floor, Cell::Door, Cell::Water, Cell::Door, Cell::Wall];
-    self.r = 0;
-    self.total = 0;
-    transition { _ -> row_loop() }
-    state row_loop(&mut self) {
-        transition self.r < 2 { true -> col_start() _ -> done() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.grid = [Cell::Wall, Cell::Floor, Cell::Door, Cell::Water, Cell::Door, Cell::Wall];
+    main.r = 0;
+    main.total = 0;
+    transition { _ -> row_loop(main) }
+    state row_loop(main: &mut Main) {
+        transition main.r < 2 { true -> col_start(main) _ -> done(main) }
     }
-    state col_start(&mut self) {
-        self.c = 0;
-        transition { _ -> col_loop() }
+    state col_start(main: &mut Main) {
+        main.c = 0;
+        transition { _ -> col_loop(main) }
     }
-    state col_loop(&mut self) {
-        transition self.c < 3 { true -> cell() _ -> next_row() }
+    state col_loop(main: &mut Main) {
+        transition main.c < 3 { true -> cell(main) _ -> next_row(main) }
     }
-    state cell(&mut self) {
-        transition self.r * 3 + self.c < 6 { true -> classify() _ -> next_row() }
+    state cell(main: &mut Main) {
+        transition main.r * 3 + main.c < 6 { true -> classify(main) _ -> next_row(main) }
     }
-    state classify(&mut self) {
-        transition self.grid[self.r * 3 + self.c] {
-            Cell::Wall -> add(1)
-            Cell::Floor -> add(2)
-            Cell::Door -> add(4)
-            Cell::Water -> add(8)
+    state classify(main: &mut Main) {
+        transition main.grid[main.r * 3 + main.c] {
+            Cell::Wall -> add(main, 1)
+            Cell::Floor -> add(main, 2)
+            Cell::Door -> add(main, 4)
+            Cell::Water -> add(main, 8)
         }
     }
-    state add(&mut self, weight: i32 in Wrapping) {
-        self.total = self.total + weight;
-        self.c = self.c + 1;
-        transition { _ -> col_loop() }
+    state add(main: &mut Main, weight: i32 in Wrapping) {
+        main.total = main.total + weight;
+        main.c = main.c + 1;
+        transition { _ -> col_loop(main) }
     }
-    state next_row(&mut self) {
-        self.r = self.r + 1;
-        transition { _ -> row_loop() }
+    state next_row(main: &mut Main) {
+        main.r = main.r + 1;
+        transition { _ -> row_loop(main) }
     }
-    state done(&mut self) {
-        self.console.exit_process(self.total as i32);
+    state done(main: &mut Main) {
+        main.console.exit_process(main.total as i32);
     }
 }
