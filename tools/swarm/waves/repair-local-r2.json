@@ -1,0 +1,90 @@
+{
+  "wave": "repair-local-r2",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": ["omega-swarm", "repair-local-r2"],
+  "owner_label_prefix": "Jarod / repair-local-r2",
+  "exclusions": [
+    "OPERATOR-BOUNDARY-CALLS",
+    "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+    "PLAN-LAID-VIEWS",
+    "SQUALR-HEADLESS",
+    "GAMMA-DERIVATION-CHECKER",
+    "RC-NATIVE-MATRIX-MACOS-ARM64",
+    "CHECK-CLOSURE-ONCE",
+    "NOMINAL-FIELD-FLOW",
+    "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+    "TRANSLATION-VALIDATION",
+    "CUSTODY-MUTATION-COVERAGE",
+    "PER-RULE-COVERAGE",
+    "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+    "CANARY-CORPUS",
+    "SAMPLE-CORPUS",
+    "CALLBACK-PRIVATE-MATERIALIZATION",
+    "PCC-CANONICAL-SEMANTIC-LEDGER",
+    "BORROWED-STORAGE-RESTORATION",
+    "SOURCE-SET-UNION",
+    "PSI-TARGET-FAMILIES",
+    "BUILD-EVALUATES-ONCE",
+    "PROVIDER-SELECTION-AFTER-TERMINAL",
+    "ONE-DRIVER-PER-STAGE",
+    "LOWERING-ROUTE-CONSOLIDATION",
+    "ALPHA-WINDOWS-DIV-TRAP",
+    "ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION",
+    "SYMBOLIC-MATERIALIZATION",
+    "RC-REPOSITORY-CLOSURE",
+    "RC-RELEASE-RECORD-AND-CLOSURE",
+    "RC-BUILD-AND-PACKAGES",
+    "RC-PCC-REPLAY",
+    "RC-NATIVE-MATRIX-LINUX-X86-64",
+    "RC-NATIVE-MATRIX-LINUX-ARM64",
+    "RC-NATIVE-MATRIX-WINDOWS-X64",
+    "MACOS-X64-HOST-PROFILE",
+    "TYPED-TREES-OWNED-INDEXES",
+    "FILTERED-CALLEE-CALL-SITES"
+  ],
+  "sessions": [
+    {
+      "name": "codec-verification",
+      "board": "TASKS.md",
+      "item": "GENERATED-CODEC-INDEPENDENT-VERIFICATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/compiler/build-evaluation",
+        "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",
+        "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs",
+        "omega-rust/omega/compiler/src/report"
+      ],
+      "suggested_first_slice": "correct the probe-only `Derived` classifications to `Admitted` naming compiler trust (board text names the two files), then exercise consumer rejection of refused compiler trust in artifact reports",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    },
+    {
+      "name": "aarch64-wrapper",
+      "board": "TASKS.md",
+      "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/backend/plans/program-entry-plan",
+        "omega-rust/omega/backend/runtime/executable-installation"
+      ],
+      "suggested_first_slice": "verify the shipped Linux and macOS AArch64 profiles through their hosted bridges; pin recipe/plan rejection only if no authored profile needs a separate wrapper. Note: sibling slot writer-ownership touches consumer call sites in program-entry-plan and executable-installation — keep to wrapper-selection machinery",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    },
+    {
+      "name": "writer-ownership",
+      "board": "TASKS.md",
+      "item": "POST-HANDOFF-WRITER-OWNERSHIP",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/foundation/layout-plans",
+        "omega-rust/omega/backend/plans/post-handoff-writer-plan"
+      ],
+      "suggested_first_slice": "separate the portable materialization description in layout-plans from the consumer-side writer derivation per the ownership rule; provider-planning is under a live claim (OPERATOR-BOUNDARY-CALLS) and program-entry-plan/executable-installation are owned by sibling slot aarch64-wrapper — land the split and update only the free consumers, naming claimed/sibling-owned consumers as residuals",
+      "host_gates": ["which cargo || which mbx"],
+      "probe_only": false
+    }
+  ]
+}
