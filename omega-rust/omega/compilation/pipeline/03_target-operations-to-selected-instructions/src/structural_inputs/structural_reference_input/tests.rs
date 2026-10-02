@@ -15,6 +15,32 @@ use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
 #[test]
+fn empty_record_array_geometry_validates_the_element_shell() {
+    let root = StructuralTypeId::new(1).unwrap();
+    let element = StructuralTypeId::new(2).unwrap();
+    let mut declarations = [
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "EmptyRecords".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 0 },
+        },
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "Element".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ];
+    assert_eq!(shape(root, &declarations), Some(ValueShape::integer(0, 1)));
+    for invalid in [root, StructuralTypeId::new(99).unwrap()] {
+        declarations[0].shape = StructuralTypeShape::FixedArray {
+            element: invalid,
+            length: 0,
+        };
+        assert_eq!(shape(root, &declarations), None);
+    }
+}
+
+#[test]
 fn owned_aggregate_geometry_preserves_bounded_byte_siblings() {
     use terminal_psi::{BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration};
 

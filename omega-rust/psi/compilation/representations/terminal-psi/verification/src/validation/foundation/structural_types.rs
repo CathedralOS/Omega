@@ -75,16 +75,6 @@ pub(super) fn register_structural_types(
         } else if let StructuralTypeShape::Mixed { fields, cases } = &declaration.shape {
             validate_structural_fields(declaration.id, fields, false)?;
             validate_structural_cases(declaration.id, cases)?;
-        } else if matches!(
-            declaration.shape,
-            StructuralTypeShape::FixedArray { length: 0, .. }
-        ) && terminal_semantics::scalar_array_leaf_shape(
-            module.structural_types.iter(),
-            declaration.id,
-        )
-        .is_none()
-        {
-            return Err(ModuleError::InvalidStructuralArrayLength(declaration.id));
         }
     }
     for declaration in &module.structural_types {
@@ -147,6 +137,9 @@ pub(super) fn register_structural_types(
             }
         }
     }
+    // An empty extent has no element accesses, but still names a complete
+    // element type. The same known-type and acyclic-graph checks apply at
+    // every length; emptiness does not authorize a malformed element shell.
     validate_structural_type_graph(&types)?;
     // Only record construction currently transfers stored reference custody.
     // Reject other containers recursively, including a record hidden in them.

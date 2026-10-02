@@ -59,7 +59,6 @@ fn top_level_structural_type_roster_is_canonical_and_identity_unique() {
 #[test]
 fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
     let borrowed = id(460, StructuralTypeId::new);
-    let array = id(461, StructuralTypeId::new);
     let record = id(462, StructuralTypeId::new);
     let candidate = structural_catalog_unit(vec![
         structural_type(
@@ -143,9 +142,57 @@ fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
             },
         ),
     ]);
+    validate_psi_optimization_unit(&candidate)
+        .expect("empty extents retain their complete element carrier");
+}
+
+#[test]
+fn empty_record_array_catalog_preserves_element_graph_and_reference_custody() {
+    let element = id(460, StructuralTypeId::new);
+    let array = id(461, StructuralTypeId::new);
+    let declarations = vec![
+        structural_type(
+            460,
+            terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        ),
+        structural_type(
+            461,
+            terminal_psi::StructuralTypeShape::FixedArray { element, length: 0 },
+        ),
+    ];
+    validate_psi_optimization_unit(&structural_catalog_unit(declarations.clone())).unwrap();
+    for (invalid, expected) in [
+        (
+            id(499, StructuralTypeId::new),
+            OptimizationUnitValidationError::UnknownStructuralType(id(499, StructuralTypeId::new)),
+        ),
+        (
+            array,
+            OptimizationUnitValidationError::RecursiveStructuralType(array),
+        ),
+    ] {
+        let mut changed = declarations.clone();
+        changed[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+            element: invalid,
+            length: 0,
+        };
+        assert_eq!(
+            validate_psi_optimization_unit(&structural_catalog_unit(changed)),
+            Err(expected)
+        );
+    }
+    let mut references = declarations;
+    references[0].shape = terminal_psi::StructuralTypeShape::Reference {
+        referent: id(462, StructuralTypeId::new),
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    };
+    references.push(structural_type(
+        462,
+        terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+    ));
     assert_eq!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::InvalidStructuralArrayLength(array))
+        validate_psi_optimization_unit(&structural_catalog_unit(references)),
+        Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(array))
     );
 }
 

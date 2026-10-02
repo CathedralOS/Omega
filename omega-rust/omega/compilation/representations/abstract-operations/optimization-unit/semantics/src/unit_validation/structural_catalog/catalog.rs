@@ -1,3 +1,7 @@
+//! Independent catalog formation retains the complete element graph at every
+//! fixed-array extent. Empty storage changes no type identity or reference
+//! custody rule; unknown, cyclic and unsupported stored-reference shells reject.
+
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::content_projection::validate_structural_content_projection;
 use crate::unit_validation::structural_catalog::type_declarations::{
@@ -221,20 +225,6 @@ pub(super) fn index_structural_types(
         {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
-            );
-        }
-    }
-    // Empty primitive arrays retain their complete type below the zero extent.
-    // Resolve references and cycles first; zero bytes cannot hide invalid types.
-    for declaration in &unit.structural_types {
-        if matches!(
-            declaration.shape,
-            terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. }
-        ) && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), declaration.id)
-            .is_none()
-        {
-            return Err(
-                OptimizationUnitValidationError::InvalidStructuralArrayLength(declaration.id),
             );
         }
     }

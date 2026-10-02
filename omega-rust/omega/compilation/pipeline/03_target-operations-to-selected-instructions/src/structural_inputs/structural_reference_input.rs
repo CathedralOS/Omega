@@ -1007,15 +1007,13 @@ fn shape_inner(
             // layout instead of independently imposing a nonempty extent.
             if let Some(shape) = primitive_array_shape(root, declarations) {
                 Some(shape)
-            } else if *length > 0 {
+            } else {
                 let element = shape_inner(*element, declarations, active)?;
                 let stride = align(element.byte_size, element.alignment)?;
                 Some(ValueShape::integer(
                     u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
-                    element.alignment,
+                    if *length == 0 { 1 } else { element.alignment },
                 ))
-            } else {
-                None
             }
         }
     };

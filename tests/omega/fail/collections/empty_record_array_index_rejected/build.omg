@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    builder.application("empty_record_array_index_rejected");
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+}

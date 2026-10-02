@@ -1,3 +1,7 @@
+//! Native structural geometry retains each element declaration even at a zero
+//! extent. Empty arrays have the canonical zero-byte ABI; their element graph
+//! and every projected access remain independently checked.
+
 use crate::LoweringError;
 use calling_conventions::ValueShape;
 use semantic_vocabulary::IeeeFloatFormat;
@@ -207,9 +211,6 @@ pub(crate) fn structural_shape(
                 {
                     return Ok(shape);
                 }
-                if *length == 0 {
-                    return Err(LoweringError::EmptyStructuralType(structural_type));
-                }
                 let element = structural_shape(*element, declarations, cache, active)?;
                 let stride = checked_align_up_u32(element.byte_size, u32::from(element.alignment))
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
@@ -217,7 +218,10 @@ pub(crate) fn structural_shape(
                     .checked_mul(*length)
                     .and_then(|size| u32::try_from(size).ok())
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                Ok(ValueShape::integer(byte_size, element.alignment))
+                Ok(ValueShape::integer(
+                    byte_size,
+                    if *length == 0 { 1 } else { element.alignment },
+                ))
             }
             StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
                 structural_type,
@@ -956,6 +960,40 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_record_array_layout_preserves_element_graph_checks() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let element = StructuralTypeId::new(2).unwrap();
+        let mut declarations = [
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "EmptyRecords".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 0 },
+            },
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "Element".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ];
+        let indexed = declarations.iter().map(|value| (value.id, value)).collect();
+        assert_eq!(
+            structural_shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new()).unwrap(),
+            ValueShape::integer(0, 1)
+        );
+        for invalid in [root, StructuralTypeId::new(99).unwrap()] {
+            declarations[0].shape = StructuralTypeShape::FixedArray {
+                element: invalid,
+                length: 0,
+            };
+            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
+            assert!(
+                structural_shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
+                    .is_err()
+            );
+        }
+    }
 
     #[test]
     fn empty_projection_retains_root_layout_including_zero_extent() {

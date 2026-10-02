@@ -1164,7 +1164,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/foundation/structural_types.rs",
-        sha256: Some("9b1c07de5a53398dfc1e8e3ce5aa18d32ce2e917dcd0c0b0b271c2e8f58c36d9"),
+        sha256: Some("f9cd2829b7710c954596f380c444b51c3c26579e571924834a22809c5ae36f7d"),
         inventory_machinery: false,
     },
     ImplementationSite {

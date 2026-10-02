@@ -583,7 +583,7 @@ fn fixed_byte_array_boundary_view_preserves_whole_and_field_storage() {
 }
 
 #[test]
-fn fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence() {
+fn empty_record_array_cannot_impersonate_a_byte_view() {
     let mut module = fixture(false);
     verify_module(
         &module,
@@ -591,9 +591,8 @@ fn fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence() {
         &AdmissionProfile::default(),
     )
     .unwrap();
-    // A scalar-leaf fixed array admits a zero length as an empty scalar array;
-    // the admission fence remains for an element without a scalar leaf, so the
-    // mutation also retargets the element at a record.
+    // Empty record arrays are well-formed types. They still cannot supply a
+    // byte view: zero elements do not change their exact declared carrier.
     let StructuralTypeShape::FixedArray { element, length } = &mut module.structural_types[2].shape
     else {
         unreachable!()
@@ -601,18 +600,44 @@ fn fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence() {
     *element = structural_type_id(2);
     *length = 0;
     assert_eq!(extent(&module), None);
-    assert_eq!(
-        validate_module(&module).map(|_| ()),
-        Err(ModuleError::InvalidStructuralArrayLength(
-            structural_type_id(3)
-        ))
-    );
-    assert_eq!(
-        validate_module(&boundary_fixture(module)).map(|_| ()),
-        Err(ModuleError::InvalidStructuralArrayLength(
-            structural_type_id(3)
-        ))
-    );
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::StructuralArgumentTypeMismatch { .. })
+    ));
+    assert!(matches!(
+        validate_module(&boundary_fixture(module)),
+        Err(ModuleError::StructuralArgumentTypeMismatch { .. })
+    ));
+}
+
+#[test]
+fn empty_record_array_registration_preserves_unknown_and_recursive_type_rejection() {
+    let mut module = fixture(false);
+    let empty = structural_type_id(5);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: empty,
+        identity: "EmptyRecords".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: structural_type_id(2),
+            length: 0,
+        },
+    });
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    for (element, expected) in [
+        (
+            structural_type_id(99),
+            ModuleError::UnknownStructuralType(structural_type_id(99)),
+        ),
+        (empty, ModuleError::RecursiveStructuralType(empty)),
+    ] {
+        module.structural_types[4].shape = StructuralTypeShape::FixedArray { element, length: 0 };
+        assert_eq!(validate_module(&module).map(|_| ()), Err(expected));
+    }
 }
 
 #[test]
