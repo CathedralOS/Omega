@@ -497,7 +497,7 @@ fn owned_array_state_arguments_preserve_record_erased_declarations() {
     };
     let source = r#"
         boundary trait Output { machine write(marker: i32) reaches Output; }
-        data Payload { values: [i32; 2]; }
+        data Payload [copy] { values: [i32; 2]; }
         data Root {}
         machine identity(payload: Payload) -> Payload { payload }
         machine Root::enter(payload: Payload) reaches Output {

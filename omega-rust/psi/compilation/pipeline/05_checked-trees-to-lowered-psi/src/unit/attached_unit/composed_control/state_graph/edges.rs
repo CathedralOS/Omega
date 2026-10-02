@@ -206,29 +206,34 @@ pub(super) fn validate_bindings(
             binding_ordinal,
         } = transfer.source
         {
+            // Bindings establish availability; optional disposal metadata
+            // only excludes a result that its automatic cleanup retires.
             let mut matching = state
                 .operations
                 .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-                        if result.binding_ordinal == binding_ordinal =>
-                    {
-                        Some((
+                .filter(|operation| {
+                    !matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            operand_source: Some(_),
+                            ..
+                        }
+                    ) && !operation
+                        .discardable_structural_result()
+                        .is_some_and(|(_, discard)| discard)
+                })
+                .filter_map(|operation| {
+                    operation.structural_result_binding().map(|result| {
+                        (
                             result,
                             matches!(
                                 operation,
                                 CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                             ),
-                        ))
-                    }
-                    _ if let Some(result) = result_custody::result(operation)
-                        && result.binding_ordinal == binding_ordinal =>
-                    {
-                        Some((result, false))
-                    }
-                    _ => None,
-                });
+                        )
+                    })
+                })
+                .filter(|(result, _)| result.binding_ordinal == binding_ordinal);
             let (result, is_literal) = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit graph transferred result missing",
             ))?;

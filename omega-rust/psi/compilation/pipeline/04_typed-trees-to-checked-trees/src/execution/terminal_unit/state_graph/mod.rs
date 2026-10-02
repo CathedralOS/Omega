@@ -1191,16 +1191,18 @@ fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
     }
 }
 
-/// A call or constructed-value result that no automatic return discard
-/// retires: the selected edge, not the return, owns its disposal.
+/// An available structural binding, independently of whether its producer
+/// carries disposal debt. An actual automatic return discard retires it.
 fn retained_structural_result(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
-    operation
+    if operation
         .discardable_structural_result()
-        .and_then(|(result, discard_result_on_return)| {
-            (!discard_result_on_return).then_some(result)
-        })
+        .is_some_and(|(_, discard)| discard)
+    {
+        return None;
+    }
+    operation.structural_result_binding()
 }
 
 /// An operand-owned construction retained beside the call that consumes it:
@@ -1839,13 +1841,10 @@ fn successor_bindings(
                 mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
-                    let mut matches = operations.iter().filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
-                        _ => (!operand_owned_construction(operation))
-                            .then(|| retained_structural_result(operation))
-                            .flatten(),
-                    }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
+                    let mut matches = operations.iter()
+                        .filter(|operation| !operand_owned_construction(operation))
+                        .filter_map(retained_structural_result)
+                        .filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
                         if result.type_identity != target.type_identity
