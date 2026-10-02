@@ -12,7 +12,7 @@
 //!
 //! This consumes the existing flow evidence rather than copying predicates at
 //! each assignment. Storage dependencies retire changed inputs; assignment
-//! provenance retires changed results. Invocation operands must be places or
+//! provenance retires changed results. Predicate inputs must be places or
 //! literals (including constructor fields) and preserve their read footprints:
 //! expression-root dependencies alone do
 //! not establish that a computed actual still denotes its captured value.
@@ -61,7 +61,7 @@ pub(super) fn proves(
     let Some(frames) = frames else {
         return false;
     };
-    if !stable_arguments(program, &required)
+    if !stable_predicate_inputs(program, &required, expression)
         || !builtin_predicate(program, operators, &required, expression)
     {
         return false;
@@ -245,7 +245,7 @@ fn invocation<'program>(
     })
 }
 
-fn stable_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
+fn ordinary_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
     let parameters = invocation.callable.parameters(program);
     let arguments =
         crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
@@ -274,9 +274,34 @@ fn stable_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
         && parameters.iter().all(|parameter| !parameter.is_const)
         && (!parameters.iter().any(|parameter| parameter.is_self)
             || receiver_place(program, invocation).is_some())
-        && arguments
-            .iter()
-            .all(|argument| stable_value(program, *argument, &mut Vec::new()))
+}
+
+/// A proof query consumes only the actuals its predicate names. Requiring every
+/// sibling actual to be a place rejected `cell(grid, y, x + 1)` even for the
+/// independent clause `y <= grid.max_y`. Effects of every operand still run
+/// through the call-entry contexts and capture-preservation checks; this is
+/// only admission to the exact-value vocabulary, not an effect exemption.
+fn stable_predicate_inputs(
+    program: &TypedTrees,
+    invocation: &Invocation<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    if !ordinary_arguments(program, invocation) {
+        return false;
+    }
+    let mut occurrences = Vec::new();
+    crate::facts::contract_occurrences::append_expression_occurrences(
+        program,
+        expression,
+        &mut occurrences,
+    );
+    occurrences.into_iter().all(|occurrence| {
+        if let Some(result) = validation::reserved_result_place(program, occurrence) {
+            return result.machine_symbol == invocation.callable.owner_symbol();
+        }
+        actual_projection(program, invocation, occurrence)
+            .is_some_and(|(actual, _)| stable_value(program, actual, &mut Vec::new()))
+    })
 }
 
 fn receiver_place(program: &TypedTrees, invocation: &Invocation<'_>) -> Option<CanonicalPlace> {
@@ -618,12 +643,12 @@ mod prerequisite_roster_probes {
     //! Adversarial probes for the prerequisite roster `proves` runs before a
     //! call guarantee may stand in for a proven expression: the call must
     //! resolve to a real expression or statement site (`invocation`), every
-    //! actual must be a stable place or literal (`stable_arguments` /
+    //! predicate input must be a stable place or literal (`stable_predicate_inputs` /
     //! `stable_value`), and only a direct place spelling earns the
     //! `PlaceRoot::Symbol` capture a bound-place join can consume
     //! (`direct_place`). Each pin names the roster member it exercises.
 
-    use super::{Invocation, direct_place, invocation, receiver_place, stable_arguments};
+    use super::{Invocation, direct_place, invocation, ordinary_arguments, receiver_place};
     use crate::semantic::calls::CallSite;
     use crate::tests::front_end::typed_program;
     use checked_trees::FlowStateFact;
@@ -756,7 +781,7 @@ mod prerequisite_roster_probes {
         let (_, done) = machine_state(&program, "main", "done");
         assert!(matches!(transition.site, CallSite::TransitionNamed { .. }));
         assert_eq!(transition.callable.target_symbol(), done.symbol);
-        assert!(stable_arguments(&program, &transition));
+        assert!(ordinary_arguments(&program, &transition));
     }
 
     #[test]
@@ -773,7 +798,7 @@ mod prerequisite_roster_probes {
              }",
         );
         let supplied = invocation_at(&program, 0, 0).expect("receiver call");
-        assert!(stable_arguments(&program, &supplied));
+        assert!(ordinary_arguments(&program, &supplied));
         let CallSite::Expression { call, .. } = &supplied.site else {
             panic!("getter expression call");
         };
@@ -799,7 +824,7 @@ mod prerequisite_roster_probes {
             .expect("unrelated receiver");
         assert_ne!(place.root, PlaceRoot::Symbol(unrelated.symbol));
         let transition = invocation_at(&program, 1, 0).expect("subordinate transition");
-        assert!(stable_arguments(&program, &transition));
+        assert!(ordinary_arguments(&program, &transition));
         assert_eq!(
             transition.callable.contracts(&program).count(),
             1,

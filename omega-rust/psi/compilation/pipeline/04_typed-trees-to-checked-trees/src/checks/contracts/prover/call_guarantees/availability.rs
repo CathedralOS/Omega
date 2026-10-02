@@ -4,7 +4,7 @@
 
 use super::{
     Invocation, actual_projection, builtin_predicate, capture_preserved, captured_place,
-    invocation, stable_arguments,
+    invocation, stable_predicate_inputs,
 };
 use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
@@ -179,7 +179,7 @@ pub(in crate::checks) fn available<'program>(
             CallSite::TransitionNamed { .. } => continue,
         };
         if !owns_guarantee(program, &supplied, source, expression)
-            || !stable_arguments(program, &supplied)
+            || !stable_predicate_inputs(program, &supplied, expression)
             || !capture_preserved(
                 program,
                 &facts.borrow,

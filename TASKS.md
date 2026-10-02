@@ -226,6 +226,12 @@ execution and native exit/output. A moved refusal is still unfinished work.
   Acceptance: static source customers execute with their authored exit/output;
   migrated corpus/sample gates pass; no accepted machine/state receiver syntax,
   implicit receiver argument or receiver-specific signature authority remains.
+  `heat_grid` now uses a static entry, local `Grid`, and explicit state arguments.
+  Its Windows `omega --check samples/cli/collections/heat_grid/main.omg` passes
+  after predicate-scoped call-proof admission replaces the all-arguments gate.
+  `omega run --both` still stops at missing local package acceptance, including
+  bundled `FilesystemHost` authority; approve that review before establishing
+  native/interpreted exit 45. Checked success alone does not close this migration.
   `slice_maximum` and `value_call_in_expr` already use static entries and local
   buffers, but their Windows native runs still need the Console provider closure
   tracked under process exit. Their checked success is not full migration acceptance.
