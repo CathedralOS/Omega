@@ -483,8 +483,8 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                 "mutation {mutation}"
             );
         }
-        // Even matching metadata operands cannot supply owned root admission.
-        function.structural_parameters[0].access = StructuralAccess::Owned;
+        // Publication cannot silently change the source declaration; permission
+        // of a matching declaration is independently checked by native replay.
         target.graph.parameters[0].access = StructuralAccess::Owned;
         assert!(!retained(&function, &function.operations[0], &target));
     }

@@ -500,13 +500,15 @@ pub(super) fn indexed_read_footprint_retained(
         .filter(|access| access.origin == Origin::Operation(*psi_operation))
         .collect::<Vec<_>>();
     let mut cursor = effects.as_slice();
-    if loads_backing_pointer(function, target, *source, path) {
-        let Some((backing, rest)) = cursor.split_first() else {
-            return false;
-        };
-        if backing.place != *source || backing.byte_count != 8 || backing.role != Role::ReadPlace {
-            return false;
-        }
+    // A descriptor may already retain its backing pointer in a register.
+    // Mandatory selection replay decides whether a reload is needed; either
+    // realization still publishes the same strict field access rows below.
+    if loads_backing_pointer(function, target, *source, path)
+        && let Some((backing, rest)) = cursor.split_first()
+        && backing.place == *source
+        && backing.byte_count == 8
+        && backing.role == Role::ReadPlace
+    {
         cursor = rest;
     }
     if reads_through_descriptor(function, operation, target) {
@@ -657,16 +659,15 @@ pub(super) fn view_replacement_footprints_retained(
         .filter(|access| access.origin == Origin::Operation(*psi_operation))
         .collect::<Vec<_>>();
     let mut cursor = effects.as_slice();
-    if loads_backing_pointer(function, target, *destination, path) {
-        let Some((backing, rest)) = cursor.split_first() else {
-            return false;
-        };
-        if backing.place != *destination
-            || backing.byte_count != 8
-            || backing.role != Role::ReadPlace
-        {
-            return false;
-        }
+    // A descriptor may already retain its backing pointer in a register.
+    // Mandatory selection replay decides whether a reload is needed; either
+    // realization still publishes the same strict field access rows below.
+    if loads_backing_pointer(function, target, *destination, path)
+        && let Some((backing, rest)) = cursor.split_first()
+        && backing.place == *destination
+        && backing.byte_count == 8
+        && backing.role == Role::ReadPlace
+    {
         cursor = rest;
     }
     let count = path

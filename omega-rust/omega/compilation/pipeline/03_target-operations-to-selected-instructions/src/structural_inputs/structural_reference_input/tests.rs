@@ -7,10 +7,9 @@ use super::{
 use crate::structural_inputs::structural_reference_input::byte_field_length;
 use crate::structural_inputs::structural_reference_input::field_read;
 use crate::structural_inputs::structural_reference_input::field_shape;
-use crate::structural_inputs::structural_reference_input::observed_byte_field_length;
-use crate::structural_inputs::structural_reference_input::observed_byte_field_storage;
 use crate::structural_inputs::structural_reference_input::owned_aggregate_shape;
 use crate::structural_inputs::structural_reference_input::plain_record_shape;
+use crate::structural_inputs::structural_reference_input::projected_byte_field;
 use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
@@ -251,14 +250,22 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
             .unwrap(),
     );
 
-    assert_eq!(
-        observed_byte_field_length(main, &path, command_field, length_type, &declarations),
-        Some((48, 8)),
-    );
-    assert_eq!(
-        observed_byte_field_storage(main, &path, command_field, &declarations),
-        Some((48, 8)),
-    );
+    let geometry = projected_byte_field(main, &path, command_field, &declarations).unwrap();
+    assert_eq!(geometry.length_offset, 48);
+    assert_eq!(geometry.capacity, Some(8));
+    assert_eq!(geometry.descriptor_offset, None);
+    assert!(geometry.elements.is_empty());
+    let mut dynamic_path = path.clone();
+    dynamic_path[2] = StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(1).unwrap(),
+        obligation: ObligationId::new(1).unwrap(),
+    };
+    let dynamic = projected_byte_field(main, &dynamic_path, command_field, &declarations).unwrap();
+    assert_eq!(dynamic.length_offset, 16);
+    assert_eq!(dynamic.capacity, Some(8));
+    assert_eq!(dynamic.elements.len(), 1);
+    assert_eq!(dynamic.elements[0].stride, 32);
+    assert_eq!(dynamic.elements[0].extent, Some(2));
     // Mutation geometry deliberately retains the narrower, established
     // carrier grammar even though the same leaf is readable.
     assert_eq!(
@@ -274,10 +281,7 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
         },
         {
             let mut changed = path.clone();
-            changed[2] = StructuralPathSegment::RuntimeIndex {
-                index: ValueId::new(1).unwrap(),
-                obligation: ObligationId::new(1).unwrap(),
-            };
+            changed[1] = StructuralPathSegment::Field("missing".into());
             changed
         },
         {
@@ -286,28 +290,15 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
             changed
         },
     ] {
-        assert_eq!(
-            observed_byte_field_length(main, &invalid, command_field, length_type, &declarations,),
-            None,
-            "{invalid:?}",
-        );
-        assert_eq!(
-            observed_byte_field_storage(main, &invalid, command_field, &declarations),
-            None,
+        assert!(
+            projected_byte_field(main, &invalid, command_field, &declarations).is_none(),
             "{invalid:?}",
         );
     }
 
     let mut element_view = declarations.clone();
     element_view[2].shape = StructuralTypeShape::ElementView { element: room };
-    assert_eq!(
-        observed_byte_field_length(main, &path, command_field, length_type, &element_view),
-        None,
-    );
-    assert_eq!(
-        observed_byte_field_storage(main, &path, command_field, &element_view),
-        None,
-    );
+    assert!(projected_byte_field(main, &path, command_field, &element_view).is_none());
 }
 
 #[test]
