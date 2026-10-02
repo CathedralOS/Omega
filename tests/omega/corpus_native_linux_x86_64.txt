@@ -648,6 +648,7 @@ pass/optimizer/dead_compare_selection_compile built 423ms @2d8ed253669f+wt
 pass/optimizer/equivalent_compare_selection_compile built 436ms @2d8ed253669f+wt
 pass/optimizer/redundant_compare_selection_compile built 452ms @2d8ed253669f+wt
 pass/optimizer/rollback_to_no_selection_empty_entry built 414ms @2d8ed253669f+wt
+pass/optimizer/stored_load_forwarding_selection_exit built 476ms exit:0 @a65d52709b8a+wt
 pass/ownership/conditional_linear_sum checked 289ms @2d8ed253669f+wt
 pass/ownership/linear_ambiguous_state_result_mapping rejected 345ms @2d8ed253669f+wt
 	entry machine `Main::main` returns a value, but `ProgramEntry` has no result

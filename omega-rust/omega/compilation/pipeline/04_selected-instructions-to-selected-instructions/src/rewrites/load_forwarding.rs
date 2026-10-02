@@ -45,29 +45,17 @@
 //! Crossed edges are admitted only when their transports move neither the
 //! carried registers nor storage the forwarded place can reach.
 //!
-//! The alias decision is borrow-aware: it comes from the validated
-//! `memory_accesses` roster, not from pointer-register equality. Each access
-//! row names the semantic `PlaceId` (a referent root; field projections retain
-//! the root and differ only in `byte_offset`) and the exact byte range the
-//! instruction touches. Two simultaneous accesses that can write cannot share
-//! one referent under different place identities — exclusivity rejects
-//! overlapping exclusive custody before selection — so a write row or a
-//! place-backed local slot for a different `PlaceId` cannot disturb the
-//! forwarded bytes. Intervening reads of the same place cannot either, and
-//! a `WriteLocal` row names an exact range on a slot, so a local write on
-//! the place's own storage walks past when disjoint from the read's range
-//! and still has to be the exact writer when it intersects; a slot that
-//! only stages bytes naming the place holds none of its bytes at any
-//! offset, so its writes and materialized address never block. A
-//! dynamic-extent write reaches only upward from its fixed byte offset, so
-//! one starting at or past the read's end is provably disjoint and walks
-//! past while one starting below it still blocks — and when the read's own
-//! extent is dynamic, every dynamic-extent row on the place still meets it
-//! while an exact row blocks only once its extent ends past the payload
-//! base. Only a
-//! potentially overlapping write, a dynamic-extent write still able to reach
-//! the read, an escaped
-//! place-storage address, or a call/host effect blocks the pair.
+//! Distinct place identities do not establish byte disjointness. Until a
+//! checked physical-alias bridge is retained, crossing another place's write
+//! conservatively refuses. Exact disjoint extents of the same captured place
+//! and compiler-private staging storage remain admissible.
+//!
+//! Alias legality is reconstructed from the validated memory roster, never
+//! pointer-register equality. Exact reads and writes on the same captured place
+//! compare byte extents. Writes or exposed storage under another place identity
+//! refuse unless their route is compiler-private staging; exclusivity does not
+//! supply physical disjointness. Dynamic extents retain their lower-bounded
+//! reach, and unknown memory effects and calls block the walk.
 //!
 //! Instructions inserted by private-slot rewrites (spill stores, reloads,
 //! frame addresses over `Spill`/`Boundary` slots) carry no roster row; they
@@ -89,14 +77,17 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    StoredLoadForwardingIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::forward_selected_stored_load;
 pub use validation::validate_stored_load_forwarding;
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 
 /// An accepted store-to-load forwarding with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +112,10 @@ impl ValidatedStoredLoadForwarding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredLoadForwardingReceipt {
+    identity: StoredLoadForwardingIdentity,
+    function_index: usize,
+    load: SelectedInstructionId,
+    validation_steps: u64,
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -128,6 +123,19 @@ pub struct StoredLoadForwardingReceipt {
 }
 
 impl StoredLoadForwardingReceipt {
+    pub const fn identity(&self) -> StoredLoadForwardingIdentity {
+        self.identity
+    }
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    pub const fn load(&self) -> SelectedInstructionId {
+        self.load
+    }
+    pub const fn validation_steps(&self) -> u64 {
+        self.validation_steps
+    }
+
     pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }

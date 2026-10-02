@@ -76,7 +76,7 @@ pub use identity::{
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
     FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
     RedundantCompareIdentity, RedundantExtensionIdentity, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{

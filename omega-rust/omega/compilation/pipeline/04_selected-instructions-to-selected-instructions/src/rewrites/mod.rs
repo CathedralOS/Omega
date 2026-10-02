@@ -18,7 +18,8 @@
 //! publication dies unread, or repeats a shadow's equivalent
 //! publication), and `copied_call_operand` (a direct internal call whose
 //! `Use` arguments read a retained `CopyI64` destination, rebound to the
-//! copy's source); `runtime_split`, `runtime_rematerialization` and
+//! copy's source), and `load_forwarding` (a byte-exact retained store whose
+//! independently reconstructed alias and path facts authorize a later read); `runtime_split`, `runtime_rematerialization` and
 //! `runtime_spill` are the
 //! recovery rewrites register assignment replays, in cost order. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
@@ -42,8 +43,10 @@ mod copy_removal;
 mod dead_compare;
 mod fixed_view;
 mod literal_folds;
+mod load_forwarding;
 #[cfg(test)]
 mod module_catalog;
+mod place_storage;
 mod pre_allocation;
 mod redundant_extension;
 mod runtime_rematerialization;
@@ -175,3 +178,8 @@ pub use selected_lowering::{
 pub enum RegisterAllocationRuleTargetApplicability {
     TargetIndependent,
 }
+
+pub use load_forwarding::{
+    StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
+    forward_selected_stored_load, validate_stored_load_forwarding,
+};

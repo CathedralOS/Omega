@@ -69,6 +69,9 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
                 (15_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
+                (16_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

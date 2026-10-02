@@ -8,7 +8,7 @@ use super::{
     LOAD, OUTPUT, POINTER, SCRATCH, VALUE, budget, crossed_edge, instruction, mutated,
     mutated_chained,
 };
-use crate::rewrites::unexecuted::{
+use crate::rewrites::{
     StoredLoadForwardingError, ValidatedStoredLoadForwarding, validate_stored_load_forwarding,
 };
 use register_environment::{
@@ -181,5 +181,44 @@ fn forged_proposal_does_not_launder_a_redefining_edge_transport() {
         )
         .unwrap_err(),
         StoredLoadForwardingError::UnsupportedUse
+    );
+}
+
+/// Different retained place IDs can still reach the same physical pointer.
+/// A forged edit cannot use their distinction as a compatibility certificate.
+#[test]
+fn forged_distinct_place_write_cannot_supply_alias_disjointness() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let identity = super::BETWEEN;
+        function.blocks[0].instructions[2] = instruction(
+            identity,
+            SelectedInstructionKind::Store {
+                byte_offset: 0,
+                byte_size: 8,
+            },
+            store,
+            &[POINTER, SCRATCH],
+        );
+        let mut access = function.memory_accesses[0].clone();
+        access.instruction = identity;
+        access.place = semantic_vocabulary::PlaceId::new(2).unwrap();
+        function.memory_accesses.insert(1, access);
+    });
+    assert_eq!(
+        validate_stored_load_forwarding(
+            &source,
+            0,
+            LOAD,
+            &environment,
+            budget(),
+            forged(&source, &environment)
+        )
+        .unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
     );
 }

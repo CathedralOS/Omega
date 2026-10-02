@@ -4,7 +4,7 @@ use super::{
     instruction, mutated, narrowed, place, sequence_pair, sequence_write,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::{
+use crate::rewrites::{
     StoredLoadForwardingError, forward_selected_stored_load, validate_stored_load_forwarding,
 };
 use optimization_core::OptimizationWorkBudget;
@@ -310,8 +310,8 @@ fn overlapping_or_dynamic_writes_between_reject() {
 fn harmless_accesses_and_private_slots_still_forward() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // A different place root cannot share writable storage with the forwarded
-    // place under place exclusivity.
+    // Different place identities do not prove disjoint physical storage.
+    // Refuse until an independent compatibility-to-storage bridge exists.
     let other_place = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
@@ -336,7 +336,10 @@ fn harmless_accesses_and_private_slots_still_forward() {
             ),
         );
     });
-    forward(&other_place, &environment).unwrap();
+    assert_eq!(
+        forward(&other_place, &environment).unwrap_err(),
+        StoredLoadForwardingError::AliasingWrite
+    );
     // A disjoint range of the same place cannot touch the forwarded bytes.
     let disjoint = mutated(target, |function, environment| {
         let store = environment

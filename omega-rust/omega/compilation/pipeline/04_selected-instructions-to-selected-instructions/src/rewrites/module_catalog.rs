@@ -144,7 +144,18 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "load_forwarding",
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "forward_selected_stored_load",
+        },
+    },
+    RewriteModuleRow {
         module: "module_catalog",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
+        module: "place_storage",
         route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
@@ -257,10 +268,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "load_forwarding",
-        route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
-    },
-    RewriteModuleRow {
         // The one staged declarative pair family beyond the
         // literal-fold grammar (`projected_access`). The former
         // `terminator_pair`, `condition_materialization`, and
@@ -269,10 +276,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // `copied_call_operand`.
         module: "peepholes",
         route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
-    },
-    RewriteModuleRow {
-        module: "place_storage",
-        route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
         // The one member-run relocation admission every scheduling family
