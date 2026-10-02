@@ -26,6 +26,9 @@ fn block_parameter_accesses(source: &str) -> Vec<StructuralAccess> {
 fn a_shared_successor_holds_the_forwarded_exclusive_loan() {
     // `check` declares `&Tally`, but its only arrival forwards `fill`'s
     // whole `&mut` loan, so its block parameter receives that mutable name.
+    // Without that, the shared arrival beside `fill`'s live exclusive name
+    // fails Terminal verification and lowering errs. Read-only private
+    // continuation blocks may narrow their own parameters to shared access.
     let accesses = block_parameter_accesses(
         "data Tally { first: u64; second: u64; }
         machine run(seed: u64) -> u64 requires seed <= 9 {
@@ -42,11 +45,12 @@ fn a_shared_successor_holds_the_forwarded_exclusive_loan() {
         }",
     );
     assert!(
-        !accesses.is_empty()
-            && accesses
-                .iter()
-                .all(|access| *access == StructuralAccess::MutableBorrow),
-        "every block holds the one exclusive loan: {accesses:?}"
+        accesses
+            .iter()
+            .filter(|access| **access == StructuralAccess::MutableBorrow)
+            .count()
+            >= 2,
+        "both state arrivals hold the one exclusive loan: {accesses:?}"
     );
 }
 

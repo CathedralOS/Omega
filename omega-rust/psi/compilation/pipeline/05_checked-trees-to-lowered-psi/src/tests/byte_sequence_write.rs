@@ -238,9 +238,9 @@ fn owned_byte_write_retains_utf8_without_freezing_incidental_no_nul() {
         .flat_map(|plan| &mut plan.states)
         .flat_map(|state| &mut state.operations)
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                qualifications, ..
-            } => Some(qualifications),
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { qualifications, .. } => {
+                Some(qualifications)
+            }
             _ => None,
         })
         .expect("owned literal declaration");
@@ -367,13 +367,10 @@ fn a_restricted_field_cannot_be_lent_to_a_bare_mutable_byte_helper() {
 fn byte_view_write_resolves_owned_local_element_value() {
     // The dense assignment namespace an entry-body byte write resolves its
     // index and value through carries established structural locals: `arr[k]`
-    // roots at `CheckedStorageRoot::OwnedLocal` and previously died in
-    // bindings evaluation ("owned local observation lost its established
-    // place"). Resolution now completes and the write mints; the remaining
-    // decline is the preexisting bound-obligation wall — an entry body has no
-    // dominating guard and a `requires` premise does not reach the write's
-    // reconstructed proof site — tracked as its own item. Flip this to the
-    // lowered operation once that wall lands.
+    // roots at `CheckedStorageRoot::OwnedLocal` and once died in bindings
+    // evaluation ("owned local observation lost its established place"). The
+    // machine's `requires` now reaches the write's reconstructed proof site,
+    // so the entry body lowers its one byte write and verifies independently.
     let checked = crate::front_end::checked_program(
         r#"
         machine store(target: &mut [u8], i: u64, k: u64)
@@ -384,8 +381,26 @@ fn byte_view_write_resolves_owned_local_element_value() {
         }
     "#,
     );
-    assert!(matches!(
-        lower_machine(&checked, TerminalMachineSelection::Name("store")),
-        Err(LoweringError::OperationProofUnavailable(_))
-    ));
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("store"))
+        .expect("the guarded entry-body write lowers through its requires premise");
+    let writes = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ByteSequenceWrite { .. }
+            )
+        })
+        .count();
+    assert_eq!(writes, 1);
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay discharges the write's bound from the requires premise");
 }
