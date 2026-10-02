@@ -496,36 +496,15 @@ pub(crate) fn structural_arguments_match(
         }
         // The shared loan is unrestricted; the original affine owner remains
         // live and retains its independent transfer or cleanup obligation.
+        // A resolved Owned + Affine contract is already proof of a
+        // caller-owned whole place — arrival parameters, produced results,
+        // and establishments all resolve through it — so liveness belongs to
+        // the ownership replay, not a producer roster here.
         let shared_affine_loan = argument.path.is_empty()
             && argument.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.access == terminal_psi::StructuralAccess::Owned
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && (caller
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == argument.place)
-                || caller
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters)
-                    .any(|parameter| parameter.place == argument.place)
-                || caller
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .any(|node| {
-                        matches!(&node.operation,
-                    O::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    }
-                        | O::EstablishRecord { result, .. }
-                        | O::EstablishZeroedStructural { result, .. }
-                        | O::EstablishStructuralLocal { result, .. }
-                        | O::EstablishCase { result, .. }
-                        if result.place == argument.place)
-                    }));
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let actual_multiplicity = if shared_affine_loan
             || view_loan
             || shared_buffer_presentation
@@ -820,8 +799,8 @@ pub(crate) fn structural_source_contract(
                     };
                     (declaration.id == place).then_some(StructuralSourceContract {
                         structural_type: structural_type.id,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                        access: terminal_psi::StructuralAccess::Owned,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                         qualifications: qualifications.as_slice(),
                         projected_qualifications: &[],
                         operation_result: None,

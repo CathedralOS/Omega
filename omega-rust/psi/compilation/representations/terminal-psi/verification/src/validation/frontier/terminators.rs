@@ -684,6 +684,13 @@ fn close_return_structural(
                 && parameter.access == StructuralAccess::SharedBorrow
                 && parameter.qualifications.is_empty()
         });
+    // A byte-sequence literal's descriptor borrows immutable backing: its
+    // single establishment is pinned by foundation validation and control
+    // flow already checks its dominance, so it is a plain copy payload that
+    // owes no disposal at the contract edge.
+    let literal_return_source = machine.structural_places.iter().any(|place| {
+        place.id == *source && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+    });
     // Plain copy payloads owe no disposal. Their exact producer
     // dominance/order is checked by control-flow validation, not
     // by retaining a fictitious affine obligation across joins.
@@ -691,6 +698,7 @@ fn close_return_structural(
         && !exact_unrestricted_parameter_return
         && !bounded_owned_byte_return
         && !shared_view_parameter_return
+        && !literal_return_source
         && !super::super::scalar::array::plain_return_source(module, machine, *source)
         && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
             && (super::super::scalar::case::plain_return_source(module, machine, *source)
