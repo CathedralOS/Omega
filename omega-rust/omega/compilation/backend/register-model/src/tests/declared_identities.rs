@@ -177,6 +177,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         bits_to_float32: None,
         bits_to_float64: None,
         ieee_float_arithmetic: None,
+        ieee_float_directed_binary: None,
         ieee_float_unary: None,
         ieee_float_conversion_control: None,
         ieee_float_ternary: None,
@@ -244,6 +245,26 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         .collect();
     for (position, identity) in policy_identities.iter().enumerate() {
         assert!(!policy_identities[..position].contains(identity));
+    }
+
+    let directed_identities =
+        [None, Some(instruction_key(785)), Some(instruction_key(792))].map(|directed| {
+            target_register_environment_identity(
+                target,
+                &physical,
+                &constraints,
+                &reservations,
+                &TargetRegisterEnvironmentConstraintKeys {
+                    ieee_float_directed_binary: directed,
+                    ..keys.clone()
+                },
+            )
+        });
+    for (position, identity) in directed_identities.iter().enumerate() {
+        assert!(
+            !directed_identities[..position].contains(identity),
+            "missing, nearest and directed custody must remain distinct"
+        );
     }
 
     for changed_target in [
@@ -385,6 +406,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             bits_to_float32: None,
             bits_to_float64: None,
             ieee_float_arithmetic: None,
+            ieee_float_directed_binary: None,
             ieee_float_unary: None,
             ieee_float_conversion_control: Some(instruction_key(788)),
             ieee_float_ternary: None,

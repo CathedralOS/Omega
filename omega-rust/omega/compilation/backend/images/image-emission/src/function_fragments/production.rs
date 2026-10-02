@@ -71,7 +71,9 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         );
         let mut unit_call_stacks = Vec::new();
         let mut scalar_call_stacks = Vec::new();
-        let mut local_peak = frame_bytes;
+        let mut local_peak = frame_bytes
+            .checked_add(source::temporary_stack_bytes(source, placed.machine)?)
+            .ok_or(Error::Overflow)?;
         for call in text
             .resolved_internal_machine_calls
             .iter()

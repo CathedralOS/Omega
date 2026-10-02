@@ -906,6 +906,7 @@ pub fn x86_64_register_constraint_catalog(
     // `selected_form_encoding::ieee_float_arithmetic` restates both rows.
     for (key, inputs) in [
         (crate::X86_64_IEEE_FLOAT_ARITHMETIC, 2),
+        (crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY, 2),
         (crate::X86_64_IEEE_FLOAT_UNARY, 1),
         (crate::X86_64_IEEE_FLOAT_TERNARY, 3),
     ] {
@@ -917,7 +918,14 @@ pub fn x86_64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands,
-            implicit_uses: sorted_units(view("mxcsr").units.iter().copied()),
+            implicit_uses: sorted_units(
+                view("mxcsr").units.iter().copied().chain(
+                    (key == crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY)
+                        .then(|| view("rsp").units.iter().copied())
+                        .into_iter()
+                        .flatten(),
+                ),
+            ),
             implicit_defs: Vec::new(),
             clobbers: sorted_units(
                 view("xmm4")

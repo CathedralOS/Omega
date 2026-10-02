@@ -26,6 +26,7 @@ pub(super) fn decode_instruction(
     let unit_defs = decode_units(cursor)?;
     let unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        9 => MachineMemoryEffect::TemporaryStackStorageV1,
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
         5 => MachineMemoryEffect::HostedReadByteV1,
@@ -660,6 +661,11 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        12 => MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
+
         11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: cursor.u16()?,
             form: crate::AtomicForm::from_ordinal(cursor.byte()?)
@@ -710,6 +716,10 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let stack = match cursor.byte()? {
+        3 => MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
         0 => MachineEncodedStackEffect::UnchangedV1,
         1 => MachineEncodedStackEffect::PopBytesV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),

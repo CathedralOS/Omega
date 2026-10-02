@@ -50,6 +50,8 @@ pub(super) struct Admission<'source> {
     /// member. Proposal, replay, and the slot-reuse analysis all read this
     /// one decision.
     pub span_closes: Vec<std::collections::BTreeSet<usize>>,
+    // Establishment retains its exact address operand; only later uses reload.
+    pub retained_uses: std::collections::BTreeSet<(SelectedInstructionId, u16)>,
     pub victim: &'source VirtualRegister,
     /// What the spill restates. A scalar victim keeps its source `ValueId`;
     /// a structural victim — an ABI live-in's incoming pointer, a field
@@ -394,7 +396,7 @@ pub(super) fn admit<'source>(
     // orphan the recorded establishment. Reads, snapshot chunk loads, calls,
     // and the store's value operand are content-bound elsewhere — by source
     // value, by result origin, or by the access's own coordinates — so only
-    // the paired store's instruction is refused here.
+    // the paired store's address use is retained through rewriting.
     let establishing: std::collections::BTreeSet<(OperationId, PlaceId)> = definition
         .into_iter()
         .flat_map(|definition| {
@@ -426,6 +428,7 @@ pub(super) fn admit<'source>(
             })
             .collect()
     };
+    let mut retained_uses = std::collections::BTreeSet::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
         let previous_uses = uses;
         let (terminal, successors) = super::control(&block.terminator);
@@ -673,7 +676,16 @@ pub(super) fn admit<'source>(
                         // address operand's register identity verbatim; the
                         // reload cannot stand in for it there.
                         if established_stores.contains(&instruction.id) {
-                            return Err(RuntimeSpillError::UnsupportedUse);
+                            if operand.operand != 0
+                                || !matches!(
+                                    instruction.kind,
+                                    SelectedInstructionKind::Store { .. }
+                                )
+                            {
+                                return Err(RuntimeSpillError::UnsupportedUse);
+                            }
+                            retained_uses.insert((instruction.id, operand.operand));
+                            continue;
                         }
                         // A fixed view on this operand stays attached to the
                         // rewritten use, so the fresh reload register is a
@@ -1276,6 +1288,7 @@ pub(super) fn admit<'source>(
         shared_reload,
         dedicated_tie_uses,
         span_closes,
+        retained_uses,
         victim,
         lineage,
         address_scalar_type: ScalarType::Integer(unsigned),

@@ -75,7 +75,8 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
 fn atomic_forms_require_indivisible_memory_and_exact_operand_custody() {
     for form in AtomicForm::ALL {
         let (constraint, original) = declaration(form);
-        validate_declaration(&constraint, &original).expect("complete atomic effects");
+        validate_declaration(target::Architecture::X86_64, &constraint, &original)
+            .expect("complete atomic effects");
         for mutation in 0..10 {
             let mut changed = original.clone();
             let mut changed_constraint = constraint.clone();
@@ -126,17 +127,22 @@ fn atomic_forms_require_indivisible_memory_and_exact_operand_custody() {
                 _ => unreachable!(),
             }
             assert!(
-                validate_declaration(&changed_constraint, &changed).is_err(),
+                validate_declaration(target::Architecture::X86_64, &changed_constraint, &changed)
+                    .is_err(),
                 "{form:?}, mutation {mutation}"
             );
         }
         if let Some(output) = form.observed_operand() {
             let mut changed = constraint.clone();
             changed.operands[usize::from(output)].early_clobber = false;
-            assert!(validate_declaration(&changed, &original).is_err());
+            assert!(
+                validate_declaration(target::Architecture::X86_64, &changed, &original).is_err()
+            );
             changed.operands[usize::from(output)].early_clobber = true;
             changed.operands[usize::from(output)].tied_to = Some(0);
-            assert!(validate_declaration(&changed, &original).is_err());
+            assert!(
+                validate_declaration(target::Architecture::X86_64, &changed, &original).is_err()
+            );
         }
     }
 }

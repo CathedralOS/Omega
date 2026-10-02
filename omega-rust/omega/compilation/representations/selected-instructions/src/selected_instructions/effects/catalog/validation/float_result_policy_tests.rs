@@ -83,7 +83,7 @@ fn fixture(
 fn float_result_policy_catalog_rejects_changed_dependencies_and_trap_surfaces() {
     for form in FloatResultPolicyForm::ALL {
         let (constraint, source) = fixture(form);
-        validate_declaration(&constraint, &source).unwrap();
+        validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
         for mutation in 0..10 {
             let mut changed = source.clone();
             let alternative = &mut changed.alternatives[0];
@@ -138,7 +138,7 @@ fn float_result_policy_catalog_rejects_changed_dependencies_and_trap_surfaces() 
                 }
             }
             assert!(
-                validate_declaration(&constraint, &changed).is_err(),
+                validate_declaration(target::Architecture::X86_64, &constraint, &changed).is_err(),
                 "{form:?}, mutation {mutation}"
             );
         }
@@ -152,6 +152,13 @@ fn float_result_policy_catalog_rejects_changed_dependencies_and_trap_surfaces() 
             .encoded
             .external_operand_reads
             .insert(0, 0);
-        assert!(validate_declaration(&wrong_constraint, &wrong_declaration).is_err());
+        assert!(
+            validate_declaration(
+                target::Architecture::X86_64,
+                &wrong_constraint,
+                &wrong_declaration
+            )
+            .is_err()
+        );
     }
 }

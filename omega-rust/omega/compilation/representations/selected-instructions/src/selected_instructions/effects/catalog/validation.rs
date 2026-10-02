@@ -33,6 +33,7 @@ fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
 }
 
 pub(super) fn validate_declaration(
+    architecture: target::Architecture,
     constraint: &RegisterInstructionConstraint,
     declaration: &MachineEffectDeclaration,
 ) -> Result<(), MachineEffectCatalogValidationError> {
@@ -90,7 +91,10 @@ pub(super) fn validate_declaration(
     // that it never faults.
     // Understating a surface the rule needs, or overstating one it cannot
     // have, fails admission instead of reaching canonical replay.
+    let temporary_stack = architecture == target::Architecture::X86_64
+        && matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some());
     let expected_memory = match semantic {
+        _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::HostedReadByte => crate::MachineMemoryEffect::HostedReadByteV1,
@@ -121,6 +125,7 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
+        _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
         semantic if has_policy_trap(semantic) => crate::MachineTrapBehavior::TrappingIntegerV1,
@@ -722,6 +727,20 @@ fn validate_encoded_effects(
         return Err(());
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
+        (
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer: memory_pointer,
+                byte_count: 16,
+            },
+            MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: 16,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if memory_pointer == stack_pointer
+            && declaration.memory == crate::MachineMemoryEffect::TemporaryStackStorageV1
+            && matches!(declaration.semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(form) if form.operation.rounding_direction().is_some()) =>
+            {}
         (
             MachineEncodedMemoryEffect::WriteFrameStorageV1 {
                 byte_count: 4 | 8, ..

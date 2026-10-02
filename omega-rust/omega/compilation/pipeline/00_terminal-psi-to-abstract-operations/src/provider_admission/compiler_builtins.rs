@@ -254,6 +254,131 @@ fn compiler_intrinsic_execution_identity(
             };
             let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
             match operation {
+                Arithmetic::DirectedBinary {
+                    operation,
+                    rounding,
+                } => builtin(match (operation, rounding, format) {
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatAddTowardZeroF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatAddTowardZeroF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatAddTowardPositiveF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatAddTowardPositiveF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatAddTowardNegativeF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatAddTowardNegativeF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardZeroF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardZeroF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardPositiveF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardPositiveF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardNegativeF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSubtractTowardNegativeF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardZeroF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardZeroF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardPositiveF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardPositiveF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardNegativeF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatMultiplyTowardNegativeF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardZeroF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardZeroF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardPositiveF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardPositiveF64,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardNegativeF32,
+                    (
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatDivideTowardNegativeF64,
+                }),
                 Arithmetic::Add => binary(Primitive::Add),
                 Arithmetic::Subtract => binary(Primitive::Subtract),
                 Arithmetic::Multiply => binary(Primitive::Multiply),

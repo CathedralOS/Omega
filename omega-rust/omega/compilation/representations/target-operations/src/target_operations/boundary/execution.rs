@@ -30,7 +30,47 @@ pub struct ProviderExecutionBinding {
     boundary_contract_report_fingerprint: u64,
 }
 
-/// One IEEE-754 operation on the realization's `format`. Every operation but
+/// The arithmetic whose exact result is rounded once in the selected mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IeeeFloatBinaryOperation {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+impl IeeeFloatBinaryOperation {
+    pub const ALL: [Self; 4] = [Self::Add, Self::Subtract, Self::Multiply, Self::Divide];
+    pub const fn ordinal(self) -> u8 {
+        match self {
+            Self::Add => 0,
+            Self::Subtract => 1,
+            Self::Multiply => 2,
+            Self::Divide => 3,
+        }
+    }
+}
+
+/// An explicit directed mode, independent of the caller's floating controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IeeeFloatRoundingDirection {
+    TowardZero,
+    TowardPositive,
+    TowardNegative,
+}
+
+impl IeeeFloatRoundingDirection {
+    pub const ALL: [Self; 3] = [Self::TowardZero, Self::TowardPositive, Self::TowardNegative];
+    pub const fn ordinal(self) -> u8 {
+        match self {
+            Self::TowardZero => 0,
+            Self::TowardPositive => 1,
+            Self::TowardNegative => 2,
+        }
+    }
+}
+
+/// One IEEE-754 operation on the realization's `format`. Every ordinary operation but
 /// `TruncateToInteger` and Boolean classification yields a value of that format
 /// rounded to nearest,
 /// ties to even: Omega's canonical floating controls hold that rounding mode
@@ -46,8 +86,16 @@ pub struct ProviderExecutionBinding {
 /// operands, and unary operations read one. The operand of
 /// `ConvertFormat` has the other interchange format; the
 /// operand of `FromInteger` is its named integer carrier.
+/// Directed binary operations retain the exact selected operation and mode.
+/// Their local save/restore envelope preserves the caller's canonical controls,
+/// masked exceptions and gradual-underflow invariant; mode is never ambient.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IeeeFloatArithmeticOperation {
+    /// Format and mode survive admission, codecs and independent byte recovery.
+    DirectedBinary {
+        operation: IeeeFloatBinaryOperation,
+        rounding: IeeeFloatRoundingDirection,
+    },
     Add,
     Subtract,
     Multiply,
@@ -180,8 +228,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 45] = {
-        let mut all = [Self::Add; 45];
+    pub const ALL: [Self; 57] = {
+        let mut all = [Self::Add; 57];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -215,6 +263,19 @@ impl IeeeFloatArithmeticOperation {
         all[31] = Self::IsNan;
         all[32] = Self::IsInfinite;
         all[44] = Self::FusedMultiplyAdd;
+        let mut operation = 0;
+        while operation < IeeeFloatBinaryOperation::ALL.len() {
+            let mut rounding = 0;
+            while rounding < IeeeFloatRoundingDirection::ALL.len() {
+                let directed = Self::DirectedBinary {
+                    operation: IeeeFloatBinaryOperation::ALL[operation],
+                    rounding: IeeeFloatRoundingDirection::ALL[rounding],
+                };
+                all[directed.ordinal() as usize] = directed;
+                rounding += 1;
+            }
+            operation += 1;
+        }
         all
     };
 
@@ -238,6 +299,10 @@ impl IeeeFloatArithmeticOperation {
             Self::ConvertFormat => 8,
             Self::MultiplyThenAdd => 30,
             Self::FusedMultiplyAdd => 44,
+            Self::DirectedBinary {
+                operation,
+                rounding,
+            } => 45 + operation.ordinal() * 3 + rounding.ordinal(),
             Self::IsNan => 31,
             Self::IsInfinite => 32,
             // The 32- and 64-bit carriers came first (9 through 17); the
@@ -272,6 +337,15 @@ impl IeeeFloatArithmeticOperation {
         }
     }
 
+    /// The operation owns its mode; an ambient nearest-even control cannot
+    /// realize or authenticate an explicitly directed operation.
+    pub const fn rounding_direction(self) -> Option<IeeeFloatRoundingDirection> {
+        match self {
+            Self::DirectedBinary { rounding, .. } => Some(rounding),
+            _ => None,
+        }
+    }
+
     /// The semantic arity; transport and receiving checks use this same count.
     pub const fn operand_count(self) -> usize {
         match self {
@@ -281,7 +355,8 @@ impl IeeeFloatArithmeticOperation {
             | Self::Multiply
             | Self::Divide
             | Self::Minimum
-            | Self::Maximum => 2,
+            | Self::Maximum
+            | Self::DirectedBinary { .. } => 2,
             Self::Negate
             | Self::IsNan
             | Self::IsInfinite

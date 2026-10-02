@@ -98,6 +98,7 @@ fn keys() -> SelectedConstraintKeys {
         bits_to_float32: Some(instruction(30)),
         bits_to_float64: Some(instruction(31)),
         ieee_float_arithmetic: Some(instruction(785)),
+        ieee_float_directed_binary: Some(instruction(792)),
         ieee_float_unary: Some(instruction(786)),
         ieee_float_conversion_control: Some(instruction(788)),
         ieee_float_ternary: Some(instruction(787)),

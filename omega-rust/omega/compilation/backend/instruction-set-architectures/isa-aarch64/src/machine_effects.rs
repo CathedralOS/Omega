@@ -339,6 +339,7 @@ fn selected_keys(
         float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
         ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
+        ieee_float_directed_binary: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
         ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
         ieee_float_conversion_control: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
         ieee_float_ternary: Some(crate::AARCH64_IEEE_FLOAT_TERNARY),

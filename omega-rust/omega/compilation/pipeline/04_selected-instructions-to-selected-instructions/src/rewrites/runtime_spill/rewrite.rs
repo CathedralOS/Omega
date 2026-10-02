@@ -159,6 +159,9 @@ pub fn spill_selected_runtime_value_with_span_policy(
             // home, which is the read-modify-write idiom's point.
             for operand in &mut rewritten.operands {
                 if operand.virtual_register != register
+                    || admitted
+                        .retained_uses
+                        .contains(&(original.id, operand.operand))
                     || !matches!(
                         operand.access,
                         RegisterOperandAccess::Use | RegisterOperandAccess::UseDef

@@ -26,6 +26,7 @@ pub(super) fn encode_ordinary_instruction(
     bytes.push(match instruction.memory {
         MachineMemoryEffect::CopyBytesV1 => 6,
         MachineMemoryEffect::AtomicPointerV1 => 8,
+        MachineMemoryEffect::TemporaryStackStorageV1 => 9,
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
         MachineMemoryEffect::HostedReadByteV1 => 5,

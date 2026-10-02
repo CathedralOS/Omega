@@ -1,3 +1,9 @@
+//! Explicit directed binary forms retain their format and mode in the same
+//! IEEE catalog as nearest arithmetic. Each form saves the exact incoming
+//! controls, installs its masked, gradual-underflow rounding mode, and restores
+//! the saved controls before publishing its result. Independent instruction
+//! decoding rejects a substituted mode, absent restore or unbalanced storage.
+//!
 //! Nearest-even scalar IEEE operations on general-register payloads.
 //!
 //! Scalar graphs keep IEEE values as raw payloads in general registers, so
@@ -131,6 +137,26 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
         implicit_unit_clobbers: clobbers(),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
+    if form.operation.rounding_direction().is_some() {
+        let model = crate::x86_64_physical_register_model();
+        let stack_pointer = model.view_named("rsp").expect("canonical stack pointer").id;
+        encoded.implicit_unit_uses = sorted(
+            encoded
+                .implicit_unit_uses
+                .into_iter()
+                .chain(view_units("rsp")),
+        );
+        encoded.memory =
+            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer,
+                byte_count: 16,
+            };
+        encoded.stack = selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count: 16,
+        };
+        encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    }
     if conversion_control(form) {
         encoded.implicit_unit_clobbers = sorted(clobbers().into_iter().chain(view_units("rflags")));
     }
@@ -170,8 +196,14 @@ pub(crate) fn declaration(
     Ok(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: if traps(form) {
+        memory: if form.operation.rounding_direction().is_some() {
+            MachineMemoryEffect::TemporaryStackStorageV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
+        trap: if form.operation.rounding_direction().is_some() {
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        } else if traps(form) {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
@@ -199,6 +231,18 @@ pub(crate) fn declaration(
 /// One instruction of a form, by its fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Instruction {
+    /// Flag-preserving, balanced reservation of a private aligned region.
+    AdjustStack {
+        displacement: i8,
+    },
+    /// STMXCSR/LDMXCSR at an offset within the private region.
+    ControlWord {
+        load: bool,
+        displacement: u8,
+    },
+    StoreControlMode {
+        value: u32,
+    },
     /// `66 [REX] 0F 6E|7E /r`: `MOVD`/`MOVQ` between `xmm` (ModRM.reg) and a
     /// general register (ModRM.rm); `wide` is REX.W.
     Transfer {
@@ -216,9 +260,15 @@ enum Instruction {
         source: u8,
     },
     /// `66 0F 76 /r`: `PCMPEQD xmm, xmm`, all ones.
-    AllOnes { xmm: u8 },
+    AllOnes {
+        xmm: u8,
+    },
     /// `66 0F 73|72 /6 ib`: `PSLLQ`/`PSLLD xmm, count`.
-    ShiftLeft { quad: bool, xmm: u8, count: u8 },
+    ShiftLeft {
+        quad: bool,
+        xmm: u8,
+        count: u8,
+    },
     /// `66 0F 72 /4|/2 ib`: `PSRAD`/`PSRLD`; `73 /2`: `PSRLQ`.
     ShiftRight {
         quad: bool,
@@ -240,9 +290,15 @@ enum Instruction {
         general: u8,
     },
     /// `[REX] 89 /r`: `MOV r/m32, r32`, zero-extending the destination.
-    Move32 { destination: u8, source: u8 },
+    Move32 {
+        destination: u8,
+        source: u8,
+    },
     /// `66 0F 28 /r`: `MOVAPD xmm, xmm`.
-    MoveAligned { destination: u8, source: u8 },
+    MoveAligned {
+        destination: u8,
+        source: u8,
+    },
     /// `F2|F3 0F C2 /r ib`: `CMPSD|CMPSS xmm, xmm, predicate`, an all-ones or zero
     /// mask in the destination's low lane.
     CompareScalar {
@@ -252,23 +308,46 @@ enum Instruction {
         source: u8,
     },
     /// `66 0F 54 /r`: `ANDPD xmm, xmm`.
-    And { destination: u8, source: u8 },
+    And {
+        destination: u8,
+        source: u8,
+    },
     /// `REX.W B8+r io`: `MOVABS r64, imm64`.
-    MoveImmediate64 { general: u8, value: u64 },
+    MoveImmediate64 {
+        general: u8,
+        value: u64,
+    },
     /// `F2 [REX] 0F 2C /r`: `CVTTSD2SI r32/r64, xmm`, toward zero; an
     /// unordered or out-of-range operand yields the integer indefinite value
     /// (the destination's minimum).
-    FloatToInteger { wide: bool, general: u8, xmm: u8 },
+    FloatToInteger {
+        wide: bool,
+        general: u8,
+        xmm: u8,
+    },
     /// `REX.W 63 /r`: `MOVSXD r64, r32`.
-    SignExtend32 { destination: u8, source: u8 },
+    SignExtend32 {
+        destination: u8,
+        source: u8,
+    },
     /// `66 0F EB /r`: `POR xmm, xmm` over exact integer payloads.
-    Or { destination: u8, source: u8 },
+    Or {
+        destination: u8,
+        source: u8,
+    },
     /// `REX.W 85 /r`: `TEST r64, r64`, selecting zero/sign without mutation.
-    Test64 { general: u8 },
+    Test64 {
+        general: u8,
+    },
     /// `0F 8? cd`: a conditional branch wholly inside this selected form.
-    ConditionalJump { condition: u8, displacement: i32 },
+    ConditionalJump {
+        condition: u8,
+        displacement: i32,
+    },
     /// `E9 cd`: an unconditional branch wholly inside this selected form.
-    Jump { displacement: i32 },
+    Jump {
+        displacement: i32,
+    },
     /// `0F 0B`: the architectural Crash leaf.
     Crash,
 }
@@ -282,6 +361,25 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
     };
     let scalar_prefix = |double: bool| if double { 0xf2 } else { 0xf3 };
     match instruction {
+        Instruction::AdjustStack { displacement } => {
+            bytes.extend_from_slice(&[0x48, 0x8d, 0x64, 0x24, displacement as u8])
+        }
+        Instruction::ControlWord { load, displacement } => {
+            let extension = if load { 2 } else { 3 };
+            bytes.extend_from_slice(&[
+                0x0f,
+                0xae,
+                (extension << 3) | 4 | if displacement == 0 { 0 } else { 0x40 },
+                0x24,
+            ]);
+            if displacement != 0 {
+                bytes.push(displacement);
+            }
+        }
+        Instruction::StoreControlMode { value } => {
+            bytes.extend_from_slice(&[0xc7, 0x44, 0x24, 4]);
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
         Instruction::Transfer {
             to_float,
             wide,
@@ -432,6 +530,42 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
         _ => None,
     };
     match bytes {
+        [0x48, 0x8d, 0x64, 0x24, displacement, rest @ ..] => Some((
+            Instruction::AdjustStack {
+                displacement: *displacement as i8,
+            },
+            rest,
+        )),
+        [0x0f, 0xae, modrm @ (0x14 | 0x1c), 0x24, rest @ ..] => Some((
+            Instruction::ControlWord {
+                load: *modrm == 0x14,
+                displacement: 0,
+            },
+            rest,
+        )),
+        [
+            0x0f,
+            0xae,
+            modrm @ (0x54 | 0x5c),
+            0x24,
+            displacement,
+            rest @ ..,
+        ] => Some((
+            Instruction::ControlWord {
+                load: *modrm == 0x54,
+                displacement: *displacement,
+            },
+            rest,
+        )),
+        [0xc7, 0x44, 0x24, 4, tail @ ..] if tail.len() >= 4 => {
+            let (value, rest) = tail.split_at(4);
+            Some((
+                Instruction::StoreControlMode {
+                    value: u32::from_le_bytes(value.try_into().ok()?),
+                },
+                rest,
+            ))
+        }
         [0x0f, 0x0b, rest @ ..] => Some((Instruction::Crash, rest)),
         [0x0f, opcode @ 0x80..=0x8f, tail @ ..] if tail.len() >= 4 => {
             let (displacement, rest) = tail.split_at(4);
@@ -669,6 +803,56 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
         source: LEFT_SCRATCH,
     };
     Ok(match form.operation {
+        IeeeFloatArithmeticOperation::DirectedBinary {
+            operation,
+            rounding,
+        } => {
+            // Save the exact incoming word, establish masked exceptions and
+            // gradual underflow with the selected RC, then restore before any
+            // result escapes. The private allocation never uses the red zone.
+            // LEA preserves flags; operands are captured before output aliasing.
+            let mode = match rounding.ordinal() {
+                0 => 3,
+                1 => 2,
+                2 => 1,
+                _ => unreachable!(),
+            };
+            let opcode = match operation.ordinal() {
+                0 => 0x58,
+                1 => 0x5c,
+                2 => 0x59,
+                3 => 0x5e,
+                _ => unreachable!(),
+            };
+            vec![
+                move_in(registers[0], LEFT_SCRATCH, double),
+                move_in(registers[1], RIGHT_SCRATCH, double),
+                Instruction::AdjustStack { displacement: -16 },
+                Instruction::ControlWord {
+                    load: false,
+                    displacement: 0,
+                },
+                Instruction::StoreControlMode {
+                    value: 0x1f80 | (mode << 13),
+                },
+                Instruction::ControlWord {
+                    load: true,
+                    displacement: 4,
+                },
+                Instruction::Scalar {
+                    double,
+                    opcode,
+                    destination: LEFT_SCRATCH,
+                    source: RIGHT_SCRATCH,
+                },
+                Instruction::ControlWord {
+                    load: true,
+                    displacement: 0,
+                },
+                Instruction::AdjustStack { displacement: 16 },
+                move_out,
+            ]
+        }
         // Baseline SSE2 has no single-rounding multiply-add. Optional FMA3
         // requires a separately admitted feature and provider occurrence.
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => return Err(Error::EncodedFormMismatch),
@@ -1140,6 +1324,63 @@ mod tests {
             .unwrap()
             .bytes()
             .to_vec()
+    }
+
+    #[test]
+    fn directed_division_restores_controls_and_balances_private_storage() {
+        // Directed Divide occupies the appended operation ordinals 54..56.
+        for (operation, expected_mode) in [(54, 0x7f80u32), (55, 0x5f80), (56, 0x3f80)] {
+            for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                let form = IeeeFloatArithmeticForm {
+                    operation: IeeeFloatArithmeticOperation::ALL[operation],
+                    format,
+                };
+                let program = super::program(form, &[0, 1, 0]).unwrap();
+                assert_eq!(
+                    program[2],
+                    super::Instruction::AdjustStack { displacement: -16 }
+                );
+                assert_eq!(
+                    program[3],
+                    super::Instruction::ControlWord {
+                        load: false,
+                        displacement: 0
+                    }
+                );
+                assert_eq!(
+                    program[4],
+                    super::Instruction::StoreControlMode {
+                        value: expected_mode
+                    }
+                );
+                assert_eq!(
+                    program[7],
+                    super::Instruction::ControlWord {
+                        load: true,
+                        displacement: 0
+                    }
+                );
+                assert_eq!(
+                    program[8],
+                    super::Instruction::AdjustStack { displacement: 16 }
+                );
+                let encoded = super::effects(form);
+                assert!(matches!(
+                    encoded.stack,
+                    selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+                        byte_count: 16,
+                        ..
+                    }
+                ));
+                assert!(matches!(
+                    encoded.memory,
+                    selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                        byte_count: 16,
+                        ..
+                    }
+                ));
+            }
+        }
     }
 
     #[test]

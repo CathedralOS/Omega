@@ -9,6 +9,7 @@ pub(super) fn validate(
     unit: bool,
     geometry: (u64, u16, bool),
     architecture: Architecture,
+    temporary_bytes: u32,
     calls: &[&PlacedInternalMachineCallResolution],
     unit_stack: Option<ObjectUnitStack>,
     scalar_stack: Option<ObjectScalarStack>,
@@ -26,7 +27,9 @@ pub(super) fn validate(
         Architecture::X86_64 => 8u64,
         Architecture::Aarch64 => 0,
     };
-    let mut peak = frame_bytes;
+    let mut peak = frame_bytes
+        .checked_add(u64::from(temporary_bytes))
+        .ok_or(Error::Overflow)?;
     let edges = unit_call_stacks
         .iter()
         .map(|row| {
@@ -130,6 +133,34 @@ mod tests {
     }
 
     #[test]
+    fn balanced_private_storage_is_included_in_peak_without_a_call() {
+        let stack = ObjectScalarStack {
+            local_peak_bytes: 40,
+            stack_alignment: 16,
+        };
+        let check = |stack| {
+            validate(
+                false,
+                (24, 16, false),
+                Architecture::X86_64,
+                16,
+                &[],
+                None,
+                Some(stack),
+                &[],
+                &[],
+            )
+        };
+        check(stack).unwrap();
+        let mut understated = stack;
+        understated.local_peak_bytes = 24;
+        assert!(check(understated).is_err());
+        let mut overstated = stack;
+        overstated.local_peak_bytes += 16;
+        assert!(check(overstated).is_err());
+    }
+
+    #[test]
     fn scalar_call_edges_retain_exact_frame_prefix_owner_target_and_role() {
         for architecture in [Architecture::X86_64, Architecture::Aarch64] {
             let call = call(architecture);
@@ -152,6 +183,7 @@ mod tests {
                     false,
                     (frame_bytes, 16, true),
                     architecture,
+                    0,
                     &[&call],
                     None,
                     Some(stack),
@@ -183,6 +215,7 @@ mod tests {
                     true,
                     (frame_bytes, 16, true),
                     architecture,
+                    0,
                     &[&call],
                     Some(ObjectUnitStack {
                         frame_bytes: frame_bytes as u32,
@@ -224,6 +257,7 @@ mod tests {
                     true,
                     (u64::from(frame_bytes), 16, true),
                     architecture,
+                    0,
                     &[&call],
                     Some(stack),
                     None,

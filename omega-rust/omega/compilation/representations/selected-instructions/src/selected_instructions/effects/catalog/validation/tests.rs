@@ -72,7 +72,7 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
             encoded,
         }],
     };
-    validate_declaration(&constraint, &source).unwrap();
+    validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..7 {
         let mut changed = source.clone();
         match mutation {
@@ -96,7 +96,7 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
             }
         }
         assert!(
-            validate_declaration(&constraint, &changed).is_err(),
+            validate_declaration(target::Architecture::X86_64, &constraint, &changed).is_err(),
             "mutation {mutation}"
         );
     }
@@ -155,7 +155,7 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
             encoded,
         }],
     };
-    validate_declaration(&constraint, &source).unwrap();
+    validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..8 {
         let mut changed = source.clone();
         let encoded = &mut changed.alternatives[0].encoded;
@@ -185,14 +185,14 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
             _ => encoded.external_operand_writes.push(0),
         }
         assert!(
-            validate_declaration(&constraint, &changed).is_err(),
+            validate_declaration(target::Architecture::X86_64, &constraint, &changed).is_err(),
             "mutation {mutation}"
         );
     }
     for operand in 0..5 {
         let mut changed = constraint.clone();
         changed.operands[operand].early_clobber = !changed.operands[operand].early_clobber;
-        assert!(validate_declaration(&changed, &source).is_err());
+        assert!(validate_declaration(target::Architecture::X86_64, &changed, &source).is_err());
     }
 }
 
@@ -266,25 +266,32 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
                 encoded,
             }],
         };
-        validate_declaration(&constraint, &declaration).unwrap();
+        validate_declaration(target::Architecture::X86_64, &constraint, &declaration).unwrap();
         if packed {
             for operand in [1, 2] {
                 let mut weakened = constraint.clone();
                 weakened.operands[operand].early_clobber = false;
-                assert!(validate_declaration(&weakened, &declaration).is_err());
+                assert!(
+                    validate_declaration(target::Architecture::X86_64, &weakened, &declaration)
+                        .is_err()
+                );
             }
             let mut stripped = declaration.clone();
             stripped.alternatives[0]
                 .encoded
                 .external_operand_writes
                 .pop();
-            assert!(validate_declaration(&constraint, &stripped).is_err());
+            assert!(
+                validate_declaration(target::Architecture::X86_64, &constraint, &stripped).is_err()
+            );
         }
         declaration.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: 0,
             byte_count: if byte_count == 4 { 8 } else { 4 },
         };
-        assert!(validate_declaration(&constraint, &declaration).is_err());
+        assert!(
+            validate_declaration(target::Architecture::X86_64, &constraint, &declaration).is_err()
+        );
     }
 }
 
@@ -333,7 +340,7 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
             encoded,
         }],
     };
-    validate_declaration(&constraint, &source).unwrap();
+    validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..5 {
         let mut changed = source.clone();
         match mutation {
@@ -357,7 +364,7 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
                 changed.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1
             }
         }
-        assert!(validate_declaration(&constraint, &changed).is_err());
+        assert!(validate_declaration(target::Architecture::X86_64, &constraint, &changed).is_err());
     }
 }
 
@@ -399,6 +406,7 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
         }
     };
     validate_declaration(
+        target::Architecture::X86_64,
         &constraint,
         &declaration(
             MachineSemanticKind::Jump,
@@ -407,6 +415,7 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
     )
     .unwrap();
     validate_declaration(
+        target::Architecture::X86_64,
         &constraint,
         &declaration(
             MachineSemanticKind::ConditionalBranchNonZero,
@@ -435,7 +444,12 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
         ),
     ] {
         assert!(
-            validate_declaration(&constraint, &declaration(semantic, control)).is_err(),
+            validate_declaration(
+                target::Architecture::X86_64,
+                &constraint,
+                &declaration(semantic, control)
+            )
+            .is_err(),
             "{semantic:?} borrowed control shape {control:?}"
         );
     }
@@ -444,7 +458,7 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
     );
     hosted_trap.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;
-    assert!(validate_declaration(&constraint, &hosted_trap).is_err());
+    assert!(validate_declaration(target::Architecture::X86_64, &constraint, &hosted_trap).is_err());
 }
 
 #[test]
@@ -522,6 +536,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
     );
     let return_constraint = constraint(11, RegisterOperandAccess::Use);
     validate_declaration(
+        target::Architecture::X86_64,
         &return_constraint,
         &declaration(
             MachineSemanticKind::ReturnScalar,
@@ -538,6 +553,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
     // A return cannot borrow the call return-address lifecycle.
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &return_constraint,
             &declaration(
                 MachineSemanticKind::ReturnScalar,
@@ -554,6 +570,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
     );
     let call_constraint = constraint(13, RegisterOperandAccess::Def);
     validate_declaration(
+        target::Architecture::X86_64,
         &call_constraint,
         &declaration(
             MachineSemanticKind::CallScalar,
@@ -570,6 +587,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
     // A call cannot borrow the return activation-stack pop either.
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &call_constraint,
             &declaration(
                 MachineSemanticKind::CallScalar,
@@ -624,7 +642,7 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
             },
         }],
     };
-    validate_declaration(&constraint, &source).unwrap();
+    validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..13 {
         let mut candidate = source.clone();
         let effects = &mut candidate.alternatives[0].encoded;
@@ -656,7 +674,7 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
             _ => unreachable!(),
         }
         assert!(
-            validate_declaration(&constraint, &candidate).is_err(),
+            validate_declaration(target::Architecture::X86_64, &constraint, &candidate).is_err(),
             "mutation {mutation}"
         );
     }
@@ -669,7 +687,9 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
         tied_to: None,
         early_clobber: false,
     });
-    assert!(validate_declaration(&changed_constraint, &source).is_err());
+    assert!(
+        validate_declaration(target::Architecture::X86_64, &changed_constraint, &source).is_err()
+    );
 }
 
 #[test]
@@ -728,6 +748,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
             }],
         };
     validate_declaration(
+        target::Architecture::X86_64,
         &constraint,
         &declaration(
             MachineSemanticKind::Load8Indexed,
@@ -745,6 +766,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     ] {
         assert!(
             validate_declaration(
+                target::Architecture::X86_64,
                 &constraint,
                 &declaration(
                     semantic,
@@ -767,6 +789,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     pointer_read.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &constraint,
             &declaration(
                 MachineSemanticKind::Load64,
@@ -780,6 +803,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     // A hosted trap result cannot appear on an ordinary rule either.
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &constraint,
             &declaration(
                 MachineSemanticKind::ExactAddI64,
@@ -817,6 +841,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     frame_store.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
     frame_store.implicit_unit_uses = store_constraint.implicit_uses.clone();
     validate_declaration(
+        target::Architecture::X86_64,
         &store_constraint,
         &declaration(
             MachineSemanticKind::Store64,
@@ -855,6 +880,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     borrowed.trap = frame_store.trap;
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &offset_constraint,
             &declaration(
                 MachineSemanticKind::AddressOffset,
@@ -922,6 +948,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
         ],
     );
     validate_declaration(
+        target::Architecture::X86_64,
         &arithmetic,
         &declaration(
             MachineSemanticKind::ExactAddI64,
@@ -941,6 +968,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
     ] {
         assert!(
             validate_declaration(
+                target::Architecture::X86_64,
                 &arithmetic,
                 &declaration(
                     MachineSemanticKind::ExactAddI64,
@@ -961,6 +989,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
         &[RegisterOperandAccess::UseDef, RegisterOperandAccess::Use],
     );
     validate_declaration(
+        target::Architecture::X86_64,
         &read_write,
         &declaration(
             MachineSemanticKind::CopyI64,
@@ -974,6 +1003,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
     for (reads, writes) in [(vec![1], vec![0]), (vec![0, 1], vec![])] {
         assert!(
             validate_declaration(
+                target::Architecture::X86_64,
                 &read_write,
                 &declaration(
                     MachineSemanticKind::CopyI64,
@@ -1003,9 +1033,9 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
             target: RegisterViewId(9),
         };
     return_row.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
-    validate_declaration(&returned, &return_row).unwrap();
+    validate_declaration(target::Architecture::X86_64, &returned, &return_row).unwrap();
     return_row.alternatives[0].encoded.external_operand_reads = vec![0];
-    assert!(validate_declaration(&returned, &return_row).is_err());
+    assert!(validate_declaration(target::Architecture::X86_64, &returned, &return_row).is_err());
     // Only the all-aliased subtract realization drops its inputs: the result
     // of x - x does not depend on either operand's incoming value.
     let subtract = constraint(
@@ -1022,6 +1052,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
         right: 1,
     };
     validate_declaration(
+        target::Architecture::X86_64,
         &subtract,
         &declaration(
             MachineSemanticKind::ExactSubtractI64,
@@ -1055,6 +1086,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
     ] {
         assert!(
             validate_declaration(
+                target::Architecture::X86_64,
                 &subtract,
                 &declaration(
                     MachineSemanticKind::ExactSubtractI64,
@@ -1072,6 +1104,7 @@ fn encoded_rows_restate_the_contracted_operand_custody() {
     // depends on its shared input's incoming value.
     assert!(
         validate_declaration(
+            target::Architecture::X86_64,
             &subtract,
             &declaration(
                 MachineSemanticKind::ExactAddI64,
@@ -1150,6 +1183,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
     encoded.implicit_unit_defs = row.implicit_defs.clone();
     encoded.implicit_unit_clobbers = row.clobbers.clone();
     validate_declaration(
+        target::Architecture::X86_64,
         &row,
         &declaration(MachineSemanticKind::ExactAddI64, row.key, encoded.clone()),
     )
@@ -1172,6 +1206,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
         }
         assert!(
             validate_declaration(
+                target::Architecture::X86_64,
                 &row,
                 &declaration(MachineSemanticKind::ExactAddI64, row.key, changed),
             )
@@ -1197,11 +1232,11 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
         return_encoded,
     );
     return_row.barrier = MachineBarrier::ControlFlow;
-    validate_declaration(&returned, &return_row).unwrap();
+    validate_declaration(target::Architecture::X86_64, &returned, &return_row).unwrap();
     // Restating the full use list is still admitted; reading no implicit
     // unit, or a foreign one, is not — and defs and clobbers never narrow.
     return_row.alternatives[0].encoded.implicit_unit_uses = returned.implicit_uses.clone();
-    validate_declaration(&returned, &return_row).unwrap();
+    validate_declaration(target::Architecture::X86_64, &returned, &return_row).unwrap();
     for mutation in 0..4 {
         let mut changed = return_row.clone();
         let encoded = &mut changed.alternatives[0].encoded;
@@ -1212,7 +1247,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
             _ => encoded.implicit_unit_clobbers.push(unit(15)),
         }
         assert!(
-            validate_declaration(&returned, &changed).is_err(),
+            validate_declaration(target::Architecture::X86_64, &returned, &changed).is_err(),
             "mutation {mutation}"
         );
     }
@@ -1221,9 +1256,9 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
     let mut stack_return = return_row.clone();
     stack_return.alternatives[0].encoded.control =
         MachineEncodedControlEffect::ReturnFromActivationStackV1;
-    validate_declaration(&returned, &stack_return).unwrap();
+    validate_declaration(target::Architecture::X86_64, &returned, &stack_return).unwrap();
     stack_return.alternatives[0].encoded.implicit_unit_uses = vec![unit(9)];
-    assert!(validate_declaration(&returned, &stack_return).is_err());
+    assert!(validate_declaration(target::Architecture::X86_64, &returned, &stack_return).is_err());
 }
 
 #[test]
@@ -1289,7 +1324,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         crate::MachineCallEffect::NoneV1,
         MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]),
     );
-    validate_declaration(&arithmetic, &add).unwrap();
+    validate_declaration(target::Architecture::X86_64, &arithmetic, &add).unwrap();
     for (memory, trap) in [
         (
             crate::MachineMemoryEffect::NoneV1,
@@ -1312,7 +1347,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         forged.memory = memory;
         forged.trap = trap;
         assert!(
-            validate_declaration(&arithmetic, &forged).is_err(),
+            validate_declaration(target::Architecture::X86_64, &arithmetic, &forged).is_err(),
             "memory {memory:?} trap {trap:?}"
         );
     }
@@ -1337,7 +1372,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         crate::MachineCallEffect::NoneV1,
         load_encoded,
     );
-    validate_declaration(&load, &load64).unwrap();
+    validate_declaration(target::Architecture::X86_64, &load, &load64).unwrap();
     for (memory, trap) in [
         (
             crate::MachineMemoryEffect::ReadPointerV1,
@@ -1360,7 +1395,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         forged.memory = memory;
         forged.trap = trap;
         assert!(
-            validate_declaration(&load, &forged).is_err(),
+            validate_declaration(target::Architecture::X86_64, &load, &forged).is_err(),
             "memory {memory:?} trap {trap:?}"
         );
     }
@@ -1390,7 +1425,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         crate::MachineCallEffect::NoneV1,
         return_encoded,
     );
-    validate_declaration(&returned, &returned_row).unwrap();
+    validate_declaration(target::Architecture::X86_64, &returned, &returned_row).unwrap();
     for (memory, trap) in [
         (
             crate::MachineMemoryEffect::ReadPointerV1,
@@ -1405,7 +1440,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         forged.memory = memory;
         forged.trap = trap;
         assert!(
-            validate_declaration(&returned, &forged).is_err(),
+            validate_declaration(target::Architecture::X86_64, &returned, &forged).is_err(),
             "memory {memory:?} trap {trap:?}"
         );
     }
@@ -1437,7 +1472,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         },
         call_encoded,
     );
-    validate_declaration(&called, &call_row).unwrap();
+    validate_declaration(target::Architecture::X86_64, &called, &call_row).unwrap();
     for (memory, trap) in [
         (
             crate::MachineMemoryEffect::WritePointerV1,
@@ -1452,7 +1487,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         forged.memory = memory;
         forged.trap = trap;
         assert!(
-            validate_declaration(&called, &forged).is_err(),
+            validate_declaration(target::Architecture::X86_64, &called, &forged).is_err(),
             "memory {memory:?} trap {trap:?}"
         );
     }
@@ -1506,7 +1541,7 @@ fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
     };
     // The two-operand roster must be rejected by the hosted-exit row itself,
     // not waved through by the plain fallthrough row.
-    assert!(validate_declaration(&constraint, &declaration).is_err());
+    assert!(validate_declaration(target::Architecture::X86_64, &constraint, &declaration).is_err());
 }
 
 #[test]
@@ -1593,10 +1628,15 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     };
     let row = foreign_row(3000, 2, true);
     let source = declaration(row.key, encoded(&row));
-    validate_declaration(&row, &source).unwrap();
+    validate_declaration(target::Architecture::X86_64, &row, &source).unwrap();
     // The Unit-result row admits the same surfaces with no Def operand.
     let unit_row = foreign_row(3010, 1, false);
-    validate_declaration(&unit_row, &declaration(unit_row.key, encoded(&unit_row))).unwrap();
+    validate_declaration(
+        target::Architecture::X86_64,
+        &unit_row,
+        &declaration(unit_row.key, encoded(&unit_row)),
+    )
+    .unwrap();
 
     // An internal or absent call effect cannot stand in for the evaluated
     // foreign boundary's external return contract.
@@ -1609,7 +1649,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
         let mut changed = source.clone();
         changed.call = call;
         assert_eq!(
-            validate_declaration(&row, &changed),
+            validate_declaration(target::Architecture::X86_64, &row, &changed),
             Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 MachineSemanticKind::NormalizedForeignCall
             )),
@@ -1619,7 +1659,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let mut changed = source.clone();
     changed.barrier = MachineBarrier::None;
     assert_eq!(
-        validate_declaration(&row, &changed),
+        validate_declaration(target::Architecture::X86_64, &row, &changed),
         Err(MachineEffectCatalogValidationError::BarrierMismatch(
             MachineSemanticKind::NormalizedForeignCall
         ))
@@ -1629,7 +1669,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let mut unpinned = row.clone();
     unpinned.operands[0].fixed_view = None;
     assert_eq!(
-        validate_declaration(&unpinned, &source),
+        validate_declaration(target::Architecture::X86_64, &unpinned, &source),
         Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
             MachineSemanticKind::NormalizedForeignCall
         ))
@@ -1645,7 +1685,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
         early_clobber: false,
     });
     assert_eq!(
-        validate_declaration(&doubled, &source),
+        validate_declaration(target::Architecture::X86_64, &doubled, &source),
         Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
             MachineSemanticKind::NormalizedForeignCall
         ))
@@ -1655,7 +1695,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let mut changed = source.clone();
     changed.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1;
     assert_eq!(
-        validate_declaration(&row, &changed),
+        validate_declaration(target::Architecture::X86_64, &row, &changed),
         Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
             MachineSemanticKind::NormalizedForeignCall
         ))
@@ -1663,9 +1703,107 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let mut changed = source;
     changed.alternatives[0].encoded.implicit_unit_clobbers.pop();
     assert_eq!(
-        validate_declaration(&row, &changed),
+        validate_declaration(target::Architecture::X86_64, &row, &changed),
         Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
             MachineSemanticKind::NormalizedForeignCall
         ))
     );
+}
+
+#[test]
+fn directed_stack_effect_cannot_borrow_unbalanced_or_nearest_custody() {
+    let key = register_model::RegisterConstraintKey {
+        family: register_model::RegisterConstraintFamily::Instruction,
+        variant: 1,
+    };
+    let constraint = register_model::RegisterInstructionConstraint {
+        id: register_model::RegisterConstraintId(0),
+        key,
+        operands: (0..3)
+            .map(|operand| register_model::RegisterOperandConstraint {
+                operand,
+                access: if operand == 2 {
+                    RegisterOperandAccess::Def
+                } else {
+                    RegisterOperandAccess::Use
+                },
+                class: register_model::RegisterClassId(1),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            })
+            .collect(),
+        implicit_uses: vec![register_model::RegisterUnitId(1)],
+        implicit_defs: vec![],
+        clobbers: vec![],
+    };
+    let form = crate::IeeeFloatArithmeticForm {
+        operation: crate::IeeeFloatArithmeticOperation::ALL[54],
+        format: crate::IeeeFloatFormat::Binary64,
+    };
+    let semantic = MachineSemanticKind::NearestIeeeFloatArithmetic(form);
+    let pointer = register_model::RegisterViewId(1);
+    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
+    encoded.implicit_unit_uses = constraint.implicit_uses.clone();
+    encoded.memory = MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+        stack_pointer: pointer,
+        byte_count: 16,
+    };
+    encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+        stack_pointer: pointer,
+        byte_count: 16,
+    };
+    encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    let source = MachineEffectDeclaration {
+        semantic,
+        constraint: key,
+        memory: crate::MachineMemoryEffect::TemporaryStackStorageV1,
+        trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        barrier: MachineBarrier::None,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: semantic.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(64),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
+    assert!(validate_declaration(target::Architecture::Aarch64, &constraint, &source).is_err());
+    for mutation in 0..5 {
+        let mut changed = source.clone();
+        let effects = &mut changed.alternatives[0].encoded;
+        match mutation {
+            0 => effects.stack = MachineEncodedStackEffect::UnchangedV1,
+            1 => effects.memory = MachineEncodedMemoryEffect::NoneV1,
+            2 => {
+                effects.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+                    stack_pointer: pointer,
+                    byte_count: 32,
+                }
+            }
+            3 => {
+                effects.memory = MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                    stack_pointer: register_model::RegisterViewId(2),
+                    byte_count: 16,
+                }
+            }
+            4 => {
+                changed.semantic = MachineSemanticKind::NearestIeeeFloatArithmetic(
+                    crate::IeeeFloatArithmeticForm {
+                        operation: crate::IeeeFloatArithmeticOperation::Divide,
+                        ..form
+                    },
+                );
+                changed.alternatives[0].key.family = changed.semantic.into();
+            }
+            _ => unreachable!(),
+        }
+        assert!(validate_declaration(target::Architecture::X86_64, &constraint, &changed).is_err());
+    }
 }

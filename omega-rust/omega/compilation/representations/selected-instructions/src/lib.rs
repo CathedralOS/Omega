@@ -49,6 +49,7 @@ pub use selected_instructions::{
 };
 pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
-    FloatSaturationRule, IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-    IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    FloatSaturationRule, IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation,
+    IeeeFloatBinaryOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
+    IeeeFloatToIntegerDomain,
 };

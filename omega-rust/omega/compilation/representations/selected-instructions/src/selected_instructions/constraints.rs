@@ -57,6 +57,9 @@ pub struct SelectedConstraintKeys {
     /// Nearest-even IEEE arithmetic on general-register payloads: two
     /// inputs and one result, with fixed scratch floating registers clobbered.
     pub ieee_float_arithmetic: Option<RegisterConstraintKey>,
+    /// Explicit binary rounding with exact local control preservation. An ISA
+    /// may share the ordinary row when its existing scratch suffices.
+    pub ieee_float_directed_binary: Option<RegisterConstraintKey>,
     /// The same IEEE forms with one general-register input (negation,
     /// square root and conversions) and one result.
     pub ieee_float_unary: Option<RegisterConstraintKey>,
