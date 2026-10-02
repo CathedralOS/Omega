@@ -9,38 +9,38 @@ use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-windows_x86_64 machine Helper::pick(&self) -> i32 {
+windows_x86_64 machine Helper::pick(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
-macos_arm64 machine Helper::pick(&self) -> i32 {
+macos_arm64 machine Helper::pick(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
-linux_x86_64 machine Helper::pick(&self) -> i32 {
+linux_x86_64 machine Helper::pick(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
-linux_arm64 machine Helper::pick(&self) -> i32 {
+linux_arm64 machine Helper::pick(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
-windows_x86_64 machine Helper::delta(&self) -> i32 {
+windows_x86_64 machine Helper::delta(helper: &Helper) -> i32 {
     transition { _ -> 7 }
 }
-macos_arm64 machine Helper::delta(&self) -> i32 {
+macos_arm64 machine Helper::delta(helper: &Helper) -> i32 {
     transition { _ -> 7 }
 }
-linux_x86_64 machine Helper::delta(&self) -> i32 {
+linux_x86_64 machine Helper::delta(helper: &Helper) -> i32 {
     transition { _ -> 7 }
 }
-linux_arm64 machine Helper::delta(&self) -> i32 {
+linux_arm64 machine Helper::delta(helper: &Helper) -> i32 {
     transition { _ -> 7 }
 }
 
 data Main { console: Binding<Console>; helper: Helper; }
 
-machine Main::main(&mut self) reaches Console {
-    let a: i32 = self.helper.pick();
-    let b: i32 = self.helper.delta();
-    transition a == 63 { true -> check_delta(&mut self, b) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Console {
+    let a: i32 = Helper::pick(&main.helper);
+    let b: i32 = Helper::delta(&main.helper);
+    transition a == 63 { true -> check_delta(main, b) _ -> bad(main, 71) }
     state check_delta(main: &mut Main, b2: i32) {
         transition b2 == 7 { true -> good(main) _ -> bad(main, 72) }
     }

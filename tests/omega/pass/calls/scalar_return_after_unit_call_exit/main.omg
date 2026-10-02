@@ -5,11 +5,11 @@ data Counter { value: i32; marker: i32; }
 data Store { counters: [Counter; 2]; marker: i32; }
 data Main { console: Binding<Console>; counter: Counter; store: Store; }
 
-machine Counter::fill(&mut self) { self.value = 42; }
+machine Counter::fill(counter: &mut Counter) { counter.value = 42; }
 machine update(counter: &mut Counter) -> i32 {
     transition { _ -> mutate(counter) }
     state mutate(counter: &mut Counter) -> i32 {
-        counter.fill();
+        Counter::fill(counter);
         counter.marker = 7;
         counter.value
     }
@@ -17,7 +17,7 @@ machine update(counter: &mut Counter) -> i32 {
 machine update_projected(store: &mut Store) -> i32 {
     transition { _ -> mutate(store) }
     state mutate(store: &mut Store) -> i32 {
-        store.counters[0].fill();
+        Counter::fill(&mut store.counters[0]);
         store.marker = 7;
         store.counters[0].value
     }

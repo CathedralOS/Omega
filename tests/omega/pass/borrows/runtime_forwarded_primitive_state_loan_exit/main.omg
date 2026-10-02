@@ -3,29 +3,29 @@ use omega_language_std::console;
 
 data Main { console: Binding<Console>; count: u64; }
 
-machine Main::update(&mut self) {
-    transition { _ -> first(&mut self.count) }
-    state first(&mut self, value: &mut u64) {
+machine Main::update(main: &mut Main) {
+    transition { _ -> first(&mut main.count) }
+    state first(value: &mut u64) {
         value = ((value as u64 in Wrapping) + 1) as u64;
         transition { _ -> second(value) }
     }
-    state second(&mut self, value: &mut u64) {
+    state second(value: &mut u64) {
         value = ((value as u64 in Wrapping) + 1) as u64;
         transition value < 70 {
             true -> first(value)
             false -> done()
         }
     }
-    state done(&mut self) {}
+    state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.count = 0;
-    self.update();
-    transition self.count == 70 {
-        true -> matched()
-        false -> mismatched()
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 0;
+    Main::update(main);
+    transition main.count == 70 {
+        true -> matched(main)
+        false -> mismatched(main)
     }
-    state matched(&mut self) { self.console.exit_process(70); }
-    state mismatched(&mut self) { self.console.exit_process(71); }
+    state matched(main: &mut Main) { main.console.exit_process(70); }
+    state mismatched(main: &mut Main) { main.console.exit_process(71); }
 }

@@ -16,18 +16,19 @@ use omega_language_std::console;
 use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 data Main { console: Binding<Console>; a: u32; b: u32; out: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.a = 3;
-    self.b = 9;
-    transition self.a <= self.b { true -> go() _ -> bad() }
-    state go(&mut self) {
-        self.helper(self.a);
-        let code: i32 = self.out;
-        self.console.exit_process(code);
+machine Main::main(main: &mut Main) reaches Console {
+    main.a = 3;
+    main.b = 9;
+    transition main.a <= main.b { true -> go(main) _ -> bad(main) }
+    state go(main: &mut Main) {
+        let a_value: u32 = main.a;
+        Main::helper(main, a_value);
+        let code: i32 = main.out;
+        main.console.exit_process(code);
     }
-    state bad(&mut self) { self.console.exit_process(9); }
+    state bad(main: &mut Main) { main.console.exit_process(9); }
 }
-machine Main::helper(&mut self, x: u32) requires self.a <= self.b, x <= self.b {
-    let diff: u32 = self.b - x;
-    self.out = narrow_u32_to_i32_trapping(diff);
+machine Main::helper(main: &mut Main, x: u32) requires main.a <= main.b, x <= main.b {
+    let diff: u32 = main.b - x;
+    main.out = narrow_u32_to_i32_trapping(diff);
 }

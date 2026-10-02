@@ -7,33 +7,33 @@ data Reward { item: Item; sibling: u64; }
 data Factory { marker: u32; }
 data Main { console: Binding<Console>; factory: Factory; seed: Seed; reward: Reward; other: Reward; }
 
-machine Factory::choose(&mut self, depth: u32, seed: &mut Seed) -> Item {
-    self.marker = depth;
+machine Factory::choose(factory: &mut Factory, depth: u32, seed: &mut Seed) -> Item {
+    factory.marker = depth;
     seed.marker = depth;
     transition depth == 7 { true -> Item::Ready false -> Item::Empty }
 }
 
-machine Factory::fill(&mut self, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
-    transition { _ -> install(depth, seed, reward, other) }
-    state install(&mut self, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
-        reward.item = self.choose(depth, seed);
+machine Factory::fill(factory: &mut Factory, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
+    transition { _ -> install(factory, depth, seed, reward, other) }
+    state install(factory: &mut Factory, depth: u32, seed: &mut Seed, reward: &mut Reward, other: &mut Reward) {
+        reward.item = Factory::choose(factory, depth, seed);
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.reward.item = Item::Empty;
-    self.reward.sibling = 29;
-    self.other.item = Item::Empty;
-    self.other.sibling = 17;
-    self.factory.fill(7, &mut self.seed, &mut self.reward, &mut self.other);
-    transition self.reward.item == Item::Ready
-        && self.reward.sibling == 29
-        && self.other.item == Item::Empty
-        && self.other.sibling == 17
-        && self.factory.marker == 7
-        && self.seed.marker == 7 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.reward.item = Item::Empty;
+    main.reward.sibling = 29;
+    main.other.item = Item::Empty;
+    main.other.sibling = 17;
+    Factory::fill(&mut main.factory, 7, &mut main.seed, &mut main.reward, &mut main.other);
+    transition main.reward.item == Item::Ready
+        && main.reward.sibling == 29
+        && main.other.item == Item::Empty
+        && main.other.sibling == 17
+        && main.factory.marker == 7
+        && main.seed.marker == 7 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

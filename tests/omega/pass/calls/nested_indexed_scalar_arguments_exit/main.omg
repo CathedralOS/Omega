@@ -5,20 +5,20 @@ use omega::language::core::binding;
 data Cell { value: u64 in Wrapping; }
 data Main { console: Binding<Console>; cells: [Cell; 4]; position: u64[0..4]; }
 
-machine Cell::read(&self) -> u64 in Wrapping { self.value }
+machine Cell::read(cell: &Cell) -> u64 in Wrapping { cell.value }
 machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
 machine combine(cell: &Cell, value: u64 in Wrapping) -> u64 in Wrapping {
     cell.value + value
 }
-machine Main::main(&mut self) reaches Console {
-    self.cells[0].value = 20;
-    self.cells[2].value = 50;
-    self.position = 2;
-    let explicit: u64 in Wrapping = combine(&self.cells[0], read_cell(&self.cells[self.position]));
-    let receiver: u64 in Wrapping = combine(&self.cells[0], self.cells[self.position].read());
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0].value = 20;
+    main.cells[2].value = 50;
+    main.position = 2;
+    let explicit: u64 in Wrapping = combine(&main.cells[0], read_cell(&main.cells[main.position]));
+    let receiver: u64 in Wrapping = combine(&main.cells[0], Cell::read(&main.cells[main.position]));
     transition explicit == 70 && receiver == 70 {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

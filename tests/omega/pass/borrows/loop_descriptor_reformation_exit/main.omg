@@ -26,8 +26,8 @@ machine cycle(buffer: &mut Buffer) -> i32 {
 }
 
 // The service boundary is outside the loop under test.
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut buffer: Buffer;
     let result: i32 = cycle(&mut buffer);
-    self.console.exit_process(result);
+    main.console.exit_process(result);
 }

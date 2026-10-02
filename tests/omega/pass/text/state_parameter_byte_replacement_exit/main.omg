@@ -33,23 +33,23 @@ machine replace_forwarded(source: &Source, destination: &mut Destination) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.text = "Gate";
-    self.direct.sibling = 29;
-    self.forwarded.sibling = 37;
-    self.forwarded.text = "old contents";
-    replace_direct(&self.source, &mut self.direct);
-    self.source.text = "é";
-    replace_forwarded(&self.source, &mut self.forwarded);
-    transition self.direct.text == "Gate!"
-        && self.direct.text.len == 5
-        && self.direct.sibling == 29
-        && self.forwarded.text == "é!"
-        && self.forwarded.text.len == 3
-        && self.forwarded.sibling == 37
-        && self.source.text == "é" {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.text = "Gate";
+    main.direct.sibling = 29;
+    main.forwarded.sibling = 37;
+    main.forwarded.text = "old contents";
+    replace_direct(&main.source, &mut main.direct);
+    main.source.text = "é";
+    replace_forwarded(&main.source, &mut main.forwarded);
+    transition main.direct.text == "Gate!"
+        && main.direct.text.len == 5
+        && main.direct.sibling == 29
+        && main.forwarded.text == "é!"
+        && main.forwarded.text.len == 3
+        && main.forwarded.sibling == 37
+        && main.source.text == "é" {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

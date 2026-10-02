@@ -13,41 +13,41 @@ use omega_language_std::console;
 use omega::language::core::binding;
 data Verdict { case No; case Yes; }
 data Helper { seen: i32; }
-machine Helper::check(&mut self, x: i32) -> bool {
-    self.seen = x;
-    transition self.seen == 1 { true -> yes() _ -> no() }
+machine Helper::check(helper: &mut Helper, x: i32) -> bool {
+    helper.seen = x;
+    transition helper.seen == 1 { true -> yes() _ -> no() }
     state yes() -> bool { true }
     state no() -> bool { false }
 }
 data Probe { helper: Helper; flag: bool; }
-machine Probe::make(&mut self) -> Verdict {
-    self.flag = self.helper.check(1);
-    transition self.flag { true -> mk_yes() _ -> mk_no() }
+machine Probe::make(probe: &mut Probe) -> Verdict {
+    probe.flag = Helper::check(&mut probe.helper, 1);
+    transition probe.flag { true -> mk_yes() _ -> mk_no() }
     state mk_yes() -> Verdict { Verdict::Yes }
     state mk_no() -> Verdict { Verdict::No }
 }
 data Sensor { seen: i32; }
-machine Sensor::check(&mut self, x: i32) -> bool {
-    self.seen = x;
-    transition self.seen == 2 { true -> yes() _ -> no() }
+machine Sensor::check(sensor: &mut Sensor, x: i32) -> bool {
+    sensor.seen = x;
+    transition sensor.seen == 2 { true -> yes() _ -> no() }
     state yes() -> bool { true }
     state no() -> bool { false }
 }
 data Bracket { sensor: Sensor; a: i32; flag: bool; b: i32; }
-machine Bracket::make(&mut self) -> Verdict {
-    self.a = 1;
-    self.flag = self.sensor.check(2);
-    self.b = 3;
-    transition self.flag { true -> mk_yes() _ -> mk_no() }
+machine Bracket::make(bracket: &mut Bracket) -> Verdict {
+    bracket.a = 1;
+    bracket.flag = Sensor::check(&mut bracket.sensor, 2);
+    bracket.b = 3;
+    transition bracket.flag { true -> mk_yes() _ -> mk_no() }
     state mk_yes() -> Verdict { Verdict::Yes }
     state mk_no() -> Verdict { Verdict::No }
 }
 data Main { console: Binding<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
-machine Main::main(&mut self) reaches Console {
-    self.v1 = self.probe.make();
-    transition self.v1 { Verdict::Yes -> step2(&mut self) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.v1 = Probe::make(&mut main.probe);
+    transition main.v1 { Verdict::Yes -> step2(main) _ -> bad(main, 71) }
     state step2(main: &mut Main) {
-        main.v2 = main.bracket.make();
+        main.v2 = Bracket::make(&mut main.bracket);
         transition main.v2 { Verdict::Yes -> good(main) _ -> bad(main, 72) }
     }
     state good(main: &mut Main) { main.console.exit_process(70); }

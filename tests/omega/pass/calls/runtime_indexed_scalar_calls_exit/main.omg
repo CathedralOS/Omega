@@ -5,29 +5,29 @@ use omega::language::core::binding;
 data Cell { value: u64 in Wrapping; }
 data Main { console: Binding<Console>; cells: [Cell; 4]; }
 
-machine Cell::read(&self) -> u64 in Wrapping { self.value }
+machine Cell::read(cell: &Cell) -> u64 in Wrapping { cell.value }
 machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
 
-machine Main::probe(&self, position: u64) -> bool {
+machine Main::probe(main: &Main, position: u64) -> bool {
     transition position < 4 {
-        true -> read(position)
+        true -> read(main, position)
         false -> (false)
     }
-    state read(&self, position: u64) -> bool {
-        let receiver: u64 in Wrapping = self.cells[position].read() + 1;
-        let argument: u64 in Wrapping = read_cell(&self.cells[position]) + 1;
+    state read(main: &Main, position: u64) -> bool {
+        let receiver: u64 in Wrapping = Cell::read(&main.cells[position]) + 1;
+        let argument: u64 in Wrapping = read_cell(&main.cells[position]) + 1;
         receiver == 70 && argument == 70
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.cells[2].value = 69;
-    let selected: bool = self.probe(2);
-    let other: bool = self.probe(1);
-    let outside: bool = self.probe(4);
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[2].value = 69;
+    let selected: bool = Main::probe(main, 2);
+    let other: bool = Main::probe(main, 1);
+    let outside: bool = Main::probe(main, 4);
     transition selected && !other && !outside {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }
