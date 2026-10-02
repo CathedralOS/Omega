@@ -147,15 +147,16 @@ impl CallAccesses {
                         // own custody mapping; do not reinterpret owned inputs.
                         return;
                     }
+                    let projection = region.projection.without_runtime_coordinates();
                     if !writes.iter().any(|existing| {
                         existing.position == position
-                            && existing.projection.path == region.projection.path
-                            && existing.projection.exact == region.projection.exact
-                            && existing.projection.indirect == region.projection.indirect
+                            && existing.projection.path == projection.path
+                            && existing.projection.exact == projection.exact
+                            && existing.projection.indirect == projection.indirect
                     }) {
                         writes.push(ParameterMutation {
                             position,
-                            projection: region.projection,
+                            projection,
                         });
                     }
                 }
@@ -320,5 +321,109 @@ mod tests {
             &[StructuralPathSegment::Field("missing".into())],
             &mut established,
         ));
+    }
+
+    #[test]
+    fn descriptor_loans_call_summary_does_not_import_callee_selector_ids() {
+        use abstract_operations::{
+            AbstractResult, AbstractStructuralCallResult, StructuralScalarStoreDestination,
+        };
+        use semantic_vocabulary::{
+            ObligationId, OperationId, ScalarType, StructuralFieldId, StructuralPlaceKind, ValueId,
+        };
+        use terminal_psi::{
+            StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+            StructuralPlaceDeclaration,
+        };
+
+        // Raw current-IR receiver fixture: both machines intentionally use the
+        // same numeric scalar identifier for different runtime values.
+        let mut callee = crate::tests::fixtures::scalar_units::unit()
+            .functions
+            .remove(0);
+        let source = PlaceId::new(91).unwrap();
+        let structural_type = StructuralTypeId::new(92).unwrap();
+        let selector = ValueId::new(93).unwrap();
+        let parameter = StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        callee.structural_parameters = vec![parameter.clone()];
+        callee.structural_places = vec![StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }];
+        let selected = StructuralPathSegment::RuntimeIndex {
+            index: selector,
+            obligation: ObligationId::new(94).unwrap(),
+        };
+        callee.blocks[0].nodes[0].operation = O::StructuralScalarFieldStore {
+            psi_operation: OperationId::new(95).unwrap(),
+            destination: StructuralScalarStoreDestination::Parameter(parameter),
+            path: vec![selected.clone()],
+            field: StructuralFieldId::new(96).unwrap(),
+            value: AbstractResult {
+                value: ValueId::new(97).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            },
+            range_obligation: None,
+        };
+        let functions = BTreeMap::from([(callee.machine, &callee)]);
+        let types = BTreeMap::new();
+        let accesses = CallAccesses::new(&functions, &types);
+        let summary = accesses.functions[&callee.machine]
+            .as_ref()
+            .expect("closed current callee");
+        assert_eq!(summary.writes.len(), 1);
+        assert!(summary.writes[0].projection.path.is_empty());
+        assert!(!summary.writes[0].projection.exact);
+
+        let caller = crate::tests::fixtures::scalar_units::unit()
+            .functions
+            .remove(0);
+        let mut call = O::CallStructural {
+            psi_operation: OperationId::new(98).unwrap(),
+            callee: callee.machine,
+            arguments: vec![selector],
+            structural_arguments: vec![StructuralArgument {
+                place: PlaceId::new(99).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::MutableBorrow,
+            }],
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        let writes = accesses.written_regions(&caller, &types, &call);
+        assert_eq!(writes.len(), 1);
+        assert!(
+            writes[0].1.path.is_empty(),
+            "callee selector cannot be treated as caller's identically numbered selector"
+        );
+        let O::CallStructural {
+            structural_arguments,
+            ..
+        } = &mut call
+        else {
+            panic!()
+        };
+        structural_arguments[0].path = vec![selected.clone()];
+        let writes = accesses.written_regions(&caller, &types, &call);
+        assert_eq!(
+            writes[0].1.path,
+            vec![selected],
+            "the actual caller's selected element retains its own coordinate"
+        );
     }
 }

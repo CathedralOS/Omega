@@ -1165,7 +1165,7 @@ fn borrowed_window_root(
                     .any(|node| {
                         node.operation.psi_operation() == Some(*producer)
                             && crate::unit_validation::operation_contracts::structural_operation_result_contract(
-                                &node.operation,
+                                function, &node.operation,
                             )
                             .is_some_and(|source| {
                                 source.access == terminal_psi::StructuralAccess::Owned

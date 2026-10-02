@@ -793,7 +793,7 @@ pub(crate) fn structural_source_contract(
                 .blocks
                 .iter()
                 .flat_map(|block| &block.nodes)
-                .filter_map(|node| structural_operation_result_contract(&node.operation))
+                .filter_map(|node| structural_operation_result_contract(caller, &node.operation))
                 .find(|source| {
                     source
                         .operation_result
@@ -861,23 +861,21 @@ fn trivial_affine_local_contract(
 /// The exact result and its storage access share one operation classification.
 /// Owning a result row is not sufficient: local storage and view operations
 /// expose loans, while a reference result owns only its permission carrier.
-pub(crate) fn structural_operation_result_contract(
-    operation: &O,
-) -> Option<StructuralSourceContract<'_>> {
+pub(crate) fn structural_operation_result_contract<'a>(
+    caller: &PsiOptimizationFunction,
+    operation: &'a O,
+) -> Option<StructuralSourceContract<'a>> {
     let (result, access) = match operation {
                 // Activation-local storage supplies loans, never owned escape.
                 O::EstablishPrimitiveLocal { result, .. } => {
                     (result, terminal_psi::StructuralAccess::MutableBorrow)
                 }
-                O::ByteSequenceSubslice { result, .. } => {
-                    (result, terminal_psi::StructuralAccess::SharedBorrow)
+                O::ByteSequenceSubslice { result, .. } | O::ElementViewSubslice { result, .. } => {
+                    (result, subslice_access(caller, operation)?)
                 }
                 // The view's source access IS the loan's access: a mutable
                 // establishment lends mutable, a shared one lends shared.
                 O::EstablishElementView { result, source, .. } => (result, source.access),
-                O::ElementViewSubslice { result, .. } => {
-                    (result, terminal_psi::StructuralAccess::SharedBorrow)
-                }
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
@@ -909,6 +907,143 @@ pub(crate) fn structural_operation_result_contract(
         projected_qualifications: &result.projected_qualifications,
         operation_result: Some(result),
     })
+}
+
+/// Rejoin every descriptor with its current declaration and producer. Multiplicity
+/// selects the requested loan; the exact source chain must supply it. The place
+/// count bounds malformed cycles without recursive queries or guessed authority.
+fn subslice_access(
+    caller: &PsiOptimizationFunction,
+    operation: &O,
+) -> Option<terminal_psi::StructuralAccess> {
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
+
+    let (_, initial) = operation.structural_result()?;
+    let mut place = initial.place;
+    let mut current = Some(operation);
+    let mut expected_type = Some(initial.structural_type);
+    let mut requested = None;
+    let mut required = Access::SharedBorrow;
+    for _ in 0..caller.structural_places.len() {
+        let mut declarations = caller
+            .structural_places
+            .iter()
+            .filter(|row| row.id == place);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        if let Some(parameter) = caller.arrival_parameter(place) {
+            if expected_type.is_some_and(|identity| identity != parameter.structural_type)
+                || (expected_type.is_some()
+                    && !matches!(
+                        parameter.access,
+                        Access::SharedBorrow | Access::MutableBorrow
+                    ))
+                || !structural_access_can_supply(parameter.access, required)
+            {
+                return None;
+            }
+            return requested;
+        }
+        let (producer, structural_type) = match declaration.kind {
+            StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } => (producer, structural_type),
+            StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } if required == Access::SharedBorrow
+                && expected_type.is_none_or(|identity| identity == structural_type) =>
+            {
+                return requested;
+            }
+            _ => return None,
+        };
+        let recorded = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find(|node| node.operation.psi_operation() == Some(producer))?;
+        let operation = current.take().unwrap_or(&recorded.operation);
+        if operation != &recorded.operation {
+            return None;
+        }
+        let (actual_producer, result) = operation.structural_result()?;
+        if producer != actual_producer
+            || result.place != place
+            || result.structural_type != structural_type
+            || expected_type.is_some_and(|identity| identity != structural_type)
+        {
+            return None;
+        }
+        match operation {
+            O::ByteSequenceSubslice { source, .. } | O::ElementViewSubslice { source, .. } => {
+                if !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return None;
+                }
+                let access = match result.multiplicity {
+                    Multiplicity::Unrestricted => Access::SharedBorrow,
+                    Multiplicity::Affine => Access::MutableBorrow,
+                    _ => return None,
+                };
+                if !structural_access_can_supply(access, required) {
+                    return None;
+                }
+                requested.get_or_insert(access);
+                required = access;
+                expected_type = Some(structural_type);
+                place = *source;
+            }
+            O::EstablishElementView {
+                source,
+                destination,
+                ..
+            } => {
+                // A reference crossing needs the typed referent-permission
+                // validator; ownership of the carrier grants no such access.
+                if source
+                    .path
+                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+                    || *destination != result.place
+                    || !matches!(
+                        (source.access, result.multiplicity),
+                        (Access::SharedBorrow, Multiplicity::Unrestricted)
+                            | (Access::MutableBorrow, Multiplicity::Affine)
+                    )
+                    || !structural_access_can_supply(source.access, required)
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return None;
+                }
+                required = source.access;
+                expected_type = None;
+                place = source.place;
+            }
+            _ => {
+                // A subslice consumes a descriptor. Only an establishment may
+                // change carrier shape before reaching its owning backing.
+                if expected_type.is_some() {
+                    return None;
+                }
+                let source = structural_operation_result_contract(caller, operation)?;
+                return if structural_access_can_supply(source.access, required) {
+                    requested
+                } else {
+                    None
+                };
+            }
+        }
+    }
+    None
 }
 
 pub(crate) fn structural_access_can_supply(

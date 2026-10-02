@@ -29,6 +29,7 @@
 
 pub(super) mod borrowed_regions;
 mod descriptor_loans;
+mod range_relations;
 
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;

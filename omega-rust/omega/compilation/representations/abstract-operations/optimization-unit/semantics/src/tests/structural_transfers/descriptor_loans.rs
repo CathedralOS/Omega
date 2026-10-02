@@ -214,3 +214,181 @@ fn closed_call_boundary_exclusive_actual_disturbs_live_child() {
         "a boundary may write every byte of its exact exclusive actual"
     );
 }
+
+fn guarded_window_unit() -> optimization_unit::PsiOptimizationUnit {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../../tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg"
+    ));
+    let source = source.split("machine main()").next().unwrap();
+    let mut unit =
+        crate::tests::structural_cases::source_machine_unit(source, "write_outside_window", true);
+    let position = unit
+        .functions
+        .iter()
+        .position(|function| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| matches!(node.operation, O::ElementViewSubslice { .. }))
+        })
+        .unwrap();
+    unit.functions.swap(0, position);
+    unit
+}
+
+#[test]
+fn guarded_window_accepts_proven_disjoint_store_and_call() {
+    validate_address_join_ownership(&guarded_window_unit())
+        .expect("the current guard remains true through both simultaneous state bindings");
+}
+
+#[test]
+fn guarded_window_rejects_overlapping_store_or_call() {
+    for mutate_call in [false, true] {
+        let mut unit = guarded_window_unit();
+        let function = &mut unit.functions[0];
+        let boundary = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find_map(|node| match node.operation {
+                O::ElementViewSubslice { start, .. } => Some(start),
+                _ => None,
+            })
+            .unwrap();
+        let path = function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+            .find_map(|node| match &mut node.operation {
+                O::CallStructural {
+                    structural_arguments,
+                    ..
+                } if mutate_call => structural_arguments
+                    .first_mut()
+                    .map(|argument| &mut argument.path),
+                O::WriteOnlyPrimitiveStore { path, .. }
+                | O::StructuralScalarFieldStore { path, .. }
+                    if !mutate_call =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let index = path
+            .iter_mut()
+            .find_map(|segment| match segment {
+                terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } => Some(index),
+                _ => None,
+            })
+            .unwrap();
+        *index = boundary;
+        assert!(
+            matches!(
+                validate_address_join_ownership(&unit),
+                Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+            ),
+            "an overlapping {} must remain frozen",
+            if mutate_call { "call" } else { "store" }
+        );
+    }
+}
+
+#[test]
+fn guarded_window_does_not_reuse_a_removed_comparison() {
+    let mut unit = guarded_window_unit();
+    let operation = unit.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| {
+            matches!(node.operation, O::IntegerLessThan { .. }).then_some(&mut node.operation)
+        })
+        .unwrap();
+    let O::IntegerLessThan { left, right, .. } = operation else {
+        unreachable!()
+    };
+    std::mem::swap(left, right);
+    assert!(
+        matches!(
+            validate_address_join_ownership(&unit),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "immutable source evidence cannot authorize a rewritten comparison"
+    );
+}
+
+#[test]
+fn guarded_window_empty_range_keeps_whole_backing_pinned() {
+    let mut unit = guarded_window_unit();
+    for node in unit.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+    {
+        if let O::ElementViewSubslice { start, end, .. } = &mut node.operation {
+            *end = *start;
+        }
+    }
+    validate_address_join_ownership(&unit)
+        .expect("the write precedes the captured start independently of the window's extent");
+    let call = unit.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            O::CallStructural {
+                structural_arguments,
+                ..
+            } => structural_arguments.first_mut(),
+            _ => None,
+        })
+        .unwrap();
+    call.path.clear();
+    assert!(
+        matches!(
+            validate_address_join_ownership(&unit),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "empty windows retain backing; no selector relation authorizes a whole-root mutation"
+    );
+}
+
+#[test]
+fn guarded_window_rejects_disposal_of_borrowed_descriptor() {
+    let mut unit = guarded_window_unit();
+    let function = &mut unit.functions[0];
+    let descriptor = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match node.operation {
+            O::ElementViewSubslice { ref result, .. } => Some(result.place),
+            _ => None,
+        })
+        .unwrap();
+    for node in function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+    {
+        if let O::Return {
+            cleanup_actions, ..
+        } = &mut node.operation
+        {
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                descriptor,
+            ));
+        }
+    }
+    assert!(
+        matches!(
+            validate_address_join_ownership(&unit),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ),
+        "a borrowed descriptor cannot grant owned backing disposal"
+    );
+}

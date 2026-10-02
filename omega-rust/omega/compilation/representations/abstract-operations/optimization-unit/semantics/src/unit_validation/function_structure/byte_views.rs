@@ -249,12 +249,10 @@ pub(super) fn validate_source(
                             || owned && parameter.access == StructuralAccess::Owned
                     }
                     _ => {
-                        parameter.access == StructuralAccess::SharedBorrow
-                            || owned
-                                && matches!(
-                                    parameter.access,
-                                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                                )
+                        matches!(
+                            parameter.access,
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ) || owned && parameter.access == StructuralAccess::Owned
                     }
                 };
                 // A same-carrier domain is not necessarily a byte predicate.
@@ -287,37 +285,21 @@ pub(super) fn validate_source(
             })
         })
         .or_else(|| {
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .find_map(|node| match &node.operation {
-                AbstractOperation::ByteSequenceSubslice {
-                    psi_operation,
-                    result,
-                    ..
-                }
-                // A `&[u8]` view is established through the element-view
-                // family (`element` = `u8`); the byte carrier keeps no
-                // element field, so the view kind is read from the result's
-                // declared `ByteSequence` shape.
-                | AbstractOperation::EstablishElementView {
-                    psi_operation,
-                    result,
-                    ..
-                } if psi_operation == producer
-                    && result.place == source
-                    && result.structural_type == *structural_type
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.qualification_establishments.is_empty()
-                    && result.claims.is_empty() =>
-                {
-                    Some(result.structural_type)
-                }
-                _ => None,
-            })
+            let contract = super::super::operation_contracts::structural_source_contract(
+                function, source, false,
+            )?;
+            let result = contract.operation_result()?;
+            (result.place == source
+                && result.structural_type == *structural_type
+                && permitted_access(contract.access)
+                && contract.is_unqualified()
+                && !contract.has_result_evidence()
+                && function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| node.operation.structural_result() == Some((*producer, result))))
+            .then_some(result.structural_type)
         }),
         _ => None,
     };
@@ -381,7 +363,10 @@ pub(super) fn validate_source(
                         )
                     })
                 && Some(result.structural_type) == structural_type
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && super::super::operation_contracts::structural_operation_result_contract(
+                    function, operation,
+                )
+                .is_some_and(|contract| contract.operation_result() == Some(result))
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
@@ -408,16 +393,12 @@ pub(super) fn validate_source(
     // and endpoints to dominate the operation. Structural availability checks
     // require a subslice producer to dominate every descriptor use.
     let writable = !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
-        || matches!(
-            source_kind,
-            Some(
-                StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. }
-            )
-        )
-        || matches!(source_kind, Some(StructuralPlaceKind::OperationResult { .. }))
-            && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                matches!(&node.operation, AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
-                    if result.place == source)
+        || super::super::operation_contracts::structural_source_contract(function, source, false)
+            .is_some_and(|contract| {
+                matches!(
+                    contract.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                )
             });
     if !valid || !exact_length || !valid_result || !writable {
         return Err(

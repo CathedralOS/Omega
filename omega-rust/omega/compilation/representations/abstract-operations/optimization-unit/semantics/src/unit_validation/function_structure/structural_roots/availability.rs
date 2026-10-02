@@ -22,6 +22,7 @@ pub(crate) fn validate_structural_place_availability(
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place =
                 crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                    function,
                     &node.operation,
                 )
                 .and_then(|contract| contract.operation_result().map(|result| result.place))
