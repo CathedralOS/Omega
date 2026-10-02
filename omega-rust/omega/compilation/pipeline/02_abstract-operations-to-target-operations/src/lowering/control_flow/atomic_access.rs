@@ -100,9 +100,7 @@ pub(super) fn lower(
         }
     };
     let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == location.root)
+        .arrival_parameter(location.root)
         .ok_or_else(invalid)?;
     if !access.ordering_is_legal()
         || !matches!(

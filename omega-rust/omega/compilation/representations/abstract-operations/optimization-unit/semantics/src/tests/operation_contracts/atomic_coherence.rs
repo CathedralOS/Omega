@@ -167,13 +167,53 @@ fn atomic_cfg_unit(
     blocks: &[(u64, usize)],
     operations: Vec<AbstractOperation>,
 ) -> optimization_unit::PsiOptimizationUnit {
+    atomic_cfg_unit_with_arrivals(entry, blocks, operations, &[])
+}
+
+fn arrival(place: PlaceId, position: u32) -> terminal_psi::StructuralParameterDeclaration {
+    terminal_psi::StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type: id(1, semantic_vocabulary::StructuralTypeId::new),
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+
+fn atomic_cfg_unit_with_arrivals(
+    entry: u64,
+    blocks: &[(u64, usize)],
+    operations: Vec<AbstractOperation>,
+    arrivals: &[(u64, PlaceId)],
+) -> optimization_unit::PsiOptimizationUnit {
     let machine = id(31, MachineId::new);
+    let roots = operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AbstractOperation::AtomicEvent { event, .. } => event.place(),
+            _ => None,
+        })
+        .filter(|root| !arrivals.iter().any(|(_, place)| place == root))
+        .collect::<std::collections::BTreeSet<_>>();
+    let structural_parameters = roots
+        .into_iter()
+        .enumerate()
+        .map(|(position, root)| arrival(root, position as u32))
+        .collect();
     let mut operation_offset = 0;
     let block_entries = blocks
         .iter()
         .map(|(raw, count)| {
             let entry = AbstractBlockEntry {
-                structural_parameters: Vec::new(),
+                structural_parameters: arrivals
+                    .iter()
+                    .filter(|(owner, _)| owner == raw)
+                    .enumerate()
+                    .map(|(position, (_, root))| arrival(*root, position as u32))
+                    .collect(),
                 block: id(*raw, BlockId::new),
                 parameters: Vec::new(),
                 operation_offset,
@@ -188,7 +228,21 @@ fn atomic_cfg_unit(
             program_fingerprint: SemanticFingerprint::from_bytes([41; 32]),
         },
         entry: machine,
-        structural_types: Vec::new().into(),
+        structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+            id: id(1, semantic_vocabulary::StructuralTypeId::new),
+            identity: "atomic_coherence::Cell".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: id(1, StructuralFieldId::new),
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                    )),
+                }],
+            },
+        }]
+        .into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -196,7 +250,7 @@ fn atomic_cfg_unit(
             attachment: None,
             entry: id(entry, BlockId::new),
             parameters: Vec::new(),
-            structural_parameters: Vec::new(),
+            structural_parameters,
             result: AbstractFunctionResult::Unit,
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -533,4 +587,91 @@ fn a_load_cannot_carry_a_modification_after_edge() {
         )),
         "a load joins no modification order and cannot carry one"
     );
+}
+
+fn forwarded_atomic_unit(
+    initial: bool,
+    wrong_backing: bool,
+) -> optimization_unit::PsiOptimizationUnit {
+    let renamed = id(45, PlaceId::new);
+    let mut destination = location();
+    destination.root = renamed;
+    let mut jump = jump(40, 42);
+    let AbstractOperation::Jump {
+        structural_bindings,
+        ..
+    } = &mut jump
+    else {
+        unreachable!()
+    };
+    structural_bindings.push(abstract_operations::AbstractStructuralBinding {
+        parameter: renamed,
+        argument: terminal_psi::StructuralArgument {
+            place: if wrong_backing {
+                id(46, PlaceId::new)
+            } else {
+                location().root
+            },
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            path: Vec::new(),
+        },
+    });
+    let mut unit = atomic_cfg_unit_with_arrivals(
+        32,
+        &[(32, 3), (42, 2)],
+        vec![
+            integer_constant(36, stored_value()),
+            store(37, location(), stored_value()),
+            jump,
+            load(
+                38,
+                destination,
+                observed_value(),
+                Some(if initial {
+                    AtomicReadsFrom::InitialResidency
+                } else {
+                    coherent_witness().unwrap()
+                }),
+            ),
+            return_unit(39),
+        ],
+        &[(42, renamed)],
+    );
+    if wrong_backing {
+        let parameter = arrival(id(46, PlaceId::new), 1);
+        unit.functions[0].declared_places.insert(parameter.place);
+        unit.functions[0]
+            .structural_parameters
+            .push(parameter.clone());
+        unit.functions[0]
+            .structural_places
+            .push(terminal_psi::StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            });
+        refresh_identity(&mut unit);
+    }
+    unit
+}
+
+#[test]
+fn atomic_coherence_follows_current_whole_storage_bindings() {
+    validate_psi_optimization_unit(&forwarded_atomic_unit(false, false))
+        .expect("renamed atomic storage retains its exact write");
+}
+
+#[test]
+fn atomic_coherence_rejects_stale_initial_and_wrong_forwarded_backing() {
+    for unit in [
+        forwarded_atomic_unit(true, false),
+        forwarded_atomic_unit(false, true),
+    ] {
+        assert!(matches!(
+            validate_psi_optimization_unit(&unit),
+            Err(OptimizationUnitValidationError::AtomicEventCoherenceMismatch { .. })
+        ));
+    }
 }

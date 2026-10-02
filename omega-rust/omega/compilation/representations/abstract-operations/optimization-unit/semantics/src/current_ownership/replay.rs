@@ -60,6 +60,57 @@ fn validate_byte_observations(
     }
 }
 
+/// Coherence identifies the resident, but grants no access to its storage.
+/// Rejoin the current root contract and custody before observing or modifying it.
+fn validate_atomic_access(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    operation: &O,
+    frontier: &CurrentOwnership,
+) -> Result<(), OptimizationUnitValidationError> {
+    let O::AtomicEvent { event, .. } = operation else {
+        return Ok(());
+    };
+    let Some(location) = event.location() else {
+        return Ok(());
+    };
+    let invalid = || OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
+        machine: function.machine,
+        block,
+        node: Some(node),
+        reason: "atomic event has no compatible current storage authority",
+    };
+    // Coherence transports whole arrival bindings. An operation-result alias
+    // needs its own residency transfer before it can name an atomic location.
+    let signature = function
+        .arrival_parameter(location.root)
+        .ok_or_else(invalid)?;
+    // Terminal storage does not yet retain atomic-cell identity. Preserve its
+    // existing access boundary rather than granting shared mutation to a field.
+    if (event.joins_modification_order() && signature.access == StructuralAccess::SharedBorrow)
+        || (event.observes_resident() && signature.access == StructuralAccess::WriteOnlyBorrow)
+    {
+        return Err(invalid());
+    }
+    if signature.access == StructuralAccess::Owned
+        && ((signature.multiplicity != StructuralMultiplicity::Unrestricted
+            && frontier.owned_places.get(&location.root) != Some(&signature.multiplicity))
+            || frontier.partial_custody_paths.contains_key(&location.root))
+    {
+        return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+            machine: function.machine,
+            block,
+            node,
+            place: location.root,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod atomic_access_tests;
+
 #[cfg(test)]
 mod byte_observation_tests;
 
@@ -113,6 +164,7 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut frontier.live_references,
             )?;
             validate_byte_observations(function, block_id, node_index, &node.operation, &frontier)?;
+            validate_atomic_access(function, block_id, node_index, &node.operation, &frontier)?;
 
             // A store into an owned home writes the value it holds right now:
             // an owned result or an owned block arrival must still be whole

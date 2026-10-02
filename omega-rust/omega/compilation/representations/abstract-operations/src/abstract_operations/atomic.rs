@@ -189,9 +189,9 @@ pub enum AtomicCoherenceViolation {
 /// The exact atomic location one event accesses: a scalar field of the
 /// record a static carrier path selects beneath a root place. Atomic cells
 /// are record fields, so this is the same (root, path, field) triple a scalar
-/// field store names. Two events share a modification order exactly when
-/// their locations are equal; distinct fields or elements beneath one root
-/// are distinct locations.
+/// field store names. Roots are local storage names: control edges can rename
+/// the same storage. Coherence follows those exact bindings before comparing
+/// locations; distinct fields or elements remain distinct locations.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AbstractAtomicLocation {
     pub root: PlaceId,
@@ -420,26 +420,30 @@ impl AbstractAtomicEvent {
 /// closure. A write therefore happens before an event exactly when
 /// it precedes it in their shared block or stands in a block dominating
 /// the event's; `predecessors` and `dominators` are the function's
-/// validated control-flow relations. The reaching-writes fixpoint unions
-/// each predecessor's modification-order tail, so a claim must hold under
-/// every path rather than one replay: an empty reaching set means the
-/// place's residency is still initial on all of them, and a claim naming
-/// a write that reaches the event on only some paths has no
-/// `happens_before` edge to stand on.
+/// validated control-flow relations. A finite backward worklist follows every
+/// predecessor while translating the queried root through its exact storage
+/// binding. Each path stops at its latest write or at the actual invocation
+/// entrance. Only the singleton initial fact or one exact latest writer can
+/// authorize a claim; revisiting a cycle supplies no initial-residency fact.
+/// `root_before_edge` receives predecessor, successor and successor-local root;
+/// `None` means the edge cannot preserve that whole-storage identity.
 ///
 /// `global_sequential_order` and fence-pair synchronization likewise
 /// constrain only cross-activation observation; they carry no checkable
 /// content inside one activation and land with the concurrent-execution
 /// route.
 ///
-/// Non-atomic operations do not participate: they join no atomic
-/// modification order and cannot be named by either edge. Returns the
+/// Non-atomic writes and exclusive loans cannot be named by a retained edge
+/// and invalidate the reaching fact. Whole-storage edge bindings rename the
+/// queried root; paths and fields never change. Returns the
 /// offending event's block and node position together with the refusal,
 /// or `None` when every retained edge is coherent.
 pub fn happens_before_atomic_coherence_violation(
     blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    entry: BlockId,
+    root_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
 ) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
     // Atomic events claimable by a retained edge, keyed by the operation
     // identity they stand under across the whole activation. Duplicate
@@ -461,57 +465,7 @@ pub fn happens_before_atomic_coherence_violation(
             }
         }
     }
-    // Reaching-writes fixpoint: on entering a block each place's
-    // modification-order tail is the union of its predecessors' exits; a
-    // write inside the block replaces the tail with itself, since every
-    // path through the block runs the whole sequence.
-    let mut entry_latest: BTreeMap<
-        BlockId,
-        BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
-    > = BTreeMap::new();
-    let mut exit_latest: BTreeMap<
-        BlockId,
-        BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
-    > = BTreeMap::new();
-    loop {
-        let mut changed = false;
-        for (block, operations) in blocks {
-            let mut latest: BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>> =
-                BTreeMap::new();
-            for predecessor in predecessors.get(block).into_iter().flatten() {
-                for (location, writes) in exit_latest.get(predecessor).into_iter().flatten() {
-                    latest
-                        .entry(location.clone())
-                        .or_default()
-                        .extend(writes.iter().copied());
-                }
-            }
-            if entry_latest.get(block) != Some(&latest) {
-                entry_latest.insert(*block, latest.clone());
-                changed = true;
-            }
-            let mut exit = latest;
-            for (index, operation) in operations.iter().enumerate() {
-                let AbstractOperation::AtomicEvent { event, .. } = *operation else {
-                    continue;
-                };
-                if event.joins_modification_order()
-                    && let Some(location) = event.location()
-                {
-                    exit.insert(location.clone(), BTreeSet::from([(*block, index)]));
-                }
-            }
-            if exit_latest.get(block) != Some(&exit) {
-                exit_latest.insert(*block, exit);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
     for (block, operations) in blocks {
-        let mut latest = entry_latest.get(block).cloned().unwrap_or_default();
         for (index, operation) in operations.iter().enumerate() {
             let AbstractOperation::AtomicEvent {
                 event,
@@ -522,12 +476,26 @@ pub fn happens_before_atomic_coherence_violation(
             else {
                 continue;
             };
+            let reached = event
+                .location()
+                .map(|location| {
+                    reaching_writes(
+                        blocks,
+                        predecessors,
+                        entry,
+                        *block,
+                        index,
+                        location,
+                        &root_before_edge,
+                    )
+                })
+                .unwrap_or_default();
             let violation = match (event.observes_resident(), *reads_from) {
                 (false, Some(_)) => Some(AtomicReadsFromViolation::NonObservingWitness),
                 (true, None) => Some(AtomicReadsFromViolation::MissingWitness),
                 (false, None) => None,
                 (true, Some(witness)) => reads_from_violation(
-                    event, witness, *block, index, &events, &latest, dominators,
+                    event, witness, *block, index, &events, &reached, dominators,
                 ),
             }
             .map(AtomicCoherenceViolation::ReadsFrom)
@@ -542,7 +510,7 @@ pub fn happens_before_atomic_coherence_violation(
                         *block,
                         index,
                         &events,
-                        &latest,
+                        &reached,
                         dominators,
                     ),
                 }
@@ -551,14 +519,140 @@ pub fn happens_before_atomic_coherence_violation(
             if let Some(violation) = violation {
                 return Some((*block, index, violation));
             }
-            if event.joins_modification_order()
-                && let Some(location) = event.location()
-            {
-                latest.insert(location.clone(), BTreeSet::from([(*block, index)]));
-            }
         }
     }
     None
+}
+
+/// A path ends at its nearest write, the invocation entrance, or an effect
+/// whose write cannot be represented by an atomic-event edge.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ReachingWrite {
+    Initial,
+    Atomic(BlockId, usize),
+    Unknown,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reaching_writes(
+    blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    entry: BlockId,
+    block: BlockId,
+    index: usize,
+    location: &AbstractAtomicLocation,
+    root_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
+) -> BTreeSet<ReachingWrite> {
+    let mut reached = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![(block, index, location.clone())];
+    while let Some((block, end, location)) = pending.pop() {
+        if !visited.insert((block, end, location.clone())) {
+            continue;
+        }
+        let Some(operations) = blocks.get(&block) else {
+            reached.insert(ReachingWrite::Unknown);
+            continue;
+        };
+        let mut stopped = false;
+        for (index, operation) in operations[..end].iter().enumerate().rev() {
+            if let AbstractOperation::AtomicEvent { event, .. } = operation
+                && event.joins_modification_order()
+                && event.location() == Some(&location)
+            {
+                reached.insert(ReachingWrite::Atomic(block, index));
+                stopped = true;
+                break;
+            }
+            if invalidates_location(operation, &location) {
+                reached.insert(ReachingWrite::Unknown);
+                stopped = true;
+                break;
+            }
+        }
+        if stopped {
+            continue;
+        }
+        if block == entry {
+            reached.insert(ReachingWrite::Initial);
+        }
+        let incoming = predecessors.get(&block);
+        if block != entry && incoming.is_none_or(BTreeSet::is_empty) {
+            reached.insert(ReachingWrite::Unknown);
+        }
+        for predecessor in incoming.into_iter().flatten() {
+            let Some(root) = root_before_edge(*predecessor, block, location.root) else {
+                reached.insert(ReachingWrite::Unknown);
+                continue;
+            };
+            let Some(operations) = blocks.get(predecessor) else {
+                reached.insert(ReachingWrite::Unknown);
+                continue;
+            };
+            pending.push((
+                *predecessor,
+                operations.len(),
+                AbstractAtomicLocation {
+                    root,
+                    path: location.path.clone(),
+                    field: location.field,
+                },
+            ));
+        }
+    }
+    // A closed, unreachable cycle has no invocation residency to claim.
+    if reached.is_empty() {
+        reached.insert(ReachingWrite::Unknown);
+    }
+    reached
+}
+
+fn invalidates_location(operation: &AbstractOperation, location: &AbstractAtomicLocation) -> bool {
+    operation.storage_mutations().into_iter().any(|mutation| {
+        if mutation.place != location.root {
+            return false;
+        }
+        // These writes select a scalar leaf exactly. Other mutation families
+        // may carry aliases or replace a parent, so their root remains a fence.
+        match operation {
+            AbstractOperation::StructuralScalarFieldStore { .. }
+            | AbstractOperation::AtomicEvent { .. } => {
+                mutation.field == Some(location.field)
+                    && carrier_paths_may_overlap(mutation.path, &location.path)
+            }
+            _ => true,
+        }
+    })
+}
+
+/// Atomic carriers are static record/array projections. Only unequal declared
+/// fields or unequal fixed elements establish disjointness; a runtime selector
+/// can hit the atomic element, and unsupported vocabulary grants no exclusion.
+fn carrier_paths_may_overlap(
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> bool {
+    for (left, right) in left.iter().zip(right) {
+        match (left, right) {
+            (StructuralPathSegment::Field(left), StructuralPathSegment::Field(right))
+                if left != right =>
+            {
+                return false;
+            }
+            (StructuralPathSegment::FixedIndex(left), StructuralPathSegment::FixedIndex(right))
+                if left != right =>
+            {
+                return false;
+            }
+            (StructuralPathSegment::Field(_), StructuralPathSegment::Field(_))
+            | (StructuralPathSegment::FixedIndex(_), StructuralPathSegment::FixedIndex(_))
+            | (StructuralPathSegment::FixedIndex(_), StructuralPathSegment::RuntimeIndex { .. })
+            | (StructuralPathSegment::RuntimeIndex { .. }, StructuralPathSegment::FixedIndex(_)) => {
+            }
+            _ => return true,
+        }
+    }
+    true
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -568,23 +662,24 @@ fn reads_from_violation(
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
-    latest: &BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
+    reached: &BTreeSet<ReachingWrite>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Option<AtomicReadsFromViolation> {
     let Some(location) = event.location() else {
         return Some(AtomicReadsFromViolation::MissingWitness);
     };
     match witness {
-        AtomicReadsFrom::InitialResidency => latest
-            .get(location)
-            .is_some_and(|writes| !writes.is_empty())
+        AtomicReadsFrom::InitialResidency => (reached != &BTreeSet::from([ReachingWrite::Initial]))
             .then_some(AtomicReadsFromViolation::InitialResidencyAfterWrite),
         AtomicReadsFrom::Write { operation: claimed } => {
             let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
             else {
                 return Some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed });
             };
-            if resolved.location() != Some(location) || !resolved.joins_modification_order() {
+            if !resolved.joins_modification_order()
+                || (resolved.location() != Some(location)
+                    && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+            {
                 return Some(AtomicReadsFromViolation::WriteOutsideModificationOrder { claimed });
             }
             // The claimed write must happen before this observation: a
@@ -601,7 +696,7 @@ fn reads_from_violation(
             if !happens_before {
                 return Some(AtomicReadsFromViolation::ObservedWriteNotHappensBefore { claimed });
             }
-            (latest.get(location) != Some(&BTreeSet::from([(*writer, *position)])))
+            (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
                 .then_some(AtomicReadsFromViolation::ObservedWriteOverwritten { claimed })
         }
     }
@@ -614,23 +709,25 @@ fn modification_after_violation(
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
-    latest: &BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
+    reached: &BTreeSet<ReachingWrite>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Option<AtomicModificationAfterViolation> {
     let Some(location) = event.location() else {
         return Some(AtomicModificationAfterViolation::MissingPredecessor);
     };
     match predecessor {
-        AtomicModificationAfter::InitialResidency => latest
-            .get(location)
-            .is_some_and(|writes| !writes.is_empty())
+        AtomicModificationAfter::InitialResidency => (reached
+            != &BTreeSet::from([ReachingWrite::Initial]))
             .then_some(AtomicModificationAfterViolation::InitialResidencyAfterWrite),
         AtomicModificationAfter::Write { operation: claimed } => {
             let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
             else {
                 return Some(AtomicModificationAfterViolation::UnresolvedPredecessor { claimed });
             };
-            if resolved.location() != Some(location) || !resolved.joins_modification_order() {
+            if !resolved.joins_modification_order()
+                || (resolved.location() != Some(location)
+                    && !reached.contains(&ReachingWrite::Atomic(*writer, *position)))
+            {
                 return Some(
                     AtomicModificationAfterViolation::PredecessorOutsideModificationOrder {
                         claimed,
@@ -653,7 +750,7 @@ fn modification_after_violation(
                     AtomicModificationAfterViolation::PredecessorNotHappensBefore { claimed },
                 );
             }
-            (latest.get(location) != Some(&BTreeSet::from([(*writer, *position)])))
+            (reached != &BTreeSet::from([ReachingWrite::Atomic(*writer, *position)]))
                 .then_some(AtomicModificationAfterViolation::PredecessorNotLatest { claimed })
         }
     }
@@ -782,8 +879,14 @@ mod tests {
         let blocks = BTreeMap::from([(block(1), operations.iter().collect())]);
         let predecessors = BTreeMap::from([(block(1), BTreeSet::new())]);
         let dominators = BTreeMap::from([(block(1), BTreeSet::from([block(1)]))]);
-        happens_before_atomic_coherence_violation(&blocks, &predecessors, &dominators)
-            .map(|(_, index, violation)| (index, violation))
+        happens_before_atomic_coherence_violation(
+            &blocks,
+            &predecessors,
+            &dominators,
+            block(1),
+            |_, _, root| Some(root),
+        )
+        .map(|(_, index, violation)| (index, violation))
     }
 
     /// An explicit block-graph adapter: each entry names a block's
@@ -817,7 +920,254 @@ mod tests {
                 )
             })
             .collect();
-        happens_before_atomic_coherence_violation(&blocks, &predecessors, &dominators)
+        happens_before_atomic_coherence_violation(
+            &blocks,
+            &predecessors,
+            &dominators,
+            block(1),
+            |_, _, root| Some(root),
+        )
+    }
+
+    #[test]
+    fn coherence_follows_a_renamed_location_and_refuses_another_backing() {
+        let stored = writes(10, store(place(1), 11), M::InitialResidency);
+        let observed = atomic(
+            12,
+            load(place(2), 13),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+            None,
+        );
+        let blocks = BTreeMap::from([(block(1), vec![&stored]), (block(2), vec![&observed])]);
+        let predecessors = BTreeMap::from([(block(2), BTreeSet::from([block(1)]))]);
+        let dominators = BTreeMap::from([
+            (block(1), BTreeSet::from([block(1)])),
+            (block(2), BTreeSet::from([block(1), block(2)])),
+        ]);
+        for backing in [place(1), place(3)] {
+            let result = happens_before_atomic_coherence_violation(
+                &blocks,
+                &predecessors,
+                &dominators,
+                block(1),
+                |_, _, root| Some(if root == place(2) { backing } else { root }),
+            );
+            assert_eq!(result.is_none(), backing == place(1));
+        }
+        let stale = atomic(12, load(place(2), 13), Some(W::InitialResidency), None);
+        let blocks = BTreeMap::from([(block(1), vec![&stored]), (block(2), vec![&stale])]);
+        assert_eq!(
+            happens_before_atomic_coherence_violation(
+                &blocks,
+                &predecessors,
+                &dominators,
+                block(1),
+                |_, _, root| { Some(if root == place(2) { place(1) } else { root }) }
+            ),
+            Some((block(2), 0, V::ReadsFrom(R::InitialResidencyAfterWrite)))
+        );
+    }
+
+    #[test]
+    fn atomic_coherence_does_not_treat_an_unreachable_cycle_as_initial_residency() {
+        let observed = atomic(12, load(place(1), 13), Some(W::InitialResidency), None);
+        let blocks = BTreeMap::from([(block(1), Vec::new()), (block(2), vec![&observed])]);
+        let predecessors = BTreeMap::from([(block(2), BTreeSet::from([block(2)]))]);
+        let dominators = BTreeMap::from([
+            (block(1), BTreeSet::from([block(1)])),
+            (block(2), BTreeSet::from([block(2)])),
+        ]);
+        assert!(
+            happens_before_atomic_coherence_violation(
+                &blocks,
+                &predecessors,
+                &dominators,
+                block(1),
+                |_, _, root| Some(root)
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn a_loop_carried_write_cannot_claim_itself_as_a_happens_before_predecessor() {
+        let stored = writes(
+            10,
+            store(place(1), 11),
+            M::Write {
+                operation: operation(10),
+            },
+        );
+        let blocks = BTreeMap::from([(block(1), Vec::new()), (block(2), vec![&stored])]);
+        let predecessors = BTreeMap::from([(block(2), BTreeSet::from([block(1), block(2)]))]);
+        let dominators = BTreeMap::from([
+            (block(1), BTreeSet::from([block(1)])),
+            (block(2), BTreeSet::from([block(1), block(2)])),
+        ]);
+        assert_eq!(
+            happens_before_atomic_coherence_violation(
+                &blocks,
+                &predecessors,
+                &dominators,
+                block(1),
+                |_, _, root| Some(root)
+            ),
+            Some((
+                block(2),
+                0,
+                V::ModificationAfter(MV::PredecessorNotHappensBefore {
+                    claimed: operation(10)
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn ordinary_writes_and_exclusive_calls_invalidate_an_atomic_predecessor() {
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place: place(1),
+            position: 0,
+            is_self: false,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let ordinary_store = AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: operation(20),
+            destination: crate::StructuralScalarStoreDestination::Parameter(parameter.clone()),
+            path: Vec::new(),
+            field: at(place(1)).field,
+            value: scalar_result(11),
+            range_obligation: None,
+        };
+        let write_only = AbstractOperation::WriteOnlyPrimitiveStore {
+            psi_operation: operation(20),
+            destination: crate::StructuralScalarStoreDestination::Parameter(
+                terminal_psi::StructuralParameterDeclaration {
+                    access: terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                    ..parameter
+                },
+            ),
+            path: vec![terminal_psi::StructuralPathSegment::Field("value".into())],
+            value: scalar_result(11),
+        };
+        let call = |access| AbstractOperation::CallStructural {
+            psi_operation: operation(20),
+            callee: semantic_vocabulary::MachineId::new(1).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: place(1),
+                access,
+                path: Vec::new(),
+            }],
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: crate::AbstractStructuralCallResult::Unit,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        let stored = writes(10, store(place(1), 11), M::InitialResidency);
+        let observed = atomic(
+            12,
+            load(place(1), 13),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+            None,
+        );
+        for invalidating in [
+            ordinary_store,
+            write_only,
+            call(terminal_psi::StructuralAccess::MutableBorrow),
+        ] {
+            assert_eq!(
+                coherence(&[stored.clone(), invalidating, observed.clone()]),
+                Some((
+                    2,
+                    V::ReadsFrom(R::ObservedWriteOverwritten {
+                        claimed: operation(10)
+                    })
+                ))
+            );
+        }
+        assert_eq!(
+            coherence(&[
+                stored,
+                call(terminal_psi::StructuralAccess::SharedBorrow),
+                observed
+            ]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_runtime_selected_ordinary_store_invalidates_an_atomic_element() {
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place: place(1),
+            position: 0,
+            is_self: false,
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let mut location = at(place(1));
+        location.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(0)];
+        let stored = writes(
+            10,
+            E::Store {
+                location: location.clone(),
+                ordering: O::NoOrdering,
+                value: value(11),
+            },
+            M::InitialResidency,
+        );
+        let observed = atomic(
+            12,
+            E::Load {
+                location: location.clone(),
+                ordering: O::NoOrdering,
+                result: scalar_result(13),
+            },
+            Some(W::Write {
+                operation: operation(10),
+            }),
+            None,
+        );
+        let ordinary = |segment| AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: operation(20),
+            destination: crate::StructuralScalarStoreDestination::Parameter(parameter.clone()),
+            path: vec![segment],
+            field: location.field,
+            value: scalar_result(11),
+            range_obligation: None,
+        };
+        let selected = ordinary(terminal_psi::StructuralPathSegment::RuntimeIndex {
+            index: value(21),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        });
+        assert_eq!(
+            coherence(&[stored.clone(), selected, observed.clone()]),
+            Some((
+                2,
+                V::ReadsFrom(R::ObservedWriteOverwritten {
+                    claimed: operation(10)
+                })
+            ))
+        );
+        assert_eq!(
+            coherence(&[
+                stored,
+                ordinary(terminal_psi::StructuralPathSegment::FixedIndex(1)),
+                observed
+            ]),
+            None
+        );
     }
 
     #[test]

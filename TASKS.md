@@ -215,134 +215,34 @@ execution and native exit/output. A moved refusal is still unfinished work.
   naming their subject.
 
 - **STATIC-ENTRY-PROOF-REACH.** (split-of:STATIC-MACHINE-MIGRATION)
-  Naming a program entry's data loses operation proofs at LOWERING, while
-  checking still passes. 13 of the 15 green samples that use a receiver regress
-  this way, which is the largest measured migration blocker.
-  Minimal reproducer, five lines, measured 2026-10-02.
-  `samples/cli/basics/print_squares` is already static in every state -- they all
-  take `main: &mut Main`. Changing ONLY its entry from
-
-      machine Main::main(&mut self) reaches Console {
-          self.console.write_line("...");  self.out = "XXX";  self.k = 1;
-          transition { _ -> outer(&mut self) }
-
-  to `machine Main::main(main: &mut Main)` with `outer(main)` turns
-  `sample_native_gate` from pass to
-  "terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(25)))".
-  `sample_gate` still reports it checked, so this is a Psi-to-Omega handoff, not
-  an admission change -- another instance of `--check` green not meaning green.
-  Not loan-versus-forward: spelling the edge `outer(&mut main)` instead of
-  `outer(main)` fails identically, so the entry's PARAMETER shape is what moves
-  it. A static entry is not broken in general -- `runtime_shrinking_slice_recursion_exit`
-  has a static entry and exits 70 -- so this is about which obligations stay in
-  reach, not about the shape itself.
-  The two refusals are one cause. `proofs/mod.rs::unproved_obligation_error`
-  reports `ProofSearchCapacityExhausted` when a named capacity declined during
-  finalization and `OperationProofUnavailable` otherwise, so the 10 samples
-  reporting the latter and the 3 reporting "stopped at the private
-  `proof_search_integer_certificate_work`/`proof_search_result_guarantee_work`"
-  differ only in whether a budget declined first. The static spelling puts these
-  obligations out of the lowering search's reach.
-  Measured customers: `samples/cli/{basics/print_squares,basics/print_number,
-  basics/multiplication_table,arithmetic/smallest_prime_factor,games/dice_histogram,
+  Finish the remaining sample entries under the static-machine contract. The
+  byte-field and lockstep repairs now carry facts across named state parameters:
+  `print_number`, `print_squares` and `multiplication_table` run with their
+  authored output and native/interpreter exit 0 on macOS ARM64. The independent
+  `atomics_cross` storage-identity failure is also repaired; its named entry
+  runs with both engines at exit 70. Do not reopen those resolved mechanisms
+  from the earlier receiver-versus-static measurements.
+  Remaining measured customers, not yet rerun after those repairs:
+  `samples/cli/{arithmetic/smallest_prime_factor,games/dice_histogram,
   rendering/bouncing_ball_2d,rendering/mandelbrot,rendering/mandelbrot_zoom,
-  text/caesar_cipher}` report unavailable;
-  `samples/cli/{algorithms/maze_flood,arithmetic/prime_sieve,simulation/calendar}`
-  report capacity; `samples/cli/systems/atomics_cross` is a separate
-  `UnsupportedAtomicAccess`. The same `OperationProofUnavailable` appears for
-  `pass/{proofs/nested_loop_digit_bytes_keep_utf8_exit,
-  storage/forwarded_context_byte_field_read_store_exit,text/runtime_number_to_decimal_exit}`
-  when those migrate, so the cluster spans samples and fixtures.
-  Baselines for attribution: `sample_gate` is 23/149 on Darwin arm64, and those
-  15 receiver-using green samples are 15/15 on `sample_native_gate` before any
-  migration.
-  **Root cause, measured 2026-10-02 with `OMEGA_DUMP_OBLIGATIONS=1`.** That env
-  var already dumps each site's proposition, requirements and axioms; no
-  instrumentation is needed. A 33-line reproducer is enough -- a static entry
-  storing `place = 100`, a `p < 3` loop head, and `d = sq / place` in the body;
-  its receiver spelling runs at exit 7 and its static spelling reports
-  `OperationProofUnavailable`. Deleting only the `sq / place` division makes the
-  static spelling run, so the lost proof is the DIVISOR-NONZERO one.
-  Diffing the two dumps for that obligation: the goal is `1 <= ValueId(8)` with
-  empty `requirements` in both. In the receiver spelling every `IntegerField`
-  axiom shares `root: PlaceId(1)` -- one place for the whole machine, because the
-  receiver is `StructuralPlaceKind::Parameter { position: 0, is_self: true }` --
-  and the axiom set includes the entry's `Unsigned(100)` literal, so `p < 3`
-  and `place` are relatable on one root. In the static spelling the fields split
-  across `PlaceId(2)` and `PlaceId(3)`, one per state, because each state
-  receives the record as its own `StructuralPlaceKind::BlockParameter { block,
-  position }`. The `100` axiom is absent and there are 4 implications instead
-  of 5.
-  So this is not a proof-search budget problem: a fact established through one
-  state's data parameter is about a DIFFERENT structural place than the
-  successor's, and the receiver happened to give the whole machine one identity.
-  The answer already exists and is not consulted here:
-  `terminal-psi/semantics/src/arrival_storage.rs` (landed for the byte-field
-  work) maps a block parameter back to the place it arrived as --
-  `root_before_edge(machine, block, predecessor, place)` and
-  `storage_names(machine, block, root)`. The axiom/fact transport feeding
-  `operation_proofs` needs the same arrival relation, so a block parameter and
-  its predecessor's place are one storage identity for citation.
-  What is already ruled out, so it is not retried. The origin relation IS
-  computed correctly for the static spelling: all three block-parameter places
-  resolve to `PlaceId(1)` with one alternative and `exact=true`, while the
-  receiver spelling has no borrowed origins at all (its data is a machine
-  parameter, not a block parameter). So this is not ambiguous-origin loss.
-  That was measured with a temporary dump of `origins` in
-  `StorageObservations::new`, printed before its single-origin filter. Worth
-  re-adding while working here, but NOT worth landing: that file is inside the
-  trusted surface under `scope:borrowed-storage-observations`, so even an
-  env-gated `eprintln` fails
-  `terminal-verifier trusted_surface::recorded_digests_match_the_working_tree`
-  and asks for that justification to be revalidated.
-  `storage_observations.rs::append_invocation_facts` already rewrites axioms
-  rooted at a block parameter to that invocation origin, and
-  `reconstruction.rs` calls it ONLY for a `Return*` terminator. Calling it for
-  every block was measured and does NOT fix the reproducer, so the missing
-  axioms are not transported facts awaiting a rename.
-  What the remaining difference is: a loop-cut target starts from an EMPTY
-  roster by design ("Facts from its first arrival are not invariants"), so the
-  `p < N -> 1 <= place` implications in the dump are SYNTHESIZED, and the
-  synthesis produces 5 of them plus the entry's `100` literal under one place
-  identity and only 4 under per-block identities. The next step is that
-  synthesizer -- not the fact transport -- and whether it can relate two block
-  parameters that `invocation_origins` already says are one storage.
-  **The facts are all present and correctly linked; the search does not use
-  them. Measured 2026-10-02 by listing the obligation's axioms in both
-  spellings.** The receiver roster carries 12 axioms over ONE place, and the
-  proof is:
+  text/caesar_cipher,algorithms/maze_flood,arithmetic/prime_sieve,simulation/calendar}`.
+  Their earlier static-entry attempts reached unavailable operation proofs or
+  private proof-search capacity limits. Reproduce each current boundary before
+  changing inference or budgets. `OMEGA_DUMP_OBLIGATIONS=1` exposes the actual
+  reconstructed goals and axioms; use exact storage bindings across states,
+  with independent all-arrival proof checks, rather than equating parameter
+  names globally. Acceptance: migrate the remaining entries, measure each
+  documented native output/exit and checked-interpreter agreement, and retain
+  rejection controls for substituted storage and invalid numeric bounds.
+  A separate divisor probe recorded the full invariant chain in both
+  spellings, with duplicated predecessor/successor facts in the static roster.
+  If a remaining customer still fails, inspect
+  `path_facts::bind_successor_structural_axioms` and
+  `root_selection/{alias,roster}.rs` for that duplication; preserve legitimate
+  aliases and all-arrival proofs. Reproduce it on current main before changing
+  roster replacement or search. Forcing `reconstruct_path_facts` and appending
+  invocation facts at every block did not resolve that probe.
 
-      p1.f6 < 3 -> 1 <= p1.f4   (invariant)
-      v4 = p1.f6,  v4 < 3       (so p1.f6 < 3)
-      v8 = p1.f4                (so 1 <= v8, the goal)
-
-  The static roster carries 18 over TWO places, p2 (the predecessor's binding)
-  and p3 (the successor's), and the identical chain exists over p3: the
-  invariant `p3.f6 < 3 -> 1 <= p3.f4`, `v4 = p3.f6`, `v4 < 3`, `v8 = p3.f4`.
-  Nothing is missing and nothing is unlinked -- `v4` is cited equal to BOTH
-  `p2.f6` and `p3.f6`, so the two places are even bridged.
-  What differs is only that every invariant appears twice, once per place.
-  `path_facts::bind_successor_structural_axioms` is what produces the p3 copies
-  (it maps `argument.place -> parameter.place` for whole actuals and restates
-  each fact), and it APPENDS the rewrite while keeping the original, so the
-  predecessor's copies sit ahead of the successor's in roster order. The
-  nonzero-divisor search iterates alias orientations rather than taking the
-  first, so plain ordering is not obviously the cause -- but the duplicated
-  per-place copies are the only difference between a roster that proves and one
-  that does not, and they are the thing to attack.
-  Two candidate shapes, neither tried: drop the superseded copy when a
-  structural place is rebound at an edge (needs a replacement operation --
-  `AxiomRosterMut` today has only `push_fact`), or make the divisor search treat
-  the bridged places as one subject. The first is narrower; the second is where
-  `root_selection/{alias,roster}.rs` already does the work.
-  Ruled out by measurement, so not retried: enabling `reconstruct_path_facts`
-  for every machine (it is a work filter and forcing it true changes nothing
-  here), and calling `append_invocation_facts` for every block rather than only
-  at `Return*`.
-  Acceptance: `print_squares` migrates its entry and meets its documented oracle
-  (`Expected output contains: 081`, exit 0) through `sample_native_gate`, with
-  the other twelve measured after it; the 33-line reproducer is the fast inner
-  loop and belongs in `tests/omega/pass/` as a fixture when it runs.
 
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is
@@ -1149,8 +1049,12 @@ the complete product bar; focused successes below do not establish that baseline
   under [concurrency](wiki/spec/language/concurrency.md) and the
   [atomic vocabulary](omega-rust/psi/foundation/language-core/atomic_operations.md).
   `atomics/runtime_atomic_{fetch_add,compare_exchange}_exit` exit 70 natively on
-  macOS ARM64. Serial load/store/fetch/swap/decisive exchange already encode, independently
-  verify and interpret as single Terminal events (`atomic_access_events.rs`).
+  macOS ARM64. `samples/cli/systems/atomics_cross` also runs with a named entry
+  and forwarded state storage, native/interpreter exit 70: events retain their
+  exact local roots, and independent coherence follows whole-storage bindings
+  while rejecting wrong backing, stale residency and intervening writes. Serial
+  load/store/fetch/swap/decisive exchange already encode, independently verify
+  and interpret as single Terminal events (`atomic_access_events.rs`).
   Omega stage 00 retains location/orderings and coherence edges
   (`atomic_events.rs`); its unique-reaching-write restriction is not a concurrent
   memory model.

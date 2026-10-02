@@ -79,6 +79,7 @@ pub(crate) fn validate_structural_place_availability(
 /// has a cleanup obligation.
 pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
     match operation {
+        O::AtomicEvent { event, .. } => event.place().into_iter().collect(),
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.source(), right.source()]
         }
@@ -243,4 +244,68 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         _ => {}
     }
     inputs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::support::id;
+    use abstract_operations::atomic::AbstractAtomicLocation;
+    use abstract_operations::{AbstractAtomicEvent, AtomicModificationAfter};
+    use semantic_vocabulary::{OperationId, StructuralFieldId, StructuralTypeId, ValueId};
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
+
+    #[test]
+    fn atomic_block_parameter_must_dominate_its_use() {
+        let mut function = crate::tests::fixtures::scalar_units::unit()
+            .functions
+            .remove(0);
+        let root = id(90, PlaceId::new);
+        function.blocks[0].nodes[0].operation = O::AtomicEvent {
+            psi_operation: id(91, OperationId::new),
+            event: AbstractAtomicEvent::Store {
+                location: AbstractAtomicLocation {
+                    root,
+                    path: Vec::new(),
+                    field: id(92, StructuralFieldId::new),
+                },
+                ordering: language_core::atomic::MemoryOrdering::NoOrdering,
+                value: id(3, ValueId::new),
+            },
+            reads_from: None,
+            modification_after: Some(AtomicModificationAfter::InitialResidency),
+        };
+        let parameter = StructuralParameterDeclaration {
+            place: root,
+            position: 0,
+            is_self: false,
+            structural_type: id(93, StructuralTypeId::new),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        function.blocks[0].structural_parameters.push(parameter);
+        let blocks = function
+            .blocks
+            .iter()
+            .map(|block| (block.id, block))
+            .collect();
+        validate_structural_place_availability(&function, &blocks, &BTreeMap::new()).unwrap();
+        let mut later = function.blocks[0].clone();
+        later.id = id(94, BlockId::new);
+        function.blocks[0].structural_parameters.clear();
+        function.blocks.push(later);
+        let blocks = function
+            .blocks
+            .iter()
+            .map(|block| (block.id, block))
+            .collect();
+        let predecessors =
+            BTreeMap::from([(function.blocks[1].id, BTreeSet::from([function.entry]))]);
+        assert!(matches!(
+            validate_structural_place_availability(&function, &blocks, &predecessors),
+            Err(OptimizationUnitValidationError::StructuralPlaceNotAvailable { .. })
+        ));
+    }
 }

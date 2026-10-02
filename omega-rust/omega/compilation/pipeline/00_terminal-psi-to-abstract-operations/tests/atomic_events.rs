@@ -2,8 +2,8 @@
 //! normalized abstract atomic event at its exact location, with the
 //! reads-from and modification-after edges the optimization unit rechecks.
 //!
-//! The source runs every serial event against one atomic field of the
-//! borrowed receiver. The controls substitute a retained location, ordering,
+//! Sources run serial events through a borrowed receiver and through named
+//! state parameters that forward two independent cells. The controls substitute a retained location, ordering,
 //! operand or edge and check that plan replay or the independent unit
 //! validation refuses it, and that a load after a join of distinct writes
 //! refuses rather than naming one of them.
@@ -49,11 +49,15 @@ fn artifact(body: &str) -> (TerminalModule, Vec<u8>, Vec<u8>) {
             {body}
         }}"
     );
+    source_artifact(&source)
+}
+
+fn source_artifact(source: &str) -> (TerminalModule, Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&source),
+        &checked(source),
         TerminalMachineSelection::Name("Cell::run"),
     )
-    .unwrap_or_else(|error| panic!("{body}: {error:#?}"));
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantic = encode_module(&lowered.semantic_module).expect("canonical semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("canonical proof");
@@ -397,4 +401,147 @@ fn a_join_of_distinct_writes_names_no_single_predecessor() {
             LoweringError::UnsupportedAtomicCoherence(_)
         ))
     ));
+}
+
+const NAMED_SEQUENCE: &str = "
+    boundary trait Report { machine value(v: u32) reaches Report; }
+    data Cell { counter: AtomicU32; }
+    machine Cell::run(first: &mut Cell, second: &mut Cell) reaches Report {
+        first.counter.store(10, Publish);
+        second.counter.store(40, Publish);
+        transition { _ -> add(second, first) }
+        state add(other: &mut Cell, current: &mut Cell) {
+            let prior: u32 = current.counter.fetch_add(5, ReceivePublish);
+            Report::value(prior);
+            transition { _ -> observe(current, other) }
+        }
+        state observe(current: &mut Cell, other: &mut Cell) {
+            let observed: u32 = current.counter.load(Receive);
+            let prior: u32 = other.counter.compare_exchange(40, 60, GlobalOrder, Receive);
+            Report::value(observed);
+            Report::value(prior);
+        }
+    }
+";
+
+#[test]
+fn named_state_parameters_preserve_each_atomic_backing_and_event_root() {
+    let (module, semantic, proof) = source_artifact(NAMED_SEQUENCE);
+    let plan = lower(&semantic, &proof).expect("named atomic state parameters lower");
+    let events = events(&plan);
+    let [first_store, second_store, fetch, load, exchange] = events.as_slice() else {
+        panic!("five events: {events:#?}");
+    };
+    assert_eq!(
+        fetch.2,
+        Some(AtomicReadsFrom::Write {
+            operation: first_store.0
+        })
+    );
+    assert_eq!(
+        fetch.3,
+        Some(AtomicModificationAfter::Write {
+            operation: first_store.0
+        })
+    );
+    assert_eq!(load.2, Some(AtomicReadsFrom::Write { operation: fetch.0 }));
+    assert_eq!(
+        exchange.2,
+        Some(AtomicReadsFrom::Write {
+            operation: second_store.0
+        })
+    );
+    assert_eq!(
+        exchange.3,
+        Some(AtomicModificationAfter::Write {
+            operation: second_store.0
+        })
+    );
+    for (operation, event, ..) in &events {
+        let source = module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|candidate| candidate.id == *operation)
+            .expect("source operation");
+        let OperationKind::AtomicAccess { place, .. } = &source.kind else {
+            panic!("source atomic event");
+        };
+        assert_eq!(event.location().expect("atomic location").root, *place);
+    }
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit(&semantic, &proof))
+        .expect("the unit follows actual incoming storage bindings");
+}
+
+#[test]
+fn changed_incoming_backing_event_root_or_initial_residency_is_refused() {
+    let (_, semantic, proof) = source_artifact(NAMED_SEQUENCE);
+    let verified = unit(&semantic, &proof);
+    let plan = lower(&semantic, &proof).expect("named atomic state parameters lower");
+    let events = events(&plan);
+    let other = events[4]
+        .1
+        .location()
+        .expect("compare exchange location")
+        .root;
+    let mut swapped_arrival = verified.clone();
+    let function = &mut swapped_arrival.functions[0];
+    let bindings = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::Jump {
+                structural_bindings,
+                ..
+            } if structural_bindings.len() == 2 => Some(structural_bindings),
+            _ => None,
+        })
+        .expect("two same-type incoming contexts");
+    let first = bindings[0].argument.clone();
+    bindings[0].argument = bindings[1].argument.clone();
+    bindings[1].argument = first;
+    optimization_unit::restamp_psi_function_derived_metadata(function)
+        .expect("rebuild operation-derived metadata after the binding substitution");
+    swapped_arrival.identity =
+        optimization_unit::recompute_psi_optimization_unit_identity(&swapped_arrival);
+    let substitutions = [
+        ("swapped incoming contexts", swapped_arrival),
+        (
+            "other context at the same observer",
+            substitute(&verified, 3, |operation| {
+                let AbstractAtomicEvent::Load { location, .. } = event_mut(operation) else {
+                    unreachable!("load ordinal");
+                };
+                location.root = other;
+            }),
+        ),
+        (
+            "initial read after a transferred write",
+            substitute(&verified, 3, |operation| {
+                let AbstractOperation::AtomicEvent { reads_from, .. } = operation else {
+                    unreachable!("atomic ordinal");
+                };
+                *reads_from = Some(AtomicReadsFrom::InitialResidency);
+            }),
+        ),
+        (
+            "initial modification after a transferred write",
+            substitute(&verified, 2, |operation| {
+                let AbstractOperation::AtomicEvent {
+                    modification_after, ..
+                } = operation
+                else {
+                    unreachable!("atomic ordinal");
+                };
+                *modification_after = Some(AtomicModificationAfter::InitialResidency);
+            }),
+        ),
+    ];
+    for (reason, changed) in substitutions {
+        let refusal = optimization_unit_semantics::validate_psi_optimization_unit(&changed);
+        assert!(matches!(refusal,
+            Err(optimization_unit_semantics::OptimizationUnitValidationError::AtomicEventCoherenceMismatch { .. })),
+            "{reason}: {refusal:?}");
+    }
 }

@@ -5,7 +5,7 @@
 //! to reach its backing storage only after this identity and permission check.
 
 use legalized_operations::LegalizedScalarFunction;
-use semantic_vocabulary::StructuralPlaceKind;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn store_destination(
@@ -28,15 +28,35 @@ pub(super) fn store_destination(
     {
         return false;
     }
+    parameter(source, expected.place) == Some(expected)
+        && match signature
+            .structural_places
+            .iter()
+            .find(|row| row.id == expected.place)
+            .map(|row| row.kind)
+        {
+            Some(StructuralPlaceKind::BlockParameter { .. }) => {
+                expected.access == StructuralAccess::MutableBorrow
+            }
+            _ => true,
+        }
+}
+
+/// Rejoin the declared arrival independently of its physical carrier. Atomic
+/// access and ordinary stores apply their own permissions after this identity
+/// check, so a block-local spelling cannot borrow the invocation's authority.
+pub(super) fn parameter(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<&StructuralParameterDeclaration> {
+    let signature = source.structural.as_ref()?;
     let mut places = signature
         .structural_places
         .iter()
-        .filter(|row| row.id == expected.place);
-    let Some(place) = places.next() else {
-        return false;
-    };
+        .filter(|row| row.id == place);
+    let declaration = places.next()?;
     if places.next().is_some() {
-        return false;
+        return None;
     }
     let mut parameters = signature
         .parameters
@@ -48,33 +68,34 @@ pub(super) fn store_destination(
                 .iter()
                 .flat_map(|block| &block.structural_parameters),
         )
-        .filter(|parameter| parameter.place == expected.place);
-    if parameters.next() != Some(expected) || parameters.next().is_some() {
-        return false;
+        .filter(|parameter| parameter.place == place);
+    let parameter = parameters.next()?;
+    if parameters.next().is_some() {
+        return None;
     }
-    match place.kind {
+    let matches = match declaration.kind {
         StructuralPlaceKind::Parameter { position, is_self } => {
-            position == expected.position
-                && is_self == expected.is_self
+            position == parameter.position
+                && is_self == parameter.is_self
                 && signature
                     .parameters
-                    .iter()
-                    .any(|row| row.semantic == *expected)
+                    .get(position as usize)
+                    .is_some_and(|row| row.semantic == *parameter)
         }
         StructuralPlaceKind::BlockParameter { block, position } => {
             block != source.entry_block
-                && !expected.is_self
-                && position == expected.position
-                && expected.access == StructuralAccess::MutableBorrow
+                && !parameter.is_self
+                && position == parameter.position
                 && source
                     .blocks
                     .iter()
                     .find(|row| row.id == block)
                     .and_then(|row| row.structural_parameters.get(position as usize))
-                    == Some(expected)
+                    == Some(parameter)
         }
         _ => false,
-    }
+    };
+    matches.then_some(parameter)
 }
 
 #[cfg(test)]

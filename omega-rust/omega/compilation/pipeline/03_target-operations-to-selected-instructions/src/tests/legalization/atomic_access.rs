@@ -204,9 +204,10 @@ fn atomic_legalization_preserves_nested_location_and_observed_prior() {
 fn legalized_fetch(
     plan: &mut LegalizedOperationPlan,
 ) -> &mut legalized_operations::LegalizedScalarInstruction {
-    plan.scalar_functions[0].blocks[0]
-        .instructions
+    plan.scalar_functions[0]
+        .blocks
         .iter_mut()
+        .flat_map(|block| &mut block.instructions)
         .find(|row| {
             matches!(
                 row.kind,
@@ -485,5 +486,181 @@ fn atomic_load_swap_exchange_and_fetch_families_keep_their_event_identity() {
         let mut operands = Vec::new();
         row.visit_scalar_operands(|value| operands.push(value));
         assert_eq!(operands, event.operands());
+    }
+}
+
+#[test]
+fn transferred_atomic_location_survives_native_selection_and_replay() {
+    use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding};
+    use selected_instructions::{AtomicOperation, SelectedInstructionKind};
+    use semantic_vocabulary::{BlockId, EdgeId, StructuralPlaceKind};
+    use terminal_psi::StructuralArgument;
+
+    for native in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
+        let (mut source, _, _) = fixture(native, true);
+        let function = &mut source.functions[0];
+        let incoming = function.structural_parameters[0].clone();
+        let body = BlockId::new(2).unwrap();
+        let mut arrival = incoming.clone();
+        arrival.place = PlaceId::new(2).unwrap();
+        arrival.is_self = false;
+        let AbstractOperation::AtomicEvent { event, .. } = &mut function.operations[2] else {
+            unreachable!("fetch follows initial store");
+        };
+        let AbstractAtomicEvent::ReadModifyWrite { location, .. } = event else {
+            unreachable!("fetch event");
+        };
+        location.root = arrival.place;
+        let AbstractOperation::StructuralScalarFieldStore { destination, .. } =
+            &mut function.operations[3]
+        else {
+            unreachable!("store consumes observed prior");
+        };
+        *destination = arrival.clone().into();
+        function.operations.insert(
+            2,
+            AbstractOperation::Jump {
+                psi_edge: EdgeId::new(2).unwrap(),
+                target: body,
+                bindings: Vec::new(),
+                structural_bindings: vec![AbstractStructuralBinding {
+                    parameter: arrival.place,
+                    argument: StructuralArgument {
+                        place: incoming.place,
+                        path: Vec::new(),
+                        access: incoming.access,
+                    },
+                }],
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+        );
+        function.block_entries.push(AbstractBlockEntry {
+            block: body,
+            operation_offset: 3,
+            parameters: Vec::new(),
+            structural_parameters: vec![arrival.clone()],
+        });
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            unit.functions[0]
+                .structural_places
+                .iter()
+                .any(|place| place.id == incoming.place
+                    && matches!(
+                        place.kind,
+                        StructuralPlaceKind::Parameter {
+                            position: 0,
+                            is_self: true
+                        }
+                    ))
+        );
+        assert!(
+            unit.functions[0]
+                .structural_places
+                .iter()
+                .any(|place| place.id == arrival.place
+                    && matches!(place.kind,
+                StructuralPlaceKind::BlockParameter { block, position: 0 } if block == body))
+        );
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .expect("atomic event uses its exact state arrival");
+        let legal = crate::legalize_target_operations(&target, &source, &unit).unwrap();
+        crate::validate_legalized_operations(&target, &source, &unit, legal.plan().clone())
+            .unwrap();
+        let mut inspected = legal.plan().clone();
+        let fetch = legalized_fetch(&mut inspected);
+        let LegalizedScalarInstructionKind::AtomicAccess {
+            location,
+            field_byte_offset,
+            ..
+        } = &fetch.kind
+        else {
+            unreachable!("fetch event");
+        };
+        assert_eq!(location.place, arrival.place);
+        assert_eq!(location.access, StructuralAccess::MutableBorrow);
+        assert_eq!(
+            location.path,
+            vec![StructuralPathSegment::Field("counter".into())]
+        );
+        assert_eq!(*field_byte_offset, 4);
+        assert_eq!(fetch.result.unwrap().value, ValueId::new(2).unwrap());
+        for substitution in ["root", "access", "offset"] {
+            let mut changed = legal.plan().clone();
+            let LegalizedScalarInstructionKind::AtomicAccess {
+                location,
+                field_byte_offset,
+                ..
+            } = &mut legalized_fetch(&mut changed).kind
+            else {
+                unreachable!("fetch event");
+            };
+            match substitution {
+                "root" => location.place = incoming.place,
+                "access" => location.access = StructuralAccess::SharedBorrow,
+                _ => *field_byte_offset = 0,
+            }
+            assert!(
+                crate::validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "{substitution}"
+            );
+        }
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let function = &selected.plan().functions[0];
+        let fetch = function.blocks.iter().flat_map(|block| &block.instructions)
+            .find(|instruction| matches!(instruction.kind, SelectedInstructionKind::AtomicAccess { form } if form.operation == AtomicOperation::FetchAdd))
+            .expect("one selected atomic fetch");
+        let accesses = function
+            .memory_accesses
+            .iter()
+            .filter(|access| access.instruction == fetch.id)
+            .collect::<Vec<_>>();
+        assert_eq!(accesses.len(), 2);
+        assert!(accesses.iter().all(|access| access.place == arrival.place
+            && access.byte_offset == 4
+            && access.byte_count == 4));
+        let mut changed = selected.plan().clone();
+        changed.functions[0]
+            .memory_accesses
+            .iter_mut()
+            .find(|access| access.instruction == fetch.id)
+            .unwrap()
+            .place = incoming.place;
+        assert!(
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed
+            )
+            .is_err()
+        );
     }
 }
