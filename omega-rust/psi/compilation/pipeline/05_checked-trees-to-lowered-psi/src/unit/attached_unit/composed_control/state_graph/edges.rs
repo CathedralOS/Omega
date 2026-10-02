@@ -377,7 +377,7 @@ pub(super) fn validate_bindings(
         {
             // A view subslice narrows a whole view parameter or a view local
             // the state body established; either way the target receives a
-            // fresh shared view of the source's own type. A range over a
+            // fresh view with the requested access. A range over a
             // fixed-array field instead names the parameter owning the field
             // plus the checked field path, which emission views whole before
             // narrowing — the source's own type then names the record, not
@@ -388,15 +388,31 @@ pub(super) fn validate_bindings(
             if arguments.get(explicit_argument_position(target.position)) != Some(&expression) {
                 return unsupported("Unit graph subslice disagrees with its source argument");
             }
+            if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression)
+            {
+                let declared = validation::reference_shell(
+                    &checked.typed,
+                    target_formals[target.position as usize].type_reference,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph range target is not a reference",
+                ))?;
+                if borrow.access != declared.access {
+                    return unsupported("Unit graph range changed its authored borrow access");
+                }
+            }
             let source_type = match root {
                 checked_trees::CheckedStorageRoot::Parameter { index } => {
                     let source = state.structural_parameters.get(index as usize).ok_or(
                         LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
                     )?;
                     if collection.is_empty() {
-                        if source.access != target.access
-                            || source.multiplicity != target.multiplicity
-                        {
+                        let access_matches = source.access == target.access
+                            || (source.access
+                                == checked_trees::CheckedStructuralAccess::MutableBorrow
+                                && target.access
+                                    == checked_trees::CheckedStructuralAccess::SharedBorrow);
+                        if !access_matches || source.multiplicity != target.multiplicity {
                             return unsupported(
                                 "Unit graph borrowed transfer type or order drifted",
                             );
@@ -417,12 +433,15 @@ pub(super) fn validate_bindings(
                             source.access,
                             checked_trees::CheckedStructuralAccess::SharedBorrow
                                 | checked_trees::CheckedStructuralAccess::MutableBorrow
-                                | checked_trees::CheckedStructuralAccess::Owned
-                        ) || !source.qualifications.is_empty()
+                        ) || (target.access
+                            == checked_trees::CheckedStructuralAccess::MutableBorrow
+                            && source.access
+                                != checked_trees::CheckedStructuralAccess::MutableBorrow)
+                            || !source.qualifications.is_empty()
                             || !source.projected_qualifications.is_empty()
                         {
                             return unsupported(
-                                "Unit graph subslice field owner cannot lend a shared view",
+                                "Unit graph subslice field owner cannot lend the requested view",
                             );
                         }
                         let mut peeled = target_formals[target.position as usize].type_reference;
@@ -453,7 +472,7 @@ pub(super) fn validate_bindings(
                             state,
                             symbol,
                             edge.statement_ordinal,
-                            checked_trees::CheckedStructuralAccess::SharedBorrow,
+                            target.access,
                         )?
                         .to_string(),
                     )
@@ -466,7 +485,11 @@ pub(super) fn validate_bindings(
             };
             if transfer.target_parameter_index as usize != position
                 || target.is_self
-                || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || !matches!(
+                    target.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
                 || target.multiplicity != Multiplicity::Unrestricted
                 || source_type.as_deref() != Some(target.type_identity.as_str())
             {
