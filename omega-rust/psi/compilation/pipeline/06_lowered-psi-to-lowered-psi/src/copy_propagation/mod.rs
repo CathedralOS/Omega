@@ -9,11 +9,11 @@
 //! a ranked machine keeps the covered cyclic components' parameter tables and
 //! every use reaching into them exact while ordinary regions still collapse.
 //!
-//! Inside a proof-bearing module a collapse survives only while the
-//! reconstructed proof question is unchanged; a substitution the question
-//! cannot carry verbatim refuses until proof-context transport lets the
-//! question move with the rewrite. The refusal is recorded as a
-//! `PsiRewriteRefusal` on the stage result.
+//! Inside a proof-bearing module the independently checked copy relation
+//! transports the same goals and ordered requirements, then remaps existing
+//! certificate citations to reconstructed output axioms. Kernel replay of both
+//! bundles is required; a vanished material premise refuses rather than being
+//! re-proved. The refusal is recorded on the stage result.
 //!
 //! Resolution proposes substitutions; the independent verifier checks the
 //! exact before/after relation and proof questions.
@@ -27,7 +27,7 @@ use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_copy_propagation,
+    reconstruct_optimizable_terminal_obligations, transport_copy_propagation_evidence,
     validate_module_for_optimization,
 };
 
@@ -62,6 +62,14 @@ pub(super) fn propagate(
             }
         }
     }
+    // Join predicates remain the same proof questions. A value explicitly
+    // named by a retained header is a semantic use, even when no executable
+    // operation reads it after the selected rewrite.
+    for invariant in &before.semantic_module.scalar_block_invariants {
+        invariant.predicate.visit_value_ids(|value| {
+            retained_values.insert(value);
+        });
+    }
     for machine in &mut after.semantic_module.machines {
         copies::propagate(
             machine,
@@ -69,32 +77,38 @@ pub(super) fn propagate(
             &mut retained_values,
         );
     }
-    if let Err(error) = validate_copy_propagation(&before.semantic_module, &after.semantic_module) {
-        // Without proof-context transport a proof-bearing input keeps only a
-        // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored and is reported as a
-        // decision, so the identity output is not mistaken for "nothing to
-        // rewrite".
-        let reason = match error {
-            terminal_verifier::CopyPropagationRewriteError::ChangedProofQuestion => {
-                Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+    let transported = match transport_copy_propagation_evidence(
+        &before.semantic_module,
+        &after.semantic_module,
+        &before.proof_bundle,
+    ) {
+        Ok(proof) => proof,
+        Err(error) => {
+            // The proposal cannot carry the existing evidence through its exact
+            // reconstructed question. Preserve the complete input and record
+            // the refusal; a new proof search must not turn this into a rewrite.
+            let reason = match error {
+                terminal_verifier::CopyPropagationRewriteError::ChangedProofQuestion => {
+                    Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+                }
+                terminal_verifier::CopyPropagationRewriteError::InvalidModule(_) => {
+                    Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
+                }
+                _ => None,
+            };
+            if let Some(reason) = reason.filter(|_| proof_bearing) {
+                refusals.push(PsiRewriteRefusal::new(
+                    PsiOptimization::CopyPropagation,
+                    reason,
+                ));
+                return Ok(before);
             }
-            terminal_verifier::CopyPropagationRewriteError::InvalidModule(_) => {
-                Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
-            }
-            _ => None,
-        };
-        if let Some(reason) = reason.filter(|_| proof_bearing) {
-            refusals.push(PsiRewriteRefusal::new(
-                PsiOptimization::CopyPropagation,
-                reason,
+            return Err(PsiOptimizationStageError::InvalidCopyPropagationRewrite(
+                error,
             ));
-            return Ok(before);
         }
-        return Err(PsiOptimizationStageError::InvalidCopyPropagationRewrite(
-            error,
-        ));
-    }
+    };
+    after.proof_bundle = transported;
     if let Some(debug) = after.debug_map.as_mut() {
         let removed_values = before
             .semantic_module

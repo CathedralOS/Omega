@@ -11,11 +11,17 @@ mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
 mod proof_check_elision;
+mod proof_context_transport;
 mod sparse_conditional_constant_propagation;
 
 pub use control_flow_cleanup::{ControlFlowCleanupRewriteError, validate_control_flow_cleanup};
-pub use copy_propagation::{CopyPropagationRewriteError, validate_copy_propagation};
-pub use dead_scalar_elimination::{DeadScalarRewriteError, validate_dead_scalar_elimination};
+pub use copy_propagation::{
+    CopyPropagationRewriteError, transport_copy_propagation_evidence, validate_copy_propagation,
+};
+pub use dead_scalar_elimination::{
+    DeadScalarRewriteError, transport_dead_scalar_elimination_evidence,
+    validate_dead_scalar_elimination,
+};
 pub use global_value_numbering::{
     GlobalValueNumberingRewriteError, validate_global_value_numbering,
 };

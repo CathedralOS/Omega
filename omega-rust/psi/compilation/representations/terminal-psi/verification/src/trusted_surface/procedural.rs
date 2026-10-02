@@ -724,9 +724,9 @@ rows! {
         "formation:optimization-rewrite-validation",
         SharedFormation,
         "a producer's target-neutral rewrite claim over a verified module",
-        "the rewrite is independently checked: surviving structure, operations, block parameters, edge arguments, and the proof question must be unchanged; the producer's liveness result is never trusted",
+        "the rewrite is independently checked: surviving structure, operations, block parameters and edge arguments obey the exact rule; proof goals, classes, ordered requirements and arrivals survive exact copy substitution, axiom citations transport only to reconstructed facts, and the transported bundle replays independently; the producer's liveness result is never trusted",
         &["formation:evidence-orchestration"],
-        &[tv!( "optimization.rs"), tv!( "optimization/dead_scalar_elimination.rs"), tv!( "optimization/copy_propagation.rs"), tv!( "optimization/global_value_numbering.rs"), tv!( "optimization/sparse_conditional_constant_propagation.rs"), tv!( "optimization/control_flow_cleanup.rs"), tv!( "optimization/proof_check_elision.rs")]
+        &[tv!( "optimization.rs"), tv!( "optimization/dead_scalar_elimination.rs"), tv!( "optimization/copy_propagation.rs"), tv!( "optimization/global_value_numbering.rs"), tv!( "optimization/sparse_conditional_constant_propagation.rs"), tv!( "optimization/control_flow_cleanup.rs"), tv!( "optimization/proof_check_elision.rs"), tv!( "optimization/proof_context_transport.rs")]
     );
     FORM_TRACE => (
         "formation:trace-observation-profile",

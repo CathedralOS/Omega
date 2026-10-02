@@ -2,9 +2,7 @@
 use super::{ScalarType, TerminalMachineResult, hard_root_checked_fixture, lower_machine};
 use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
-use lowered_psi_to_lowered_psi::{
-    PsiOptimizationStageError, PsiRewriteRefusalReason, run_psi_optimization,
-};
+use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::{ObligationId, OperationId, Proposition, ValueId};
@@ -580,13 +578,7 @@ fn copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities
     );
 }
 
-/// The same two-arm literal join in a machine that already owns a
-/// reconstructed obligation: the gate reopens because the interval has a real
-/// consumer, the module is proof-bearing, and the scalar rewrites refuse as
-/// before. Ordered scalar control refuses authored contracts, so the
-/// machine-owned question comes from a runtime index site instead.
-#[test]
-fn consumed_literal_join_keeps_the_invariant_and_refuses_rewrites() {
+fn consumed_literal_join_fixture() -> LoweredPsi {
     let checked = crate::front_end::checked_program(
         "data Main { items: [i32; 8]; value: i32; }\n\
          machine Main::compute(&self, a: u64 [0..=7], b: u64) -> i32 {\n\
@@ -602,12 +594,16 @@ fn consumed_literal_join_keeps_the_invariant_and_refuses_rewrites() {
              self.value = self.compute(1, 2);\n\
          }\n",
     );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
-        .expect("transition source lowers");
-    assert!(
-        !lowered.semantic_module.scalar_block_invariants.is_empty(),
-        "a machine-owned question keeps the interval proposal"
-    );
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
+        .expect("transition source lowers")
+}
+
+/// Retained interval facts keep their exact arrivals while selected scalar
+/// rewrites transport existing certificate citations and independently replay.
+#[test]
+fn consumed_join_transports_selected_rewrites_without_refusal() {
+    let lowered = consumed_literal_join_fixture();
+    assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
     for optimization in [
         PsiOptimization::CopyPropagation,
         PsiOptimization::DeadPureScalarElimination,
@@ -616,23 +612,76 @@ fn consumed_literal_join_keeps_the_invariant_and_refuses_rewrites() {
             lowered.clone(),
             PsiOptimizationSelections::new([optimization]).unwrap(),
         )
-        .expect("the refusal is a no-op, not an error");
-        assert_eq!(
-            optimized.lowered().semantic_module,
-            lowered.semantic_module,
-            "{optimization:?} refuses at the reconstructed question boundary"
+        .expect("selected scalar rewrite executes");
+        assert!(
+            optimized.refusals().is_empty(),
+            "{optimization:?} must transport its consumed join question: {:?}",
+            optimized.refusals()
         );
-        // The identity output is a deliberate decision, not "nothing to
-        // rewrite": the stage result names the pass and the boundary.
-        let refusals = optimized
-            .refusals()
-            .iter()
-            .map(|refusal| (refusal.optimization(), refusal.reason()))
-            .collect::<Vec<_>>();
+        assert_ne!(optimized.lowered().semantic_module, lowered.semantic_module);
         assert_eq!(
-            refusals,
-            [(optimization, PsiRewriteRefusalReason::ChangedProofQuestion)],
-            "{optimization:?} reports its withheld rewrite"
+            optimized.lowered().semantic_module.scalar_block_invariants,
+            lowered.semantic_module.scalar_block_invariants,
+            "retained predicate and arrival identities stay exact"
+        );
+        let _ = finalize_terminal_artifact(&optimized, None)
+            .expect("transported evidence must pass independent publication replay");
+    }
+}
+
+#[test]
+fn consumed_join_transport_rejects_forged_context_and_input_certificate() {
+    let lowered = consumed_literal_join_fixture();
+    for optimization in [
+        PsiOptimization::CopyPropagation,
+        PsiOptimization::DeadPureScalarElimination,
+    ] {
+        let optimized = run_psi_optimization(
+            lowered.clone(),
+            PsiOptimizationSelections::new([optimization]).unwrap(),
+        )
+        .unwrap();
+        let transport = |after: &terminal_psi::TerminalModule,
+                         proof: &terminal_psi::ProofBundle| {
+            match optimization {
+                PsiOptimization::CopyPropagation => {
+                    terminal_verifier::transport_copy_propagation_evidence(
+                        &lowered.semantic_module,
+                        after,
+                        proof,
+                    )
+                    .is_ok()
+                }
+                PsiOptimization::DeadPureScalarElimination => {
+                    terminal_verifier::transport_dead_scalar_elimination_evidence(
+                        &lowered.semantic_module,
+                        after,
+                        proof,
+                    )
+                    .is_ok()
+                }
+                _ => unreachable!(),
+            }
+        };
+        let mut forged = optimized.lowered().semantic_module.clone();
+        forged.scalar_block_invariants[0].arrivals.reverse();
+        assert!(
+            !transport(&forged, &lowered.proof_bundle),
+            "arrival identity cannot change"
+        );
+        let mut proof = lowered.proof_bundle.clone();
+        let certificate = proof
+            .evidence
+            .iter_mut()
+            .find_map(|evidence| match &mut evidence.route {
+                terminal_psi::EvidenceRoute::CertificateDerived(certificate) => Some(certificate),
+                _ => None,
+            })
+            .expect("consumed join owns a certificate");
+        certificate.proof.rule = terminal_psi::ProofRule::SemanticAxiom { index: usize::MAX };
+        assert!(
+            !transport(&optimized.lowered().semantic_module, &proof),
+            "transport cannot repair an invalid input citation"
         );
     }
 }
