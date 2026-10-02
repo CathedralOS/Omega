@@ -263,7 +263,7 @@ pub(crate) fn generated_wire_codec_source(
     }
     let schema_names: HashSet<&str> = schemas.iter().map(|(name, _)| name.as_str()).collect();
 
-    let domains = collect_domains(syntax_trees, &product_sources);
+    let domains = collect_domains(syntax_trees, sources, &product_sources);
 
     let mut sites: HashMap<(String, &'static str), Vec<Vec<String>>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
@@ -329,13 +329,69 @@ pub(crate) fn generated_wire_codec_source(
     }
 }
 
-/// `domain` declarations by name, each fact as `(carrier, source span)` so
-/// the `requires` text can be spliced verbatim over a decoded operand.
+/// A domain's parser-bound value occurrences belong to its scalar carrier,
+/// not the generated decoder's destination record (also named `value`).
+struct DomainPredicate {
+    carrier: String,
+    predicate: StorePredicate,
+}
+
+/// Literal source segments between the parser's subject occurrences. Joining
+/// them with a decoded operand substitutes only value uses: cast types, domain
+/// names, member labels, comments and quoted text retain their authored bytes.
+/// The parser already owns binder scope; source synthesis must not rediscover
+/// it by matching identifier spellings or rename through an intermediate `self`.
+#[derive(Clone)]
+struct StorePredicate {
+    segments: Vec<String>,
+}
+
+impl StorePredicate {
+    fn from_source(sources: &SourceMap, span: SourceSpan, subjects: &[SourceSpan]) -> Self {
+        let text = sources.text_at(span);
+        let mut segments = Vec::new();
+        let mut copied_until = 0;
+        for subject in subjects.iter().filter(|subject| {
+            subject.source_id == span.source_id
+                && subject.span.start >= span.span.start
+                && subject.span.end <= span.span.end
+        }) {
+            let start = subject.span.start - span.span.start;
+            let end = subject.span.end - span.span.start;
+            segments.push(text[copied_until..start].to_owned());
+            copied_until = end;
+        }
+        segments.push(text[copied_until..].to_owned());
+        Self { segments }
+    }
+
+    fn instantiate(&self, operand: &str) -> String {
+        self.segments.join(operand)
+    }
+}
+
+/// Retain predicates over the subject already bound by domain parsing. Collect
+/// its exact spans once; synthetic parent-membership subjects have no source.
 fn collect_domains(
     syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
     product_sources: &HashSet<usize>,
-) -> HashMap<String, Vec<(String, SourceSpan)>> {
-    let mut domains: HashMap<String, Vec<(String, SourceSpan)>> = HashMap::new();
+) -> HashMap<String, Vec<DomainPredicate>> {
+    let mut subjects = syntax_trees
+        .tables
+        .expressions
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            let span = syntax_trees.tables.expressions.source_span(handle);
+            (matches!(expression, ExpressionNode::SelfValue)
+                && product_sources.contains(&span.source_id.0)
+                && span.span.start < span.span.end)
+                .then_some(span)
+        })
+        .collect::<Vec<_>>();
+    subjects.sort_unstable_by_key(|span| (span.source_id.0, span.span.start, span.span.end));
+    subjects.dedup();
+    let mut domains: HashMap<String, Vec<DomainPredicate>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
         let Item::Domain(domain) = syntax_trees.tables.items.item(*handle) else {
             continue;
@@ -357,16 +413,19 @@ fn collect_domains(
             );
             if let Some(span) = syntax_trees.tables.items.proof_fact_source_span(fact) {
                 domains
-                    .entry(domain.name.as_str().to_string())
+                    .entry(domain.name.as_str().to_owned())
                     .or_default()
-                    .push((carrier.as_str().to_string(), span));
+                    .push(DomainPredicate {
+                        carrier: carrier.as_str().to_owned(),
+                        predicate: StorePredicate::from_source(sources, span, &subjects),
+                    });
             }
         }
     }
     domains
 }
 
-/// A constraint list's store-side fact texts over the carrier `self`: domain
+/// A constraint list's store-side predicates retain their authored subject: domain
 /// `requires` spliced from authored source, range constraints rendered as
 /// bound conjunctions. `Named` and arithmetic-domain constraints carry no
 /// value predicate and admit nothing. A domain the generator cannot see
@@ -375,10 +434,10 @@ fn collect_domains(
 fn constraint_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     constraints: &[syntax_trees::types::TypeConstraintNode],
     base_name: &str,
-) -> Result<Vec<String>, ()> {
+) -> Result<Vec<StorePredicate>, ()> {
     let mut facts = Vec::new();
     for constraint in constraints {
         match constraint {
@@ -395,9 +454,9 @@ fn constraint_facts(
                 let qualified = format!("{base_name}::{}", domain.name.as_str());
                 for key in [domain.name.as_str(), qualified.as_str()] {
                     if let Some(carriers) = domains.get(key) {
-                        for (carrier, span) in carriers {
-                            if carrier == base_name {
-                                facts.push(sources.text_at(*span).to_string());
+                        for predicate in carriers {
+                            if predicate.carrier == base_name {
+                                facts.push(predicate.predicate.clone());
                                 matched = true;
                             }
                         }
@@ -415,7 +474,13 @@ fn constraint_facts(
                 let low = sources.text_at(syntax_trees.tables.expressions.source_span(*minimum));
                 let high = sources.text_at(syntax_trees.tables.expressions.source_span(*maximum));
                 let bound = if *end_inclusive { "<=" } else { "<" };
-                facts.push(format!("({low}) <= self && self {bound} ({high})"));
+                facts.push(StorePredicate {
+                    segments: vec![
+                        format!("({low}) <= "),
+                        " && ".to_owned(),
+                        format!(" {bound} ({high})"),
+                    ],
+                });
             }
             syntax_trees::types::TypeConstraintNode::Named(_)
             | syntax_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
@@ -425,7 +490,7 @@ fn constraint_facts(
 }
 
 /// The store-side fact texts a value field constrains the member with
-/// (`self` retained for later operand substitution). `Err` marks a field
+/// (subject occurrences retained for operand substitution). `Err` marks a field
 /// that does not carry the member's shape — emitting a machine over it
 /// would fail checking itself, so the caller declines the operation.
 /// `array_length` peels a fixed array first for element stores, matching
@@ -433,11 +498,11 @@ fn constraint_facts(
 fn value_field_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     field: Option<TypeReferenceHandle>,
     expected: ScalarKind,
     array_length: Option<usize>,
-) -> Result<Vec<String>, ()> {
+) -> Result<Vec<StorePredicate>, ()> {
     let Some(mut handle) = field else {
         return Err(());
     };
@@ -476,27 +541,6 @@ fn value_field_facts(
         TypeReferenceNode::Named(name) if name.as_str() == expected.name() => Ok(facts),
         _ => Err(()),
     }
-}
-
-/// The authored `self` occurrences in a fact text renamed to `operand`.
-fn substitute_self(text: &str, operand: &str) -> String {
-    let mut substituted = String::with_capacity(text.len() + operand.len());
-    let bytes = text.as_bytes();
-    let identifier = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
-    let mut index = 0;
-    while index < bytes.len() {
-        if text[index..].starts_with("self")
-            && (index + 4 == bytes.len() || !identifier(bytes[index + 4]))
-            && (index == 0 || !identifier(bytes[index - 1]))
-        {
-            substituted.push_str(operand);
-            index += 4;
-        } else {
-            substituted.push_str(&text[index..index + 1]);
-            index += 1;
-        }
-    }
-    substituted
 }
 
 /// The field-name -> declared-type map for a `data` declaration (used to read
@@ -1643,7 +1687,7 @@ impl MachineEmitter<'_> {
         field: &str,
         kind: ScalarKind,
         next: &str,
-        facts: &[String],
+        facts: &[StorePredicate],
         carry: &str,
         carry_arg: &str,
     ) {
@@ -1651,7 +1695,7 @@ impl MachineEmitter<'_> {
         let operand = if kind.decodes_signed() { "wide" } else { "raw" };
         let entry_extras = carried_operand(carry, "raw: u64");
         let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| substitute_self(fact, operand)));
+        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
         let requires = guard.join(" && ");
         let entry = if guard.is_empty() {
             format!(
@@ -1707,13 +1751,13 @@ impl MachineEmitter<'_> {
         index: usize,
         kind: ScalarKind,
         next: &str,
-        facts: &[String],
+        facts: &[StorePredicate],
     ) {
         let store = format!("{name}_write");
         let entry_extras = "end: u64, raw: u64";
         let operand = if kind.decodes_signed() { "wide" } else { "raw" };
         let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| substitute_self(fact, operand)));
+        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
         let requires = guard.join(" && ");
         let entry = if guard.is_empty() {
             format!(
@@ -1768,7 +1812,7 @@ impl MachineEmitter<'_> {
         element: ScalarKind,
         capacity: usize,
         next: &str,
-        facts: &[String],
+        facts: &[StorePredicate],
     ) {
         let open = format!("{name}_open");
         let open_in = format!("{name}_open_in");
@@ -1873,7 +1917,7 @@ impl MachineEmitter<'_> {
         name: &str,
         field: &str,
         sub_members: &[WireMemberShape],
-        sub_facts: &[Vec<String>],
+        sub_facts: &[Vec<StorePredicate>],
         next: &str,
     ) {
         let open = format!("{name}_open");
@@ -1999,18 +2043,18 @@ fn signature_value_type(signature: &[String]) -> &str {
 
 /// Pre-pass over members: the value type's declared field must carry the
 /// member's scalar (or element scalar) shape, and the domain/range facts it
-/// constrains are collected verbatim over `self` for the store guard.
+/// constrains retain their subject for the store guard.
 /// `None` — mismatched or unverifiable — declines the operation before any
 /// machine text is emitted, keeping the call on the intrinsic wall.
 fn member_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     schemas: &[(String, Vec<WireMemberShape>)],
     value_type: &str,
     members: &[WireMemberShape],
-) -> Option<Vec<Vec<String>>> {
+) -> Option<Vec<Vec<StorePredicate>>> {
     let value_fields = data_fields.get(value_type)?;
     let mut all = Vec::with_capacity(members.len());
     for member in members {
@@ -2044,10 +2088,8 @@ fn member_facts(
             let mut referee = *referee;
             // `&([E] in Domain)`: the slice's qualification binds inside the
             // reference — peel it to compare element storage shapes.
-            while let TypeReferenceNode::Constrained { base_type, .. } = syntax_trees
-                .tables
-                .type_references
-                .type_reference(referee)
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                syntax_trees.tables.type_references.type_reference(referee)
             {
                 referee = *base_type;
             }
@@ -2186,13 +2228,13 @@ fn member_facts(
 fn nested_sub_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     value_type: &str,
     member_name: &str,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema: &str,
-) -> Option<Vec<Vec<String>>> {
+) -> Option<Vec<Vec<StorePredicate>>> {
     let field_handle = data_fields.get(value_type)?.get(member_name).copied()?;
     let TypeReferenceNode::Named(value_name) = syntax_trees
         .tables
@@ -2230,7 +2272,7 @@ fn emit_encode_machine(
     text: &mut String,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
@@ -2426,7 +2468,7 @@ fn emit_decode_machine(
     text: &mut String,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
-    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    domains: &HashMap<String, Vec<DomainPredicate>>,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
@@ -2693,4 +2735,81 @@ fn emit_decode_machine(
         emitter.text,
         "    state decode_finish({declarations}) {{\n        read = at;\n        transition bad == 0 {{\n            true -> decode_sound(value, buffer, read, verdict, at, bad)\n            _ -> decode_invalid(value, buffer, read, verdict, at, bad)\n        }}\n    }}\n    state decode_sound({declarations}) {{\n        verdict = {verdict_type}::Sound;\n    }}\n    state decode_invalid({declarations}) {{\n        verdict = {verdict_type}::Invalid;\n    }}\n}}\n"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn predicates(source: &str, domain: &str, operand: &str) -> Vec<String> {
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add(std::path::PathBuf::from("wire.omg"), source.to_owned())
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        collect_domains(&syntax, &sources, &HashSet::from([source_id.0]))[domain]
+            .iter()
+            .map(|fact| fact.predicate.instantiate(operand))
+            .collect()
+    }
+
+    #[test]
+    fn domain_subject_substitution_uses_parsed_value_occurrences() {
+        for (fact, expected) in [
+            (
+                "0 - 10 <= value && value <= 10",
+                "0 - 10 <= wide && wide <= 10",
+            ),
+            (
+                "max_value < value_limit + value",
+                "max_value < value_limit + wide",
+            ),
+            (
+                "other . /* value λ */ value <= value",
+                "other . /* value λ */ value <= wide",
+            ),
+            (
+                "Module::value + value::limit < value",
+                "Module::value + value::limit < wide",
+            ),
+            ("test(value, \"value λ\")", "test(wide, \"value λ\")"),
+            (
+                "test(Record { value: value })",
+                "test(Record { value: wide })",
+            ),
+            ("value in value", "wide in value"),
+            ("(value as value) <= 100", "(wide as value) <= 100"),
+        ] {
+            let source = format!("domain u32::WireValue(value) requires {fact};");
+            assert_eq!(
+                predicates(&source, "u32::WireValue", "wide"),
+                [expected],
+                "{fact}"
+            );
+        }
+    }
+
+    #[test]
+    fn domain_subject_can_share_its_carriers_name() {
+        assert_eq!(
+            predicates(
+                "domain u32::WireValue(u32) requires (u32 as u32) <= 100;",
+                "u32::WireValue",
+                "raw"
+            ),
+            ["(raw as u32) <= 100"]
+        );
+        assert_eq!(
+            predicates(
+                "domain u32::WireValue requires limit <= 10;",
+                "u32::WireValue",
+                "raw"
+            ),
+            ["limit <= 10"]
+        );
+    }
 }
