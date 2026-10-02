@@ -77,8 +77,12 @@ pub(super) fn validate_current_ownership_cfg(
     call_accesses: &super::CallAccesses,
     entry: CurrentOwnership,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let pins =
-        super::address_joins::AddressJoinPins::new(function, structural_types, call_accesses);
+    let pins = super::address_joins::AddressJoinPins::new(
+        function,
+        functions,
+        structural_types,
+        call_accesses,
+    );
     let mut ready = BTreeSet::from([function.entry]);
     let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
     incoming.insert(function.entry, entry);

@@ -1,21 +1,205 @@
 //! Reconstruct scalar ordering inputs from this Terminal machine's executable
-//! operations and selected successor arguments. Proof indices and producer-side
-//! alias tables do not supply facts. Terminators have their own final position
+//! operations, selected successor arguments and exact scalar contracts. Contract
+//! bounds remain conditional on independent call and callee proof obligations;
+//! proof indices and producer-side alias tables do not supply ordering facts. Terminators have their own final position
 //! even when a block contains no operations.
 
-use semantic_vocabulary::{BlockId, IntegerValue, ValueId};
-use terminal_psi::{OperationKind, TerminalMachine, Terminator};
-use terminal_semantics::scalar_ordering::{Binding, Edge, Effect, Position, ScalarOrdering, Step};
+use semantic_vocabulary::{
+    BlockId, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+};
+use std::collections::BTreeMap;
+use terminal_psi::{Operation, OperationKind, TerminalMachine, TerminalModule, Terminator};
+use terminal_semantics::scalar_ordering::{
+    Binding, Edge, Effect, Position, ScalarOrdering, Step, instantiate_contract_ordering,
+};
 
-pub(super) fn reconstruct(machine: &TerminalMachine) -> ScalarOrdering {
+pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) -> ScalarOrdering {
     let steps = reconstruct_steps(machine).unwrap_or_default();
-    ScalarOrdering::new(
+    let requirements = entry_requirements(machine);
+    let returns = normal_returns(module, machine);
+    ScalarOrdering::with_contracts(
         steps,
         (machine.entry, 0),
         machine
             .parameters
             .iter()
             .map(|parameter| (parameter.id, parameter.scalar_type))
+            .collect(),
+        &requirements,
+        returns,
+    )
+}
+
+// Contract shape validation precedes frontier replay, but a callee can occur
+// later in module order. Reconstruct its complete scalar substitution here;
+// never let an unmapped formal accidentally denote a caller's current value.
+// Logical acceptance remains the ordinary call-requires/contract-ensures proof
+// obligation set. These declaration facts grant no independent PCC evidence.
+fn normal_returns(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Vec<(Position, Vec<Proposition>)> {
+    let mut values = BTreeMap::new();
+    for declaration in machine
+        .parameters
+        .iter()
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block.parameters.iter().chain(
+                block
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.scalar_ref()),
+            )
+        }))
+    {
+        if values
+            .insert(declaration.id, declaration.scalar_type)
+            .is_some()
+        {
+            return Vec::new();
+        }
+    }
+    let Ok(context) = PropositionContext::from_value_types(
+        values
+            .iter()
+            .map(|(value, scalar_type)| (*value, *scalar_type)),
+    ) else {
+        return Vec::new();
+    };
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(|(index, operation)| {
+                    let facts = call_guarantees(module, operation, &values, &context)?;
+                    Some(((block.id, u32::try_from(index).ok()?), facts))
+                })
+        })
+        .collect()
+}
+
+fn entry_requirements(machine: &TerminalMachine) -> Vec<Proposition> {
+    let mut values = BTreeMap::new();
+    for parameter in machine
+        .parameters
+        .iter()
+        .chain(&machine.contract.erased_scalar_formals)
+    {
+        if values.insert(parameter.id, parameter.scalar_type).is_some() {
+            return Vec::new();
+        }
+    }
+    let bindings = values
+        .into_iter()
+        .map(|(value, scalar_type)| (value, ScalarTerm::value(value, scalar_type)))
+        .collect::<Vec<_>>();
+    machine
+        .contract
+        .requires
+        .iter()
+        .flat_map(|proposition| instantiate_contract_ordering(proposition, &bindings))
+        .collect()
+}
+
+fn call_guarantees(
+    module: &TerminalModule,
+    operation: &Operation,
+    values: &BTreeMap<ValueId, ScalarType>,
+    caller_context: &PropositionContext,
+) -> Option<Vec<Proposition>> {
+    let (callee, arguments, erased_arguments, requirement_obligations) = match &operation.kind {
+        OperationKind::Call {
+            callee,
+            arguments,
+            erased_arguments,
+            requirement_obligations,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            callee,
+            arguments,
+            erased_arguments,
+            requirement_obligations,
+            ..
+        } => (
+            *callee,
+            arguments,
+            erased_arguments,
+            requirement_obligations,
+        ),
+        _ => return None,
+    };
+    let mut callees = module
+        .machines
+        .iter()
+        .filter(|candidate| candidate.id == callee);
+    let callee = callees.next()?;
+    if callees.next().is_some()
+        || arguments.len() != callee.parameters.len()
+        || erased_arguments.len() != callee.contract.erased_scalar_formals.len()
+        || requirement_obligations.len() != callee.contract.requires.len()
+    {
+        return None;
+    }
+    let result = operation.result.scalar()?;
+    let callee_result = callee.result.scalar()?;
+    if result.scalar_type != callee_result.scalar_type
+        || values.get(&result.id) != Some(&result.scalar_type)
+        || arguments.contains(&result.id)
+        || erased_arguments.iter().any(|actual| {
+            Proposition::Equal(actual.clone(), actual.clone())
+                .any_value_id(|value| value == result.id)
+        })
+    {
+        return None;
+    }
+    let mut substitutions = BTreeMap::new();
+    let mut formal_types = BTreeMap::new();
+    for (formal, actual) in callee.parameters.iter().zip(arguments) {
+        if values.get(actual) != Some(&formal.scalar_type)
+            || formal_types.insert(formal.id, formal.scalar_type).is_some()
+        {
+            return None;
+        }
+        substitutions.insert(formal.id, ScalarTerm::value(*actual, formal.scalar_type));
+    }
+    for (formal, actual) in callee
+        .contract
+        .erased_scalar_formals
+        .iter()
+        .zip(erased_arguments)
+    {
+        if actual.scalar_type() != formal.scalar_type
+            || formal_types.insert(formal.id, formal.scalar_type).is_some()
+            || caller_context
+                .validate(&Proposition::Equal(actual.clone(), actual.clone()))
+                .is_err()
+        {
+            return None;
+        }
+        substitutions.insert(formal.id, actual.clone());
+    }
+    if formal_types
+        .insert(callee_result.id, callee_result.scalar_type)
+        .is_some()
+    {
+        return None;
+    }
+    substitutions.insert(
+        callee_result.id,
+        ScalarTerm::value(result.id, result.scalar_type),
+    );
+    let bindings = substitutions.into_iter().collect::<Vec<_>>();
+    Some(
+        callee
+            .contract
+            .ensures
+            .iter()
+            .flat_map(|clause| instantiate_contract_ordering(&clause.proposition, &bindings))
             .collect(),
     )
 }

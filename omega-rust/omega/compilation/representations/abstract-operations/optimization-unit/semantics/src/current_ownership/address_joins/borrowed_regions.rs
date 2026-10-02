@@ -9,7 +9,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 #[cfg(test)]
 use semantic_vocabulary::{BlockId, ValueId};
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
@@ -28,6 +28,7 @@ pub(in crate::current_ownership) struct BorrowedRegions {
 impl BorrowedRegions {
     pub(in crate::current_ownership) fn new(
         function: &PsiOptimizationFunction,
+        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
@@ -64,7 +65,7 @@ impl BorrowedRegions {
             .values()
             .flatten()
             .any(|(_, projection)| projection.window.is_some())
-            .then(|| RangeRelations::new(function));
+            .then(|| RangeRelations::new(function, functions));
         result.writes = writes;
         result
     }

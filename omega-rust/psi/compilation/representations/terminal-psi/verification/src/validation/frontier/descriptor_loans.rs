@@ -66,7 +66,7 @@ impl DescriptorLoans {
         Self {
             aliases,
             positions,
-            ordering: scalar_ordering::reconstruct(machine),
+            ordering: scalar_ordering::reconstruct(module, machine),
             loans,
             call_accesses: call_accesses::CallAccesses::new(module),
         }

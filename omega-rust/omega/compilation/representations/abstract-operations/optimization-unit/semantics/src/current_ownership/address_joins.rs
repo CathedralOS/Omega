@@ -39,7 +39,7 @@ use abstract_operations::AbstractOperation as O;
 use borrowed_regions::{BorrowedRegions, Projection, Region};
 use descriptor_loans::DescriptorLoans;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
-use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 
@@ -58,10 +58,12 @@ pub(super) struct AddressJoinPins {
 impl AddressJoinPins {
     pub(super) fn new(
         function: &PsiOptimizationFunction,
+        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &super::CallAccesses,
     ) -> Self {
-        let borrowed_regions = BorrowedRegions::new(function, structural_types, call_accesses);
+        let borrowed_regions =
+            BorrowedRegions::new(function, functions, structural_types, call_accesses);
         let descriptor_loans = DescriptorLoans::new(function, &borrowed_regions, structural_types);
         let joins = function
             .blocks
