@@ -137,12 +137,18 @@ pub(crate) fn saturating_return_facts(
             .ok_or(ModuleError::FloatResultPolicyRequiresFloatResult(
                 operation.id,
             ))?;
-    let comparison = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
-        kind,
-        format,
-        left,
-        right,
-    };
+    let comparison =
+        |kind: IeeeFloatComparisonKind, mut left: ScalarTerm, mut right: ScalarTerm| {
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left,
+                right,
+            }
+        };
     let (minimum, maximum, zero) = match format {
         IeeeFloatFormat::Binary32 => (
             IeeeFloatValue::Binary32(0xff7f_ffff),
@@ -368,13 +374,24 @@ mod tests {
                 .collect::<Vec<_>>();
             let guarantees = saturating_return_facts(&operation, policy).unwrap();
             let guarantee = &guarantees[0];
+            let Proposition::Implication {
+                premise,
+                conclusion,
+            } = check_value_equality_denotation(&context, guarantee, &facts).unwrap()
+            else {
+                panic!("range consequence remains an implication");
+            };
+            assert!(matches!(
+                *premise,
+                Proposition::Truth | Proposition::Falsehood
+            ));
+            assert!(matches!(
+                *conclusion,
+                Proposition::Truth | Proposition::Falsehood
+            ));
             assert_eq!(
-                check_value_equality_denotation(&context, guarantee, &facts).unwrap(),
-                if expected {
-                    Proposition::Truth
-                } else {
-                    Proposition::Falsehood
-                },
+                *premise == Proposition::Falsehood || *conclusion == Proposition::Truth,
+                expected,
                 "{rule:?}: {payloads:?}"
             );
         }

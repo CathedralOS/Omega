@@ -442,6 +442,7 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
 fn boundary_normal_guarantees_rejoin_authored_predicates_and_results() {
     let checked = crate::front_end::checked_program(
         r#"
+        pub data Host {}
         boundary machine Host::identity(input: i32) -> i32
         ensures result == input;
         machine run() -> i32 {
