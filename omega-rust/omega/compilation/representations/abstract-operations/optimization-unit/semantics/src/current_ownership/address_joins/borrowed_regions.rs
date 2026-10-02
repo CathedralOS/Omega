@@ -157,10 +157,6 @@ impl BorrowedRegions {
         resolve(&self.aliases, place, projection)
     }
 
-    pub(super) fn descendants(&self, place: PlaceId) -> BTreeSet<PlaceId> {
-        descendants(place, &self.aliases)
-    }
-
     pub(super) fn writes_at(&self, position: Position) -> &[(PlaceId, Vec<Region>)] {
         self.writes.get(&position).map(Vec::as_slice).unwrap_or(&[])
     }
@@ -196,21 +192,6 @@ impl BorrowedRegions {
                             .then_some(*place)
                     })
             })
-    }
-}
-
-fn descendants(root: PlaceId, aliases: &AliasSources) -> BTreeSet<PlaceId> {
-    let mut names = BTreeSet::from([root]);
-    loop {
-        let before = names.len();
-        for (name, sources) in aliases {
-            if sources.iter().any(|(source, _)| names.contains(source)) {
-                names.insert(*name);
-            }
-        }
-        if names.len() == before {
-            return names;
-        }
     }
 }
 

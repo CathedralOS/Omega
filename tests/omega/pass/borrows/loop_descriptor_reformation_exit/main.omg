@@ -1,0 +1,33 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Buffer { input: [u8; 2]; }
+data Main { console: Binding<Console>; }
+
+// Each visit reforms the same static descriptor after the previous visit's
+// last use. Its old loan must not freeze the next visit's input mutation.
+machine cycle(buffer: &mut Buffer) -> i32 {
+    buffer.input[1] = 66;
+    transition { _ -> step(buffer, 65, true) }
+
+    state step(buffer: &mut Buffer, first: u8, repeat: bool) -> i32 {
+        buffer.input[0] = first;
+        let command: &[u8] = buffer.input[0..2];
+        let exact_length: bool = command.len == 2;
+        let first_matches: bool = command == "AB";
+        let second_matches: bool = command == "CB";
+        transition {
+            !exact_length -> 1
+            repeat && first_matches -> step(buffer, 67, false)
+            !repeat && second_matches -> 70
+            _ -> 2
+        }
+    }
+}
+
+// The service boundary is outside the loop under test.
+machine Main::main(&mut self) reaches Console {
+    let mut buffer: Buffer;
+    let result: i32 = cycle(&mut buffer);
+    self.console.exit_process(result);
+}

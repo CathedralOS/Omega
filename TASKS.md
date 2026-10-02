@@ -1442,24 +1442,23 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `f50b218adc`
-  plus the storage-arrival repair, macOS ARM64, the unchanged closed-stdin
-  command exits 200 during initial abstract optimization with
-  `CurrentSharedJoinOriginDisturbed { machine: MachineId(8), block: BlockId(68), node: 1, place: PlaceId(13) }`.
-  The rejected operation is boundary call 92 borrowing `input` mutably;
-  the conflict comes from descriptor loans, not shared state-join pins.
-  The next dependency is definition-aware descriptor lifetime replay in
-  `optimization-unit/semantics/src/current_ownership/address_joins/descriptor_loans.rs`:
-  distinguish a fresh loop iteration's descriptor from an old alias genuinely
-  forwarded across reformation; unknown escapes must remain conservative.
-  Entry/state byte replacement, qualified mutable owner
-  forwarding and sibling observations beside a selected reference now share
-  declaration and storage-region rules through native publication; their three
-  `state_parameter_byte_replacement_exit`, `mutable_bounded_byte_state_exit`
-  and `selected_record_loan_disjoint_fields_exit` witnesses execute exit 70.
-  They do not close either game command. Keep exact incoming access,
-  qualifications, source-length/capacity evidence, every possible origin,
-  ranking and live-root rebind rejection; do not add producer eligibility rules.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `82bd694e30`
+  plus the descriptor-value lifetime repair (`b310abc301`), macOS ARM64,
+  the unchanged closed-stdin command clears abstract optimization and exits
+  200 during target lowering with
+  `StructuralCallArgumentTypeMismatch { callee: MachineId(2), place: PlaceId(22) }`
+  after 528 seconds. The next dependency is structural-call argument
+  lowering in `02_abstract-operations-to-target-operations/src/lowering/unit/`:
+  inspect `roster_arguments.rs` and `projected_argument.rs` to identify whether
+  the failing role is an ordinary call or stored/rebound dynamic selection,
+  then its caller/source operation, argument declaration/path/access, callee
+  formal and failed predicate. The diagnostic alone does not identify its branch.
+  Descriptor reformation now ends the previous value's lifetime without ending
+  surviving aliases; `borrows/loop_descriptor_reformation_exit` executes exit 70,
+  and old-alias and unknown-capture controls retain their backing pins.
+  Neither game command is complete. Keep exact incoming access, qualifications,
+  source-length/capacity evidence, every possible origin, ranking and live-root
+  rebind rejection; repair the shared argument flow, not a producer-family case.
   Field replacement now carries the exact returned reference and live loan
   through window extraction, reseating, independent verification and native
   pointer-based addressing. Checked window parameters use dense structural
