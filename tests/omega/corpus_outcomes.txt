@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.51, "load1_start": 4.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.79, "load1_start": 7.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -994,6 +994,8 @@ fail/slices/invalid_subslice_bounded_order_unchecked rejected 682ms expected @2d
 	cannot prove subslice range ordering `3..2` is within slice length 4
 fail/slices/invalid_subslice_end_bounds_unchecked rejected 667ms expected @2d8ed253669f
 	cannot prove subslice range end bound `..9` is within slice length 4
+fail/slices/match_index_guard_does_not_escape rejected 170ms expected @64c3c65ffb80+wt
+	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/overlapping_mut_subslice_windows_rejected rejected 727ms expected @2d8ed253669f
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/signed_slice_index_upper_only rejected 567ms expected @2d8ed253669f
@@ -2029,6 +2031,7 @@ pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms @ed38350cbc69
 pass/slices/disjoint_mut_subslice_windows_compile checked 307ms @2d8ed253669f
 pass/slices/domained_runtime_end_subslice_exit rejected 445ms @ad4cf8611e36+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: range into a qualified view formal` (state 0, statement 0)
+pass/slices/guarded_match_slice_index_exit checked 1618ms @64c3c65ffb80+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 293ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 319ms @2d8ed253669f
@@ -2036,6 +2039,7 @@ pass/slices/guarded_slice_parameter_successor_index_compile checked 322ms @2d8ed
 pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669f
 pass/slices/local_array_element_view_exit checked 2015ms @2d8ed253669f
 pass/slices/local_record_array_state_view_exit checked 1337ms @b33d826687a3
+pass/slices/projected_array_call_exit checked 1053ms @64c3c65ffb80+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 709ms @ad4cf8611e36+wt

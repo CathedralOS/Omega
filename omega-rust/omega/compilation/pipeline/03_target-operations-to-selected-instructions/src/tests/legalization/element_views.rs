@@ -790,6 +790,81 @@ fn owned_arrival_element_view_retains_backing_and_rejects_substitution() {
 }
 
 #[test]
+fn nested_array_view_replays_its_exact_backing_offset() {
+    use super::owned_block_store::id;
+    use target_operations::{TargetElementView, TargetUnitOperation};
+
+    let mut source = owned_array_arrival_source();
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: id(5),
+            identity: "NestedArray".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: id(2),
+                length: 2,
+            },
+        });
+    let StructuralTypeShape::Record { fields } = &mut source.structural_types.make_mut()[2].shape
+    else {
+        panic!("the existing owned arrival carries a record");
+    };
+    fields[0].field_type = StructuralFieldType::Structural(id(5));
+    let O::EstablishElementView {
+        source: backing, ..
+    } = &mut source.functions[0].operations[2]
+    else {
+        panic!("view establishment");
+    };
+    backing.path = vec![Segment::Field("values".into()), Segment::FixedIndex(1)];
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let mut targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+            target::NativeTarget::macos_arm64(),
+        ),
+    )
+    .unwrap();
+    let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+    crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+        .unwrap();
+
+    let offset = targeted.functions[0]
+        .graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match operation {
+            TargetUnitOperation::EstablishElementView {
+                view:
+                    TargetElementView::Established {
+                        source_byte_offset, ..
+                    },
+                ..
+            } => Some(source_byte_offset),
+            _ => None,
+        })
+        .expect("established descriptor");
+    assert_eq!(
+        *offset, 8,
+        "the second two-i32 array starts after the first"
+    );
+    *offset = 0;
+    assert!(crate::legalize_target_operations(&targeted, &source, &unit).is_err());
+    assert!(
+        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone(),)
+            .is_err(),
+        "same-type neighboring storage cannot substitute for the selected array"
+    );
+}
+
+#[test]
 fn owned_arrival_element_view_rejects_unavailable_backing() {
     use super::owned_block_store::id;
     for mutation in 0..2 {

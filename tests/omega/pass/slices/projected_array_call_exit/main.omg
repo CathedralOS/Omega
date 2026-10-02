@@ -1,0 +1,19 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::report(&mut self, values: &[u8]) reaches Console {
+    self.console.write(values);
+    self.console.write("\n");
+    let code: i32 = match values.len == 2 {
+        true -> 70,
+        false -> 71
+    };
+    self.console.exit_process(code);
+}
+
+machine Main::main(&mut self) reaches Console {
+    let rows: [[u8; 2]; 2] = [[97, 98], [99, 100]];
+    self.report(&rows[1][..]);
+}

@@ -75,7 +75,7 @@ impl Checker<'_> {
                 structural_type,
                 element,
                 root_structural_type,
-                source_byte_offset: _,
+                source_byte_offset,
                 extent,
                 element_stride,
                 source: established_source,
@@ -147,22 +147,12 @@ impl Checker<'_> {
                 };
                 *place == source
                     && access(argument.access)
-                    && {
-                        let field_path = match argument.path.last() {
-                            Some(terminal_psi::StructuralPathSegment::FixedByteRange {
-                                ..
-                            }) => &argument.path[..argument.path.len() - 1],
-                            _ => &argument.path[..],
-                        };
-                        field_path.iter().all(|segment| {
-                            matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
-                        })
-                    }
                     && backing
                     && self.established_element_window(
                         *root_structural_type,
                         &argument.path,
                         *element,
+                        *source_byte_offset,
                         *extent,
                         *element_stride,
                     )
@@ -307,7 +297,7 @@ impl Checker<'_> {
     }
 
     /// Re-derive an established view's declared window: the runtime path tip
-    /// of the authored field chain is a fixed array whose element and length
+    /// of the canonical projection is a fixed array whose element and length
     /// witness the descriptor extent, and the element's own layout stride
     /// (its size rounded up to its alignment, the same geometry a fixed array
     /// of that element occupies) is the transported stride. Record elements
@@ -318,23 +308,35 @@ impl Checker<'_> {
         root_structural_type: semantic_vocabulary::StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
         element: semantic_vocabulary::StructuralTypeId,
+        source_byte_offset: u32,
         extent: u64,
         element_stride: u32,
     ) -> bool {
         // A borrowed byte view carries a `FixedByteRange` window over the
-        // fixed array its field prefix names: the window bounds the array and
+        // fixed array its collection path names: the window bounds the array and
         // its width is the descriptor's extent.
-        let (field_path, byte_window) = match path.last() {
+        let (collection_path, byte_window) = match path.last() {
             Some(terminal_psi::StructuralPathSegment::FixedByteRange { start, end }) => {
                 (&path[..path.len() - 1], Some((*start, *end)))
             }
             _ => (path, None),
         };
-        let Some(tip) = terminal_semantics::runtime_structural_path_tip(
-            self.types.iter(),
-            root_structural_type,
-            field_path,
-        ) else {
+        // Replay both type and byte offset through the shared projection owner;
+        // a field-only spelling check cannot establish either relationship.
+        let Some((collection, offset)) =
+            crate::structural_inputs::structural_reference_input::project(
+                root_structural_type,
+                collection_path,
+                self.types,
+            )
+        else {
+            return false;
+        };
+        let Some(tip) = self
+            .types
+            .iter()
+            .find(|declaration| declaration.id == collection)
+        else {
             return false;
         };
         let StructuralTypeShape::FixedArray {
@@ -357,13 +359,23 @@ impl Checker<'_> {
             None if *length != extent => return false,
             None => {}
         }
-        crate::structural_inputs::structural_reference_input::shape(element, self.types)
-            .and_then(|shape| {
-                crate::structural_inputs::structural_reference_input::align(
-                    shape.byte_size,
-                    shape.alignment,
-                )
-            })
-            .is_some_and(|stride| stride != 0 && stride == element_stride)
+        let Some(stride) =
+            crate::structural_inputs::structural_reference_input::shape(element, self.types)
+                .and_then(|shape| {
+                    crate::structural_inputs::structural_reference_input::align(
+                        shape.byte_size,
+                        shape.alignment,
+                    )
+                })
+        else {
+            return false;
+        };
+        let window_start = byte_window.map_or(0, |(start, _)| start);
+        stride != 0
+            && stride == element_stride
+            && window_start
+                .checked_mul(u64::from(stride))
+                .and_then(|window_offset| u64::from(offset).checked_add(window_offset))
+                == Some(u64::from(source_byte_offset))
     }
 }
