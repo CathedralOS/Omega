@@ -44,7 +44,7 @@ use crate::machine_calls::calls::write_frames::transition_topology::{
     named_transition_target_state,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
-use crate::machine_calls::calls::write_frames::{alias_bindings, stored_origins, wire_codecs};
+use crate::machine_calls::calls::write_frames::{stored_origins, wire_codecs};
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
@@ -335,23 +335,19 @@ fn build_cycle_frame_equation<'program>(
             | StatementNode::AssemblyFact(_)
             | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {
-                if (!representable_alias_rebinding
-                    && stored_origins::assignment_replaces_case_binding(
-                        program,
-                        assignment,
-                        &stored,
-                        &local_alias_origins,
-                    ))
-                    || alias_bindings::assignment_replaces_untracked_reference(
-                        program,
-                        machine,
-                        state,
-                        assignment,
-                        &local_alias_origins,
-                    )
-                {
-                    return None;
-                }
+                let replacement = stored_origins::assignment_origins(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    assignment,
+                    &local_alias_origins,
+                    &stored,
+                    symbols,
+                    &mut inference,
+                    false,
+                    representable_alias_rebinding,
+                )?;
                 let direct_target = coarse_place_path(program, assignment.target);
                 if let Some(relative) = direct_target.as_deref()
                     && rebind_stable_local_mutable_alias_origin(
@@ -394,6 +390,17 @@ fn build_cycle_frame_equation<'program>(
                 )?;
                 for path in expand_write_path(&relative, &local_alias_origins, &stored)? {
                     push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
+                }
+                if let Some(replacement) = replacement {
+                    inference.record_local(&replacement);
+                    if let Some(existing) = stored
+                        .iter_mut()
+                        .find(|local| local.local_symbol == replacement.local_symbol)
+                    {
+                        *existing = replacement;
+                    } else {
+                        stored.push(replacement);
+                    }
                 }
             }
             StatementNode::Call(call) => {
