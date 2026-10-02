@@ -91,18 +91,18 @@ data Main {
     vec: FixedVecI32x4;
 }
 
-machine Main::main(&mut self) reaches Console {
-    FixedVecI32x4::clear(&mut self.vec);
-    FixedVecI32x4::push(&mut self.vec, 7);
-    let first: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
-    let popped: i32 in Wrapping = FixedVecI32x4::pop(&mut self.vec);
-    FixedVecI32x4::clear(&mut self.vec);
-    FixedVecI32x4::push(&mut self.vec, 9);
-    let second: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
+machine Main::main(main: &mut Main) reaches Console {
+    FixedVecI32x4::clear(&mut main.vec);
+    FixedVecI32x4::push(&mut main.vec, 7);
+    let first: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0);
+    let popped: i32 in Wrapping = FixedVecI32x4::pop(&mut main.vec);
+    FixedVecI32x4::clear(&mut main.vec);
+    FixedVecI32x4::push(&mut main.vec, 9);
+    let second: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0);
 
     transition first == 7 {
-        true -> check_popped(&mut self, popped, second)
-        false -> bad_first(&mut self)
+        true -> check_popped(main, popped, second)
+        false -> bad_first(main)
     }
 
     state check_popped(main: &mut Main, popped: i32 in Wrapping, second: i32 in Wrapping) {

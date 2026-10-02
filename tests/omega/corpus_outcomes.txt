@@ -120,8 +120,8 @@ fail/borrow/persistent_borrow_storage_requires_outlives rejected 746ms expected 
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Main::store`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/undeclared_lifetime_tag rejected 260ms expected @2d8ed253669f
 	data `Bad` field `body` uses undeclared lifetime `'ghost'; declare it in the owner's generic parameter list
-fail/borrow/vec_view_invalidated_by_push rejected 775ms expected @2d8ed253669f
-	state `push` receives mutable receiver while local borrow `view` is still active
+fail/borrow/vec_view_invalidated_by_push rejected 159ms expected @dab35460b4c5+wt
+	state `push` receives `main.items` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/view_field_store_parameter_view_outlives_call rejected 152ms expected @1c0bb7bc95d0+wt
 	assignment stores a borrow-carrying value in persistent field `label` of machine `Main::keep`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/view_return_ambiguous_ref_inputs rejected 827ms expected @2d8ed253669f
@@ -1437,7 +1437,7 @@ pass/collections/runtime_constant_expression_index_stores_exit checked 830ms @c8
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit checked 980ms @adebde5085aa+wt
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
-pass/collections/runtime_fixed_vec_round_trip_exit checked 1573ms @a5f40f5895bf+wt
+pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms @2d8ed253669f
 pass/collections/runtime_hoisted_index_write_exit checked 1411ms @2d8ed253669f
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 1882ms @bea382792161+wt
