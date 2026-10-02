@@ -48,24 +48,31 @@ impl ExitScalars<'_, '_> {
         }
         let entry = self.program.machine_states(self.machine).first()?;
         let parameters = self.program.state_parameters(entry);
-        // This reader uses the declaration's parameter namespace. Rebound
-        // state parameters and mutable owned inputs need their invocation
-        // origin transport; an exit storage snapshot is not that evidence.
-        if parameters
+        // A reference parameter names live exit storage whether its binding
+        // is `self` or an explicit argument. The parser also marks exclusive
+        // references mutable, so that flag alone cannot identify owned inputs.
+        // Owned mutable inputs still need invocation-value transport, and the
+        // origin check below rejects renamed or rebound reference bindings.
+        if parameters.iter().any(|parameter| {
+            !parameter.is_self
+                && (parameter.is_const
+                    || (parameter.is_mutable
+                        && !crate::values::exclusive_reference(
+                            self.program,
+                            parameter.type_reference,
+                        )))
+        }) || self
+            .facts
+            .flow
+            .control
+            .exit_parameter_origins
+            .span_or_empty(self.exit.parameter_origins)
             .iter()
-            .any(|parameter| !parameter.is_self && (parameter.is_mutable || parameter.is_const))
-            || self
-                .facts
-                .flow
-                .control
-                .exit_parameter_origins
-                .span_or_empty(self.exit.parameter_origins)
-                .iter()
-                .any(|origin| {
-                    origin.contract == self.contract
-                        && (!origin.state_parameter.is_valid()
-                            || origin.entry_parameter != origin.state_parameter)
-                })
+            .any(|origin| {
+                origin.contract == self.contract
+                    && (!origin.state_parameter.is_valid()
+                        || origin.entry_parameter != origin.state_parameter)
+            })
         {
             return None;
         }
