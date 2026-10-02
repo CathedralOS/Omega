@@ -379,7 +379,9 @@ pub(crate) fn rejoin(
                 let captured = if matches!(table.expression(named), ExpressionNode::Indexed(indexed)
                     if matches!(table.expression(indexed.index), ExpressionNode::Range(_)))
                 {
-                    super::view_subslices::captured_range(checked, named)?
+                    super::view_subslices::captured_range(
+                        checked, machine, state, statement, named,
+                    )?
                 } else {
                     crate::emission::call_source_custody::projected_receivers::source(
                         checked,

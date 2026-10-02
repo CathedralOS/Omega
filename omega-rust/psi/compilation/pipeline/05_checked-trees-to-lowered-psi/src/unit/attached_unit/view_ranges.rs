@@ -6,7 +6,7 @@
 //! (`composed_control/state_graph/subslices.rs`) and a view local's `let`
 //! (`operation_frame.rs`) -- independently replays the same facts before it
 //! emits anything: the authored expression is an exclusive builtin range over
-//! the bare name of the checked root, each present endpoint has exactly one
+//! the exact checked storage root and projection, each present endpoint has exactly one
 //! source-bound `u64` fact at the range's `CheckedSubsliceSite`, and an
 //! endpoint the plan retains equals that fact. Only the lookup of the source
 //! place differs by route, so each route resolves `ViewRangeSource` itself.
@@ -311,44 +311,31 @@ pub(crate) fn replay(
 > {
     let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(site.expression)
-    else {
+    let operation = validation::shared_subslice_expression(&checked.typed, site.expression).ok_or(
+        LoweringError::Unsupported("view subslice has no shared range operation"),
+    )?;
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("view subslice has no authored indexed expression");
     };
     let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
         return unsupported("view subslice has no authored range");
     };
-    let root = if collection.is_empty() {
-        indexed.collection
-    } else {
-        let (root, path) =
-            crate::expression_preparation::source_custody::structural::authored_collection_path(
-                checked,
-                machine,
-                authored,
-                indexed.collection,
-            )?;
-        if path != collection {
-            return unsupported("view subslice field range lost its checked field path");
-        }
-        root
-    };
-    let ExpressionNode::Name(path) = checked.expression_table.expression(root) else {
-        return unsupported("view subslice lost its exclusive range or exact source name");
-    };
-    let members = checked.expression_table.name_path_members(path.members);
-    // A field range's root is the owning parameter; an attached `self`
-    // spells the machine's receiver rather than the parameter's own symbol.
-    let names_source = members.len() == 1
-        && ((path.symbol == source_symbol && path.head_symbol == source_symbol)
-            || (!collection.is_empty()
-                && members[0].is_self_receiver()
-                && checked
-                    .state_parameters(authored)
-                    .iter()
-                    .any(|parameter| parameter.is_self && parameter.symbol == source_symbol)));
-    if range.end_inclusive || !source_symbol.is_valid() || !names_source {
-        return unsupported("view subslice lost its exclusive range or exact source name");
+    // Reconstruct the same storage relationship ordinary operands use. Empty
+    // projections name whole storage, not necessarily an existing descriptor;
+    // establishing a view is the emitter's separate responsibility.
+    let source = crate::emission::call_source_custody::projected_receivers::source(
+        checked,
+        machine.symbol,
+        site.state,
+        site.statement as usize,
+        indexed.collection,
+    )?;
+    if range.end_inclusive
+        || !source_symbol.is_valid()
+        || source.root != source_symbol
+        || source.path != collection
+    {
+        return unsupported("view subslice changed its exact collection root or projection");
     }
     if let Some((start, end)) = site.retained
         && (range.start.is_valid() != start.is_some() || range.end.is_valid() != end.is_some())
@@ -356,7 +343,7 @@ pub(crate) fn replay(
         return unsupported("view subslice endpoint presence changed");
     }
     if checked.facts.operators.uses.iter().any(|(_, selected)| {
-        selected.expression == site.expression
+        selected.expression == operation
             && (selected.spelling != language_core::OperatorSpelling::Range
                 || selected.selected_operator_symbol.is_valid()
                 || selected.candidate_count != 0
@@ -369,7 +356,7 @@ pub(crate) fn replay(
         &checked.typed,
         machine,
         Some(authored),
-        site.expression,
+        operation,
     ) {
         return unsupported("view subslice no longer selects the builtin range");
     }
