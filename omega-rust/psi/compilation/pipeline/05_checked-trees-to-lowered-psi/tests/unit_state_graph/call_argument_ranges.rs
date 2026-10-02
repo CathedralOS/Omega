@@ -370,3 +370,73 @@ fn projected_array_ranges_compose_with_ordinary_calls() {
     let lowered = lower(source).expect("a collection projection does not transfer an owned claim");
     assert_eq!(counts(&lowered), [2]);
 }
+
+#[test]
+fn mutable_field_range_state_transfer_replays_exact_backing_and_access() {
+    let original = crate::front_end::checked_program(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg"
+    )));
+    let lower = |checked: &checked_trees::CheckedTrees| {
+        checked_trees_to_lowered_psi::lower_machine(checked, TerminalMachineSelection::Name("main"))
+    };
+    verify(&lower(&original).expect("the unchanged mutable call/state range publishes"));
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "through_state")
+        .expect("the authored range-forwarding helper")
+        .symbol;
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("the helper state graph");
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+            &mut plan.states[0].terminator
+        else {
+            panic!("the authored direct state edge");
+        };
+        let target = successor.target_state;
+        if mutation < 2 {
+            let checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                root,
+                path,
+                ..
+            } = &mut successor.transfers[0].source
+            else {
+                panic!("the retained field range");
+            };
+            if mutation == 0 {
+                *root = checked_trees::CheckedStorageRoot::Parameter { index: 1 };
+            } else {
+                assert!(
+                    !path.is_empty(),
+                    "the original range selects the items field"
+                );
+                path.clear();
+            }
+        } else {
+            let destination = plan
+                .states
+                .iter_mut()
+                .find(|state| state.state == target)
+                .expect("the authored mutable-view destination");
+            assert_eq!(
+                destination.structural_parameters[0].access,
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+            );
+            destination.structural_parameters[0].access =
+                checked_trees::CheckedStructuralAccess::SharedBorrow;
+        }
+        assert!(
+            lower(&changed).is_err(),
+            "range custody mutation {mutation} must reject"
+        );
+    }
+}
