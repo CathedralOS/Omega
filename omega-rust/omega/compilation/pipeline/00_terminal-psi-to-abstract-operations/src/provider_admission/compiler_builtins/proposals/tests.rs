@@ -601,3 +601,193 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             .ends_with("has no native boundary realization")
     }));
 }
+
+#[test]
+fn directed_binary_identity_cannot_borrow_a_boundary_mode_or_format() {
+    use semantic_vocabulary::IeeeFloatFormat as Format;
+    use symbols::BuiltinFunction;
+    use target_operations::{
+        CompilerBuiltinExecution, IeeeFloatArithmeticOperation as Arithmetic,
+        IeeeFloatBinaryOperation as Binary, IeeeFloatRoundingDirection as Direction,
+    };
+    for (function, operation, rounding, format) in [
+        (
+            BuiltinFunction::FloatAddTowardZeroF32,
+            Binary::Add,
+            Direction::TowardZero,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardZeroF64,
+            Binary::Add,
+            Direction::TowardZero,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardPositiveF32,
+            Binary::Add,
+            Direction::TowardPositive,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardPositiveF64,
+            Binary::Add,
+            Direction::TowardPositive,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardNegativeF32,
+            Binary::Add,
+            Direction::TowardNegative,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardNegativeF64,
+            Binary::Add,
+            Direction::TowardNegative,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardZeroF32,
+            Binary::Subtract,
+            Direction::TowardZero,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardZeroF64,
+            Binary::Subtract,
+            Direction::TowardZero,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardPositiveF32,
+            Binary::Subtract,
+            Direction::TowardPositive,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardPositiveF64,
+            Binary::Subtract,
+            Direction::TowardPositive,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardNegativeF32,
+            Binary::Subtract,
+            Direction::TowardNegative,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatSubtractTowardNegativeF64,
+            Binary::Subtract,
+            Direction::TowardNegative,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardZeroF32,
+            Binary::Multiply,
+            Direction::TowardZero,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardZeroF64,
+            Binary::Multiply,
+            Direction::TowardZero,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardPositiveF32,
+            Binary::Multiply,
+            Direction::TowardPositive,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardPositiveF64,
+            Binary::Multiply,
+            Direction::TowardPositive,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardNegativeF32,
+            Binary::Multiply,
+            Direction::TowardNegative,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatMultiplyTowardNegativeF64,
+            Binary::Multiply,
+            Direction::TowardNegative,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardZeroF32,
+            Binary::Divide,
+            Direction::TowardZero,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardZeroF64,
+            Binary::Divide,
+            Direction::TowardZero,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardPositiveF32,
+            Binary::Divide,
+            Direction::TowardPositive,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardPositiveF64,
+            Binary::Divide,
+            Direction::TowardPositive,
+            Format::Binary64,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardNegativeF32,
+            Binary::Divide,
+            Direction::TowardNegative,
+            Format::Binary32,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardNegativeF64,
+            Binary::Divide,
+            Direction::TowardNegative,
+            Format::Binary64,
+        ),
+    ] {
+        let identity = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+        let execution = CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+            operation: Arithmetic::DirectedBinary {
+                operation,
+                rounding,
+            },
+            format,
+        };
+        for proposed in [None, Some(Format::Binary32), Some(Format::Binary64)] {
+            assert_eq!(
+                super::compiler_builtin_execution(identity, proposed),
+                Some(execution)
+            );
+        }
+        assert_eq!(
+            super::super::compiler_intrinsic_execution_identity(execution),
+            identity
+        );
+        let other = match format {
+            Format::Binary32 => Format::Binary64,
+            Format::Binary64 => Format::Binary32,
+        };
+        assert!(
+            !(Arithmetic::DirectedBinary {
+                operation,
+                rounding
+            })
+            .signature_matches(
+                format,
+                &[semantic_vocabulary::ScalarType::IeeeFloat(other); 2],
+                semantic_vocabulary::ScalarType::IeeeFloat(other)
+            )
+        );
+    }
+}

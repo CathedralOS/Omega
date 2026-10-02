@@ -235,12 +235,24 @@ pub(in crate::exit_contract) fn validate_non_return(
                 ))?
         }
     };
-    if effects.stack != MachineEncodedStackEffect::UnchangedV1 {
+    let temporary_stack = matches!(
+        (kind, effects.memory, effects.stack),
+        (SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { stack_pointer: memory_pointer, byte_count: 16 },
+            MachineEncodedStackEffect::TemporaryBytesV1 { stack_pointer, byte_count: 16 })
+            if memory_pointer == stack_pointer && form.operation.rounding_direction().is_some()
+    );
+    if effects.stack != MachineEncodedStackEffect::UnchangedV1 && !temporary_stack {
         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
             instruction,
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::NearestIeeeFloatArithmetic { .. },
+            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { .. },
+            None,
+        ) => temporary_stack && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         (
             SelectedInstructionKind::FloatResultPolicy { form },
             MachineEncodedMemoryEffect::NoneV1,

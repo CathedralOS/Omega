@@ -187,6 +187,9 @@ pub fn target_register_environment_identity(
         selected_keys.ieee_float_ternary,
         selected_keys.float_result_trapping,
         selected_keys.float_result_saturating,
+        // Bind the exact directed row; an ordinary nearest row cannot replace
+        // its storage/control contract under the same environment identity.
+        selected_keys.ieee_float_directed_binary,
     ] {
         optional_constraint_key(&mut bytes, key);
     }

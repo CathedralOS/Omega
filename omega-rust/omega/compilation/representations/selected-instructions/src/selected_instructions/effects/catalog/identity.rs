@@ -96,6 +96,7 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
+            crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
             crate::MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -256,6 +257,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.identity_bytes(&[12]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
             bytes.identity_bytes(&[8]);
             bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
@@ -339,6 +348,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
         }
     }
     match effects.stack {
+        MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.identity_bytes(&[3]);
+            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
+            bytes.identity_bytes(&byte_count.to_le_bytes());
+        }
         MachineEncodedStackEffect::UnchangedV1 => bytes.identity_bytes(&[0]),
         MachineEncodedStackEffect::PopBytesV1 {
             stack_pointer,

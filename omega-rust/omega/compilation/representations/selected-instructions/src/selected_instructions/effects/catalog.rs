@@ -67,7 +67,7 @@ pub fn validate_machine_effect_catalog(
             .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
                 declaration.semantic,
             ))?;
-        validate_declaration(row, declaration)?;
+        validate_declaration(catalog.target.architecture, row, declaration)?;
     }
     let identity = machine_effect_catalog_identity(&catalog);
     Ok(ValidatedMachineEffectCatalog { catalog, identity })
@@ -591,6 +591,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Private aligned storage used and released within the form.
+    TemporaryStackStorageV1,
     /// The semantic form owns one indivisible sequentially consistent access.
     AtomicPointerV1,
     /// Reads source and writes destination for the explicit runtime count.
@@ -721,6 +723,11 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// All accesses are confined to this newly reserved private region.
+    TemporaryStackStorageV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
     /// Exact atomic width, operation and observed-value contract. Ordinary
     /// pointer read/write effects cannot substitute for this event.
     AtomicPointerV1 {
@@ -774,6 +781,12 @@ pub enum MachineEncodedMemoryEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedStackEffect {
+    /// Reserve then release exactly this many bytes. Net displacement is zero;
+    /// the region still contributes to the function's peak stack demand.
+    TemporaryBytesV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
     UnchangedV1,
     PopBytesV1 {
         stack_pointer: RegisterViewId,

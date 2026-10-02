@@ -820,3 +820,28 @@ pub(super) fn fragment_metadata(
     }
     Err(Error::Mismatch("missing placed fragment"))
 }
+
+/// Private, balanced instruction storage still contributes to WCSU. Derive
+/// its peak from the admitted current fragment alternatives, whose complete instruction
+/// bodies and storage effects have already been independently decoded. This
+/// joins exact current emission, rather than guessing from authored spelling
+/// or adding scratch bytes to the live prefix of every unrelated call.
+pub(super) fn temporary_stack_bytes(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    machine: MachineId,
+) -> Result<u32, Error> {
+    if source.source().text_section().target.architecture != target::Architecture::X86_64 {
+        return Ok(0);
+    }
+    let fragment = fragments(source)
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .ok_or(Error::Mismatch(
+            "missing current fragment for temporary stack replay",
+        ))?;
+    Ok(if fragment.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| {
+        matches!(instruction.alternative.family, selected_instructions::MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)
+            if form.operation.rounding_direction().is_some())
+    }) { 16 } else { 0 })
+}

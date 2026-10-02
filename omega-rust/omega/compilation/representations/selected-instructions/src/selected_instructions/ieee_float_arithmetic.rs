@@ -1,5 +1,9 @@
-//! IEEE forms: one operation on one interchange format, rounding to nearest
-//! (ties to even) or, for conversion to an integer, toward zero.
+//! IEEE forms: one operation, interchange format and operation-owned rounding.
+//! Directed binary arithmetic saves and restores controls locally; ordinary
+//! arithmetic rounds nearest-even and integer conversions round toward zero.
+//! The historical `NearestIeeeFloatArithmetic` transport/family name and tag
+//! remain stable. The complete operation ordinal carries the rounding mode;
+//! a nearest form cannot substitute for a directed occurrence.
 //!
 //! Scalar graphs hold IEEE values as raw payloads in general registers, the
 //! same carrier IEEE comparison and field storage use, and integers in
@@ -15,7 +19,8 @@
 
 pub use semantic_vocabulary::IeeeFloatFormat;
 pub use target_operations::{
-    IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
+    IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -110,7 +115,7 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 90);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 114);
         for payload in 0_u8..88 {
             let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
                 .expect("every pre-extension machine payload remains decodable");

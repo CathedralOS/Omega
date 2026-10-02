@@ -32,6 +32,11 @@ impl SelectedConstraintKeys {
             self.bits_to_float32,
             self.bits_to_float64,
             self.ieee_float_arithmetic,
+            if self.ieee_float_directed_binary == self.ieee_float_arithmetic {
+                None
+            } else {
+                self.ieee_float_directed_binary
+            },
             self.ieee_float_unary,
             // AArch64's conversion forms are flag-free and intentionally
             // alias the ordinary unary row. Only a distinct target-owned row
@@ -108,6 +113,9 @@ impl SelectedConstraintKeys {
                 };
             }
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
+                if form.operation.rounding_direction().is_some() {
+                    return self.ieee_float_directed_binary;
+                }
                 return match form.operand_count() {
                     1 => match form.operation {
                         crate::IeeeFloatArithmeticOperation::FromInteger(

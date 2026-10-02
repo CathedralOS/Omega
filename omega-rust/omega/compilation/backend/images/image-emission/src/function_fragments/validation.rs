@@ -194,6 +194,7 @@ fn validate(
                     frame.is_some_and(|frame| frame.contains_call),
                 ),
                 text.target.architecture,
+                source::temporary_stack_bytes(source, placed.machine)?,
                 &calls,
                 function.unit_stack,
                 function.scalar_stack,

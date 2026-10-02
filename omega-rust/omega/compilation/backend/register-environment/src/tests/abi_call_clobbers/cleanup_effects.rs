@@ -162,6 +162,43 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             "{key:?}"
                         );
                     }
+                    None if key == isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY => {
+                        assert_eq!(case.target.architecture, Architecture::X86_64);
+                        assert_eq!(
+                            encoded.stack,
+                            MachineEncodedStackEffect::TemporaryBytesV1 {
+                                stack_pointer: stack_pointer.id,
+                                byte_count: 16,
+                            },
+                            "{key:?}"
+                        );
+                        assert_eq!(
+                            encoded.memory,
+                            MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                                stack_pointer: stack_pointer.id,
+                                byte_count: 16,
+                            },
+                            "{key:?}"
+                        );
+                        assert_eq!(
+                            encoded.trap,
+                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                            "{key:?}"
+                        );
+                        let row = environment.constraint(key).unwrap();
+                        assert!(
+                            stack_pointer
+                                .units
+                                .iter()
+                                .all(|unit| row.implicit_uses.contains(unit))
+                        );
+                        assert!(
+                            stack_pointer
+                                .units
+                                .iter()
+                                .all(|unit| !row.implicit_defs.contains(unit))
+                        );
+                    }
                     None => {
                         // Every other rule — including all calls and returns
                         // on the link-register ISA — leaves the stack

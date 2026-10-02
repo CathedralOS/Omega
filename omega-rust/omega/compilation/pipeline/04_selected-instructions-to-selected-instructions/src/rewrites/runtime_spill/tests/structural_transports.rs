@@ -743,12 +743,12 @@ fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
 /// A `FrameAddress` pointer that establishes a primitive local is different:
 /// the establishment replay binds the `WritePlace` store's address operand to
 /// the `AddressLocal` result verbatim, so the victim keeps that operand —
-/// admission refuses the pair rather than orphan the recorded establishment.
+/// later uses may reload without orphaning the recorded establishment.
 /// Any `WritePlace` store outside that pair — another operation, or another
 /// place — binds no such operand, and a `ReadPlace` load's address operand is
 /// never bound at all; those uses follow the reload like every other one.
 #[test]
-fn established_pointer_victims_refuse_only_their_recorded_store() {
+fn established_pointer_victims_keep_their_store_and_reload_later_uses() {
     let place = argument_place();
     let operation = OperationId::new(3).unwrap();
     let other_operation = OperationId::new(4).unwrap();
@@ -756,7 +756,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
     for target in targets() {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.selected_keys();
-        for (kind, key, registers, role, access_operation, access_place, admitted) in [
+        for (kind, key, registers, role, access_operation, access_place, retain_address) in [
             // The establishment store itself: the victim is the address
             // operand the replay joins to the `AddressLocal` result.
             (
@@ -769,7 +769,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 SelectedMemoryAccessRole::WritePlace,
                 operation,
                 place,
-                false,
+                true,
             ),
             // A later write to the same place is replayed as an ordinary
             // primitive-local store, whose address operand is content-free.
@@ -783,7 +783,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 SelectedMemoryAccessRole::WritePlace,
                 other_operation,
                 place,
-                true,
+                false,
             ),
             // A write to another place through the same pointer pairs no
             // `AddressLocal` at all.
@@ -797,7 +797,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 SelectedMemoryAccessRole::WritePlace,
                 operation,
                 other_place,
-                true,
+                false,
             ),
             // The dominant shape — a recorded read through the pointer — has
             // no operand binding; only the load's own result is replayed.
@@ -808,7 +808,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 SelectedMemoryAccessRole::ReadPlace,
                 operation,
                 place,
-                true,
+                false,
             ),
             // A frame-slot `Store64` carries the pointer's bits as its value
             // operand under `WriteLocal`, which no replay joins to the
@@ -828,7 +828,7 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 },
                 operation,
                 place,
-                true,
+                false,
             ),
         ] {
             let mut source = fixture(target);
@@ -882,52 +882,69 @@ fn established_pointer_victims_refuse_only_their_recorded_store() {
                 role,
             });
             seal(&mut source);
-            if admitted {
-                let result = spill_selected_runtime_value(
+            let result = spill_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let transformed = &result.transformed().functions[0];
+            let use_instruction = transformed.blocks[0]
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == SelectedInstructionId(2))
+                .unwrap();
+            assert_eq!(
+                use_instruction.operands[0].virtual_register == VirtualRegisterId(1),
+                retain_address,
+                "target {target:?} role {role:?}"
+            );
+            let later_use = transformed.blocks[0]
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == SelectedInstructionId(3))
+                .unwrap();
+            assert_ne!(later_use.operands[0].virtual_register, VirtualRegisterId(1));
+            validate_runtime_spill(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+                result.transformed().clone(),
+            )
+            .unwrap();
+            // Forge the exact use the producer must distinguish: replacing
+            // establishment's original address, or retaining an unrelated
+            // use, must fail the validator's independent reconstruction.
+            let mut forged = result.transformed().clone();
+            let forged_register = if retain_address {
+                later_use.operands[0].virtual_register
+            } else {
+                VirtualRegisterId(1)
+            };
+            forged.functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|instruction| instruction.id == SelectedInstructionId(2))
+                .unwrap()
+                .operands[0]
+                .virtual_register = forged_register;
+            assert_eq!(
+                validate_runtime_spill(
                     &source,
                     0,
                     VirtualRegisterId(1),
                     &environment,
                     budget(),
+                    forged,
                 )
-                .unwrap();
-                let transformed = &result.transformed().functions[0];
-                let instruction = transformed.blocks[0]
-                    .instructions
-                    .iter()
-                    .find(|instruction| instruction.id == SelectedInstructionId(2))
-                    .unwrap();
-                assert_ne!(
-                    instruction.operands[0].virtual_register,
-                    VirtualRegisterId(1),
-                    "target {target:?} role {role:?}"
-                );
-                assert!(
-                    validate_runtime_spill(
-                        &source,
-                        0,
-                        VirtualRegisterId(1),
-                        &environment,
-                        budget(),
-                        result.transformed().clone()
-                    )
-                    .is_ok(),
-                    "target {target:?} role {role:?}"
-                );
-            } else {
-                assert_eq!(
-                    spill_selected_runtime_value(
-                        &source,
-                        0,
-                        VirtualRegisterId(1),
-                        &environment,
-                        budget()
-                    )
-                    .unwrap_err(),
-                    RuntimeSpillError::UnsupportedUse,
-                    "target {target:?}"
-                );
-            }
+                .unwrap_err(),
+                RuntimeSpillError::ReplayMismatch,
+                "target {target:?} role {role:?}"
+            );
         }
     }
 }

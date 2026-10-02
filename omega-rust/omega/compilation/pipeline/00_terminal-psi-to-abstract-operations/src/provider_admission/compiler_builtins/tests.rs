@@ -99,7 +99,7 @@ fn every_form_realizes_only_on_its_supported_targets_for_its_exact_signature() {
             }
         }
     }
-    assert_eq!(forms().count(), 90);
+    assert_eq!(forms().count(), 114);
 }
 
 #[test]

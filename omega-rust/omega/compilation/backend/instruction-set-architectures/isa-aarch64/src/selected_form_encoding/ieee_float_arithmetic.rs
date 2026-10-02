@@ -1,3 +1,9 @@
+//! Explicit directed binary forms retain their format and mode in the same
+//! IEEE catalog as nearest arithmetic. Each form saves the exact incoming
+//! controls, installs its masked, gradual-underflow rounding mode, and restores
+//! the saved controls before publishing its result. Independent instruction
+//! decoding rejects a substituted mode, absent restore or unbalanced storage.
+//!
 //! Nearest-even scalar IEEE operations on general-register payloads.
 //!
 //! Scalar graphs keep IEEE values as raw payloads in general registers, so
@@ -177,6 +183,8 @@ pub(crate) fn footprint(
 /// binary64 register width (`d`/`x`) over binary32 (`s`/`w`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Word {
+    /// MRS/MSR of FPCR; sticky FPSR status is outside the control invariant.
+    FloatingControl { read: bool, general: u8 },
     /// `CBNZ Xn, #8`: skip exactly the following `BRK` on a true mask.
     BranchNonzeroOverCrash { general: u8 },
     /// Omega's native Crash instruction, `BRK #0`.
@@ -282,6 +290,9 @@ fn encode_word(word: Word) -> u32 {
     let reg = |register: u8| u32::from(register);
     let width = |double: bool| u32::from(double);
     match word {
+        Word::FloatingControl { read, general } => {
+            (if read { 0xd53b_4400 } else { 0xd51b_4400 }) | reg(general)
+        }
         Word::BranchNonzeroOverCrash { general } => 0xb500_0040 | reg(general),
         Word::Crash => 0xd420_0000,
         Word::ToFloat {
@@ -426,6 +437,12 @@ fn encode_word(word: Word) -> u32 {
 /// Decode one word by its fixed opcode bits alone, independently of
 /// `encode_word`; any word outside these classes is rejected.
 fn decode_word(word: u32) -> Option<Word> {
+    if word & !31 == 0xd53b_4400 || word & !31 == 0xd51b_4400 {
+        return Some(Word::FloatingControl {
+            read: word & !31 == 0xd53b_4400,
+            general: (word & 31) as u8,
+        });
+    }
     let field = |shift: u32| ((word >> shift) & 31) as u8;
     let bit = |shift: u32| (word >> shift) & 1 == 1;
     let float_type = |shift: u32| match (word >> shift) & 3 {
@@ -560,6 +577,63 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
     };
     let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
     match form.operation {
+        IeeeFloatArithmeticOperation::DirectedBinary {
+            operation,
+            rounding,
+        } => {
+            // Capture both operands before borrowing the output as a GPR
+            // temporary. q18 holds the exact saved FPCR until restoration;
+            // no additional allocatable register or stack home is consumed.
+            let mode = match rounding.ordinal() {
+                0 => 3,
+                1 => 1,
+                2 => 2,
+                _ => unreachable!(),
+            };
+            let opcode = match operation.ordinal() {
+                0 => 2,
+                1 => 3,
+                2 => 0,
+                3 => 1,
+                _ => unreachable!(),
+            };
+            vec![
+                move_in(registers[0], first, double),
+                move_in(registers[1], second, double),
+                Word::FloatingControl {
+                    read: true,
+                    general: result,
+                },
+                move_in(result, mask, true),
+                Word::MoveWide {
+                    keep: false,
+                    shift: 1,
+                    immediate: mode << 6,
+                    general: result,
+                },
+                Word::FloatingControl {
+                    read: false,
+                    general: result,
+                },
+                Word::TwoSource {
+                    double,
+                    opcode,
+                    left: first,
+                    right: second,
+                    result: first,
+                },
+                Word::ToGeneral {
+                    double: true,
+                    vector: mask,
+                    general: result,
+                },
+                Word::FloatingControl {
+                    read: false,
+                    general: result,
+                },
+                move_out(first),
+            ]
+        }
         IeeeFloatArithmeticOperation::IsInfinite => vec![
             move_in(registers[0], first, double),
             Word::OneSource {
@@ -945,6 +1019,47 @@ mod tests {
             .iter()
             .map(|word| u32::from_le_bytes(*word))
             .collect()
+    }
+
+    #[test]
+    fn directed_division_uses_output_after_capturing_inputs_and_restores_fpcr() {
+        for (operation, expected_mode) in [(54, 3), (55, 1), (56, 2)] {
+            for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                let form = form(IeeeFloatArithmeticOperation::ALL[operation], format);
+                for registers in [[1, 2, 1], [1, 2, 2], [0, 0, 0], [28, 29, 30]] {
+                    let program = super::program(form, &registers);
+                    assert_eq!(
+                        program[2],
+                        super::Word::FloatingControl {
+                            read: true,
+                            general: registers[2]
+                        }
+                    );
+                    assert_eq!(
+                        program[4],
+                        super::Word::MoveWide {
+                            keep: false,
+                            shift: 1,
+                            immediate: expected_mode << 6,
+                            general: registers[2]
+                        }
+                    );
+                    assert_eq!(
+                        program[8],
+                        super::Word::FloatingControl {
+                            read: false,
+                            general: registers[2]
+                        }
+                    );
+                    let bytes = super::encode(form, &registers).unwrap();
+                    super::validate(form, &registers, &bytes).unwrap();
+                    assert_eq!(
+                        super::effects(form).stack,
+                        selected_instructions::MachineEncodedStackEffect::UnchangedV1
+                    );
+                }
+            }
+        }
     }
 
     #[test]

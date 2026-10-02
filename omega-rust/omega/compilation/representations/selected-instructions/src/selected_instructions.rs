@@ -22,8 +22,8 @@ mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
 pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule};
 pub use ieee_float_arithmetic::{
-    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-    IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
+    IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
 };
 pub mod constraints;
 pub mod control_flow;
