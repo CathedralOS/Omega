@@ -16,30 +16,30 @@ data Cell {
     value: u64;
 }
 
-machine Cell::copy_from(&mut self, source: &Cell) {
-    self.value = source.value;
+machine Cell::copy_from(cell: &mut Cell, source: &Cell) {
+    cell.value = source.value;
 }
 
 data Holder {
     cells: [Cell; 4];
 }
 
-machine Holder::copy_all(&mut self, source: &Holder) {
-    transition { _ -> copy(source, 0) }
+machine Holder::copy_all(holder: &mut Holder, source: &Holder) {
+    transition { _ -> copy(holder, source, 0) }
 
-    state copy(&mut self, source: &Holder, position: u64) {
+    state copy(holder: &mut Holder, source: &Holder, position: u64) {
         transition position < 4 {
-            true -> step(source, position)
-            false -> done()
+            true -> step(holder, source, position)
+            false -> done(holder)
         }
     }
 
-    state step(&mut self, source: &Holder, position: u64) {
-        self.cells[position].copy_from(&source.cells[position]);
-        transition { _ -> copy(source, position + 1) }
+    state step(holder: &mut Holder, source: &Holder, position: u64) {
+        Cell::copy_from(&mut holder.cells[position], &source.cells[position]);
+        transition { _ -> copy(holder, source, position + 1) }
     }
 
-    state done(&mut self) { }
+    state done(holder: &mut Holder) { }
 }
 
 data Main {
@@ -48,17 +48,17 @@ data Main {
     target: Holder;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source.cells[0].value = 10;
-    self.source.cells[1].value = 20;
-    self.source.cells[2].value = 30;
-    self.source.cells[3].value = 40;
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.cells[0].value = 10;
+    main.source.cells[1].value = 20;
+    main.source.cells[2].value = 30;
+    main.source.cells[3].value = 40;
 
-    self.target.copy_all(&self.source);
+    Holder::copy_all(&mut main.target, &main.source);
 
-    transition self.target.cells[2].value == 30 {
-        true -> done(&mut self)
-        _ -> missed(&mut self)
+    transition main.target.cells[2].value == 30 {
+        true -> done(main)
+        _ -> missed(main)
     }
 
     state done(main: &mut Main) {

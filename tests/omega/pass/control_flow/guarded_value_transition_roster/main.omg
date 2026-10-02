@@ -25,17 +25,17 @@ data Counter {
     n: i32;
 }
 
-machine Counter::pick(&mut self) -> Msg {
-    transition self.n > 0 {
-        true -> choose()
-        _ -> choose()
+machine Counter::pick(counter: &mut Counter) -> Msg {
+    transition counter.n > 0 {
+        true -> choose(counter)
+        _ -> choose(counter)
     }
 
-    state choose(&mut self) -> Msg {
-        transition self.n {
-            0 -> (Msg::Small { v: self.n })
-            1 -> (Msg::Mid { v: self.n + 10 })
-            _ -> (Msg::Big { v: self.n })
+    state choose(counter: &mut Counter) -> Msg {
+        transition counter.n {
+            0 -> (Msg::Small { v: counter.n })
+            1 -> (Msg::Mid { v: counter.n + 10 })
+            _ -> (Msg::Big { v: counter.n })
         }
     }
 }
@@ -44,13 +44,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut counter: Counter = Counter { n: 1 };
 
-    transition counter.pick() {
-        Msg::Small { v } -> small(&mut self, v)
-        Msg::Mid { v } -> mid(&mut self, v)
-        Msg::Big { v } -> big(&mut self, v)
+    transition Counter::pick(&mut counter) {
+        Msg::Small { v } -> small(main, v)
+        Msg::Mid { v } -> mid(main, v)
+        Msg::Big { v } -> big(main, v)
     }
 
     state small(main: &mut Main, v: i32) {

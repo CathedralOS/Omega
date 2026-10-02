@@ -43,7 +43,7 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let buffer: [u8; 8] = [5, 0, 0, 0, 0, 0, 0, 0];
 
     let decoded: CounterSample = CounterSample {
@@ -52,18 +52,18 @@ machine Main::main(&mut self) reaches Console {
         flag: false
     };
 
-    CounterMessage::decode(&mut decoded, &buffer, &mut self.read, &mut self.verdict);
+    CounterMessage::decode(&mut decoded, &buffer, &mut main.read, &mut main.verdict);
 
-    transition self.verdict {
-        WireVerdict::Sound -> bad()
-        WireVerdict::Invalid -> good()
+    transition main.verdict {
+        WireVerdict::Sound -> bad(main)
+        WireVerdict::Invalid -> good(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -18,32 +18,32 @@ machine Cell::blanked(seed: u64) -> Cell {
     transition { _ -> (Cell { value: seed }) }
 }
 
-machine Cell::copy_from(&mut self, source: &Cell) {
-    self.value = source.value;
+machine Cell::copy_from(cell: &mut Cell, source: &Cell) {
+    cell.value = source.value;
 }
 
 data Holder {
     cells: [Cell; 4];
 }
 
-machine Holder::refresh(&mut self) {
-    transition { _ -> scan(0) }
+machine Holder::refresh(holder: &mut Holder) {
+    transition { _ -> scan(holder, 0) }
 
-    state scan(&mut self, position: u64) {
+    state scan(holder: &mut Holder, position: u64) {
         transition position < 4 {
-            true -> step(position)
-            false -> done()
+            true -> step(holder, position)
+            false -> done(holder)
         }
     }
 
-    state step(&mut self, position: u64) {
+    state step(holder: &mut Holder, position: u64) {
         let mut scratch: Cell = Cell::blanked(position);
-        scratch.copy_from(&self.cells[position]);
-        self.cells[position].copy_from(&scratch);
-        transition { _ -> scan(position + 1) }
+        Cell::copy_from(&mut scratch, &holder.cells[position]);
+        Cell::copy_from(&mut holder.cells[position], &scratch);
+        transition { _ -> scan(holder, position + 1) }
     }
 
-    state done(&mut self) { }
+    state done(holder: &mut Holder) { }
 }
 
 data Main {
@@ -51,17 +51,17 @@ data Main {
     holder: Holder;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.holder.cells[0].value = 10;
-    self.holder.cells[1].value = 20;
-    self.holder.cells[2].value = 30;
-    self.holder.cells[3].value = 40;
+machine Main::main(main: &mut Main) reaches Console {
+    main.holder.cells[0].value = 10;
+    main.holder.cells[1].value = 20;
+    main.holder.cells[2].value = 30;
+    main.holder.cells[3].value = 40;
 
-    self.holder.refresh();
+    Holder::refresh(&mut main.holder);
 
-    transition self.holder.cells[2].value == 30 {
-        true -> done(&mut self)
-        false -> missed(&mut self)
+    transition main.holder.cells[2].value == 30 {
+        true -> done(main)
+        false -> missed(main)
     }
 
     state done(main: &mut Main) {
