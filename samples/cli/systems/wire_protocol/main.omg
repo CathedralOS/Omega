@@ -58,8 +58,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
     let msg: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
             room_id: 300
@@ -68,7 +68,7 @@ machine Main::main(&mut self) reaches Console {
         depth: 0 - 64
     };
 
-    SensorPacket::encode(&msg, &mut self.buffer, &mut self.written);
+    SensorPacket::encode(&msg, &mut main.buffer, &mut main.written);
 
     let decoded: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -78,12 +78,12 @@ machine Main::main(&mut self) reaches Console {
         depth: 0
     };
 
-    SensorPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+    SensorPacket::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
-    let ok_and_sizes: bool = self.verdict == WireVerdict::Sound && self.written == 13 && self.read == 13;
+    let ok_and_sizes: bool = main.verdict == WireVerdict::Sound && main.written == 13 && main.read == 13;
     transition ok_and_sizes {
-        true -> check_fields(&mut self, decoded)
-        false -> bad_sizes(&mut self)
+        true -> check_fields(main, decoded)
+        false -> bad_sizes(main)
     }
 
     state check_fields(main: &mut Main, decoded: SensorPacketValue) {
@@ -151,36 +151,36 @@ data CompactBinary {
     plans: [FieldPlan; 32];
     tag: i64;
 }
-machine CompactBinary::plan(&mut self, schema: Schema) -> Plan
+machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) -> Plan
 {
-    self.evaluate(schema, 128)
+    CompactBinary::evaluate(compact_binary, schema, 128)
 }
 
-machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 128
 terminates by fuel;
 {
-    transition { _ -> fill(schema, fuel, 0) }
+    transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
-    state fill(schema: Schema, fuel: u64, index: i64 in Wrapping)
+    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {
-            true -> place(schema, fuel - 1, index)
-            _ -> done(schema)
+            true -> place(compact_binary, schema, fuel - 1, index)
+            _ -> done(compact_binary, schema)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    state place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: i64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
-        self.tag = schema.fields[index].number;
-        self.plans[index] = field_plan(schema.fields[index].kind, self.tag);
-        transition fuel > 1 { true -> fill(schema, fuel - 1, index + 1) _ -> done(schema) }
+        compact_binary.tag = schema.fields[index].number;
+        compact_binary.plans[index] = field_plan(schema.fields[index].kind, compact_binary.tag);
+        transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
-            fields: self.plans,
+            fields: compact_binary.plans,
             entry_count: schema.field_count as i64,
             size_fixed: 0,
             size_is_dynamic: true,

@@ -173,4 +173,4 @@ reaches DeviceLoanProvider
 
 data Main {}
 
-machine Main::main(&mut self) {}
+machine Main::main() {}

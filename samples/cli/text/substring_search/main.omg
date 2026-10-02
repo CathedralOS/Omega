@@ -32,68 +32,68 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("substring_search: naive search finds cad inside abracadabra");
-    self.text = "abracadabra";
-    self.pat = "cad";
-    self.i = 0;
-    self.found = 0 - 1;
-    transition { _ -> outer() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("substring_search: naive search finds cad inside abracadabra");
+    main.text = "abracadabra";
+    main.pat = "cad";
+    main.i = 0;
+    main.found = 0 - 1;
+    transition { _ -> outer(main) }
 
-    state outer(&mut self) {
-        transition self.found < 0 {
-            true -> outer_pos()
-            false -> done()
+    state outer(main: &mut Main) {
+        transition main.found < 0 {
+            true -> outer_pos(main)
+            false -> done(main)
         }
     }
-    state outer_pos(&mut self) {
-        transition self.i < self.text.len {
-            true -> start_inner()
-            false -> done()
+    state outer_pos(main: &mut Main) {
+        transition main.i < main.text.len {
+            true -> start_inner(main)
+            false -> done(main)
         }
     }
-    state start_inner(&mut self) {
-        self.j = 0;
-        self.k = self.i;
-        transition { _ -> inner() }
+    state start_inner(main: &mut Main) {
+        main.j = 0;
+        main.k = main.i;
+        transition { _ -> inner(main) }
     }
-    state inner(&mut self) {
-        transition self.j < self.pat.len {
-            true -> check_bound()
-            false -> matched()
+    state inner(main: &mut Main) {
+        transition main.j < main.pat.len {
+            true -> check_bound(main)
+            false -> matched(main)
         }
     }
-    state check_bound(&mut self) {
-        transition self.k < self.text.len {
-            true -> compare()
-            false -> mismatch()
+    state check_bound(main: &mut Main) {
+        transition main.k < main.text.len {
+            true -> compare(main)
+            false -> mismatch(main)
         }
     }
-    state compare(&mut self) {
-        self.tb = self.text[self.k] as u8 in Wrapping;
-        self.pb = self.pat[self.j] as u8 in Wrapping;
-        transition self.tb == self.pb {
-            true -> adv_inner()
-            false -> mismatch()
+    state compare(main: &mut Main) {
+        main.tb = main.text[main.k] as u8 in Wrapping;
+        main.pb = main.pat[main.j] as u8 in Wrapping;
+        transition main.tb == main.pb {
+            true -> adv_inner(main)
+            false -> mismatch(main)
         }
     }
-    state adv_inner(&mut self) {
-        self.k = self.k + 1;
-        self.j = self.j + 1;
-        transition { _ -> inner() }
+    state adv_inner(main: &mut Main) {
+        main.k = main.k + 1;
+        main.j = main.j + 1;
+        transition { _ -> inner(main) }
     }
-    state matched(&mut self) {
-        self.found = narrow_u32_to_i32_trapping(self.i as u32) as i32 in Wrapping;
-        transition { _ -> done() }
+    state matched(main: &mut Main) {
+        main.found = narrow_u32_to_i32_trapping(main.i as u32) as i32 in Wrapping;
+        transition { _ -> done(main) }
     }
-    state mismatch(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> outer() }
+    state mismatch(main: &mut Main) {
+        main.i = main.i + 1;
+        transition { _ -> outer(main) }
     }
-    state done(&mut self) {
-        self.console.write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.found as i32);
+    state done(main: &mut Main) {
+        main.console.write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.found as i32);
     }
 }
