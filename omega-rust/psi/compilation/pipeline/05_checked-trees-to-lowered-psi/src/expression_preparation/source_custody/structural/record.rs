@@ -167,7 +167,7 @@ pub(super) fn validate(
                     statement_index,
                     role,
                     value,
-                    ValueOccurrence::Authored(initializer.value),
+                    initializer.value,
                 )?;
                 let expected = validation::unwrapped_type_reference(
                     &checked.typed,
