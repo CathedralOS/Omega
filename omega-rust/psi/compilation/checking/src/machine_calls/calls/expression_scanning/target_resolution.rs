@@ -175,6 +175,23 @@ pub(super) fn report_unresolved_value_call(
         {
             return;
         }
+        // The primitive byte predicates (`valid_utf8`, `no_nul`,
+        // `ascii_only`, `non_empty`) are the reserved unary boolean probes
+        // over a byte-carrier operand; a domain's `requires` clause names
+        // them and checked flow mints their result as per-byte-class facts
+        // at the operand's place.
+        if language_semantics::byte_predicates::ByteSequencePredicate::from_name(target).is_some() {
+            if call.arguments.len() == 1 {
+                return;
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}`: byte-predicate call `{target}(..)` takes exactly \
+                 one byte-carrier operand.",
+                current_machine.name,
+                current_state.name.as_str(),
+            )));
+            return;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}`: value call `{target}(..)` does not resolve to a \
              callable machine entry or requirement. Internal states are transition \

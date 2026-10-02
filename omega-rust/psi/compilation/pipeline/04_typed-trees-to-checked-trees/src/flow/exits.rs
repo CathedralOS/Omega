@@ -17,7 +17,8 @@ use symbols::SymbolHandle;
 
 mod guards;
 pub(super) use guards::{
-    append_comparison_bounds_context, append_match_pattern_context, append_predicate_context,
+    append_byte_predicate_context, append_comparison_bounds_context, append_match_pattern_context,
+    append_predicate_context,
 };
 
 pub(super) fn append_state_exit_facts(

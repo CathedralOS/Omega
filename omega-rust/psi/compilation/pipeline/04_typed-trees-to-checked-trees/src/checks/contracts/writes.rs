@@ -1190,6 +1190,42 @@ fn predicate_expression_holds_on_value(
                 type_symbol,
             ) == Some(facts::ScalarValue::Boolean(true))
         }
+        // `pred(self)` — a byte-predicate fact over the domain subject: hold
+        // when the subject's own place carries a minted per-byte class
+        // implying the probe (a validating guard or `requires` boundary
+        // upstream). `self` binds to `value`, so the subject's path below
+        // `self` projects onto `value`'s place.
+        ExpressionNode::Call(_) => {
+            let Some((required, subject)) =
+                typed_trees::byte_predicates::byte_predicate_call(program, expression)
+            else {
+                return false;
+            };
+            let Some(segments) =
+                crate::flow::relative_place_segments_from_expression(program, subject, type_symbol)
+            else {
+                return false;
+            };
+            let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.state_symbol,
+                statement_index,
+                value,
+            ) else {
+                return false;
+            };
+            if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+                return false;
+            }
+            place.extend_segments(&segments);
+            super::prover::byte_predicate_proven_at_place(
+                program,
+                &facts.semantic,
+                contexts,
+                &place,
+                required,
+            )
+        }
         _ => false,
     }
 }

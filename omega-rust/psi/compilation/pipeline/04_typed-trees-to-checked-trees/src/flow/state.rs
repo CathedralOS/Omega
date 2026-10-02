@@ -172,6 +172,25 @@ pub(super) fn build_state_flow_fact<'plans>(
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
+            // A `requires pred(place)` clause is the callee's own assumption:
+            // the caller proves the probe, the state enters carrying the
+            // per-byte class at the operand's place — the same whole-carrier
+            // fact a validating guard mints.
+            super::exits::append_byte_predicate_context(
+                program,
+                semantic,
+                build,
+                state.symbol,
+                0,
+                *expression,
+                ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                origin,
+                &mut state_contexts,
+                &mut state_constraints,
+            );
             // In particular, do not peel a Boolean equality whose selected
             // operator does not mean builtin equality.
             if !validation::has_builtin_bound_expression_meaning(

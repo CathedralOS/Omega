@@ -262,6 +262,45 @@ impl AssignedValues<'_> {
     }
 }
 
+/// Whether a live per-byte class fact at `subject` implies `required`. The one
+/// scan behind both consumers of minted `FactPayload::BytePredicate` evidence:
+/// a domain reduced to exactly one recognized byte predicate proves
+/// membership through it, and a `requires pred(place)` conjunct or a
+/// `pred(self)` initializer obligation discharges against it — identical
+/// place-equality plus `implies` semantics in every consumer.
+pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    required: crate::facts::field_domain::ByteSequencePredicate,
+) -> bool {
+    contexts.iter().any(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+            .any(|fact| {
+                let FactPayload::BytePredicate { predicate } = fact.payload else {
+                    return false;
+                };
+                let FactPlace::Place(place) = fact.place else {
+                    return false;
+                };
+                predicate.implies(required)
+                    && canonical_place_from_semantic_place(
+                        program,
+                        semantic,
+                        semantic.places.get(place),
+                    )
+                    .is_some_and(|candidate| {
+                        normalized_event_place_root(program, candidate.root)
+                            == normalized_event_place_root(program, subject.root)
+                            && candidate.segments == subject.segments
+                    })
+            })
+    })
+}
+
 impl AssignedValues<'_> {
     /// Whether a live per-byte class proved for the whole carrier entails the
     /// requested domain. An indexed write retires the exact value snapshot but
@@ -274,30 +313,13 @@ impl AssignedValues<'_> {
         else {
             return false;
         };
-        self.contexts.iter().any(|context| {
-            self.semantic
-                .context_view(self.semantic.contexts.get(*context))
-                .facts()
-                .any(|fact| {
-                    let FactPayload::BytePredicate { predicate } = fact.payload else {
-                        return false;
-                    };
-                    let FactPlace::Place(place) = fact.place else {
-                        return false;
-                    };
-                    predicate.implies(required)
-                        && canonical_place_from_semantic_place(
-                            self.program,
-                            self.semantic,
-                            self.semantic.places.get(place),
-                        )
-                        .is_some_and(|candidate| {
-                            normalized_event_place_root(self.program, candidate.root)
-                                == normalized_event_place_root(self.program, subject.root)
-                                && candidate.segments == subject.segments
-                        })
-                })
-        })
+        byte_predicate_proven_at_place(
+            self.program,
+            self.semantic,
+            self.contexts,
+            subject,
+            required,
+        )
     }
 
     fn relative_subject(
