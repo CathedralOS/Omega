@@ -44,7 +44,7 @@ fn fixture_with_presentation(
     target_operations::TargetOperationPlan,
     optimization_unit::PsiOptimizationUnit,
 ) {
-    fixture_with_call(native, qualified, borrowed_view, false)
+    fixture_with_call(native, qualified, borrowed_view, false, false)
 }
 
 fn fixture_with_call(
@@ -52,6 +52,7 @@ fn fixture_with_call(
     qualified: bool,
     borrowed_view: bool,
     installed_boundary: bool,
+    owned_consumer: bool,
 ) -> (
     abstract_operations::AbstractOperationPlan,
     target_operations::TargetOperationPlan,
@@ -150,7 +151,7 @@ fn fixture_with_call(
     ]);
     operations.extend(source.functions[0].operations.clone());
     source.functions[0].operations = operations;
-    if qualified {
+    if qualified && !owned_consumer {
         let mut callee = source.functions[0].clone();
         callee.machine = semantic_vocabulary::MachineId::new(2).unwrap();
         callee.entry = semantic_vocabulary::BlockId::new(2).unwrap();
@@ -184,6 +185,47 @@ fn fixture_with_call(
                     place: place(3),
                     path: Vec::new(),
                     access: StructuralAccess::SharedBorrow,
+                }],
+                dynamic_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+                result: abstract_operations::AbstractStructuralCallResult::Unit,
+            },
+        );
+        source.functions.push(callee);
+    }
+    if owned_consumer {
+        assert!(!borrowed_view && !installed_boundary);
+        let mut callee = source.functions[0].clone();
+        callee.machine = semantic_vocabulary::MachineId::new(2).unwrap();
+        callee.entry = semantic_vocabulary::BlockId::new(2).unwrap();
+        callee.block_entries[0].block = callee.entry;
+        callee.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
+            place: place(4),
+            position: 0,
+            is_self: false,
+            structural_type: owned.id,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }];
+        callee.operations = vec![Operation::ReturnUnit {
+            psi_edge: semantic_vocabulary::EdgeId::new(2).unwrap(),
+            cleanup_actions: Vec::new(),
+        }];
+        let caller = &mut source.functions[0];
+        caller.operations.insert(
+            caller.operations.len() - 1,
+            Operation::CallStructural {
+                psi_operation: operation(10),
+                callee: callee.machine,
+                arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: place(3),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
                 }],
                 dynamic_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
@@ -386,7 +428,7 @@ fn owned_byte_write_lends_live_bytes_through_installed_boundary() {
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        let (source, target, unit) = fixture_with_call(native, true, true, true);
+        let (source, target, unit) = fixture_with_call(native, true, true, true, false);
         let legalized = crate::legalize_target_operations(&target, &source, &unit)
             .expect("installed provider retains the authored boundary call and owned home");
         let environment =
@@ -431,6 +473,125 @@ fn owned_byte_write_lends_live_bytes_through_installed_boundary() {
             }
             assert!(crate::legalize_target_operations(&changed, &source, &unit).is_err());
         }
+    }
+}
+
+#[test]
+fn concatenated_owned_bytes_feed_an_owned_call_from_their_exact_prior_home() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (source, target, unit) = fixture_with_call(native, true, false, false, true);
+        let legalized = crate::legalize_target_operations(&target, &source, &unit)
+            .expect("the completed concatenation owns the call operand home");
+        crate::validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+            .expect("independent replay retains the concatenation producer");
+
+        let mut missing_required = unit.clone();
+        let domain = semantic_vocabulary::StructuralDomainId::new(2).unwrap();
+        let carrier = missing_required
+            .structural_types
+            .iter()
+            .find(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+                )
+            })
+            .unwrap()
+            .id;
+        let mut domains = missing_required.structural_domains.to_vec();
+        domains.push(terminal_psi::StructuralDomainDeclaration {
+            id: domain,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
+            identity: "owned-nonempty".into(),
+            carrier,
+            byte_predicate: Some(terminal_psi::ByteSequencePredicate::NonEmpty),
+            content_projection: None,
+            establishment_routes: Vec::new(),
+        });
+        missing_required.structural_domains = domains.into();
+        missing_required.functions[1].structural_parameters[0]
+            .qualifications
+            .push(domain);
+        missing_required.identity =
+            optimization_unit::recompute_psi_optimization_unit_identity(&missing_required);
+        assert!(
+            optimization_unit_semantics::validate_psi_optimization_unit(&missing_required).is_err(),
+            "{native:?}: an owned formal cannot manufacture its required predicate"
+        );
+
+        let call_argument = target.functions[0]
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|row| match row {
+                target_operations::TargetUnitOperation::Call {
+                    psi_operation,
+                    arguments,
+                    ..
+                } if *psi_operation == operation(10) => arguments.first(),
+                _ => None,
+            })
+            .expect("owned call argument");
+        assert_eq!(
+            call_argument.source,
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: operation(5),
+            }
+        );
+
+        let mut forged = target.clone();
+        let argument = forged.functions[0]
+            .graph
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find_map(|row| match row {
+                target_operations::TargetUnitOperation::Call {
+                    psi_operation,
+                    arguments,
+                    ..
+                } if *psi_operation == operation(10) => arguments.first_mut(),
+                _ => None,
+            })
+            .expect("owned call argument");
+        argument.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: operation(4),
+        };
+        assert!(
+            crate::legalize_target_operations(&forged, &source, &unit).is_err(),
+            "{native:?}: a different producer cannot own the operand home"
+        );
+
+        let mut reordered = target.clone();
+        let operations = &mut reordered.functions[0].graph.blocks[0].operations;
+        let concatenation = operations
+            .iter()
+            .position(|row| {
+                matches!(row,
+                    target_operations::TargetUnitOperation::EstablishByteSequenceConcatenation {
+                        psi_operation, ..
+                    } if *psi_operation == operation(5))
+            })
+            .expect("concatenation");
+        let call = operations
+            .iter()
+            .position(|row| {
+                matches!(row,
+                    target_operations::TargetUnitOperation::Call { psi_operation, .. }
+                        if *psi_operation == operation(10))
+            })
+            .expect("owned call");
+        operations.swap(concatenation, call);
+        assert!(
+            crate::legalize_target_operations(&reordered, &source, &unit).is_err(),
+            "{native:?}: the consumer cannot execute before its producer"
+        );
     }
 }
 

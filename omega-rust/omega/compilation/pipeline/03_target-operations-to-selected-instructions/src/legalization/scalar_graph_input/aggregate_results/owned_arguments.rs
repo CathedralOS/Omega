@@ -1,9 +1,13 @@
 //! Owned aggregate actuals rejoin incoming, operation-established or block-owned storage.
 //! The receiver role changes neither owned transport nor the required source
 //! identity, multiplicity, qualification, and dominance checks.
+//!
+//! Construction and replay validate unit custody before entering this module.
+//! That semantic check proves each formal's qualifications from the actual's
+//! live evidence; qualification rosters need not be equal. Geometry replays
+//! storage identity and extent, not the source spelling that supplied evidence.
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target;
-use abstract_operations::AbstractStructuralCallResult;
 
 use super::{
     AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
@@ -69,7 +73,6 @@ pub(super) fn reconstruct(
             || parameter.structural_type != destination.structural_type
             || parameter.access != destination.access
             || parameter.multiplicity != destination.multiplicity
-            || parameter.qualifications != destination.qualifications
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
@@ -109,7 +112,6 @@ pub(super) fn reconstruct(
             || parameter.access != destination.access
             || argument.access != parameter.access
             || parameter.multiplicity != destination.multiplicity
-            || parameter.qualifications != destination.qualifications
             || !parameter.projected_qualifications.is_empty()
             || !target::control_flow::sources::dominates(caller, block, call_site.0)
             || !caller.structural_places.iter().any(|place| {
@@ -125,7 +127,6 @@ pub(super) fn reconstruct(
         }
         let offset = owned_projection(
             parameter.structural_type,
-            &parameter.qualifications,
             destination.structural_type,
             argument,
             plan,
@@ -162,58 +163,27 @@ pub(super) fn reconstruct(
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
-        // Whole-unit custody independently replays captured field predicates
-        // at this exact call before geometry is reconstructed. Its unqualified
-        // owned snapshot is not required to invent the callee's domain roster.
-        let copied_byte_field = argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::Owned
-            && !destination.is_self
-            && destination.multiplicity == StructuralMultiplicity::Unrestricted
-            && result.qualifications.is_empty()
-            && result.qualification_establishments.is_empty()
-            && plan.structural_types.iter().any(|row| {
-                row.id == result.structural_type
-                    && matches!(row.shape, terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    ))
-            })
-            && caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                matches!(&node.operation,
-                    AbstractOperation::StructuralLeafCopy {
-                        psi_operation, result: actual,
-                        path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
-                    } if *psi_operation == producer && actual == result
-                        && matches!(path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
-                )
-            });
         if result.multiplicity != destination.multiplicity
             || !result.claims.is_empty()
-            || (result.qualifications != destination.qualifications && !copied_byte_field)
             || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
         }
         let offset = owned_projection(
             result.structural_type,
-            &result.qualifications,
             destination.structural_type,
             argument,
             plan,
         )?;
+        // Rejoin the same result inventory that resolved the source. A second
+        // producer whitelist can reject an established home solely because its
+        // constructor differs; custody and storage shape were checked above.
         let producer_site = node_site(caller, |operation| {
-            matches!(operation,
-                AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
-                | AbstractOperation::EstablishZeroedStructural { psi_operation, result: actual, .. }
-                | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
-                | AbstractOperation::EstablishCase { psi_operation, result: actual, .. }
-                | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
-                | AbstractOperation::MoveStructuralField { psi_operation, result: actual, .. }
-                | AbstractOperation::CallStructural {
-                    psi_operation,
-                    result: AbstractStructuralCallResult::Structural { result: actual, .. },
-                    ..
-                }
-                if *psi_operation == producer && actual == result)
+            operation
+                .structural_result()
+                .is_some_and(|(actual_producer, actual)| {
+                    actual_producer == producer && actual == result
+                })
         })
         .ok_or(LegalizationError::custody())?;
         if !precedes(caller, producer_site, call_operation, argument)?
@@ -260,10 +230,10 @@ pub(super) fn reconstruct(
 }
 
 /// Reconstruct the selected extent from source declarations, never a retained
-/// byte offset. A root qualification cannot become a moved child's qualification.
+/// byte offset. Unit custody checks qualifications at the exact selected path;
+/// this projection neither inherits root evidence nor manufactures child facts.
 fn owned_projection(
     root: semantic_vocabulary::StructuralTypeId,
-    qualifications: &[semantic_vocabulary::StructuralDomainId],
     destination: semantic_vocabulary::StructuralTypeId,
     argument: &terminal_psi::StructuralArgument,
     plan: &AbstractOperationPlan,
@@ -280,7 +250,7 @@ fn owned_projection(
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
-    if !qualifications.is_empty() || selected != destination || !indices.is_empty() {
+    if selected != destination || !indices.is_empty() {
         return Err(LegalizationError::custody());
     }
     Ok(offset)
