@@ -256,6 +256,8 @@ pub(super) fn local_write_origins_before_statement(
                 statement,
                 &prefix.stored,
                 &prefix.aliases,
+                symbols,
+                &mut FrameInference::for_state(state.symbol),
             ) {
                 return None;
             }
@@ -781,6 +783,8 @@ fn caller_aliases_at_prefix<'program>(
         statement,
         &prefix.stored,
         &prefix.aliases,
+        symbols,
+        &mut FrameInference::for_state(state.symbol),
     ) {
         return None;
     }

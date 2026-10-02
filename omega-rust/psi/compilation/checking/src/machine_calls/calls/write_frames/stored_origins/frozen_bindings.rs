@@ -6,7 +6,7 @@ use super::{
     FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, projections::prefix_matches,
 };
 use crate::machine_calls::calls::write_frames::{
-    FrameSourcePlace, coarse_place_path, split_place_root,
+    FrameInference, FrameSourcePlace, TopLevelSymbols, coarse_place_path, split_place_root,
 };
 use facts::PlaceSegment;
 use typed_trees::TypedTrees;
@@ -20,16 +20,22 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
     statement: &typed_trees::statement::StatementNode,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> bool {
     use crate::machine_calls::calls::write_frames::statement_value_expression_roots;
     use typed_trees::statement::StatementNode;
     if let StatementNode::Call(call) = statement {
-        return call_exposes_frozen_binding(program, machine, state, call, stored, aliases);
+        return call_exposes_frozen_binding(
+            program, machine, state, call, stored, aliases, symbols, inference,
+        );
     }
     statement_value_expression_roots(program, statement)
         .into_iter()
         .any(|expression| {
-            expression_exposes_frozen_binding(program, machine, state, expression, stored, aliases)
+            expression_exposes_frozen_binding(
+                program, machine, state, expression, stored, aliases, symbols, inference,
+            )
         })
 }
 
@@ -40,9 +46,19 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
     call: &typed_trees::statement::TableCall,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> bool {
     (receiver_allows_replacement(program, call.target_symbol)
-        && statement_receiver_exposes_binding(program, state, call, stored, aliases))
+        && statement_receiver_exposes_binding(program, state, call, stored, aliases, None)
+        && statement_receiver_exposes_binding(
+            program,
+            state,
+            call,
+            stored,
+            aliases,
+            receiver_written_paths(program, call.target_symbol, symbols, inference).as_deref(),
+        ))
         || program
             .statement_table
             .expression_handles(call.arguments)
@@ -55,6 +71,8 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
                     *expression,
                     stored,
                     aliases,
+                    symbols,
+                    inference,
                 )
             })
 }
@@ -66,16 +84,85 @@ pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_b
     expression: ExpressionHandle,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> bool {
     use crate::machine_calls::calls::write_frames::caller_aliases::expression_any;
     use typed_trees::expression::ExpressionNode;
     super::expression_borrows_carrier_binding(program, machine, state, expression, stored, aliases)
         || expression_any(program, expression, |expression| {
-            matches!(program.expression_table.expression(expression),
-                    ExpressionNode::Call(call) if receiver_allows_replacement(program, call.target_symbol)
-                        && (target_replaces_case_binding(program, call.receiver, stored, aliases)
-                            || target_replaces_reference_binding(program, call.receiver, stored, aliases, false)))
+            let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+                return false;
+            };
+            if !receiver_allows_replacement(program, call.target_symbol)
+                || !(target_replaces_case_binding(program, call.receiver, stored, aliases)
+                    || target_replaces_reference_binding(
+                        program,
+                        call.receiver,
+                        stored,
+                        aliases,
+                        false,
+                    ))
+            {
+                return false;
+            }
+            let Some(writes) =
+                receiver_written_paths(program, call.target_symbol, symbols, inference)
+            else {
+                return true;
+            };
+            let Some(source) = binding_source(program, call.receiver, aliases) else {
+                return true;
+            };
+            if !source.root.is_valid() {
+                return true;
+            }
+            let receiver_fields = source
+                .segments
+                .iter()
+                .filter_map(|segment| match segment {
+                    PlaceSegment::Field { symbol } => Some(program.symbols.name(*symbol)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            stored
+                .iter()
+                .filter(|local| local.local_symbol == source.root)
+                .any(|local| {
+                    receiver_replaces_binding(program, local, &receiver_fields, Some(&writes))
+                })
         })
+}
+
+/// An exclusive receiver grants a ceiling, not evidence that every slot is
+/// replaced. Use the same complete callee frame as ordinary effect checking.
+/// A write at or above a frozen slot may replace it; disjoint scalar writes
+/// preserve its identity. Opaque, external and recursive effects retain the
+/// full ceiling. These paths conservatively include both slot and referent
+/// writes, so they can prove disjointness but never a replacement's new origin.
+fn receiver_written_paths(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<String>> {
+    let (machine, state) = super::super::machine_state_by_symbol(program, target)?;
+    if !machine.supply_mode.is_checked_body()
+        || !machine.body_is_present
+        || inference.active_states.contains(&state.symbol)
+    {
+        return None;
+    }
+    inference.active_states.push(state.symbol);
+    let written = symbols
+        .caller_sites
+        .with_complete_state_summaries(|summaries| {
+            super::super::state_write_walk::summarize_complete_state_written_paths(
+                program, machine, state, symbols, inference, summaries,
+            )
+        });
+    inference.active_states.pop();
+    written
 }
 
 fn receiver_allows_replacement(program: &TypedTrees, target: symbols::SymbolHandle) -> bool {
@@ -111,6 +198,7 @@ fn statement_receiver_exposes_binding(
     call: &typed_trees::statement::TableCall,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
+    writes: Option<&[String]>,
 ) -> bool {
     let members = program.statement_table.name_path_members(call.receiver);
     let Some(root_name) = members.first() else {
@@ -158,34 +246,65 @@ fn statement_receiver_exposes_binding(
                 // permissive spelling fallback for a case-bearing local.
                 return !local.cases.is_empty() || !local.references.is_empty();
             }
-            let cases = local
-                .cases
+            receiver_replaces_binding(program, local, &receiver_fields, writes)
+        })
+}
+
+fn receiver_replaces_binding(
+    program: &TypedTrees,
+    local: &StoredLocalOrigins,
+    receiver_fields: &[&str],
+    writes: Option<&[String]>,
+) -> bool {
+    let cases = local
+        .cases
+        .iter()
+        .filter_map(|case| match case.split_last() {
+            Some((PlaceSegment::Case { .. }, container)) => Some((container, true)),
+            _ => None,
+        });
+    let references = local
+        .references
+        .iter()
+        .map(|leaf| (leaf.local_segments.as_slice(), false));
+    cases
+        .chain(references)
+        .any(|(container, include_endpoint)| {
+            let fields = container
                 .iter()
-                .filter_map(|case| match case.split_last() {
-                    Some((PlaceSegment::Case { .. }, container)) => Some((container, true)),
+                .filter_map(|segment| match segment {
+                    PlaceSegment::Field { symbol } => Some(program.symbols.name(*symbol)),
                     _ => None,
-                });
-            let references = local
-                .references
-                .iter()
-                .map(|leaf| (leaf.local_segments.as_slice(), false));
-            cases
-                .chain(references)
-                .any(|(container, include_endpoint)| {
-                    let fields = container
-                        .iter()
-                        .filter_map(|segment| match segment {
-                            PlaceSegment::Field { symbol } => Some(program.symbols.name(*symbol)),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    receiver_fields.len() <= fields.len()
-                        && (include_endpoint || receiver_fields.len() < fields.len())
-                        && receiver_fields
-                            .iter()
-                            .copied()
-                            .zip(fields)
-                            .all(|(member, field)| member == field)
+                })
+                .collect::<Vec<_>>();
+            let contains_binding = receiver_fields.len() <= fields.len()
+                && (include_endpoint || receiver_fields.len() < fields.len())
+                && receiver_fields
+                    .iter()
+                    .copied()
+                    .zip(fields.iter().copied())
+                    .all(|(member, field)| member == field);
+            contains_binding
+                && writes.is_none_or(|writes| {
+                    writes.iter().any(|path| {
+                        let (root, suffix) = split_place_root(path);
+                        if !language_core::is_self_receiver(root) {
+                            return false;
+                        }
+                        let mut written_fields = receiver_fields.to_vec();
+                        written_fields.extend(
+                            suffix
+                                .trim_start_matches('.')
+                                .split('.')
+                                .filter(|field| !field.is_empty()),
+                        );
+                        written_fields.len() <= fields.len()
+                            && written_fields
+                                .iter()
+                                .copied()
+                                .zip(fields.iter().copied())
+                                .all(|(written, frozen)| written == frozen)
+                    })
                 })
         })
 }

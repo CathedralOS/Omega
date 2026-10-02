@@ -68,6 +68,8 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
                 call,
                 &prefix.stored,
                 &prefix.aliases,
+                symbols,
+                &mut super::super::FrameInference::for_state(state.symbol),
             ) || program
                 .statement_table
                 .expression_handles(call.arguments)
@@ -82,6 +84,8 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
                 expression,
                 &prefix.stored,
                 &prefix.aliases,
+                symbols,
+                &mut super::super::FrameInference::for_state(state.symbol),
             ) || reference_binding_exposed(expression)
         }
         CallerWriteSite::Statement(_) => return None,
