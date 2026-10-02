@@ -116,6 +116,53 @@ fn calling_vocabulary_identity_survives_a_source_comment() {
 }
 
 #[test]
+fn calling_plan_discovery_ignores_unrelated_policy_requirements() {
+    let text = CALLING.replace(
+        "trait CallingPolicy {",
+        "trait CallingPolicy { machine version() -> u64;",
+    );
+    let text = format!(
+        "{text}\nmachine Policy::version() -> u64 satisfies CallingPolicy::version {{ 1 }}"
+    );
+    let program = typed(&text, "public_abi.omg", SourceOrigin::User);
+    assert!(validation::standard_calling_traits(&program).is_some());
+    validation::validate_program(&program).expect("extra requirement is independently satisfied");
+}
+
+#[test]
+fn calling_plan_types_must_belong_to_the_vocabulary_owner() {
+    let foreign = "pub data BoundarySignature {}\npub data BoundaryPlanResult {}";
+    let text = CALLING
+        .replace("data BoundarySignature {}", "use foreign;")
+        .replace("data BoundaryPlanResult {}", "");
+    let root = PathBuf::from("fixture");
+    let mut sources = SourceMap::default();
+    let foreign_id = sources
+        .add_with_metadata(
+            root.join("foreign.omg"),
+            foreign.to_owned(),
+            root.clone(),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let calling_id = sources
+        .add_with_metadata(
+            root.join("calling.omg"),
+            text.clone(),
+            root,
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let program = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(foreign_id, foreign), (calling_id, &text)],
+    );
+    assert!(validation::standard_calling_traits(&program).is_none());
+}
+
+#[test]
 fn exact_core_vector_still_requires_an_explicit_native_adapter() {
     let errors = validation::validate_program(&typed(VECTOR, "vec.omg", SourceOrigin::Toolchain))
         .expect_err("core descriptor cannot become a default foreign ABI record");

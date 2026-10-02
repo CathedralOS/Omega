@@ -86,6 +86,46 @@ fn typed_fixture_with_source(file_name: &str, source: &str) -> TypedTrees {
         .expect("type provider fixture")
 }
 
+#[test]
+fn source_supplied_calling_interface_cannot_admit_an_invalid_plan() {
+    let mut typed = typed_fixture_with_source(
+        "public_abi.omg",
+        r#"
+        data BoundarySignature {}
+        data BoundaryPlanResult { case Unchecked; }
+        trait CallingPolicy {
+            machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
+        }
+        trait Calling<Policy> where Policy satisfies CallingPolicy {}
+        data CustomPolicy {}
+        CustomCalling: CustomPolicy satisfies CallingPolicy;
+        machine CustomPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+            satisfies CallingPolicy::plan
+        {
+            BoundaryPlanResult::Unchecked
+        }
+        boundary trait Native: Calling<CustomPolicy> {
+            machine enter();
+        }
+        "#,
+    );
+    assert!(validation::standard_calling_traits(&typed).is_some());
+    let errors = crate::calling_policy_plans::compute_boundary_calling_plans(
+        &mut typed,
+        target::NativeTarget::host(),
+        &[],
+        None,
+    )
+    .expect_err("interface recognition cannot supply an accepted ABI plan");
+    assert!(
+        errors.iter().any(|error| error.message.contains(
+            "BoundaryPlanResult case `Unchecked` is outside the compiler-owned vocabulary"
+        )),
+        "{errors:?}"
+    );
+    assert!(typed.boundary_calling_plans.is_empty());
+}
+
 fn operator_symbol_at_path(typed: &TypedTrees, path: &str) -> symbols::SymbolHandle {
     typed
         .operators()
