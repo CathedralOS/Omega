@@ -1008,7 +1008,7 @@ the complete product bar; focused successes below do not establish that baseline
   Current candidate application `74beda02c779`, with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
   reaches six session-package borrow diagnostics on macOS ARM64 using compiler
-  `64c3c65ffb8`. Reproduction: `omega update --project
+  `3a0034ccc27`. Reproduction: `omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
   `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
   ranges conflict with the mutable receiver's reported whole-`self` writes.
@@ -1016,11 +1016,13 @@ the complete product bar; focused successes below do not establish that baseline
   checkpointed but unpublished because the application remote denied writes;
   resolve publication before advancing the application gitlink.
 
-  Inspect receiver write-frame completeness and result-origin rebasing through
-  `assemble`/`build`, `PointerScanResults::new` and
-  `restore_materialization_state`. The traced route retains candidate windows in
-  external result entries, sorts disjoint `target_addresses`, and updates scalar
-  metadata on the new result; no candidate-arena write was found. The owning
+  Recover the body-derived returned-reference relation inside
+  `PointerScanResults::new`: it is already opaque before caller substitution,
+  so `assemble_results_view::build` cannot retain its result's captured origins.
+  Keep the shared statement transfer authoritative for reborrows and disjoint
+  metadata writes; do not relax nested-reference storage guards. The route retains
+  candidate windows in external result entries, sorts disjoint `target_addresses`,
+  and updates scalar metadata on the new result; no candidate-arena write was found. The owning
   paths are checking's receiver footprint/write-frame analysis and flow mutation
   summaries. Distinguish a genuinely opaque frame from lost field or result
   identity before changing application code. Windows remain live after their
