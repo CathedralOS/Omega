@@ -16,9 +16,10 @@ use crate::control_graph::DominatorTree;
 
 use super::byte_extent::{block_length_equation, descriptor_origins, operation_position};
 
-/// The structural type reached by a structural argument's path. Each `Field`
-/// step resolves inside a `Record`, each `Referent` step crosses a `Reference`
-/// carrier — the same projection the establishment validation applies.
+/// Resolve the collection through the same canonical static projections as
+/// establishment validation. A nested array's extent belongs to the selected
+/// child, not its outer backing. Reference crossings remain explicit, while
+/// byte windows need their own extent denotation and do not enter this walk.
 fn path_end_type(
     module: &TerminalModule,
     mut current: semantic_vocabulary::StructuralTypeId,
@@ -31,14 +32,17 @@ fn path_end_type(
             .find(|item| item.id == current)?;
         current = match (segment, &declaration.shape) {
             (
-                terminal_psi::StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
+                terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_),
+                _,
             ) => {
-                let field = fields.iter().find(|field| &field.identity == identity)?;
-                let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
+                terminal_semantics::canonical_static_projection(
+                    module.structural_types.iter(),
+                    current,
+                    std::slice::from_ref(segment),
+                )?
+                .1
+                .id
             }
             (
                 terminal_psi::StructuralPathSegment::Referent,

@@ -223,6 +223,9 @@ pub(crate) fn locate(
             |expression| {
                 // Every site narrows a view with the same exclusive builtin
                 // range; only where that range sits in the statement differs.
+                // The shared borrow owns the operand occurrence, while the
+                // enclosed range owns its endpoint expressions.
+                let expression = validation::shared_subslice_expression(program, expression)?;
                 let ExpressionNode::Indexed(indexed) =
                     program.expression_table.expression(expression)
                 else {

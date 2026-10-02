@@ -1,6 +1,6 @@
 //! Exclusive ranges passed as call arguments: a range over fixed-array field
-//! storage keeps the field projection its lowering views whole, a literal
-//! byte window keeps its call-scoped projection, a qualified byte view
+//! storage keeps the collection projection its lowering views whole, a literal
+//! byte range uses the same descriptor operation, a qualified byte view
 //! narrows into an unqualified formal, and a range into a domain-qualified
 //! formal names its Terminal boundary.
 use crate::tests::flow::terminal_unit::checked;
@@ -130,10 +130,10 @@ fn statement_call_passes_a_field_range() {
     );
 }
 
-/// A literal window of a byte array keeps its call-scoped `FixedByteRange`
-/// projection rather than establishing a view to narrow.
+/// Constant endpoints do not create a second range operation or let missing
+/// source evidence fall back to a fixed byte-window loan.
 #[test]
-fn literal_byte_window_keeps_its_fixed_projection() {
+fn literal_byte_range_requires_the_shared_descriptor_evidence() {
     let checked = checked(
         r#"
         data Root { buffer: [u8; 8]; seen: u64; }
@@ -162,16 +162,88 @@ fn literal_byte_window_keeps_its_fixed_projection() {
         .iter()
         .find_map(CheckedUnitEffectOperationPlan::call)
         .expect("the reading call plans");
+    let argument = call
+        .structural_arguments
+        .iter()
+        .find(|argument| {
+            matches!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            )
+        })
+        .expect("constant bounds use the shared range descriptor");
+    let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        expression,
+        start: Some(_),
+        end: Some(_),
+        ..
+    } = argument.source
+    else {
+        panic!("the range retains both authored endpoint facts");
+    };
+    assert!(matches!(
+        argument.path.as_slice(),
+        [CheckedUnitStructuralPathSegment::Field(_)]
+    ));
+    assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+    assert!(call.claim_transfers().is_empty());
+
+    let retains_plan = |facts: &checked_trees::CheckFacts| {
+        crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        )
+        .for_machine(symbol)
+        .is_some()
+    };
+    for role in [
+        checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+            site: checked_trees::CheckedSubsliceSite::CallArgument {
+                call_ordinal: call.coordinate.call_ordinal,
+                argument_ordinal: 0,
+            },
+        },
+        checked_trees::CheckedScalarExpressionRole::SubsliceEnd {
+            site: checked_trees::CheckedSubsliceSite::CallArgument {
+                call_ordinal: call.coordinate.call_ordinal,
+                argument_ordinal: 0,
+            },
+        },
+    ] {
+        let mut changed = checked.facts.clone();
+        let bindings = &mut changed.values.scalar_expressions.source_bindings;
+        let handle = bindings
+            .iter()
+            .find(|(_, binding)| binding.state == plan.state && binding.role == role)
+            .expect("the range endpoint is source-bound")
+            .0;
+        bindings.get_mut(handle).expression = Default::default();
+        assert!(
+            !retains_plan(&changed),
+            "missing {role:?} cannot become a fixed byte loan"
+        );
+    }
+    let mut changed = checked.facts.clone();
+    let mut uses = arena::Arena::new();
+    uses.append(checked_trees::CheckedOperatorUseFact {
+        expression,
+        spelling: language_core::OperatorSpelling::Range,
+        status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
+        selected_operator_symbol: symbol,
+        ..Default::default()
+    });
+    changed.operators = checked_trees::CheckedOperatorFacts::with_roots(
+        uses,
+        arena::Arena::new(),
+        arena::Arena::new(),
+    );
     assert!(
-        call.structural_arguments.iter().any(|argument| matches!(
-            argument.source,
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-        ) && matches!(
-            argument.path.last(),
-            Some(CheckedUnitStructuralPathSegment::FixedByteRange { start: 1, end: 3 })
-        )),
-        "the window stays a projection of its backing: {:#?}",
-        call.structural_arguments
+        !retains_plan(&changed),
+        "a selected operator cannot become a builtin byte loan"
     );
 }
 

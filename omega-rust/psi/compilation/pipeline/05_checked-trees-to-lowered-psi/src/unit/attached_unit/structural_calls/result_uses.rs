@@ -1983,20 +1983,22 @@ fn validate_operand_producers(
     .parameters
     .get(source_position as usize)
     .is_some_and(|formal| shared_byte_view_referent(checked, formal.type_reference).is_some());
-    // An operand-owned construction (including a copy) produces a fresh value;
-    // the local it reads is storage, not that value's producer. Rejoin the
-    // construction's exact authored occurrence below, rather than also joining
-    // the backing local's initializer. The roster still checks every candidate:
-    // substituting the initializer or another call's snapshot must reject.
-    let operand_has_own_producer = binding_ordinal
-        .map(|ordinal| producer(caller.operations, ordinal))
-        .transpose()?
-        .is_some_and(|producer| {
-            matches!(
-                producer.construction_source,
-                Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
-            )
-        });
+    // A computed descriptor or operand construction (including a copy) owns
+    // its produced value. The local it reads supplies storage, not that
+    // value's result binding. Argument staging replays a range's exact source
+    // and endpoints; constructions rejoin their occurrence below. Keep the
+    // complete roster check so neither can impersonate a local initializer
+    // or another call's snapshot.
+    let operand_has_own_producer = super::super::view_ranges::range(argument).is_some()
+        || binding_ordinal
+            .map(|ordinal| producer(caller.operations, ordinal))
+            .transpose()?
+            .is_some_and(|producer| {
+                matches!(
+                    producer.construction_source,
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+                )
+            });
     for candidate in caller.operations {
         if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source:
