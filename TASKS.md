@@ -86,18 +86,21 @@ does not close an item. Keep independent receiving verification.
 - **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
   High priority: finish one checked view-narrowing operation across local
   binding, call argument and state edge, preserving access, captured backing
-  and lifetime. Keep `borrow_guarded_window_write_and_call` executing with
-  exit 0 natively and interpreted while closing the two remaining customers:
-  `borrow_domain_window_write_and_call` loses its entry requirements because
-  the shared runtime-requirement producer and source replay only accept
-  expression facts, not authored domain membership; expand the exact domain
-  predicate at the authenticated subject. `borrow_returned_window_write_and_call`
-  fails scalar statement coverage for an erased exclusive-place loan binding;
-  share exact loan-marker custody accounting with composed bodies without
-  erasing an effectful initializer or an omitted real operation. Field ranges
-  remain refused at transition sites; local binding, call staging and composed
-  byte ranges still need common temporary ownership, endpoint binding and
-  cleanup around the existing range operation. Byte/element carrier differences
+  and lifetime. All three `borrow_{domain,guarded,returned}_window_write_and_call`
+  customers execute with exit 0 natively and interpreted on macOS ARM64.
+  Domain requirements retain their exact authored membership subjects; shared
+  statement custody accounts for erased loans without deleting real producers;
+  current entry and call-result contracts provide independently checked bounds
+  for constant and runtime indices; scalar returns dispose borrowed carriers.
+  Field ranges remain refused at transition sites. The recorded-red
+  `pass/control_flow/guarded_jump_field_view_forward` currently stops earlier
+  at an attached-data state parameter signature; its empty runtime branch does
+  not cover range mutation. A mutable field-range call/state composition probe
+  reaches the call argument claim-transfer refusal. Local
+  binding, call staging and composed byte ranges still need common temporary
+  ownership, endpoint binding and cleanup around the existing range operation.
+  Exercise an executed mutable field range through both call and state transfer,
+  then observe the caller's backing writes. Byte/element carrier differences
   and qualification-preservation obligations remain explicit semantic checks.
   Owners: stage 04 `calls/view_subslice.rs`, `facts/crash_plan_facts.rs` and
   `control/statement_sequence/local_data.rs`; stage 05 `unit/runtime_requirements`,

@@ -71,23 +71,27 @@ fn returned_window_carrier_coverage_keeps_initializer_calls_and_view_establishme
             .find(|plan| plan.machine == machine)
             .expect("window operation plan")
             .operations;
-        let before = operations.len();
-        operations.retain(|operation| {
-            if remove_call {
-                !operation
-                    .call()
-                    .is_some_and(|call| call.coordinate.statement_index == 0)
-            } else {
-                !matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-                )
-            }
-        });
-        assert!(
-            operations.len() < before,
-            "the mutation must remove a real producer"
-        );
+        let position = operations
+            .iter()
+            .position(|operation| {
+                if remove_call {
+                    // choose(seed) is the retained computation of the first
+                    // immutable local, not a top-level Unit Call operation.
+                    matches!(operation,
+                        CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                            result,
+                            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+                        } if result.statement_index == 0
+                    )
+                } else {
+                    matches!(operation,
+                        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+                            if result.statement_index == 1
+                    )
+                }
+            })
+            .expect("the exact initializer or view producer is retained");
+        operations.remove(position);
         assert!(
             publish(&changed).is_err(),
             "a carrier cannot cover the deleted producer"
