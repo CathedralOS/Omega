@@ -209,12 +209,24 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `base_type_identity(program, referent, &[])? != target_identity`, the
   identity comparison that the receiver form satisfies through
   `attached_data_identity`.
-  Next step is that identity comparison: establish that the static spelling's
-  `base_type_identity` of `&mut Holder`'s referent and the receiver spelling's
-  `attached_data_identity` name one identity, then make the parameter selection
-  positional in the same change so the lane answers for both spellings. Both
-  are needed; neither alone unblocks a fixture, which is why neither is landed
-  on its own.
+  The exit is located exactly, by instrumenting every return in the chain
+  rather than by reading it. `reference::argument` exits at its
+  `reference_result_custody::result_loan` call, and inside that function the
+  firing predicate is the recorded-loan check on the carrier local:
+  `loans.next().is_some() || loan.statement_index != call.statement_index ||
+  loan.root_symbol != expected_root || loan.kind != expected_kind ||
+  !loan_segments(loan).is_empty() || !loan_owner_path(loan).is_empty()`.
+  In `returned_record_method_receiver_exit` the producing argument is
+  `&mut self.bag` in the receiver spelling and `&mut main.bag` in the static
+  one, so the loan carries a field path either way; what differs is how the
+  loan is rooted when its root is a named data parameter rather than a
+  receiver. Deciding that is a judgment about borrow-fact shape -- whether such
+  a loan records the data parameter with an owner path, or the attached data
+  with an empty one -- and it belongs in its own change with its own gate, not
+  bundled into a migration batch.
+  The two sites above remain necessary: positional parameter selection in the
+  retained-parameter helper, and the identity comparison. Neither alone
+  unblocks a fixture, which is why neither is landed on its own.
   Acceptance: the four fixtures build and meet their native oracles in the
   static spelling; an owned handoff that is not of the machine's own data still
   classifies as `Transfer`, with a fixture naming that.
