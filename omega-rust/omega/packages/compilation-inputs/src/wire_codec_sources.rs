@@ -602,13 +602,60 @@ fn member_shape(
         TypeReferenceNode::Reference {
             referee, access, ..
         } if !access.is_exclusive() => {
-            match syntax_trees.tables.type_references.type_reference(*referee) {
+            let mut referee = *referee;
+            // `&([E] in Domain)`: a slice's own qualification binds inside the
+            // reference, so peel domains (argument-free only, as below) before
+            // reading the storage shape.
+            while let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = syntax_trees.tables.type_references.type_reference(referee)
+            {
+                if !syntax_trees
+                    .tables
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .all(|constraint| {
+                        matches!(
+                            constraint,
+                            syntax_trees::types::TypeConstraintNode::Domain(domain)
+                                if domain.arguments.is_empty()
+                        )
+                    })
+                {
+                    return None;
+                }
+                referee = *base_type;
+            }
+            match syntax_trees.tables.type_references.type_reference(referee) {
                 TypeReferenceNode::Slice { element_type } => {
                     slice_element_of_type(syntax_trees, *element_type)
                         .map(|element| MemberShape::BorrowedSlice { element })
                 }
                 _ => None,
             }
+        }
+        // `&[E] in Domain`: a member's declared qualification rides the same
+        // borrowed-slice storage shape; the constraints spell domains only
+        // (the codec cannot reason about parameterized ones).
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } if syntax_trees
+            .tables
+            .type_references
+            .constraints(*constraints)
+            .iter()
+            .all(|constraint| {
+                matches!(
+                    constraint,
+                    syntax_trees::types::TypeConstraintNode::Domain(domain)
+                        if domain.arguments.is_empty()
+                )
+            }) =>
+        {
+            member_shape(syntax_trees, data_fields, *base_type)
         }
         _ => None,
     }
@@ -1974,6 +2021,14 @@ fn member_facts(
             let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
                 return None;
             };
+            let mut field_handle = field_handle;
+            if let TypeReferenceNode::Constrained { base_type, .. } = syntax_trees
+                .tables
+                .type_references
+                .type_reference(field_handle)
+            {
+                field_handle = *base_type;
+            }
             let TypeReferenceNode::Reference {
                 referee, access, ..
             } = syntax_trees
@@ -1986,8 +2041,18 @@ fn member_facts(
             if access.is_exclusive() {
                 return None;
             }
+            let mut referee = *referee;
+            // `&([E] in Domain)`: the slice's qualification binds inside the
+            // reference — peel it to compare element storage shapes.
+            while let TypeReferenceNode::Constrained { base_type, .. } = syntax_trees
+                .tables
+                .type_references
+                .type_reference(referee)
+            {
+                referee = *base_type;
+            }
             let TypeReferenceNode::Slice { element_type } =
-                syntax_trees.tables.type_references.type_reference(*referee)
+                syntax_trees.tables.type_references.type_reference(referee)
             else {
                 return None;
             };
