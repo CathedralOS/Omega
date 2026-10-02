@@ -32,7 +32,7 @@
 //! "some element of this array": it may overlap any sibling index, and a write
 //! through it forgets the facts observed beneath the array's root.
 
-use crate::OperationKind;
+use crate::{OperationKind, StructuralAccess};
 use semantic_vocabulary::{ObligationId, PlaceId, StructuralPlaceKind, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -158,34 +158,54 @@ impl OperationKind {
     /// Consumers must separately preserve that evidence and all module-level
     /// catalogs when replacing a place; this method grants no new authority.
     pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
+        self.map_structural_uses_with_access(&mut |place, _| map(place));
+    }
+
+    /// Visit the same runtime operands with the access each operation needs.
+    /// Explicit argument access stays exact; intrinsic observations, writes and
+    /// ownership consumption remain distinct. This inventory describes demand,
+    /// not permission: independent validation still authenticates the producer,
+    /// availability, path, and resource custody before granting that access.
+    pub fn map_structural_uses_with_access(
+        &mut self,
+        map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
+    ) {
         match self {
             Self::EstablishReference { source }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
-                source.place = map(source.place);
+                source.place = map(source.place, source.access);
             }
-            Self::ReleaseReference { source }
-            | Self::PrimitiveScalarRead { source, .. }
+            Self::ReleaseReference { source } => {
+                *source = map(*source, StructuralAccess::Owned);
+            }
+            Self::MoveStructuralField { source, .. }
+            // The result's carrier determines subview authority. Without its
+            // declaration this kind-only inventory retains exclusive demand.
+            | Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewSubslice { source, .. } => {
+                *source = map(*source, StructuralAccess::MutableBorrow);
+            }
+            Self::PrimitiveScalarRead { source, .. }
             | Self::StructuralByteSequenceFieldLength { source, .. }
             | Self::StructuralByteSequenceFieldRead { source, .. }
-            | Self::MoveStructuralField { source, .. }
             | Self::StructuralCaseMembership { source, .. }
             | Self::StructuralLeafCopy { source, .. }
             | Self::StructuralCaseLeafCopy { source, .. }
             | Self::ByteSequenceLength { source }
             | Self::ByteSequenceRead { source, .. }
-            | Self::ByteSequenceSubslice { source, .. }
             | Self::ElementViewLength { source }
             | Self::ElementViewRead { source, .. }
-            | Self::ElementViewSubslice { source, .. }
             | Self::BooleanStructuralField { source, .. }
-            | Self::IntegerStructuralField { source, .. } => *source = map(*source),
+            | Self::IntegerStructuralField { source, .. } => {
+                *source = map(*source, StructuralAccess::SharedBorrow)
+            }
             Self::StructuralByteSequenceFieldByteStore { destination, .. }
             | Self::WriteOnlyPrimitiveStore { destination, .. }
             | Self::StructuralScalarFieldStore { destination, .. }
             | Self::ByteSequenceWrite { destination, .. }
             | Self::ElementViewWrite { destination, .. } => {
-                *destination = map(*destination);
+                *destination = map(*destination, StructuralAccess::WriteOnlyBorrow);
             }
             Self::ByteSequenceStore {
                 destination,
@@ -202,23 +222,23 @@ impl OperationKind {
                 source,
                 ..
             } => {
-                *destination = map(*destination);
-                *source = map(*source);
+                *destination = map(*destination, StructuralAccess::WriteOnlyBorrow);
+                *source = map(*source, StructuralAccess::SharedBorrow);
             }
             Self::StoreStructuralField {
                 destination, value, ..
             } => {
-                *destination = map(*destination);
-                value.place = map(value.place);
+                *destination = map(*destination, StructuralAccess::WriteOnlyBorrow);
+                value.place = map(value.place, value.access);
             }
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 for operand in [left, right] {
                     match operand {
                         crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                            *source = map(*source);
+                            *source = map(*source, StructuralAccess::SharedBorrow);
                         }
                         crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
-                            source.place = map(source.place);
+                            source.place = map(source.place, source.access);
                         }
                     }
                 }
@@ -227,7 +247,7 @@ impl OperationKind {
                 for field in fields {
                     match &mut field.value {
                         crate::RecordFieldValue::Structural(value) => {
-                            value.place = map(value.place);
+                            value.place = map(value.place, value.access);
                         }
                         crate::RecordFieldValue::Scalar { .. } => {}
                     }
@@ -254,10 +274,17 @@ impl OperationKind {
                 ..
             } => {
                 for argument in structural_arguments {
-                    argument.place = map(argument.place);
+                    argument.place = map(argument.place, argument.access);
                 }
             }
-            Self::AtomicAccess { place, .. } => *place = map(*place),
+            Self::AtomicAccess { place, event, .. } => {
+                let access = match (event.observes_resident(), event.modifies_resident()) {
+                    (true, true) => StructuralAccess::MutableBorrow,
+                    (false, true) => StructuralAccess::WriteOnlyBorrow,
+                    (_, false) => StructuralAccess::SharedBorrow,
+                };
+                *place = map(*place, access);
+            }
             // Definitions, scalar-only operations and catalog coordinates
             // have no direct structural root operands. Exhaustiveness keeps
             // future operations from silently escaping this inventory.

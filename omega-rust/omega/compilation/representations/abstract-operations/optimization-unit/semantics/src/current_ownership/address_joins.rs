@@ -26,11 +26,14 @@
 //! target still names the home or a join carrying it. Transfers between
 //! mutable names retain the same backing.
 
+mod descriptor_loans;
+
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::ReferenceOrigin;
 use abstract_operations::AbstractOperation as O;
+use descriptor_loans::DescriptorLoans;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,6 +42,7 @@ use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 /// Roots pinned in each block by the address joins whose scope includes it.
 #[derive(Default)]
 pub(super) struct AddressJoinPins {
+    descriptor_loans: DescriptorLoans,
     shared: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     exclusive: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     origins: BTreeMap<PlaceId, BTreeSet<PlaceId>>,
@@ -51,6 +55,7 @@ impl AddressJoinPins {
         function: &PsiOptimizationFunction,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
+        let descriptor_loans = DescriptorLoans::new(function, structural_types);
         let joins = function
             .blocks
             .iter()
@@ -101,7 +106,10 @@ impl AddressJoinPins {
             .map(|parameter| parameter.place)
             .collect::<BTreeSet<_>>();
         if address_joins.is_empty() {
-            return Self::default();
+            return Self {
+                descriptor_loans,
+                ..Self::default()
+            };
         }
         for edge in function
             .blocks
@@ -195,11 +203,12 @@ impl AddressJoinPins {
                         parameter.access == StructuralAccess::MutableBorrow
                             && address_joins.contains(&parameter.place)
                     })
-                    .map(move |parameter| (parameter.place, block.id))
+                    .map(|parameter| parameter.place)
             })
             .collect::<Vec<_>>();
         if mutable_joins.is_empty() {
             return Self {
+                descriptor_loans,
                 shared: pins,
                 exclusive: BTreeMap::new(),
                 origins,
@@ -209,7 +218,7 @@ impl AddressJoinPins {
         }
         // Descriptor aliases are borrowed backing, not fresh owned copies.
         // Their reads must not bypass suspension merely by naming a view ID.
-        let mut aliases = origins.clone();
+        let mut aliases = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
         let mut descriptors = BTreeSet::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
             let alias = match &node.operation {
@@ -244,6 +253,10 @@ impl AddressJoinPins {
                 }
             }
         }
+        // Keep exact parent edges beside possible transitive backing. A merged
+        // descriptor belongs to this join's child cohort only when every source
+        // path passes through the join; one fresh arm cannot cover a stale arm.
+        let direct_aliases = aliases.clone();
         loop {
             let previous = aliases.clone();
             for roots in aliases.values_mut() {
@@ -259,8 +272,12 @@ impl AddressJoinPins {
                 break;
             }
         }
+        let available = crate::unit_validation::function_structure::current_mutable_borrows(
+            function,
+            structural_types,
+        );
         let mut exclusive = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
-        for (join, owner) in mutable_joins {
+        for join in mutable_joins {
             let roots = origins
                 .get(&join)
                 .into_iter()
@@ -287,12 +304,23 @@ impl AddressJoinPins {
                     .filter(|descriptor| {
                         aliases.get(*descriptor).is_some_and(|origins| {
                             origins.iter().any(|origin| roots.contains(origin))
-                        })
+                        }) && !entirely_descends_from(
+                            **descriptor,
+                            join,
+                            &direct_aliases,
+                            &mut BTreeSet::new(),
+                        )
                     })
                     .copied(),
             );
-            for (block, dominating) in &dominators {
-                if *block == owner || dominating.contains(&owner) {
+            for block in dominators.keys() {
+                // A successor may already have transferred or attenuated
+                // this exclusive spelling. Pin while any path still holds it;
+                // every later mutable join establishes its own pin, including
+                // stale descriptors of the same owned backing. Shared arrivals
+                // retain the independent shared pin and never restore a retired
+                // exclusive name merely because its address still exists.
+                if available.may_be_live(*block, join) {
                     exclusive
                         .entry(*block)
                         .or_default()
@@ -301,6 +329,7 @@ impl AddressJoinPins {
             }
         }
         Self {
+            descriptor_loans,
             shared: pins,
             exclusive,
             origins: aliases,
@@ -320,6 +349,20 @@ impl AddressJoinPins {
         operation: &O,
         moved: impl IntoIterator<Item = PlaceId>,
     ) -> Result<(), OptimizationUnitValidationError> {
+        let moved = moved.into_iter().collect::<Vec<_>>();
+        if let Some(place) = self
+            .descriptor_loans
+            .conflicted_operation(function, block, node, operation, &moved)
+        {
+            return Err(
+                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
+                    machine: function.machine,
+                    block,
+                    node,
+                    place,
+                },
+            );
+        }
         if let Some(pinned) = self.exclusive.get(&block) {
             // Normal return cleanup ends the activation loan after evaluating
             // the fresh returned value. Its exact disposal roster is replayed
@@ -381,6 +424,19 @@ impl AddressJoinPins {
         destination: &[terminal_psi::StructuralParameterDeclaration],
         frontier: &CurrentOwnership,
     ) -> Result<(), OptimizationUnitValidationError> {
+        if let Some(place) =
+            self.descriptor_loans
+                .conflicted_edge(function, block, node, edge, destination)
+        {
+            return Err(
+                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
+                    machine: function.machine,
+                    block,
+                    node,
+                    place,
+                },
+            );
+        }
         // A new mutable local loan borrows live storage; it does not move or
         // discharge the owner. Check the current frontier before edge cleanup
         // and reject aliases supplied or disposed in the same transaction.
@@ -549,6 +605,31 @@ impl AddressJoinPins {
     }
 }
 
+/// Possible roots detect interference; exact ancestry grants current-child
+/// access. A cycle or a source outside this join cannot prove that every path
+/// came from its current authority, even if another incoming arm did.
+fn entirely_descends_from(
+    place: PlaceId,
+    ancestor: PlaceId,
+    parents: &BTreeMap<PlaceId, BTreeSet<PlaceId>>,
+    active: &mut BTreeSet<PlaceId>,
+) -> bool {
+    if place == ancestor {
+        return true;
+    }
+    if !active.insert(place) {
+        return false;
+    }
+    let descends = parents.get(&place).is_some_and(|sources| {
+        !sources.is_empty()
+            && sources
+                .iter()
+                .all(|source| entirely_descends_from(*source, ancestor, parents, active))
+    });
+    active.remove(&place);
+    descends
+}
+
 /// Prove a shared join's block liveness only when every use either observes a
 /// scalar or forwards the exact loan into another address join. Unknown escape
 /// effects retain the old whole-scope pin. Root reads are deliberately absent:
@@ -633,10 +714,17 @@ fn shared_join_live_blocks(
     Some(live)
 }
 
-/// Every place an operation writes or lends exclusively. Moves are supplied
-/// by the replay, which already knows each argument's consuming multiplicity.
-fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
-    let exclusive = |arguments: &[terminal_psi::StructuralArgument]| {
+/// One mutation inventory serves whole-root join pins and projected child
+/// freezes. A field id stays attached until its declaring record is resolved;
+/// losing that last step would freeze unrelated sibling fields.
+struct MutationRegion<'a> {
+    place: PlaceId,
+    path: &'a [terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+}
+
+fn mutation_regions(operation: &O) -> Vec<MutationRegion<'_>> {
+    fn exclusive(arguments: &[terminal_psi::StructuralArgument]) -> Vec<MutationRegion<'_>> {
         arguments
             .iter()
             .filter(|argument| {
@@ -645,9 +733,14 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
                     StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                 )
             })
-            .map(|argument| argument.place)
+            .map(|argument| MutationRegion {
+                place: argument.place,
+                path: argument.path.as_slice(),
+                field: None,
+            })
             .collect::<Vec<_>>()
-    };
+    }
+    let region = |place, path, field| vec![MutationRegion { place, path, field }];
     match operation {
         O::CallStructural {
             structural_arguments,
@@ -658,19 +751,114 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
             ..
         } => exclusive(structural_arguments),
         O::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dispatch),
             ..
-        } => exclusive(std::slice::from_ref(&dynamic_dispatch.rebound.source)),
+        } => exclusive(std::slice::from_ref(&dispatch.rebound.source)),
+        O::EstablishReference { source, .. } | O::EstablishElementView { source, .. } => {
+            exclusive(std::slice::from_ref(source))
+        }
         O::PrimitiveLocalStore { destination, .. }
         | O::ByteSequenceWrite { destination, .. }
-        | O::StructuralByteSequenceFieldByteStore { destination, .. }
-        | O::ByteSequenceStore { destination, .. }
-        | O::StructuralByteSequenceFieldStore { destination, .. } => vec![*destination],
-        O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place()],
-        O::StoreStructuralField { destination, .. } => vec![destination.place()],
-        O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        O::MoveStructuralField { source, .. } => vec![source.place()],
+        | O::ElementViewWrite { destination, .. }
+        | O::ByteSequenceStore { destination, .. } => region(*destination, &[], None),
+        O::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | O::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        }
+        | O::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        } => region(*destination, path, Some(*field)),
+        O::WriteOnlyPrimitiveStore {
+            destination, path, ..
+        } => region(destination.place(), path, None),
+        O::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        } => region(destination.place(), path, Some(*field)),
+        O::StoreStructuralField {
+            destination,
+            path,
+            field,
+            ..
+        } => region(destination.place(), path, *field),
+        O::MoveStructuralField {
+            source,
+            path,
+            field,
+            ..
+        } => region(source.place(), path, *field),
         _ => Vec::new(),
     }
+}
+
+/// Whole-root pins deliberately conservatively cover every projected mutation.
+fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
+    mutation_regions(operation)
+        .into_iter()
+        .map(|region| region.place)
+        .collect()
+}
+
+/// Resolve each mutation to the known projection it may disturb. A dynamic
+/// selector or unresolved leaf freezes its known enclosing region, never an
+/// invented disjoint sibling. Edge lending is checked per selected successor.
+pub(super) fn written_or_exclusive_regions(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    operation: &O,
+) -> Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)> {
+    use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+    mutation_regions(operation)
+        .into_iter()
+        .map(|region| {
+            let static_length = region
+                .path
+                .iter()
+                .position(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::RuntimeIndex { .. }
+                            | StructuralPathSegment::Referent
+                    )
+                })
+                .unwrap_or(region.path.len());
+            let mut path = region.path[..static_length].to_vec();
+            // Crossing a reference loses the direct backing relation even if
+            // an earlier dynamic selector already widened its projection.
+            if region.path.contains(&StructuralPathSegment::Referent) {
+                path.push(StructuralPathSegment::Referent);
+            }
+            if static_length == region.path.len()
+                && let Some(field) = region.field
+                && let Some(root) = structural_source_contract(function, region.place, false)
+                && let Some(carrier) =
+                    crate::unit_validation::structural_catalog::resolve_structural_path(
+                        types,
+                        root.structural_type,
+                        &path,
+                    )
+                && let Some(declaration) = types.get(&carrier)
+                && let StructuralTypeShape::Record { fields } = &declaration.shape
+                && let Some(field) = fields
+                    .iter()
+                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+            {
+                path.push(StructuralPathSegment::Field(field.identity.clone()));
+            }
+            (region.place, path)
+        })
+        .collect()
 }

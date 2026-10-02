@@ -105,29 +105,6 @@ does not close an item. Keep independent receiving verification.
   An unfinished isolated mutable-subslice patch is not acceptance or a permanent
   reservation; reconcile it rather than landing a second local-only mechanism.
 
-- **NATIVE-LIVE-HOME-RESOLUTION.** (split-of:STRUCTURAL-BORROW-IDENTITY)
-  Finish the write-through acceptance for a local record's array after a state
-  transfer. A zeroed local `Packet { items: [u8; 4] }` lent as `&mut Packet`
-  to a state, then lent to `stamp(&mut packet.items)`, reaches
-  `OwnedStructuralPlaceNotLiveAtOperation { operation: 4, place: 4 }` during
-  Terminal production on macOS ARM64 at `54ea05a360a`. The owning join is
-  `terminal-psi/verification/src/validation/block_views/mutable_records.rs`:
-  authenticate the fresh affine mutable view's producer and ancestry to the
-  current state parameter, retaining availability, conflicting-loan rejection
-  and descriptor disposal. Do not widen shared-subslice classification to
-  erase the affine descriptor's cleanup debt. This is an implementation
-  dependency, not a language-design question.
-  Acceptance: the caller observes writes to the same local backing after the
-  transfer; native and interpreted exits agree. Keep
-  `pass/slices/local_record_array_state_view_exit` (owned state-arrival view),
-  `pass/calls/local_fixed_byte_array_loan_exit`,
-  `pass/slices/local_array_element_view_exit` and
-  `pass/calls/local_array_direct_read_exit` at native/interpreter exit 70.
-  Native view construction must keep using the graph's storage-home context,
-  with distinct ingress, owned arrival and descriptor identities. Independent
-  target and physical replay reject non-dominating or consumed backing and
-  substituted homes/extents; no producer-scan fallback may return.
-
 - **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
   High priority: use the common Unit callee catalog to assemble scalar-machine
   closures; remove the competing pure assembler, not just its dispatch wrapper.
@@ -251,8 +228,7 @@ execution and native exit/output. A moved refusal is still unfinished work.
   On macOS ARM64 at `bbd0a9fdb8` plus namespace-call interpretation,
   `omega run --both samples/cli/basics/generic_counters/main.omg` exits **16**
   in both engines. Matching-host execution on the other declared targets
-  remains open. **NATIVE-LIVE-HOME-RESOLUTION** owns the remaining mutable
-  view custody after a record crosses a state boundary.
+  remains open.
   A domain-qualified byte local built from a shorter literal (`let text: [u8;
   8] in Utf8 = "150";`) is a bounded owner with its own backing and live
   length ([encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)):
@@ -3410,10 +3386,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **STRUCTURAL-BORROW-IDENTITY.** Preserve original caller storage through
   projections, call preparation, native placement and independent receiving
   replay under [structural access](wiki/spec/terminal-psi/structural_access.md).
-  **NATIVE-LIVE-HOME-RESOLUTION** owns stage 02 view-backing lookup consolidation;
   **CHECKED-PLACE-CALL-CUSTODY** owns the checked/source argument normalization.
-  Keep this item's wider placement and receiving-replay acceptance, not duplicate
-  implementations of those two repairs.
+  Keep this item's wider placement and receiving-replay acceptance without
+  duplicating that repair.
   Owners: checked `terminal_scalar` signatures, `receiver_calls` and
   `calls/computation_arguments`; lowered scalar-callee selection; target
   `structural_call_arguments` and image `argument_custody`.

@@ -234,7 +234,7 @@ const RELEASED_LOAN_SOURCE: &str = "data Counter { count: u64; }
 /// Exercise the loan replay independently of unrelated scalar provenance and
 /// control-cycle admission. The source fixture still passes all earlier
 /// lowering stages; each test names any deliberate current-graph corruption.
-fn validate_address_join_ownership(
+pub(super) fn validate_address_join_ownership(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
     let function = &unit.functions[0];
@@ -372,4 +372,108 @@ fn address_join_forwarding_through_a_backedge_preserves_then_releases_the_loan()
         Err(OptimizationUnitValidationError::ControlCycle { .. })
     ));
     validate_address_join_ownership(&candidate).unwrap();
+}
+
+pub(super) const STATE_RECORD_VIEW_SOURCE: &str = r#"
+    boundary trait Host { machine exit(code: i32); }
+    data Packet { items: [u8; 4]; marker: i32; }
+    machine stamp(values: &mut [u8]) {
+        transition values.len >= 4 { true -> write(values) _ -> skip() }
+        state write(values: &mut [u8]) { values[0] = 70; values[3] = 5; }
+        state skip() {}
+    }
+    machine main() reaches Host {
+        let mut packet: Packet;
+        transition { _ -> check(&mut packet) }
+        state check(packet: &mut Packet) {
+            stamp(&mut packet.items);
+            let view: &[u8] = packet.items.as_slice();
+            transition view.len == 4 && packet.items[0] == 70 && packet.items[3] == 5 && packet.marker == 0 {
+                true -> done() _ -> failed()
+            }
+        }
+        state done() { Host::exit(70); }
+        state failed() { Host::exit(71); }
+    }
+"#;
+
+#[test]
+fn address_join_shared_attenuation_keeps_existing_view_observations() {
+    let candidate = crate::tests::structural_cases::verified_source_machine_unit(
+        STATE_RECORD_VIEW_SOURCE,
+        "main",
+    );
+    validate_psi_optimization_unit(&candidate)
+        .expect("read-only continuation keeps the original view and backing");
+}
+
+#[test]
+fn address_join_later_exclusive_handoff_keeps_old_descriptor_suspended() {
+    let mut candidate = crate::tests::structural_cases::verified_source_machine_unit(
+        STATE_RECORD_VIEW_SOURCE,
+        "main",
+    );
+    let (target, parameter, descriptor) = candidate.functions[0]
+        .blocks
+        .iter()
+        .find_map(|block| {
+            let parameter = block
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.access == StructuralAccess::SharedBorrow)?;
+            let descriptor = block.nodes.iter().find_map(|node| match node.operation {
+                AbstractOperation::ByteSequenceLength { source, .. } => Some(source),
+                _ => None,
+            })?;
+            Some((block.id, parameter.place, descriptor))
+        })
+        .expect("the view observation follows a shared whole-record arrival");
+    for block in &mut candidate.functions[0].blocks {
+        if block.id == target {
+            block
+                .structural_parameters
+                .iter_mut()
+                .find(|candidate| candidate.place == parameter)
+                .unwrap()
+                .access = StructuralAccess::MutableBorrow;
+        }
+    }
+    let mut changed = Vec::new();
+    for (block_index, block) in candidate.functions[0].blocks.iter_mut().enumerate() {
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            if let AbstractOperation::Jump {
+                structural_bindings,
+                ..
+            } = &mut node.operation
+            {
+                for binding in structural_bindings {
+                    if binding.parameter == parameter {
+                        binding.argument.access = StructuralAccess::MutableBorrow;
+                        changed.push((block_index, node_index));
+                    }
+                }
+            }
+        }
+    }
+    let (block_index, node_index) = changed[0];
+    let handoff_block = candidate.functions[0].blocks[block_index].id;
+    let handoff_parent = candidate.functions[0].blocks[block_index].nodes[node_index]
+        .successors
+        .iter()
+        .flat_map(|edge| &edge.structural_bindings)
+        .find(|binding| binding.parameter == parameter)
+        .unwrap()
+        .argument
+        .place;
+    assert_ne!(handoff_parent, descriptor);
+    for (block, node) in changed {
+        refresh_node_derivatives(&mut candidate, 0, block, node);
+    }
+    let error = validate_address_join_ownership(&candidate)
+        .expect_err("the exclusive handoff conflicts with the still-observed shared child");
+    assert!(
+        matches!(error, OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { place, block, node, .. }
+            if place == handoff_parent && block == handoff_block && node as usize == node_index),
+        "{error:?}"
+    );
 }

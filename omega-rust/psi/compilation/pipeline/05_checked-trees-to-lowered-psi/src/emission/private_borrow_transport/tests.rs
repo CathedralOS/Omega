@@ -47,7 +47,7 @@ fn argument(identity: u64) -> StructuralArgument {
     StructuralArgument {
         place: place(identity),
         path: Vec::new(),
-        access: StructuralAccess::MutableBorrow,
+        access: StructuralAccess::SharedBorrow,
     }
 }
 
@@ -208,4 +208,117 @@ fn private_state_borrow_crosses_an_intermediate_block_without_direct_uses() {
     };
     assert_eq!(source, final_place);
     assert_eq!(places.len(), 2);
+}
+
+#[test]
+fn private_state_borrow_keeps_exclusive_access_until_the_last_write() {
+    let mut blocks = vec![
+        block(1, Some(2)),
+        block(2, Some(3)),
+        block(3, Some(4)),
+        block(4, None),
+    ];
+    blocks[0].structural_parameters.push(parameter(1, 0));
+    observe(&mut blocks[1], 1);
+    observe(&mut blocks[2], 1);
+    blocks[2].operations[0].kind = OperationKind::StructuralScalarFieldStore {
+        destination: place(1),
+        path: Vec::new(),
+        field: StructuralFieldId::new(1).unwrap(),
+        value: ValueId::new(1).unwrap(),
+        range_obligation: None,
+    };
+    observe(&mut blocks[3], 1);
+    forward_private_state_borrows(blocks[0].id, &mut blocks, &mut 10, &mut Vec::new()).unwrap();
+    assert_eq!(
+        blocks[1].structural_parameters[0].access,
+        StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        blocks[2].structural_parameters[0].access,
+        StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        blocks[3].structural_parameters[0].access,
+        StructuralAccess::SharedBorrow
+    );
+    assert_eq!(
+        jump_arguments(&blocks[0])[0].access,
+        StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        jump_arguments(&blocks[1])[0].access,
+        StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        jump_arguments(&blocks[2])[0].access,
+        StructuralAccess::SharedBorrow
+    );
+}
+
+#[test]
+fn private_state_borrow_join_inherits_later_exclusive_demand_on_both_arms() {
+    let mut blocks = vec![
+        block(1, None),
+        block(2, Some(4)),
+        block(3, Some(4)),
+        block(4, None),
+    ];
+    blocks[0].structural_parameters.push(parameter(1, 0));
+    blocks[0].terminator = Terminator::Conditional {
+        condition: ValueId::new(1).unwrap(),
+        when_true: edge(5, 2),
+        when_false: edge(6, 3),
+    };
+    observe(&mut blocks[1], 1);
+    observe(&mut blocks[3], 1);
+    blocks[3].operations[0].kind = OperationKind::WriteOnlyPrimitiveStore {
+        destination: place(1),
+        path: Vec::new(),
+        value: ValueId::new(1).unwrap(),
+    };
+    forward_private_state_borrows(blocks[0].id, &mut blocks, &mut 10, &mut Vec::new()).unwrap();
+    for block in &blocks[1..] {
+        assert_eq!(
+            block.structural_parameters[0].access,
+            StructuralAccess::MutableBorrow
+        );
+    }
+}
+
+#[test]
+fn private_state_borrow_keeps_shared_views_through_each_guard_position() {
+    for guard in [
+        "view.len == 4 && packet.items[0] == 70 && packet.items[3] == 5",
+        "packet.items[0] == 70 && view.len == 4 && packet.items[3] == 5",
+        "view.len == 4 && packet.items[0] == 70 && view.len == 4",
+    ] {
+        let source = format!(
+            r#"
+            boundary trait Host {{ machine exit(code: i32); }}
+            data Packet {{ items: [u8; 4]; marker: i32; }}
+            machine stamp(values: &mut [u8]) {{
+                transition values.len >= 4 {{ true -> write(values) _ -> skip() }}
+                state write(values: &mut [u8]) {{ values[0] = 70; values[3] = 5; }}
+                state skip() {{}}
+            }}
+            machine main() reaches Host {{
+                let mut packet: Packet;
+                transition {{ _ -> check(&mut packet) }}
+                state check(packet: &mut Packet) {{
+                    stamp(&mut packet.items);
+                    let view: &[u8] = packet.items.as_slice();
+                    transition {guard} {{ true -> done() _ -> failed() }}
+                }}
+                state done() {{ Host::exit(70); }}
+                state failed() {{ Host::exit(71); }}
+            }}
+        "#
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+            .unwrap_or_else(|error| panic!("{guard}: {error:?}"));
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .unwrap_or_else(|error| panic!("{guard}: {error:?}"));
+    }
 }

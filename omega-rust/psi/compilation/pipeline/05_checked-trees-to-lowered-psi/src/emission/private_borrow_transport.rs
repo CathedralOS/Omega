@@ -9,6 +9,12 @@
 //! Byte and element views keep their dominating descriptor names until an
 //! explicit transfer consumes them. They do not have record loans' implicit
 //! end-at-edge rule and must not acquire extra forwarding here.
+//! Private successors receive only the access their remaining operations need.
+//! A read-only suffix attenuates an exclusive input to shared access, preserving
+//! dominating shared descriptors of that input rather than inventing another
+//! exclusive owner alongside them. Access demand includes every reachable private
+//! successor; a later write prevents earlier attenuation. This retires an old
+//! exclusive name, never restores authority from a shared child.
 //! Fixed arrays share record loans' edge-scoped names: indexing in a later
 //! short-circuit block must use that block's forwarded name, regardless of
 //! whether the backing was initialized or zero-constructed.
@@ -29,6 +35,32 @@ use terminal_psi::{
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum BorrowDemand {
+    Unused,
+    Shared,
+    Exclusive,
+}
+
+impl BorrowDemand {
+    fn for_access(access: StructuralAccess) -> Self {
+        match access {
+            StructuralAccess::SharedBorrow => Self::Shared,
+            StructuralAccess::Owned
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow => Self::Exclusive,
+        }
+    }
+
+    fn access(self) -> StructuralAccess {
+        match self {
+            Self::Shared => StructuralAccess::SharedBorrow,
+            Self::Exclusive => StructuralAccess::MutableBorrow,
+            Self::Unused => unreachable!("an unused private loan has no arrival"),
+        }
+    }
+}
 
 pub(crate) fn forward_private_state_borrows(
     root: BlockId,
@@ -66,18 +98,19 @@ pub(crate) fn forward_private_state_borrows(
     // Carry only loans read in this block or a private successor. Forwarding
     // every root would prolong dead loans and could conflict with an existing
     // edge that delegates a projection to its own parameter.
-    let mut needed = vec![vec![false; source.len()]; blocks.len()];
+    let mut needed = vec![vec![BorrowDemand::Unused; source.len()]; blocks.len()];
     let mut successors = Vec::with_capacity(blocks.len());
     let identities = blocks.iter().map(|block| block.id).collect::<Vec<_>>();
     for (position, block) in blocks.iter_mut().enumerate() {
-        let mut observe = |place| {
+        let mut observe = |place, access| {
             if let Some(ordinal) = source.iter().position(|parameter| parameter.place == place) {
-                needed[position][ordinal] = true;
+                needed[position][ordinal] =
+                    needed[position][ordinal].max(BorrowDemand::for_access(access));
             }
             place
         };
         for operation in &mut block.operations {
-            operation.kind.map_structural_uses(&mut observe);
+            operation.kind.map_structural_uses_with_access(&mut observe);
         }
         let targets = match &block.terminator {
             Terminator::Jump {
@@ -86,7 +119,7 @@ pub(crate) fn forward_private_state_borrows(
                 ..
             } => {
                 for argument in structural_arguments {
-                    observe(argument.place);
+                    observe(argument.place, argument.access);
                 }
                 vec![*target]
             }
@@ -97,17 +130,17 @@ pub(crate) fn forward_private_state_borrows(
             } => {
                 for edge in [when_true, when_false] {
                     for argument in &edge.structural_arguments {
-                        observe(argument.place);
+                        observe(argument.place, argument.access);
                     }
                 }
                 vec![when_true.target, when_false.target]
             }
             Terminator::StructuralCase { source, cases } => {
-                observe(*source);
+                observe(*source, StructuralAccess::SharedBorrow);
                 cases.iter().map(|case| case.target).collect()
             }
             Terminator::ReturnStructural { source, .. } => {
-                observe(*source);
+                observe(*source, StructuralAccess::Owned);
                 Vec::new()
             }
             _ => Vec::new(),
@@ -125,8 +158,8 @@ pub(crate) fn forward_private_state_borrows(
         for (position, targets) in successors.iter().enumerate() {
             for target in targets {
                 for ordinal in 0..source.len() {
-                    if needed[*target][ordinal] && !needed[position][ordinal] {
-                        needed[position][ordinal] = true;
+                    if needed[*target][ordinal] > needed[position][ordinal] {
+                        needed[position][ordinal] = needed[*target][ordinal];
                         changed = true;
                     }
                 }
@@ -140,13 +173,19 @@ pub(crate) fn forward_private_state_borrows(
     for (position, block) in blocks.iter_mut().enumerate() {
         let mut names = Vec::with_capacity(source.len());
         for (ordinal, parameter) in source.iter().enumerate() {
-            if !needed[position][ordinal] {
+            if needed[position][ordinal] == BorrowDemand::Unused {
                 continue;
             }
+            let access = if block.id == root {
+                parameter.access
+            } else {
+                needed[position][ordinal].access()
+            };
             let place = if block.id == root {
                 parameter.place
             } else {
                 let mut forwarded = parameter.clone();
+                forwarded.access = access;
                 forwarded.place = place_id(allocate_dense(next_place)?);
                 forwarded.position = u32::try_from(block.structural_parameters.len())
                     .map_err(|_| LoweringError::Unsupported("private borrow roster exceeds u32"))?;
@@ -161,7 +200,7 @@ pub(crate) fn forward_private_state_borrows(
                 block.structural_parameters.push(forwarded);
                 place
             };
-            names.push((parameter.place, place));
+            names.push((parameter.place, place, access));
         }
         namespaces.push((block.id, names));
     }
@@ -177,24 +216,23 @@ pub(crate) fn forward_private_state_borrows(
         for operation in &mut block.operations {
             operation.kind.map_structural_uses(&mut remap);
         }
-        let forward =
-            |target: BlockId, arguments: &mut Vec<StructuralArgument>| {
-                for argument in arguments.iter_mut() {
-                    argument.place = mapped(names, argument.place);
-                }
-                if target != root
-                    && let Some((_, destination_names)) =
-                        namespaces.iter().find(|(identity, _)| *identity == target)
-                {
-                    arguments.extend(destination_names.iter().map(|(source, _)| {
-                        StructuralArgument {
-                            place: mapped(names, *source),
-                            path: Vec::new(),
-                            access: StructuralAccess::MutableBorrow,
-                        }
-                    }));
-                }
-            };
+        let forward = |target: BlockId, arguments: &mut Vec<StructuralArgument>| {
+            for argument in arguments.iter_mut() {
+                argument.place = mapped(names, argument.place);
+            }
+            if target != root
+                && let Some((_, destination_names)) =
+                    namespaces.iter().find(|(identity, _)| *identity == target)
+            {
+                arguments.extend(destination_names.iter().map(|(source, _, access)| {
+                    StructuralArgument {
+                        place: mapped(names, *source),
+                        path: Vec::new(),
+                        access: *access,
+                    }
+                }));
+            }
+        };
         match &mut block.terminator {
             Terminator::Jump {
                 target,
@@ -288,11 +326,11 @@ pub(crate) fn forward_private_state_borrows(
     Ok(())
 }
 
-fn mapped(names: &[(PlaceId, PlaceId)], place: PlaceId) -> PlaceId {
+fn mapped(names: &[(PlaceId, PlaceId, StructuralAccess)], place: PlaceId) -> PlaceId {
     names
         .iter()
-        .find(|(source, _)| *source == place)
-        .map_or(place, |(_, target)| *target)
+        .find(|(source, _, _)| *source == place)
+        .map_or(place, |(_, target, _)| *target)
 }
 
 fn has_explicit_transfer(blocks: &[Block], place: PlaceId) -> bool {
@@ -316,7 +354,7 @@ fn has_explicit_transfer(blocks: &[Block], place: PlaceId) -> bool {
     })
 }
 
-fn remap_roots(places: &mut [PlaceId], names: &[(PlaceId, PlaceId)]) {
+fn remap_roots(places: &mut [PlaceId], names: &[(PlaceId, PlaceId, StructuralAccess)]) {
     for place in places {
         *place = mapped(names, *place);
     }

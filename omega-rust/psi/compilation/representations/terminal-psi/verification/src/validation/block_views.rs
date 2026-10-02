@@ -876,8 +876,23 @@ pub(super) fn mutable_availability(
                     .filter(|(_, parameter)| universe.contains(&parameter.place))
                     .map(|(argument, parameter)| (argument, parameter.place))
                     .collect::<Vec<_>>();
-                for (argument, _) in &transfers {
-                    if argument.path.is_empty() {
+                // Explicit whole-name attenuation retires the exact mutable
+                // source too. A shared destination is outside the exclusive
+                // namespace, but keeping its old mutable spelling alive would
+                // invent overlapping authority beside that shared arrival.
+                // The owned backing remains independently live; this is no
+                // restoration or permission to use the retired source again.
+                // Invocation parameters retain their invocation resource; this
+                // retirement concerns edge-scoped block names only.
+                for (argument, parameter) in arguments.iter().zip(&block.structural_parameters) {
+                    if argument.path.is_empty()
+                        && (universe.contains(&parameter.place)
+                            || (source_available.contains(&argument.place)
+                                && parameter.access == StructuralAccess::SharedBorrow
+                                && self::parameter(machine, argument.place).is_some_and(
+                                    |source| source.access == StructuralAccess::MutableBorrow,
+                                )))
+                    {
                         incoming.remove(&argument.place);
                     }
                 }

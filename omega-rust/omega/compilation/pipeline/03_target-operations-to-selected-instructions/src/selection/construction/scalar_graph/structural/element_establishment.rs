@@ -102,14 +102,18 @@ pub(super) fn establish(
                     }) => {}
         _ => return Err(invalid()),
     }
-    // Incoming parameters lend their original address; operation results and
-    // owned block arrivals lend their exact activation slot. A transferred
-    // descriptor is not an owned aggregate and cannot supply this backing.
+    // Invocation parameters and address joins lend their live referent pointer;
+    // operation results and owned block arrivals lend their exact storage slot.
+    // A join's carrier slot contains an address, never the aggregate's bytes.
     let parameter = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == source.place)
-        .map(|parameter| &parameter.semantic);
+        .map(|parameter| &parameter.semantic)
+        .or_else(|| {
+            crate::selection::address_join_input::join(function, source.place)
+                .map(|(_, parameter)| parameter)
+        });
     let home = crate::selection::aggregate_result_input::home(function, source.place);
     let local_root = home.map(|(_, home)| local_home_root(home));
     let block_home = crate::selection::aggregate_result_input::block_home(function, source.place);

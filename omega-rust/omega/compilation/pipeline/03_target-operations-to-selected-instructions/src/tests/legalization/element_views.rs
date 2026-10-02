@@ -551,9 +551,9 @@ fn a_borrowed_element_view_arrives_through_a_block_parameter() {
     }
 }
 
-/// Form the descriptor after ownership crosses an edge: the arrival owns its
-/// backing, even though a predecessor originally established the same bytes.
-fn owned_array_arrival_source() -> abstract_operations::AbstractOperationPlan {
+/// Form the descriptor after an edge transfers storage or lends its address.
+/// Both arrivals retain the collection originally established by the predecessor.
+fn array_arrival_source(access: StructuralAccess) -> abstract_operations::AbstractOperationPlan {
     use super::owned_block_store::id;
     use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding};
     use terminal_psi::{StructuralArgument, StructuralOperationResult};
@@ -617,7 +617,7 @@ fn owned_array_arrival_source() -> abstract_operations::AbstractOperationPlan {
             is_self: false,
             structural_type: id(3),
             multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::Owned,
+            access,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         }],
@@ -635,7 +635,7 @@ fn owned_array_arrival_source() -> abstract_operations::AbstractOperationPlan {
                 parameter: id(11),
                 argument: StructuralArgument {
                     place: id(10),
-                    access: StructuralAccess::Owned,
+                    access,
                     path: Vec::new(),
                 },
             }],
@@ -670,7 +670,7 @@ fn owned_array_arrival_source() -> abstract_operations::AbstractOperationPlan {
 }
 
 #[test]
-fn owned_arrival_element_view_retains_backing_and_rejects_substitution() {
+fn array_arrival_element_view_retains_backing_and_rejects_substitution() {
     use super::owned_block_store::id;
     use selected_instructions::{
         LocalStorageSlotId, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
@@ -678,114 +678,136 @@ fn owned_arrival_element_view_retains_backing_and_rejects_substitution() {
     use target_operations::{
         TargetElementView, TargetStructuralArgumentSource, TargetUnitOperation,
     };
-    let source = owned_array_arrival_source();
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
-    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
-    for native in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::macos_arm64(),
+    for access in [
+        StructuralAccess::Owned,
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
     ] {
-        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+        let source = array_arrival_source(access);
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &source,
-            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
-        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        for native in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
             .unwrap();
-        for mutation in 0..4 {
-            let mut changed = targeted.clone();
-            let view = changed.functions[0]
-                .graph
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.operations)
-                .find_map(|operation| match operation {
-                    TargetUnitOperation::EstablishElementView { view, .. } => Some(view),
-                    _ => None,
-                })
-                .unwrap();
-            let TargetElementView::Established {
-                source: backing,
-                extent,
-                ..
-            } = view
-            else {
-                panic!("established view");
-            };
-            match mutation {
-                0 => {
-                    *backing = TargetStructuralArgumentSource::StructuralHome {
-                        psi_operation: id(1),
+            let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+            crate::validate_legalized_operations(
+                &targeted,
+                &source,
+                &unit,
+                legalized.plan().clone(),
+            )
+            .unwrap();
+            for mutation in 0..4 {
+                let mut changed = targeted.clone();
+                let view = changed.functions[0]
+                    .graph
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find_map(|operation| match operation {
+                        TargetUnitOperation::EstablishElementView { view, .. } => Some(view),
+                        _ => None,
+                    })
+                    .unwrap();
+                let TargetElementView::Established {
+                    source: backing,
+                    extent,
+                    ..
+                } = view
+                else {
+                    panic!("established view");
+                };
+                match mutation {
+                    0 => {
+                        *backing = TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: id(1),
+                        }
                     }
-                }
-                1 => {
-                    *backing = TargetStructuralArgumentSource::BlockParameter {
-                        block: id(1),
-                        place: id(11),
+                    1 => {
+                        *backing = TargetStructuralArgumentSource::BlockParameter {
+                            block: id(1),
+                            place: id(11),
+                        }
                     }
-                }
-                2 => {
-                    *backing = TargetStructuralArgumentSource::BlockParameter {
-                        block: id(2),
-                        place: id(10),
+                    2 => {
+                        *backing = TargetStructuralArgumentSource::BlockParameter {
+                            block: id(2),
+                            place: id(10),
+                        }
                     }
+                    _ => *extent += 1,
                 }
-                _ => *extent += 1,
+                assert!(
+                    crate::legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "target mutation {mutation}"
+                );
+                assert!(
+                    crate::validate_legalized_operations(
+                        &changed,
+                        &source,
+                        &unit,
+                        legalized.plan().clone()
+                    )
+                    .is_err(),
+                    "replayed target mutation {mutation}"
+                );
             }
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            let selected = crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
             assert!(
-                crate::legalize_target_operations(&changed, &source, &unit).is_err(),
-                "target mutation {mutation}"
-            );
-            assert!(
-                crate::validate_legalized_operations(
-                    &changed,
-                    &source,
-                    &unit,
-                    legalized.plan().clone()
-                )
-                .is_err(),
-                "replayed target mutation {mutation}"
+                selected.plan().functions[0]
+                    .memory_accesses
+                    .iter()
+                    .any(|observation| {
+                        observation.place == id::<PlaceId>(11)
+                            && match access {
+                                StructuralAccess::Owned => {
+                                    observation.origin
+                                        == SelectedMemoryAccessOrigin::Operation(id(2))
+                                        && observation.role
+                                            == SelectedMemoryAccessRole::AddressLocal {
+                                                slot:
+                                                    LocalStorageSlotId::StructuralBlockParameter {
+                                                        block: id(2),
+                                                        place: id(11),
+                                                    },
+                                            }
+                                }
+                                _ => {
+                                    observation.origin == SelectedMemoryAccessOrigin::Block(id(2))
+                                        && observation.role == SelectedMemoryAccessRole::ReadPlace
+                                        && observation.byte_count == 8
+                                }
+                            }
+                    })
             );
         }
-        let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
-        let constraints = crate::selection_constraints(&legalized, &environment);
-        let selected = crate::select_instructions(
-            &legalized,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-        )
-        .unwrap();
-        crate::validate_selected_instructions(
-            &legalized,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-            selected.plan().clone(),
-        )
-        .unwrap();
-        assert!(
-            selected.plan().functions[0]
-                .memory_accesses
-                .iter()
-                .any(|access| {
-                    access.origin == SelectedMemoryAccessOrigin::Operation(id(2))
-                        && access.place == id::<PlaceId>(11)
-                        && access.role
-                            == SelectedMemoryAccessRole::AddressLocal {
-                                slot: LocalStorageSlotId::StructuralBlockParameter {
-                                    block: id(2),
-                                    place: id(11),
-                                },
-                            }
-                })
-        );
     }
 }
 
@@ -794,7 +816,7 @@ fn nested_array_view_replays_its_exact_backing_offset() {
     use super::owned_block_store::id;
     use target_operations::{TargetElementView, TargetUnitOperation};
 
-    let mut source = owned_array_arrival_source();
+    let mut source = array_arrival_source(StructuralAccess::Owned);
     source
         .structural_types
         .make_mut()
@@ -868,7 +890,7 @@ fn nested_array_view_replays_its_exact_backing_offset() {
 fn owned_arrival_element_view_rejects_unavailable_backing() {
     use super::owned_block_store::id;
     for mutation in 0..2 {
-        let mut source = owned_array_arrival_source();
+        let mut source = array_arrival_source(StructuralAccess::Owned);
         let function = &mut source.functions[0];
         if mutation == 0 {
             // The descriptor cannot read a future block's owned arrival.
