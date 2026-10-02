@@ -13,20 +13,20 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; buf: [u8; 12]; k: u32; out: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.buf[4] = 1;
-    self.buf[5] = 2;
-    self.buf[6] = 3;
-    self.buf[7] = 4;
-    self.k = 4;
-    transition self.k <= 8 { true -> read(self.k) _ -> bad() }
-    state read(&mut self, off: u32) {
-        let v: &u32 = &self.buf[off] as &u32;
+machine Main::main(main: &mut Main) reaches Console {
+    main.buf[4] = 1;
+    main.buf[5] = 2;
+    main.buf[6] = 3;
+    main.buf[7] = 4;
+    main.k = 4;
+    transition main.k <= 8 { true -> read(main, main.k) _ -> bad(main) }
+    state read(main: &mut Main, off: u32) {
+        let v: &u32 = &main.buf[off] as &u32;
         transition v == 67305985 {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main)  { main.console.exit_process(71); }
 }

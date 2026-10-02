@@ -21,13 +21,13 @@ data Loader {
     end: u64 in Wrapping;
 }
 
-machine Loader::fill(&mut self) {
-    transition self.cursor < 16384 {
-        true -> present(self.cursor)
-        false -> absent()
+machine Loader::fill(loader: &mut Loader) {
+    transition loader.cursor < 16384 {
+        true -> present(loader, loader.cursor)
+        false -> absent(loader)
     }
 
-    state present(&mut self, index: u64)
+    state present(loader: &mut Loader, index: u64)
     requires index <= 16383
     {
         // `tags`/`firsts` are `[u8; N] in Trapping`, so an element reads as
@@ -35,71 +35,70 @@ machine Loader::fill(&mut self) {
         // keeps its policy across a store, so dropping `Trapping` is spelled
         // rather than implicit. `starts`/`ends` need no cast: their elements
         // are already `u64 in Wrapping`, which is what `start`/`end` hold.
-        self.tag = self.tags[index] as u8;
-        self.first = self.firsts[index] as u8;
-        self.start = self.starts[index];
-        self.end = self.ends[index];
+        loader.tag = loader.tags[index] as u8;
+        loader.first = loader.firsts[index] as u8;
+        loader.start = loader.starts[index];
+        loader.end = loader.ends[index];
     }
 
-    state absent(&mut self) {
-        self.tag = 0;
-        self.first = 0;
-        self.start = 0;
-        self.end = 0;
+    state absent(loader: &mut Loader) {
+        loader.tag = 0;
+        loader.first = 0;
+        loader.start = 0;
+        loader.end = 0;
     }
 }
 
-machine Loader::run(&mut self) reaches Console {
-    let observed: LineReadResult = block self.console.read_line(&mut self.line);
+machine Loader::run(loader: &mut Loader) reaches Console {
+    let observed: LineReadResult = block loader.console.read_line(&mut loader.line);
     transition observed {
-        LineReadResult::LineComplete { count } -> bounded_input(count)
-        LineReadResult::EndOfInput { count } -> bounded_input(count)
-        LineReadResult::Full { count } -> bad()
-        LineReadResult::Invalid -> bad()
+        LineReadResult::LineComplete { count } -> bounded_input(loader, count)
+        LineReadResult::EndOfInput { count } -> bounded_input(loader, count)
+        LineReadResult::Full { count } -> bad(loader)
+        LineReadResult::Invalid -> bad(loader)
     }
-    state bounded_input(&mut self, count: u64) {
-        transition count >= 4 && count <= self.line.len {
-            true -> loaded_input()
-            false -> bad()
+    state bounded_input(loader: &mut Loader, count: u64) {
+        transition count >= 4 && count <= loader.line.len {
+            true -> loaded_input(loader)
+            false -> bad(loader)
         }
     }
-    state loaded_input(&mut self) {
-        self.tags[1] = self.line[0];
-        self.firsts[1] = self.line[1];
-        self.starts[1] = self.line[2] as u64 in Wrapping;
-        self.ends[1] = self.line[3] as u64 in Wrapping;
-        self.cursor = 1;
-        self.fill();
-        transition { _ -> loaded(
-            self.tag,
-            self.first,
-            self.start,
-            self.end
+    state loaded_input(loader: &mut Loader) {
+        loader.tags[1] = loader.line[0];
+        loader.firsts[1] = loader.line[1];
+        loader.starts[1] = loader.line[2] as u64 in Wrapping;
+        loader.ends[1] = loader.line[3] as u64 in Wrapping;
+        loader.cursor = 1;
+        Loader::fill(loader);
+        transition { _ -> loaded(loader, loader.tag,
+            loader.first,
+            loader.start,
+            loader.end
         ) }
 
     }
 
     state loaded(
-        &mut self,
+        loader: &mut Loader,
         tag: u8,
         first: u8,
         start: u64 in Wrapping,
         end: u64 in Wrapping
     ) {
         transition tag == 5 && first == 27 && start == 33 && end == 44 {
-            true -> good()
-            false -> bad()
+            true -> good(loader)
+            false -> bad(loader)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(72); }
+    state good(loader: &mut Loader) { loader.console.exit_process(70); }
+    state bad(loader: &mut Loader) { loader.console.exit_process(72); }
 }
 
 data Main {
     loader: Loader;
 }
 
-machine Main::main(&mut self) {
-    block self.loader.run();
+machine Main::main(main: &mut Main) {
+    block Loader::run(&mut main.loader);
 }

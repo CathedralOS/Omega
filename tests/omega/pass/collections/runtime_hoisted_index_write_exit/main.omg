@@ -17,22 +17,22 @@ where
     rows <= 2,
     cols <= 3,
 { console: Binding<Console>; cells: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.rows = 2;
-    self.cols = 3;
-    self.j = 2;
-    self.k = 3;
-    transition self.j <= self.rows && self.k <= self.cols { true -> put(self.j, self.k) _ -> bad() }
-    state put(&mut self, y: u32, x: u32)
-    requires y <= self.rows && x <= self.cols
+machine Main::main(main: &mut Main) reaches Console {
+    main.rows = 2;
+    main.cols = 3;
+    main.j = 2;
+    main.k = 3;
+    transition main.j <= main.rows && main.k <= main.cols { true -> put(main, main.j, main.k) _ -> bad(main) }
+    state put(main: &mut Main, y: u32, x: u32)
+    requires y <= main.rows && x <= main.cols
     {
         // The RHS must be genuinely runtime: a static-folding value lowers
         // through the write cascade's immediate path (probed -- `= 7`
         // compiles and runs).
         let next: u8 = ((y as u8 in Wrapping) + 5) as u8;
-        self.cells[y * 4 + x] = next;
-        self.out = self.cells[11] as i32;
-        self.console.exit_process(self.out);
+        main.cells[y * 4 + x] = next;
+        main.out = main.cells[11] as i32;
+        main.console.exit_process(main.out);
     }
-    state bad(&mut self) { self.console.exit_process(9); }
+    state bad(main: &mut Main) { main.console.exit_process(9); }
 }

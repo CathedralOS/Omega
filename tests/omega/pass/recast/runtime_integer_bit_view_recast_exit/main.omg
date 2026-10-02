@@ -16,26 +16,26 @@ data Main {
     k: u32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.value = -2;
-    self.small = -56;
-    self.bytes[3] = 254;
-    self.bytes[4] = 255;
-    self.k = 3;
-    let bits: &u32 = &self.value as &u32;
-    transition bits == 4294967294 && (&self.small as &u8) == 200 && self.k <= 4 {
-        true -> region(self.k)
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = -2;
+    main.small = -56;
+    main.bytes[3] = 254;
+    main.bytes[4] = 255;
+    main.k = 3;
+    let bits: &u32 = &main.value as &u32;
+    transition bits == 4294967294 && (&main.small as &u8) == 200 && main.k <= 4 {
+        true -> region(main, main.k)
+        _ -> bad(main)
     }
 
-    state region(&mut self, offset: u32) {
-        let pair: &i16 = &self.bytes[offset] as &i16;
+    state region(main: &mut Main, offset: u32) {
+        let pair: &i16 = &main.bytes[offset] as &i16;
         transition pair == -2 {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
