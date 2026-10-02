@@ -240,6 +240,7 @@ fn returned_carrier_preserves_origins_after_parameter_reborrow() {
              carrier.destination = 11;
          }",
     );
+    let _scope = crate::enter_frozen_program_scope(&program);
     let machine = program
         .machines()
         .iter()
@@ -251,6 +252,40 @@ fn returned_carrier_preserves_origins_after_parameter_reborrow() {
     assert_eq!(
         frames[0].complete_paths(),
         Some(["self.scratch".to_owned()].as_slice())
+    );
+
+    // The resolver has solved initialize's complete write frame. An origin
+    // query must still derive make's returned relation, but not re-walk that
+    // already completed callee merely because it is beneath a result query.
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    let state = &program.machine_states(machine)[0];
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("carrier initializer");
+    };
+    PREFIX_WALKS.with(|walks| walks.set(0));
+    let origins = super::super::path_instantiation::aggregate_arguments::reference_leaves(
+        &program,
+        machine,
+        local.initial_value,
+        local.type_reference,
+        "",
+        &symbols,
+        &mut FrameInference::default(),
+    )
+    .expect("body-derived returned origin");
+    assert_eq!(origins.references.len(), 1);
+    assert_eq!(
+        origins.references[0].origin.as_ref().unwrap().path,
+        "self.scratch"
+    );
+    assert_eq!(
+        PREFIX_WALKS.with(|walks| walks.get()),
+        1,
+        "derive the result relation without rebuilding completed callee effects"
     );
 }
 
