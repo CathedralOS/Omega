@@ -10,6 +10,11 @@
 //! usually the pinned neighbour occupying the home the failed register
 //! needs — the named register itself is typically the one with the fixed
 //! use and cannot give that home up.
+//!
+//! Success returns an unadmitted candidate. Full-result replay belongs to the
+//! retained allocation boundary, which every caller enters before publication.
+//! Keep the per-step semantic checks here, but do not replay the completed
+//! history once here and then again at that boundary.
 
 use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts,
@@ -604,7 +609,6 @@ fn recover_over(
                                     homes,
                                     manifest,
                                 };
-                                replay::validate(&result)?;
                                 return Ok(result);
                             }
                             Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {}
@@ -661,7 +665,6 @@ fn recover_over(
                     homes,
                     manifest,
                 };
-                replay::validate(&result)?;
                 return Ok(result);
             }
             Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {

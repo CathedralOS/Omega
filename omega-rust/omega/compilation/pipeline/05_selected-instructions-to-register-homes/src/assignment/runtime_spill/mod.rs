@@ -32,7 +32,11 @@ use selected_instructions_to_selected_instructions::{
     validate_selected_lowering_optimization_custody,
 };
 
-/// Original source custody and rewrite evidence are retained only for replay.
+/// An unadmitted allocation candidate retaining its source and rewrite evidence.
+/// Every recovery caller transfers it directly to `RetainedAllocation::try_from`,
+/// which independently replays the complete recovery before publishing current
+/// allocation facts. Validated pieces do not admit their composition; replaying
+/// that composition here as well would duplicate the same whole-history check.
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillAllocation {
     pub(crate) source: RuntimeSpillSource,

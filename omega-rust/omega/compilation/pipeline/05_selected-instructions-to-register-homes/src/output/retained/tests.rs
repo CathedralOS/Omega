@@ -32,4 +32,9 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
             "validate_recovery_selection(&replayed, source.recovery_prefix_selection())?;"
         )
     );
+    // Recovery produces an unadmitted candidate. This boundary owns its full
+    // replay; repeating it at the producer makes spill-heavy programs replay
+    // every recovery decision twice without adding an admission guarantee.
+    let recovery = include_str!("../../assignment/runtime_spill/recovery.rs");
+    assert!(!recovery.contains("replay::validate("));
 }
