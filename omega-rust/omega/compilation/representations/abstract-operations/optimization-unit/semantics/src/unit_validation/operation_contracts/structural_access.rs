@@ -165,6 +165,7 @@ pub(crate) fn structural_arguments_match(
                     terminal_psi::StructuralAccess::Owned,
                     terminal_psi::StructuralAccess::MutableBorrow
                         | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        | terminal_psi::StructuralAccess::SharedBorrow
                 )
             )
             && argument.path.iter().all(|segment| match segment {
@@ -197,6 +198,25 @@ pub(crate) fn structural_arguments_match(
             StructuralProjectionPolicy::Projected => true,
             StructuralProjectionPolicy::Boundary => true,
         };
+        // An established, claim-free local result keeps whole-value custody
+        // like an owned unrestricted root: its producer's affine lifecycle is
+        // already discharged, so it lends an exact subtree with the same
+        // exclusive authority. Declared parameters still require their own
+        // unrestricted signature; entry claims keep the result out.
+        let completed_affine_result = source.operation_result.is_some_and(|result| {
+            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && result.claims.is_empty()
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty()
+        }) && !caller
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == argument.place)
+            && !caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place);
         let unrestricted_mutable_subloan = static_borrowed_path
             && argument.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -208,7 +228,9 @@ pub(crate) fn structural_arguments_match(
             && argument.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+            && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                || (source.access == terminal_psi::StructuralAccess::Owned
+                    && completed_affine_result));
         // A live view binding lends one viewed element: the descriptor's
         // custody stays with the caller, so the loan presents unrestricted
         // exactly like a parameter subloan — even when the view result
@@ -414,25 +436,6 @@ pub(crate) fn structural_arguments_match(
         // subtree a mutable parent does. The resolved leaf must still name
         // the parameter's type, so inline byte-field presentations — which
         // resolve to no standalone type — stay borrowed-parent forms.
-        // An established, claim-free local result keeps whole-value custody
-        // like an owned unrestricted root: its producer's affine lifecycle is
-        // already discharged, so it lends an exact subtree with the same
-        // exclusive authority. Declared parameters still require their own
-        // unrestricted signature; entry claims keep the result out.
-        let completed_affine_result = source.operation_result.is_some_and(|result| {
-            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && result.claims.is_empty()
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty()
-        }) && !caller
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
         let unrestricted_owned_mutable_subloan = static_borrowed_path
             && argument.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
