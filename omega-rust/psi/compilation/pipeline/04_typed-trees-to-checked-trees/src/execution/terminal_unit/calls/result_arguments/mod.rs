@@ -640,28 +640,22 @@ pub(super) fn argument(
             && !(projected_borrow
                 && program.type_multiplicity(referent) == Multiplicity::Unrestricted
                 && result.multiplicity == Multiplicity::Affine))
-        || (!unrestricted
+        // Only an owned transfer needs an owned-content classification here.
+        // A loan keeps the established source home and its declared member
+        // predicates; exact access was rejoined above and the source/result
+        // declaration correspondence is checked below for whole and projected
+        // places alike.
+        || (access == CheckedStructuralAccess::Owned
+            && !unrestricted
             && !linear
             && !owned_reference_record
-            // A projected loan leaves the constrained field in its existing
-            // storage. Its exact access and projected type were joined above;
-            // represented field predicates need no fresh owned-value proof.
-            // In particular, an affine mutable-view descriptor can lend an
-            // unrestricted record element containing qualified inline bytes.
-            && !(projected_borrow
-                && validation::has_plain_owned_contents_with_represented_constraints(
-                    program, referent,
-                ))
             && !validation::has_plain_owned_contents(program, referent)
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
             && !validation::has_cleanup_owned_contents(program, referent)
-            // A shared borrow of a view-carrying affine record moves no view
-            // custody — the descriptor members ride the loan while each
-            // view's captured loan stays with the caller — so the same
-            // contents family that admits plain owned storage admits this
-            // carrier too.
+            // Moving a record that carries shared view descriptors preserves
+            // those views' independently retained referent loans.
             && !validation::has_owned_or_shared_view_contents(program, referent)
             && !(constructed_literal
                 && validation::has_structural_construction_contents(program, referent)))

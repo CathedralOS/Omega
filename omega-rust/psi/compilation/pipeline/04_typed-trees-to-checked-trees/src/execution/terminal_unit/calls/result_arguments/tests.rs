@@ -743,6 +743,160 @@ fn domain_carrying_local_records_lend_whole_and_projected_loans() {
 }
 
 #[test]
+fn named_interval_record_loans_keep_whole_and_projected_custody() {
+    let checked = checked_program(
+        r#"
+        domain u32::WireValue(value) requires value <= 100;
+        domain i32::WireDelta(value) requires 0 - 10 <= value && value <= 10;
+        data Val { v: u32 in WireValue; delta: i32 in WireDelta; }
+        data Envelope { value: Val; }
+        machine fill(value: &mut Val) { value.v = 50; value.delta = 0 - 5; }
+        machine inspect(value: &Val) {}
+        machine run() {
+            let value: Val = Val { v: 42, delta: 7 };
+            fill(&mut value);
+            inspect(&value);
+            let envelope: Envelope = Envelope { value: Val { v: 42, delta: 7 } };
+            fill(&mut envelope.value);
+            inspect(&envelope.value);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "named interval record loans: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 4);
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .expect("caller borrow state");
+    let captured_calls = checked.facts.borrow.calls.span_or_empty(borrow_state.calls);
+    let mut bindings = Vec::new();
+    for (ordinal, call) in calls.iter().enumerate() {
+        let [argument] = call.structural_arguments.as_slice() else {
+            panic!("one declared record loan per call");
+        };
+        assert_eq!(argument.path.len(), usize::from(ordinal >= 2));
+        assert_eq!(
+            argument.access,
+            if ordinal % 2 == 0 {
+                CheckedStructuralAccess::MutableBorrow
+            } else {
+                CheckedStructuralAccess::SharedBorrow
+            }
+        );
+        assert_eq!(
+            argument.type_identity,
+            calls[0].structural_arguments[0].type_identity
+        );
+        bindings.push(
+            argument
+                .source_structural_result_binding_ordinal()
+                .expect("loan keeps its established local binding"),
+        );
+        let captured = captured_calls
+            .iter()
+            .find(|captured| {
+                captured.statement_index == call.coordinate.statement_index as usize
+                    && captured.call_ordinal == call.coordinate.call_ordinal as usize
+            })
+            .expect("exact captured call occurrence");
+        assert_eq!(captured.accesses.len(), 1);
+        for mutation in 0..if ordinal >= 2 { 3 } else { 2 } {
+            let mut facts = checked.facts.clone();
+            let access = facts
+                .borrow
+                .argument_accesses
+                .get_mut(captured.accesses.start());
+            match mutation {
+                0 => access.root_symbol = symbols::SymbolHandle::invalid(),
+                1 => {
+                    access.kind = if ordinal % 2 == 0 {
+                        checked_trees::BorrowAccessKind::Read
+                    } else {
+                        checked_trees::BorrowAccessKind::Mutable
+                    };
+                }
+                2 => access.segments = arena::HandleSpan::default(),
+                _ => unreachable!(),
+            }
+            let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+                &checked.typed,
+                &facts,
+                crate::execution::terminal_unit::ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns,
+                },
+            );
+            assert!(
+                rebuilt.for_machine(machine).is_none(),
+                "loan {ordinal} accepted custody mutation {mutation}"
+            );
+        }
+    }
+    assert_eq!(bindings[0], bindings[1]);
+    assert_eq!(bindings[2], bindings[3]);
+    assert_ne!(bindings[0], bindings[2]);
+}
+
+#[test]
+fn named_interval_record_loans_do_not_admit_owned_transfer() {
+    let checked = checked_program(
+        r#"
+        domain u32::WireValue(value) requires value <= 100;
+        domain i32::WireDelta(value) requires 0 - 10 <= value && value <= 10;
+        data Val { v: u32 in WireValue; delta: i32 in WireDelta; }
+        machine consume(value: Val) {}
+        machine run() {
+            let value: Val = Val { v: 42, delta: 7 };
+            consume(value);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_none(),
+        "a loan admission change granted owned transfer of constrained contents"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine)
+            .is_some(),
+        "the owned transfer still has an explicit lowering boundary"
+    );
+}
+
+#[test]
 fn affine_local_records_lend_unrestricted_leaves_to_scalar_calls() {
     // `Pair` and `Words` are affine; their `u8` leaves are unrestricted. A
     // projected shared loan observes the leaf in the local's own storage, so

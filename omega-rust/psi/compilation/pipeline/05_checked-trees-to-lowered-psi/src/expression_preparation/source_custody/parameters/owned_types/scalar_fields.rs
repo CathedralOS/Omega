@@ -1,7 +1,7 @@
 //! Reconstruct scalar restrictions without consulting producer field catalogs.
 //!
-//! Type substitution can introduce another range shell. Intersect all declared
-//! intervals and the fixed carrier, retaining a bounded field even if its range
+//! Type substitution can introduce another range or exact interval-domain shell.
+//! Intersect every restriction and the fixed carrier, retaining a bounded field even if its range
 //! spans that carrier. Unsupported bounds or policies must not become raw scalars.
 //! Endpoint intersection precedes conversion to the signed or unsigned carrier.
 
@@ -42,31 +42,38 @@ pub(super) fn reconstruct(
                     return None;
                 }
                 for constraint in rows {
-                    match constraint {
+                    let interval = match constraint {
                         TypeConstraintNode::ArithmeticDomain(domain) => {
                             non_exact |= *domain != ArithmeticDomain::Exact;
+                            continue;
                         }
                         TypeConstraintNode::Range {
                             minimum,
                             maximum,
                             end_inclusive,
-                        } => {
-                            let minimum =
-                                validation::closed_integer_range_bound(&checked.typed, *minimum)?;
-                            let maximum = validation::closed_integer_range_maximum(
+                        } => (
+                            validation::closed_integer_range_bound(&checked.typed, *minimum)?,
+                            validation::closed_integer_range_maximum(
                                 &checked.typed,
                                 *maximum,
                                 *end_inclusive,
-                            )?;
-                            bounds = Some(match bounds {
-                                Some((prior_minimum, prior_maximum)) => {
-                                    (minimum.max(prior_minimum), maximum.min(prior_maximum))
-                                }
-                                None => (minimum, maximum),
-                            });
+                            )?,
+                        ),
+                        TypeConstraintNode::Domain(domain) => {
+                            validation::exact_declared_domain_carrier_interval(
+                                &checked.typed,
+                                primitive,
+                                domain,
+                            )?
                         }
                         _ => return None,
-                    }
+                    };
+                    bounds = Some(match bounds {
+                        Some((minimum, maximum)) => {
+                            (minimum.max(interval.0), maximum.min(interval.1))
+                        }
+                        None => interval,
+                    });
                 }
                 reference = *base_type;
             }

@@ -193,3 +193,112 @@ fn borrowed_provider_fields_reject_substituted_identity_receipt_and_erasure() {
         );
     }
 }
+
+#[test]
+fn named_interval_referent_reconstruction_preserves_bounds_and_rejects_tampering() {
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+    let original = crate::front_end::checked_program(
+        "domain u32::Limited(value) requires value <= 100;
+         domain i32::Delta(value) requires 0 - 10 <= value && value <= 10;
+         domain u32::Narrow(value) requires 10 <= value && value <= 90;
+         data Record {
+             payload: u32 in Limited;
+             delta: i32 in Delta;
+             narrowed: u32 in Narrow;
+         }
+         machine observe(record: &Record) -> u32 { record.payload }",
+    );
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .unwrap();
+    let state = &original.machine_states(machine)[0];
+    let parameter = &original.state_parameters(state)[0];
+    let TypeReferenceNode::Reference { referee, .. } = original
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("borrowed record");
+    };
+    let reference = *referee;
+    let identity = original.normalized_type_identity(reference).into_string();
+    validate_referent_type(&original, reference, &identity)
+        .expect("independent field replay retains exact interval-domain storage");
+    let shape = original
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == identity)
+        .expect("record catalog");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &shape.shape else {
+        panic!("record fields");
+    };
+    for (field, minimum, maximum) in [
+        (
+            "payload",
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(100),
+        ),
+        ("delta", IntegerValue::Signed(-10), IntegerValue::Signed(10)),
+        (
+            "narrowed",
+            IntegerValue::Unsigned(10),
+            IntegerValue::Unsigned(90),
+        ),
+    ] {
+        let declared = fields
+            .iter()
+            .find(|candidate| candidate.identity == field)
+            .unwrap();
+        let CheckedUnitStructuralFieldType::BoundedInteger(bounds) = declared.field_type else {
+            panic!("{field} must retain bounded storage");
+        };
+        assert_eq!(bounds.minimum(), minimum);
+        assert_eq!(bounds.maximum(), maximum);
+    }
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let shape = changed
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == identity)
+            .unwrap();
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+            panic!("record");
+        };
+        let field = fields
+            .iter_mut()
+            .find(|field| field.identity == "payload")
+            .unwrap();
+        let CheckedUnitStructuralFieldType::BoundedInteger(bounds) = field.field_type else {
+            panic!("bounded payload");
+        };
+        match mutation {
+            0 => {
+                field.field_type =
+                    CheckedUnitStructuralFieldType::Scalar(checked_trees::types::PrimitiveType::U32)
+            }
+            1 => {
+                field.field_type = CheckedUnitStructuralFieldType::BoundedInteger(
+                    BoundedIntegerType::new(
+                        bounds.integer_type(),
+                        bounds.minimum(),
+                        IntegerValue::Unsigned(101),
+                    )
+                    .unwrap(),
+                )
+            }
+            _ => field.identity = "other".into(),
+        }
+        assert!(
+            validate_referent_type(&changed, reference, &identity).is_err(),
+            "catalog mutation {mutation} must not replace independent source bounds"
+        );
+    }
+}
