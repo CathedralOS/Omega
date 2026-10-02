@@ -108,17 +108,23 @@ only a normal return composes the caller's remaining work.
 ## Primitive array results
 
 [scalar_array.rs](src/scalar_array.rs) owns complete primitive-array construction
-and return. Ordinary structural calls return the exact unrestricted payload into
+and return. Ordinary and installed checked-provider structural calls return the
+exact unrestricted payload into
 their saved caller's fresh result place. Earlier caller arrays survive alongside
 that result. Return preflight precedes fuel charging and frame restoration, so
 exhaustion cannot publish a partial result or repeat a completed invocation.
 Nested and empty dimensions, Boolean values, and IEEE payload bits are retained.
 Ordinary Unit, scalar, and structural calls copy whole owned unrestricted arrays
 into the exact callee parameter places. Repeated arguments preserve the caller's
-payload, and parameter returns select the actual input contents. Opaque host
-identities cannot fabricate array payloads. Borrowed/projected array payloads,
-boundary-provider transport, state transfers, and native realization remain
-unsupported; existing borrowed byte-array backing is a separate route.
+payload, and parameter returns select the actual input contents. State transfers
+capture all incoming array payloads before committing successor bindings, so
+parallel transfers cannot overwrite a later operand. Installed providers use
+the same saved-frame return transport after exact conformance and installation
+replay. Opaque host identities cannot fabricate array payloads: host result
+preflight rejects them before invoking the handler. Borrowed/projected array
+result payloads remain unsupported; existing borrowed byte-array backing is a
+separate route. Native realization belongs to Omega's result-home and target
+transport owners.
 
 ## Primitive local storage
 
