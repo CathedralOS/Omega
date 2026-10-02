@@ -3,7 +3,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId};
 
@@ -21,33 +20,18 @@ pub(crate) fn validate_structural_place_availability(
             producers.insert(parameter.place, (block.id, None));
         }
         for (node_index, node) in block.nodes.iter().enumerate() {
-            let place = match &node.operation {
-                O::EstablishByteSequenceConcatenation { result, .. }
-                | O::EstablishPrimitiveLocal { result, .. }
-                | O::ByteSequenceSubslice { result, .. }
-                | O::EstablishScalarArray { result, .. }
-                | O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
-                | O::EstablishZeroedStructural { result, .. }
-                | O::EstablishReference { result, .. }
-                // The extraction produces the moved subtree at its own node;
-                // a repair consuming it must sit downstream.
-                | O::MoveStructuralField { result, .. }
-                // The copy produces the leaf's fresh owned storage at its own
-                // node; a consumer of it must sit downstream.
-                | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural {
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                }
-                | O::BoundaryCall {
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                } => Some(result.place),
-                O::EstablishByteSequenceLiteral { place, .. }
-                | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
-                _ => None,
-            };
+            let place =
+                crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                    &node.operation,
+                )
+                .and_then(|contract| contract.operation_result().map(|result| result.place))
+                .or(match &node.operation {
+                    // These establishments publish a declaration directly,
+                    // rather than a StructuralOperationResult contract.
+                    O::EstablishByteSequenceLiteral { place, .. }
+                    | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+                    _ => None,
+                });
             if let Some(place) = place {
                 producers.insert(
                     place,
@@ -128,6 +112,9 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .iter()
             .map(|argument| argument.place)
             .collect(),
+        // Capture reads the selected source now; a later stored dispatch uses
+        // that retained descriptor, not a fresh read of this source name.
+        O::StoreDynamicDescriptor { stored, .. } => vec![stored.selection.source.place],
         O::CallStructural {
             structural_arguments,
             dynamic_arguments,
@@ -174,6 +161,11 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             destination,
             source,
             ..
+        }
+        | O::StructuralByteViewFieldStore {
+            destination,
+            source,
+            ..
         } => vec![*destination, *source],
         // Both sides of a window observe the borrowed root; the repair also
         // consumes its owned value place, which must dominate the store.
@@ -194,6 +186,10 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {
+            destination: source,
+            ..
+        }
+        | O::ElementViewWrite {
             destination: source,
             ..
         }

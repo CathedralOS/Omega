@@ -6,6 +6,8 @@
 //! exact descriptor forwarding, including every possible child at a join.
 //! Instruction positions matter at both ends: a preceding write did not touch
 //! a live child, and a following write cannot disturb a completed scalar read.
+//! Value names are followed through actual definitions and simultaneous edge
+//! bindings. A loop's redefinition ends that name's old value, not its aliases.
 //! Unknown escapes conservatively retain the loan until the activation ends.
 //! Possible origins establish interference only, never permission or equality.
 
@@ -67,63 +69,12 @@ impl DescriptorLoans {
         if births.is_empty() {
             return Self::default();
         }
-        let (successors, predecessors) = position_graph(function);
+        let flow = DescriptorFlow::new(function);
         let mut loans = Vec::with_capacity(births.len());
         for (birth, descriptor, source, projection) in births {
-            let names = borrowed_regions.descendants(descriptor);
-            let after_birth = reachable(
-                successors.get(&birth).into_iter().flatten().copied(),
-                &successors,
-                None,
-            );
-            // In a loop, an older descriptor may remain in a carried alias
-            // when its producer runs again. Without a complete instance-end
-            // proof, reformation cannot retire that earlier cohort.
-            let stop = (!after_birth.contains(&birth)).then_some(birth);
-            let mut observations = BTreeSet::new();
-            let mut escaped = BTreeSet::new();
-            for block in &function.blocks {
-                if block
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| names.contains(&parameter.place))
-                {
-                    observations.insert((block.id, 0));
-                }
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let position = (
-                        block.id,
-                        u32::try_from(index).expect("unit node index fits u32"),
-                    );
-                    if position == birth {
-                        continue;
-                    }
-                    if crate::unit_validation::function_structure::operation_place_inputs(
-                        &node.operation,
-                    )
-                    .iter()
-                    .any(|place| names.contains(place))
-                    {
-                        observations.insert(position);
-                        if !known_descriptor_use(&node.operation) {
-                            escaped.insert(position);
-                        }
-                    }
-                }
-            }
-            let mut live = reachable(observations, &predecessors, stop);
-            // A path reaching the same code before any formation has no child.
-            live.retain(|position| after_birth.contains(position));
-            // Reformation cannot end an unknown retained alias from an earlier
-            // loop iteration. Its pin survives through the whole activation.
-            live.extend(
-                reachable(escaped, &successors, None)
-                    .into_iter()
-                    .filter(|position| after_birth.contains(position)),
-            );
             loans.push(DescriptorLoan {
                 regions: borrowed_regions.resolve(source, projection),
-                live,
+                live: flow.live_positions(birth, descriptor),
             });
         }
         Self { loans }
@@ -264,55 +215,206 @@ fn known_descriptor_use(operation: &O) -> bool {
     )
 }
 
-type PositionGraph = BTreeMap<Position, BTreeSet<Position>>;
-
-fn position_graph(function: &PsiOptimizationFunction) -> (PositionGraph, PositionGraph) {
-    let mut successors = PositionGraph::new();
-    let mut predecessors = PositionGraph::new();
-    for block in &function.blocks {
-        for (index, node) in block.nodes.iter().enumerate() {
-            let position = (
-                block.id,
-                u32::try_from(index).expect("unit node index fits u32"),
-            );
-            let targets = if node.successors.is_empty() {
-                (index + 1 < block.nodes.len())
-                    .then_some((block.id, position.1 + 1))
-                    .into_iter()
-                    .collect()
-            } else {
-                node.successors
-                    .iter()
-                    .map(|edge| (edge.target, 0))
-                    .collect::<BTreeSet<_>>()
-            };
-            for target in &targets {
-                predecessors.entry(*target).or_default().insert(position);
-            }
-            successors.insert(position, targets);
-        }
-    }
-    (successors, predecessors)
+/// Current-value transport, separate from the conservative backing-region
+/// graph. Redefinition ends one name, not every alias of that earlier value.
+struct DescriptorFlow {
+    steps: BTreeMap<Position, DescriptorFlowStep>,
 }
 
-fn reachable(
-    starts: impl IntoIterator<Item = Position>,
-    graph: &PositionGraph,
-    stop: Option<Position>,
-) -> BTreeSet<Position> {
-    let mut visited = BTreeSet::new();
-    let mut pending = starts.into_iter().collect::<Vec<_>>();
-    while let Some(position) = pending.pop() {
-        if Some(position) == stop || !visited.insert(position) {
-            continue;
-        }
-        pending.extend(graph.get(&position).into_iter().flatten().copied());
+#[derive(Default)]
+struct DescriptorFlowStep {
+    definitions: Vec<PlaceId>,
+    derivation: Option<(PlaceId, PlaceId)>,
+    inputs: Vec<PlaceId>,
+    may_escape: bool,
+    successors: Vec<DescriptorFlowEdge>,
+}
+
+struct DescriptorFlowEdge {
+    target: Position,
+    parameters: Vec<PlaceId>,
+    bindings: Vec<(PlaceId, PlaceId)>,
+}
+
+impl DescriptorFlowEdge {
+    fn forward(&self, source: PlaceId) -> impl Iterator<Item = PlaceId> + '_ {
+        // Every actual belongs to the pre-edge state. A swap must not read a
+        // destination after another binding has replaced that destination.
+        (!self.parameters.contains(&source))
+            .then_some(source)
+            .into_iter()
+            .chain(
+                self.bindings.iter().filter_map(move |(actual, parameter)| {
+                    (*actual == source).then_some(*parameter)
+                }),
+            )
     }
-    visited
+}
+
+impl DescriptorFlow {
+    fn new(function: &PsiOptimizationFunction) -> Self {
+        let mut steps = BTreeMap::new();
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let position = (
+                    block.id,
+                    u32::try_from(node_index).expect("unit node index fits u32"),
+                );
+                let derivation = match &node.operation {
+                    O::EstablishElementView { result, source, .. } => {
+                        Some((source.place, result.place))
+                    }
+                    O::ElementViewSubslice { result, source, .. }
+                    | O::ByteSequenceSubslice { result, source, .. } => {
+                        Some((*source, result.place))
+                    }
+                    _ => None,
+                };
+                let successors = if node.successors.is_empty() {
+                    (node_index + 1 < block.nodes.len())
+                        .then(|| DescriptorFlowEdge {
+                            target: (block.id, position.1 + 1),
+                            parameters: Vec::new(),
+                            bindings: Vec::new(),
+                        })
+                        .into_iter()
+                        .collect()
+                } else {
+                    node.successors
+                        .iter()
+                        .map(|edge| DescriptorFlowEdge {
+                            target: (edge.target, 0),
+                            parameters: function
+                                .blocks
+                                .iter()
+                                .find(|block| block.id == edge.target)
+                                .into_iter()
+                                .flat_map(|block| &block.structural_parameters)
+                                .map(|parameter| parameter.place)
+                                .collect(),
+                            bindings: edge
+                                .structural_bindings
+                                .iter()
+                                .map(|binding| (binding.argument.place, binding.parameter))
+                                .collect(),
+                        })
+                        .collect()
+                };
+                steps.insert(
+                    position,
+                    DescriptorFlowStep {
+                        definitions: Self::result_definition(function, &node.operation)
+                            .into_iter()
+                            .collect(),
+                        derivation,
+                        inputs: crate::unit_validation::function_structure::operation_place_inputs(
+                            &node.operation,
+                        ),
+                        may_escape: !known_descriptor_use(&node.operation),
+                        successors,
+                    },
+                );
+            }
+        }
+        Self { steps }
+    }
+
+    fn result_definition(function: &PsiOptimizationFunction, operation: &O) -> Option<PlaceId> {
+        let contract =
+            crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                operation,
+            )?;
+        let result = contract.operation_result()?;
+        let producer = operation.psi_operation()?;
+        // A coincident operation identity does not define this value: the
+        // current node must actually publish the catalog's typed result.
+        function
+            .structural_places
+            .iter()
+            .any(|declaration| {
+                declaration.id == result.place
+                    && declaration.kind
+                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type: result.structural_type,
+                        }
+            })
+            .then_some(result.place)
+    }
+
+    fn live_positions(&self, birth: Position, descriptor: PlaceId) -> BTreeSet<Position> {
+        // Materialize only reachable (position, name) links. Returning to the
+        // formation kills its old result name, not independently carried aliases.
+        type Occurrence = (Position, PlaceId);
+        let mut pending = Vec::new();
+        if let Some(step) = self.steps.get(&birth) {
+            for edge in &step.successors {
+                pending.extend(edge.forward(descriptor).map(|name| (edge.target, name)));
+            }
+        }
+        let mut visited = BTreeSet::new();
+        let mut predecessors = BTreeMap::<Occurrence, BTreeSet<Occurrence>>::new();
+        let mut observations = Vec::new();
+        let mut escaped = Vec::new();
+        while let Some(occurrence @ (position, name)) = pending.pop() {
+            if !visited.insert(occurrence) {
+                continue;
+            }
+            let Some(step) = self.steps.get(&position) else {
+                continue;
+            };
+            if step.inputs.contains(&name) {
+                observations.push(occurrence);
+                if step.may_escape {
+                    escaped.push(position);
+                }
+            }
+            let mut outputs = Vec::new();
+            if !step.definitions.contains(&name) {
+                outputs.push(name);
+            }
+            if let Some((source, result)) = step.derivation
+                && source == name
+            {
+                outputs.push(result);
+            }
+            for edge in &step.successors {
+                for output in &outputs {
+                    for destination in edge.forward(*output) {
+                        let next = (edge.target, destination);
+                        predecessors.entry(next).or_default().insert(occurrence);
+                        pending.push(next);
+                    }
+                }
+            }
+        }
+        let mut observed = BTreeSet::new();
+        let mut live = BTreeSet::new();
+        while let Some(occurrence @ (position, _)) = observations.pop() {
+            if !observed.insert(occurrence) {
+                continue;
+            }
+            live.insert(position);
+            observations.extend(predecessors.get(&occurrence).into_iter().flatten().copied());
+        }
+        // A name kill cannot retire an untracked escape. Its possible alias
+        // persists along every subsequent control edge until activation exit.
+        let mut escaped_positions = BTreeSet::new();
+        while let Some(position) = escaped.pop() {
+            if !escaped_positions.insert(position) {
+                continue;
+            }
+            live.insert(position);
+            if let Some(step) = self.steps.get(&position) {
+                escaped.extend(step.successors.iter().map(|edge| edge.target));
+            }
+        }
+        live
+    }
 }
 
 #[cfg(test)]
-mod tests {
+mod authority_tests {
     use super::*;
 
     #[test]
@@ -346,3 +448,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod tests;
