@@ -1707,6 +1707,14 @@ pub(crate) fn local_value_provenance(
             if !name.symbol.is_valid() {
                 return Err("owned local origin has an invalid source");
             }
+            // Names of namespaces and constructors do not denote live storage.
+            // Operand admission separately verifies their authored identity.
+            if !matches!(
+                checked.symbols.get(name.symbol).kind,
+                symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
+            ) {
+                return Ok(None);
+            }
             if name.head_symbol != name.symbol || name.members.count() != 1 {
                 return if expression == local.initial_value {
                     Err("owned local origin is not a whole source")

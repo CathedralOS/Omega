@@ -104,6 +104,121 @@ pub(super) fn selection_role(
         })
 }
 
+/// One structural operand use at its enclosing operation occurrence. Projection
+/// retains the root for residual disposal rather than consuming it whole.
+struct BodyInput<'input> {
+    operation_index: usize,
+    source: PermissionEventSource,
+    argument: &'input checked_trees::CheckedUnitStructuralArgumentPlan,
+    projected: bool,
+}
+
+fn body_inputs<'input>(
+    checked: &'input CheckedTrees,
+    state: &'input CheckedComposedUnitControlStatePlan,
+) -> Result<Vec<BodyInput<'input>>, LoweringError> {
+    use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
+    let plans = &checked.facts.values.structural_values;
+    let mut inputs = Vec::new();
+    for (operation_index, owner) in state.operations.iter().enumerate() {
+        for operation in owner.with_value_calls() {
+            if let Some(call) = operation.call() {
+                // Boundary settlement retains its own completion receipts.
+                if call.is_boundary() {
+                    continue;
+                }
+                let authored = crate::emission::call_source_custody::authored::locate_source(
+                    checked,
+                    state.state,
+                    call.coordinate,
+                )?;
+                let source = PermissionEventSource::Call {
+                    statement_index: call.coordinate.statement_index as usize,
+                    call_ordinal: call.coordinate.call_ordinal as usize,
+                    target_symbol: authored.source_target,
+                };
+                inputs.extend(call.structural_arguments.iter().map(|argument| BodyInput {
+                    operation_index,
+                    source,
+                    argument,
+                    projected: false,
+                }));
+            }
+            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
+                operation
+            else {
+                continue;
+            };
+            let source = PermissionEventSource::Statement {
+                statement_index: result.statement_index as usize,
+            };
+            let mut pending = vec![(*value, false)];
+            let mut visited = Vec::new();
+            while let Some((value, projected)) = pending.pop() {
+                if !plans.nodes.is_valid(value) || visited.contains(&value) {
+                    return unsupported(
+                        "Unit graph operand inventory has stale or repeated value custody",
+                    );
+                }
+                visited.push(value);
+                match &plans.nodes.get(value).kind {
+                    CheckedStructuralValueKind::Place(argument)
+                    | CheckedStructuralValueKind::Reference { source: argument }
+                    | CheckedStructuralValueKind::BorrowedSliceView { source: argument }
+                    | CheckedStructuralValueKind::MutableSliceView { source: argument }
+                    | CheckedStructuralValueKind::ScalarCasePlace {
+                        source: argument, ..
+                    }
+                    | CheckedStructuralValueKind::CopiedStructuralPlace {
+                        source: argument, ..
+                    } => {
+                        inputs.push(BodyInput {
+                            operation_index,
+                            source,
+                            argument,
+                            projected,
+                        });
+                    }
+                    CheckedStructuralValueKind::Record { fields, .. }
+                    | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                        for field in
+                            plans
+                                .record_fields
+                                .span(*fields)
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph operand fields are stale",
+                                ))?
+                        {
+                            if let CheckedStructuralRecordFieldValue::Structural(child) =
+                                field.value
+                            {
+                                pending.push((child, projected));
+                            }
+                        }
+                    }
+                    CheckedStructuralValueKind::FixedArray { elements } => {
+                        pending.extend(elements.iter().map(|child| (*child, projected)));
+                    }
+                    CheckedStructuralValueKind::Projection { source, .. } => {
+                        pending.push((*source, true))
+                    }
+                    // Selected source retirement is governed by its arm-transfer
+                    // receipt, not an unconditional use of every alternative.
+                    CheckedStructuralValueKind::Dispatch { .. }
+                    | CheckedStructuralValueKind::Case(_)
+                    | CheckedStructuralValueKind::Call { .. }
+                    | CheckedStructuralValueKind::ByteLiteralView { .. }
+                    | CheckedStructuralValueKind::ViewElementCopy { .. }
+                    | CheckedStructuralValueKind::ScalarArray { .. }
+                    | CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                    | CheckedStructuralValueKind::ZeroedStructural { .. } => {}
+                }
+            }
+        }
+    }
+    Ok(inputs)
+}
+
 /// Structural results whose custody ends inside the body rather than at an
 /// exit: a discarded result pairs with its call's cleanup continuation, a call
 /// result stored whole into a borrowed field's opened window moves into that
@@ -213,11 +328,11 @@ fn retired_in_body(
             retired.push(*binding_ordinal);
         }
     }
-    // A named affine result can end at a later call, before any state edge.
-    // The graph's global discard flag is false for both live and moved locals;
-    // it cannot prove this retirement. Rejoin the one whole call use and the
-    // local's exact establishment/transfer receipts instead. Shared call
-    // admission also checks the authored operand and target before emission.
+    // Calls and value construction both transfer whole operands. A result's
+    // discard flag alone cannot prove retirement: rejoin its one consuming
+    // operand and exact establishment/transfer receipts. Each consumer also
+    // independently validates its authored operands before emission.
+    let inputs = body_inputs(checked, state)?;
     for (producer_index, operation) in state.operations.iter().enumerate() {
         let Some(result) = result(operation) else {
             continue;
@@ -226,52 +341,38 @@ fn retired_in_body(
         {
             continue;
         }
-        let uses = state
-            .operations
-            .iter()
-            .enumerate()
-            .flat_map(|(index, operation)| {
-                operation
-                    .call_structural_arguments()
-                    .iter()
-                    .filter(move |argument| {
-                        argument.source_structural_result_binding_ordinal()
-                            == Some(result.binding_ordinal)
-                    })
-                    .map(move |argument| (index, operation, argument))
-            })
-            .collect::<Vec<_>>();
-        let mut moves = uses.iter().filter(|(_, _, argument)| {
-            argument.access == checked_trees::CheckedStructuralAccess::Owned
-                && argument.path.is_empty()
-        });
-        let Some((consumer_index, consumer, argument)) = moves.next().copied() else {
-            continue;
-        };
-        if moves.next().is_some()
-            || consumer_index <= producer_index
-            || argument.type_identity != result.type_identity
-            || uses.iter().any(|(index, _, other)| {
-                *index <= producer_index
-                    || *index > consumer_index
-                    || (other.access == checked_trees::CheckedStructuralAccess::Owned
-                        && !other.path.is_empty())
-            })
-        {
-            return unsupported("Unit graph call retirement duplicates or precedes its owner");
-        }
-        // Boundary settlement retains its own completion receipts.
-        let Some(call) = consumer.call().filter(|call| !call.is_boundary()) else {
-            continue;
-        };
-        let coordinate = call.coordinate;
         let statements = checked.statement_table.statements(source.statement_nodes);
         let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
         else {
-            return unsupported("Unit graph call retirement has no authored local");
+            continue;
         };
-        if result.statement_index >= coordinate.statement_index
-            || checked.type_multiplicity(local.type_reference) != Multiplicity::Affine
+        let uses = inputs.iter().filter(|input| {
+            input.argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                || matches!(input.argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                        if symbol == local.symbol)
+        }).collect::<Vec<_>>();
+        let mut moves = uses.iter().filter(|input| {
+            input.argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && input.argument.path.is_empty()
+                && !input.projected
+        });
+        let Some(consumer) = moves.next().copied() else {
+            continue;
+        };
+        if moves.next().is_some()
+            || consumer.operation_index <= producer_index
+            || consumer.argument.type_identity != result.type_identity
+            || uses.iter().any(|input| {
+                input.operation_index <= producer_index
+                    || input.operation_index > consumer.operation_index
+                    || (input.argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        && (!input.argument.path.is_empty() || input.projected))
+            })
+        {
+            return unsupported("Unit graph operand retirement duplicates or precedes its owner");
+        }
+        if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine
             || checked
                 .normalized_type_identity(local.type_reference)
                 .as_str()
@@ -281,24 +382,15 @@ fn retired_in_body(
                 local.type_reference,
             )
         {
-            return unsupported("Unit graph call retirement changed its local custody");
+            return unsupported("Unit graph operand retirement changed its local custody");
         }
-        let authored = crate::emission::call_source_custody::authored::locate_source(
-            checked,
-            state.state,
-            coordinate,
-        )?;
         let establishment = PermissionEventSource::Statement {
             statement_index: result.statement_index as usize,
         };
-        let transfer = PermissionEventSource::Call {
-            statement_index: coordinate.statement_index as usize,
-            call_ordinal: coordinate.call_ordinal as usize,
-            target_symbol: authored.source_target,
-        };
+        let transfer = consumer.source;
         // A local move preserves its value's original provenance. Reuse the
         // construction replay (including its borrowed-loan checks), then
-        // require this precise consuming call as the sole final disposition.
+        // require this precise consuming operand as the sole final disposition.
         crate::expression_preparation::source_custody::structural::validate_local_ownership(
             checked,
             machine,
@@ -337,7 +429,7 @@ fn retired_in_body(
             }
         }
         if establishes != 1 || transfers != 1 {
-            return unsupported("Unit graph call retirement lost its exact ownership receipts");
+            return unsupported("Unit graph operand retirement lost its exact ownership receipts");
         }
         retired.push(result.binding_ordinal);
     }
