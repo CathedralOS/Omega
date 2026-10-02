@@ -39,10 +39,8 @@ impl TargetSelectors {
         state: &typed_trees::state::State,
         statement_index: u32,
         target: ExpressionHandle,
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
         let selectors = validation::assignment_target_selectors(program, target);
-        let ordinal = usize::try_from(statement_index).ok()?;
         let mut cursor = target;
         let mut depth = 0usize;
         loop {
@@ -51,35 +49,26 @@ impl TargetSelectors {
                     if selectors.get(depth) != Some(&indexed.index) {
                         return None;
                     }
-                    // A fixed array's literal extent bounds-checks an integer
-                    // index here; `collection_extent` resolves it through a
-                    // reseatable reference local's rejoined referent as well.
-                    // A slice's extent is live, not declared: no literal bound
-                    // exists to check, and the emitted segment's Terminal
-                    // obligation re-proves `index < extent` against the view's
-                    // own length witness. A byte element keeps its established
-                    // byte-view vocabulary instead — its live-length stores
-                    // resolve elsewhere.
-                    let literal_length = if let Some(length) = collection_extent(
+                    let collection = validation::declared_place_type_raw(
                         program,
                         machine,
-                        state,
-                        ordinal,
+                        Some(state),
                         indexed.collection,
-                        call_frames,
-                    ) {
-                        Some(length)
-                    } else {
-                        let collection = validation::declared_place_type_raw(
-                            program,
-                            machine,
-                            Some(state),
-                            indexed.collection,
-                        )
-                        .and_then(|declared| {
-                            validation::unwrapped_type_reference(program, declared)
-                        })?;
+                    )?;
+                    let collection = validation::unwrapped_type_reference(program, collection)?;
+                    let literal_length =
                         match program.type_reference_table.type_reference(collection) {
+                            TypeReferenceNode::FixedArray {
+                                length: typed_trees::types::FixedArrayLength::Literal(length),
+                                ..
+                            } => Some(*length),
+                            // A slice's extent is live, not declared: no literal
+                            // bound exists to check, and the emitted segment's
+                            // Terminal obligation re-proves `index < extent`
+                            // against the view's own length witness. A byte
+                            // element keeps its established byte-view
+                            // vocabulary instead — its live-length stores
+                            // resolve elsewhere.
                             TypeReferenceNode::Slice { element_type } => {
                                 if program.primitive_type_reference(*element_type)
                                     == Some(typed_trees::types::PrimitiveType::U8)
@@ -89,8 +78,7 @@ impl TargetSelectors {
                                 None
                             }
                             _ => return None,
-                        }
-                    };
+                        };
                     match program.expression_table.expression(indexed.index) {
                         ExpressionNode::Integer(literal) => {
                             let index = usize::try_from(literal.value_bignum()?.to_u64()?).ok()?;
@@ -231,58 +219,4 @@ fn retained(
     }
     let node = computations.nodes.get(root.root);
     (node.authored_root == index && integer(Some(node.primitive_type))).then_some(())
-}
-
-/// The declared literal extent of one indexed step's collection. A
-/// fixed-array place answers directly; a view local the store's destination
-/// rejoin can resolve (`let slots: &mut [T] = self.items.as_mut_slice()`)
-/// indexes its origin's declared extent, since `slots[i]` *is*
-/// `self.items[i]`.
-fn collection_extent(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    collection: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<usize> {
-    let literal = |reference: typed_trees::types::TypeReferenceHandle| {
-        let TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-            ..
-        } = program.type_reference_table.type_reference(reference)
-        else {
-            return None;
-        };
-        Some(*length)
-    };
-    if let Some(length) =
-        validation::declared_place_type_raw(program, machine, Some(state), collection)
-            .and_then(|declared| validation::unwrapped_type_reference(program, declared))
-            .and_then(literal)
-    {
-        return Some(length);
-    }
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        collection,
-    )?;
-    let place = super::destination::rejoin_reference_local(
-        program,
-        state,
-        statement_index,
-        place,
-        call_frames,
-    );
-    literal(validation::unwrapped_type_reference(
-        program,
-        crate::flow::canonical_place_type_reference(
-            program,
-            state.symbol,
-            statement_index,
-            &place,
-        )?,
-    )?)
 }

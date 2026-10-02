@@ -370,7 +370,6 @@ fn place(
         state,
         statement_index,
         expression,
-        None,
     )?;
     let mut carrier_path =
         super::structural_scalar_store::checked_unit_path(program, &selectors, &segments)?;

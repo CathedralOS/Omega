@@ -1110,7 +1110,6 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_count: &mut structural_count,
                     windows: &mut windows,
                     structural_results: &mut structural_results,
-                    call_frames,
                 },
                 statement_index,
                 assignment,
