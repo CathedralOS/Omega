@@ -18,8 +18,8 @@ data Payload {
     case Empty;
 }
 
-machine Payload::read_at(&self, at: u64) -> u64 {
-    transition self {
+machine Payload::read_at(payload: &Payload, at: u64) -> u64 {
+    transition payload {
         Payload::Leaf { value } -> (value)
         Payload::Empty -> (at)
     }
@@ -30,9 +30,9 @@ data Sum {
     case Missing;
 }
 
-machine Sum::probe(&self, position: u64) -> u64 {
-    transition self {
-        Sum::Found { p } -> (p.read_at(position))
+machine Sum::probe(sum: &Sum, position: u64) -> u64 {
+    transition sum {
+        Sum::Found { p } -> (Payload::read_at(&p, position))
         Sum::Missing -> (0)
     }
 }
@@ -41,12 +41,12 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let s: Sum = Sum::Found { p: Payload::Leaf { value: 69 } };
 
-    transition s.probe(1) == 70 {
-        true -> done(&mut self)
-        _ -> missed(&mut self)
+    transition Sum::probe(&s, 1) == 70 {
+        true -> done(main)
+        _ -> missed(main)
     }
 
     state done(main: &mut Main) {

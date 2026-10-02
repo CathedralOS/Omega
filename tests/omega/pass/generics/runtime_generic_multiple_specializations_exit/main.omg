@@ -14,13 +14,13 @@ data Main {
     number: i32 in Wrapping;
 }
 
-machine Main::pick<T [copy]>(&self, value: &T) -> i32 in Wrapping {
+machine Main::pick<T [copy]>(main: &Main, value: &T) -> i32 in Wrapping {
     7
 }
 
-machine Main::main(&mut self) reaches Console {
-    let from_light: i32 in Wrapping = self.pick(&self.light);
-    let from_number: i32 in Wrapping = self.pick(&self.number);
+machine Main::main(main: &mut Main) reaches Console {
+    let from_light: i32 in Wrapping = Main::pick(main, &main.light);
+    let from_number: i32 in Wrapping = Main::pick(main, &main.number);
     let result: i32 in Wrapping = from_light + from_number;
-    self.console.exit_process(result as i32);
+    main.console.exit_process(result as i32);
 }

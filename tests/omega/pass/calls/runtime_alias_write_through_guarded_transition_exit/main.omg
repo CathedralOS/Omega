@@ -22,13 +22,13 @@ data Item {
 data Store {
 }
 
-machine Store::find(&mut self, key: i32, out: &mut Item) {
+machine Store::find(store: &mut Store, key: i32, out: &mut Item) {
     out.val = 5;
     transition key < 4 {
-        true -> read(out)
+        true -> read(store, out)
         false -> {}
     }
-    state read(&mut self, out: &mut Item) {
+    state read(store: &mut Store, out: &mut Item) {
         out.key = 7;
     }
 }
@@ -38,13 +38,13 @@ data Main {
     store: Store;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let found: Item;
-    self.store.find(2, &mut found);
+    Store::find(&mut main.store, 2, &mut found);
 
     transition found.val == 5 {
-        true -> check_key(&mut self, found)
-        false -> bad(&mut self)
+        true -> check_key(main, found)
+        false -> bad(main)
     }
     state check_key(main: &mut Main, found: Item) {
         transition found.key == 7 {

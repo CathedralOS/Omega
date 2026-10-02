@@ -17,34 +17,34 @@ data Sink {
     value: u64 in Wrapping;
 }
 
-machine Sink::bump(&mut self) {
-    self.value = self.value + 1 as u64 in Wrapping;
+machine Sink::bump(sink: &mut Sink) {
+    sink.value = sink.value + 1 as u64 in Wrapping;
 }
 
 data Driver {
     ticks: u64 in Wrapping;
 }
 
-machine Driver::drive(&mut self, sink: &mut Sink, more: bool) {
-    transition { _ -> go(sink, more) }
+machine Driver::drive(driver: &mut Driver, sink: &mut Sink, more: bool) {
+    transition { _ -> go(driver, sink, more) }
 
-    state go(sink: &mut Sink, more: bool) {
+    state go(driver: &mut Driver, sink: &mut Sink, more: bool) {
         transition more {
-            true -> step(sink)
-            false -> done()
+            true -> step(driver, sink)
+            false -> done(driver)
         }
     }
 
-    state step(&mut self, sink: &mut Sink) {
-        sink.bump();
-        self.ticks = self.ticks + 1 as u64 in Wrapping;
-        transition self.ticks > 4 {
-            true -> go(sink, false)
-            false -> go(sink, true)
+    state step(driver: &mut Driver, sink: &mut Sink) {
+        Sink::bump(sink);
+        driver.ticks = driver.ticks + 1 as u64 in Wrapping;
+        transition driver.ticks > 4 {
+            true -> go(driver, sink, false)
+            false -> go(driver, sink, true)
         }
     }
 
-    state done(&mut self) { }
+    state done(driver: &mut Driver) { }
 }
 
 data Main {
@@ -53,7 +53,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.driver.drive(&mut self.sink, true);
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    Driver::drive(&mut main.driver, &mut main.sink, true);
+    main.console.exit_process(0);
 }

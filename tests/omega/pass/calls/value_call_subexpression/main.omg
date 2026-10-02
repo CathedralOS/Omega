@@ -7,11 +7,11 @@
 //   73  `twelve() as i64`                   (a cast parent)
 //   74  `twelve() == 12` as a Boolean local (a comparison parent)
 //   75  `0 - twelve()` and `1 + twelve()`   (call as either operand)
-//   76  `self.add(twelve(), twelve())`      (calls as call arguments)
+//   76  `Main::add(&mut self, twelve(), twelve())`      (calls as call arguments)
 //   77  `self.total = twelve() * 2`         (a field store)
 //   78  `transition twelve() + 1 == 13`     (a guard subject)
-//   79  `self.tick() * 10 + self.tick()`    (ordered, single invocation: 12)
-//   80  `false && self.tick() == 3`         (the right operand never runs)
+//   79  `Main::tick(&mut self) * 10 + Main::tick(&mut self)`    (ordered, single invocation: 12)
+//   80  `false && Main::tick(&mut self) == 3`         (the right operand never runs)
 //
 // Exit 70 means every call ran exactly as often as authored and its result
 // reached the enclosing expression. The repair was 508b04b168f, retaining
@@ -31,23 +31,23 @@ ensures result == 12
     transition { _ -> (12) }
 }
 
-machine Main::add(&mut self, left: i32, right: i32) -> i32
+machine Main::add(main: &mut Main, left: i32, right: i32) -> i32
 requires 0 <= left && left <= 100 && 0 <= right && right <= 100
 {
     left + right
 }
 
-machine Main::tick(&mut self) -> u32 in Wrapping {
-    self.ticks = self.ticks + 1;
-    self.ticks
+machine Main::tick(main: &mut Main) -> u32 in Wrapping {
+    main.ticks = main.ticks + 1;
+    main.ticks
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.ticks = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.ticks = 0;
     let sum: i32 = twelve() + 0;
     transition sum == 12 {
-        true -> parenthesized(&mut self)
-        false -> bad(&mut self, 71)
+        true -> parenthesized(main)
+        false -> bad(main, 71)
     }
 
     state parenthesized(main: &mut Main) {
@@ -84,7 +84,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state arguments(main: &mut Main) {
-        let doubled: i32 = main.add(twelve(), twelve());
+        let doubled: i32 = Main::add(main, twelve(), twelve());
         transition doubled == 24 {
             true -> store(main)
             false -> bad(main, 76)
@@ -107,7 +107,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state ordered(main: &mut Main) {
-        let digits: u32 in Wrapping = main.tick() * 10 + main.tick();
+        let digits: u32 in Wrapping = Main::tick(main) * 10 + Main::tick(main);
         transition digits == 12 && main.ticks == 2 {
             true -> short_circuit(main)
             false -> bad(main, 79)
@@ -115,7 +115,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state short_circuit(main: &mut Main) {
-        let skipped: bool = false && main.tick() == 3;
+        let skipped: bool = false && Main::tick(main) == 3;
         transition !skipped && main.ticks == 2 {
             true -> good(main)
             false -> bad(main, 80)

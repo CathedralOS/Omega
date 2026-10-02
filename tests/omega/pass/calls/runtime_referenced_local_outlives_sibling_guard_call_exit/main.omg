@@ -23,7 +23,7 @@ data Random {
 }
 
 machine Random::next_u32(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState
     ) -> u32 {
     state.seed = ((state.seed as u64 in Wrapping) + 1) as u64;
@@ -34,13 +34,13 @@ machine Random::next_u32(
 }
 
 machine Random::range(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState,
     exclusive_max: u32
     ) -> u32
 requires 1 <= exclusive_max
 {
-    let raw: u32 = self.next_u32(state);
+    let raw: u32 = Random::next_u32(random, state);
 
     transition {
         _ -> (raw % exclusive_max)
@@ -48,14 +48,14 @@ requires 1 <= exclusive_max
 }
 
 machine Random::chance(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState,
     numerator: u32,
     denominator: u32
     ) -> bool
 requires 1 <= denominator
 {
-    let roll: u32 = self.range(state, denominator);
+    let roll: u32 = Random::range(random, state, denominator);
 
     transition {
         _ -> (roll < numerator)
@@ -72,7 +72,7 @@ data MazeBuilder {
 }
 
 machine MazeBuilder::build(
-    &mut self,
+    maze_builder: &mut MazeBuilder,
     seed: u64,
     level: &mut Level
 ) {
@@ -81,23 +81,23 @@ machine MazeBuilder::build(
     level.room_count = 2;
 
     transition {
-        _ -> maybe_side(level, &mut random)
+        _ -> maybe_side(maze_builder, level, &mut random)
     }
 
 
     state maybe_side(
-        &mut self,
+        maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
     ) {
-        transition self.should_carve(random) {
-            true -> hall_two(level, random)
-            false -> hall_two(level, random)
+        transition MazeBuilder::should_carve(maze_builder, random) {
+            true -> hall_two(maze_builder, level, random)
+            false -> hall_two(maze_builder, level, random)
         }
     }
 
     state hall_two(
-        &mut self,
+        maze_builder: &mut MazeBuilder,
         level: &mut Level,
         random: &mut RandomState
     ) {
@@ -106,10 +106,10 @@ machine MazeBuilder::build(
 }
 
 machine MazeBuilder::should_carve(
-    &mut self,
+    maze_builder: &mut MazeBuilder,
     random: &mut RandomState
     ) -> bool {
-    let rolled: bool = self.rng.chance(random, 50, 100);
+    let rolled: bool = Random::chance(&mut maze_builder.rng, random, 50, 100);
 
     transition {
         _ -> rolled
@@ -122,10 +122,10 @@ data Dungeon {
 }
 
 machine Dungeon::initialize(
-    &mut self,
+    dungeon: &mut Dungeon,
     seed: u64
 ) {
-    self.maze.build(seed, &mut self.level);
+    MazeBuilder::build(&mut dungeon.maze, seed, &mut dungeon.level);
 }
 
 data Main {
@@ -133,21 +133,21 @@ data Main {
     dungeon: Dungeon;
 }
 
-machine Main::run(&mut self) -> i32 {
-    self.dungeon.initialize(7);
+machine Main::run(main: &mut Main) -> i32 {
+    Dungeon::initialize(&mut main.dungeon, 7);
 
     transition {
-        self.dungeon.level.room_count == 8 -> probe_correct()
-        self.dungeon.level.room_count == 2 -> probe_stalled()
-        _ -> probe_other()
+        main.dungeon.level.room_count == 8 -> probe_correct(main)
+        main.dungeon.level.room_count == 2 -> probe_stalled(main)
+        _ -> probe_other(main)
     }
 
-    state probe_correct(&mut self) -> i32 { 70 }
-    state probe_stalled(&mut self) -> i32 { 2 }
-    state probe_other(&mut self) -> i32 { 77 }
+    state probe_correct(main: &mut Main) -> i32 { 70 }
+    state probe_stalled(main: &mut Main) -> i32 { 2 }
+    state probe_other(main: &mut Main) -> i32 { 77 }
 }
 
-machine Main::main(&mut self) reaches Console {
-    let result: i32 = self.run();
-    self.console.exit_process(result);
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = Main::run(main);
+    main.console.exit_process(result);
 }

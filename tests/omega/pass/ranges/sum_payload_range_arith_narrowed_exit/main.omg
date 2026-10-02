@@ -14,19 +14,19 @@ use omega::language::core::binding;
 domain i32::Ten(value) requires 0 <= value && value <= 10;
 data Cmd { case Dim(amount: i32 in Ten); case Off; }
 data Main { console: Binding<Console>; c: Cmd; }
-machine Main::main(&mut self) reaches Console {
-    self.c = Cmd::Dim { amount: 7 };
-    transition self.c {
-        Cmd::Dim { amount } -> scale(amount)
-        Cmd::Off            -> apply(0)
+machine Main::main(main: &mut Main) reaches Console {
+    main.c = Cmd::Dim { amount: 7 };
+    transition main.c {
+        Cmd::Dim { amount } -> scale(main, amount)
+        Cmd::Off            -> apply(main, 0)
     }
-    state scale(&mut self, a: i32) requires a >= 0 && a <= 10 {
+    state scale(main: &mut Main, a: i32) requires a >= 0 && a <= 10 {
         let scaled: i32 = a * 10;
-        transition { _ -> apply(scaled) }
+        transition { _ -> apply(main, scaled) }
     }
-    state apply(&mut self, target: i32) requires 0 <= target && target <= 100 {
-        self.console.exit_process(target);
+    state apply(main: &mut Main, target: i32) requires 0 <= target && target <= 100 {
+        main.console.exit_process(target);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }
-machine Main::run(&mut self) { self.main(); }
+machine Main::run(main: &mut Main) { Main::main(main); }

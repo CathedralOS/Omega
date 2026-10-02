@@ -10,9 +10,9 @@ data Matrix { rows: [Holder; 2]; }
 data Cursor { row: u64[0..2]; position: u64[0..4]; }
 data Main { console: Binding<Console>; matrix: Matrix; cursor: Cursor; }
 
-machine Cursor::advance(&mut self) -> u64 in Wrapping {
-    self.row = 0;
-    self.position = 1;
+machine Cursor::advance(cursor: &mut Cursor) -> u64 in Wrapping {
+    cursor.row = 0;
+    cursor.position = 1;
     0
 }
 machine read_after(cell: &Cell, ignored: u64 in Wrapping) -> u64 in Wrapping {
@@ -22,21 +22,21 @@ machine read_before(ignored: u64 in Wrapping, cell: &Cell) -> u64 in Wrapping {
     cell.value + ignored
 }
 machine probe(matrix: &Matrix, cursor: &mut Cursor) -> bool {
-    let first: u64 in Wrapping = read_after(&matrix.rows[cursor.row].cells[cursor.position], cursor.advance());
+    let first: u64 in Wrapping = read_after(&matrix.rows[cursor.row].cells[cursor.position], Cursor::advance(cursor));
     cursor.row = 1;
     cursor.position = 2;
-    let second: u64 in Wrapping = read_before(cursor.advance(), &matrix.rows[cursor.row].cells[cursor.position]);
+    let second: u64 in Wrapping = read_before(Cursor::advance(cursor), &matrix.rows[cursor.row].cells[cursor.position]);
     first == 10 && second == 20
 }
-machine Main::main(&mut self) reaches Console {
-    self.matrix.rows[1].cells[2].value = 10;
-    self.matrix.rows[0].cells[1].value = 20;
-    self.cursor.row = 1;
-    self.cursor.position = 2;
-    let correct: bool = probe(&self.matrix, &mut self.cursor);
+machine Main::main(main: &mut Main) reaches Console {
+    main.matrix.rows[1].cells[2].value = 10;
+    main.matrix.rows[0].cells[1].value = 20;
+    main.cursor.row = 1;
+    main.cursor.position = 2;
+    let correct: bool = probe(&main.matrix, &mut main.cursor);
     transition correct {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

@@ -3,17 +3,17 @@
 // transition arms"); an internal state target stays a jump. Each machine in
 // this chain observes what reached it and tail-calls the next:
 //
-//   main              stores `stored = 5`, then `_ -> self.with_argument(7)`:
+//   main              stores `stored = 5`, then `_ -> Main::with_argument(&mut self, 7)`:
 //                     a tail call with an ordinary argument after a store.
 //   with_argument     checks `value == 7 && stored == 5` (else 71) and jumps
-//                     to an internal state whose `_ -> self.without_arguments()`
+//                     to an internal state whose `_ -> Main::without_arguments(&mut self)`
 //                     tail-calls with no arguments and no preceding store.
-//   without_arguments makes an ordinary call (`self.mark()`), then jumps to an
+//   without_arguments makes an ordinary call (`Main::mark(&mut self)`), then jumps to an
 //                     internal state that checks `marks == 1` (else 72) and
-//                     jumps again to tail-call `self.finish()`.
+//                     jumps again to tail-call `Main::finish(&mut self)`.
 //
 // Tail calls here sit in unconditional arms. A tail call directly in a guarded
-// arm (`true -> self.finish()`) is pinned separately by
+// arm (`true -> Main::finish(&mut self)`) is pinned separately by
 // `calls/conditional_arm_tail_call_to_machine_exit`.
 //   finish            exits 70.
 //
@@ -28,44 +28,44 @@ data Main {
     marks: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.marks = 0;
-    self.stored = 5;
-    transition { _ -> self.with_argument(7) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.marks = 0;
+    main.stored = 5;
+    transition { _ -> Main::with_argument(main, 7) }
 }
 
-machine Main::with_argument(&mut self, value: i32) reaches Console
+machine Main::with_argument(main: &mut Main, value: i32) reaches Console
 requires 0 <= value && value <= 100
 {
-    transition value == 7 && self.stored == 5 {
-        true -> accepted()
-        false -> fail(71)
+    transition value == 7 && main.stored == 5 {
+        true -> accepted(main)
+        false -> fail(main, 71)
     }
-    state accepted(&mut self) {
-        transition { _ -> self.without_arguments() }
+    state accepted(main: &mut Main) {
+        transition { _ -> Main::without_arguments(main) }
     }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::mark(&mut self) {
-    self.marks = self.marks + 1;
+machine Main::mark(main: &mut Main) {
+    main.marks = main.marks + 1;
 }
 
-machine Main::without_arguments(&mut self) reaches Console {
-    self.mark();
-    transition { _ -> marked() }
-    state marked(&mut self) {
-        transition self.marks == 1 {
-            true -> finishing()
-            false -> fail(72)
+machine Main::without_arguments(main: &mut Main) reaches Console {
+    Main::mark(main);
+    transition { _ -> marked(main) }
+    state marked(main: &mut Main) {
+        transition main.marks == 1 {
+            true -> finishing(main)
+            false -> fail(main, 72)
         }
     }
-    state finishing(&mut self) {
-        transition { _ -> self.finish() }
+    state finishing(main: &mut Main) {
+        transition { _ -> Main::finish(main) }
     }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::finish(&mut self) reaches Console {
-    self.console.exit_process(70);
+machine Main::finish(main: &mut Main) reaches Console {
+    main.console.exit_process(70);
 }

@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70) + interpreter differential. Measured recursion MR1
 // (ruling 2026-07-18): the call-spelled TAIL arm `true ->
-// self.countdown(remaining - 1)` on a MEASURED machine (`terminates by
+// Main::countdown(&mut self, remaining - 1)` on a MEASURED machine (`terminates by
 // remaining;`) is legal -- it resolves onto the SAME
 // loop-back edge as the bare `-> countdown(..)` (a jump with re-bound
 // arguments; constant stack), and the termination pass proves the strict
@@ -11,19 +11,19 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::countdown(&mut self, remaining: u64) -> u64
+machine Main::countdown(main: &mut Main, remaining: u64) -> u64
 terminates by remaining;
 {
     transition remaining > 0 {
-        true -> self.countdown(remaining - 1)
+        true -> Main::countdown(main, remaining - 1)
         false -> 7
     }
 }
-machine Main::main(&mut self) reaches Console {
-    let value: u64 = self.countdown(3);
+machine Main::main(main: &mut Main) reaches Console {
+    let value: u64 = Main::countdown(main, 3);
     transition value == 7 {
-        true -> yes(&mut self)
-        false -> no(&mut self)
+        true -> yes(main)
+        false -> no(main)
     }
     state yes(main: &mut Main) { main.console.exit_process(70); }
     state no(main: &mut Main)  { main.console.exit_process(71); }

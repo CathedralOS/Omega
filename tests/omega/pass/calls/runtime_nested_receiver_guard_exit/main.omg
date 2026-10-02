@@ -5,25 +5,25 @@ data Items { count: u64; }
 data Request { items: Items; }
 data Main { console: Binding<Console>; }
 
-machine Items::get_count(&self) -> u64 { self.count }
+machine Items::get_count(items: &Items) -> u64 { items.count }
 
 // The guard's temporary must use the declared return type of the method
 // selected on the nested receiver, just as an explicitly typed call does.
 machine has_results(request: &Request) -> bool {
-    transition request.items.get_count() > 0 {
+    transition Items::get_count(&request.items) > 0 {
         true -> (true)
         false -> (false)
     }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let request: Request = Request { items: Items { count: 42 } };
     let empty_request: Request = Request { items: Items { count: 0 } };
     let present: bool = has_results(&request);
     let empty_present: bool = has_results(&empty_request);
     transition present && !empty_present {
-        true -> success(&mut self)
-        false -> failure(&mut self)
+        true -> success(main)
+        false -> failure(main)
     }
     state success(main: &mut Main) { main.console.exit_process(42); }
     state failure(main: &mut Main) { main.console.exit_process(1); }

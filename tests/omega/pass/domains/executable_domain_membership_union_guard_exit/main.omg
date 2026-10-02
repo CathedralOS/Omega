@@ -19,13 +19,13 @@ data Main {
     password: Password;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.password.length = 12;
-    self.password.score = 2;
+machine Main::main(main: &mut Main) reaches Console {
+    main.password.length = 12;
+    main.password.score = 2;
 
-    transition (self.password in Password::Valid | Password::Secure) {
-        (true) -> good(&mut self)
-        _ -> bad(&mut self)
+    transition (main.password in Password::Valid | Password::Secure) {
+        (true) -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

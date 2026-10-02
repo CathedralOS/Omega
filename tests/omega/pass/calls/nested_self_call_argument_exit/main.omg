@@ -1,5 +1,5 @@
 // Byte-sequence subslice argument on a self-receiver call:
-// `self.sink.probe(bytes[..])` — probe is a `&self` method whose whole-view
+// `Sink::probe(&self.sink, bytes[..])` — probe is a `&self` method whose whole-view
 // slice argument lowers as a byte-sequence subslice, so the call's arguments
 // walk the nested argument schedule. The exact-positional gate must
 // materialize the implicit receiver as a positional argument instead of
@@ -15,13 +15,13 @@ data Sink {
     filled: u64;
 }
 
-machine Sink::probe(&self, bytes: &[u8]) {
+machine Sink::probe(sink: &Sink, bytes: &[u8]) {
     transition bytes.len == 8 {
-        true -> empty()
-        _ -> empty()
+        true -> empty(sink)
+        _ -> empty(sink)
     }
 
-    state empty(&self) {}
+    state empty(sink: &Sink) {}
 }
 
 data Main {
@@ -30,25 +30,25 @@ data Main {
     buf: [u8; 8];
 }
 
-machine Main::emit(&self, bytes: &[u8]) {
-    self.sink.probe(bytes[..]);
+machine Main::emit(main: &Main, bytes: &[u8]) {
+    Sink::probe(&main.sink, bytes[..]);
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.sink = Sink { filled: 0 };
-    self.buf[0] = 9;
-    self.emit(&self.buf);
+machine Main::main(main: &mut Main) reaches Console {
+    main.sink = Sink { filled: 0 };
+    main.buf[0] = 9;
+    Main::emit(main, &main.buf);
 
-    transition self.buf[0] == 9 {
-        true -> done()
-        _ -> missed()
+    transition main.buf[0] == 9 {
+        true -> done(main)
+        _ -> missed(main)
     }
 
-    state done(&mut self) {
-        self.console.exit_process(70);
+    state done(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state missed(&mut self) {
-        self.console.exit_process(71);
+    state missed(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

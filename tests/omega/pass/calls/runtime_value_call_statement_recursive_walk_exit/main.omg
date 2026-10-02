@@ -1,56 +1,56 @@
 // Call-with-return over an EFFECTFUL RECURSIVE (`terminates`) walk -- the
 // STATEMENT face. Historically FENCED (the inline-branching route could not
-// loop, so the per-iteration `self.bump(..)` silently never executed: native
+// loop, so the per-iteration `Main::bump(&mut self, ..)` silently never executed: native
 // counted 0 separators vs the interpreter's 2). Dispatch call-with-return
 // replaced the fence; this canary pins the capability: count the '/'
 // separators of "a/b/c" through the recursive walk. Exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; n: i32 in Wrapping; r: i32; }
-machine Main::walk(&mut self, path: &[u8], i: u64, acc: i32)
+machine Main::walk(main: &mut Main, path: &[u8], i: u64, acc: i32)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 -> i32
 {
-    self.bump(path, i);
+    Main::bump(main, path, i);
     transition i < path.len {
-        true -> walk(path, i + 1, acc)
-        false -> done(acc)
+        true -> walk(main, path, i + 1, acc)
+        false -> done(main, acc)
     }
-    state done(&mut self, acc: i32) -> i32 {
-        let result: i32 = self.n as i32;
+    state done(main: &mut Main, acc: i32) -> i32 {
+        let result: i32 = main.n as i32;
         result
     }
 }
-machine Main::bump(&mut self, path: &[u8], i: u64) {
+machine Main::bump(main: &mut Main, path: &[u8], i: u64) {
     transition i < path.len {
-        true -> look(path, i)
-        false -> skip()
+        true -> look(main, path, i)
+        false -> skip(main)
     }
-    state look(&mut self, path: &[u8], i: u64) {
+    state look(main: &mut Main, path: &[u8], i: u64) {
         transition path[i] == 47 {
-            true -> hit()
-            false -> skip()
+            true -> hit(main)
+            false -> skip(main)
         }
     }
-    state hit(&mut self) {
-        self.n = self.n + 1;
-        transition { _ -> skip() }
+    state hit(main: &mut Main) {
+        main.n = main.n + 1;
+        transition { _ -> skip(main) }
     }
-    state skip(&mut self) { }
+    state skip(main: &mut Main) { }
 }
-machine Main::count(&mut self, path: &[u8]) -> i32 {
-    self.r = self.walk(path, 0, 0);
+machine Main::count(main: &mut Main, path: &[u8]) -> i32 {
+    main.r = Main::walk(main, path, 0, 0);
     transition path.len > 0 {
-        true -> got()
-        false -> zero()
+        true -> got(main)
+        false -> zero(main)
     }
-    state got(&mut self) -> i32 { self.r }
-    state zero(&mut self) -> i32 { 0 }
+    state got(main: &mut Main) -> i32 { main.r }
+    state zero(main: &mut Main) -> i32 { 0 }
 }
-machine Main::main(&mut self) reaches Console {
-    self.n = 0;
-    let c: i32 = self.count("a/b/c");
-    transition c == 2 { true -> good(&mut self) _ -> bad(&mut self, 71) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.n = 0;
+    let c: i32 = Main::count(main, "a/b/c");
+    transition c == 2 { true -> good(main) _ -> bad(main, 71) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
