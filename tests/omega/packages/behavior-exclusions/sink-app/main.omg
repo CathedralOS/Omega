@@ -8,8 +8,8 @@ data Main {
     sink: Binding<Sink>;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Sink
 {
-    self.sink.emit("still an invocation");
+    main.sink.emit("still an invocation");
 }

@@ -14,5 +14,5 @@ pub machine banner() -> &[u8] {
 // the package never holds Build authority of its own.
 pub machine publish(output: &mut BuildOutput, source: &BuildSource, log: &mut BuildLog, descriptor: i32) {
     let mut work: compose::Compose;
-    work.publish(source, output, log, descriptor);
+    compose::Compose::publish(&mut work, source, output, log, descriptor);
 }

@@ -8,9 +8,9 @@ data Main {
     assert: Binding<Assert>;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Assert
 crashes Trap
 {
-    self.assert.check(1 == 1);
+    main.assert.check(1 == 1);
 }
