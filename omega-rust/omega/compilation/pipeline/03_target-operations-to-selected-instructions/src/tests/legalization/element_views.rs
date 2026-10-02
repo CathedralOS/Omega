@@ -670,6 +670,87 @@ fn array_arrival_source(access: StructuralAccess) -> abstract_operations::Abstra
 }
 
 #[test]
+fn unused_established_view_rejects_invalid_result_metadata() {
+    use super::owned_block_store::id;
+    use target_operations::TargetUnitOperation;
+
+    let native = target::NativeTarget::macos_arm64();
+    let mut source = array_arrival_source(StructuralAccess::Owned);
+    let function = &mut source.functions[0];
+    function.result = AbstractFunctionResult::Unit;
+    function.operations.truncate(3);
+    function.operations.push(O::ReturnUnit {
+        psi_edge: id(2),
+        cleanup_actions: Vec::new(),
+    });
+    let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+    crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+        .unwrap();
+
+    let mut changed_source = source.clone();
+    let O::EstablishElementView { result, .. } = &mut changed_source.functions[0].operations[2]
+    else {
+        panic!("unused establishment");
+    };
+    result.multiplicity = StructuralMultiplicity::Linear;
+    let mut changed_target = targeted.clone();
+    let TargetUnitOperation::EstablishElementView { result, .. } = changed_target.functions[0]
+        .graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| matches!(operation, TargetUnitOperation::EstablishElementView { .. }))
+        .unwrap()
+    else {
+        panic!("target establishment");
+    };
+    result.multiplicity = StructuralMultiplicity::Linear;
+    let mut changed_unit = unit.clone();
+    let O::EstablishElementView { result, .. } = changed_unit.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .map(|node| &mut node.operation)
+        .find(|operation| matches!(operation, O::EstablishElementView { .. }))
+        .unwrap()
+    else {
+        panic!("optimized establishment");
+    };
+    result.multiplicity = StructuralMultiplicity::Linear;
+    changed_unit.identity =
+        optimization_unit::recompute_psi_optimization_unit_identity(&changed_unit);
+    // The unused linear descriptor also lacks its required cleanup. This is
+    // an end-to-end custody control, not an isolated test of the native result
+    // matcher: semantic admission must reject it before native publication.
+    assert!(optimization_unit_semantics::validate_psi_optimization_unit(&changed_unit).is_err());
+    assert!(
+        crate::legalize_target_operations(&changed_target, &changed_source, &changed_unit).is_err()
+    );
+    let mut proposed = legalized.plan().clone();
+    proposed.optimization_unit = changed_unit.identity;
+    assert!(
+        crate::validate_legalized_operations(
+            &changed_target,
+            &changed_source,
+            &changed_unit,
+            proposed,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn array_arrival_element_view_retains_backing_and_rejects_substitution() {
     use super::owned_block_store::id;
     use selected_instructions::{

@@ -194,6 +194,37 @@ fn target_store(target: &mut target_operations::TargetOperationPlan) -> &mut Tar
 }
 
 #[test]
+fn borrowed_entry_composes_with_an_owned_block_arrival() {
+    let native = NativeTarget::macos_arm64();
+    let mut source = source();
+    source.functions[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: id(13),
+            position: 0,
+            is_self: false,
+            structural_type: id(12),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+    validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+}
+
+#[test]
 fn owned_arrival_field_store_writes_the_block_home_on_every_abi() {
     let source = source();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

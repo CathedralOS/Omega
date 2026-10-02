@@ -119,6 +119,7 @@ fn successor(edge: u64) -> AbstractSuccessor {
 #[test]
 fn borrowed_view_roster_rejects_changed_case_result_custody() {
     let (plan, target, unit) = mixed_case_fixture();
+    let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
     for mutation in [
         "missing",
         "duplicate",
@@ -127,22 +128,23 @@ fn borrowed_view_roster_rejects_changed_case_result_custody() {
         "place",
         "multiplicity",
     ] {
-        let mut changed = unit.functions[0].clone();
-        let result_position = changed
+        let mut changed = unit.clone();
+        let function = &mut changed.functions[0];
+        let result_position = function
             .structural_places
             .iter()
             .position(|place| place.id == PlaceId::new(1).unwrap())
             .unwrap();
         match mutation {
             "missing" => {
-                changed.structural_places.remove(result_position);
+                function.structural_places.remove(result_position);
             }
-            "duplicate" => changed
+            "duplicate" => function
                 .structural_places
-                .push(changed.structural_places[result_position]),
+                .push(function.structural_places[result_position]),
             "producer" => {
                 let StructuralPlaceKind::OperationResult { producer, .. } =
-                    &mut changed.structural_places[result_position].kind
+                    &mut function.structural_places[result_position].kind
                 else {
                     panic!("result");
                 };
@@ -151,18 +153,18 @@ fn borrowed_view_roster_rejects_changed_case_result_custody() {
             "type" => {
                 let StructuralPlaceKind::OperationResult {
                     structural_type, ..
-                } = &mut changed.structural_places[result_position].kind
+                } = &mut function.structural_places[result_position].kind
                 else {
                     panic!("result");
                 };
                 *structural_type = StructuralTypeId::new(50).unwrap();
             }
-            "place" => changed.structural_places[result_position].id = PlaceId::new(99).unwrap(),
+            "place" => function.structural_places[result_position].id = PlaceId::new(99).unwrap(),
             "multiplicity" => {
                 let AbstractOperation::BoundaryCall {
                     result: AbstractBoundaryResult::Structural(result),
                     ..
-                } = &mut changed.blocks[0].nodes[0].operation
+                } = &mut function.blocks[0].nodes[0].operation
                 else {
                     panic!("read");
                 };
@@ -170,15 +172,19 @@ fn borrowed_view_roster_rejects_changed_case_result_custody() {
             }
             _ => unreachable!(),
         }
+        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
         assert!(
-            validate(
-                &target.functions[0],
-                &plan.functions[0],
-                &changed,
-                target.target,
-                &plan
-            )
-            .is_err(),
+            optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            crate::legalize_target_operations(&target, &plan, &changed).is_err(),
+            "{mutation}"
+        );
+        let mut proposed = legal.plan().clone();
+        proposed.optimization_unit = changed.identity;
+        assert!(
+            crate::validate_legalized_operations(&target, &plan, &changed, proposed).is_err(),
             "{mutation}"
         );
     }
@@ -187,6 +193,7 @@ fn borrowed_view_roster_rejects_changed_case_result_custody() {
 fn literal_order_fixture(
     native: ::target::NativeTarget,
     scalar_return: bool,
+    primitive_local: bool,
 ) -> (
     AbstractOperationPlan,
     TargetOperationPlan,
@@ -238,6 +245,48 @@ fn literal_order_fixture(
             source: place.id,
         });
     }
+    let mut structural_types = vec![structural_type.clone()];
+    if primitive_local {
+        let primitive = StructuralTypeDeclaration {
+            id: StructuralTypeId::new(2).unwrap(),
+            identity: "literal-order::Primitive".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        };
+        operations.extend([
+            AbstractOperation::IntegerConstant {
+                psi_operation: OperationId::new(5).unwrap(),
+                result: ValueId::new(4).unwrap(),
+                scalar_type,
+                value: IntegerValue::Unsigned(71),
+            },
+            AbstractOperation::EstablishPrimitiveLocal {
+                psi_operation: OperationId::new(6).unwrap(),
+                result: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: PlaceId::new(4).unwrap(),
+                    structural_type: primitive.id,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                value: AbstractResult {
+                    value: ValueId::new(4).unwrap(),
+                    scalar_type,
+                },
+            },
+            AbstractOperation::PrimitiveScalarRead {
+                psi_operation: OperationId::new(7).unwrap(),
+                source: PlaceId::new(4).unwrap(),
+                path: Vec::new(),
+                result: AbstractResult {
+                    value: ValueId::new(5).unwrap(),
+                    scalar_type,
+                },
+            },
+        ]);
+        structural_types.push(primitive);
+    }
     operations.push(if scalar_return {
         AbstractOperation::Return {
             psi_edge: EdgeId::new(1).unwrap(),
@@ -258,7 +307,7 @@ fn literal_order_fixture(
             program_fingerprint: SemanticFingerprint::from_bytes([0x71; 32]),
         },
         entry: machine,
-        structural_types: vec![structural_type.clone()].into(),
+        structural_types: structural_types.into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -321,6 +370,20 @@ fn literal_order_fixture(
 }
 
 #[test]
+fn borrowed_byte_parameter_composes_with_primitive_local_storage() {
+    let (plan, target, unit) =
+        literal_order_fixture(::target::NativeTarget::macos_arm64(), false, true);
+    assert!(unit.functions[0].blocks[0].nodes.iter().any(|node| {
+        matches!(
+            node.operation,
+            AbstractOperation::EstablishPrimitiveLocal { .. }
+        )
+    }));
+    let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+    crate::validate_legalized_operations(&target, &plan, &unit, legal.plan().clone()).unwrap();
+}
+
+#[test]
 fn borrowed_float_parameters_compose_with_scalar_results() {
     for native in [
         ::target::NativeTarget::windows_x64(),
@@ -331,7 +394,7 @@ fn borrowed_float_parameters_compose_with_scalar_results() {
             StructuralAccess::SharedBorrow,
             StructuralAccess::MutableBorrow,
         ] {
-            let (mut plan, _, _) = literal_order_fixture(native, true);
+            let (mut plan, _, _) = literal_order_fixture(native, true, false);
             let structural_type = StructuralTypeId::new(2).unwrap();
             plan.structural_types
                 .make_mut()
@@ -427,7 +490,7 @@ fn borrowed_parameters_compose_with_float_results_and_reject_changed_abi() {
         ::target::NativeTarget::macos_arm64(),
     ] {
         for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
-            let (mut plan, _, _) = literal_order_fixture(native, true);
+            let (mut plan, _, _) = literal_order_fixture(native, true, false);
             let scalar_type = ScalarType::IeeeFloat(format);
             let input = ValueId::new(1).unwrap();
             let result = ValueId::new(2).unwrap();
@@ -560,7 +623,7 @@ fn literal_ordinals_are_independent_of_place_roster_order() {
         ::target::NativeTarget::macos_arm64(),
     ] {
         for scalar_return in [false, true] {
-            let (plan, target, unit) = literal_order_fixture(native, scalar_return);
+            let (plan, target, unit) = literal_order_fixture(native, scalar_return, false);
             let ordinals = unit.functions[0]
                 .structural_places
                 .iter()
@@ -601,7 +664,8 @@ fn literal_ordinals_are_independent_of_place_roster_order() {
 
 #[test]
 fn literal_ordinal_density_and_exact_producer_custody_still_reject() {
-    let (plan, target, unit) = literal_order_fixture(::target::NativeTarget::macos_arm64(), false);
+    let (plan, target, unit) =
+        literal_order_fixture(::target::NativeTarget::macos_arm64(), false, false);
     let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
     let source = PlaceId::new(3).unwrap();
     for mutation in [
