@@ -45,12 +45,8 @@ pub(in crate::selection) fn observe(
         fuel: row.fuel.clone(),
         ..Default::default()
     };
-    if let Some(pointer) = replay
-        .transport
-        .pointers
-        .iter()
-        .find(|(stored, _)| *stored == place)
-        .map(|(_, pointer)| *pointer)
+    if let Some(pointer) =
+        super::runtime_address::projection_base(source, replay, row, place, *tag_byte_offset)?
     {
         let pointer =
             super::runtime_address::scale(replay, row, place, *tag_byte_offset, pointer, indices)?;

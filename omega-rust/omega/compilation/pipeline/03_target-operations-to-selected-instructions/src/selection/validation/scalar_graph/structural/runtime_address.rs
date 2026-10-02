@@ -12,6 +12,48 @@ use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
+/// Resolve the storage observed by a projection, before its static and runtime
+/// displacements. Element-view homes describe a loan: load its backing pointer
+/// and retain a derived view's offset, never index the descriptor itself.
+/// A missing address denotes ABI value fragments, not an empty or invalid loan;
+/// callers separately admit the operations that can consume those fragments.
+pub(super) fn projection_base(
+    source: &super::LegalizedScalarFunction,
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    let view_home = replay
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == place)
+        .copied();
+    if view_home.is_none()
+        && crate::selection::established_view_input::element_view_type(source, place).is_none()
+    {
+        return Ok(replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(stored, _)| *stored == place)
+            .map(|(_, pointer)| *pointer));
+    }
+    let backing = super::element_views::element_backing_pointer(replay, row, place)?;
+    let Some(view) = view_home else {
+        return Ok(Some(backing));
+    };
+    let base = super::result(replay, place, byte_offset)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ByteViewAddress,
+        replay.constraints.keys.add_i64,
+        &[backing, view.byte_offset, base],
+        &super::provenance(row),
+    )?;
+    Ok(Some(base))
+}
+
 pub(in crate::selection) fn scale(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,

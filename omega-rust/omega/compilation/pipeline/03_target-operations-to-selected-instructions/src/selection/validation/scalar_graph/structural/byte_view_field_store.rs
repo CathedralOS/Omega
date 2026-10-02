@@ -65,13 +65,14 @@ pub(super) fn replace(
         .find(|(place, _)| place == source)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| replay.invalid())?;
-    let root = super::primitive_locals::backing_pointer(
+    let root = super::runtime_address::projection_base(
         function,
         replay,
         row,
         destination.place,
         descriptor_offset,
-    )?;
+    )?
+    .ok_or_else(|| replay.invalid())?;
     let root = super::runtime_address::scale(
         replay,
         row,

@@ -280,6 +280,195 @@ fn element_field_reads_replay_leaf_geometry_and_reject_substitution() {
 }
 
 #[test]
+fn element_case_observation_uses_backing_storage_and_rejects_descriptor_substitution() {
+    use selected_instructions::{SelectedInstructionKind as I, SelectedMemoryAccessRole as M};
+    let mut source = source();
+    let tag = StructuralTypeId::new(3).unwrap();
+    let mut declarations = source.structural_types.to_vec();
+    let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
+        panic!("record element");
+    };
+    fields[1].field_type = StructuralFieldType::Structural(tag);
+    declarations.push(StructuralTypeDeclaration {
+        id: tag,
+        identity: "Tag".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: ["Empty", "Present"]
+                .into_iter()
+                .enumerate()
+                .map(
+                    |(position, identity)| terminal_psi::StructuralCaseDeclaration {
+                        id: semantic_vocabulary::StructuralCaseId::new(position as u64 + 1)
+                            .unwrap(),
+                        identity: identity.into(),
+                        fields: Vec::new(),
+                    },
+                )
+                .collect(),
+        },
+    });
+    source.structural_types = declarations.into();
+    let function = &mut source.functions[0];
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(4).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    let observed = OperationId::new(2).unwrap();
+    function.operations[1] = O::StructuralCaseMembership {
+        psi_operation: observed,
+        result: AbstractResult {
+            value: ValueId::new(3).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        },
+        source: PlaceId::new(1).unwrap(),
+        path: vec![
+            Segment::RuntimeIndex {
+                index: ValueId::new(1).unwrap(),
+                obligation: ObligationId::new(1).unwrap(),
+            },
+            Segment::Field("value".into()),
+        ],
+        case: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+    };
+    let O::Return { scalar_type, .. } = &mut function.operations[2] else {
+        panic!("scalar return");
+    };
+    *scalar_type = ScalarType::Boolean;
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            crate::legalize_target_operations(&targeted, &source, &seed).is_err(),
+            "{native:?}: the descriptor cannot replace the required index proof"
+        );
+        let unit = super::accept_referenced_obligations(seed);
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let instructions = selected.plan().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .collect::<Vec<_>>();
+        let descriptor_load = instructions
+            .iter()
+            .find(|instruction| {
+                instruction.kind == I::Load64 { byte_offset: 0 }
+                    && instruction.provenance.operations.contains(&observed)
+            })
+            .expect("membership first loads the descriptor's backing pointer");
+        let descriptor = descriptor_load.operands[0].virtual_register;
+        let backing = descriptor_load.operands[1].virtual_register;
+        let element_address = instructions
+            .iter()
+            .find(|instruction| {
+                instruction.kind == I::ByteViewAddress
+                    && instruction
+                        .provenance
+                        .obligations
+                        .contains(&ObligationId::new(1).unwrap())
+            })
+            .expect("the index scales onto the backing pointer");
+        assert_eq!(
+            element_address.operands[0].virtual_register, backing,
+            "{native:?}"
+        );
+        assert_ne!(descriptor, backing, "{native:?}");
+        let tag_load = instructions
+            .iter()
+            .find(|instruction| {
+                instruction.kind == I::Load32 { byte_offset: 8 }
+                    && instruction.provenance.operations.contains(&observed)
+            })
+            .expect("the nonzero field offset follows whole-element stride");
+        assert_eq!(
+            tag_load.operands[0].virtual_register, element_address.operands[2].virtual_register,
+            "{native:?}"
+        );
+        for mutation in 0..3 {
+            let mut changed = selected.plan().clone();
+            if mutation == 2 {
+                changed.functions[0]
+                    .memory_accesses
+                    .iter_mut()
+                    .find(|access| matches!(access.role, M::ReadIndexedPrimitive { .. }))
+                    .unwrap()
+                    .byte_count = 8;
+            } else {
+                let instructions = changed.functions[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions);
+                if mutation == 0 {
+                    instructions
+                        .into_iter()
+                        .find(|instruction| {
+                            instruction.kind == I::Load64 { byte_offset: 0 }
+                                && instruction.provenance.operations.contains(&observed)
+                        })
+                        .unwrap()
+                        .kind = I::CopyI64;
+                } else {
+                    instructions
+                        .into_iter()
+                        .find(|instruction| {
+                            instruction.kind == I::ByteViewAddress
+                                && instruction
+                                    .provenance
+                                    .obligations
+                                    .contains(&ObligationId::new(1).unwrap())
+                        })
+                        .unwrap()
+                        .operands[0]
+                        .virtual_register = descriptor;
+                }
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err(),
+                "{native:?}: changed view tag observation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn element_field_paths_reject_missing_and_non_scalar_leaves() {
     for path in [
         vec![],

@@ -1,6 +1,10 @@
 //! The address model for a structural access through runtime-selected
-//! elements, shared by leaf copies, primitive reads and stores, and scalar
-//! field stores (`grid[i][j]`, `ents[i].pos.x`).
+//! elements, shared by leaf copies, case observations, primitive reads and
+//! stores, and scalar field stores (`grid[i][j]`, `ents[i].pos.x`).
+//!
+//! Resolve the storage base before adding projection offsets: a view's home
+//! holds a descriptor, not its elements. All projected consumers use this
+//! distinction; whole-view transport still copies the descriptor itself.
 //!
 //! The access's static part is the row's `byte_offset`, which the load or
 //! store applies itself. Each runtime element joins the place pointer in path
@@ -22,6 +26,48 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
+
+/// Resolve the storage observed by a projection, before its static and runtime
+/// displacements. Element-view homes describe a loan: load its backing pointer
+/// and retain a derived view's offset, never index the descriptor itself.
+/// A missing address denotes ABI value fragments, not an empty or invalid loan;
+/// callers separately admit the operations that can consume those fragments.
+pub(super) fn projection_base(
+    source: &super::LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    let view_home = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == place)
+        .copied();
+    if view_home.is_none()
+        && crate::selection::established_view_input::element_view_type(source, place).is_none()
+    {
+        return Ok(builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(stored, _)| *stored == place)
+            .map(|(_, pointer)| *pointer));
+    }
+    let backing = super::element_views::element_backing_pointer(builder, row, place)?;
+    let Some(view) = view_home else {
+        return Ok(Some(backing));
+    };
+    let base = transport_register(builder, place, byte_offset)?;
+    builder.emit(
+        SelectedInstructionKind::ByteViewAddress,
+        builder.constraints.keys.add_i64,
+        &[backing, view.byte_offset, base],
+        super::provenance(row),
+    )?;
+    Ok(Some(base))
+}
 
 /// Join each runtime element's scaled selector to `address`, in path order,
 /// and return the register the access addresses with its static offset.

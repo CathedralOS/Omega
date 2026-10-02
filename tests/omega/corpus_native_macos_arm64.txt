@@ -354,6 +354,7 @@ pass/control_flow/composite_state_parameter built 2594ms exit:70 @48008365d839
 pass/control_flow/conditional_unit_completion_exit built 554ms exit:70 @76bba5577e21+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 183ms
 pass/control_flow/edge_call_nested_structural_operand_exit built 1057ms exit:24 @ff183e7f95fb
+pass/control_flow/element_view_enum_equality_exit built 1951ms exit:70 @27950676fa31+wt
 pass/control_flow/explicit_state_value_frontier checked 196ms
 pass/control_flow/field_subject_named_arm_chain built 1498ms exit:70 @bed5f45e9185+wt
 pass/control_flow/field_view_transfer_exit built 582ms exit:0

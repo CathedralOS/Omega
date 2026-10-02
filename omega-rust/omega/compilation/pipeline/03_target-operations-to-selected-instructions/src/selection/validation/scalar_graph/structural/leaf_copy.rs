@@ -65,33 +65,8 @@ pub(super) fn copy(
     // Independently replay the descriptor-to-backing read only for projected
     // elements; an empty path copies the complete descriptor instead.
     let input = if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty())
-        && (replay
-            .transport
-            .element_views
-            .iter()
-            .any(|view| view.place == *source)
-            || crate::selection::established_view_input::element_view_type(function, *source)
-                .is_some())
     {
-        let backing = super::element_views::element_backing_pointer(replay, row, *source)?;
-        let view = replay
-            .transport
-            .element_views
-            .iter()
-            .find(|view| view.place == *source)
-            .copied();
-        if let Some(view) = view {
-            let base = super::result(replay, *source, *byte_offset)?;
-            replay.check_instruction(
-                SelectedInstructionKind::ByteViewAddress,
-                replay.constraints.keys.add_i64,
-                &[backing, view.byte_offset, base],
-                &provenance(row),
-            )?;
-            Some(base)
-        } else {
-            Some(backing)
-        }
+        super::runtime_address::projection_base(function, replay, row, *source, *byte_offset)?
     } else {
         input
     };
