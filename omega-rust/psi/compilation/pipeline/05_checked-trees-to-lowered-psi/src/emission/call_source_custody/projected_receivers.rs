@@ -41,6 +41,35 @@ impl ReceiverSource {
     }
 }
 
+/// Captured source spelling is independent of the authority to materialize a
+/// receiver or store. Only those storage uses normalize borrowed aliases.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourceUse {
+    Receiver,
+    Store,
+    Observation,
+}
+
+/// Reconstruct an observation's original place without granting storage or
+/// alias authority. Keep the result confined to the captured-place vocabulary.
+pub(crate) fn observation_place(
+    checked: &CheckedTrees,
+    caller: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Result<checked_trees::CapturedPlace, LoweringError> {
+    Ok(resolve_source(
+        checked,
+        caller,
+        state,
+        expression,
+        SourceUse::Observation,
+        Some((statement_index, false)),
+    )?
+    .captured_place)
+}
+
 pub(crate) fn source(
     checked: &CheckedTrees,
     caller: SymbolHandle,
@@ -53,7 +82,7 @@ pub(crate) fn source(
         caller,
         state,
         expression,
-        true,
+        SourceUse::Receiver,
         Some((statement_index, false)),
     )
 }
@@ -72,7 +101,7 @@ pub(crate) fn store_destination(
         caller,
         state,
         expression,
-        false,
+        SourceUse::Store,
         statement.map(|ordinal| (ordinal, false)),
     )
 }
@@ -82,7 +111,7 @@ fn resolve_source(
     caller: SymbolHandle,
     state: SymbolHandle,
     expression: ExpressionHandle,
-    require_endpoint_stamp: bool,
+    purpose: SourceUse,
     statement_index: Option<(usize, bool)>,
 ) -> Result<ReceiverSource, LoweringError> {
     let (machine, state) =
@@ -105,7 +134,25 @@ fn resolve_source(
         visited.push(cursor);
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member)
-                if (!require_endpoint_stamp
+                if purpose == SourceUse::Observation
+                    && validation::collection_length_receiver(
+                        &checked.typed,
+                        machine,
+                        Some(state),
+                        cursor,
+                    ) == Some(member.receiver) =>
+            {
+                // A collection extent is an observation, not a stored field.
+                // Preserve the borrow ledger's exact pseudo-member coordinate;
+                // no receiver/store path may acquire authority through it.
+                captured_segments.push(facts::PlaceSegment::Field {
+                    symbol: member.member_symbol,
+                });
+                cursor = member.receiver;
+            }
+
+            ExpressionNode::Member(member)
+                if (purpose != SourceUse::Receiver
                     || cursor != expression
                     || member.case_variant.is_some()
                     || member.member_symbol.is_valid()) =>
@@ -193,7 +240,7 @@ fn resolve_source(
             // assignment target: the store evaluates it, and Terminal re-proves
             // the element's bound.
             ExpressionNode::Indexed(indexed)
-                if !require_endpoint_stamp
+                if purpose != SourceUse::Receiver
                     && !matches!(
                         checked.expression_table.expression(indexed.index),
                         ExpressionNode::Integer(_) | ExpressionNode::Range(_)
@@ -220,7 +267,14 @@ fn resolve_source(
                 ) {
                     return unsupported("store destination index has no builtin address meaning");
                 }
-                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
+                validate_indexed_collection(
+                    checked,
+                    machine,
+                    state,
+                    indexed.collection,
+                    None,
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ));
@@ -285,7 +339,14 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
+                validate_indexed_collection(
+                    checked,
+                    machine,
+                    state,
+                    indexed.collection,
+                    None,
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
@@ -317,7 +378,14 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                validate_indexed_collection(checked, machine, state, indexed.collection, None)?;
+                validate_indexed_collection(
+                    checked,
+                    machine,
+                    state,
+                    indexed.collection,
+                    None,
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::StructuralField(selector),
                 ));
@@ -346,13 +414,27 @@ fn resolve_source(
                     state,
                     indexed.collection,
                     Some(index),
+                    purpose,
                 )?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
-                captured_segments.push(facts::PlaceSegment::FixedIndex {
-                    index: usize::try_from(index).map_err(|_| {
-                        LoweringError::Unsupported("projected receiver index exceeds usize")
-                    })?,
-                });
+                // Materialization may fold an immutable local's value, but
+                // capture retains that local read's exact selector occurrence.
+                // Only a source-constant expression becomes a fixed capture.
+                captured_segments.push(
+                    match checked
+                        .expression_table
+                        .constant_integer_value(indexed.index)
+                    {
+                        Some(value) => facts::PlaceSegment::FixedIndex {
+                            index: usize::try_from(value).map_err(|_| {
+                                LoweringError::Unsupported("projected receiver index exceeds usize")
+                            })?,
+                        },
+                        None => facts::PlaceSegment::Index {
+                            expression: indexed.index,
+                        },
+                    },
+                );
                 cursor = indexed.collection;
             }
             ExpressionNode::Name(name)
@@ -383,6 +465,15 @@ fn resolve_source(
                     captured_root = name.symbol;
                     break parameter.symbol;
                 }
+                if purpose == SourceUse::Observation
+                    && let Some((statement_index, _)) = statement_index
+                    && checked
+                        .state_local_declaration(state, name.symbol)
+                        .is_some_and(|(ordinal, _)| ordinal < statement_index)
+                {
+                    captured_root = name.symbol;
+                    break name.symbol;
+                }
                 if let Some((statement_index, _)) = statement_index
                     && locals::declaration(checked, state, statement_index, name.symbol).is_some()
                 {
@@ -393,7 +484,7 @@ fn resolve_source(
                 // symbol. Mutable slices retain their descriptor here, while
                 // nominal mutable aliases keep the backing replay below.
                 // Stores and alias formation do not gain carrier authority.
-                if require_endpoint_stamp
+                if purpose == SourceUse::Receiver
                     && let Some((statement_index, _)) = statement_index
                     && locals::retained_borrowed_carrier(
                         checked,
@@ -490,6 +581,7 @@ fn validate_indexed_collection(
     state: &checked_trees::state::State,
     collection: ExpressionHandle,
     fixed_index: Option<u64>,
+    purpose: SourceUse,
 ) -> Result<(), LoweringError> {
     let reference =
         validation::declared_place_type_raw(&checked.typed, machine, Some(state), collection)
@@ -510,10 +602,13 @@ fn validate_indexed_collection(
                 return unsupported("projected receiver index is out of bounds");
             }
         }
-        // Byte views retain their byte-element operation and storage contract.
+        // Observing a byte element retains the same captured selector. Its
+        // executable storage operation remains separate from receiver/store
+        // materialization, which still excludes the byte-view carrier.
         TypeReferenceNode::Slice { element_type }
-            if checked.primitive_type_reference(*element_type)
-                != Some(checked_trees::types::PrimitiveType::U8) => {}
+            if purpose == SourceUse::Observation
+                || checked.primitive_type_reference(*element_type)
+                    != Some(checked_trees::types::PrimitiveType::U8) => {}
         _ => {
             return unsupported("projected index has neither fixed-array nor element-view storage");
         }

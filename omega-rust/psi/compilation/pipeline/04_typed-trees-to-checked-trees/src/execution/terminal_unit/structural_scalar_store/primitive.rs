@@ -159,15 +159,11 @@ pub(super) fn store_at(
             )?)?,
         )
     } else {
-        let (destination, referee) =
+        let destination =
             borrowed_parameter_destination(program, state, structural_parameters, symbol, whole)?;
         (
             destination,
-            program.primitive_type_reference(if whole {
-                referee
-            } else {
-                primitive_leaf_type_reference(program, machine, state, assignment.target)?
-            })?,
+            primitive_leaf(program, machine, state, assignment.target)?,
         )
     };
     let value = primitive_store_value(
@@ -392,7 +388,7 @@ pub(super) fn array_literal_stores(
     {
         checked_trees::CheckedStoreRoot::Local { symbol }
     } else {
-        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?.0
+        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?
     };
     let selectors = super::selectors::TargetSelectors::resolve(
         program,
@@ -528,18 +524,16 @@ fn storage_place(
 }
 
 /// The primitive store root of an exclusive borrowed parameter, by its
-/// authored position, with its referee type. A whole store additionally needs
-/// an unrestricted, non-self parameter over a named referee.
+/// authored position. A whole store additionally needs an unrestricted,
+/// non-self parameter. The leaf walker separately authenticates the primitive
+/// referee and its permitted arithmetic-policy shells.
 fn borrowed_parameter_destination(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     symbol: SymbolHandle,
     whole: bool,
-) -> Option<(
-    checked_trees::CheckedStoreRoot,
-    typed_trees::types::TypeReferenceHandle,
-)> {
+) -> Option<checked_trees::CheckedStoreRoot> {
     let destination = structural_parameters.iter().find(|destination| {
         program
             .state_parameters(state)
@@ -562,9 +556,7 @@ fn borrowed_parameter_destination(
     if parameter.is_self != destination.is_self || parameter.is_const || !parameter.is_mutable {
         return None;
     }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
+    let TypeReferenceNode::Reference { access, .. } = program
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
@@ -575,21 +567,12 @@ fn borrowed_parameter_destination(
         language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
         language_semantics::ReferenceAccess::Shared => return None,
     };
-    if destination.access != expected_access
-        || (whole
-            && !matches!(
-                program.type_reference_table.type_reference(*referee),
-                TypeReferenceNode::Named { .. }
-            ))
-    {
+    if destination.access != expected_access {
         return None;
     }
-    Some((
-        checked_trees::CheckedStoreRoot::Parameter {
-            position: destination.position,
-        },
-        *referee,
-    ))
+    Some(checked_trees::CheckedStoreRoot::Parameter {
+        position: destination.position,
+    })
 }
 
 /// The checked path from the destination root to its primitive leaf: empty
@@ -653,16 +636,7 @@ fn primitive_leaf(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<PrimitiveType> {
     let leaf = primitive_leaf_type_reference(program, machine, state, expression)?;
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(leaf)
-    else {
-        return None;
-    };
-    let atom = program.symbols.builtin_type_atom(*symbol)?;
-    if name.as_str() != atom.symbol_name() {
-        return None;
-    }
-    program.primitive_type_reference(leaf)
+    validation::unrestricted_builtin_primitive(program, leaf)
 }
 
 /// The type of the primitive leaf an assignment through `expression` writes.

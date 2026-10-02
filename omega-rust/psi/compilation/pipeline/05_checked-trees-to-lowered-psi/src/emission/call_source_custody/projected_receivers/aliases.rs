@@ -98,7 +98,7 @@ pub(crate) fn parameter_source(
         machine,
         state,
         initializer.target,
-        false,
+        super::SourceUse::Store,
         Some((*declaration_index, true)),
     )?;
     // A parent in this ledger sense is an earlier local that itself carries a

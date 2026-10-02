@@ -854,3 +854,124 @@ fn structural_local_types_preserve_reference_shells_and_reject_conflicting_carri
     owned.retire_structural_local(symbol, place).unwrap();
     assert_eq!(owned.structural_place_type(place), None);
 }
+
+#[test]
+fn argument_projection_retains_indexed_scalar_endpoint_and_every_reference_access() {
+    use super::structural_paths::{
+        PreparedArgumentTip, PreparedStructuralPathSegment, prepare_argument_path,
+        prepare_argument_projection,
+    };
+    use checked_trees::CheckedUnitStructuralPathSegment as CheckedSegment;
+    use semantic_vocabulary::{IntegerSign, IntegerType, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    let id = |value| StructuralTypeId::new(value).unwrap();
+    let hits_type = StructuralFieldType::Scalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+    ));
+    let mut types = vec![
+        StructuralTypeDeclaration {
+            id: id(1),
+            identity: "shared_reference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: id(2),
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(2),
+            identity: "mutable_reference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: id(3),
+                access: StructuralAccess::MutableBorrow,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(3),
+            identity: "board".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: crate::terminal_identities::structural_field_id(1),
+                    identity: "tallies".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(id(4)),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(4),
+            identity: "tallies".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: id(5),
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(5),
+            identity: "tally".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: crate::terminal_identities::structural_field_id(2),
+                    identity: "hits".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: hits_type.clone(),
+                }],
+            },
+        },
+    ];
+    let mut path = vec![
+        CheckedSegment::Referent,
+        CheckedSegment::Referent,
+        CheckedSegment::Field("tallies".into()),
+        CheckedSegment::FixedIndex(1),
+        CheckedSegment::Field("hits".into()),
+    ];
+    let projection = prepare_argument_projection(&path, id(1), &types).unwrap();
+    assert!(matches!(projection.tip, PreparedArgumentTip::Inline(field) if *field == hits_type));
+    // The final mutable reference must not hide the earlier shared crossing.
+    // Resolving this geometry alone therefore cannot authorize a mutable loan.
+    assert_eq!(
+        projection.crossed_accesses,
+        [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow
+        ]
+    );
+    assert_eq!(
+        projection.path,
+        [
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::Field("tallies".into()),
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::Field("hits".into()),
+        ]
+        .map(PreparedStructuralPathSegment::Static)
+    );
+    assert_eq!(
+        prepare_argument_path(&path, id(1), &types).unwrap(),
+        projection.path
+    );
+    let direct = prepare_argument_projection(&path[2..], id(3), &types).unwrap();
+    assert!(matches!(direct.tip, PreparedArgumentTip::Inline(field) if *field == hits_type));
+    assert!(direct.crossed_accesses.is_empty());
+
+    path[3] = CheckedSegment::FixedIndex(2);
+    assert!(prepare_argument_projection(&path, id(1), &types).is_err());
+    path[3] = CheckedSegment::FixedIndex(1);
+    assert!(
+        prepare_argument_projection(&path, id(1), &types[..4]).is_err(),
+        "an array's element must retain its exact declaration"
+    );
+    let StructuralTypeShape::Record { fields } = &mut types[4].shape else {
+        unreachable!()
+    };
+    fields[0].relevance = BindingRelevance::Erased;
+    assert!(
+        prepare_argument_projection(&path, id(1), &types).is_err(),
+        "an erased field never becomes an executable scalar endpoint"
+    );
+}

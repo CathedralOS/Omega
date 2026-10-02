@@ -1,9 +1,11 @@
 # Local record call arguments
 
-This program lends distinct local records and fixed-index record-array elements
-to Unit-, scalar-, and record-returning calls. The caller observes the writes,
-the returned reports, and the untouched neighboring element. Native and checked
-interpretation must both exit 70.
+This program lends distinct local records, fixed-index record-array elements,
+and a scalar field inside an element to Unit-, scalar-, and record-returning
+calls. The record-returning callee forwards its borrowed parameters to a
+successor state. The caller observes the writes, the returned reports, and the
+untouched neighboring element. Native and checked interpretation must both exit
+70.
 
 Prepare this checkout's package review for the running host, then run the
 unchanged program. On Linux x86-64:

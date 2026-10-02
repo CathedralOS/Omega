@@ -44,44 +44,11 @@ These are ready-to-pick implementation tasks, not design proposals or work
 reserved to the static-migration agent. Check live claims for actual assignments;
 this board grants no directory fences. Evidence below is source inspection at
 `89160904b7a6`, not a new execution result. First reproduce the named customer's
-current boundary. All four follow the mandatory
+current boundary. These repairs follow the mandatory
 [clean-as-you-go rule](omega-rust/pipeline.md#compositional-lowering): delete the
 replaced special paths with the repair. A new helper around the same exception
 matrix, a source rewrite avoiding the operation, or a passing isolated helper
 does not close an item. Keep independent receiving verification.
-
-- **CHECKED-PLACE-CALL-CUSTODY.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
-  High priority: resolve a call's borrowed storage by its checked root,
-  projection, access and live loan, not by its construction idiom or result
-  family. Stage 05 `unit/attached_unit/parameters.rs` admits structural-result
-  arguments through separate `record_borrow`, `reference_borrow`,
-  `scalar_leaf_borrow`, `element_view_borrow`, `array_borrow` and bounded-owner
-  exceptions before falling back to a caller-parameter-only route. Adding the
-  next Boolean is prohibited. Normalize the argument's source place and checked
-  custody once, then apply real carrier adaptation and transfer rules. Ordinary
-  and boundary calls, Unit/scalar/record-result consumers use that operation.
-  Preserve exact root identity, captured selectors, qualification evidence,
-  claim transfer, evaluation order and loan lifetime; shape equality is not
-  authority.
-  Common source replay now reconstructs parameter places and immutable reference
-  initializers independently of the call result; the scalar-only parameter
-  fallback is removed. `pass/calls/scalar_range_argument_exit` executes at its
-  authored exit 70 on macOS ARM64. The remaining frontier is the shared argument
-  materialization and custody operation below, not more source-shape exceptions.
-  Owners: stage 04 `execution/terminal_unit/calls/computation_arguments/`,
-  checked structural argument plans, stage 05 `unit/attached_unit/parameters.rs`
-  and `structural_calls/result_uses.rs`, with the corresponding Terminal call
-  validation. Start with the local record-array element loan
-  `&mut board.tallies[1]` recorded under STATIC-MACHINE-MIGRATION; add that
-  projection to the explicit-local customer
-  `pass/calls/local_records_mixed_record_result_arguments_exit`, keeping its
-  original whole-local case as a control. Acceptance: projected caller writes
-  survive a record-returning call and a state-forwarded use in interpreter and
-  native execution, with one common source-place path; conflicting subloans and
-  substituted root/path/access evidence reject. Report the removed exceptions.
-  This owns call argument resolution, not all store/partial-initialization work
-  in REFERENCE-BEARING-RECORD-LOCAL-FILL. View narrowing consumes this
-  resolver where needed; keep its source-place policy shared.
 
 - **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
   High priority: use the common Unit callee catalog to assemble scalar-machine
@@ -102,8 +69,8 @@ does not close an item. Keep independent receiving verification.
   effects, branch-specific result guarantees and invalid transfer rejection.
   Delete the separate assembler and its eligibility dispatch. General return
   roster and dynamic-call consolidation remain with the parent item; they are
-  not prerequisites for this bounded cut. Coordinate only the shared call
-  catalog seam with CHECKED-PLACE-CALL-CUSTODY, not a blanket stage-05 lock.
+  not prerequisites for this bounded cut. Coordinate changes to the shared call
+  catalog and source-custody resolver without claiming all of stage 05.
 
 For each item run its customer with `omega run --both <main.omg>` on a supported
 matching host and the affected registered corpus checks. Record separately:
@@ -289,11 +256,7 @@ execution and native exit/output. A moved refusal is still unfinished work.
   or a local whole or by field) across its own states to scalar and record
   results (`pass/calls/state_graph_callee_forwards_mut_parameter_exit`,
   `pass/calls/local_record_forwarded_across_callee_states_exit`).
-  **CHECKED-PLACE-CALL-CUSTODY** owns the remaining structural-argument refusal:
-  for Unit, scalar and record results
-  alike, a fixed-index loan of a local's record-array element
-  (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
-  argument has invalid checked custody`. A static
+  A static
   `generic_counters` uses explicit generic calls and two invocation-local
   counters, preserving repeated writes and separate integer/Boolean values.
   On macOS ARM64 at `bbd0a9fdb8` plus namespace-call interpretation,
@@ -353,8 +316,7 @@ the complete product bar; focused successes below do not establish that baseline
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
-  native execution. **CHECKED-PLACE-CALL-CUSTODY** owns the bounded call-source
-  normalization cut; retain other expression/store work here. Preserve the
+  native execution. Preserve the
   [evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering):
   exact producer, authored parameter position, result owner, loan activation
@@ -1777,7 +1739,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
   locals from every admitted producer, then preserve their loan identity,
   backing and access through reads, calls and explicit state transfers.
-  **CHECKED-PLACE-CALL-CUSTODY** owns call-source resolution. Reuse the shared
+  Reuse the shared
   source-place and view-narrowing operations rather than adding local-specific
   call or range routes here.
   Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
@@ -3536,9 +3498,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **STRUCTURAL-BORROW-IDENTITY.** Preserve original caller storage through
   projections, call preparation, native placement and independent receiving
   replay under [structural access](wiki/spec/terminal-psi/structural_access.md).
-  **CHECKED-PLACE-CALL-CUSTODY** owns the checked/source argument normalization.
-  Keep this item's wider placement and receiving-replay acceptance without
-  duplicating that repair.
+  Reuse shared checked/source argument normalization for the wider placement
+  and receiving-replay acceptance below.
   Owners: checked `terminal_scalar` signatures, `receiver_calls` and
   `calls/computation_arguments`; lowered scalar-callee selection; target
   `structural_call_arguments` and image `argument_custody`.

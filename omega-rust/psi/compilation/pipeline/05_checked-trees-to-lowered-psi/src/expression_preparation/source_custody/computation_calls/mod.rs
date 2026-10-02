@@ -20,7 +20,9 @@ pub(crate) mod primitive_arguments;
 mod qualifications;
 mod view_arguments;
 
-pub(crate) use mixed_arguments::access_occurrences::rejoin as rejoin_call_accesses;
+pub(crate) use mixed_arguments::access_occurrences::{
+    rejoin as rejoin_call_accesses, replay as replay_call_accesses,
+};
 pub(crate) use mixed_arguments::{RejoinedComputationArgument, rejoin_computation_call_arguments};
 
 pub(crate) fn validate_computation_calls(

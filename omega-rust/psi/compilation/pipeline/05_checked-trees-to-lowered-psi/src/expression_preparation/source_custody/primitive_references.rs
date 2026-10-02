@@ -36,13 +36,10 @@ pub(super) fn parameter_type(
         language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
         language_core::ReferenceAccess::WriteOnly => return None,
     };
-    if !matches!(
-        checked.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { .. }
-    ) {
-        return None;
-    }
-    let primitive = checked.primitive_type_reference(*referee)?;
+    // Arithmetic policy selects operations on the payload; it does not add
+    // membership restrictions. Reconstruct the same primitive carrier from the
+    // authored declaration without erasing range or nominal-domain obligations.
+    let primitive = validation::unrestricted_builtin_primitive(&checked.typed, *referee)?;
     (primitive != PrimitiveType::Addr).then_some((primitive, access))
 }
 

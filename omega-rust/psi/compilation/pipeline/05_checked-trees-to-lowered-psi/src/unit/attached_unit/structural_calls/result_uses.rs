@@ -1514,8 +1514,6 @@ pub(crate) fn validate_consumer(
         if whole_local_array_loan(
             checked,
             caller,
-            coordinate,
-            authored.source_target,
             result,
             argument,
             signature
@@ -1548,8 +1546,6 @@ pub(crate) fn validate_consumer(
         if whole_local_bounded_owner_loan(
             checked,
             caller,
-            coordinate,
-            authored.source_target,
             result,
             argument,
             parameter,
@@ -1678,8 +1674,6 @@ pub(crate) fn validate_consumer(
 fn whole_local_array_loan(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target: symbols::SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     formal: checked_trees::types::TypeReferenceHandle,
@@ -1759,46 +1753,8 @@ fn whole_local_array_loan(
     {
         return unsupported("local array loan changes backing, presentation, or access");
     }
-    let borrow = &checked.facts.borrow;
-    let state = borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|state| state.machine_symbol == caller.machine && state.state_symbol == caller.state)
-        .ok_or(LoweringError::Unsupported(
-            "local array loan has no borrow state",
-        ))?;
-    let mut calls = borrow
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == coordinate.statement_index as usize
-                && call.call_ordinal == coordinate.call_ordinal as usize
-                && call.target_symbol == target
-        });
-    let call = calls.next().ok_or(LoweringError::Unsupported(
-        "local array loan has no captured call",
-    ))?;
-    if calls.next().is_some() {
-        return unsupported("local array loan has ambiguous captured calls");
-    }
-    let mut accesses = borrow
-        .argument_accesses
-        .span_or_empty(call.accesses)
-        .iter()
-        .filter(|access| {
-            access.root_symbol == local.symbol && borrow.access_segments(access).is_empty()
-        })
-        .peekable();
-    let expected_kind = if expected_access == CheckedStructuralAccess::SharedBorrow {
-        checked_trees::BorrowAccessKind::Read
-    } else {
-        checked_trees::BorrowAccessKind::Mutable
-    };
-    if accesses.peek().is_none() || accesses.any(|access| access.kind != expected_kind) {
-        return unsupported("local array loan differs from captured argument access");
-    }
+    // Common call observation replay authenticates the exact ordered loan
+    // roster for every result family, including construction member calls.
     Ok(true)
 }
 
@@ -1806,14 +1762,11 @@ fn whole_local_array_loan(
 /// `text: [u8; 8] in Utf8`) independently of its argument plan: the operand
 /// is the authored local itself, the formal names the same bounded carrier
 /// or its shared live-byte view, every formal qualification is
-/// declared on the local, and the captured call access equals the formal's.
+/// declared on the local. Common source replay authenticates captured access.
 /// A bounded owner is never a raw fixed array: its live length is its own.
-#[allow(clippy::too_many_arguments)]
 fn whole_local_bounded_owner_loan(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target: symbols::SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
@@ -1890,46 +1843,8 @@ fn whole_local_bounded_owner_loan(
     {
         return unsupported("bounded owner loan changes backing, presentation, or access");
     }
-    let borrow = &checked.facts.borrow;
-    let state = borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|state| state.machine_symbol == caller.machine && state.state_symbol == caller.state)
-        .ok_or(LoweringError::Unsupported(
-            "bounded owner loan has no borrow state",
-        ))?;
-    let mut calls = borrow
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == coordinate.statement_index as usize
-                && call.call_ordinal == coordinate.call_ordinal as usize
-                && call.target_symbol == target
-        });
-    let call = calls.next().ok_or(LoweringError::Unsupported(
-        "bounded owner loan has no captured call",
-    ))?;
-    if calls.next().is_some() {
-        return unsupported("bounded owner loan has ambiguous captured calls");
-    }
-    let mut accesses = borrow
-        .argument_accesses
-        .span_or_empty(call.accesses)
-        .iter()
-        .filter(|access| {
-            access.root_symbol == local.symbol && borrow.access_segments(access).is_empty()
-        })
-        .peekable();
-    let expected_kind = if expected_access == CheckedStructuralAccess::SharedBorrow {
-        checked_trees::BorrowAccessKind::Read
-    } else {
-        checked_trees::BorrowAccessKind::Mutable
-    };
-    if accesses.peek().is_none() || accesses.any(|access| access.kind != expected_kind) {
-        return unsupported("bounded owner loan differs from captured argument access");
-    }
+    // Common call observation replay authenticates the exact ordered loan
+    // roster for every result family, including construction member calls.
     Ok(true)
 }
 

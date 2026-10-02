@@ -163,3 +163,140 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
         }
     }
 }
+
+#[test]
+fn whole_borrowed_primitive_stores_share_arithmetic_policy_leaf_normalization() {
+    use checked_trees::CheckedIntegerBinaryKind;
+    for (policy, expected_kind) in [
+        ("Wrapping", CheckedIntegerBinaryKind::WrappingAdd),
+        ("Saturating", CheckedIntegerBinaryKind::SaturatingAdd),
+        ("Trapping", CheckedIntegerBinaryKind::TrappingAdd),
+    ] {
+        let checked = checked_program(&format!(
+            "machine bump(hits: &mut i32 in {policy}) {{ hits = hits + 1; }}"
+        ));
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "bump")
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == machine.symbol)
+            .unwrap_or_else(|| panic!("missing whole borrowed {policy} store plan"));
+        assert!(
+            plan.operations.iter().any(|operation| matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    destination: checked_trees::CheckedStoreRoot::Parameter { position: 0 },
+                    path,
+                    value: checked_trees::CheckedCallScalarArgument::Pure(
+                        checked_trees::CheckedScalarExpression::IntegerBinary { kind, left, .. }
+                    ),
+                    ..
+                } if path.is_empty()
+                    && *kind == expected_kind
+                    && matches!(left.as_ref(), checked_trees::CheckedScalarExpression::StorageRead { symbol, .. }
+                        if *symbol == program.state_parameters(&program.machine_states(machine)[0])[0].symbol)
+            )),
+            "{policy}: {plan:#?}",
+        );
+
+        // Arithmetic-policy normalization does not grant mutation to a shared
+        // checked destination, even when its root and scalar type still match.
+        let state = &program.machine_states(machine)[0];
+        let mut parameters = plan.structural_parameters.clone();
+        parameters[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+        let typed_trees::statement::StatementNode::Assignment(assignment) =
+            &program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("authored increment")
+        };
+        assert!(
+            super::super::primitive::store_at(
+                program,
+                &checked.facts,
+                machine,
+                state,
+                &parameters,
+                0,
+                assignment,
+            )
+            .is_none(),
+            "{policy} must not amplify a shared destination",
+        );
+    }
+}
+
+#[test]
+fn whole_borrowed_primitive_stores_do_not_peel_range_or_nominal_domains() {
+    for (declaration, constraint) in [
+        ("", "[0..=8]"),
+        (
+            "domain u64::Slot requires self <= 8 && self != 5;",
+            "in Slot",
+        ),
+    ] {
+        let checked = checked_program(&format!(
+            "{declaration}
+             machine replace(value: &mut u64 {constraint}) {{ value = 3; }}"
+        ));
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "replace")
+            .unwrap();
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter()
+                .all(|plan| plan.machine != machine.symbol),
+            "{constraint} needs its own write obligations, not arithmetic-policy peeling",
+        );
+    }
+}
+
+#[test]
+fn arithmetic_policy_references_keep_read_and_write_authority_distinct() {
+    let checked = checked_program(
+        "machine copy(source: &i32 in Wrapping, destination: &mut i32 in Wrapping) {
+             destination = source + 1;
+         }",
+    );
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "copy")
+        .unwrap();
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .any(|plan| plan.machine == machine.symbol),
+        "shared policy reference remains readable"
+    );
+
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        "machine bump(hits: &write i32 in Wrapping) { hits = hits + 1; }",
+    )
+    .expect_err("write-only access cannot supply the increment's observation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("write-only")),
+        "{diagnostics:#?}"
+    );
+}

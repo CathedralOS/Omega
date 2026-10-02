@@ -505,6 +505,18 @@ pub(crate) fn validate(
                         "structural operand substituted its call or returned carrier",
                     );
                 }
+                let source_call = crate::emission::call_source_custody::authored::locate_source(
+                    checked,
+                    state,
+                    *coordinate,
+                )?;
+                crate::emission::call_source_custody::validate_observations(
+                    checked,
+                    machine,
+                    state,
+                    *coordinate,
+                    &source_call,
+                )?;
                 crate::unit::attached_unit::validate_operand_preparation(
                     checked,
                     machine,
