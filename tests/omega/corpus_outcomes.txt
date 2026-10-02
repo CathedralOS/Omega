@@ -1326,7 +1326,7 @@ pass/calls/owned_state_parameter_call_exit checked 1250ms @2d8ed253669f
 pass/calls/qualified_record_call_result_field_exit checked 902ms @e687de1f01bf
 pass/calls/requires_carrier_ceiling_vacuous checked 3103ms @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge checked 3157ms @527c7c316c6f+wt
-pass/calls/retained_receiver_argument_order_exit checked 719ms @be20683757eb+wt
+pass/calls/retained_receiver_argument_order_exit checked 886ms @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382792161+wt
@@ -1632,7 +1632,7 @@ pass/domains/local_alias_domain_transfer checked 275ms @4e4bfed13aee+wt
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
-pass/domains/record_literal_view_member_store_exit checked 1248ms @c3ad5f6e051f+wt
+pass/domains/record_literal_view_member_store_exit checked 1024ms @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb

@@ -22,14 +22,14 @@ data Main {
     right: Tag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.left = Tag { label: "amulet", weight: 3 };
-    self.right = Tag { weight: 4, label: "ring" };
-    self.console.write_line(self.left.label);
-    self.console.write_line(self.right.label);
-    transition self.left.label == "amulet" && self.left.weight == 3 {
-        true -> right_record(&mut self)
-        _ -> wrong_left(&mut self)
+machine Main::main(main: &mut Main) reaches Console {
+    main.left = Tag { label: "amulet", weight: 3 };
+    main.right = Tag { weight: 4, label: "ring" };
+    main.console.write_line(main.left.label);
+    main.console.write_line(main.right.label);
+    transition main.left.label == "amulet" && main.left.weight == 3 {
+        true -> right_record(main)
+        _ -> wrong_left(main)
     }
 
     state right_record(main: &mut Main) {
