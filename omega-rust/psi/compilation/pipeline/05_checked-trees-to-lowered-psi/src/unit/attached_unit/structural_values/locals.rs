@@ -20,10 +20,10 @@ pub(crate) fn bind_local(
             result,
             ..
         } => (result, None),
-        // An ordinary structural call binds its result local.
+        // A successful call binds its exact initializer result regardless of
+        // whether installation selected the callee through a boundary.
         CheckedUnitEffectOperationPlan::Call(call)
-            if let Some(result) = call.structural_result()
-                && !call.is_boundary() =>
+            if let Some(result) = call.structural_result() =>
         {
             let authored = crate::emission::call_source_custody::authored::locate_source(
                 checked,

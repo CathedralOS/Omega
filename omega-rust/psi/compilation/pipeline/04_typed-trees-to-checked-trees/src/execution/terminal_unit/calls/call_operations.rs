@@ -222,12 +222,10 @@ pub(in crate::execution) fn build_call_operation(
     // a boundary edge.
     let boundary =
         target_machine.supply_mode.is_boundary_declaration() && !target_machine.body_is_present;
-    // Boundary results currently carry identity/claims, not an array payload.
-    // Ordinary calls get their payload from the independently checked body.
+    // Boundary and ordinary results retain the same structural carrier.
+    // Installation supplies the checked provider body and its exact return
+    // custody; a boundary declaration does not authorize fabricated payloads.
     phase("call operation: result shape");
-    if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
-        return None;
-    }
     if if boundary {
         match expected_call_result {
             None => !is_unit(program, target_state.return_type),

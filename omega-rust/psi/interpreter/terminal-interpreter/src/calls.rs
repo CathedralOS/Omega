@@ -365,7 +365,9 @@ impl TerminalExecution {
             // `result.claims` onto the caller at resume (no transfer slots
             // exist on the operation), and the provider's declared result
             // qualifications introduce the returned domains. Affine results
-            // stay claim-free; projected qualifications still have no
+            // stay claim-free. Unrestricted results use the same frame
+            // admission as ordinary returns, which checks their concrete
+            // payload capability; projected qualifications still have no
             // installed-provider leg.
             let supported_result = match &operation.result {
                 terminal_psi::OperationResult::Unit | terminal_psi::OperationResult::Scalar(_) => {
@@ -374,11 +376,11 @@ impl TerminalExecution {
                 terminal_psi::OperationResult::Structural(result) => {
                     result.projected_qualifications.is_empty()
                         && match result.multiplicity {
-                            StructuralMultiplicity::Affine => {
+                            StructuralMultiplicity::Unrestricted
+                            | StructuralMultiplicity::Affine => {
                                 result.qualifications.is_empty() && result.claims.is_empty()
                             }
                             StructuralMultiplicity::Linear => true,
-                            StructuralMultiplicity::Unrestricted => false,
                         }
                 }
             };
