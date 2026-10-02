@@ -131,8 +131,7 @@ pub(super) fn validate_unit_cleanup_actions(
             let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
                 return Err(mismatch());
             };
-            if cleanup.cleanup_receiver.is_some()
-                || !cleanup.requirement_obligations.is_empty()
+            if !cleanup.requirement_obligations.is_empty()
                 || remaining
                     .claims
                     .values()
@@ -299,7 +298,6 @@ pub(super) fn validate_scalar_cleanup_actions(
                 TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     if cleanup.place == parameter.place
                         && cleanup.structural_type == parameter.structural_type
-                        && cleanup.cleanup_receiver.is_none()
                         && cleanup.requirement_obligations.is_empty()
                         && valid_nominal_cleanup(
                             function,
@@ -342,8 +340,28 @@ pub(super) fn valid_nominal_cleanup(
         && target.attachment == Some(cleanup.structural_type)
         && matches!(target.result, AbstractFunctionResult::Unit)
         && target.parameters.is_empty()
-        && target.structural_parameters.is_empty()
-        && target.structural_places.is_empty()
+        && match target.structural_parameters.as_slice() {
+            [] => cleanup.cleanup_receiver.is_none() && target.structural_places.is_empty(),
+            [parameter] => {
+                parameter.position == 0
+                    && parameter.structural_type == cleanup.structural_type
+                    && cleanup.cleanup_receiver == Some(parameter.place)
+                    && matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    )
+                    && target.structural_places.iter().any(|place| {
+                        place.id == parameter.place
+                            && place.kind
+                                == semantic_vocabulary::StructuralPlaceKind::Parameter {
+                                    position: parameter.position,
+                                    is_self: parameter.is_self,
+                                }
+                    })
+            }
+            _ => false,
+        }
         && target.entry_claim_declarations.is_empty()
         && target.content_entry_claims.is_empty()
         && target.published_service_ceiling.is_empty()
