@@ -265,6 +265,10 @@ execution and native exit/output. A moved refusal is still unfinished work.
   produce their authored exits (0, 0 and 181); source-free Terminal execution
   retains the exact backing. Loan carriers release before their local owners
   are discarded. No receiver flag supplies the return origin.
+  `pass/borrows/runtime_index_mut_loan_write_exit` now keeps its byte buffer
+  local and passes it explicitly across calls and state edges; Windows native
+  and checked interpretation both exit 0. Primitive byte-view access resolves
+  the backing independently of descriptor transport and retains bounds evidence.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,

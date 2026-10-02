@@ -158,6 +158,53 @@ pub(crate) fn primitive_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    let mut roots = declarations
+        .iter()
+        .filter(|declaration| declaration.id == root);
+    let declaration = roots.next()?;
+    if roots.next().is_some() {
+        return None;
+    }
+    if let StructuralTypeShape::ByteSequence(carrier) = declaration.shape {
+        if terminal_semantics::primitive_projection_type(declarations.iter(), root, path)
+            != Some(scalar)
+        {
+            return None;
+        }
+        // A view's physical size describes its descriptor, never its payload
+        // extent. Runtime bounds remain attached to the selected byte; an owner
+        // additionally has an eight-byte length word before its payload.
+        let (payload_offset, extent) = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => (8u32, Some(capacity)),
+            terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                (0u32, Some(capacity))
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => (0u32, None),
+        };
+        return match path {
+            [StructuralPathSegment::FixedIndex(index)] => {
+                if extent.is_some_and(|extent| *index >= extent) {
+                    return None;
+                }
+                Some((
+                    payload_offset.checked_add(u32::try_from(*index).ok()?)?,
+                    1,
+                    Vec::new(),
+                ))
+            }
+            [StructuralPathSegment::RuntimeIndex { index, obligation }] => Some((
+                payload_offset,
+                1,
+                vec![RuntimeElement {
+                    index: *index,
+                    obligation: *obligation,
+                    stride: 1,
+                    extent,
+                }],
+            )),
+            _ => None,
+        };
+    }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
         let (carrier, _, _) = runtime_projection(root, carrier_path, declarations)?;
         if let StructuralTypeShape::Record { fields } = &declarations

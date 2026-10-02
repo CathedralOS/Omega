@@ -20,6 +20,31 @@ pub(super) fn primitive_leaf_projection(
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+    if let StructuralTypeShape::ByteSequence(carrier) = declarations.get(&root)?.shape {
+        let scalar = terminal_semantics::primitive_projection_type(
+            declarations.values().copied(),
+            root,
+            path,
+        )?;
+        let payload_offset: u32 = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 8,
+            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 0,
+        };
+        // Geometry is relative to payload backing, not to a view's descriptor.
+        // The sequence is the container; selecting its byte ends the path.
+        return match path {
+            [StructuralPathSegment::FixedIndex(index)] => Some((
+                scalar,
+                payload_offset.checked_add(u32::try_from(*index).ok()?)?,
+                Vec::new(),
+            )),
+            [StructuralPathSegment::RuntimeIndex { index, .. }] => {
+                Some((scalar, payload_offset, vec![(*index, 1)]))
+            }
+            _ => None,
+        };
+    }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
         let (carrier, _, offset, runs) = runtime_projection(
             root,
