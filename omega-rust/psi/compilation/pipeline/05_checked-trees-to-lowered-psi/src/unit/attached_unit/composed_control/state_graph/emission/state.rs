@@ -178,7 +178,7 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
         )?;
         evaluation.scalar_bindings = Some(bindings.clone());
-        evaluation.structural_types = self.catalogs.structural_types.as_slice().into();
+        evaluation.structural_types = self.catalogs.structural_types.as_ref().into();
         evaluation.structural_fields =
             crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
                 &evaluation.structural_parameters,

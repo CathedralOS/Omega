@@ -1,6 +1,6 @@
 //! Discriminator observations retain the original structural root and path.
 
-use crate::custody::resolve_structural_path_type;
+use crate::custody::{project_structural_value, resolve_structural_path_type};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
@@ -215,17 +215,14 @@ impl TerminalExecution {
         let root = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
-        let selected_type = resolve_structural_path_type(
-            &self.program.structural_types,
-            root.structural_type,
-            path,
-        )?;
-        let mut selected = StructuralRuntimePlace::from(root);
-        selected.path.extend_from_slice(path);
-        let contents = self.structural_cases.get(&selected).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
-        if contents.structural_type != selected_type {
+        let selected = project_structural_value(&self.program.structural_types, root, path)?;
+        let contents = self
+            .structural_cases
+            .get(&StructuralRuntimePlace::from(&selected))
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                source,
+            ))?;
+        if contents.structural_type != selected.structural_type {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         Ok(contents.case)
@@ -265,16 +262,11 @@ fn validate_case_projection(
     resolve_structural_path_type(types, root.structural_type, path)?;
     for (position, case) in selected {
         let prefix = &path[..position];
-        let selected_type = resolve_structural_path_type(types, root.structural_type, prefix)?;
-        let mut storage = StructuralRuntimePlace::from(root);
-        storage.path.extend(
-            prefix
-                .iter()
-                .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
-                .cloned(),
-        );
-        let contents = cases.get(&storage).ok_or_else(invalid)?;
-        if contents.structural_type != selected_type || contents.case != case {
+        let selected = project_structural_value(types, root, prefix)?;
+        let contents = cases
+            .get(&StructuralRuntimePlace::from(&selected))
+            .ok_or_else(invalid)?;
+        if contents.structural_type != selected.structural_type || contents.case != case {
             return Err(invalid());
         }
     }

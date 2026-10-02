@@ -346,20 +346,13 @@ pub(crate) fn exact_borrowed_projection(
             byte_offset,
             Some(reach),
         )
-    } else if argument
-        .path
-        .iter()
-        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
+    } else if let Some((leaf_type, leaf_shape, byte_offset)) =
+        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+            source.structural_type,
+            &argument.path,
+            structural_types,
+        )
     {
-        let Some((leaf_type, leaf_shape, byte_offset)) =
-            crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
-                source.structural_type,
-                &argument.path,
-                structural_types,
-            )
-        else {
-            return false;
-        };
         if !leaf_is_material(leaf_type) {
             return false;
         }
@@ -387,7 +380,7 @@ pub(crate) fn exact_borrowed_projection(
         // bounded view a single pointer to the whole field.
         let Some(referent_size) = structural_types.iter().find_map(|declaration| {
             (declaration.id == destination.structural_type)
-                .then(|| match &declaration.shape {
+                .then_some(match &declaration.shape {
                     terminal_psi::StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                     ) => Some(16),

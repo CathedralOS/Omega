@@ -106,7 +106,9 @@ fn view_backed_calls_invalidate_only_potentially_overlapping_fields() {
         ),
     ] {
         assert_eq!(
-            super::changes_length(&function, &types, root, &path, &call),
+            super::super::structural_freshness::structural_metadata_may_change(
+                &function, &types, root, &path, &call
+            ),
             invalidated
         );
     }
@@ -118,9 +120,11 @@ fn view_backed_calls_invalidate_only_potentially_overlapping_fields() {
         unreachable!()
     };
     structural_arguments[0].access = StructuralAccess::SharedBorrow;
-    assert!(!super::changes_length(
-        &function, &types, root, &observed, &call
-    ));
+    assert!(
+        !super::super::structural_freshness::structural_metadata_may_change(
+            &function, &types, root, &observed, &call
+        )
+    );
     let O::CallStructural {
         structural_arguments,
         ..
@@ -132,9 +136,11 @@ fn view_backed_calls_invalidate_only_potentially_overlapping_fields() {
     // A missing current producer must not turn an unresolved alias into a
     // separate owner, even when its declaration still names the old producer.
     function.blocks[0].nodes.pop();
-    assert!(super::changes_length(
-        &function, &types, root, &observed, &call
-    ));
+    assert!(
+        super::super::structural_freshness::structural_metadata_may_change(
+            &function, &types, root, &observed, &call
+        )
+    );
 }
 
 #[test]
@@ -188,7 +194,13 @@ fn primitive_writes_invalidate_only_potentially_overlapping_projections() {
         (vec![field, other_runtime], true),
     ] {
         assert_eq!(
-            super::changes_length(function, &types, root, &observed, &primitive.operation),
+            super::super::structural_freshness::structural_metadata_may_change(
+                function,
+                &types,
+                root,
+                &observed,
+                &primitive.operation
+            ),
             invalidated,
             "observed projection: {observed:?}"
         );
@@ -198,20 +210,24 @@ fn primitive_writes_invalidate_only_potentially_overlapping_projections() {
         unreachable!()
     };
     path.clear();
-    assert!(super::changes_length(
-        function,
-        &types,
-        root,
-        &[S::Field("out".into())],
-        &whole_root
-    ));
-    assert!(!super::changes_length(
-        function,
-        &types,
-        id(999, semantic_vocabulary::PlaceId::new),
-        &[],
-        &whole_root
-    ));
+    assert!(
+        super::super::structural_freshness::structural_metadata_may_change(
+            function,
+            &types,
+            root,
+            &[S::Field("out".into())],
+            &whole_root
+        )
+    );
+    assert!(
+        !super::super::structural_freshness::structural_metadata_may_change(
+            function,
+            &types,
+            id(999, semantic_vocabulary::PlaceId::new),
+            &[],
+            &whole_root
+        )
+    );
 }
 
 #[test]

@@ -828,8 +828,8 @@ impl OperationFrame<'_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|(local_symbol, _)| local_symbol == symbol)
-                        .map(|(_, source)| source.clone())
+                        .find(|local| local.symbol == *symbol)
+                        .map(|local| local.argument.clone())
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",
                         ))?;
@@ -2028,7 +2028,6 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?;
         self.values.truncate(leaf_start);
-        let local_place = declaration.id;
         if let StructuralResults::StateGraph { places, state } = &mut self.results {
             places.push(declaration);
             let producer = self
@@ -2061,7 +2060,7 @@ impl OperationFrame<'_, '_> {
                     self.checked,
                     self.state,
                     operation,
-                    local_place,
+                    declaration,
                     &mut self.evaluation.structural_locals,
                 )?;
             }
@@ -2463,8 +2462,12 @@ impl OperationFrame<'_, '_> {
                     .evaluation
                     .structural_locals
                     .iter()
-                    .find(|(candidate, _)| *candidate == symbol);
-                let Some((_, argument)) = local else {
+                    .find(|local| local.symbol == symbol);
+                let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
+                    argument,
+                    ..
+                }) = local
+                else {
                     return unsupported("borrowed-window repair value's local is not established");
                 };
                 BorrowedWindowRepairValue {

@@ -414,9 +414,9 @@ impl<'a> Position<'a> {
                     StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
                     _ => None,
                 },
-                StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
-                    None
-                }
+                StructuralPathSegment::Referent
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedByteRange { .. } => None,
             },
             (
                 Self::Type(current),
@@ -861,7 +861,7 @@ fn descended_type(
         .find(|entry| entry.id == current)?
         .shape;
     match segment {
-        StructuralPathSegment::FixedByteRange { .. } => None,
+        StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
         StructuralPathSegment::Field(identity) => {
             let fields = match shape {
                 StructuralTypeShape::Record { fields }

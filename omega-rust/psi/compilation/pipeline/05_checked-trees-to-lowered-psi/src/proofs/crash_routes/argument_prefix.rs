@@ -55,6 +55,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
             "structural crash route argument has no caller structural source",
         ))?;
     let mut prefix = Vec::with_capacity(argument.path.len());
+    let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     for (position, segment) in argument.path.iter().enumerate() {
         let declaration = structural_types
             .iter()
@@ -62,7 +63,26 @@ pub(crate) fn structural_crash_route_argument_prefix(
             .ok_or(LoweringError::Unsupported(
                 "structural crash route argument path type is absent",
             ))?;
+        if selected_case.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return unsupported("structural crash route case must select its payload field");
+        }
         match segment {
+            StructuralPathSegment::Case(selected) => {
+                let cases = match &declaration.shape {
+                    StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. } => cases,
+                    _ => return unsupported("structural crash route case has no source sum"),
+                };
+                let mut matches = cases.iter().filter(|case| case.id == *selected);
+                let case = matches.next().ok_or(LoweringError::Unsupported(
+                    "structural crash route case belongs to another declaration",
+                ))?;
+                if matches.next().is_some() {
+                    return unsupported("structural crash route case is ambiguous");
+                }
+                selected_case = Some(case);
+                prefix.push(CanonicalStructuralPathSegment::Case(case.id));
+            }
             StructuralPathSegment::FixedByteRange { .. } => {
                 return unsupported(
                     "byte window crash predicates require exact view extent custody",
@@ -79,13 +99,17 @@ pub(crate) fn structural_crash_route_argument_prefix(
                 );
             }
             StructuralPathSegment::Field(identity) => {
-                let fields = match &declaration.shape {
-                    StructuralTypeShape::Record { fields }
-                    | StructuralTypeShape::Mixed { fields, .. } => fields,
-                    _ => {
-                        return unsupported(
-                            "structural crash route argument path receiver is not a record",
-                        );
+                let fields = if let Some(case) = selected_case.take() {
+                    &case.fields
+                } else {
+                    match &declaration.shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields,
+                        _ => {
+                            return unsupported(
+                                "structural crash route argument path receiver is not a record",
+                            );
+                        }
                     }
                 };
                 let field = fields
@@ -127,6 +151,9 @@ pub(crate) fn structural_crash_route_argument_prefix(
                 structural_type = element;
             }
         }
+    }
+    if selected_case.is_some() {
+        return unsupported("structural crash route case has no payload field");
     }
     Ok(prefix)
 }

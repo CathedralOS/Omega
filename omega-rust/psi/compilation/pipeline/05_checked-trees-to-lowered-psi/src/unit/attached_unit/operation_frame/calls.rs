@@ -159,7 +159,7 @@ impl OperationFrame<'_, '_> {
                 self.checked,
                 self.state,
                 operation,
-                declaration.id,
+                declaration,
                 &mut self.evaluation.structural_locals,
             );
         }

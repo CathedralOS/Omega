@@ -219,13 +219,22 @@ impl Emission<'_, '_, '_> {
                         next_operation: self.operations.next_identity,
                     });
                 self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
-                self.evaluation.structural_locals.retain(|(_, argument)| {
-                    !self
-                        .sources
-                        .iter()
-                        .any(|source| source.place == argument.place)
-                });
-                for (_, argument) in &mut self.evaluation.structural_locals {
+                self.evaluation.structural_locals.retain(
+                    |crate::expression_preparation::bindings::StructuralLocalBinding {
+                         argument,
+                         ..
+                     }| {
+                        !self
+                            .sources
+                            .iter()
+                            .any(|source| source.place == argument.place)
+                    },
+                );
+                for crate::expression_preparation::bindings::StructuralLocalBinding {
+                    argument,
+                    ..
+                } in &mut self.evaluation.structural_locals
+                {
                     if let Some((_, target)) = continuation
                         .pass_through
                         .iter()

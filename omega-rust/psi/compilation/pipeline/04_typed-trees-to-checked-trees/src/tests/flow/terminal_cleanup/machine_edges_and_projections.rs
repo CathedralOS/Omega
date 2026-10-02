@@ -346,6 +346,9 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
                         checked_trees::CheckedUnitStructuralPathSegment::Referent => {
                             panic!("{case}: projected residuals never name a referent")
                         }
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(_) => {
+                            panic!("{case}: these record and array residuals never select a case")
+                        }
                         checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
                             ..
                         } => {

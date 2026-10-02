@@ -647,6 +647,10 @@ fn encode_structural_path(
     );
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                bytes.extend_from_slice(&[7, 0, 0, 0]);
+                push_u64(bytes, case.get());
+            }
             StructuralPathSegment::Referent => {
                 bytes.extend_from_slice(&[3, 0, 0, 0]);
             }
@@ -707,6 +711,11 @@ fn decode_structural_path(
                 }
                 StructuralPathSegment::Field(identity)
             }
+            7 => StructuralPathSegment::Case(
+                semantic_vocabulary::StructuralCaseId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroSettlementIdentity("StructuralCaseId"),
+                )?,
+            ),
             2 => StructuralPathSegment::FixedIndex(reader.u64()?),
             3 => StructuralPathSegment::Referent,
             4 => StructuralPathSegment::FixedByteRange {
@@ -1014,6 +1023,61 @@ mod tests {
         StructuralOperationResult, StructuralTypeId, ValueId, decode_boundary_result,
         decode_boundary_runtime_source, encode_boundary_result, encode_boundary_runtime_source,
     };
+
+    #[test]
+    fn case_path_codecs_preserve_identity_and_reject_malformed_wire() {
+        use terminal_psi::StructuralPathSegment;
+        let case = semantic_vocabulary::StructuralCaseId::new(21).unwrap();
+        for codec in 0..3 {
+            let encode = |bytes: &mut Vec<u8>, path: &[StructuralPathSegment]| match codec {
+                0 => super::encode_structural_path(bytes, path),
+                1 => super::super::structural::argument::encode_path(bytes, path),
+                _ => super::super::unit::structural_scalar_field_store::encode_path(bytes, path),
+            };
+            let decode = |reader: &mut Reader<'_>| match codec {
+                0 => super::decode_structural_path(reader),
+                1 => super::super::structural::argument::decode_path(reader),
+                _ => super::super::unit::structural_scalar_field_store::decode_path(reader),
+            };
+            let path = vec![
+                StructuralPathSegment::Case(case),
+                StructuralPathSegment::Field("item".into()),
+            ];
+            let mut bytes = Vec::new();
+            encode(&mut bytes, &path).unwrap();
+            assert_eq!(&bytes[..8], &[2, 0, 0, 0, 7, 0, 0, 0]);
+            assert_eq!(&bytes[8..16], &21_u64.to_le_bytes());
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode(&mut reader).unwrap(), path);
+            assert_eq!(reader.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(decode(&mut Reader::new(&bytes[..length])).is_err());
+            }
+            let mut zero = bytes.clone();
+            zero[8..16].fill(0);
+            assert!(decode(&mut Reader::new(&zero)).is_err());
+            let mut reserved = bytes.clone();
+            reserved[5] = 1;
+            assert!(decode(&mut Reader::new(&reserved)).is_err());
+            let mut unknown = bytes.clone();
+            unknown[4] = 255;
+            assert!(decode(&mut Reader::new(&unknown)).is_err());
+            let mut index = Vec::new();
+            encode(
+                &mut index,
+                &[
+                    StructuralPathSegment::FixedIndex(21),
+                    StructuralPathSegment::Field("item".into()),
+                ],
+            )
+            .unwrap();
+            assert_ne!(bytes, index);
+            assert_eq!(
+                decode(&mut Reader::new(&index)).unwrap()[0],
+                StructuralPathSegment::FixedIndex(21)
+            );
+        }
+    }
 
     #[test]
     fn fixed_byte_range_path_codecs_preserve_endpoints_and_reject_malformed_wire() {

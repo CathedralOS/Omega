@@ -20,6 +20,10 @@ pub(crate) fn hash_structural_path(
     digest.update((path.len() as u64).to_le_bytes());
     for segment in path {
         match segment {
+            terminal_psi::StructuralPathSegment::Case(case) => {
+                digest.update([7]);
+                digest.update(case.get().to_le_bytes());
+            }
             terminal_psi::StructuralPathSegment::Referent => digest.update([3]),
             terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
                 digest.update([4]);

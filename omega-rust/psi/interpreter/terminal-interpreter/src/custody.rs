@@ -549,30 +549,35 @@ pub(crate) fn resolve_structural_arguments(
     arguments
         .iter()
         .map(|argument| {
-            let mut value = values.get(&argument.place).cloned().ok_or(
+            let value = values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
-            value.structural_type = resolve_structural_path_type(
-                structural_types,
-                value.structural_type,
-                &argument.path,
-            )?;
-            if !argument.path.is_empty() {
-                value.qualifications.clear();
-            }
-            // A Case selects the active payload namespace, not another storage
-            // allocation. Execution checks its discriminator before dispatch;
-            // the borrowed value retains the original identity and field path.
-            value.path.extend(
-                argument
-                    .path
-                    .iter()
-                    .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
-                    .cloned(),
-            );
-            Ok(value)
+            project_structural_value(structural_types, value, &argument.path)
         })
         .collect()
+}
+
+/// Resolve a typed projection onto its original runtime backing. Case steps
+/// choose a declaration namespace but add no physical storage component.
+/// The execution loop validates every selected discriminator before dispatch;
+/// this geometry helper itself grants no access or membership authority.
+pub(crate) fn project_structural_value(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    path: &[StructuralPathSegment],
+) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    let mut value = root.clone();
+    value.structural_type =
+        resolve_structural_path_type(structural_types, root.structural_type, path)?;
+    if !path.is_empty() {
+        value.qualifications.clear();
+    }
+    value.path.extend(
+        path.iter()
+            .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
+            .cloned(),
+    );
+    Ok(value)
 }
 
 pub(crate) fn direct_scalar_field_type(

@@ -7,6 +7,7 @@ use crate::emission::operation_emission::calls::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
+use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
@@ -122,12 +123,14 @@ pub(crate) fn lower_scalar_call(
                 ) || argument.path.iter().any(|segment| {
                     !matches!(
                         segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                                checked_trees::CheckedRuntimeIndex::Parameter { .. }
-                                    | checked_trees::CheckedRuntimeIndex::StructuralField(_)
-                            )
+                        PreparedStructuralPathSegment::Static(
+                            terminal_psi::StructuralPathSegment::Field(_)
+                                | terminal_psi::StructuralPathSegment::Case(_)
+                                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                        ) | PreparedStructuralPathSegment::RuntimeIndex(
+                            checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                                | checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                        )
                     )
                 }))
         })

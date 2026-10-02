@@ -56,7 +56,7 @@ pub(crate) fn emit_call_leaf(
     }
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
-        structural_types: catalogs.structural_types.as_slice().into(),
+        structural_types: catalogs.structural_types.as_ref().into(),
         structural_value_owners: Vec::new(),
         selection_cleanups: Vec::new(),
         structural_locals: Vec::new(),

@@ -340,9 +340,6 @@ pub(crate) fn validate_structural_path(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::ElementView { element },
             ) => *element,
-            (_, StructuralTypeShape::ElementView { .. }) => {
-                return malformed("element-view structural type has no projected children");
-            }
         };
     }
     if payload_fields.is_some() {

@@ -98,8 +98,8 @@ pub(crate) fn emit(
                     if let Some(argument) = evaluation
                         .structural_locals
                         .iter()
-                        .find(|(symbol, _)| *symbol == source.symbol)
-                        .map(|(_, argument)| argument.clone())
+                        .find(|local| local.symbol == source.symbol)
+                        .map(|local| local.argument.clone())
                     {
                         return Ok(argument);
                     }
@@ -412,7 +412,10 @@ fn prepare_owners(
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
-    for (symbol, argument) in &evaluation.structural_locals {
+    for crate::expression_preparation::bindings::StructuralLocalBinding {
+        symbol, argument, ..
+    } in &evaluation.structural_locals
+    {
         if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
             continue;
         }
@@ -1170,8 +1173,8 @@ impl Emission<'_, '_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|(source, _)| *source == *symbol)
-                        .map(|(_, argument)| argument.place)
+                        .find(|local| local.symbol == *symbol)
+                        .map(|local| local.argument.place)
                         .or(self.parameter_source(&argument)?)
                         .ok_or(LoweringError::Unsupported(
                             "owned selection local place missing",
@@ -1367,10 +1370,16 @@ impl Emission<'_, '_, '_> {
         self.complete_value(source, None, &continuation)?;
         self.start(block);
         if self.multiplicity == StructuralMultiplicity::Affine {
-            self.evaluation
-                .structural_locals
-                .retain(|(_, argument)| argument.place != source);
-            for (_, argument) in &mut self.evaluation.structural_locals {
+            self.evaluation.structural_locals.retain(
+                |crate::expression_preparation::bindings::StructuralLocalBinding {
+                     argument,
+                     ..
+                 }| argument.place != source,
+            );
+            for crate::expression_preparation::bindings::StructuralLocalBinding {
+                argument, ..
+            } in &mut self.evaluation.structural_locals
+            {
                 if let Some((_, target)) = continuation
                     .pass_through
                     .iter()
@@ -1758,8 +1767,8 @@ impl Emission<'_, '_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|(source, _)| *source == *symbol)
-                        .map(|(_, argument)| argument.place)
+                        .find(|local| local.symbol == *symbol)
+                        .map(|local| local.argument.place)
                     {
                         Some(place) => place,
                         None => {
@@ -2254,13 +2263,22 @@ impl Emission<'_, '_, '_> {
                         next_operation: self.operations.next_identity,
                     });
                 self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
-                self.evaluation.structural_locals.retain(|(_, argument)| {
-                    !self
-                        .sources
-                        .iter()
-                        .any(|source| source.place == argument.place)
-                });
-                for (_, argument) in &mut self.evaluation.structural_locals {
+                self.evaluation.structural_locals.retain(
+                    |crate::expression_preparation::bindings::StructuralLocalBinding {
+                         argument,
+                         ..
+                     }| {
+                        !self
+                            .sources
+                            .iter()
+                            .any(|source| source.place == argument.place)
+                    },
+                );
+                for crate::expression_preparation::bindings::StructuralLocalBinding {
+                    argument,
+                    ..
+                } in &mut self.evaluation.structural_locals
+                {
                     if let Some((_, target)) = continuation
                         .pass_through
                         .iter()
@@ -2459,7 +2477,12 @@ impl Emission<'_, '_, '_> {
             self.state,
         )?;
         let mut cases = Vec::new();
-        for (symbol, argument) in &self.evaluation.structural_locals {
+        for crate::expression_preparation::bindings::StructuralLocalBinding {
+            symbol,
+            argument,
+            ..
+        } in &self.evaluation.structural_locals
+        {
             let Some((_, local)) = self.checked.state_local_declaration(authored, *symbol) else {
                 continue;
             };

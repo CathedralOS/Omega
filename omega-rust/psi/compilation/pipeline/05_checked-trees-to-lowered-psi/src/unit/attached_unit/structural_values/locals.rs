@@ -1,5 +1,5 @@
 //! Publish a source local only after its exact initializer result exists.
-use super::super::{CheckedUnitEffectOperationPlan, LoweringError, PlaceId, unsupported};
+use super::super::{CheckedUnitEffectOperationPlan, LoweringError, unsupported};
 use super::CheckedTrees;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::statement::StatementNode;
@@ -11,8 +11,8 @@ pub(crate) fn bind_local(
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
-    place: PlaceId,
-    locals: &mut Vec<(symbols::SymbolHandle, terminal_psi::StructuralArgument)>,
+    declaration: terminal_psi::StructuralPlaceDeclaration,
+    locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 ) -> Result<(), LoweringError> {
     let (result, expression) = match operation {
         CheckedUnitEffectOperationPlan::EstablishScalarArray {
@@ -89,7 +89,7 @@ pub(crate) fn bind_local(
     // still retain their separate immutable-binding requirement.
     if (local.is_mutable && !(owned_array || super::plain_record(checked, local.type_reference)))
         || !local.symbol.is_valid()
-        || locals.iter().any(|(symbol, _)| *symbol == local.symbol)
+        || locals.iter().any(|binding| binding.symbol == local.symbol)
         || checked
             .normalized_type_identity(local.type_reference)
             .as_str()
@@ -97,13 +97,22 @@ pub(crate) fn bind_local(
     {
         return unsupported("structural local differs from its published initializer binding");
     }
-    locals.push((
-        local.symbol,
-        terminal_psi::StructuralArgument {
-            place,
-            access: borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned),
-            path: Vec::new(),
+    let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+        structural_type, ..
+    } = declaration.kind
+    else {
+        return unsupported("structural local has no exact produced carrier");
+    };
+    locals.push(
+        crate::expression_preparation::bindings::StructuralLocalBinding {
+            symbol: local.symbol,
+            structural_type,
+            argument: terminal_psi::StructuralArgument {
+                place: declaration.id,
+                access: borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned),
+                path: Vec::new(),
+            },
         },
-    ));
+    );
     Ok(())
 }

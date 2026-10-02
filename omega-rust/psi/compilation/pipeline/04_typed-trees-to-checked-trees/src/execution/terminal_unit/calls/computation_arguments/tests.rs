@@ -1011,9 +1011,124 @@ fn case_payload_arguments_retain_exact_case_and_original_parameter() {
         ));
         paths.push((case.clone(), field.clone()));
     }
+    let raw_paths = paths.clone();
+    let captured = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, row)| {
+            (row.machine_symbol == caller.symbol && row.state_symbol == state.symbol).then_some(row)
+        })
+        .unwrap();
+    let target_state = &checked.machine_states(callee)[0];
+    let target_parameter = &checked.state_parameters(target_state)[0];
+    let authored_calls = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(captured.calls)
+        .iter()
+        .filter(|call| call.target_symbol == target_state.symbol)
+        .map(|call| {
+            let target_arguments = match checked
+                .expression_table
+                .expression(call.authored_expression)
+            {
+                ExpressionNode::Call(authored) => checked
+                    .expression_table
+                    .expression_handles(authored.arguments),
+                _ => &[],
+            };
+            let gates = target_arguments.first().map(|expression| {
+                let mut place = crate::flow::canonical_place_from_expression_in_state(
+                    &checked.typed,
+                    state.symbol,
+                    call.statement_index,
+                    *expression,
+                );
+                if let Some(place) = &mut place {
+                    crate::flow::normalize_attached_place_root(
+                        &checked.typed,
+                        caller.symbol,
+                        state.symbol,
+                        place,
+                    );
+                }
+                let replay = super::rejoin_computation_accesses(
+                    &checked.typed,
+                    &checked.facts.borrow,
+                    caller.symbol,
+                    state.symbol,
+                    call,
+                );
+                let actual =
+                    super::exact_actual(&checked.typed, call, *expression, target_parameter);
+                let path = place.as_ref().and_then(|place| {
+                    super::super::argument_paths::projected_borrowed_path(
+                        &checked.typed,
+                        caller.symbol,
+                        state.symbol,
+                        call.statement_index,
+                        place,
+                    )
+                });
+                let access = place.as_ref().and_then(|place| {
+                    super::exact_structural_borrow_access(
+                        &checked.typed,
+                        &checked.facts.borrow,
+                        caller.symbol,
+                        state.symbol,
+                        call,
+                        place,
+                        CheckedStructuralAccess::SharedBorrow,
+                        &[],
+                    )
+                });
+                let nominal = place.as_ref().and_then(|place| {
+                    super::borrowed_nominal_argument(
+                        &checked.typed,
+                        &checked.facts.borrow,
+                        caller.symbol,
+                        state,
+                        call,
+                        place,
+                        target_parameter,
+                    )
+                });
+                (place, replay, actual, path, access, nominal)
+            });
+            let admitted = target_arguments.first().and_then(|expression| {
+                structural_computation_argument(
+                    &checked.typed,
+                    &checked.facts.borrow,
+                    caller.symbol,
+                    state,
+                    call,
+                    *expression,
+                    target_parameter,
+                )
+            });
+            (
+                call.statement_index,
+                call.call_ordinal,
+                call.target_symbol,
+                call.authored_expression,
+                admitted,
+                gates,
+            )
+        })
+        .collect::<Vec<_>>();
     paths.sort();
     paths.dedup();
-    assert_eq!(paths.len(), 2, "both arms retain their ordinary call nodes");
+    assert_eq!(
+        paths.len(),
+        2,
+        "both arms retain ordinary calls; raw paths={raw_paths:?}; captured/direct admission={authored_calls:?}; statements={:?}",
+        checked.statement_table.statements(state.statement_nodes)
+    );
     assert_ne!(
         paths[0].0, paths[1].0,
         "equal payload types do not merge cases"
@@ -1032,14 +1147,14 @@ fn case_argument_path_rejects_sibling_case_field_substitution() {
     let owner = checked
         .data_definitions()
         .iter()
-        .find(|owner| owner.name == "Sum")
+        .find(|owner| owner.name.as_str() == "Sum")
         .unwrap();
     let cases = checked
         .data_members(owner)
         .iter()
         .filter_map(|member| match member {
             checked_trees::data::DataMember::Variant(case)
-                if case.name == "Found" || case.name == "Other" =>
+                if case.name.as_str() == "Found" || case.name.as_str() == "Other" =>
             {
                 Some(case)
             }

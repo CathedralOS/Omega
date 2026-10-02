@@ -30,6 +30,7 @@ use checked_trees::{
 pub(super) struct Prepared {
     pub(super) symbol: symbols::SymbolHandle,
     pub(super) place: PlaceId,
+    pub(super) structural_type: StructuralTypeId,
     pub(super) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
     statement: u32,
     steps: Vec<Step>,
@@ -132,6 +133,18 @@ pub(super) fn prepare(
         steps: Vec::new(),
         consumed: Vec::new(),
     };
+    let mut declarations = types
+        .iter()
+        .filter(|declaration| declaration.identity == result.type_identity);
+    let structural_type = declarations
+        .next()
+        .ok_or(LoweringError::Unsupported(
+            "record lost its declared carrier",
+        ))?
+        .id;
+    if declarations.next().is_some() {
+        return unsupported("record carrier is ambiguous");
+    }
     let mut place = preparation.record(*value, local.type_reference)?;
     if result.multiplicity == Multiplicity::Affine
         && matches!(
@@ -145,13 +158,6 @@ pub(super) fn prepare(
             CheckedStructuralValueKind::Place(_)
         )
     {
-        let structural_type = types
-            .iter()
-            .find(|declaration| declaration.identity == result.type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "moved record lost its declared carrier",
-            ))?
-            .id;
         place = preparation.bind_place(
             StructuralArgument {
                 place,
@@ -165,6 +171,7 @@ pub(super) fn prepare(
     Ok(Prepared {
         symbol: local.symbol,
         place,
+        structural_type,
         statement: result.statement_index,
         steps: preparation.steps,
         consumed: preparation.consumed,
