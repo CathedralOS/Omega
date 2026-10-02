@@ -140,6 +140,7 @@ pub enum CheckedScalarComputationKind {
     /// The operand owns any descriptor preparation; indexed observations happen
     /// only after that preparation and the length comparison succeed.
     ByteSequenceLiteralComparison {
+        operand_type: typed_trees::types::TypeReferenceHandle,
         source_expression: typed_trees::expression::ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },

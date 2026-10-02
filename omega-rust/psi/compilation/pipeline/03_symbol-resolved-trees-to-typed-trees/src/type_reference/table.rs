@@ -15,7 +15,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    match source_trees
+    let result: Result<_, Diagnostic> = match source_trees
         .tables
         .types
         .references
@@ -61,12 +61,6 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                     base_type,
                     constraints,
                 },
-            );
-            super::retain_arithmetic_result_type(
-                &source_trees.symbols,
-                typed_trees,
-                reference,
-                None,
             );
             Ok(reference)
         }
@@ -218,5 +212,8 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Unit)),
-    }
+    };
+    let reference = result?;
+    super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
+    Ok(reference)
 }

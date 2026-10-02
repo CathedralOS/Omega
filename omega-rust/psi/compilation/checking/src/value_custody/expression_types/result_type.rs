@@ -314,6 +314,92 @@ fn result_type(
                     .find_policy_qualified_type_reference(cast.target_type, cast.domain)
             }
         }
+        ExpressionNode::Indexed(indexed)
+            if matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) =>
+        {
+            let result = (|| {
+                let ExpressionNode::Range(range) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                if range.end_inclusive {
+                    return None;
+                }
+                let collection = result_type(program, owner, indexed.collection, active)?;
+                let operands = [
+                    Some(collection),
+                    range
+                        .start
+                        .is_valid()
+                        .then(|| result_type(program, owner, range.start, active))
+                        .flatten(),
+                    range
+                        .end
+                        .is_valid()
+                        .then(|| result_type(program, owner, range.end, active))
+                        .flatten(),
+                ];
+                if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                    program,
+                    OperatorSpelling::Range,
+                    &operands,
+                    program.expression_table.source_span(expression),
+                )
+                .is_empty()
+                    || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        program,
+                        owner.symbol(),
+                        expression,
+                        OperatorSpelling::Range,
+                        &operands,
+                    )
+                {
+                    return None;
+                }
+                // A fresh descriptor preserves elements and the source loan's
+                // access, but carries no source collection value predicates.
+                let mut carrier = collection;
+                while let TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(carrier)
+                {
+                    carrier = *base_type;
+                }
+                let (access, carrier) = match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::Reference {
+                        access, referee, ..
+                    } => (*access, *referee),
+                    _ => (language_core::ReferenceAccess::Shared, carrier),
+                };
+                if access == language_core::ReferenceAccess::WriteOnly {
+                    return None;
+                }
+                let mut carrier = carrier;
+                while let TypeReferenceNode::Constrained { base_type, .. } =
+                    program.type_reference_table.type_reference(carrier)
+                {
+                    carrier = *base_type;
+                }
+                let element = match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::Slice { element_type }
+                    | TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
+                    _ => return None,
+                };
+                let identity = program.normalized_type_identity(element);
+                program
+                    .type_reference_table
+                    .slice_view_references()
+                    .find_map(|(reference, candidate_access, candidate_element)| {
+                        (candidate_access == access
+                            && program.normalized_type_identity(candidate_element) == identity)
+                            .then_some(reference)
+                    })
+            })();
+            result
+        }
         ExpressionNode::ZeroValue(reference) => Some(*reference),
         // Place lookup strips a Borrow to its target. A value-type query must
         // not turn that view into a by-value operand and hide reference-typed

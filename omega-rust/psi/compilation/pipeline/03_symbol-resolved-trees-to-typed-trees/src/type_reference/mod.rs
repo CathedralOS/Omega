@@ -8,7 +8,7 @@
 //! type-reference table and always records a private implementation;
 //! statement lowering uses it, and `table` implements it. Both routes lower constraints through `constraints`, record authored
 //! declaration selections through `retain_type_reference_selection`, and
-//! retain arithmetic result types through `arithmetic_results`.
+//! retain computed result carriers through `computed_results`.
 //! `retain_static_path_selection` and `retain_path_selection` record the same
 //! selections for path spellings that are not type references.
 //!
@@ -29,12 +29,14 @@ use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
 mod arithmetic_results;
+mod computed_results;
 mod constraints;
 mod direct;
 mod generic_origins;
 mod table;
 
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
+pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use generic_origins::validate_range_arguments;
 
 pub(crate) use constraints::lower_element_applicable_constraints;

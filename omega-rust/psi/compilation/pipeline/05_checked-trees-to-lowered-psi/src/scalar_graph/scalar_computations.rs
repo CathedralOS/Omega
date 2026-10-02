@@ -635,6 +635,7 @@ impl<'a> Expansion<'a> {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 source_expression,
                 subject,
+                ..
             } => self.byte_literal_comparison(
                 source_expression,
                 &subject,

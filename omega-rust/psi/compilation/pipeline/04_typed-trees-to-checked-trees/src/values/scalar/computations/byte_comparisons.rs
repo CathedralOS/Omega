@@ -100,6 +100,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                operand_type: target,
                 source_expression: expression,
                 subject,
             },

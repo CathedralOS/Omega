@@ -185,7 +185,7 @@ pub(in crate::execution) fn admit(
         }
         // The call-argument overlap judgment, not a ledger loan, keeps the
         // backing unwritten for the call (module header).
-        CheckedSubsliceSite::CallArgument { .. } => true,
+        CheckedSubsliceSite::CallArgument { .. } | CheckedSubsliceSite::Expression { .. } => true,
         CheckedSubsliceSite::TransitionArgument { .. } => false,
     };
     established.then_some(subslice)

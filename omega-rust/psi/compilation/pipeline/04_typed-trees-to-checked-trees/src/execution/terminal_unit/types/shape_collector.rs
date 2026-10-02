@@ -20,7 +20,7 @@ pub(crate) struct ShapeCollector<'program> {
 }
 
 impl<'program> ShapeCollector<'program> {
-    pub(in crate::execution::terminal_unit) fn new(program: &'program TypedTrees) -> Self {
+    pub(crate) fn new(program: &'program TypedTrees) -> Self {
         Self {
             program,
             types: BTreeMap::new(),

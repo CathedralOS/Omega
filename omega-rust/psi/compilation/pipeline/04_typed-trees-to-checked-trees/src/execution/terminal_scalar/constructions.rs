@@ -238,9 +238,26 @@ pub(super) fn retain_shapes(
             | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
             }
+            CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                operand_type, ..
+            } => {
+                for shape in
+                    super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?
+                {
+                    if let Some(existing) = shapes
+                        .iter()
+                        .find(|existing| existing.identity == shape.identity)
+                    {
+                        if existing != &shape {
+                            return None;
+                        }
+                    } else {
+                        shapes.push(shape);
+                    }
+                }
+            }
             CheckedScalarComputationKind::Value(_)
-            | CheckedScalarComputationKind::StructuralField { .. }
-            | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
+            | CheckedScalarComputationKind::StructuralField { .. } => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span(*arms)? {

@@ -307,7 +307,7 @@ pub use proof_contracts::proof_embeddings::{
 };
 
 mod declarations;
-mod expression_traversal;
+pub mod expression_traversal;
 mod frozen_program;
 mod machine_calls;
 mod program_scope;

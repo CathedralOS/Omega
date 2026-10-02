@@ -42,6 +42,7 @@ mod composed_call_admission;
 mod composed_call_arguments_source;
 mod composed_internal_call_arguments_source;
 mod composed_unit_scalar_crashes_source;
+mod computed_byte_comparisons;
 mod constructed_field_replacement_source;
 mod copied_call_operands;
 mod crash_member_source;

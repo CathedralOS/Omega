@@ -526,6 +526,32 @@ impl TypeReferenceTable {
         self.constraints.span(span)
     }
 
+    /// Existing plain view shells, preserving element and access identities.
+    /// Result queries may select a declared carrier without manufacturing a
+    /// type reference or copying the source collection's value predicates.
+    pub fn slice_view_references(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            TypeReferenceHandle,
+            language_core::ReferenceAccess,
+            TypeReferenceHandle,
+        ),
+    > + '_ {
+        self.type_references.iter().filter_map(|(handle, node)| {
+            let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = node
+            else {
+                return None;
+            };
+            let TypeReferenceNode::Slice { element_type } = self.type_reference(*referee) else {
+                return None;
+            };
+            Some((handle, *access, *element_type))
+        })
+    }
+
     pub fn type_reference_count(&self) -> usize {
         self.type_references.len()
     }
