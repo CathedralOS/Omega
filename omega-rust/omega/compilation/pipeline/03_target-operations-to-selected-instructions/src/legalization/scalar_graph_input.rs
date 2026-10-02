@@ -18,6 +18,7 @@ use semantic_vocabulary::{
 };
 use target_operations::{TargetFunction, TargetOperationPlan};
 pub(super) mod call_origin;
+pub(in crate::legalization) mod cleanup_calls;
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;

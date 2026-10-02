@@ -11,7 +11,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, Structural
 
 #[cfg(test)]
 mod arrival_tests;
-mod borrowed_arguments;
+pub(super) mod borrowed_arguments;
 mod owned_arguments;
 pub(super) use owned_arguments::{node_site, precedes};
 
@@ -229,7 +229,11 @@ pub(super) fn cleanup(
                     && eligible_owner(discard.place)
                     && residuals.insert((discard.place, discard.path.clone()))
             }
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_) => false,
+            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                discarded.insert(cleanup.place)
+                    && eligible_owner(cleanup.place)
+                    && cleanup.requirement_obligations.is_empty()
+            }
         }
     })
 }

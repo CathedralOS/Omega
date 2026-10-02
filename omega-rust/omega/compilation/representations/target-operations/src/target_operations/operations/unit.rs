@@ -455,6 +455,13 @@ pub enum TargetUnitOperation {
     /// returned references and ownership are explicit result custody, not
     /// separate call operations. Receiving checks reconstruct the full plan
     /// and custody from the declaration and pre-call state.
+    /// An invocation owned by one normal-return cleanup action, not a source operation.
+    CleanupCall {
+        owner: crate::CallSiteOwner,
+        callee: MachineId,
+        call_plan: CallPlan,
+        arguments: Vec<TargetStructuralArgument>,
+    },
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,

@@ -57,7 +57,7 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
                 );
             };
             match &block.terminator {
-                Terminator::Return(returned) => {
+                Terminator::Return(returned) | Terminator::ReturnCleanup { returned, .. } => {
                     if matches!(returned.value, LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)
                     {
                         return true;

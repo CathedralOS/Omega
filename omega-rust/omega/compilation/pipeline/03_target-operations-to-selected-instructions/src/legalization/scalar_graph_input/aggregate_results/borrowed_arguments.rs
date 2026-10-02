@@ -19,6 +19,28 @@ pub(super) fn reconstruct(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
+    reconstruct_at_owner(
+        argument,
+        position,
+        target_operations::CallSiteOwner::Operation(call_operation),
+        caller,
+        callee,
+        call,
+        native,
+        plan,
+    )
+}
+
+pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
+    argument: &terminal_psi::StructuralArgument,
+    position: usize,
+    owner: target_operations::CallSiteOwner,
+    caller: &PsiOptimizationFunction,
+    callee: &PsiOptimizationFunction,
+    call: &CallPlan,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let destination = callee
         .structural_parameters
         .get(position)
@@ -53,7 +75,7 @@ pub(super) fn reconstruct(
         return crate::legalization::scalar_graph_input::address_joins::call_argument(
             argument,
             destination,
-            call_operation,
+            owner.operation().ok_or(LegalizationError::custody())?,
             caller,
             call,
             callee.parameters.len() + position,
@@ -106,7 +128,14 @@ pub(super) fn reconstruct(
                     .map(|position| (block.id, position))
             })
         };
-        let after = site(call_operation).ok_or(LegalizationError::custody())?;
+        let after = if let Some(operation) = owner.operation() {
+            site(operation)
+        } else {
+            caller.blocks.iter().find_map(|block| block.nodes.iter().position(|node| {
+                matches!(&node.operation, AbstractOperation::ReturnUnit { psi_edge, .. } | AbstractOperation::Return { psi_edge, .. }
+                    if Some(*psi_edge) == owner.edge())
+            }).map(|position| (block.id, position)))
+        }.ok_or(LegalizationError::custody())?;
         if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
             // An element view is a descriptor root: the argument names its
             // establishing producer, never a storage home, and the projected
@@ -202,8 +231,12 @@ pub(super) fn reconstruct(
         if elements.is_empty() {
             return Err(LegalizationError::custody());
         }
-        let indices =
-            target::control_flow::sources::call_indices(native, caller, call_operation, &elements)?;
+        let indices = target::control_flow::sources::call_indices(
+            native,
+            caller,
+            owner.operation().ok_or(LegalizationError::custody())?,
+            &elements,
+        )?;
         (selected, offset, indices)
     };
     let referent = crate::structural_inputs::structural_reference_input::shape(

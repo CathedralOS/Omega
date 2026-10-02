@@ -25,6 +25,11 @@ pub(super) fn build(
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {
+        LegalizedScalarTerminator::ReturnCleanup { .. } => {
+            // Edge-owned calls require selected ABI transport and independent
+            // native receipt replay before this return can be selected.
+            Err(SelectedInstructionError::custody())
+        }
         LegalizedScalarTerminator::Crash {
             psi_edge,
             cause,

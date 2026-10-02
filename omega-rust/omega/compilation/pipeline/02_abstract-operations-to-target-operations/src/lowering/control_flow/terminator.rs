@@ -211,7 +211,18 @@ pub(super) fn plain_home_cleanup(
                 }
                 discarded_residuals.insert((discard.place, discard.path.clone()));
             }
-            TerminalAffineCleanupAction::InvokeNominal(_) => return Ok(false),
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                // The call's ABI is reconstructed before this disposition. Its
+                // root still owes exactly one whole cleanup on this edge.
+                if !discarded_roots.insert(cleanup.place)
+                    || owned_root_type(live, function, cleanup.place)
+                        != Some(cleanup.structural_type)
+                    || !cleanup.requirement_obligations.is_empty()
+                    || super::references::is_suspended_root(live, cleanup.place)
+                {
+                    return Ok(false);
+                }
+            }
         }
     }
     Ok(true)

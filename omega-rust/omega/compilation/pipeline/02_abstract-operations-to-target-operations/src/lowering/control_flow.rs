@@ -360,6 +360,7 @@ pub(super) fn lower(
                     action,
                     TerminalAffineCleanupAction::DiscardRoot(_)
                         | TerminalAffineCleanupAction::DiscardResidual(_)
+                        | TerminalAffineCleanupAction::InvokeNominal(_)
                 )
             }) =>
             {
@@ -504,6 +505,16 @@ pub(super) fn lower(
             function,
             &live,
             structural_types,
+        )?;
+        direct_calls::lower_cleanup_calls(
+            &function.operations[range.end - 1],
+            function,
+            target,
+            functions,
+            structural_types,
+            &prepared,
+            &live,
+            &mut operations,
         )?;
         let terminator = lower_terminator(
             &function.operations[range.end - 1],
