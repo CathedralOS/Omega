@@ -66,6 +66,10 @@ impl StorageObservations {
         }
     }
 
+    fn unresolved(&self, root: PlaceId) -> bool {
+        self.origins.get(&root).is_some_and(BTreeSet::is_empty)
+    }
+
     pub(super) fn observes_write(
         &self,
         proposition: &Proposition,
@@ -76,6 +80,10 @@ impl StorageObservations {
         crate::validation::proposition_observation_sites(proposition)
             .into_iter()
             .any(|(observed, path)| {
+                // An unresolved cyclic origin grants neither disjointness nor
+                // publication identity. Until it resolves, every write may
+                // disturb an observation through that name.
+                if self.unresolved(root) || self.unresolved(observed) { return true; }
                 self.regions(observed, path.as_deref().unwrap_or_default())
                     .iter()
                     .any(|(observed_root, observed_path)| {
@@ -102,6 +110,7 @@ impl StorageObservations {
         crate::validation::proposition_boolean_field_roots(proposition)
             .into_iter()
             .any(|observed| {
+                if self.unresolved(observed) || places.iter().any(|root| self.unresolved(*root)) { return !places.is_empty(); }
                 self.regions(observed, &[])
                     .iter()
                     .any(|(observed_root, observed_path)| {
@@ -126,6 +135,10 @@ impl StorageObservations {
         }
         let count = axioms.len();
         for index in 0..count {
+            // Content revisions and projection paths have an independent
+            // conservation owner. A current-storage alias is no evidence for
+            // moving a versioned content term to an invocation root.
+            if crate::validation::proposition_contains_content(&axioms[index]) { continue; }
             let rewritten = super::substitution::substitute_proposition_structural_places(
                 &axioms[index],
                 &self.invocation_origins,

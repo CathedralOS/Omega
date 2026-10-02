@@ -120,9 +120,12 @@ pub use frontier::{
 };
 use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_affine_root_type};
 use proof_recursion::validate_proof_recursive_components;
+#[cfg(test)]
+pub(crate) use propositions::proposition_observes_write;
 pub(crate) use propositions::{
+    proposition_contains_content,
     proposition_boolean_field_roots, proposition_observation_sites, proposition_observes_places,
-    proposition_observes_unversioned_places, proposition_observes_write,
+    proposition_observes_unversioned_places,
 };
 pub(crate) use references::{argument_owns_references, is_reference_projection};
 pub use scalar::block_invariants::scalar_block_invariant_scope;

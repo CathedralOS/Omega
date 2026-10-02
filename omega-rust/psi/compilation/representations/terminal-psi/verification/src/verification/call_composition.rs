@@ -798,7 +798,7 @@ fn structural_contract_substitutions(
                         }
                     }),
             )
-            .any(|proposition| storage.observes_places(proposition, &[parameter.place]));
+            .any(|proposition| crate::validation::proposition_observes_places(proposition, &[parameter.place]));
         let borrowed_presentation = caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::fixed_byte_array_window(
                 module.structural_types.iter(),
