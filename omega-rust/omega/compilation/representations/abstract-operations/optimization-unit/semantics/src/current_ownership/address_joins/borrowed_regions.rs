@@ -10,18 +10,18 @@ use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
-pub(super) type Position = (BlockId, u32);
+pub(in crate::current_ownership) type Position = (BlockId, u32);
 type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
 
 #[derive(Clone)]
-pub(super) struct Projection {
-    pub(super) path: Vec<StructuralPathSegment>,
-    pub(super) exact: bool,
-    pub(super) indirect: bool,
+pub(in crate::current_ownership) struct Projection {
+    pub(in crate::current_ownership) path: Vec<StructuralPathSegment>,
+    pub(in crate::current_ownership) exact: bool,
+    pub(in crate::current_ownership) indirect: bool,
 }
 
 impl Projection {
-    pub(super) fn new(path: &[StructuralPathSegment]) -> Self {
+    pub(in crate::current_ownership) fn new(path: &[StructuralPathSegment]) -> Self {
         let length = path
             .iter()
             .position(|segment| {
@@ -45,7 +45,7 @@ impl Projection {
         }
     }
 
-    fn then(&self, suffix: &Self) -> Self {
+    pub(in crate::current_ownership) fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
         composed.indirect |= suffix.indirect;
         if composed.exact {
@@ -57,13 +57,13 @@ impl Projection {
 }
 
 #[derive(Clone)]
-pub(super) struct Region {
-    root: Option<PlaceId>,
-    projection: Projection,
+pub(in crate::current_ownership) struct Region {
+    pub(in crate::current_ownership) root: Option<PlaceId>,
+    pub(in crate::current_ownership) projection: Projection,
 }
 
 impl Region {
-    pub(super) fn overlaps(&self, other: &Self) -> bool {
+    pub(in crate::current_ownership) fn overlaps(&self, other: &Self) -> bool {
         self.projection.indirect
             || other.projection.indirect
             || self.root.is_none()
@@ -77,16 +77,53 @@ impl Region {
 }
 
 #[derive(Default)]
-pub(super) struct BorrowedRegions {
+pub(in crate::current_ownership) struct BorrowedRegions {
     aliases: AliasSources,
     writes: BTreeMap<Position, Vec<(PlaceId, Vec<Region>)>>,
 }
 
 impl BorrowedRegions {
-    pub(super) fn new(
+    pub(in crate::current_ownership) fn new(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
+        let mut result = Self::origins(function);
+        let aliases = &result.aliases;
+        if aliases.is_empty() {
+            return result;
+        }
+        let mut writes = BTreeMap::new();
+        for block in &function.blocks {
+            for (index, node) in block.nodes.iter().enumerate() {
+                let regions =
+                    crate::current_ownership::storage_regions::written_or_exclusive_regions(
+                        function,
+                        types,
+                        &node.operation,
+                    )
+                    .into_iter()
+                    .map(|(place, region)| {
+                        let mut projection = Projection::new(&region.path);
+                        projection.indirect |= region.indirect;
+                        (place, resolve(aliases, place, projection))
+                    })
+                    .collect::<Vec<_>>();
+                if !regions.is_empty() {
+                    writes.insert(
+                        (
+                            block.id,
+                            u32::try_from(index).expect("unit node index fits u32"),
+                        ),
+                        regions,
+                    );
+                }
+            }
+        }
+        result.writes = writes;
+        result
+    }
+
+    pub(in crate::current_ownership) fn origins(function: &PsiOptimizationFunction) -> Self {
         let mut aliases = AliasSources::new();
         for block in &function.blocks {
             for node in &block.nodes {
@@ -125,43 +162,28 @@ impl BorrowedRegions {
                 }
             }
         }
-        if aliases.is_empty() {
-            return Self::default();
+        Self {
+            aliases,
+            writes: BTreeMap::new(),
         }
-        let mut writes = BTreeMap::new();
-        for block in &function.blocks {
-            for (index, node) in block.nodes.iter().enumerate() {
-                let regions = super::written_or_exclusive_regions(function, types, &node.operation)
-                    .into_iter()
-                    .map(|(place, region)| {
-                        let mut projection = Projection::new(&region.path);
-                        projection.indirect |= region.indirect;
-                        (place, resolve(&aliases, place, projection))
-                    })
-                    .collect::<Vec<_>>();
-                if !regions.is_empty() {
-                    writes.insert(
-                        (
-                            block.id,
-                            u32::try_from(index).expect("unit node index fits u32"),
-                        ),
-                        regions,
-                    );
-                }
-            }
-        }
-        Self { aliases, writes }
     }
 
-    pub(super) fn resolve(&self, place: PlaceId, projection: Projection) -> Vec<Region> {
+    pub(in crate::current_ownership) fn resolve(
+        &self,
+        place: PlaceId,
+        projection: Projection,
+    ) -> Vec<Region> {
         resolve(&self.aliases, place, projection)
     }
 
-    pub(super) fn writes_at(&self, position: Position) -> &[(PlaceId, Vec<Region>)] {
+    pub(in crate::current_ownership) fn writes_at(
+        &self,
+        position: Position,
+    ) -> &[(PlaceId, Vec<Region>)] {
         self.writes.get(&position).map(Vec::as_slice).unwrap_or(&[])
     }
 
-    pub(super) fn overlaps(
+    pub(in crate::current_ownership) fn overlaps(
         &self,
         pinned: &[Region],
         place: PlaceId,
@@ -172,7 +194,7 @@ impl BorrowedRegions {
             .any(|region| pinned.iter().any(|loan| loan.overlaps(region)))
     }
 
-    pub(super) fn conflicted_operation(
+    pub(in crate::current_ownership) fn conflicted_operation(
         &self,
         pinned: &[Region],
         position: Position,
