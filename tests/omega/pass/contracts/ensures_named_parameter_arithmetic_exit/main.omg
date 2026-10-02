@@ -12,20 +12,20 @@ ensures
     timer.remaining = start + 1;
 }
 
-machine Countdown::tick(&mut self) -> u32 in Wrapping
+machine Countdown::tick(countdown: &mut Countdown) -> u32 in Wrapping
 requires
-    self.remaining > 0;
-    self.remaining - 1 < 8
+    countdown.remaining > 0;
+    countdown.remaining - 1 < 8
 {
-    self.remaining = self.remaining - 1;
-    self.remaining
+    countdown.remaining = countdown.remaining - 1;
+    countdown.remaining
 }
 
 data Main { timer: Countdown; }
 
-machine Main::main(&mut self) crashes Trap {
-    Countdown::arm(&mut self.timer, 4);
-    let remaining: u32 in Wrapping = self.timer.tick();
+machine Main::main(main: &mut Main) crashes Trap {
+    Countdown::arm(&mut main.timer, 4);
+    let remaining: u32 in Wrapping = Countdown::tick(&mut main.timer);
     transition remaining == 4 {
         true -> done()
         _ -> bad()

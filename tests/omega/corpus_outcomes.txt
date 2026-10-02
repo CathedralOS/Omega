@@ -1461,7 +1461,7 @@ pass/constraints/scalar_requires_satisfied_by_literal checked 324ms @2d8ed253669
 pass/constraints/selected_arithmetic_return_ensures checked 275ms @2d8ed253669f
 pass/contracts/ensures_borrowed_parameter_field_exit checked 1465ms @a5f40f5895bf+wt
 pass/contracts/ensures_fact_list_exit checked 1320ms @4e4bfed13aee+wt
-pass/contracts/ensures_named_parameter_arithmetic_exit checked 639ms @9496226c577f+wt
+pass/contracts/ensures_named_parameter_arithmetic_exit checked 431ms @1fa864024c44+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1321ms @4e4bfed13aee+wt
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
@@ -1663,7 +1663,7 @@ pass/expressions/owned_match_interleaved_values checked 277ms @2d8ed253669f
 pass/expressions/owned_match_mixed_values checked 291ms @2d8ed253669f
 pass/expressions/owned_match_parameter_values checked 270ms @2d8ed253669f
 pass/expressions/owned_match_projected_field checked 287ms @2d8ed253669f
-pass/expressions/owned_match_record_values checked 299ms @2d8ed253669f
+pass/expressions/owned_match_record_values checked 171ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 282ms @2d8ed253669f
 pass/expressions/qualified_call_result_argument checked 297ms @2d8ed253669f
 pass/expressions/runtime_flat_boolean_logic_exit checked 1517ms @2d8ed253669f
