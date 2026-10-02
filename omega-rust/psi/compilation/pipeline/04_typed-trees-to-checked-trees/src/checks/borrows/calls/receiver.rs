@@ -22,6 +22,7 @@ mod returned;
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
     check_receiver_reads_against_live_loans, returns_through_mutable_receiver,
+    subject_argument_position,
 };
 
 /// Whether `call` runs its target on the caller's implicit receiver.

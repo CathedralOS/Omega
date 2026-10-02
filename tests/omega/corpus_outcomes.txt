@@ -166,10 +166,10 @@ fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed2
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_record_state_alias rejected 661ms expected @2d8ed253669f
 	state `finish` receives `cell` as mutable more than once
-fail/borrows/named_jump_receiver_under_argument_loan rejected 361ms expected @ee08fad015b6+wt
-	state `observe` receives shared receiver overlapping another argument in the same call
-	state `read_after` receives `self.count` as mutable while its mutable receiver reads `self.count`
-	state `write_through_self` receives `self.count` as mutable while its mutable receiver writes `self.count`
+fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17d6ccc60253+wt
+	state `observe` receives `main.count` as both mutable and read-only
+	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
+	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 189ms expected @c5979328a39b+wt
@@ -942,7 +942,7 @@ fail/range/funnel_guard_one_edge_unguarded rejected 303ms expected @c08960bee2b1
 	cannot prove requires contract for call push from Main::main: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/range/guarded_copy_stale_after_write rejected 299ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call store from Main::main: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/range/guarded_runtime_index_collection_write rejected 808ms expected @2d8ed253669f
+fail/range/guarded_runtime_index_collection_write rejected 195ms expected @17d6ccc60253+wt
 	cannot prove requires contract for call bump from Main::main: u < 16 (needs fact `v < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/range/indexed_field_range_runtime_write_rejected rejected 121ms expected @c08960bee2b1+wt
 	data `Cell`'s default domain is still FALSE at a call: the invariant window opened on `main.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -1626,8 +1626,8 @@ pass/dependent/local_alias_forwards_entry_origin checked 286ms @2d8ed253669f
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 283ms @2d8ed253669f
 pass/dependent/runtime_dependent_subtract_exit checked 1263ms @2d8ed253669f
 pass/dependent/runtime_requires_guarded_call_exit checked 1408ms @63377f7122bb+wt
-pass/dependent/runtime_sibling_len_index_exit rejected 583ms @4e4bfed13aee+wt
-	state `read` receives `main` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 3)
+pass/dependent/runtime_sibling_len_index_exit rejected 564ms @17d6ccc60253+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(1), place: PlaceId(1) }))
 pass/dependent/state_arrival_contract_guarded_compile checked 291ms @2d8ed253669f
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 294ms @2d8ed253669f
 pass/dependent/valuation_order_cycle checked 314ms @2d8ed253669f
@@ -1637,7 +1637,7 @@ pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 285ms @2d8ed253669f
 pass/domains/call_requires_domain_intersection_preserved checked 293ms @2d8ed253669f
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 285ms @4e4bfed13aee+wt
-pass/domains/case_payload_predicate_domain_member_exit rejected 803ms @8a4d4e552420+wt
+pass/domains/case_payload_predicate_domain_member_exit rejected 547ms @17d6ccc60253+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/domains/domain_operator_requires_discharged checked 295ms @2d8ed253669f
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 289ms @2d8ed253669f
@@ -2046,9 +2046,7 @@ pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 777ms @a3bac00e54bb+wt
-	state `inspect` receives `main` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
-	state `write_values` receives `main` while local borrow `write` is still active (borrowed at statement 0; its last use is at statement 1)
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 339ms @17d6ccc60253+wt
 	statement 5 mutates `main.source[1].unsigned_value` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
@@ -2279,8 +2277,8 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 657ms @5676dbe7
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 763ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit checked 2214ms @2d8ed253669f
-pass/text/runtime_owned_string_byte_view_exit rejected 749ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
+pass/text/runtime_owned_string_byte_view_exit rejected 557ms @17d6ccc60253+wt
+	terminal-artifact production failed: Lowering(Unsupported("structural construction substituted its owner or result type"))
 pass/text/runtime_param_domain_forward_exit checked 671ms @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit rejected 1710ms @569fd648944c
@@ -2351,9 +2349,8 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1733ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms @2d8ed253669f
-pass/wire/wire_preserving_decode_relay_exit rejected 340ms @4e4bfed13aee+wt
-	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
-	state `refused` receives `main` while local borrow `decoded` is still active
+pass/wire/wire_preserving_decode_relay_exit rejected 554ms @17d6ccc60253+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: claim-free affine result` (state 0, statement 3)
 run/borrows/direct_runtime_index_write checked 2883ms @2d8ed253669f
 run/borrows/indexed_loan_element_write checked 748ms @ca8c127c90c5
 run/borrows/local_mut_borrow checked 2688ms @2d8ed253669f

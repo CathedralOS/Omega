@@ -1,3 +1,3 @@
-state `read_after` receives `self.count` as mutable while its mutable receiver reads `self.count`
-state `write_through_self` receives `self.count` as mutable while its mutable receiver writes `self.count`
-state `observe` receives shared receiver overlapping another argument in the same call
+state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
+state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
+state `observe` receives `main.count` as both mutable and read-only
