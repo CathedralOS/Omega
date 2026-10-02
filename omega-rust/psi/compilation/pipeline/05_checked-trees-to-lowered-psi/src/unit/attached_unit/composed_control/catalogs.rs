@@ -197,9 +197,9 @@ fn lower_catalogs(
         .map(str::to_owned)
         .into_iter()
         .collect::<Vec<_>>();
-    type_roots.extend(crate::scalar_graph::scalar_computations::cases::type_roots(
-        checked, machine,
-    )?);
+    type_roots.extend(
+        crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, machine)?,
+    );
     type_roots.extend(
         states
             .iter()

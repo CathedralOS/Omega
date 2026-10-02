@@ -329,11 +329,8 @@ pub(super) fn lower_unit_structural_types_including(
 > {
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
-        roots.extend(crate::scalar_graph::scalar_computations::cases::type_roots(
-            checked, *symbol,
-        )?);
         roots.extend(
-            crate::scalar_graph::scalar_computations::fields::type_roots(checked, *symbol)?,
+            crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, *symbol)?,
         );
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())

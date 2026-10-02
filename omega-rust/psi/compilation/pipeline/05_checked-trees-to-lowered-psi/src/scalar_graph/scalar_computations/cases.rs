@@ -260,7 +260,7 @@ impl Slot {
 
 /// Namespace discovery follows retained computation roots. Source replay and
 /// establishment validation remain separate from catalog selection.
-pub(crate) fn type_roots(
+pub(super) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<String>, LoweringError> {
