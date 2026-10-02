@@ -8,7 +8,8 @@
 //! exact check this module performs — one relation, two readers.
 
 use super::integer_math_normalization::{
-    lower_integer_math_relation, propositions_match_under_integer_math_normalization,
+    lift_exact_integer_order, lower_integer_math_relation,
+    propositions_match_under_integer_math_normalization,
 };
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError};
 use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm};
@@ -284,7 +285,10 @@ pub(crate) fn endpoint_substitution(
                 "integer order substitution equality",
             ));
         };
-        let conclusion = mathematical_order(conclusion).ok_or(
+        // Exact finite rings and mathematical rings have the same denotation;
+        // policy-selected arithmetic never crosses through this normalization.
+        let lifted = lift_exact_integer_order(conclusion);
+        let conclusion = mathematical_order(lifted.as_ref().unwrap_or(conclusion)).ok_or(
             ProofError::RuleConclusionMismatch("integer order substitution"),
         )?;
         return check_endpoints(relation, (left, right), endpoint, conclusion);
@@ -304,4 +308,49 @@ pub(crate) fn endpoint_substitution(
         ProofError::RuleConclusionMismatch("integer order substitution"),
     )?;
     check_endpoints(relation, (left, right), endpoint, conclusion)
+}
+
+/// Translation in mathematical integers preserves a proved nonstrict order.
+/// The same exact addend must occur at both endpoints; finite arithmetic and
+/// strict order require their own established rules and are not coerced here.
+pub(crate) fn math_order_translation(
+    relation: &Proposition,
+    addend: &IntegerMathTerm,
+    conclusion: &Proposition,
+) -> Result<(), ProofError> {
+    let Proposition::IntegerMathLessOrEqual(left, right) = relation else {
+        return Err(ProofError::RulePremiseMismatch(
+            "mathematical integer order translation",
+        ));
+    };
+    let Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(conclusion_left, left_addend),
+        IntegerMathTerm::Add(conclusion_right, right_addend),
+    ) = conclusion
+    else {
+        return Err(ProofError::IntegerOrderConclusionMismatch);
+    };
+    // Both receiving callers validate the conclusion in its exact context.
+    // Compare its borrowed children before examining any rule-only payload:
+    // a forged hidden addend must not allocate a cloned expected proposition.
+    (conclusion_left.as_ref() == left
+        && conclusion_right.as_ref() == right
+        && left_addend.as_ref() == addend
+        && right_addend.as_ref() == addend)
+        .then_some(())
+        .ok_or(ProofError::IntegerOrderConclusionMismatch)
+}
+
+pub(super) fn check_integer_math_order_translation(
+    proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
+) -> Result<(), ProofError> {
+    let ProofRule::IntegerMathOrderTranslation { relation, addend } = &proof.rule else {
+        unreachable!("dispatched check_integer_math_order_translation");
+    };
+    math_order_translation(&relation.conclusion, addend, &proof.conclusion)?;
+    acceptance
+        .rules
+        .insert(AcceptedProofRule::IntegerMathOrderTranslation);
+    Ok(())
 }

@@ -286,15 +286,6 @@ pub(crate) fn retain_provable_bounded(
         lowered.semantic_module.scalar_block_invariants = mandatory;
         return Ok(declines);
     }
-    // A cyclic machine's guarantee may still be open once the ordinary
-    // roster is retained; its strengthening is a separate all-or-nothing
-    // transaction that leaves this roster unchanged when it cannot help.
-    //
-    // The roster pass writes only `scalar_block_invariants`. An unchanged
-    // roster reuses the original reconstruction; a strengthened one needs
-    // reconstruction against its new predicates.
-    let unchanged = lowered.semantic_module.scalar_block_invariants == mandatory;
-    cyclic_guarantees::strengthen(lowered, unchanged.then_some(&original), &mut declines)?;
     Ok(declines)
 }
 
@@ -376,6 +367,10 @@ fn retain_provable_roster_bounded(
     let mut join_queried = BTreeSet::new();
     let mut arrival_queried = BTreeSet::new();
     let mut candidates = entry_ranges::candidates(module);
+    // Cyclic contracts use the same candidate proof/pruning transaction as
+    // ranges and join demands. An unprovable exit-bound proposal cannot erase
+    // a distinct relational invariant that proves every loop arrival.
+    candidates.extend(cyclic_guarantees::candidates(module, original, declines));
     candidates.extend(selections::candidates(module, original));
     candidates.extend(field_bounds::candidates(
         module,

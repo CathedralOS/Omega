@@ -65,7 +65,7 @@ fn proof_nat_type(
 
 /// Recognize mathematical Int terms without borrowing a machine integer's
 /// carrier or accidentally classifying a comparison as its operand type.
-pub(crate) fn proof_integer_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub fn proof_integer_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call)
             if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) =>
@@ -225,4 +225,18 @@ pub(crate) fn validate_proof_fact_integer_casts(
             }
         }
     }
+}
+
+/// One anonymous integral peer in mathematical arithmetic. Its value is
+/// evaluated by the same exact anonymous-number owner as proof admission;
+/// the portable literal representation retains a canonical sign and magnitude.
+pub fn anonymous_integer_math_literal(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<semantic_vocabulary::IntegerMathLiteral> {
+    let value = anonymous_integer_value(program, expression)?;
+    let magnitude = value.abs();
+    let (high, low) = magnitude.div_rem(&BigInt::from_u128(1u128 << 64))?;
+    let magnitude = (u128::from(high.to_u64()?) << 64) | u128::from(low.to_u64()?);
+    semantic_vocabulary::IntegerMathLiteral::new(value.is_negative(), magnitude).ok()
 }

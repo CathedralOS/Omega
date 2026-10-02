@@ -275,3 +275,28 @@ fn structural_runtime_requirement_crosses_as_closed_review_evidence() {
             )
     ));
 }
+
+#[test]
+fn mathematical_requirement_without_review_vocabulary_rejects_the_projection() {
+    let mut terms = arena::Arena::new();
+    let root = terms.insert(checked_trees::CheckedIntegerMathTerm::Embed {
+        primitive_type: typed_trees::types::PrimitiveType::U64,
+        operand: checked_trees::CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: typed_trees::types::PrimitiveType::U64,
+        },
+    });
+    let term = checked_trees::CheckedIntegerMathExpression { terms, root };
+    let comparison = checked_trees::CheckedBooleanExpression::IntegerMathComparison {
+        kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+        left: term.clone(),
+        right: term,
+    };
+    assert_eq!(project_boolean_expression(&comparison), None);
+    // A supported conjunct cannot make an unrepresentable requirement vanish.
+    let conjunction = checked_trees::CheckedBooleanExpression::And {
+        left: Box::new(checked_trees::CheckedBooleanExpression::Constant(true)),
+        right: Box::new(comparison),
+    };
+    assert_eq!(project_boolean_expression(&conjunction), None);
+}

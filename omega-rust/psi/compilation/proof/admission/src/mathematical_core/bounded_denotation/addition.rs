@@ -61,6 +61,17 @@ pub(super) struct Addition {
 }
 
 impl Denotation {
+    /// Transport an existing inclusive order through the same exact addend.
+    pub(super) fn add_order_translation(
+        &mut self,
+        left: TermHandle,
+        right: TermHandle,
+        amount: TermHandle,
+        evidence: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.add_law_application(Law::Monotone, &[left, right, amount, evidence])
+    }
+
     pub(super) fn add_operation(&mut self) -> Result<u32, BoundedDenotationError> {
         if let Some(position) = self.addition.operation {
             return Ok(position);

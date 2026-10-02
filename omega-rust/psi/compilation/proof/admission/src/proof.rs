@@ -55,6 +55,7 @@ pub enum AcceptedProofRule {
     IntegerLessOrEqualTransitivity,
     IntegerStrictOrderTransitivity,
     IntegerOrderSubstitution,
+    IntegerMathOrderTranslation,
     IntegerAffineBound,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
@@ -355,7 +356,9 @@ pub(crate) mod subtract_antitone;
 pub(crate) mod subtract_order;
 mod traversal;
 
-pub use integer_math_normalization::{lift_fixed_integer_relation, lower_integer_math_relation};
+pub use integer_math_normalization::{
+    lift_exact_integer_order, lift_fixed_integer_relation, lower_integer_math_relation,
+};
 use traversal::check_node;
 
 /// What every rule check reads: the proposition context, the certificate's
@@ -445,6 +448,9 @@ fn check_node_locally(
         }
         ProofRule::IntegerOrderSubstitution { .. } => {
             integer_order_rules::check_integer_order_substitution(proof, acceptance)
+        }
+        ProofRule::IntegerMathOrderTranslation { .. } => {
+            integer_order_rules::check_integer_math_order_translation(proof, acceptance)
         }
         ProofRule::IntegerAffineBound { .. } => {
             integer_bound_rules::check_integer_affine_bound(&scope, proof, acceptance)

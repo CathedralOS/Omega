@@ -1313,6 +1313,9 @@ fn lower_checked_boolean_expression_with_parameters(
                 scalar_bindings,
             )?),
         },
+        CheckedBooleanExpression::IntegerMathComparison { .. } => {
+            return unsupported("mathematical contract predicate has no executable Boolean value");
+        }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             LoweredBooleanReturnExpression::IntegerComparison {
                 kind: match kind {

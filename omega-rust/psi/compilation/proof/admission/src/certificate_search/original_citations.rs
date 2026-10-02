@@ -90,6 +90,9 @@ pub fn retain_original_predicate_citations(
             | ProofRule::PredicateDenotation { premise: child }
             | ProofRule::IntegerOrderWeakening { relation: child }
             | ProofRule::IntegerOrderDiscreteness { relation: child }
+            | ProofRule::IntegerMathOrderTranslation {
+                relation: child, ..
+            }
             | ProofRule::IntegerAffineBound {
                 root_bound: child, ..
             }

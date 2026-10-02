@@ -57,6 +57,7 @@ impl AcceptedProofRule {
             | Self::EqualitySymmetry
             | Self::ValueEqualityTransport
             | Self::IntegerOrderWeakening
+            | Self::IntegerMathOrderTranslation
             | Self::IntegerLessOrEqualTransitivity
             | Self::IntegerStrictOrderTransitivity
             | Self::IntegerOrderSubstitution => ProofRuleFoundation::Constructive,
@@ -97,7 +98,7 @@ mod tests {
     /// list here is the audit's completeness check: the exhaustive `match`
     /// in `foundation` forces new rules into the classifier, and this list
     /// forces them into the test assertions.
-    const ALL: [AcceptedProofRule; 26] = [
+    const ALL: [AcceptedProofRule; 27] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -113,6 +114,7 @@ mod tests {
         AcceptedProofRule::ValueEqualityTransport,
         AcceptedProofRule::IntegerOrderWeakening,
         AcceptedProofRule::IntegerOrderDiscreteness,
+        AcceptedProofRule::IntegerMathOrderTranslation,
         AcceptedProofRule::IntegerSubtractOrder,
         AcceptedProofRule::IntegerAddOrder,
         AcceptedProofRule::IntegerSubtractAntitone,

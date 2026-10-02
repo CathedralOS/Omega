@@ -218,7 +218,8 @@ pub use service_parameter::{CheckedServiceParameterCarrier, CheckedServiceParame
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedErasedProofParameterPlan,
     CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerRange, CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedProofTerm,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedIntegerRange,
+    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedProofTerm,
     CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,

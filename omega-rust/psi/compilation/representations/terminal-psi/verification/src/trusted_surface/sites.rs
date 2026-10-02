@@ -35,6 +35,11 @@ pub struct TestOnlySource {
 
 pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
     TestOnlySource {
+        path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/order_translation/tests.rs",
+        parent: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/order_translation.rs",
+        module: "tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses/tests.rs",
         parent: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses.rs",
         module: "tests",
@@ -414,7 +419,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/proof_bundle/nodes.rs",
-        sha256: Some("08491af34fea718154cb5770121babdbcc938d1293dcce424ef3f5cc2e8ae68f"),
+        sha256: Some("aa21fc0002402e79fdef23fc3f5025bed7f5e70385a85b6273c63986a375d6e6"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -484,12 +489,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/certificate_search/original_citations.rs",
-        sha256: Some("ffadf03f43a8ff8772be79f50c43a0a971407313b75de3dcd08fef598a502724"),
+        sha256: Some("35be6d4feecb877f5dd73b348d034b6d252bda39b03e28698cc949b73cb3dca5"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/classicality.rs",
-        sha256: Some("c2876c5d0770ddcbd8ff00bc6baa5641048ba929bb1070d3b141149b46632bf7"),
+        sha256: Some("7bbfa2c95dd95075788e3667b0e2f14a58afd0c444edaf460ac0f1a3c3c89656"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -554,7 +559,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/lib.rs",
-        sha256: Some("c19eae5337320910876db3546ce31ef98784d189a9e69650c0b501a3088d285c"),
+        sha256: Some("7d9d27008dab51cdacb8ba1d6323996380225057c8ab2f2a17de23393b589770"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -564,12 +569,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("4a452ade997bbdf0e4642ff249eadba3b3f57675db4946c0b3e168e1de31baa6"),
+        sha256: Some("b2a35df34e8db686580cb18ab5b4b2bf4fd82d6eaa2f35ca3f8232ea3272aff2"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/addition.rs",
-        sha256: Some("5df4121cbeae848cc6481685e394af6a44685f72be8e85944f7e684b379cc665"),
+        sha256: Some("260f6ffe3f9fb7da2ec6a6fd5aed11f6dee88634c4896f1ffbe37d1bb4492680"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -605,6 +610,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/multiplication.rs",
         sha256: Some("0470674b87e7def74c607017933abede6379a8cb6442926f94e5e7bf7c2db35c"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/order_translation.rs",
+        sha256: Some("4e476f0ef6c7b8d039391f0da5b7e8e4bbf2a5cfb7e6f02750a46fc469897b08"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -679,7 +689,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/proof.rs",
-        sha256: Some("d9d4067e40b787d3035869dcd62e8263f80003cc1d7ea99a47b57c3556e0a9ef"),
+        sha256: Some("ab833a4f92166122a159251037d831165df902dde52a2517a668f05c0d981af3"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -699,12 +709,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/proof/integer_math_normalization.rs",
-        sha256: Some("59cf13ae2ea63b17dd7937c9f9eefbd1ecf05ed756b9157f83abed2ddb61a140"),
+        sha256: Some("722385a8c984413138e11053ea1f37cdf96cb2aacf19ee8929bcb143d079b799"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/proof/integer_order_rules.rs",
-        sha256: Some("b34c5aa7b3aab8082910bc8030b23029637c704247e709238e1eec3093859860"),
+        sha256: Some("bfe4f98ecb1371a88280b963260a5687f10bfe330bb1fc18c3b3b601f2a7c4cb"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -734,7 +744,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/proof/traversal.rs",
-        sha256: Some("0766c5aa87e17483d3a4aadbdcdbdb3169b36aa75447ae9e27035762b3ac2681"),
+        sha256: Some("86bf44e96085785156c13596770a1cc0e347e5f13701f20d7ce112a45c5b8965"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1409,7 +1419,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar/block_invariants.rs",
-        sha256: Some("a003fb543f552699bec02462106722a1141934bca28c3deb513194ba253ae744"),
+        sha256: Some("c82a1da5555605ccf1d889f10d4e2e6fa1970360697a1dd908647d655ab68a38"),
         inventory_machinery: false,
     },
     ImplementationSite {

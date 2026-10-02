@@ -641,6 +641,16 @@ fn validate_scalar_namespace(predicate: &CheckedBooleanExpression) -> Result<(),
             validate_scalar_namespace(left)?;
             validate_scalar_namespace(right)
         }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            crate::proofs::contract_predicates::validate_math_namespace(
+                left,
+                &validate_scalar_operand,
+            )?;
+            crate::proofs::contract_predicates::validate_math_namespace(
+                right,
+                &validate_scalar_operand,
+            )
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             validate_scalar_operand(left)?;
             validate_scalar_operand(right)

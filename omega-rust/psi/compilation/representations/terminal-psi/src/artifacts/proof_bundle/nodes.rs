@@ -2,6 +2,7 @@ use super::{
     IntegerAffineWitness, IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
     Proposition,
 };
+use semantic_vocabulary::IntegerMathTerm;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveJudgment {
     Truth,
@@ -77,6 +78,12 @@ pub enum ProofRule {
     /// literal endpoint outward by exactly one representable integer.
     IntegerOrderDiscreteness {
         relation: Box<ProofNode>,
+    },
+    /// Translate both endpoints of a nonstrict mathematical integer order
+    /// by the same total addend. This introduces no finite operation.
+    IntegerMathOrderTranslation {
+        relation: Box<ProofNode>,
+        addend: IntegerMathTerm,
     },
     /// From result = original - decrement and 0 < decrement, conclude
     /// result < original. Both premises are independently checked; only

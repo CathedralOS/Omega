@@ -4,7 +4,8 @@
 use crate::sections::proof_bundle::ProofCodecError;
 use crate::sections::proof_bundle::proposition_codec::{decode_proposition, encode_proposition};
 use crate::sections::proof_bundle::scalar_term_codec::{
-    decode_primitive, decode_scalar_term, encode_primitive, encode_scalar_term,
+    decode_integer_math_term, decode_primitive, decode_scalar_term, encode_integer_math_term,
+    encode_primitive, encode_scalar_term,
 };
 use crate::sections::proof_bundle::wire::{Reader, Writer};
 use proof_admission::{
@@ -83,6 +84,10 @@ pub(crate) fn encode_proof_node(
                     }
                     ProofRule::IntegerOrderDiscreteness { relation } => {
                         writer.u8(19);
+                        pending.push(ProofEncodingAction::Node(relation, child_depth));
+                    }
+                    ProofRule::IntegerMathOrderTranslation { relation, .. } => {
+                        writer.u8(27);
                         pending.push(ProofEncodingAction::Node(relation, child_depth));
                     }
                     ProofRule::IntegerSubtractOrder {
@@ -250,6 +255,9 @@ fn encode_proof_rule_suffix(
         ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
             writer.index("integer order substitution endpoint", *endpoint)?;
         }
+        ProofRule::IntegerMathOrderTranslation { addend, .. } => {
+            encode_integer_math_term(writer, addend, 0)?;
+        }
         ProofRule::IntegerAffineBound { witness, .. } => {
             encode_scalar_term(writer, &witness.root, 0, format_marker)?;
             encode_scalar_term(writer, &witness.target, 0, format_marker)?;
@@ -357,7 +365,7 @@ pub(crate) fn decode_proof_node(
         let remaining = match tag {
             1..=3 | 14 => 0,
             4 => reader.count()?,
-            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 => 1,
+            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 | 27 => 1,
             7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 | 26 => 2,
             25 => 3,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
@@ -461,6 +469,10 @@ fn decode_proof_rule(
                     .next()
                     .expect("decoded integer order discreteness child"),
             ),
+        },
+        27 => ProofRule::IntegerMathOrderTranslation {
+            relation: Box::new(children.next().expect("decoded mathematical order child")),
+            addend: decode_integer_math_term(reader, 0)?,
         },
         18 => ProofRule::IntegerOrderWeakening {
             relation: Box::new(

@@ -5,6 +5,9 @@ use super::{
     Proposition, ScalarTerm, unsupported,
 };
 use semantic_vocabulary::{IntegerMathTerm, ScalarType};
+
+mod integer_math;
+pub(crate) use integer_math::validate_namespace as validate_math_namespace;
 pub(crate) trait PredicateTerms {
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
@@ -60,6 +63,32 @@ fn proposition_with_polarity(
         "scalar contract Boolean expansion exceeds its lowering budget",
     ))?;
     match predicate {
+        CheckedBooleanExpression::IntegerMathComparison { kind, left, right } => {
+            let left = integer_math::lower(left, terms, remaining)?;
+            let right = integer_math::lower(right, terms, remaining)?;
+            Ok(match (kind, positive) {
+                (CheckedIntegerComparisonKind::Equal, true) => {
+                    Proposition::IntegerMathEqual(left, right)
+                }
+                (CheckedIntegerComparisonKind::Equal, false) => connective(
+                    Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                    Proposition::IntegerMathLessThan(right, left),
+                    false,
+                )?,
+                (CheckedIntegerComparisonKind::LessThan, true) => {
+                    Proposition::IntegerMathLessThan(left, right)
+                }
+                (CheckedIntegerComparisonKind::LessOrEqual, false) => {
+                    Proposition::IntegerMathLessThan(right, left)
+                }
+                (CheckedIntegerComparisonKind::LessOrEqual, true) => {
+                    Proposition::IntegerMathLessOrEqual(left, right)
+                }
+                (CheckedIntegerComparisonKind::LessThan, false) => {
+                    Proposition::IntegerMathLessOrEqual(right, left)
+                }
+            })
+        }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             let left = terms.scalar(left)?;
             let right = terms.scalar(right)?;

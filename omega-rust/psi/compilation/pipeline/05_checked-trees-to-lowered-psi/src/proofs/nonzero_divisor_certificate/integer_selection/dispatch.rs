@@ -78,6 +78,9 @@ pub(super) fn prove_atomic(
                             },
                         })
                     })
+                })
+                .or_else(|| {
+                    super::mathematical_order::prove(context, goal, assumptions, semantic_axioms)
                 }),
         ),
         Proposition::LessThan(_, _) => Some(strict::prove(
@@ -127,11 +130,27 @@ fn prove_math_relation(
     {
         return Some(proof);
     }
-    if math_relation_is_closed(goal) {
+    // This existing primitive also decides identities of open mathematical
+    // terms by checked ring normalization. Literal-only eligibility loses
+    // reflexivity and conserved expressions at loop arrivals. Ask the owning
+    // kernel instead of duplicating a narrower source-term classifier here.
+    if proof_admission::decide_primitive(context, goal, PrimitiveJudgment::ClosedIntegerRelation)
+        .is_ok()
+    {
         return Some(ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
         });
+    }
+    if let Some(proof) =
+        super::mathematical_equalities::prove(context, goal, assumptions, semantic_axioms)
+    {
+        return Some(proof);
+    }
+    if let Some(proof) =
+        super::mathematical_order::prove(context, goal, assumptions, semantic_axioms)
+    {
+        return Some(proof);
     }
     let scalar_goal = crate::proofs::contract_predicates::scalar_relation_for_math(goal)?;
     let scalar_proof = match &scalar_goal {
@@ -971,25 +990,6 @@ fn subtract_left_bound_for_right(
             Some(IntegerValue::Unsigned(right))
         }
         _ => None,
-    }
-}
-
-fn math_relation_is_closed(goal: &Proposition) -> bool {
-    fn closed(term: &IntegerMathTerm) -> bool {
-        match term {
-            IntegerMathTerm::IntegerLiteral(_) => true,
-            IntegerMathTerm::MathValue { .. } => false,
-            IntegerMathTerm::Add(left, right)
-            | IntegerMathTerm::Subtract(left, right)
-            | IntegerMathTerm::Multiply(left, right) => closed(left) && closed(right),
-            IntegerMathTerm::ShiftLeft { value, count } => closed(value) && closed(count),
-        }
-    }
-    match goal {
-        Proposition::IntegerMathEqual(left, right)
-        | Proposition::IntegerMathLessThan(left, right)
-        | Proposition::IntegerMathLessOrEqual(left, right) => closed(left) && closed(right),
-        _ => false,
     }
 }
 

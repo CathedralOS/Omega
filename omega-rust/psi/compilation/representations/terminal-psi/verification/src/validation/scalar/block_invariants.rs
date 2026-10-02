@@ -140,6 +140,9 @@ fn scalar_predicate(predicate: &Proposition) -> bool {
         | Proposition::Equal(..)
         | Proposition::LessThan(..)
         | Proposition::LessOrEqual(..)
+        | Proposition::IntegerMathEqual(..)
+        | Proposition::IntegerMathLessThan(..)
+        | Proposition::IntegerMathLessOrEqual(..)
         | Proposition::ScalarIeeeFloatComparison { .. } => true,
         Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
             members.iter().all(scalar_predicate)
@@ -281,5 +284,61 @@ mod tests {
         assert!(!super::scalar_predicate(&Proposition::Atom(
             semantic_vocabulary::PropositionId::new(1).unwrap()
         )));
+    }
+
+    #[test]
+    fn mathematical_invariants_preserve_exact_scope_and_carriers() {
+        use semantic_vocabulary::{
+            IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+        };
+        use terminal_psi::ValueDeclaration;
+
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let declaration = |raw| ValueDeclaration {
+            id: ValueId::new(raw).unwrap(),
+            scalar_type: ScalarType::Integer(integer),
+            qualifications: Default::default(),
+        };
+        let embedded = |raw, source_type| IntegerMathTerm::MathValue {
+            source_type,
+            value: ValueId::new(raw).unwrap(),
+        };
+        let (mut machine, mut header) = fixture();
+        machine.parameters.push(declaration(1));
+        header.parameters.push(declaration(2));
+        let mut other_block = header.clone();
+        other_block.id = BlockId::new(9).unwrap();
+        other_block.parameters = vec![declaration(3)];
+        machine.blocks = vec![header.clone(), other_block];
+        let context = scalar_block_invariant_scope(&machine, &header).unwrap();
+        let invocation = embedded(1, integer);
+        let current = embedded(2, integer);
+        let remaining =
+            IntegerMathTerm::Subtract(Box::new(current.clone()), Box::new(invocation.clone()));
+        let zero = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+        for predicate in [
+            Proposition::IntegerMathEqual(invocation.clone(), current.clone()),
+            Proposition::IntegerMathLessThan(zero.clone(), remaining.clone()),
+            Proposition::IntegerMathLessOrEqual(zero.clone(), remaining),
+        ] {
+            assert!(super::scalar_predicate(&predicate));
+            context.validate(&predicate).unwrap();
+        }
+        // A value declared elsewhere in the body and an unknown foreign value
+        // cannot enter header scope merely by being mathematically embedded.
+        for raw in [3, 99] {
+            let predicate =
+                Proposition::IntegerMathLessOrEqual(zero.clone(), embedded(raw, integer));
+            assert!(super::scalar_predicate(&predicate));
+            assert!(context.validate(&predicate).is_err());
+        }
+        for wrong_carrier in [
+            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+        ] {
+            let predicate =
+                Proposition::IntegerMathLessOrEqual(zero.clone(), embedded(2, wrong_carrier));
+            assert!(context.validate(&predicate).is_err());
+        }
     }
 }

@@ -57,6 +57,11 @@ pub(crate) fn checked_boolean_scalar_term(
             checked_boolean_scalar_term(right, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate)?,
+        CheckedBooleanExpression::IntegerMathComparison { .. } => {
+            return unsupported(
+                "mathematical comparison is a proof proposition, not a scalar term",
+            );
+        }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             let left = checked_scalar_term(left, values, erased)?;
             let right = checked_scalar_term(right, values, erased)?;

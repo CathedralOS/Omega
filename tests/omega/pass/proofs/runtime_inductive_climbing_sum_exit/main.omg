@@ -21,7 +21,9 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     main.limit = 4;
-    let total: u64 = Main::climb(main, main.limit, 0, 0);
+    // Read the field before the first argument forwards exclusive custody.
+    let initial_limit: u64 = main.limit;
+    let total: u64 = Main::climb(main, initial_limit, 0, 0);
     transition total == 4 {
         true -> good(main)
         _ -> bad(main)

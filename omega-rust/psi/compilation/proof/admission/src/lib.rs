@@ -107,6 +107,6 @@ pub use proof::{
     AcceptedPremise, AcceptedProofRule, CertificateAcceptance, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, ProofError, ProofNode, ProofRule, accept_certificate,
     accept_certificate_with_machine_parameters, check_certificate,
-    check_certificate_with_machine_parameters, lift_fixed_integer_relation,
-    lower_integer_math_relation,
+    check_certificate_with_machine_parameters, lift_exact_integer_order,
+    lift_fixed_integer_relation, lower_integer_math_relation,
 };

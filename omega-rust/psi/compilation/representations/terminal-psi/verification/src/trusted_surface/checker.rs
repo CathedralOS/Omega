@@ -329,7 +329,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
         premises: "a proved strict or nonstrict integer order and a proved equality for exactly the cited endpoint",
-        conclusion: "the same order with only that endpoint replaced; strictness and the unchanged endpoint are preserved",
+        conclusion: "the same order with only that endpoint replaced; strictness and the unchanged endpoint are preserved; a mathematical premise may rejoin a finite Exact-ring conclusion with identical denotation, while wrapping, saturating and address arithmetic reject",
         dependencies: &["rule:traversal"],
         implementation: &[
             PROOF,
@@ -499,6 +499,25 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         implementation: &[EVIDENCE, ADMISSION],
         soundness: TRUSTED,
     },
+    TrustedSurfaceEntry {
+        id: "rule:integer-math-order-translation",
+        family: LedgerFamily::CheckerRule,
+        binding: dispatch(CoveredSurface::ProofRules),
+        premises: "one independently proved mathematical nonstrict integer order and one well-formed exact mathematical addend",
+        conclusion: "the same nonstrict order after adding exactly that addend to both endpoints; strict premises, mismatched addends and changed value or carrier identities reject; the core derives translation using its existing addition monotonicity and endpoint substitution laws",
+        dependencies: &[
+            "rule:traversal",
+            "formation:proposition-context",
+            "formation:mathematical-core",
+        ],
+        implementation: &[
+            PROOF,
+            INTEGER_ORDER_RULES,
+            NODES,
+            "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/order_translation.rs",
+        ],
+        soundness: TRUSTED,
+    },
 ];
 
 /// `PrimitiveJudgment` -> ledger entry, total by construction.
@@ -533,6 +552,7 @@ pub fn checker_rule_entry(rule: &ProofRule) -> &'static TrustedSurfaceEntry {
         ProofRule::IntegerLessOrEqualTransitivity { .. } => &ENTRIES[21],
         ProofRule::IntegerStrictOrderTransitivity { .. } => &ENTRIES[22],
         ProofRule::IntegerOrderSubstitution { .. } => &ENTRIES[23],
+        ProofRule::IntegerMathOrderTranslation { .. } => &ENTRIES[34],
         ProofRule::IntegerAffineBound { .. } => &ENTRIES[24],
         ProofRule::IntegerExactAddDefinitionBound { .. } => &ENTRIES[25],
         ProofRule::IntegerCastBound { .. } => &ENTRIES[26],

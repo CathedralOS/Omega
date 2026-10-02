@@ -22,6 +22,7 @@ pub(crate) fn checked_boolean_contains_short_circuit(
         | checked_trees::CheckedBooleanExpression::Local { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
+        | checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -65,6 +66,7 @@ pub(crate) fn checked_boolean_local_reference_count(
         | checked_trees::CheckedBooleanExpression::ErasedParameter { .. }
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
+        | checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -133,7 +135,8 @@ pub(crate) fn is_structural_boolean_return_expression(
         checked_trees::CheckedBooleanExpression::StructuralParameterField { path, .. } => {
             path.len() == 1
         }
-        checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
+        | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
@@ -250,7 +253,8 @@ pub(crate) fn is_branch_free_structural_boolean_expression(
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
         checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => false,
-        checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
+        | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,

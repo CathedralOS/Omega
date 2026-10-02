@@ -133,6 +133,20 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::Or { left, right } => {
             contract_scoped(left) && contract_scoped(right)
         }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            let validate = |operand: &CheckedScalarExpression| {
+                if contract_scoped_scalar(operand) {
+                    Ok(())
+                } else {
+                    Err(LoweringError::Unsupported(
+                        "mathematical guard operand is outside the contract namespace",
+                    ))
+                }
+            };
+            crate::proofs::contract_predicates::validate_math_namespace(left, &validate).is_ok()
+                && crate::proofs::contract_predicates::validate_math_namespace(right, &validate)
+                    .is_ok()
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             contract_scoped_scalar(left) && contract_scoped_scalar(right)

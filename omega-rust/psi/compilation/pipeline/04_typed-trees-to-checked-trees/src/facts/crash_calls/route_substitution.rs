@@ -438,6 +438,17 @@ fn boolean_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedBooleanExpression;
     match expression {
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            [left, right].into_iter().all(|expression| {
+                expression.terms.iter().all(|(_, term)| match term {
+                    checked_trees::CheckedIntegerMathTerm::Embed { operand, .. } => {
+                        scalar_evidence_is_crash_lane_lowerable(operand)
+                    }
+                    _ => true,
+                })
+            })
+        }
+
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
@@ -497,6 +508,32 @@ pub(crate) fn substitute_checked_boolean_expression(
     use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 
     Some(match expression {
+        CheckedBooleanExpression::IntegerMathComparison { kind, left, right } => {
+            let substitute = |expression: &checked_trees::CheckedIntegerMathExpression| {
+                let mut result = expression.clone();
+                for (handle, term) in expression.terms.iter() {
+                    if let checked_trees::CheckedIntegerMathTerm::Embed {
+                        primitive_type,
+                        operand,
+                    } = term
+                    {
+                        *result.terms.get_mut(handle) =
+                            checked_trees::CheckedIntegerMathTerm::Embed {
+                                primitive_type: *primitive_type,
+                                operand: substitute_checked_scalar_expression(
+                                    operand, arguments, fields,
+                                )?,
+                            };
+                    }
+                }
+                Some(result)
+            };
+            CheckedBooleanExpression::IntegerMathComparison {
+                kind: *kind,
+                left: substitute(left)?,
+                right: substitute(right)?,
+            }
+        }
         CheckedBooleanExpression::Constant(value) => CheckedBooleanExpression::Constant(*value),
         CheckedBooleanExpression::Parameter { position } => {
             let CheckedScalarExpression::Boolean(expression) =

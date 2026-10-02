@@ -40,6 +40,65 @@ fn math_value(identity: u64, integer_type: IntegerType) -> IntegerMathTerm {
 }
 
 #[test]
+fn mathematical_equalities_replay_open_identities_without_extra_assumptions() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let context = wide_context(integer, 3);
+    let add = |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right));
+    let subtract = |left, right| IntegerMathTerm::Subtract(Box::new(left), Box::new(right));
+    let one = || IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+    let original = subtract(
+        add(math_value(1, integer), math_value(2, integer)),
+        math_value(3, integer),
+    );
+    let advanced = subtract(
+        add(add(math_value(1, integer), one()), math_value(2, integer)),
+        add(math_value(3, integer), one()),
+    );
+    let equality = |left, right| {
+        if left <= right {
+            Proposition::IntegerMathEqual(left, right)
+        } else {
+            Proposition::IntegerMathEqual(right, left)
+        }
+    };
+    let produce = |context: &PropositionContext, goal: &Proposition| {
+        produce_checked_canonical_integer_proof(
+            context,
+            goal,
+            &[],
+            &[],
+            &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
+        )
+    };
+    for goal in [
+        equality(math_value(1, integer), math_value(1, integer)),
+        equality(original.clone(), original.clone()),
+        equality(original.clone(), advanced),
+    ] {
+        let proof = produce(&context, &goal).expect("checked open mathematical identity");
+        check_certificate(&context, &goal, &[], &[], &proof).unwrap();
+        assert!(
+            check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof).is_err()
+        );
+        let changed_carrier = wide_context(IntegerType::new(IntegerSign::Signed, 64).unwrap(), 3);
+        assert!(check_certificate(&changed_carrier, &goal, &[], &[], &proof).is_err());
+        assert!(produce(&changed_carrier, &goal).is_none());
+        let changed = equality(original.clone(), add(original.clone(), one()));
+        assert!(check_certificate(&context, &changed, &[], &[], &proof).is_err());
+    }
+    for goal in [
+        equality(math_value(1, integer), math_value(2, integer)),
+        equality(original.clone(), add(original, one())),
+    ] {
+        assert!(
+            produce(&context, &goal).is_none(),
+            "unequal terms are not identities"
+        );
+    }
+}
+
+#[test]
 fn address_distance_from_zero_uses_carrier_bounds_and_cited_zero_identity() {
     for bits in [16, 32, 64, 128] {
         let address = IntegerType::address(bits).unwrap();

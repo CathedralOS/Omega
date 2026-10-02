@@ -69,6 +69,16 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
             validate_namespace(left)?;
             validate_namespace(right)
         }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            crate::proofs::contract_predicates::validate_math_namespace(
+                left,
+                &validate_integer_namespace,
+            )?;
+            crate::proofs::contract_predicates::validate_math_namespace(
+                right,
+                &validate_integer_namespace,
+            )
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             validate_integer_namespace(left)?;
             validate_integer_namespace(right)

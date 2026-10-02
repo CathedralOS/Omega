@@ -263,6 +263,31 @@ fn predicate_literal_landings(
             predicate_literal_landings(checked, binary.left, left, depth + 1)
                 && predicate_literal_landings(checked, binary.right, right, depth + 1)
         }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            let ExpressionNode::Binary(binary) = node else {
+                return false;
+            };
+            let (left_source, right_source) = if matches!(
+                binary.operator,
+                BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
+            ) {
+                (binary.right, binary.left)
+            } else {
+                (binary.left, binary.right)
+            };
+            [(left_source, left), (right_source, right)]
+                .into_iter()
+                .all(|(source, retained)| {
+                    source_custody::value_correspondence::validate_embedding_sources(
+                        checked,
+                        source,
+                        retained,
+                        |source, operand| {
+                            scalar_literal_landings(checked, source, operand, depth + 1)
+                        },
+                    )
+                })
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             let ExpressionNode::Binary(binary) = node else {
                 return false;

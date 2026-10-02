@@ -169,7 +169,8 @@ fn schedule_children<'proof>(
             pending.push(Action::Enter(larger));
             pending.push(Action::Enter(smaller));
         }
-        ProofRule::IntegerOrderWeakening { relation }
+        ProofRule::IntegerMathOrderTranslation { relation, .. }
+        | ProofRule::IntegerOrderWeakening { relation }
         | ProofRule::IntegerOrderDiscreteness { relation } => {
             pending.push(Action::Enter(relation));
         }

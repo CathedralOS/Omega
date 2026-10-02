@@ -296,6 +296,9 @@ pub use proof_contracts::contract_entailment::{
     strict_arithmetic_expression_implication,
     strict_arithmetic_expression_implication_with_arguments,
 };
+pub use proof_contracts::contract_entailment::{
+    anonymous_integer_math_literal, proof_integer_expression,
+};
 pub use proof_contracts::default_domains::{
     case_where_field_intervals, data_where_field_intervals,
 };
