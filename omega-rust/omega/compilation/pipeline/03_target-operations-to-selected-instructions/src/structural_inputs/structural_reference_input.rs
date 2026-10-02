@@ -455,6 +455,18 @@ pub(crate) fn owned_aggregate_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
+    plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;
+    owned_storage_shape(structural_type, declarations)
+}
+
+/// Physical storage of a whole owned aggregate, independently of permission to
+/// copy its contents. Existing erased fields occupy no bytes; nested loan
+/// carriers retain their own geometry and independently checked custody.
+/// Scalar places and bare loan descriptors do not become aggregate owners.
+pub(crate) fn owned_storage_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
     declarations
         .iter()
         .find(|declaration| declaration.id == structural_type)
@@ -470,7 +482,6 @@ pub(crate) fn owned_aggregate_shape(
                     )
             )
         })?;
-    plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;
     primitive_array_shape(structural_type, declarations)
         .or_else(|| shape(structural_type, declarations))
 }
