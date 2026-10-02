@@ -1507,6 +1507,8 @@ pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/nested_structural_call_operand_exit checked 916ms @ff183e7f95fb+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 1890ms @2d8ed253669f
 pass/control_flow/ordered_unconditional_arm_exit checked 1444ms @2d8ed253669f
+pass/control_flow/owned_array_local_state_transfer_exit checked 1326ms @cf6e9ae2565b
+pass/control_flow/owned_array_state_transfer_exit checked 1257ms @cf6e9ae2565b
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms @2d8ed253669f
 pass/control_flow/runtime_branching_helper_string rejected 396ms @2d8ed253669f
