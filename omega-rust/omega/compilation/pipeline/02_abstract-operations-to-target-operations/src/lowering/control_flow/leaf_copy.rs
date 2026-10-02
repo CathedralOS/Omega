@@ -14,14 +14,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralTypeShape};
 
-/// A leaf copy reads an owned home, a readable parameter, or a dominating
-/// element-view establishment. The view stays the source identity; selection
-/// separately resolves its backing pointer rather than copying its descriptor.
+/// A leaf copy reads one currently observable structural root. The view stays
+/// the source identity; selection separately resolves its backing pointer
+/// rather than copying its descriptor. Owned homes retain their additional
+/// claim and qualification obligations below.
 pub(super) fn copy(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -35,7 +35,10 @@ pub(super) fn copy(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let root_type = if let Some(home) = live.structural_homes.get(source) {
+    let root_type = live
+        .structural_observation_type(function, *source)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    if let Some(home) = live.structural_homes.get(source) {
         let whole_byte_copy = matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
             && home.structural_type() == result.structural_type
             && types
@@ -55,38 +58,7 @@ pub(super) fn copy(
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        home.structural_type()
-    } else if let Some((_, structural_type)) = live.views.get(source) {
-        if !types.get(structural_type).is_some_and(|declaration| {
-            matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        *structural_type
-    } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
-        parameter.structural_type
-    } else if let Some(parameter) = function
-        .block_entries
-        .iter()
-        .flat_map(|entry| &entry.structural_parameters)
-        .find(|parameter| parameter.place == *source)
-        .filter(|parameter| {
-            // A shared loan over a view-carrying record observes the carrier:
-            // copying a `&[T]` member reads the stored descriptor, never the
-            // backing cells, so the block param is a readable root.
-            abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
-                parameter,
-                |identity| types.get(&identity).copied(),
-                &types.values().map(|row| (*row).clone()).collect::<Vec<_>>(),
-            )
-        })
-    {
-        parameter.structural_type
-    } else {
-        super::structural_case::parameter_root(prepared, *source)
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-            .structural_type
-    };
+    }
     copy_extent(
         *psi_operation,
         result,
