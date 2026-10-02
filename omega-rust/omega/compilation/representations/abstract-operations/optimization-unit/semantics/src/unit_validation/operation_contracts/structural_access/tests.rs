@@ -850,3 +850,230 @@ fn bounded_owner_call_rechecks_predicate_preservation_after_rewriting() {
         "shared observation may weaken predicates"
     );
 }
+
+fn subslice_chain(
+    byte_view: bool,
+    source_access: terminal_psi::StructuralAccess,
+    multiplicities: [terminal_psi::StructuralMultiplicity; 2],
+) -> optimization_unit::PsiOptimizationFunction {
+    use abstract_operations::AbstractOperation as Operation;
+    use semantic_vocabulary::{ObligationId, OperationId, StructuralPlaceKind, ValueId};
+    let unit = crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
+    let mut function = unit.functions[0].clone();
+    let mut parameter = function.structural_parameters[0].clone();
+    parameter.access = source_access;
+    parameter.qualifications.clear();
+    parameter.projected_qualifications.clear();
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|row| row.id == parameter.place)
+        .unwrap()
+        .clone();
+    function.structural_parameters = vec![parameter.clone()];
+    function.structural_places = vec![declaration];
+    let template = function.blocks[0].nodes[0].clone();
+    function.blocks.truncate(1);
+    function.blocks[0].structural_parameters.clear();
+    function.blocks[0].nodes.clear();
+    let mut source = parameter.place;
+    for (index, multiplicity) in multiplicities.into_iter().enumerate() {
+        let producer = OperationId::new(970 + index as u64).unwrap();
+        let result = terminal_psi::StructuralOperationResult {
+            place: PlaceId::new(970 + index as u64).unwrap(),
+            structural_type: parameter.structural_type,
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        function
+            .structural_places
+            .push(terminal_psi::StructuralPlaceDeclaration {
+                id: result.place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type: result.structural_type,
+                },
+            });
+        let mut node = template.clone();
+        let start = ValueId::new(981).unwrap();
+        let end = ValueId::new(982).unwrap();
+        let length = ValueId::new(983).unwrap();
+        let obligation = ObligationId::new(984).unwrap();
+        node.operation = if byte_view {
+            Operation::ByteSequenceSubslice {
+                psi_operation: producer,
+                result: result.clone(),
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            }
+        } else {
+            Operation::ElementViewSubslice {
+                psi_operation: producer,
+                result: result.clone(),
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            }
+        };
+        source = result.place;
+        function.blocks[0].nodes.push(node);
+    }
+    function
+}
+
+#[test]
+fn subslice_access_replays_each_source_permission_and_attenuation() {
+    use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
+    for byte_view in [false, true] {
+        for (source, multiplicities, expected) in [
+            (
+                Access::MutableBorrow,
+                [Multiplicity::Affine, Multiplicity::Affine],
+                Some(Access::MutableBorrow),
+            ),
+            (
+                Access::MutableBorrow,
+                [Multiplicity::Affine, Multiplicity::Unrestricted],
+                Some(Access::SharedBorrow),
+            ),
+            (
+                Access::SharedBorrow,
+                [Multiplicity::Unrestricted, Multiplicity::Unrestricted],
+                Some(Access::SharedBorrow),
+            ),
+            (
+                Access::SharedBorrow,
+                [Multiplicity::Affine, Multiplicity::Affine],
+                None,
+            ),
+            (
+                Access::MutableBorrow,
+                [Multiplicity::Unrestricted, Multiplicity::Affine],
+                None,
+            ),
+            (
+                Access::WriteOnlyBorrow,
+                [Multiplicity::Unrestricted, Multiplicity::Unrestricted],
+                None,
+            ),
+        ] {
+            let function = subslice_chain(byte_view, source, multiplicities);
+            let operation = &function.blocks[0].nodes[1].operation;
+            assert_eq!(
+                super::structural_operation_result_contract(&function, operation)
+                    .map(|contract| contract.access),
+                expected,
+                "byte={byte_view} source={source:?} multiplicities={multiplicities:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn subslice_access_rejects_source_identity_type_and_cycle_corruption() {
+    use abstract_operations::AbstractOperation as Operation;
+    use semantic_vocabulary::{OperationId, StructuralPlaceKind};
+    use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
+    for byte_view in [false, true] {
+        let original = subslice_chain(byte_view, Access::MutableBorrow, [Multiplicity::Affine; 2]);
+        for mutation in 0..7 {
+            let mut function = original.clone();
+            match mutation {
+                0 => {
+                    function.structural_places[1].kind = StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(999).unwrap(),
+                        structural_type: function.structural_parameters[0].structural_type,
+                    }
+                }
+                1 => {
+                    function.structural_parameters[0].structural_type =
+                        StructuralTypeId::new(999).unwrap()
+                }
+                2 => function.structural_places[2].id = PlaceId::new(999).unwrap(),
+                3 => function.structural_parameters[0].position += 1,
+                _ => match &mut function.blocks[0].nodes[0].operation {
+                    Operation::ByteSequenceSubslice { source, result, .. }
+                    | Operation::ElementViewSubslice { source, result, .. } => match mutation {
+                        4 => *source = PlaceId::new(971).unwrap(),
+                        5 => result.structural_type = StructuralTypeId::new(999).unwrap(),
+                        6 => result.place = PlaceId::new(999).unwrap(),
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                },
+            }
+            assert!(
+                super::structural_operation_result_contract(
+                    &function,
+                    &function.blocks[0].nodes[1].operation
+                )
+                .is_none(),
+                "byte={byte_view} mutation={mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn subslice_access_authenticates_establishment_parent_permission() {
+    use abstract_operations::AbstractOperation as Operation;
+    use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
+    for byte_view in [false, true] {
+        let mut function =
+            subslice_chain(byte_view, Access::MutableBorrow, [Multiplicity::Affine; 2]);
+        let (producer, result) = function.blocks[0].nodes[0]
+            .operation
+            .structural_result()
+            .unwrap();
+        function.blocks[0].nodes[0].operation = Operation::EstablishElementView {
+            psi_operation: producer,
+            result: result.clone(),
+            destination: result.place,
+            source: terminal_psi::StructuralArgument {
+                place: function.structural_parameters[0].place,
+                access: Access::MutableBorrow,
+                path: Vec::new(),
+            },
+            element: result.structural_type,
+        };
+        assert!(
+            super::structural_operation_result_contract(
+                &function,
+                &function.blocks[0].nodes[1].operation
+            )
+            .is_some()
+        );
+        function.structural_parameters[0].access = Access::SharedBorrow;
+        assert!(
+            super::structural_operation_result_contract(
+                &function,
+                &function.blocks[0].nodes[1].operation
+            )
+            .is_none()
+        );
+        function.structural_parameters[0].access = Access::Owned;
+        let Operation::EstablishElementView { source, .. } =
+            &mut function.blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        source
+            .path
+            .push(terminal_psi::StructuralPathSegment::Referent);
+        assert!(
+            super::structural_operation_result_contract(
+                &function,
+                &function.blocks[0].nodes[1].operation
+            )
+            .is_none()
+        );
+    }
+}

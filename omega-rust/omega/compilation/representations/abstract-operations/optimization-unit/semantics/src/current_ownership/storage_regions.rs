@@ -26,12 +26,22 @@ pub(super) fn projected(
             indirect: true,
         },
         |root| {
-            terminal_semantics::projected_storage_region(
+            let mut region = terminal_semantics::projected_storage_region(
                 types.values().copied(),
                 root.structural_type,
                 path,
                 field,
-            )
+            );
+            // Keep the first dynamic selector for current-graph range replay.
+            // Later suffixes remain conservative; no selector grants authority.
+            if !region.indirect
+                && let Some(position) = path.iter().position(|segment| {
+                    matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+                })
+            {
+                region.path = path[..=position].to_vec();
+            }
+            region
         },
     )
 }

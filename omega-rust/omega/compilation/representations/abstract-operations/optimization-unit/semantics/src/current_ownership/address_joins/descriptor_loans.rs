@@ -1,8 +1,10 @@
-//! Shared descriptors freeze their projected backing for their observable life.
+//! Derived descriptors protect their projected backing for their observable life.
 //!
 //! A descriptor freshly reborrowed from an exclusive state arrival is usable;
 //! that does not permit its parent to mutate the same storage while the child
-//! remains observable. Reconstruct the interval from current operations and
+//! remains observable. Current guard relations can separate a write from a
+//! captured subrange; they never retire the backing loan. Reconstruct the
+//! interval from current operations and
 //! exact descriptor forwarding, including every possible child at a join.
 //! Instruction positions matter at both ends: a preceding write did not touch
 //! a live child, and a following write cannot disturb a completed scalar read.
@@ -51,16 +53,23 @@ impl DescriptorLoans {
                         Projection::new(&source.path),
                         source.access == StructuralAccess::SharedBorrow,
                     )),
-                    O::ElementViewSubslice { result, source, .. }
-                    | O::ByteSequenceSubslice { result, source, .. } => Some((
+                    O::ElementViewSubslice {
+                        result,
+                        source,
+                        start,
+                        end,
+                        ..
+                    }
+                    | O::ByteSequenceSubslice {
+                        result,
+                        source,
+                        start,
+                        end,
+                        ..
+                    } => Some((
                         result.place,
                         *source,
-                        // Runtime slice endpoints cannot refine the parent footprint.
-                        Projection {
-                            path: Vec::new(),
-                            exact: false,
-                            indirect: false,
-                        },
+                        Projection::window(*start, *end, position),
                         true,
                     )),
                     _ => None,
@@ -115,10 +124,11 @@ impl DescriptorLoans {
             .filter(|loan| loan.live.contains(&position))
         {
             for (place, regions) in borrowed_regions.writes_at(position).iter().chain(&moved) {
-                if regions
-                    .iter()
-                    .any(|region| loan.regions.iter().any(|backing| backing.overlaps(region)))
-                {
+                if regions.iter().any(|region| {
+                    loan.regions.iter().any(|backing| {
+                        borrowed_regions.regions_overlap_at(backing, region, position)
+                    })
+                }) {
                     return Some(*place);
                 }
             }
@@ -369,7 +379,7 @@ impl DescriptorFlow {
     fn result_definition(function: &PsiOptimizationFunction, operation: &O) -> Option<PlaceId> {
         let contract =
             crate::unit_validation::operation_contracts::structural_operation_result_contract(
-                operation,
+                function, operation,
             )?;
         let result = contract.operation_result()?;
         let producer = operation.psi_operation()?;

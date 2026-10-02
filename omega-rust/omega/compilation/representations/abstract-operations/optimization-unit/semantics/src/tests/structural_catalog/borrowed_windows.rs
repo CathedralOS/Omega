@@ -326,7 +326,7 @@ fn window_result_query_distinguishes_owned_carriers_from_storage_loans() {
     else {
         unreachable!()
     };
-    let contract = structural_operation_result_contract(operation).unwrap();
+    let contract = structural_operation_result_contract(&unit.functions[0], operation).unwrap();
     assert_eq!(contract.access, StructuralAccess::Owned);
     assert_eq!(contract.operation_result(), Some(result));
 
@@ -341,7 +341,7 @@ fn window_result_query_distinguishes_owned_carriers_from_storage_loans() {
         },
     };
     assert_eq!(
-        structural_operation_result_contract(&primitive)
+        structural_operation_result_contract(&unit.functions[0], &primitive)
             .unwrap()
             .access,
         StructuralAccess::MutableBorrow,
@@ -359,7 +359,7 @@ fn window_result_query_distinguishes_owned_carriers_from_storage_loans() {
             source,
             element: result.structural_type,
         };
-        let contract = structural_operation_result_contract(&view).unwrap();
+        let contract = structural_operation_result_contract(&unit.functions[0], &view).unwrap();
         assert_eq!(contract.operation_result(), Some(result));
         assert_eq!(contract.access, access);
         assert_ne!(contract.access, StructuralAccess::Owned);

@@ -490,33 +490,19 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
-            let structural_result = match &node.operation {
-                // A subslice establishes a borrowed descriptor, never an owned
-                // result or a new cleanup/claim frontier.
-                O::ByteSequenceSubslice { .. } => None,
-                O::EstablishByteSequenceConcatenation { result, .. }
-                | O::EstablishScalarArray { result, .. }
-                | O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
-                | O::EstablishZeroedStructural { result, .. }
-                | O::EstablishReference { result, .. }
-                | O::EstablishElementView { result, .. }
-                // The moved subtree enters frame custody as an owned
-                // structural result; a later repair may consume it.
-                | O::MoveStructuralField { result, .. }
-                // An owned case-payload copy mints a fresh affine place the
-                // successor takes custody of — the same live-result slot.
-                | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural {
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                }
-                | O::BoundaryCall {
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                } => Some(result),
-                _ => None,
-            };
+            // Multiplicity constrains uses; it does not make a borrowed
+            // descriptor own its backing. The common current result contract
+            // distinguishes storage loans from carriers which require disposal.
+            // Descriptor lifetime and parent interference replay independently.
+            let result_contract =
+                crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                    function,
+                    &node.operation,
+                );
+            let structural_result = result_contract
+                .as_ref()
+                .filter(|contract| contract.access == StructuralAccess::Owned)
+                .and_then(|contract| contract.operation_result());
             if let Some(result) = structural_result {
                 insert_owned_result(
                     function,

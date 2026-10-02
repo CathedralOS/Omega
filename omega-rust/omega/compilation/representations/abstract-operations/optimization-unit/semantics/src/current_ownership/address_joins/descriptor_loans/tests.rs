@@ -287,7 +287,31 @@ fn receiver_fixture(intervening: O, observe_after_write: bool) -> PsiOptimizatio
 
 #[test]
 fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
-    let function = receiver_fixture(scalar(1), true);
+    let mut function = receiver_fixture(scalar(1), true);
+    // Source access is now independently reconstructed through the descriptor
+    // producer. Supply the exact root declaration; the later scalar operation
+    // still deliberately collides with the descriptor's producer identity.
+    function
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: place(9),
+            position: 0,
+            is_self: false,
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place(9),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
     let regions = BorrowedRegions::new(
         &function,
         &BTreeMap::new(),
