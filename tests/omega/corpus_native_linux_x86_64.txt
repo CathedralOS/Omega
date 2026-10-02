@@ -807,8 +807,7 @@ pass/storage/runtime_local_slice_forward_exit rejected 725ms @2d8ed253669f+wt
 pass/storage/runtime_machine_owned_indexed_integer_write_exit built 802ms exit:79 @2d8ed253669f+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 803ms exit:85 @2d8ed253669f+wt
 pass/storage/runtime_primitive_local_literal_composition_exit built 809ms exit:70 @2d8ed253669f+wt
-pass/structs/affine_record_state_clone rejected 943ms @9baafc0ace88
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph conditional return arm does not match its declared completion"))
+pass/structs/affine_record_state_clone built 2099ms exit:70 @4849e7d94a31
 pass/structs/affine_result_constructor built 860ms exit:70 @2d8ed253669f+wt
 pass/structs/case_field_type_store_shapes built 805ms @2d8ed253669f+wt
 pass/structs/copied_array_field_shared_record built 799ms exit:70 @2d8ed253669f+wt
