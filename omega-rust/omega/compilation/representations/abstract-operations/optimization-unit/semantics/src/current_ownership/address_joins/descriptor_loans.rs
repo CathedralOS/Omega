@@ -311,7 +311,7 @@ struct DescriptorFlow {
 #[derive(Default)]
 struct DescriptorFlowStep {
     definitions: Vec<PlaceId>,
-    derivation: Option<(PlaceId, PlaceId)>,
+    derivations: Vec<(PlaceId, PlaceId)>,
     inputs: Vec<PlaceId>,
     may_escape: bool,
     successors: Vec<DescriptorFlowEdge>,
@@ -351,15 +351,27 @@ impl DescriptorFlow {
                     block.id,
                     u32::try_from(node_index).expect("unit node index fits u32"),
                 );
-                let derivation = match &node.operation {
+                let derivations = match &node.operation {
                     O::EstablishElementView { result, source, .. } => {
-                        Some((source.place, result.place))
+                        vec![(source.place, result.place)]
                     }
                     O::ElementViewSubslice { result, source, .. }
                     | O::ByteSequenceSubslice { result, source, .. } => {
-                        Some((*source, result.place))
+                        vec![(*source, result.place)]
                     }
-                    _ => None,
+                    // Observing the record can observe any captured descriptor.
+                    // Every field contributes its cohort; copying the carrier
+                    // does not copy the storage those descriptors borrow.
+                    O::EstablishRecord { result, fields, .. } => fields
+                        .iter()
+                        .filter_map(|field| match &field.value {
+                            terminal_psi::RecordFieldValue::Structural(argument) => {
+                                Some((argument.place, result.place))
+                            }
+                            terminal_psi::RecordFieldValue::Scalar { .. } => None,
+                        })
+                        .collect(),
+                    _ => Vec::new(),
                 };
                 let successors = if node.successors.is_empty() {
                     (node_index + 1 < block.nodes.len())
@@ -397,7 +409,7 @@ impl DescriptorFlow {
                         definitions: Self::result_definition(function, &node.operation)
                             .into_iter()
                             .collect(),
-                        derivation,
+                        derivations,
                         inputs: crate::unit_validation::function_structure::operation_place_inputs(
                             &node.operation,
                         ),
@@ -469,11 +481,11 @@ impl DescriptorFlow {
             if !step.definitions.contains(&name) {
                 outputs.push(name);
             }
-            if let Some((source, result)) = step.derivation
-                && source == name
-            {
-                outputs.push(result);
-            }
+            outputs.extend(
+                step.derivations
+                    .iter()
+                    .filter_map(|(source, result)| (*source == name).then_some(*result)),
+            );
             for edge in &step.successors {
                 for output in &outputs {
                     for destination in edge.forward(*output) {
