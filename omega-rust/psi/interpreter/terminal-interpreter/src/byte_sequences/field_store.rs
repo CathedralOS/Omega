@@ -6,7 +6,7 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
-use crate::custody::{resolve_structural_arguments, project_structural_value};
+use crate::custody::{project_structural_value, resolve_structural_arguments};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;

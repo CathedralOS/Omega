@@ -1098,8 +1098,7 @@ pass/text/runtime_owned_string_byte_view_exit rejected 922ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("structural construction substituted its owner or result type"))
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit built 864ms exit:70 @7f80f93fd214+wt
-pass/text/runtime_slice_indexed_string_guard_exit rejected 1105ms @569fd648944c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 4)
+pass/text/runtime_slice_indexed_string_guard_exit built 2657ms exit:70 @1df89900d7cc+wt
 pass/text/runtime_stdin_command_branch_exit rejected 1219ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
@@ -1184,6 +1183,5 @@ run/borrows/shared_runtime_index_borrow built 1341ms exit:0 @48008365d839
 run/borrows/transition_shared_borrow built 1309ms exit:0 @48008365d839
 run/contained_health_loop_command_branch checked 192ms
 run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
-
 pass/contracts/ensures_named_parameter_arithmetic_exit built 445ms exit:0 @1fa864024c44+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 1428ms exit:70 @63377f7122bb+wt

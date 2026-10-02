@@ -1887,48 +1887,10 @@ pub(crate) fn projected_byte_field(
     })
 }
 
-#[derive(Clone, Copy)]
-enum ByteFieldGeometryUse {
-    Observation,
-    BoundedStore,
-}
-
 /// Bounded inline byte storage starts with an aligned u64 live length, followed
 /// by capacity bytes. The enclosing record rounds the capacity+8 footprint for
 /// its next field; a borrowed view's pointer/length descriptor is a different
-/// carrier. This reconstructs metadata geometry only, never content authority.
-fn byte_field_length_for(
-    use_: ByteFieldGeometryUse,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    scalar: ScalarType,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8)> {
-    match use_ {
-        ByteFieldGeometryUse::Observation => {
-            // The semantic resolver admits only exact record fields and
-            // in-bounds FixedArray indices. In particular, it excludes an
-            // ElementView index whose bound is dynamic. `project` then
-            // independently reconstructs the admitted path's physical offset.
-            terminal_semantics::runtime_structural_path_tip(
-                declarations.iter(),
-                structural_type,
-                path,
-            )?;
-            project(structural_type, path, declarations)?;
-        }
-        ByteFieldGeometryUse::BoundedStore => {
-            if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
-                return None;
-            }
-        }
-    }
-    plain_record_shape(structural_type, declarations)?;
-    scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
-        .map(|(offset, bytes, _)| (offset, bytes))
-}
-
+/// carrier. This reconstructs mutation geometry only, never content authority.
 pub(crate) fn byte_field_length(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -1936,37 +1898,17 @@ pub(crate) fn byte_field_length(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
-    byte_field_length_for(
-        ByteFieldGeometryUse::BoundedStore,
-        structural_type,
-        path,
-        field,
-        scalar,
-        declarations,
-    )
-}
-
-pub(crate) fn observed_byte_field_length(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    scalar: ScalarType,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8)> {
-    byte_field_length_for(
-        ByteFieldGeometryUse::Observation,
-        structural_type,
-        path,
-        field,
-        scalar,
-        declarations,
-    )
+    if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
+        return None;
+    }
+    plain_record_shape(structural_type, declarations)?;
+    scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
+        .map(|(offset, bytes, _)| (offset, bytes))
 }
 
 /// Metadata and inline backing share a field, but capacity bounds the destination
 /// only. A replacement's source-length obligation supplies its dynamic footprint.
-fn byte_field_storage_for(
-    use_: ByteFieldGeometryUse,
+pub(crate) fn byte_field_storage(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
@@ -1976,8 +1918,7 @@ fn byte_field_storage_for(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .ok()?,
     );
-    let (offset, _) =
-        byte_field_length_for(use_, structural_type, path, field, scalar, declarations)?;
+    let (offset, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
         .iter()
@@ -2001,41 +1942,10 @@ fn byte_field_storage_for(
     .then_some((offset, capacity))
 }
 
-pub(crate) fn byte_field_storage(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u64)> {
-    byte_field_storage_for(
-        ByteFieldGeometryUse::BoundedStore,
-        structural_type,
-        path,
-        field,
-        declarations,
-    )
-}
-
-pub(crate) fn observed_byte_field_storage(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u64)> {
-    byte_field_storage_for(
-        ByteFieldGeometryUse::Observation,
-        structural_type,
-        path,
-        field,
-        declarations,
-    )
-}
-
 /// A shared view field stores a two-word descriptor in its record: the
 /// backing pointer, then the extent. Return the descriptor's offset from the
 /// root. The backing itself lies outside the root; its custody is the view's.
-fn byte_view_field_descriptor_for(
-    use_: ByteFieldGeometryUse,
+pub(crate) fn byte_view_field_descriptor(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
@@ -2045,8 +1955,7 @@ fn byte_view_field_descriptor_for(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .ok()?,
     );
-    let (length_word, _) =
-        byte_field_length_for(use_, structural_type, path, field, scalar, declarations)?;
+    let (length_word, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
         .iter()
@@ -2082,36 +1991,6 @@ fn byte_view_field_descriptor_for(
             )))
     .then(|| length_word.checked_sub(8))
     .flatten()
-}
-
-pub(crate) fn byte_view_field_descriptor(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<u32> {
-    byte_view_field_descriptor_for(
-        ByteFieldGeometryUse::BoundedStore,
-        structural_type,
-        path,
-        field,
-        declarations,
-    )
-}
-
-pub(crate) fn observed_byte_view_field_descriptor(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<u32> {
-    byte_view_field_descriptor_for(
-        ByteFieldGeometryUse::Observation,
-        structural_type,
-        path,
-        field,
-        declarations,
-    )
 }
 
 #[cfg(test)]
