@@ -50,6 +50,11 @@ reconcile uncertain outcomes, verify backups, and inventory owned resources.
 Use its executor-scoped build slot and next-action plan; disconnected is not
 dead, a local archive is not a confirmed backup, and cleanup is never implicit.
 
+For coordinated cloud batches and staged rollout gates, follow the executable
+[cloud coordination contract](references/cloud-coordination.md). It adds durable
+assignment/result ingestion and final acceptance to the recovery journal; it
+does not authorize extra sessions or change global ownership fences.
+
 ## Detect the runtime and budget
 
 For a new cloud session or an existing session's native workers, first apply

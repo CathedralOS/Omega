@@ -1,5 +1,10 @@
 # Swarm launcher
 
+For dot cloud tasks with parent-owned create/read/follow-up tools, use the
+[cloud coordination adapter](cloud.md). It extends the recovery journal with
+durable dispatch results, dependency handoffs, final acceptance and bounded
+2/5/10 admission. The Devin launcher below retains its existing transport.
+
 `launch.py` fans "advance the compiler" out to Devin Cloud sessions: the
 coordinator writes a wave manifest that pre-assigns one board item per session,
 the launcher creates one session per entry, and each session runs the ordinary
