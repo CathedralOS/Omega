@@ -95,7 +95,18 @@ pub(crate) fn canonical_field_path(
     root: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<Vec<CanonicalStructuralPathSegment>> {
-    let mut structural_type = caller_structural_root_type(machine, root)?;
+    canonical_field_path_from_type(module, caller_structural_root_type(machine, root)?, path)
+}
+
+/// Resolve a structural path once its exact semantic root type has already
+/// been reconstructed. Reference carriers use this after the explicit
+/// `Referent` crossing; the returned path stays relative to that carrier's
+/// captured address rather than being rewritten to a possible origin.
+pub(crate) fn canonical_field_path_from_type(
+    module: &TerminalModule,
+    mut structural_type: semantic_vocabulary::StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
     let mut written = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
@@ -139,6 +150,22 @@ pub(crate) fn canonical_field_path(
         }
     }
     Some(written)
+}
+
+/// Canonical path beneath the referent of an exact mutable-record carrier.
+/// This is deliberately separate from `canonical_field_path`: only consumers
+/// that already model a borrow crossing may interpret `Referent`, and their
+/// logical root remains the carrier rather than a possible captured origin.
+pub(crate) fn canonical_mutable_record_referent_path(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    carrier: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    let (referent, suffix) = crate::validation::references::mutable_record_field_destination(
+        module, machine, carrier, path,
+    )?;
+    canonical_field_path_from_type(module, referent, suffix)
 }
 
 /// Resolve the exact canonical path one field store writes. `path` arrives in
@@ -194,7 +221,12 @@ pub(crate) fn structural_field_store_write_path(
     let Some(field) = field else {
         return (window && path.is_empty()).then_some((root, Vec::new()));
     };
-    let root_type = caller_structural_root_type(machine, root)?;
+    let (root_type, path) = if window {
+        crate::validation::references::mutable_record_field_destination(module, machine, root, path)
+            .unwrap_or((caller_structural_root_type(machine, root)?, path.as_slice()))
+    } else {
+        (caller_structural_root_type(machine, root)?, path.as_slice())
+    };
     // A window operation whose spelled path crosses a runtime element names
     // no canonical place beneath it: the hole is the statically known prefix
     // — the whole array subtree the runtime step selects in — which the
@@ -207,7 +239,7 @@ pub(crate) fn structural_field_store_write_path(
         (true, Some(position)) => &path[..position],
         _ => path,
     };
-    let mut written = canonical_field_path(module, machine, root, statically)?;
+    let mut written = canonical_field_path_from_type(module, root_type, statically)?;
     match path.last() {
         // An element leaf: the path ends in an element selection and `field`
         // names the last field segment's own declaration — the array the

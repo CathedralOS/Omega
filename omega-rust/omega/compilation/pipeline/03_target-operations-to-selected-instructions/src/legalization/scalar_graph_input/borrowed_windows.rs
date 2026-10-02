@@ -49,8 +49,29 @@ pub(in crate::legalization) fn extent(
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
     plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
     let invalid = LegalizationError::custody;
+    let referent = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
+        let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root
+        else {
+            return Err(invalid());
+        };
+        let referent = super::reference_custody::writable_referent_destination(
+            custody,
+            function,
+            &plan.structural_types,
+            root.place(),
+            path,
+        )
+        .ok_or_else(invalid)?;
+        if referent.producer != *producer || referent.result != *result {
+            return Err(invalid());
+        }
+        Some(referent)
+    } else {
+        None
+    };
     let root_type = match root {
         abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
             if root.access != StructuralAccess::MutableBorrow
@@ -84,8 +105,11 @@ pub(in crate::legalization) fn extent(
             result.structural_type
         }
     };
+    let (root_type, path) = referent.as_ref().map_or((root_type, path), |referent| {
+        (referent.referent, referent.path.as_slice())
+    });
     let types = &plan.structural_types;
-    let (full, field_type) = if let Some(field) = field {
+    let (mut full, field_type) = if let Some(field) = field {
         field_extent_path(root_type, path, field, types)?
     } else {
         // A root window is the loan's whole referent; an owned home's whole
@@ -107,6 +131,9 @@ pub(in crate::legalization) fn extent(
         return Err(invalid());
     }
     let shape = structural_reference_input::shape(field_type, types).ok_or_else(invalid)?;
+    if referent.is_some() {
+        full.insert(0, StructuralPathSegment::Referent);
+    }
     Ok(WindowExtent {
         path: full,
         field_type,
@@ -200,8 +227,9 @@ pub(in crate::legalization) fn moved(
     field: Option<StructuralFieldId>,
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
+    custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
-    let extent = extent(function, root, path, field, plan)?;
+    let extent = extent(function, root, path, field, plan, custody)?;
     if result.structural_type != extent.field_type
         || !matches!(
             result.multiplicity,

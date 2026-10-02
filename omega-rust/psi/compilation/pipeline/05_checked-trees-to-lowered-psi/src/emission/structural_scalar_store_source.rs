@@ -317,6 +317,7 @@ pub(crate) fn validate(
             crate::unit::attached_unit::validate_array_element_replacements(
                 checked,
                 plan.state,
+                &plan.structural_parameters,
                 statement_index as usize,
                 assignment,
                 &roster,

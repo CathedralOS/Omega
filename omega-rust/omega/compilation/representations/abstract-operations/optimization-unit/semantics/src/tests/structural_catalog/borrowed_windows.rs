@@ -174,3 +174,194 @@ fn element_windows_do_not_grant_shared_or_borrowed_replacement_authority() {
         );
     }
 }
+
+fn reference_window_unit() -> PsiOptimizationUnit {
+    let mut unit = element_window_unit(true);
+    let parameter = unit.functions[0].structural_parameters[0].clone();
+    let reference_type = id(4_850, StructuralTypeId::new);
+    unit.structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: reference_type,
+            identity: "validation::window-reference".into(),
+            shape: Shape::Reference {
+                referent: parameter.structural_type,
+                access: StructuralAccess::MutableBorrow,
+            },
+        });
+    let producer = id(4_851, OperationId::new);
+    let result = StructuralOperationResult {
+        place: id(4_852, PlaceId::new),
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let function = &mut unit.functions[0];
+    function.structural_places.push(StructuralPlaceDeclaration {
+        id: result.place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type: reference_type,
+        },
+    });
+    function.declared_places.insert(result.place);
+    for node in &mut function.blocks[0].nodes {
+        let (root, path) = match &mut node.operation {
+            O::MoveStructuralField { source, path, .. } => (source, path),
+            O::StoreStructuralField {
+                destination, path, ..
+            } => (destination, path),
+            _ => continue,
+        };
+        *root = StructuralWindowRoot::OwnedResult {
+            producer,
+            result: result.clone(),
+        };
+        path.insert(0, Path::Referent);
+    }
+    let mut establish = function.blocks[0].nodes[0].clone();
+    establish.operation = O::EstablishReference {
+        psi_operation: producer,
+        result: result.clone(),
+        source: StructuralArgument {
+            place: parameter.place,
+            access: StructuralAccess::MutableBorrow,
+            path: Vec::new(),
+        },
+    };
+    let mut release = establish.clone();
+    release.operation = O::ReleaseReference {
+        psi_operation: id(4_853, OperationId::new),
+        source: result.place,
+    };
+    function.blocks[0].nodes.insert(0, establish);
+    function.blocks[0].nodes.insert(3, release);
+    refresh_function_derivatives(&mut unit, 0);
+    unit
+}
+
+#[test]
+fn reference_windows_replay_carrier_crossing_and_live_authority() {
+    let unit = reference_window_unit();
+    validate_psi_optimization_unit(&unit)
+        .expect("live mutable carrier lends its exact nested field");
+    for mutation in [
+        "missing crossing",
+        "wrong producer",
+        "forged multiplicity",
+        "shared",
+        "released",
+        "original ingress",
+    ] {
+        let mut changed = unit.clone();
+        match mutation {
+            "shared" => {
+                let declaration = changed
+                    .structural_types
+                    .make_mut()
+                    .iter_mut()
+                    .find(|row| row.id == id(4_850, StructuralTypeId::new))
+                    .unwrap();
+                let Shape::Reference { access, .. } = &mut declaration.shape else {
+                    unreachable!()
+                };
+                *access = StructuralAccess::SharedBorrow;
+            }
+            "released" => changed.functions[0].blocks[0].nodes.swap(1, 3),
+            _ => {
+                let parameter = changed.functions[0].structural_parameters[0].clone();
+                let O::MoveStructuralField { source, path, .. } =
+                    &mut changed.functions[0].blocks[0].nodes[1].operation
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    "missing crossing" => {
+                        path.remove(0);
+                    }
+                    "original ingress" => {
+                        *source = StructuralWindowRoot::BorrowedParameter(parameter);
+                        path.remove(0);
+                    }
+                    "wrong producer" => {
+                        let StructuralWindowRoot::OwnedResult { producer, .. } = source else {
+                            unreachable!()
+                        };
+                        *producer = id(4_854, OperationId::new);
+                    }
+                    "forged multiplicity" => {
+                        let StructuralWindowRoot::OwnedResult { result, .. } = source else {
+                            unreachable!()
+                        };
+                        result.multiplicity = StructuralMultiplicity::Unrestricted;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        refresh_function_derivatives(&mut changed, 0);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "{mutation}"
+        );
+    }
+}
+
+#[test]
+fn window_result_query_distinguishes_owned_carriers_from_storage_loans() {
+    use crate::unit_validation::operation_contracts::structural_operation_result_contract;
+    use abstract_operations::AbstractResult;
+    use semantic_vocabulary::{ScalarType, ValueId};
+
+    let unit = reference_window_unit();
+    let operation = &unit.functions[0].blocks[0].nodes[0].operation;
+    let O::EstablishReference {
+        psi_operation,
+        result,
+        source,
+    } = operation
+    else {
+        unreachable!()
+    };
+    let contract = structural_operation_result_contract(operation).unwrap();
+    assert_eq!(contract.access, StructuralAccess::Owned);
+    assert_eq!(contract.operation_result(), Some(result));
+
+    // Identical result metadata cannot turn a storage loan into an owned
+    // window root. The common query retains the producer's access semantics.
+    let primitive = O::EstablishPrimitiveLocal {
+        psi_operation: *psi_operation,
+        result: result.clone(),
+        value: AbstractResult {
+            value: id(4_860, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+        },
+    };
+    assert_eq!(
+        structural_operation_result_contract(&primitive)
+            .unwrap()
+            .access,
+        StructuralAccess::MutableBorrow,
+    );
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut source = source.clone();
+        source.access = access;
+        let view = O::EstablishElementView {
+            psi_operation: *psi_operation,
+            result: result.clone(),
+            destination: result.place,
+            source,
+            element: result.structural_type,
+        };
+        let contract = structural_operation_result_contract(&view).unwrap();
+        assert_eq!(contract.operation_result(), Some(result));
+        assert_eq!(contract.access, access);
+        assert_ne!(contract.access, StructuralAccess::Owned);
+    }
+}

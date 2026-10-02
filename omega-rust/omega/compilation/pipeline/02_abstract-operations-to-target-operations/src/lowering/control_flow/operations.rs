@@ -106,10 +106,18 @@ pub(super) fn lower_operation(
             .is_some(),
         ),
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => (Some(result.place), false),
-        AbstractOperation::MoveStructuralField { source, .. } => (Some(source.place()), false),
-        AbstractOperation::StoreStructuralField { destination, .. } => {
-            (Some(destination.place()), false)
+        AbstractOperation::MoveStructuralField {
+            source: root, path, ..
         }
+        | AbstractOperation::StoreStructuralField {
+            destination: root,
+            path,
+            ..
+        } => (
+            Some(root.place()),
+            super::borrowed_windows::window_referent(function, live, structural_types, root, path)?
+                .is_some(),
+        ),
         _ => (None, false),
     };
     if !referent_access

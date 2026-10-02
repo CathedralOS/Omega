@@ -9,15 +9,20 @@
 //! non-crash exit leaves the debt empty. This leg re-checks the static shape
 //! the verifier's admission committed to — root authority, declared field
 //! type, and the exact result/value custody rows — and retains the complete
-//! parameter declaration so no consumer reconstructs borrow authority from
+//! root declaration so no consumer reconstructs borrow authority from
 //! physical ABI shape. The dynamic debt itself needs no replay here: the
 //! spelled pairs reach Omega only through a verified module.
+//! A first-class mutable record reference keeps its own producer/result row
+//! and explicit leading `Referent`; only geometry uses the referent-relative
+//! suffix. Owning that carrier never grants ownership of its referent.
 //!
 //! A root window (`field: None`, empty path) vacates and reseats the whole
 //! referent of an exclusive loan: its root must be a mutable-borrowed
 //! parameter, as the verifier admitted.
 
-use abstract_operations::{AbstractOperation, StructuralWindowRoot};
+use abstract_operations::{
+    AbstractOperation, StructuralScalarStoreDestination, StructuralWindowRoot,
+};
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
@@ -27,7 +32,9 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
-use super::structural_scalar_fields::{exact_parameter, has_empty_structural_custody};
+use super::structural_scalar_fields::{
+    exact_parameter, has_empty_structural_custody, owned_store_destination,
+};
 
 pub(super) fn lower(
     operation: &Operation,
@@ -94,7 +101,7 @@ fn lower_move(
         return Err(invalid());
     }
     let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
-    if declared_window_field_type(structural_types, source.structural_type(), path, field)
+    if declared_window_field_type(structural_types, &source, path, field)
         != Some(result.structural_type)
         || !root_window_loan(&source, field)
     {
@@ -126,8 +133,7 @@ fn lower_store(
         return Err(invalid());
     }
     let destination = borrowed_window_root(machine, destination).ok_or_else(invalid)?;
-    let Some(field_type) =
-        declared_window_field_type(structural_types, destination.structural_type(), path, field)
+    let Some(field_type) = declared_window_field_type(structural_types, &destination, path, field)
     else {
         return Err(invalid());
     };
@@ -152,10 +158,11 @@ fn lower_store(
 /// The root a window operation may name: a mutable-borrowed entry or block parameter
 /// (borrow authority, a transferable multiplicity, and no qualifications or
 /// entry claims, resolved through the exact parameter row), or an owned local
-/// home a producer operation completed under the same custody — the exact
-/// admission the Terminal verifier's `completed_source` and the codec's
-/// `borrowed_field_store_root_type` apply. The abstract operation carries the
-/// authority the verifier admitted rather than a bare place.
+/// home resolved through its exact operation-result storage declaration.
+/// Terminal admission separately establishes completed payload custody or a
+/// returned reference's loan authority. Here the shared storage query retains
+/// that producer and result; field geometry never treats an owned reference
+/// carrier as ownership of its referent.
 fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralWindowRoot> {
     // A block arrival retains its own declaration and place. Edge verification
     // transfers the loan; it does not turn that arrival into an ABI parameter.
@@ -170,40 +177,16 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     {
         return Some(StructuralWindowRoot::BorrowedParameter(parameter));
     }
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|producer| {
-            matches!(
-                producer.kind,
-                OperationKind::EstablishRecord { .. }
-                    | OperationKind::EstablishZeroedStructural { .. }
-                    | OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
-            )
-        })
-        .find_map(|producer| {
-            producer
-                .result
-                .structural()
-                .filter(|result| {
-                    result.place == place
-                        && matches!(
-                            result.multiplicity,
-                            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                        )
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                        && result.claims.is_empty()
-                })
-                .map(|result| StructuralWindowRoot::OwnedResult {
-                    producer: producer.id,
-                    result: result.clone(),
-                })
-        })
+    // Rejoin the unique operation-result declaration rather than recognize
+    // how its producer was spelled. The verified window and the field-shape
+    // check below retain authority: a view descriptor is not owned storage,
+    // and a reference carrier crosses only an explicit `Referent`.
+    let StructuralScalarStoreDestination::OwnedResult { producer, result } =
+        owned_store_destination(machine, place)?
+    else {
+        return None;
+    };
+    Some(StructuralWindowRoot::OwnedResult { producer, result })
 }
 
 /// A root window (`field: None`) names the whole referent of an exclusive
@@ -219,10 +202,43 @@ fn root_window_loan(root: &StructuralWindowRoot, field: Option<StructuralFieldId
 /// structural field there.
 fn declared_window_field_type(
     structural_types: &[StructuralTypeDeclaration],
-    root: StructuralTypeId,
+    root: &StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> Option<StructuralTypeId> {
+    // The carrier owns its permission, not the referent bytes. Only the
+    // explicit crossing changes geometry; keep the original root and path on
+    // the emitted operation for loan replay and native pointer transport.
+    let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
+        let StructuralWindowRoot::OwnedResult { result, .. } = root else {
+            return None;
+        };
+        let StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::MutableBorrow,
+        } = structural_types
+            .iter()
+            .find(|row| row.id == result.structural_type)?
+            .shape
+        else {
+            return None;
+        };
+        if result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualification_establishments.is_empty()
+            || !matches!(
+                structural_types
+                    .iter()
+                    .find(|row| row.id == referent)?
+                    .shape,
+                StructuralTypeShape::Record { .. }
+            )
+        {
+            return None;
+        }
+        (referent, suffix)
+    } else {
+        (root.structural_type(), path)
+    };
     let Some(field) = field else {
         return path.is_empty().then_some(root);
     };

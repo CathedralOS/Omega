@@ -1411,34 +1411,24 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `0cf22eb219d`
-  (main `e8ed051cf62` plus the store-carrier check and the sample's spelled
-  roll conversions), macOS ARM64, source checking and local package review
-  succeed; `sample_native_gate.py --filter games/dungeon_crawler_cli` reports
-  0/1 at `byte value parameter has no ordinary read authority`.
-  `RoomLookup::apply_room`'s `out_room.label = room.label` reads a byte field
-  of a by-value (Owned) formal: stage 05
-  `emission/structural_byte_sequence_store.rs` `ValueEmitter::field_source`,
-  Omega 02 `lowering/control_flow/primitive_storage.rs` `readable_byte_field`
-  and Omega 03 legalization (`scalar_graph_input/target/unit.rs`) each admit
-  only borrowed formals or owned homes, so all three must carry the owned
-  formal together. After that, `generation/maze_builder.omg::carve_room`'s
-  `room.cell = cell` through the `&mut Room` that `level.room_mut(cell)` returns
-  stops at `structural case field store local root is not a whole owned home`:
-  a sum-field replacement opens a `MoveStructuralField`/`StoreStructuralField`
-  restoration window, which
-  [ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration)
-  and trusted Terminal verification (`borrowed_windows.rs`) root only at
-  mutable-borrowed machine or block parameters. Replacing a sum field through a
-  returned reference's `Referent` crossing therefore needs a trusted Terminal
-  rule; do not treat its carrier as an owned record or bypass field validity.
-  Owned byte-field reads now retain declaration custody through state transfer,
-  byte construction and native publication. Ordinary direct calls resolve each
-  operand independently of sibling storage or result kind; the former whole-call
-  routing split is removed. `text/owned_record_byte_field_read_exit` and eighteen
-  related native controls execute their authored results; four invalid-access/
-  bounds fixtures still reject. Those witnesses do not establish that Dungeon
-  runs. Acceptance remains the two complete game commands above.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `fc625a0e0329`
+  plus the returned-reference window repair, macOS ARM64, source checking and
+  local package review succeed; closed stdin exits 200 during Terminal
+  production with `ControlCycleIneligible { block: 66, reason: BlockOperation
+  { block: 66, operation: 76 } }`. The next dependency is cycle eligibility
+  in `terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`;
+  identify the operation and its actual loop-carried custody before changing
+  admission. Do not bypass ranking, frontier agreement or field validity.
+  Field replacement now carries the exact returned reference and live loan
+  through window extraction, reseating, independent verification and native
+  pointer-based addressing. Checked window parameters use dense structural
+  coordinates, with explicit source-coordinate replay; interleaved scalar
+  formals no longer select the wrong root. The two new `borrows/` programs
+  `returned_record_case_field_store_exit` and
+  `interleaved_parameter_field_replacement_exit` and six related native
+  controls execute exit 70. Source replay rejects a paired repair redirected
+  to a same-typed sibling. Those witnesses do not establish that Dungeon runs.
+  Acceptance remains the two complete game commands above.
 
   The composed receiver reproduction
   `borrows/branch_selected_record_composed_receiver_exit` and nested owned

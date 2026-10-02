@@ -501,6 +501,39 @@ pub(super) fn mutable_record_field_destination<'path>(
         .then_some((referent, path))
 }
 
+/// Reconstruct the live permission behind a mutable record destination.
+/// Geometry alone cannot authorize a referent write: the exact carrier must
+/// still own its permission, and no child may keep that parent suspended.
+/// Returning `None` means this is not a reference-crossing destination and
+/// lets the caller apply its ordinary owned-root rules.
+pub(super) fn live_mutable_record_field_destination<'path>(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    destination: PlaceId,
+    path: &'path [StructuralPathSegment],
+) -> Result<Option<(StructuralTypeId, &'path [StructuralPathSegment])>, ModuleError> {
+    let Some(destination_type) =
+        mutable_record_field_destination(module, machine, destination, path)
+    else {
+        return Ok(None);
+    };
+    let reference = live
+        .iter()
+        .find(|reference| reference.carrier == destination && reference.carrier_path.is_empty())
+        .ok_or_else(|| invalid(machine, "field destination reference is no longer live"))?;
+    if live.iter().any(|child| {
+        matches!(&child.parent,
+            ReferenceParent::Reference(identity) if *identity == reference.identity)
+    }) {
+        return Err(invalid(
+            machine,
+            "field destination reference remains suspended by a live child",
+        ));
+    }
+    Ok(Some(destination_type))
+}
+
 pub(super) fn carrier_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1698,25 +1731,9 @@ pub(super) fn apply_operation(
         | OperationKind::StructuralByteViewFieldStore {
             destination, path, ..
         } => {
-            if mutable_record_field_destination(module, machine, *destination, path).is_some() {
-                let reference = live
-                    .iter()
-                    .find(|reference| {
-                        reference.carrier == *destination && reference.carrier_path.is_empty()
-                    })
-                    .ok_or_else(|| {
-                        invalid(machine, "field destination reference is no longer live")
-                    })?;
-                if live.iter().any(|child| {
-                    matches!(&child.parent,
-                    ReferenceParent::Reference(identity) if *identity == reference.identity)
-                }) {
-                    return Err(invalid(
-                        machine,
-                        "field destination reference remains suspended by a live child",
-                    ));
-                }
-            } else {
+            if live_mutable_record_field_destination(module, machine, live, *destination, path)?
+                .is_none()
+            {
                 check_root_access(machine, live, *destination)?;
             }
         }

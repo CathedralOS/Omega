@@ -743,7 +743,7 @@ fn static_ingress_type(
 }
 
 /// The referent type an establishment or projection may name. An empty path
-/// names a whole primitive place, a trailing `Referent` dereferences a live
+/// names a whole ingress place, a trailing `Referent` dereferences a live
 /// carrier, and a field/fixed-index path names exact borrowed ingress storage.
 fn reference_source_type(
     function: &PsiOptimizationFunction,
@@ -782,14 +782,17 @@ fn reference_source_type(
         {
             return None;
         }
-        return primitive_scalar_type(types, parameter.structural_type);
+        // Empty and nonempty ingress projections name storage alike. The
+        // reference result's independent referent check still limits the
+        // carrier to primitive or plain-record storage.
+        return leaf_type(types, parameter.structural_type, &source.path);
     }
     let (_, result, _) = super::primitive_locals::producer(function, source.place)?;
     primitive_scalar_type(types, result.structural_type)
 }
 
 /// A `.., Referent` source names a suspended child of the located carrier
-/// leaf; an empty path names a primitive referent root directly. A static
+/// leaf; an empty path names the whole ingress referent directly. A static
 /// field/fixed-index path retains the exact borrowed ingress address.
 fn normalized_source(
     function: &PsiOptimizationFunction,

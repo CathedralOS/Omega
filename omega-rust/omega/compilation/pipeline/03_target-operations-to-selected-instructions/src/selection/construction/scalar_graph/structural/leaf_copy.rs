@@ -97,6 +97,22 @@ pub(super) fn copy(
         input
     };
     // Owned parameters without addressable storage retain their ABI fragments.
+    let input = if let abstract_operations::StructuralCopyPath::Ordinary(path) = path
+        && matches!(
+            path.first(),
+            Some(terminal_psi::StructuralPathSegment::Referent)
+        ) {
+        crate::selection::reference_input::mutable_projection(function, *source, path)
+            .ok_or_else(invalid)?;
+        Some(super::reference::load(
+            builder,
+            row,
+            *source,
+            input.ok_or_else(invalid)?,
+        )?)
+    } else {
+        input
+    };
     let Some(input) = input else {
         copy_from_fragments(
             function,
@@ -155,6 +171,7 @@ pub(super) fn reseat(
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::StoreStructuralField {
         destination,
+        path,
         value,
         byte_offset,
         shape,
@@ -202,6 +219,26 @@ pub(super) fn reseat(
             .ok_or_else(|| invalid())
     };
     let root = pointer_of(destination.place())?;
+    let root = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } =
+            destination
+        else {
+            return Err(invalid());
+        };
+        if crate::selection::aggregate_result_input::home(source, result.place)
+            != Some((*producer, result))
+        {
+            return Err(invalid());
+        }
+        crate::selection::reference_input::mutable_projection(source, result.place, path)
+            .ok_or_else(invalid)?;
+        super::reference::load(builder, row, result.place, root)?
+    } else {
+        root
+    };
     // The spelled path may end in a runtime element (`nodes[i] = node`): the
     // destination pointer scales each selector by its stride, in path order,
     // before the inverse copy lands the vacated extent.

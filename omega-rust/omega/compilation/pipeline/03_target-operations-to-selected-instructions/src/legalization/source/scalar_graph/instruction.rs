@@ -191,7 +191,7 @@ pub(super) fn project(
         }
         AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::StoreStructuralField { .. } => {
-            storage_instructions::project_borrowed_window(node, optimized, plan, unit)?
+            storage_instructions::project_borrowed_window(node, optimized, plan, unit, custody)?
         }
         AbstractOperation::EstablishTrivialAffineLocal {
             place,

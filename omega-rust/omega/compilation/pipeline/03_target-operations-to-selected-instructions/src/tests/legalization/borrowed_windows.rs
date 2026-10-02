@@ -165,6 +165,292 @@ fn fixture(
     (source, target, unit)
 }
 
+fn returned_reference_source(projected: bool) -> abstract_operations::AbstractOperationPlan {
+    use abstract_operations::{
+        AbstractFunctionResult, AbstractStructuralCallResult, StructuralWindowRoot,
+    };
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+    use terminal_psi::{StructuralReferenceResultSource, StructuralResultDeclaration};
+
+    let mut source = source(StructuralAccess::MutableBorrow);
+    let bag_type = StructuralTypeId::new(40).unwrap();
+    source.structural_types.make_mut().push(record(
+        40,
+        "test::Bag",
+        vec![
+            field(1, "padding", StructuralFieldType::Scalar(integer(64))),
+            field(
+                2,
+                "outer",
+                StructuralFieldType::Structural(
+                    root(StructuralAccess::MutableBorrow).structural_type,
+                ),
+            ),
+        ],
+    ));
+    if projected {
+        source.functions[0].structural_parameters[0].structural_type = bag_type;
+        let AbstractOperation::StructuralLeafCopy { path, .. } =
+            &mut source.functions[0].operations[0]
+        else {
+            unreachable!()
+        };
+        *path = vec![
+            StructuralPathSegment::Field("outer".into()),
+            StructuralPathSegment::Field("inner".into()),
+        ]
+        .into();
+    }
+    let reference_type = StructuralTypeId::new(30).unwrap();
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: reference_type,
+            identity: "test::OuterReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: root(StructuralAccess::MutableBorrow).structural_type,
+                access: StructuralAccess::MutableBorrow,
+            },
+        });
+    source
+        .structural_types
+        .make_mut()
+        .sort_by_key(|declaration| declaration.id);
+    let reference = |place| StructuralOperationResult {
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        place,
+        ..result(8)
+    };
+    let mut callee = source.functions[0].clone();
+    callee.machine = MachineId::new(2).unwrap();
+    callee.entry = BlockId::new(2).unwrap();
+    callee.block_entries[0].block = callee.entry;
+    callee.structural_parameters[0].place = place(20);
+    let ingress = StructuralArgument {
+        place: place(20),
+        access: StructuralAccess::MutableBorrow,
+        path: if projected {
+            vec![StructuralPathSegment::Field("outer".into())]
+        } else {
+            Vec::new()
+        },
+    };
+    callee.result = AbstractFunctionResult::Structural(StructuralResultDeclaration {
+        place: place(22),
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: vec![StructuralReferenceResultSource {
+            path: Vec::new(),
+            sources: vec![ingress.clone()],
+        }],
+    });
+    callee.operations = vec![
+        AbstractOperation::EstablishReference {
+            psi_operation: operation(20),
+            result: reference(place(21)),
+            source: ingress,
+        },
+        AbstractOperation::ReturnStructural {
+            psi_edge: EdgeId::new(2).unwrap(),
+            source: place(21),
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    ];
+    let carrier = StructuralWindowRoot::OwnedResult {
+        producer: operation(10),
+        result: reference(place(8)),
+    };
+    let caller = &mut source.functions[0];
+    for operation in &mut caller.operations {
+        match operation {
+            AbstractOperation::MoveStructuralField { source, path, .. } => {
+                *source = carrier.clone();
+                *path = vec![StructuralPathSegment::Referent];
+            }
+            AbstractOperation::StoreStructuralField {
+                destination, path, ..
+            } => {
+                *destination = carrier.clone();
+                *path = vec![StructuralPathSegment::Referent];
+            }
+            _ => {}
+        }
+    }
+    // Snapshot the replacement before the call suspends the original root.
+    caller.operations.insert(
+        1,
+        AbstractOperation::CallStructural {
+            psi_operation: operation(10),
+            result: AbstractStructuralCallResult::Structural {
+                result: reference(place(8)),
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
+            callee: callee.machine,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place(1),
+                access: StructuralAccess::MutableBorrow,
+                path: Vec::new(),
+            }],
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    );
+    caller.operations.insert(
+        4,
+        AbstractOperation::ReleaseReference {
+            psi_operation: operation(11),
+            source: place(8),
+        },
+    );
+    source.functions.push(callee);
+    source
+}
+
+#[test]
+fn returned_reference_window_loads_the_pointer_and_replays_exact_custody() {
+    for (native, projected) in [
+        (NativeTarget::linux_x64(), false),
+        (NativeTarget::linux_arm64(), false),
+        (NativeTarget::macos_arm64(), false),
+        (NativeTarget::windows_x64(), false),
+        (NativeTarget::linux_x64(), true),
+    ] {
+        let source = returned_reference_source(projected);
+        let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        // Reference-return calls require the callee's verified contract even
+        // when its requirements and crash roster are empty.
+        unit.functions[1].verified_contract = Some(terminal_psi::MachineContract {
+            id: semantic_vocabulary::ContractId::new(1).unwrap(),
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        });
+        unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        // A returned carrier grants field access, not the separate root-window
+        // operation reserved for mutable borrowed entry/block parameters.
+        let mut root_window = source.clone();
+        let AbstractOperation::MoveStructuralField { field, result, .. } =
+            &mut root_window.functions[0].operations[2]
+        else {
+            unreachable!()
+        };
+        *field = None;
+        result.structural_type = root(StructuralAccess::MutableBorrow).structural_type;
+        assert!(
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &root_window,
+                TargetLoweringRequest::new(native),
+            )
+            .is_err(),
+            "a same-typed whole-referent copy cannot turn a field window into a root window"
+        );
+        for mutation in 0..4 {
+            let mut changed = target.clone();
+            let store = changed.functions[0].graph.blocks[0]
+                .operations
+                .iter_mut()
+                .find(|row| matches!(row, TargetUnitOperation::StoreStructuralField { .. }))
+                .unwrap();
+            let TargetUnitOperation::StoreStructuralField {
+                destination,
+                path,
+                field,
+                byte_offset,
+                ..
+            } = store
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    let abstract_operations::StructuralWindowRoot::OwnedResult { producer, .. } =
+                        destination
+                    else {
+                        unreachable!()
+                    };
+                    *producer = operation(1);
+                }
+                1 => path.clear(),
+                2 => *byte_offset = 0,
+                3 => *field = None,
+                _ => unreachable!(),
+            }
+            assert!(
+                legalize_target_operations(&changed, &source, &unit).is_err(),
+                "mutation {mutation}"
+            );
+        }
+        for operation in [operation(2), operation(3)] {
+            let mut changed = selected.plan().clone();
+            let block = &mut changed.functions[0].blocks[0];
+            let pointer_load = block
+                .instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Load64 { byte_offset: 0 }
+                    ) && instruction.provenance.operations.contains(&operation)
+                })
+                .expect("each window direction loads the retained carrier's pointer word");
+            block.instructions.remove(pointer_load);
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed,
+                )
+                .is_err(),
+                "the referent must never be replaced by carrier storage"
+            );
+        }
+    }
+}
+
 /// Legalization re-resolves the field extent and the value's producer, so a
 /// retained row naming another offset, field, path, root or home rejects.
 #[test]

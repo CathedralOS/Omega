@@ -398,6 +398,154 @@ fn returned_record_store(projected: bool, byte_store: bool) -> TerminalModule {
     module
 }
 
+/// A source-free model of `let field = take selected.child; selected.child =
+/// field` where `selected` is an ordinary mutable-record reference result.
+/// The window stays keyed by the result carrier while the explicit Referent
+/// crossing keeps every possible captured origin suspended.
+fn returned_record_window() -> TerminalModule {
+    let mut module = returned_record_store(false, false);
+    let child_type = structural_type_id(3);
+    let child_field = semantic_vocabulary::StructuralFieldId::new(4).unwrap();
+    let child_value = semantic_vocabulary::StructuralFieldId::new(5).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: child_type,
+        identity: "Child".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: child_value,
+                identity: "value".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(signed_i8()),
+            }],
+        },
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("Holder is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: child_field,
+        identity: "child".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(child_type),
+    });
+
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(2),
+            structural_type: child_type,
+        },
+    });
+    caller.blocks[0].operations[1] = Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(2),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: place_id(3),
+            structural_type: child_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::MoveStructuralField {
+            source: place_id(2),
+            path: vec![StructuralPathSegment::Referent],
+            field: Some(child_field),
+        },
+    };
+    caller.blocks[0].operations.insert(
+        2,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(5),
+            result: OperationResult::Unit,
+            kind: OperationKind::StoreStructuralField {
+                destination: place_id(2),
+                path: vec![StructuralPathSegment::Referent],
+                field: Some(child_field),
+                value: StructuralArgument {
+                    place: place_id(3),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+            },
+        },
+    );
+    module
+}
+
+#[test]
+fn returned_record_window_retains_exact_live_carrier_permission() {
+    let module = returned_record_window();
+    validate_module(&module).expect("a live returned reference may restore its exact child field");
+
+    let mut observed_hole = module.clone();
+    observed_hole.machines[0].blocks[0].operations.insert(
+        2,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(6),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: place_id(2),
+                path: vec![
+                    StructuralPathSegment::Referent,
+                    StructuralPathSegment::Field("child".into()),
+                ],
+                field: semantic_vocabulary::StructuralFieldId::new(5).unwrap(),
+                value: value_id(1),
+                range_obligation: None,
+            },
+        },
+    );
+    assert_eq!(
+        validate_module(&observed_hole).map(|_| ()),
+        Err(ModuleError::BorrowedStorageFieldAbsent {
+            operation: operation_id(6),
+            place: place_id(2),
+        }),
+        "a nested referent access cannot reach the displaced outer field"
+    );
+
+    let mut missing_crossing = module.clone();
+    let OperationKind::MoveStructuralField { path, .. } =
+        &mut missing_crossing.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("window extraction")
+    };
+    path.clear();
+    validate_module(&missing_crossing).expect_err("the carrier is not its referent");
+
+    let mut wrong_carrier = module.clone();
+    let OperationKind::StoreStructuralField {
+        destination, path, ..
+    } = &mut wrong_carrier.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("window repair")
+    };
+    *destination = place_id(1);
+    path.clear();
+    validate_module(&wrong_carrier).expect_err("a captured origin cannot repair carrier debt");
+
+    let mut released = module.clone();
+    let release = released.machines[0].blocks[0].operations.remove(3);
+    released.machines[0].blocks[0].operations.insert(1, release);
+    validate_module(&released).expect_err("a released carrier cannot open a window");
+
+    let mut suspended = module;
+    let caller = &mut suspended.machines[0];
+    caller.structural_places.push(reference_place(4, 9));
+    caller.blocks[0]
+        .operations
+        .insert(1, establish(9, 4, argument(2, true)));
+    validate_module(&suspended).expect_err("a live child keeps its returned parent suspended");
+}
+
 #[test]
 fn returned_record_field_store_retains_mutable_reference_custody() {
     for projected in [false, true] {

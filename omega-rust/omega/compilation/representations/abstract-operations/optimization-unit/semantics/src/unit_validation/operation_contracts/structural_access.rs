@@ -29,6 +29,10 @@ pub(crate) struct StructuralSourceContract<'a> {
 }
 
 impl StructuralSourceContract<'_> {
+    pub(crate) fn operation_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
+        self.operation_result
+    }
+
     pub(crate) fn has_exact_qualifications(&self, required: &[StructuralDomainId]) -> bool {
         self.qualifications == required && self.projected_qualifications.is_empty()
     }
@@ -781,7 +785,18 @@ pub(crate) fn structural_source_contract(
             projected_qualifications: &parameter.projected_qualifications,
             operation_result: None,
         })
-        .or_else(|| structural_operation_result_contract(caller, place))
+        .or_else(|| {
+            caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter_map(|node| structural_operation_result_contract(&node.operation))
+                .find(|source| {
+                    source
+                        .operation_result
+                        .is_some_and(|result| result.place == place)
+                })
+        })
         .or_else(|| trivial_affine_local_contract(caller, place))
         .or_else(|| {
             allow_byte_literal.then_some(())?;
@@ -840,16 +855,13 @@ fn trivial_affine_local_contract(
         })
 }
 
-fn structural_operation_result_contract(
-    caller: &PsiOptimizationFunction,
-    place: PlaceId,
+/// The exact result and its storage access share one operation classification.
+/// Owning a result row is not sufficient: local storage and view operations
+/// expose loans, while a reference result owns only its permission carrier.
+pub(crate) fn structural_operation_result_contract(
+    operation: &O,
 ) -> Option<StructuralSourceContract<'_>> {
-    caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| {
-            let (result, access) = match &node.operation {
+    let (result, access) = match operation {
                 // Activation-local storage supplies loans, never owned escape.
                 O::EstablishPrimitiveLocal { result, .. } => {
                     (result, terminal_psi::StructuralAccess::MutableBorrow)
@@ -886,15 +898,14 @@ fn structural_operation_result_contract(
                 } => (result, terminal_psi::StructuralAccess::Owned),
                 _ => return None,
             };
-            (result.place == place).then_some(StructuralSourceContract {
-                structural_type: result.structural_type,
-                multiplicity: result.multiplicity,
-                access,
-                qualifications: &result.qualifications,
-                projected_qualifications: &result.projected_qualifications,
-                operation_result: Some(result),
-            })
-        })
+    Some(StructuralSourceContract {
+        structural_type: result.structural_type,
+        multiplicity: result.multiplicity,
+        access,
+        qualifications: &result.qualifications,
+        projected_qualifications: &result.projected_qualifications,
+        operation_result: Some(result),
+    })
 }
 
 pub(crate) fn structural_access_can_supply(

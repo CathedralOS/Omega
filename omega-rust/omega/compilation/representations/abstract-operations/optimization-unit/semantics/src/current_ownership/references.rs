@@ -256,7 +256,9 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
 /// destination does not host a structural field there — the unit's catalog
 /// contract rejects that shape separately.
 fn window_hole(
+    function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    place: PlaceId,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -264,8 +266,18 @@ fn window_hole(
     let Some(field) = field else {
         return path.is_empty().then(Vec::new);
     };
+    let (root, suffix) = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        crate::unit_validation::references::mutable_record_field_destination(
+            function, types, place, path,
+        )?
+    } else {
+        (root, path)
+    };
     let parent =
-        crate::unit_validation::structural_catalog::resolve_structural_path(types, root, path)?;
+        crate::unit_validation::structural_catalog::resolve_structural_path(types, root, suffix)?;
     if matches!(
         path.last(),
         Some(
@@ -292,6 +304,71 @@ fn window_hole(
     let mut hole = path.to_vec();
     hole.push(terminal_psi::StructuralPathSegment::Field(identity));
     Some(hole)
+}
+
+/// A restoration pair does not move its parent permission carrier. It borrows
+/// the referent through the same active carrier as a field store; the exact
+/// carrier-relative hole remains on the operation. Terminal verification owns
+/// restoration-debt replay; this ledger independently preserves loan authority,
+/// parent suspension and the prohibition on displacing contained permissions.
+#[allow(clippy::too_many_arguments)]
+fn check_window_access(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    root: &abstract_operations::StructuralWindowRoot,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let crosses_reference = matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    );
+    if crosses_reference {
+        check_record_field_access(function, types, block, node, live, root.place(), path)?;
+    }
+    let hole = window_hole(
+        function,
+        types,
+        root.place(),
+        root.structural_type(),
+        path,
+        field,
+    )
+    .ok_or_else(|| {
+        invalid(
+            function,
+            block,
+            Some(node),
+            "restoration window does not resolve to a declared field",
+        )
+    })?;
+    let accessed = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+        place: root.place(),
+        path: hole.clone(),
+    });
+    if live.iter().any(|reference| {
+        // Exclude exactly the already-checked parent carrier, not every
+        // permission beneath this root or any original ingress candidate.
+        let parent_carrier = crosses_reference
+            && reference.carrier == root.place()
+            && reference.carrier_path.is_empty();
+        (!parent_carrier
+            && reference.carrier == root.place()
+            && (reference.carrier_path.starts_with(&hole)
+                || hole.starts_with(&reference.carrier_path)))
+            || (!crosses_reference && origins_overlap(&reference.root, &accessed))
+    }) {
+        return Err(invalid(
+            function,
+            block,
+            Some(node),
+            "restoration window accesses suspended or reference-bearing storage",
+        ));
+    }
+    Ok(())
 }
 
 fn check_root_access(
@@ -854,32 +931,33 @@ pub(super) fn apply_operation(
             field,
             ..
         } => {
-            // The Terminal verifier proved the moving subtree carries no live
-            // loan: replay the carrier half by overlapping every live leaf
-            // path beneath this root with the spelled hole. Sibling loans
-            // stay legal — only a carrier inside (or carrying) the vacancy
-            // would point at relocated storage.
-            let hole = window_hole(structural_types, source.structural_type(), path, *field)
-                .ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "restoration window does not resolve to a declared field",
-                    )
-                })?;
-            if live.iter().any(|reference| {
-                reference.carrier == source.place()
-                    && (reference.carrier_path.starts_with(hole.as_slice())
-                        || hole.starts_with(&reference.carrier_path))
-            }) {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "window extraction displaces a live reference leaf",
-                ));
-            }
+            check_window_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                source,
+                path,
+                *field,
+            )?;
+        }
+        O::StoreStructuralField {
+            destination,
+            path,
+            field,
+            ..
+        } => {
+            check_window_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                destination,
+                path,
+                *field,
+            )?;
         }
         O::StructuralLeafCopy { result, source, .. } => {
             // A `&`-leaf copy relocates the source's existing loan

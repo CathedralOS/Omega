@@ -97,6 +97,7 @@ pub(super) fn project_borrowed_window(
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     match &node.operation {
         AbstractOperation::MoveStructuralField {
@@ -107,7 +108,7 @@ pub(super) fn project_borrowed_window(
             field,
         } => {
             let extent = scalar_graph_input::borrowed_windows::moved(
-                optimized, source, path, *field, result, plan,
+                optimized, source, path, *field, result, plan, custody,
             )?;
             Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
                 result: result.clone(),
@@ -136,6 +137,7 @@ pub(super) fn project_borrowed_window(
                 path,
                 *field,
                 plan,
+                custody,
             )?;
             if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
                 return Err(Error::custody());

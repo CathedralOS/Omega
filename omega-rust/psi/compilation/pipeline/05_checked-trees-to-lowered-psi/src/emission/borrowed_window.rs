@@ -13,16 +13,21 @@
 //! borrowed root and the repair writes back into it.
 //!
 //! The ledger fails closed. Every shape the checked facts do not pin exactly
-//! — a root that is not a mutable-borrowed parameter, a whole-root route
-//! beneath anything but an exclusive parameter loan, an indexed/referent
-//! route, a scalar or ambiguous field, a moved type that
+//! — a root without owned or exclusive mutable custody, a whole-root route
+//! beneath anything but an exclusive parameter loan, an unsupported projection,
+//! a scalar or ambiguous field, a moved type that
 //! differs from the declared field, extraction over an open hole, a repair at
 //! another place, a repair value that is not a whole owned value of the hole's
-//! type, an open hole at an exit, or reconverging paths that disagree on the
-//! open holes — is a `LoweringError::UnpinnedBorrowedStorageWindow` naming
+//! type, or an open hole at a sequence exit — is a
+//! `LoweringError::UnpinnedBorrowedStorageWindow` naming
 //! the place. Terminal verification reconstructs the same debt independently
 //! (`terminal-verifier/src/validation/borrowed_windows.rs`); nothing here is
 //! evidence for it.
+//!
+//! A returned record reference retains its carrier place and an explicit
+//! `Referent` crossing in both the emitted path and ledger key. Geometry walks
+//! the referent; custody never changes to ownership of the referent. The same
+//! declaration walk serves scalar stores and structural restoration windows.
 //!
 //! A whole-root route under an exclusive `&mut` parameter loan is a root
 //! window: `MoveStructuralField`/`StoreStructuralField` with no field and an
@@ -54,9 +59,8 @@ use checked_trees::{
 use language_semantics::Multiplicity;
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
-/// One open restoration debt: the exact hole beneath a mutable-borrowed
-/// parameter root and the structural result place now holding the removed
-/// value.
+/// One open restoration debt: the exact hole beneath an owned or exclusive
+/// storage root. The removed value retains separate ordinary result custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpenBorrowedWindow {
     pub(crate) source: PlaceId,
@@ -64,27 +68,12 @@ pub(crate) struct OpenBorrowedWindow {
     /// The vacated field, or `None` for a root window's whole referent.
     pub(crate) field: Option<StructuralFieldId>,
     pub(crate) hole_type: StructuralTypeId,
-    pub(crate) moved: PlaceId,
     /// The checked route the authored statement spelled, leaf included: hole
     /// identity is compared at this coordinate — Terminal runtime-element
     /// segments evaluate fresh `ValueId`s per operation, so equal places
     /// share the checked path, not the emitted one.
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     spelling: String,
-}
-
-impl OpenBorrowedWindow {
-    /// Frontier identity of the hole: the exact place (root and spelled
-    /// route) plus its declared type. `moved` is the path-local result
-    /// binding of that arm's extraction, so it is excluded — reconverging
-    /// arms may each have moved the same field under different bindings and
-    /// still carry one agreeing hole.
-    fn same_hole(&self, other: &Self) -> bool {
-        self.source == other.source
-            && self.checked_path == other.checked_path
-            && self.field == other.field
-            && self.hole_type == other.hole_type
-    }
 }
 
 /// The restoring value: an already-owned whole structural place of the hole's
@@ -117,12 +106,13 @@ struct ResolvedWindowPlace {
 }
 
 impl BorrowedWindowLedger {
+    #[cfg(test)]
     pub(crate) fn open_windows(&self) -> &[OpenBorrowedWindow] {
         &self.open
     }
 
     /// Emit `MoveStructuralField` for `moved`, the checked owned place a
-    /// consuming move takes out of a mutable-borrowed parameter, binding the
+    /// consuming move takes out of exclusive storage, binding the
     /// removed value as `result`. Returns the structural result place.
     pub(crate) fn emit_move(
         &mut self,
@@ -209,7 +199,6 @@ impl BorrowedWindowLedger {
             path,
             field: place.field,
             hole_type: place.hole_type,
-            moved: moved_place,
             checked_path: place.checked_path,
             spelling: place.spelling,
         });
@@ -311,43 +300,6 @@ impl BorrowedWindowLedger {
             )),
         }
     }
-
-    /// Reconverging paths must agree on the exact open holes; one repaired
-    /// path does not repair another. The frontier is hole identity — root,
-    /// spelled route, declared type — so sibling paths that each opened the
-    /// same place agree even though their `moved` result bindings are
-    /// arm-local: on the joined edge the shared hole is one open window,
-    /// and `emit_store` never consults `moved` when reseating it.
-    pub(crate) fn require_same_frontier(&self, other: &Self) -> Result<(), LoweringError> {
-        let disagreeing = self
-            .open
-            .iter()
-            .find(|absent| !other.open.iter().any(|open| open.same_hole(absent)))
-            .or_else(|| {
-                other
-                    .open
-                    .iter()
-                    .find(|absent| !self.open.iter().any(|open| open.same_hole(absent)))
-            });
-        match disagreeing {
-            None => Ok(()),
-            Some(absent) => Err(unpinned(
-                &absent.spelling,
-                "reconverging paths disagree on the open window",
-            )),
-        }
-    }
-
-    /// The ledger a reconverged block continues with: the incoming
-    /// frontiers must agree on the exact open holes, so the shared holes
-    /// collapse to one open window each. Frontier identity excludes the
-    /// arm-local `moved` binding, and `emit_store` never consults `moved`
-    /// when reseating, so the joined frontier keeps this side's rows
-    /// verbatim. A driver joining more than two edges folds this pairwise.
-    pub(crate) fn joined(&self, other: &Self) -> Result<Self, LoweringError> {
-        self.require_same_frontier(other)?;
-        Ok(self.clone())
-    }
 }
 
 fn unpinned(place: &str, reason: &'static str) -> LoweringError {
@@ -401,9 +353,11 @@ fn resolve_window_place(
     let spelling = spell_place(plan, parameters);
     let (source, root_type) = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            // Plan coordinates index the retained structural roster. A
+            // composed declaration's `position` belongs to source readers
+            // and may include intervening scalar formals.
             let parameter = parameters
-                .iter()
-                .find(|parameter| parameter.position == parameter_index)
+                .get(parameter_index as usize)
                 .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
             if parameter.access != StructuralAccess::MutableBorrow {
                 return Err(unpinned(
@@ -427,50 +381,21 @@ fn resolve_window_place(
             (parameter.place, parameter.structural_type)
         }
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            // An owned local's home is storage this machine owns outright:
-            // the window extracts and restores through the live place the
-            // establishment produced, exactly like a borrowed root's hole.
-            let (_, argument) = locals
-                .iter()
-                .find(|(candidate, _)| *candidate == symbol)
-                .ok_or_else(|| {
-                    unpinned(
-                        &spelling,
-                        "the local root is not an established structural local",
-                    )
-                })?;
-            if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
-                return Err(unpinned(
-                    &spelling,
-                    "the local root is not a whole owned home",
-                ));
-            }
-            let produced = operations
-                .operations
-                .iter()
-                .filter_map(|operation| operation.result.structural())
-                .find(|result| result.place == argument.place)
-                .ok_or_else(|| unpinned(&spelling, "the local root has no produced place"))?;
-            if !matches!(
-                produced.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !produced.qualifications.is_empty()
-                || !produced.projected_qualifications.is_empty()
-                || !produced.claims.is_empty()
-            {
-                return Err(unpinned(
-                    &spelling,
-                    "the local root carries qualifications or claims the window does not \
-                     restore",
-                ));
-            }
-            (argument.place, produced.structural_type)
+            // A window uses the same exclusive destination as an ordinary
+            // field store. Referent traversal below retains the loan carrier;
+            // accepting a local never substitutes its payload for its storage.
+            super::store_destination::unqualified_local_store_root(
+                symbol, locals, operations,
+            ).map_err(|_| unpinned(
+                &spelling,
+                "the local root is not an established structural local with unqualified exclusive custody",
+            ))?
         }
         _ => {
             return Err(unpinned(
                 &spelling,
-                "borrowed-storage windows open only beneath a mutable-borrowed parameter or \
-                 an owned structural local",
+                "borrowed-storage windows require a mutable-borrowed parameter or an \
+                 established owned or exclusive structural local",
             ));
         }
     };
@@ -541,10 +466,17 @@ fn resolve_window_place(
             "the checked place type differs from the declared leaf type",
         ));
     }
+    let mut checked_path = plan.path.clone();
+    if matches!(
+        steps.first(),
+        Some(ProjectionStep::Static(StructuralPathSegment::Referent))
+    ) {
+        checked_path.insert(0, CheckedUnitStructuralPathSegment::Referent);
+    }
     Ok(ResolvedWindowPlace {
         source,
         steps,
-        checked_path: plan.path.clone(),
+        checked_path,
         field,
         hole_type,
         spelling,
@@ -559,10 +491,7 @@ fn spell_place(
 ) -> String {
     let mut spelling = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            match parameters
-                .iter()
-                .find(|parameter| parameter.position == parameter_index)
-            {
+            match parameters.get(parameter_index as usize) {
                 Some(parameter) if parameter.is_self => "self".to_owned(),
                 _ => format!("parameter#{parameter_index}"),
             }
@@ -1475,83 +1404,6 @@ mod tests {
         );
         assert_eq!(emission.ledger.open_windows().len(), 1);
         assert_eq!(emission.operations.operations.len(), 1);
-    }
-
-    #[test]
-    fn a_joined_frontier_collapses_arm_local_bindings_to_one_open_window() {
-        let receiver = envelope_receiver();
-        let mut left_arm = Emission::new();
-        left_arm
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open on the first path");
-        let mut right_arm = Emission::new();
-        right_arm.next_place = 3;
-        right_arm
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open on the second path");
-
-        let mut joined = left_arm
-            .ledger
-            .joined(&right_arm.ledger)
-            .expect("same hole opened on both paths joins");
-        assert_eq!(joined.open_windows().len(), 1);
-
-        // The hole stays open on the joined path: extracting it again
-        // still rejects, and reseating names the exact place — neither
-        // arm-local `moved` binding is consulted.
-        let mut extraction = joined.clone();
-        // The overlap refusal fires before the place counter is read.
-        let mut next_place = 8;
-        assert_unpinned(
-            WindowHarness::new()
-                .emit_move(
-                    &mut extraction,
-                    &checked_place(&fields(&["left"]), CELL),
-                    &cell_binding(),
-                    &receiver,
-                    &mut next_place,
-                    &mut OperationBuffer::new(0),
-                )
-                .unwrap_err(),
-            "self.left",
-            "already absent",
-        );
-        let moved = joined.open_windows()[0].moved;
-        WindowHarness::new()
-            .emit_store(
-                &mut joined,
-                &checked_place(&fields(&["left"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: moved,
-                    structural_type: cell(),
-                },
-                &receiver,
-                &mut OperationBuffer::new(0),
-            )
-            .expect("the joined frontier's shared hole reseats");
-        joined
-            .require_closed()
-            .expect("closed once the shared hole is reseated");
-    }
-
-    #[test]
-    fn a_joined_frontier_rejects_when_paths_disagree() {
-        let receiver = envelope_receiver();
-        let mut opened = Emission::new();
-        opened
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open");
-        let closed = Emission::new();
-        assert_unpinned(
-            opened.ledger.joined(&closed.ledger).unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
-        assert_unpinned(
-            closed.ledger.joined(&opened.ledger).unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
     }
 
     #[test]

@@ -96,6 +96,22 @@ pub(super) fn copy(
         input
     };
 
+    let input = if let abstract_operations::StructuralCopyPath::Ordinary(path) = path
+        && matches!(
+            path.first(),
+            Some(terminal_psi::StructuralPathSegment::Referent)
+        ) {
+        crate::selection::reference_input::mutable_projection(function, *source, path)
+            .ok_or_else(invalid)?;
+        Some(super::reference::load(
+            replay,
+            row,
+            *source,
+            input.ok_or_else(invalid)?,
+        )?)
+    } else {
+        input
+    };
     let Some(input) = input else {
         check_fragments(
             function,
@@ -147,6 +163,7 @@ pub(super) fn reseat(
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::StoreStructuralField {
         destination,
+        path,
         value,
         byte_offset,
         shape,
@@ -194,6 +211,26 @@ pub(super) fn reseat(
             .ok_or_else(|| invalid())
     };
     let root = pointer_of(destination.place())?;
+    let root = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } =
+            destination
+        else {
+            return Err(invalid());
+        };
+        if crate::selection::aggregate_result_input::home(source, result.place)
+            != Some((*producer, result))
+        {
+            return Err(invalid());
+        }
+        crate::selection::reference_input::mutable_projection(source, result.place, path)
+            .ok_or_else(invalid)?;
+        super::reference::load(replay, row, result.place, root)?
+    } else {
+        root
+    };
     let root = super::runtime_address::scale(
         replay,
         row,

@@ -58,13 +58,22 @@ pub(super) fn move_field(
     else {
         return Err(invalid());
     };
+    let referent = window_referent(function, live, types, source, path)?;
     if !window_root(function, prepared, live, source)
         || !root_window_loan(source, *field)
         || super::references::contains_reference(types, result.structural_type)
     {
         return Err(invalid());
     }
-    let path = field_path(types, source.structural_type(), path, *field).ok_or_else(invalid)?;
+    let (geometry_type, geometry_path) = referent
+        .as_ref()
+        .map_or((source.structural_type(), path.as_slice()), |referent| {
+            (referent.referent, referent.path.as_slice())
+        });
+    let mut path = field_path(types, geometry_type, geometry_path, *field).ok_or_else(invalid)?;
+    if referent.is_some() {
+        path.insert(0, StructuralPathSegment::Referent);
+    }
     super::leaf_copy::copy_extent(
         *psi_operation,
         result,
@@ -99,6 +108,7 @@ pub(super) fn store_field(
     else {
         return Err(invalid());
     };
+    let referent = window_referent(function, live, types, destination, path)?;
     if !window_root(function, prepared, live, destination)
         || !root_window_loan(destination, *field)
         || value.access != StructuralAccess::Owned
@@ -106,11 +116,14 @@ pub(super) fn store_field(
     {
         return Err(invalid());
     }
-    let full_path =
-        field_path(types, destination.structural_type(), path, *field).ok_or_else(invalid)?;
+    let (geometry_type, geometry_path) = referent.as_ref().map_or(
+        (destination.structural_type(), path.as_slice()),
+        |referent| (referent.referent, referent.path.as_slice()),
+    );
+    let full_path = field_path(types, geometry_type, geometry_path, *field).ok_or_else(invalid)?;
     let (field_type, shape, byte_offset, indices) =
         crate::lowering::structural_layout::runtime_projection(
-            destination.structural_type(),
+            geometry_type,
             &full_path,
             types,
             &mut BTreeMap::new(),
@@ -183,6 +196,31 @@ pub(super) fn store_field(
     Ok(())
 }
 
+/// Rejoin a returned carrier's exact live producer before using referent
+/// geometry. This peels only the explicit boundary; it grants no root window.
+pub(super) fn window_referent(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    root: &abstract_operations::StructuralWindowRoot,
+    path: &[StructuralPathSegment],
+) -> Result<Option<super::references::WritableReferentDestination>, LoweringError> {
+    if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
+        return Ok(None);
+    }
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root else {
+        return Err(invalid());
+    };
+    let referent =
+        super::references::writable_referent_destination(function, live, types, result.place, path)
+            .ok_or_else(invalid)?;
+    if referent.producer != *producer || referent.result != *result {
+        return Err(invalid());
+    }
+    Ok(Some(referent))
+}
+
 /// A root window (`field: None`) replaces a loan's whole referent, so its
 /// root must be a borrowed parameter; an owned home's whole value never
 /// moves through a window.
@@ -222,11 +260,11 @@ fn window_root(
         // An owned local home's authority is its live home row: the producer
         // completed it under clean transferable custody and nothing else may
         // have claimed it since.
-        abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => live
+        abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => live
             .structural_homes
             .get(&result.place)
             .is_some_and(|home| {
-                home.structural_type() == result.structural_type
+                home.operation_result() == Some((*producer, result))
                     && matches!(
                         home.multiplicity(),
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine

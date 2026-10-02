@@ -104,9 +104,10 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
     };
     let position = position?;
     let position = u32::try_from(position).ok()?;
-    let parameter = structural_parameters
+    let (parameter_index, parameter) = structural_parameters
         .iter()
-        .find(|parameter| parameter.position == position)?;
+        .enumerate()
+        .find(|(_, parameter)| parameter.position == position)?;
     if parameter.access != CheckedStructuralAccess::MutableBorrow
         || parameter.multiplicity == Multiplicity::Linear
         || !parameter.qualifications.is_empty()
@@ -150,7 +151,10 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    Some((position, path))
+    // Checked argument sources use the retained structural lane, not the
+    // authored parameter list containing scalar and erased formals. Keep the
+    // same dense coordinate in the window ledger and both emitted plans.
+    Some((u32::try_from(parameter_index).ok()?, path))
 }
 
 /// Rebase a place written through a reference-typed local onto the referent
