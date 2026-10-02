@@ -164,6 +164,9 @@ execution and native exit/output. A moved refusal is still unfinished work.
 
 - **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
   The receiver population is 1637 declarations in 259 files, down from 3154.
+  137 of those are trait requirements and their satisfiers, blocked on
+  OWNER_QUESTIONS Q4 `trait-requirement-subject-binding` rather than on any
+  compiler gap; 1448 are ordinary declarations.
   `tests/omega/packages` is at zero, `tests/omega/fail` has 85 left in 39 files
   (7 of them pinning the receiver rejection itself, which retires with the
   syntax), and what remains is 737 in corpus `pass/run`, 529 in samples and 271
