@@ -1,11 +1,11 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 134 and row schema version 92. This file
+The canonical review schema is version 138 and row schema version 96. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
 [contract/bundle direction](../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
-rows already exist in version 134. The source/codec changes and exact-version
+rows already exist in version 138. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
@@ -41,14 +41,14 @@ policy baseline below includes this component; the manager retains only exact
 risk-bearing rows beside source pins and accepted decisions. This component does not change the
 full-review schema or any compiler validator.
 
-`OMEGA-PACKAGE-POLICY` version 7 composes the full inert package baseline under
+`OMEGA-PACKAGE-POLICY` version 9 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
 (traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
 dangerous capabilities, slack, semantic dependencies, and D29 applications
 (symbolic demands, closed realizations). Child components share the enclosing
 writer/reader directly; they do not embed component envelopes or reset budgets.
-The callable component is version 6. After `supply`, each callable retains an
+The callable component is version 8. After `supply`, each callable retains an
 optional `spelling` using the closed operator-token tags. The same declaration
 field is present in full-review callable rows. It records the declaration's
 public token binding independently of its named-call identity and of selected
@@ -132,7 +132,7 @@ canonical scratch; verification does not allocate another expanded text buffer.
 This adds no proof, acceptance, or replay fields and changes no binary schema.
 
 Complete normalized audit rows have their own version 2, independent of
-legacy review row version 92. Binary rows start with
+legacy review row version 96. Binary rows start with
 `OMEGA-PACKAGE-POLICY-ROW` and a zero byte; named text starts with
 `omega_package_policy_row_text 1` and LF. Each row binds its row and baseline
 schemas, package, exact target, kind, initial/update decision classification,
@@ -229,6 +229,36 @@ Crash predicates are ceiling guards, not established requires/ensures facts.
 Their projection checks the freshly rederived crash capsule, exact declaration
 selections and recursive operands without requesting proof-place dependency rows
 that the checked producer intentionally does not emit for guards.
+
+Structural runtime-requirement scalars retain wrapping, saturating and trapping
+conversions under distinct tags 11, 12 and 13, each carrying the target primitive
+type and recursive operand. Tag 14 retains a representation view with that same
+field order, without treating bit reinterpretation as numeric conversion. The
+operand retains its source carrier. Neither capture nor recovery proves that a
+trapping expression returns normally.
+
+Tag 15 carries a collection's entry-parameter ordinal and structural path; its
+length is live extent, not capacity (elements for element views, bytes for byte
+views/fields). Tag 16 carries the entry ordinal, collection path, first recursive
+index, ordered recursive inner indices, element path and primitive result type.
+Each index retains its own bounds obligation; selectors are not flattened into
+an offset. These forms use the same recursive scalar/Boolean grammar in full
+review and callable policy. Compiler-local storage handles cannot be encoded as
+entry parameters. Callable validation recursively checks scopes within all
+selectors, including runtime indexes inside structural paths, and rejects private
+locals and assignment-only indexes. Recovery keeps the existing shared depth,
+element and allocation ceilings and remains inert; fresh checked-source
+reconstruction is still required. This vocabulary versions review 138, rows 96,
+callable policy 8 and complete baseline 9. Other policy components, text grammar,
+normalized-row framing and ledger versions are unchanged.
+
+This is the evidence vocabulary, not a claim that every authored requirement
+already reaches it. Stage 04's `EntryOperands::scalar` currently declines
+indexed reads, nonempty-path lengths, policy casts and representation views
+when normalizing ordinary expression requirements. Whole-view entry lengths
+cross that boundary; membership-derived requirements have a separate checked
+subject producer. `CRASH-CONTRACT` retains the general entry-normalization
+work. Package capture does not synthesize an omitted requirement tree.
 
 Outcome-specific guarantees retain exact result-data/case identity and canonical
 fact joined to their checked guarded owner. Ordering is not meaning, but moving

@@ -30,7 +30,7 @@ pub use recovery::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
 };
 
-pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 8;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = 9;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 4;
@@ -54,7 +54,7 @@ pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVID
 pub const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 4;
 pub(crate) const TERMINAL_PERMISSION_POLICY_MAGIC: &[u8] = b"OMEGA-TERMINAL-PERMISSION-POLICY\0";
 
-pub const PACKAGE_CALLABLE_POLICY_VERSION: u16 = 7;
+pub const PACKAGE_CALLABLE_POLICY_VERSION: u16 = 8;
 pub(crate) const CALLABLE_POLICY_MAGIC: &[u8] = b"OMEGA-CALLABLE-POLICY\0";
 
 pub use encode::{

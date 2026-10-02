@@ -71,6 +71,34 @@ pub(in crate::encoding::recovery) fn scalar_expression(
             8 => Expression::Boolean(reader.boxed(boolean_expression)?),
             9 => Expression::Float32Literal(reader.u32()?),
             10 => Expression::Float64Literal(reader.u64()?),
+            11 => Expression::IntegerWrappingCast {
+                primitive_type: primitive_type(reader)?,
+                operand: reader.boxed(scalar_expression)?,
+            },
+            12 => Expression::IntegerSaturatingCast {
+                primitive_type: primitive_type(reader)?,
+                operand: reader.boxed(scalar_expression)?,
+            },
+            13 => Expression::IntegerTrappingCast {
+                primitive_type: primitive_type(reader)?,
+                operand: reader.boxed(scalar_expression)?,
+            },
+            14 => Expression::RepresentationView {
+                primitive_type: primitive_type(reader)?,
+                operand: reader.boxed(scalar_expression)?,
+            },
+            15 => Expression::StructuralParameterByteLength {
+                parameter_position: reader.u32()?,
+                path: structural_path(reader)?,
+            },
+            16 => Expression::StructuralParameterIndexedRead {
+                parameter_position: reader.u32()?,
+                path: structural_path(reader)?,
+                index: reader.boxed(scalar_expression)?,
+                inner_indexes: reader.sequence(1, scalar_expression)?,
+                element_path: structural_path(reader)?,
+                primitive_type: primitive_type(reader)?,
+            },
             _ => return Err(Error::InvalidTag),
         })
     })
