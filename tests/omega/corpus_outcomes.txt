@@ -1526,6 +1526,7 @@ pass/control_flow/composite_state_parameter checked 1293ms @2d8ed253669f
 pass/control_flow/conditional_unit_completion_exit checked 1498ms @2d8ed253669f
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 303ms @2d8ed253669f
 pass/control_flow/edge_call_nested_structural_operand_exit checked 779ms @ff183e7f95fb+wt
+pass/control_flow/element_view_enum_equality_exit checked 1671ms @27950676fa31+wt
 pass/control_flow/explicit_state_value_frontier checked 306ms @2d8ed253669f
 pass/control_flow/field_subject_named_arm_chain checked 1463ms @2d8ed253669f
 pass/control_flow/field_view_transfer_exit checked 1421ms @2d8ed253669f

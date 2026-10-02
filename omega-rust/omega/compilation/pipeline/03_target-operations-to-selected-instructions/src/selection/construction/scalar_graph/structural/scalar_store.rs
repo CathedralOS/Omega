@@ -115,49 +115,18 @@ pub(super) fn emit(
     if row.result.is_some() || !declared {
         return Err(invalid());
     }
-    let view_home = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == destination.place())
-        .copied();
-    let destination_is_view = view_home.is_some()
-        || crate::selection::established_view_input::element_view_type(source, destination.place())
-            .is_some();
     let pointer = if reference_destination {
         let home = super::place_pointer(builder, row, destination.place(), 0)?;
         super::reference::load(builder, row, destination.place(), home)?
-    } else if destination_is_view {
-        // A view destination stores through the loan's backing pointer; an
-        // established view's register names its descriptor, never the
-        // referent, so the store cannot land on the descriptor directly.
-        let backing =
-            super::element_views::element_backing_pointer(builder, row, destination.place())?;
-        if let Some(view) = view_home {
-            let base =
-                crate::selection::construction::scalar_graph::structural::transport_register(
-                    builder,
-                    destination.place(),
-                    byte_offset,
-                )?;
-            builder.emit(
-                SelectedInstructionKind::ByteViewAddress,
-                builder.constraints.keys.add_i64,
-                &[backing, view.byte_offset, base],
-                crate::selection::construction::scalar_graph::structural::provenance(row),
-            )?;
-            base
-        } else {
-            backing
-        }
     } else {
-        builder
-            .transport
-            .pointers
-            .iter()
-            .find(|(place, _)| *place == destination.place())
-            .map(|(_, register)| *register)
-            .ok_or_else(|| invalid())?
+        super::runtime_address::projection_base(
+            source,
+            builder,
+            row,
+            destination.place(),
+            byte_offset,
+        )?
+        .ok_or_else(|| invalid())?
     };
     let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;
     if scalar != value.scalar_type {

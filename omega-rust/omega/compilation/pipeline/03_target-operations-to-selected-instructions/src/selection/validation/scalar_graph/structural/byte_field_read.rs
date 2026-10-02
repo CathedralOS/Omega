@@ -48,13 +48,14 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(replay.invalid());
     }
-    let root = super::primitive_locals::backing_pointer(
+    let root = super::runtime_address::projection_base(
         function,
         replay,
         row,
         source.place,
         payload_offset,
-    )?;
+    )?
+    .ok_or_else(|| replay.invalid())?;
     let root =
         super::runtime_address::scale(replay, row, source.place, payload_offset, root, indices)?;
     let payload = result(replay, source.place, payload_offset)?;

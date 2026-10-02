@@ -103,7 +103,8 @@ pub(in crate::selection) fn read(
     let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
         .ok_or_else(|| replay.invalid())?;
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let pointer = backing_pointer(source, replay, row, place, byte_offset)?;
+    let pointer = super::runtime_address::projection_base(source, replay, row, place, byte_offset)?
+        .ok_or_else(|| replay.invalid())?;
     let pointer = if matches!(&row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
         if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
@@ -211,48 +212,4 @@ pub(super) fn normalize_signed_load(
         },
     )?;
     Ok(normalized)
-}
-
-pub(super) fn backing_pointer(
-    source: &LegalizedScalarFunction,
-    replay: &mut Replay<'_>,
-    row: &LegalizedScalarInstruction,
-    place: semantic_vocabulary::PlaceId,
-    byte_offset: u32,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let view_home = replay
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == place)
-        .copied();
-    Ok(
-        if view_home.is_some()
-            || crate::selection::established_view_input::element_view_type(source, place).is_some()
-        {
-            // The construction emits the descriptor load (or the home's backing
-            // register) ahead of the read; replay checks the same sequence.
-            let backing = super::element_views::element_backing_pointer(replay, row, place)?;
-            if let Some(view) = view_home {
-                let base = super::result(replay, place, byte_offset)?;
-                replay.check_instruction(
-                    SelectedInstructionKind::ByteViewAddress,
-                    replay.constraints.keys.add_i64,
-                    &[backing, view.byte_offset, base],
-                    &super::provenance(row),
-                )?;
-                base
-            } else {
-                backing
-            }
-        } else {
-            replay
-                .transport
-                .pointers
-                .iter()
-                .find(|(stored, _)| *stored == place)
-                .map(|(_, pointer)| *pointer)
-                .ok_or_else(|| replay.invalid())?
-        },
-    )
 }

@@ -1696,16 +1696,19 @@ the complete product bar; focused successes below do not establish that baseline
   prints it correctly. The help/exit route also processes input but omits the
   description. CLI `--both` compares exit status, not stdout, and native
   package production selects `main.omg` even when given an alternate filename.
-  Trace the value through `MazeBuilder::carve_room`, `RoomLookup::find_room`,
-  `RoomFormatter::write_room_info` and `GameView::render_room` without changing
-  the authored game. The diagnostic exposed indexed-field replacement being
-  mistaken for whole-element replacement; one explicit storage projection now
-  serves the receiving stages, and `borrows/indexed_record_field_replacement_exit`
-  executes 70 alongside returned-reference and whole-referent controls.
-  The canonical diagnostic with the actual Room/Level/Lookup/Formatter modules
-  now runs: the stored description prints correctly, but lookup and formatted
-  output are blank (macOS ARM64, `cc281eba3ea`, 847 seconds). Trace lookup's
-  branch selection and owned record transfer before investigating formatting.
+  The reduced lookup now prints the authored description at storage, lookup and
+  formatting, and preserves its sentinel (macOS ARM64, `27950676fa31` plus the
+  projected-observation repair). Enum membership had indexed the view descriptor
+  instead of its backing storage. Case tags, scalar/byte fields and projected
+  copies now resolve that storage through one address owner, with independent
+  replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
+  and derived views. The unchanged full-game rerun is still pending; do not
+  substitute this reduced program's result for application acceptance.
+  Indexed-field replacement retains its explicit complete projection, distinct
+  from whole-element replacement. A reference crossing alone is not a child
+  window: whole-root replacement still requires the original exclusive parameter
+  loan. Keep `borrows/indexed_record_field_replacement_exit` and returned-reference
+  field/whole-referent controls alongside the view-membership regression.
   Require both full-game commands to print the authored description and retain
   their exit/input behavior. Allocation retains constrained-neighbor placement,
   prepared copy-affinity incidence and one full recovery admission replay in

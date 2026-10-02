@@ -66,33 +66,8 @@ pub(super) fn copy(
     // Whole-view copies still copy the descriptor itself. Derived views keep
     // their backing offset before the selected element's own displacement.
     let input = if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty())
-        && (builder
-            .transport
-            .element_views
-            .iter()
-            .any(|view| view.place == *source)
-            || crate::selection::established_view_input::element_view_type(function, *source)
-                .is_some())
     {
-        let backing = super::element_views::element_backing_pointer(builder, row, *source)?;
-        let view = builder
-            .transport
-            .element_views
-            .iter()
-            .find(|view| view.place == *source)
-            .copied();
-        if let Some(view) = view {
-            let base = transport_register(builder, *source, *byte_offset)?;
-            builder.emit(
-                SelectedInstructionKind::ByteViewAddress,
-                builder.constraints.keys.add_i64,
-                &[backing, view.byte_offset, base],
-                provenance(row),
-            )?;
-            Some(base)
-        } else {
-            Some(backing)
-        }
+        super::runtime_address::projection_base(function, builder, row, *source, *byte_offset)?
     } else {
         input
     };

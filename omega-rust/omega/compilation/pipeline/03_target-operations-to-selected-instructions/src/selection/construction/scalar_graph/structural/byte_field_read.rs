@@ -48,13 +48,14 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(invalid());
     }
-    let root = super::primitive_locals::backing_pointer(
+    let root = super::runtime_address::projection_base(
         function,
         builder,
         row,
         source.place,
         payload_offset,
-    )?;
+    )?
+    .ok_or_else(|| invalid())?;
     let root =
         super::runtime_address::scale(builder, row, source.place, payload_offset, root, indices)?;
     let payload = transport_register(builder, source.place, payload_offset)?;
