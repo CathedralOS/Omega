@@ -195,8 +195,26 @@ execution and native exit/output. A moved refusal is still unfinished work.
   and not the spelling. That is the same correction
   `psi: cleanup takes an exclusive loan of its data, however spelled` made for
   cleanup machines.
-  Next step is to instrument the local-construction phase boundary rather than
-  the arm string, then make those two routes shape-based.
+  The lane is now identified. `result_arguments/mod.rs` dispatches a
+  reference-carrier local to `reference::argument` -- `selected` in
+  `returned_record_method_receiver_exit` is a `&mut Holder` local produced by
+  `pick`, and statement 3 is `selected.replace()`, written statically as
+  `Holder::replace(selected)`. That lane answers `None` for the static
+  spelling, and two sites inside it were found by probing, not inferred:
+  its retained-parameter helper selects the callee's data parameter by
+  filtering `state_parameters` to `is_self` and requiring exactly one, which
+  yields nothing when there is no receiver (selecting by authored position
+  instead was tried and is necessary but not sufficient, so it is not landed);
+  and `reference::argument` itself exits at
+  `base_type_identity(program, referent, &[])? != target_identity`, the
+  identity comparison that the receiver form satisfies through
+  `attached_data_identity`.
+  Next step is that identity comparison: establish that the static spelling's
+  `base_type_identity` of `&mut Holder`'s referent and the receiver spelling's
+  `attached_data_identity` name one identity, then make the parameter selection
+  positional in the same change so the lane answers for both spellings. Both
+  are needed; neither alone unblocks a fixture, which is why neither is landed
+  on its own.
   Acceptance: the four fixtures build and meet their native oracles in the
   static spelling; an owned handoff that is not of the machine's own data still
   classifies as `Transfer`, with a fixture naming that.
