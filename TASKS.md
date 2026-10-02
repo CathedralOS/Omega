@@ -1401,15 +1401,27 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `745e4632e4`,
-  macOS ARM64, source checking and local package review succeed; closed stdin
-  exits 200 during Terminal production with `structural case field store local
-  root is not a whole owned home`. The next dependency is the stage 05 field
-  store/window path: `generation/maze_builder.omg::carve_room` writes through
-  the mutable reference returned by `level.room_mut(cell)`. Carry that exact
-  reference's referent path and live loan through window extraction, reseating,
-  independent verification and native pointer-based addressing; do not treat
-  its carrier as an owned record or bypass field validity.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `0cf22eb219d`
+  (main `e8ed051cf62` plus the store-carrier check and the sample's spelled
+  roll conversions), macOS ARM64, source checking and local package review
+  succeed; `sample_native_gate.py --filter games/dungeon_crawler_cli` reports
+  0/1 at `byte value parameter has no ordinary read authority`.
+  `RoomLookup::apply_room`'s `out_room.label = room.label` reads a byte field
+  of a by-value (Owned) formal: stage 05
+  `emission/structural_byte_sequence_store.rs` `ValueEmitter::field_source`,
+  Omega 02 `lowering/control_flow/primitive_storage.rs` `readable_byte_field`
+  and Omega 03 legalization (`scalar_graph_input/target/unit.rs`) each admit
+  only borrowed formals or owned homes, so all three must carry the owned
+  formal together. After that, `generation/maze_builder.omg::carve_room`'s
+  `room.cell = cell` through the `&mut Room` that `level.room_mut(cell)` returns
+  stops at `structural case field store local root is not a whole owned home`:
+  a sum-field replacement opens a `MoveStructuralField`/`StoreStructuralField`
+  restoration window, which
+  [ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration)
+  and trusted Terminal verification (`borrowed_windows.rs`) root only at
+  mutable-borrowed machine or block parameters. Replacing a sum field through a
+  returned reference's `Referent` crossing therefore needs a trusted Terminal
+  rule; do not treat its carrier as an owned record or bypass field validity.
   Owned byte-field reads now retain declaration custody through state transfer,
   byte construction and native publication. Ordinary direct calls resolve each
   operand independently of sibling storage or result kind; the former whole-call
@@ -4276,7 +4288,18 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   contracts and realization without erasing Saturating/Trapping to silence the
   diagnostic. Preserve two-rounding multiply-then-add, saturation and trap oracles.
 
-  Acceptance: fail fixtures `tests/omega/fail/arithmetic/implicit_store_{conversion,widening}_rejected`
+  Stores now take an unranged call result's carrier from its result type
+  (`proof_contracts/arithmetic_domains/assignments.rs` `stored_value_carrier`),
+  so `enemy.max_health = 6 + self.rng.range(random, 3)` into an
+  `i32 in Wrapping` field rejects. Binary operands still do not: operand
+  analysis keeps the first typed operand's carrier and treats a plain call
+  result's policy as neutral, so `i32 in Wrapping` plus a `u32` call result, and
+  `u32 in Wrapping` plus an Exact `u32` call result, both check;
+  `samples/cli/games/dungeon_crawler_cli` now spells both. Reject that mixing
+  at operators using the same result-type carrier, without giving range
+  analysis full-range call primitives.
+
+  Acceptance: fail fixtures `tests/omega/fail/arithmetic/implicit_store_{conversion,widening,call_result_conversion}_rejected`
   retain actionable checking errors; explicit exact casts, Wrapping whole-array
   literals and `tests/omega/pass/slices/runtime_saturating_array_element_guard_exit`
   retain their valid behavior. Migrated negative fixtures

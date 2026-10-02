@@ -1,0 +1,22 @@
+// The call-result face of fail/arithmetic/implicit_store_conversion_rejected.
+//
+// `Dice::roll` declares a plain `-> u32` with no range and no `ensures`, so
+// range analysis leaves its result without an analysed carrier, and the
+// anonymous `6` lands on that call's type: `6 + main.dice.roll()` is a `u32`.
+// Storing it into the `i32 in Wrapping` field changes both carrier and policy
+// silently, exactly like storing a `u32` field there. A call result keeps
+// its declared type; the conversion must be spelled (a named narrowing
+// conversion, or an exact `as` whose representability is proved).
+use omega::language::std::console;
+use omega::language::core::binding;
+data Dice { state: u32; }
+data Main { console: Binding<Console>; dice: Dice; health: i32 in Wrapping; }
+machine Dice::roll(&mut self) -> u32 {
+    self.state = self.state / 2 + 1;
+    transition { _ -> (self.state) }
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.health = 6 + main.dice.roll();
+    let o: i32 = 70;
+    main.console.exit_process(o);
+}

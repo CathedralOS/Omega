@@ -225,6 +225,14 @@ pub(super) fn validate<'a, 'p>(
     // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
     // already erred (its own overflow, a type error) is not re-flagged.
     if diagnostics.len() == before {
+        let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+            program,
+            machine,
+            current_state,
+            assignment.value,
+            source_primitive,
+            source_domain,
+        );
         arithmetic_domains::check_narrowing_assignment(
             assignment_target_primitive,
             declared_target_domain,

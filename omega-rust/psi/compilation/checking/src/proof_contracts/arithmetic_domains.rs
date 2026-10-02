@@ -54,7 +54,7 @@ mod value_environment;
 
 pub(crate) use assignments::{
     check_narrowing_assignment, check_value_narrowing, enforced_declared_range, record_assignment,
-    record_unsigned_literal_assignment,
+    record_unsigned_literal_assignment, stored_value_carrier,
 };
 pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;

@@ -51,6 +51,8 @@ fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 124ms expected @e8ed051cf626+wt
+	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/implicit_store_conversion_rejected rejected 216ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/implicit_store_widening_rejected rejected 277ms expected @2d8ed253669f
