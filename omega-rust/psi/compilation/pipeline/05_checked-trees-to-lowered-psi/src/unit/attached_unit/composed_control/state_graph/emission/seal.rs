@@ -282,6 +282,8 @@ impl StateGraphEmission<'_, '_> {
         self.catalogs.next_block = next_block;
         self.catalogs.next_edge = next_edge;
         self.catalogs.next_operation = operations.next_identity;
+        self.scalar_block_invariants
+            .append(&mut operations.scalar_block_invariants);
         self.occurrences.retain(operations);
         Ok(())
     }

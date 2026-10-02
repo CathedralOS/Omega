@@ -81,6 +81,8 @@ pub(crate) struct OperationBuffer {
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
+    /// Value-establishment obligations accompany the exact private arrival.
+    pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     pub(crate) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparisons:
@@ -107,6 +109,7 @@ impl OperationBuffer {
     pub(crate) fn new(identity_base: u64) -> Self {
         Self {
             structural_values: Vec::new(),
+            scalar_block_invariants: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),

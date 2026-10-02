@@ -58,6 +58,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
+    scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
     /// Exclusive loan chains a later state's local backs.
     loan_chains: loan_chains::LoanChains,
@@ -389,6 +390,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         loaned_local_homes: BTreeMap::new(),
         loan_chains,
         occurrences,
+        scalar_block_invariants: Vec::new(),
         block_ranks,
         rank_edges,
     };
@@ -415,6 +417,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         arrival_edges,
         mut structural_places,
         mut blocks,
+        mut scalar_block_invariants,
         loaned_local_homes,
         loan_chains,
         occurrences,
@@ -426,7 +429,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // every incoming Jump or Conditional edge discharges it before the block
     // runs. A plain entry publishes its clauses on the machine contract
     // instead — invocation is an arrival without an edge proof.
-    let mut scalar_block_invariants = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         if state.requires.is_empty()
             || (position == 0 && !entry_reentered)
