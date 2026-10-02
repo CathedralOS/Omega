@@ -1,7 +1,7 @@
 //! Independently replay each cleanup pointer, exact ABI row and action owner.
 use super::{SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{CallSignature, CallingPolicy, ValueClass, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use optimization_unit::EffectLink;
 use selected_instructions::SelectedCallContract;
@@ -45,7 +45,7 @@ pub(super) fn validate(
             || !target.path.is_empty()
             || !indices.is_empty()
             || target.source_byte_offset != 0
-            || target.shape != ValueShape::borrowed_reference(8, 8)
+            || target.shape.class != ValueClass::BorrowedReference
             || target.destination.shape != target.shape
         {
             return Err(invalid());
