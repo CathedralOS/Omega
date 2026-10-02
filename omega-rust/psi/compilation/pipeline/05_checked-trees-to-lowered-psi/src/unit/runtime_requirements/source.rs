@@ -176,6 +176,16 @@ pub(crate) fn validate_runtime_memberships(
         ))?
         .iter();
     let mut subjects = crash.runtime_membership_subjects().iter();
+    if checked
+        .machine_contracts(machine)
+        .iter()
+        .chain(checked.state_contracts(state))
+        .any(|contract| {
+            contract.kind == SignatureContractKind::Requires && contract.binding.is_some()
+        })
+    {
+        return unsupported("runtime entry requirement cannot erase an evidence binding");
+    }
     let facts = checked
         .machine_contracts(machine)
         .iter()
