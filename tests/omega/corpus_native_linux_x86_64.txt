@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.14, "load1_start": 0.14, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.95, "load1_start": 1.95, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -770,8 +770,7 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 339ms @2d8ed25366
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice built 1330ms exit:9 @9baafc0ace88
 pass/slices/disjoint_mut_subslice_windows_compile checked 278ms @2d8ed253669f+wt
-pass/slices/domained_runtime_end_subslice_exit rejected 724ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/slices/domained_runtime_end_subslice_exit built 1356ms exit:70 @2c44d70118d1+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 283ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 281ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 286ms @2d8ed253669f+wt
