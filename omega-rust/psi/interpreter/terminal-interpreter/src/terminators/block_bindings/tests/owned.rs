@@ -566,3 +566,77 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
         assert_eq!(execution.structural_scalar_fields, fields);
     }
 }
+
+#[test]
+fn array_successors_capture_all_payloads_before_replacing_destinations() {
+    use crate::scalar_array::TerminalScalarArrayValue;
+    use terminal_psi::StructuralTypeDeclaration;
+
+    let mut edge = owned_successor();
+    edge.structural_arguments[0].place = PlaceId::new(4).unwrap();
+    edge.structural_arguments[1].place = PlaceId::new(3).unwrap();
+    let mut execution = owned_execution(jump(edge.clone()), StructuralMultiplicity::Unrestricted);
+    let array_type = StructuralTypeId::new(1).unwrap();
+    let element_type = StructuralTypeId::new(2).unwrap();
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: element_type,
+        identity: "u64".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(unsigned(0).scalar_type()),
+    });
+    execution.mutate_structural_type(array_type, |declaration| {
+        declaration.shape = StructuralTypeShape::FixedArray {
+            element: element_type,
+            length: 2,
+        };
+    });
+    execution.structural_values.clear();
+    execution.structural_scalar_fields.clear();
+    let first = PlaceId::new(3).unwrap();
+    let second = PlaceId::new(4).unwrap();
+    let first_value = TerminalScalarArrayValue {
+        structural_type: array_type,
+        elements: vec![unsigned(30), unsigned(40)],
+    };
+    let second_value = TerminalScalarArrayValue {
+        structural_type: array_type,
+        elements: vec![unsigned(70), unsigned(80)],
+    };
+    execution
+        .scalar_array_values
+        .insert(first, first_value.clone());
+    execution
+        .scalar_array_values
+        .insert(second, second_value.clone());
+    let bindings = execution
+        .prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+            true,
+        )
+        .unwrap();
+    bindings.validate_discards(&execution, &[], &[]).unwrap();
+    bindings.commit(&mut execution);
+    assert_eq!(execution.scalar_array_values[&first], second_value);
+    assert_eq!(execution.scalar_array_values[&second], first_value);
+
+    // A malformed later payload cannot partially replace the first binding.
+    execution
+        .scalar_array_values
+        .get_mut(&first)
+        .unwrap()
+        .elements
+        .pop();
+    let before = execution.scalar_array_values.clone();
+    assert!(
+        execution
+            .prepare_block_bindings(
+                edge.target,
+                &edge.arguments,
+                &edge.structural_arguments,
+                true,
+            )
+            .is_err()
+    );
+    assert_eq!(execution.scalar_array_values, before);
+}
