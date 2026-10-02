@@ -673,12 +673,10 @@ fn unit_scalar_calls_reject_declared_result_and_argument_carrier_drift() {
     );
 }
 
-/// A Unit call whose structural arguments all resolve against the parameter
-/// roster passes a Boolean from a caller parameter, an immediate or a block
-/// parameter. A computed Boolean home is refused as an unknown value; the
-/// unified direct-call lowering keeps that route's rule rather than widening it.
+/// A computed Boolean keeps its defining operation and value identity through
+/// a Unit call, just as an immediate keeps its own producer and payload.
 #[test]
-fn unit_roster_calls_pass_boolean_immediates_and_refuse_computed_booleans() {
+fn unit_calls_preserve_computed_and_immediate_boolean_custody() {
     let unit_machine = MachineId::new(3).unwrap();
     let constant = ValueId::new(10).unwrap();
     let flag = ValueId::new(13).unwrap();
@@ -736,10 +734,50 @@ fn unit_roster_calls_pass_boolean_immediates_and_refuse_computed_booleans() {
         }],
     });
     let native = NativeTarget::linux_x64();
+    let computed = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+        .expect("computed Boolean is an ordinary dominating scalar source");
+    crate::validate_abstract_to_target_translation(&source, native, &computed).unwrap();
+    let TargetUnitOperation::Call {
+        scalar_arguments,
+        call_plan,
+        ..
+    } = &computed.functions[0].graph.blocks[0].operations[2]
+    else {
+        panic!("computed Boolean call");
+    };
     assert_eq!(
-        lower_to_target_operations(&source, TargetLoweringRequest::new(native)),
-        Err(LoweringError::UnknownValue(flag))
+        scalar_arguments[0].source,
+        TargetUnitScalarArgumentSource::Home(target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: OperationId::new(13).unwrap(),
+            source_value: flag,
+            scalar_type: ScalarType::Boolean,
+            shape: calling_conventions::ValueShape::integer(1, 1),
+        })
     );
+    assert_eq!(scalar_arguments[0].parameter_index, 0);
+    assert_eq!(scalar_arguments[0].placement, call_plan.parameters[0]);
+    for corruption in 0..4 {
+        let mut changed = computed.clone();
+        let TargetUnitOperation::Call {
+            scalar_arguments, ..
+        } = &mut changed.functions[0].graph.blocks[0].operations[2]
+        else {
+            panic!("computed Boolean call");
+        };
+        let TargetUnitScalarArgumentSource::Home(home) = &mut scalar_arguments[0].source else {
+            panic!("retained computed Boolean home");
+        };
+        match corruption {
+            0 => home.defining_operation = OperationId::new(10).unwrap(),
+            1 => home.source_value = constant,
+            2 => home.scalar_type = ScalarType::Integer(fixed_integer(32)),
+            _ => scalar_arguments[0].placement.locations.clear(),
+        }
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+            "computed Boolean custody mutation {corruption}"
+        );
+    }
 
     source.functions[0].operations[1] = AbstractOperation::BooleanConstant {
         psi_operation: OperationId::new(13).unwrap(),

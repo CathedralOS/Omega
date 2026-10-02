@@ -29,7 +29,7 @@ use target::NativeTarget;
 use target_operations::{
     ScalarAbiValue, ScalarFunctionAbi, TargetCallResult, TargetStructuralArgument,
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
 use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, StructuralArgument, StructuralParameterDeclaration,

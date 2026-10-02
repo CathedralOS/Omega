@@ -23,6 +23,7 @@ fn owned_field_observations_replay_value_abi_home_and_exact_initialization() {
 #[test]
 fn byte_field_metadata_replays_exact_subject_without_content_read_authority() {
     for access in [
+        StructuralAccess::Owned,
         StructuralAccess::SharedBorrow,
         StructuralAccess::MutableBorrow,
         StructuralAccess::WriteOnlyBorrow,
@@ -453,17 +454,21 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                 environment.constraints(),
             )
             .unwrap();
-            let indirect_owned = access == StructuralAccess::Owned
-                && matches!(
-                    legalized.plan().scalar_functions[0].call_plan.parameters[0]
-                        .locations
-                        .as_slice(),
-                    [calling_conventions::ValueLocation::Indirect { .. }]
-                );
-            let captured_fragments = if access == StructuralAccess::Owned && !indirect_owned {
-                1 + legalized.plan().scalar_functions[0].call_plan.parameters[0]
-                    .locations
-                    .len()
+            let incoming_locations =
+                &legalized.plan().scalar_functions[0].call_plan.parameters[0].locations;
+            // Only register-passed owned payloads need a local capture.
+            // Inline stack payloads already have an incoming value home, just
+            // as indirect owned arrivals already supply their backing address.
+            let register_owned = access == StructuralAccess::Owned
+                && !incoming_locations.is_empty()
+                && incoming_locations.iter().all(|location| {
+                    matches!(
+                        location,
+                        calling_conventions::ValueLocation::Register { .. }
+                    )
+                });
+            let captured_fragments = if register_owned {
+                1 + incoming_locations.len()
             } else {
                 0
             };
@@ -471,10 +476,10 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                 selected.plan().functions[0].memory_accesses.len(),
                 2 + captured_fragments
             );
-            if indirect_owned {
+            if access == StructuralAccess::Owned && !register_owned {
                 assert!(selected.plan().functions[0].local_storage_slots.is_empty());
             }
-            if access == StructuralAccess::Owned && !indirect_owned {
+            if register_owned {
                 use selected_instructions::{
                     LocalStorageSlotId, SelectedInstructionKind as Instruction,
                 };

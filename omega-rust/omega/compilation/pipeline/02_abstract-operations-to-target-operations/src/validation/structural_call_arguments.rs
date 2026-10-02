@@ -1839,11 +1839,10 @@ impl Replay<'_> {
         }
     }
 
-    /// A hosted or foreign integer argument replays the producer's known-integer
-    /// source: an incoming parameter, a non-entry block parameter, an
-    /// `IntegerConstant` the source body already defined, or the durable home
-    /// one earlier integer result left behind. Every other `source` kind is
-    /// a substitution.
+    /// Rejoin a scalar operand to its exact declaration or producing operation,
+    /// for ordinary, hosted and foreign calls alike. Shape equality alone does
+    /// not identify a computed value. Executable CFG dominance remains the
+    /// downstream graph replay's responsibility, not this ABI custody receipt.
     fn scalar_argument_source(
         &self,
         psi_operation: OperationId,
@@ -2692,6 +2691,9 @@ impl Replay<'_> {
         declared: &[AbstractParameter],
         expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
+        if actual.len() != values.len() || values.len() != declared.len() {
+            return Err(psi_operation);
+        }
         for (position, ((actual, value), declared)) in
             actual.iter().zip(values).zip(declared).enumerate()
         {
@@ -2705,6 +2707,12 @@ impl Replay<'_> {
             {
                 return Err(psi_operation);
             }
+            self.scalar_argument_source(
+                psi_operation,
+                *value,
+                declared.scalar_type,
+                &actual.source,
+            )?;
         }
         Ok(())
     }
@@ -3601,6 +3609,16 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
+        | AbstractOperation::ElementViewLength {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ElementViewRead {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::CallStructural {
             psi_operation,
             result: AbstractStructuralCallResult::Scalar(result),
@@ -3703,6 +3721,34 @@ fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, Abs
         )
     };
     Some(match operation {
+        AbstractOperation::ScalarRepresentationView {
+            psi_operation,
+            result,
+            target_type,
+            ..
+        } => (
+            *psi_operation,
+            AbstractResult {
+                value: *result,
+                scalar_type: *target_type,
+            },
+        ),
+        AbstractOperation::AtomicEvent {
+            psi_operation,
+            event,
+            ..
+        } => {
+            let result = match event {
+                abstract_operations::AbstractAtomicEvent::Load { result, .. } => result,
+                abstract_operations::AbstractAtomicEvent::ReadModifyWrite { prior, .. }
+                | abstract_operations::AbstractAtomicEvent::Swap { prior, .. } => prior,
+                abstract_operations::AbstractAtomicEvent::CompareExchange { observed, .. } => {
+                    observed
+                }
+                _ => return None,
+            };
+            (*psi_operation, *result)
+        }
         AbstractOperation::BooleanNot {
             psi_operation,
             result,
