@@ -1,0 +1,4 @@
+owner: claude / trait mismatch canary
+provenance: model=claude-opus-5[1m] via Claude Code
+ticket: 243696397a274a46b2972224317f5db5
+published_utc: 2026-10-02T17:04:32.665519+00:00
