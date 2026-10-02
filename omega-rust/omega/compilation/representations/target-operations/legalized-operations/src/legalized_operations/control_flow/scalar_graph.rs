@@ -326,9 +326,9 @@ pub enum LegalizedScalarInstructionKind {
         fields: Vec<terminal_psi::RecordFieldInitializer>,
         layout: calling_conventions::ConventionalSumLayout,
     },
-    /// One verified reference carrier. `shape` is the carrier's zero-byte
-    /// custody slot; the referent is named only through `source`, never
-    /// through pointer bits. No executable pointer operation exists.
+    /// One verified reference carrier. `shape` describes the eight-byte
+    /// address word captured from `source`, not a copy of its referent.
+    /// Source identity and live permission remain independently checked.
     EstablishReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
@@ -461,8 +461,8 @@ pub enum LegalizedScalarInstructionKind {
         /// leaf). Empty for fully static projections.
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
-    /// Establish one empty-record affine local. It occupies no bytes, so,
-    /// like reference custody rows, it emits no instruction: the row keeps
+    /// Establish one empty-record affine local. It occupies no bytes, so
+    /// it emits no instruction: the row keeps
     /// the establishment a whole owned call argument names as its producer.
     EstablishTrivialAffineLocal {
         place: terminal_psi::StructuralPlaceDeclaration,
@@ -788,6 +788,173 @@ pub enum LegalizedScalarInstructionKind {
         left: ValueId,
         right: ValueId,
     },
+}
+
+impl LegalizedScalarInstructionKind {
+    /// The structural result declared by this instruction, independent of
+    /// producer eligibility. Callers separately check identity, storage shape,
+    /// qualifications and current permission before using the result.
+    pub fn get_structural_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
+        match self {
+            Self::EstablishByteSequenceConcatenation { result, .. }
+            | Self::EstablishScalarArray { result, .. }
+            | Self::EstablishRecord { result, .. }
+            | Self::EstablishZeroedStructural { result, .. }
+            | Self::EstablishCase { result, .. }
+            | Self::EstablishReference { result, .. }
+            | Self::EstablishPrimitiveLocal { result, .. }
+            | Self::StructuralLeafCopy { result, .. }
+            | Self::HostedReadByte { result, .. }
+            | Self::ByteSequenceSubslice { result, .. }
+            | Self::EstablishElementView { result, .. }
+            | Self::ElementViewSubslice { result, .. } => Some(result),
+            Self::Call(call) => call.structural_result.as_ref(),
+            Self::FloatResultPolicy { .. }
+            | Self::AtomicAccess { .. }
+            | Self::IeeeFloatCompare { .. }
+            | Self::NearestIeeeFloatArithmetic { .. }
+            | Self::ReleaseReference { .. }
+            | Self::PrimitiveLocalStore { .. }
+            | Self::PrimitiveScalarRead { .. }
+            | Self::StructuralScalarFieldRead { .. }
+            | Self::StructuralByteSequenceFieldRead { .. }
+            | Self::StructuralByteSequenceFieldLength { .. }
+            | Self::ByteSequenceStore { .. }
+            | Self::StructuralByteSequenceFieldStore { .. }
+            | Self::StructuralByteViewFieldStore { .. }
+            | Self::StructuralByteSequenceFieldByteStore { .. }
+            | Self::StructuralCaseMembership { .. }
+            | Self::StoreStructuralField { .. }
+            | Self::EstablishTrivialAffineLocal { .. }
+            | Self::WriteOnlyPrimitiveStore { .. }
+            | Self::HostedWriteByteI32 { .. }
+            | Self::HostedExitProcessI32 { .. }
+            | Self::StructuralScalarFieldStore { .. }
+            | Self::EstablishByteSequenceLiteral { .. }
+            | Self::ByteSequenceWrite { .. }
+            | Self::ByteSequenceRead { .. }
+            | Self::ByteSequenceLength { .. }
+            | Self::ElementViewWrite { .. }
+            | Self::ElementViewRead { .. }
+            | Self::ElementViewLength { .. }
+            | Self::Constant(_)
+            | Self::BooleanNot { .. }
+            | Self::IntegerWiden { .. }
+            | Self::ScalarRepresentationView { .. }
+            | Self::IntegerExactCast { .. }
+            | Self::BoundarySettlement(_)
+            | Self::NormalizedForeignCall(_)
+            | Self::DynamicParameterCall(_)
+            | Self::SaturatingAdd { .. }
+            | Self::SaturatingSubtract { .. }
+            | Self::SaturatingDivide { .. }
+            | Self::SaturatingMultiply { .. }
+            | Self::TrappingBinary { .. }
+            | Self::TrappingConvert { .. }
+            | Self::WrappingRemainder { .. }
+            | Self::SaturatingRemainder { .. }
+            | Self::WrappingDivide { .. }
+            | Self::WrappingAdd { .. }
+            | Self::WrappingSubtract { .. }
+            | Self::WrappingMultiply { .. }
+            | Self::WrappingShiftLeft { .. }
+            | Self::WrappingShiftRight { .. }
+            | Self::ExactShiftLeft { .. }
+            | Self::ExactShiftRight { .. }
+            | Self::ExactBinary { .. }
+            | Self::BitwiseAnd { .. }
+            | Self::BitwiseOr { .. }
+            | Self::BitwiseXor { .. }
+            | Self::BitwiseNot { .. }
+            | Self::Compare { .. } => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod structural_result_tests {
+    use super::{LegalizedScalarCall, LegalizedScalarInstructionKind};
+    use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    };
+
+    fn result() -> StructuralOperationResult {
+        StructuralOperationResult {
+            place: PlaceId::new(1).unwrap(),
+            structural_type: StructuralTypeId::new(2).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            qualification_establishments: vec![],
+            claims: vec![],
+        }
+    }
+
+    #[test]
+    fn structural_result_lookup_preserves_the_declared_result_without_admission() {
+        let expected = result();
+        let reference = LegalizedScalarInstructionKind::EstablishReference {
+            result: expected.clone(),
+            source: StructuralArgument {
+                place: PlaceId::new(3).unwrap(),
+                path: vec![],
+                access: StructuralAccess::MutableBorrow,
+            },
+            shape: ValueShape::integer(8, 8),
+        };
+        assert_eq!(reference.get_structural_result(), Some(&expected));
+        // The accessor reports a declaration, not whether a consumer may
+        // store through it. In particular, linear results remain visible.
+        let mut linear = expected.clone();
+        linear.multiplicity = StructuralMultiplicity::Linear;
+        let zeroed = LegalizedScalarInstructionKind::EstablishZeroedStructural {
+            result: linear.clone(),
+            shape: ValueShape::integer(8, 8),
+        };
+        assert_eq!(zeroed.get_structural_result(), Some(&linear));
+        assert!(
+            LegalizedScalarInstructionKind::ReleaseReference {
+                source: expected.place
+            }
+            .get_structural_result()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn structural_call_result_lookup_preserves_absence_and_presence() {
+        let expected = result();
+        let mut call = LegalizedScalarCall {
+            source: target_operations::NativeCallOrigin::Authored,
+            callee: MachineId::new(1).unwrap(),
+            call_plan: evaluate_call_plan(
+                CallingPolicy::Aapcs64,
+                &CallSignature {
+                    parameters: vec![],
+                    result: None,
+                },
+            )
+            .unwrap(),
+            arguments: vec![],
+            result_placement: None,
+            structural_result: None,
+            claim_transfers: vec![],
+            requirement_obligations: vec![],
+            crash_continuations: vec![],
+        };
+        assert!(
+            LegalizedScalarInstructionKind::Call(call.clone())
+                .get_structural_result()
+                .is_none()
+        );
+        call.structural_result = Some(expected.clone());
+        assert_eq!(
+            LegalizedScalarInstructionKind::Call(call).get_structural_result(),
+            Some(&expected)
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
