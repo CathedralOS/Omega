@@ -29,13 +29,13 @@ data Main {
     ch: u8 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.text = "HELLO";
-    self.out = ".....";
-    self.i = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.text = "HELLO";
+    main.out = ".....";
+    main.i = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     state step(main: &mut Main) {

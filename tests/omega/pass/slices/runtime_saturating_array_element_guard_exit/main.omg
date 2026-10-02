@@ -16,29 +16,29 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; sarr: [u8; 3] in Saturating; idx: u64; jdx: u64; }
-machine Main::main(&mut self) reaches Console {
-    self.sarr = [200, 100, 50];
-    self.idx = 0;
-    self.jdx = 1;
-    transition (self.idx < 3) && (self.jdx < 3) { true -> go(self.idx, self.jdx) _ -> bad() }
-    state go(&mut self, i: u64, j: u64) requires i <= 2, j <= 2 {
-        transition (self.sarr[i] + self.sarr[1] == 255) { true -> ordered(i, j) _ -> bad_eq() }
+machine Main::main(main: &mut Main) reaches Console {
+    main.sarr = [200, 100, 50];
+    main.idx = 0;
+    main.jdx = 1;
+    transition (main.idx < 3) && (main.jdx < 3) { true -> go(main) _ -> bad(main) }
+    state go(main: &mut Main) requires main.idx <= 2, main.jdx <= 2 {
+        transition (main.sarr[main.idx] + main.sarr[1] == 255) { true -> ordered(main, main.idx, main.jdx) _ -> bad_eq(main) }
     }
-    state ordered(&mut self, i: u64, j: u64) requires i <= 2, j <= 2 {
+    state ordered(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
         // Bounded params forward range-preservingly (per-state env facts
-        // cannot re-prove self.idx here; the param chain carries the proof).
-        transition (self.sarr[i] + self.sarr[1] <= 255) { true -> both_runtime(i, j) _ -> bad_ord() }
+        // cannot re-prove main.idx here; the param chain carries the proof).
+        transition (main.sarr[i] + main.sarr[1] <= 255) { true -> both_runtime(main, i, j) _ -> bad_ord(main) }
     }
-    state both_runtime(&mut self, i: u64, j: u64) requires i <= 2, j <= 2 {
+    state both_runtime(main: &mut Main, i: u64, j: u64) requires i <= 2, j <= 2 {
         // BOTH operands runtime-indexed: no const-indexed sibling exists for
         // the `.or()` witness fallback to lean on -- each side must resolve
         // its element domain independently (trace-verified 2026-07-10n: both
-        // ride the Name([self, sarr]) route).
-        transition (self.sarr[i] + self.sarr[j] == 255) { true -> good() _ -> bad_both() }
+        // ride the Name([main, sarr]) route).
+        transition (main.sarr[i] + main.sarr[j] == 255) { true -> good(main) _ -> bad_both(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
-    state bad_eq(&mut self) { self.console.exit_process(72); }
-    state bad_ord(&mut self) { self.console.exit_process(73); }
-    state bad_both(&mut self) { self.console.exit_process(74); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state bad_eq(main: &mut Main) { main.console.exit_process(72); }
+    state bad_ord(main: &mut Main) { main.console.exit_process(73); }
+    state bad_both(main: &mut Main) { main.console.exit_process(74); }
 }

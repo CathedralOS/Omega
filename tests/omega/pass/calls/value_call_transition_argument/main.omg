@@ -29,73 +29,73 @@ ensures 0 <= result && result <= 1
     state out() -> i32 { 1 }
 }
 
-machine Main::record(&mut self, digit: u32) -> u32
+machine Main::record(main: &mut Main, digit: u32) -> u32
 requires digit <= 9
 ensures result <= 9
 {
-    self.trace = self.trace * 10 + (digit as u32 in Wrapping);
+    main.trace = main.trace * 10 + (digit as u32 in Wrapping);
     digit
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.trace = 0;
-    transition { _ -> handle(amount()) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.trace = 0;
+    transition { _ -> handle(main, amount()) }
 
-    state handle(&mut self, delivered: i32) {
+    state handle(main: &mut Main, delivered: i32) {
         transition delivered == 1 {
-            true -> bind_local()
-            false -> bad(71)
+            true -> bind_local(main)
+            false -> bad(main, 71)
         }
     }
 
-    state bind_local(&mut self) {
+    state bind_local(main: &mut Main) {
         let bound: i32 = amount();
-        transition { _ -> handle_local(bound) }
+        transition { _ -> handle_local(main, bound) }
     }
 
-    state handle_local(&mut self, delivered: i32) {
+    state handle_local(main: &mut Main, delivered: i32) {
         transition delivered == 1 {
-            true -> take_arithmetic()
-            false -> bad(72)
+            true -> take_arithmetic(main)
+            false -> bad(main, 72)
         }
     }
 
-    state take_arithmetic(&mut self) {
-        transition { _ -> handle_arithmetic(amount() + 1) }
+    state take_arithmetic(main: &mut Main) {
+        transition { _ -> handle_arithmetic(main, amount() + 1) }
     }
 
-    state handle_arithmetic(&mut self, delivered: i32) {
+    state handle_arithmetic(main: &mut Main, delivered: i32) {
         transition delivered == 2 {
-            true -> take_ordered()
-            false -> bad(73)
+            true -> take_ordered(main)
+            false -> bad(main, 73)
         }
     }
 
-    state take_ordered(&mut self) {
+    state take_ordered(main: &mut Main) {
         transition true {
-            true -> ordered(self.record(1), self.record(2))
-            false -> bad(74)
+            true -> ordered(main, Main::record(main, 1), Main::record(main, 2))
+            false -> bad(main, 74)
         }
     }
 
-    state ordered(&mut self, first: u32, second: u32) {
-        transition first == 1 && second == 2 && self.trace == 12 {
-            true -> take_snapshot()
-            false -> bad(75)
+    state ordered(main: &mut Main, first: u32, second: u32) {
+        transition first == 1 && second == 2 && main.trace == 12 {
+            true -> take_snapshot(main)
+            false -> bad(main, 75)
         }
     }
 
-    state take_snapshot(&mut self) {
-        transition { _ -> snapshot(self.trace, self.record(3)) }
+    state take_snapshot(main: &mut Main) {
+        transition { _ -> snapshot(main, main.trace, Main::record(main, 3)) }
     }
 
-    state snapshot(&mut self, before: u32 in Wrapping, digit: u32) {
-        transition before == 12 && digit == 3 && self.trace == 123 {
-            true -> good()
-            false -> bad(76)
+    state snapshot(main: &mut Main, before: u32 in Wrapping, digit: u32) {
+        transition before == 12 && digit == 3 && main.trace == 123 {
+            true -> good(main)
+            false -> bad(main, 76)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
