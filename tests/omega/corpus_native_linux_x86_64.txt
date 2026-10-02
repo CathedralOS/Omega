@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": "2", "load1_end": 4.45, "load1_start": 4.23, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 2.77, "load1_start": 2.77, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -265,6 +265,7 @@ pass/constraints/guarded_parameter_result_contract checked 309ms @2d8ed253669f+w
 pass/constraints/proof_machine_order_fact checked 309ms @2d8ed253669f+wt
 pass/constraints/scalar_requires_satisfied_by_literal checked 375ms @2d8ed253669f+wt
 pass/constraints/selected_arithmetic_return_ensures checked 314ms @2d8ed253669f+wt
+pass/contracts/ensures_named_parameter_arithmetic_exit built 620ms exit:0 @5a10c8c1c6cb
 pass/contracts/proof_fact_indexed_domain_application checked 314ms @2d8ed253669f+wt
 pass/contracts/requires_narrow_ceiling_unproven built 927ms @2d8ed253669f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 1164ms @2d8ed253669f+wt

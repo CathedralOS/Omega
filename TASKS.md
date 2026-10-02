@@ -1511,12 +1511,13 @@ the complete product bar; focused successes below do not establish that baseline
     carry package exit evidence, so package preparation completes and
     `collections/runtime_fixed_vec_round_trip_exit` and
     `contracts/ensures_{fact_list,wrapping_field_arithmetic,borrowed_parameter_field}_exit`
-    exit 70 natively and interpreted on macOS ARM64. Remaining: a named
-    `&mut` parameter's field after an arithmetic store (`counter.count =
-    counter.count + 1`, or `= start + 1`) fails stage 04's exit check, which
-    proves the same guarantee for `&mut self` and for a constant store, so
-    static-form `fixed_vec` cannot migrate yet; stage 05 has no exit proof for
-    a Wrapping guarantee over a constant store (`self.remaining = 5` with
+    exit 70 natively and interpreted on macOS ARM64. Named `&mut` parameters
+    now use the same live-field arithmetic bounds as `self` in stage 04:
+    `contracts/ensures_named_parameter_arithmetic_exit` stores `start + 1`,
+    passes both guarantees to `tick`, and exits 0 natively and interpreted on
+    Linux x86-64 (package preparation and run commands are in its README).
+    Stale writes and wrapping counterexamples still reject. Remaining: stage
+    05 has no exit proof for a Wrapping guarantee over a constant store (`self.remaining = 5` with
     `ensures self.remaining - 1 < 8`), a nonliteral wrapping operand or
     Saturating field arithmetic (`OperationProofUnavailable`); and
     `proofs/runtime_inductive_gauss_sum_exit`'s Wrapping result identity now
