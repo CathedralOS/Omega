@@ -18,8 +18,8 @@ data Bag {
     other: i32;
 }
 
-machine Bag::pick(&mut self) -> &mut Cell {
-    let slots: &mut [Cell] = self.cells.as_mut_slice();
+machine Bag::pick(bag: &mut Bag) -> &mut Cell {
+    let slots: &mut [Cell] = bag.cells.as_mut_slice();
     transition {
         _ -> &mut slots[2]
     }
@@ -30,19 +30,19 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let cell: &mut Cell = self.bag.pick();
+machine Main::main(main: &mut Main) reaches Console {
+    let cell: &mut Cell = Bag::pick(&mut main.bag);
     cell.value = 7;
     // `cell` is dead from here on: the receiver-wide loan has ended.
-    self.bag.other = 63;
-    transition (self.bag.cells[2].value as i64) + (self.bag.other as i64) == 70 {
-        true -> good()
-        false -> bad()
+    main.bag.other = 63;
+    transition (main.bag.cells[2].value as i64) + (main.bag.other as i64) == 70 {
+        true -> good(main)
+        false -> bad(main)
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

@@ -11,19 +11,19 @@ machine pick(bag: &mut Bag) -> &mut Holder {
     transition { _ -> &mut holders[1] }
 }
 
-machine Holder::replace(&mut self) { self.child.value = 41; }
+machine Holder::replace(holder: &mut Holder) { holder.child.value = 41; }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.holders[0].child.value = 17;
-    let selected: &mut Holder = pick(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.holders[0].child.value = 17;
+    let selected: &mut Holder = pick(&mut main.bag);
     selected.sibling = 29;
-    selected.replace();
+    Holder::replace(selected);
     selected.sibling = 31;
-    transition self.bag.holders[1].child.value == 41
-        && self.bag.holders[1].sibling == 31
-        && self.bag.holders[0].child.value == 17 {
-        true -> finish(70)
-        false -> finish(1)
+    transition main.bag.holders[1].child.value == 41
+        && main.bag.holders[1].sibling == 31
+        && main.bag.holders[0].child.value == 17 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
