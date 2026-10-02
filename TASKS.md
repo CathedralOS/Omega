@@ -1838,19 +1838,23 @@ the complete product bar; focused successes below do not establish that baseline
   qualified byte values; six related native controls execute 70 and seven
   invalid ownership/domain/capacity cases reject on `94940a170e`.
 
-  Full game acceptance remains open. The closed-stdin run at the owned-call
-  milestone progressed through selection into allocation, but has no completed
-  execution receipt. Allocation conflict preparation now streams the validated
-  interference and early-clobber relations into the existing domain matrix;
-  346 selection, allocation and focused Psi checks pass, including comparison
-  with the original allocation algorithm and independent replay. This is not
-  evidence that either complete game command runs. The next measured hotspot
-  is `05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/placement.rs`
-  `strands_neighbor`: each candidate scans unrelated unassigned domains. Use
-  canonical constrained-neighbor rosters and indexed active membership while
-  retaining domain/candidate order and independent replay; then re-drive both
-  game commands. The diagnostic run was interrupted without a program result,
-  not rejected by the compiler. Retain exact access,
+  Full game acceptance remains open. Allocation placement now visits only
+  active constrained neighbors, retaining domain/candidate order and independent
+  replay; all 41 allocator controls pass, including comparison with the original
+  algorithm. On macOS ARM64, the closed-stdin command at `2131c361cb` reached
+  `RegisterAllocation(RuntimeSpill(Rewrite(WorkBudgetExceeded)))` after 601
+  seconds. Native realization now permits 1,000,000 validation steps per pass
+  instead of 100,000, without changing candidate/commit limits or admission;
+  all 52 selected runtime-spill controls, including exact-budget rejection,
+  pass. Both game commands on `14a2b507ea` remain in progress without execution
+  receipts; OS sampling places the closed-stdin run in completed recovery's
+  independent replay. `05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs`
+  no longer repeats that complete replay before every caller enters
+  `RetainedAllocation::try_from`: the retained boundary alone owns full-result
+  admission, with per-step semantic checks unchanged. Re-drive both unchanged
+  game commands through this single admission boundary and require actual exit
+  0, initial-room/goodbye output, and command help for the second run. Small
+  transport controls are not evidence that the full game runs. Retain exact access,
   qualifications, source-length/capacity evidence, every possible origin,
   ranking, live-root rebind rejection and same-typed-sibling rejection. Keep
   `borrows/qualified_byte_owner_exclusive_call_exit`,
