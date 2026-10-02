@@ -26,7 +26,9 @@ mod structural_cases;
 mod values;
 
 pub(crate) use records::constructible;
-pub(crate) use structural_access::structural_source_contract;
+pub(crate) use structural_access::{
+    structural_operation_result_contract, structural_source_contract,
+};
 
 #[cfg(test)]
 pub(crate) use claim_transfers::validate_internal_claim_transfers;

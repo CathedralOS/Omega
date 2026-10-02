@@ -499,6 +499,7 @@ pub(crate) fn array_literal_leaves(
 pub(crate) fn validate_array_element_replacements(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     ordinal: usize,
     assignment: &checked_trees::statement::TableAssignment,
     roster: &[&CheckedUnitEffectOperationPlan],
@@ -574,7 +575,12 @@ pub(crate) fn validate_array_element_replacements(
         );
         let root = destination
             .source_parameter_index()
-            .and_then(|position| checked.state_parameters(source).get(position as usize))
+            .and_then(|index| parameters.get(index as usize))
+            .and_then(|parameter| {
+                checked
+                    .state_parameters(source)
+                    .get(parameter.position as usize)
+            })
             .ok_or(LoweringError::Unsupported(
                 "array replacement has no authored parameter root",
             ))?;

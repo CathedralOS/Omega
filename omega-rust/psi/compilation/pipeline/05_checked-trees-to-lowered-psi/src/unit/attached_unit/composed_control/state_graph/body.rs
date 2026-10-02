@@ -1684,10 +1684,12 @@ fn exclusive_borrowed_whole_parameter(
     let Some(position) = place.source_parameter_index() else {
         return false;
     };
-    state.structural_parameters.iter().any(|parameter| {
-        parameter.position == position
-            && parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-    })
+    state
+        .structural_parameters
+        .get(position as usize)
+        .is_some_and(|parameter| {
+            parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+        })
 }
 
 /// A structural construction authored as one of its statement's call
@@ -1734,6 +1736,7 @@ fn validate_displaced_field_replacement(
         return crate::unit::attached_unit::validate_array_element_replacements(
             checked,
             state.state,
+            &state.structural_parameters,
             ordinal,
             assignment,
             &roster,
@@ -1970,7 +1973,12 @@ fn validate_displaced_field_replacement(
     }
     let root = place
         .source_parameter_index()
-        .and_then(|position| checked.state_parameters(source).get(position as usize))
+        .and_then(|index| state.structural_parameters.get(index as usize))
+        .and_then(|parameter| {
+            checked
+                .state_parameters(source)
+                .get(parameter.position as usize)
+        })
         .ok_or(LoweringError::Unsupported(
             "Unit graph field replacement has no authored parameter root",
         ))?;

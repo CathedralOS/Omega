@@ -436,7 +436,7 @@ pub(super) fn validate(
             },
         ) if result == expected && *source == root.place() && {
             let extent = scalar_graph_input::borrowed_windows::moved(
-                optimized, root, spelled, *field, expected, plan,
+                optimized, root, spelled, *field, expected, plan, custody,
             )?;
             *path == abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                 && (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
@@ -472,6 +472,7 @@ pub(super) fn validate(
                     expected_path,
                     *expected_field,
                     plan,
+                    custody,
                 )?;
                 (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
                     && indices_rejoin(indices, &extent.elements)

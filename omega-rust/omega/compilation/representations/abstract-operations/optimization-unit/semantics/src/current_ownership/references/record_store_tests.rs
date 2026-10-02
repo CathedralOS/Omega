@@ -85,6 +85,82 @@ fn record_store_requires_live_unsuspended_mutable_carrier() {
 }
 
 #[test]
+fn reference_window_exempts_only_its_active_parent_carrier() {
+    let (function, declarations, place) = record_carrier();
+    let types: BTreeMap<_, _> = declarations.iter().map(|row| (row.id, row)).collect();
+    let parameter = &function.structural_parameters[0];
+    let StructuralTypeShape::Reference { referent, .. } = types[&parameter.structural_type].shape
+    else {
+        unreachable!()
+    };
+    let StructuralTypeShape::Record { fields } = &types[&referent].shape else {
+        unreachable!()
+    };
+    let field = fields.first().expect("record field").id;
+    let root = abstract_operations::StructuralWindowRoot::OwnedResult {
+        producer: id(9_030, semantic_vocabulary::OperationId::new),
+        result: terminal_psi::StructuralOperationResult {
+            place,
+            structural_type: parameter.structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        },
+    };
+    let path = [StructuralPathSegment::Referent];
+    let mut live = entry_references(&function, &types).unwrap();
+    let check = |live: &[LiveReference]| {
+        check_window_access(
+            &function,
+            &types,
+            function.entry,
+            0,
+            live,
+            &root,
+            &path,
+            Some(field),
+        )
+    };
+    assert!(
+        check(&live).is_ok(),
+        "the carrier is not inside its referent field"
+    );
+    assert!(
+        check(&[]).is_err(),
+        "released carrier cannot open or restore a window"
+    );
+    let mut child = live[0].clone();
+    child.identity.place = id(9_031, PlaceId::new);
+    child.carrier = child.identity.place;
+    child.parent = ReferenceParent::Reference(live[0].identity.clone());
+    live.push(child);
+    assert!(check(&live).is_err(), "a child still suspends the parent");
+    live.pop();
+    live.push(live[0].clone());
+    assert!(
+        check(&live).is_err(),
+        "ambiguous parent identity grants no exemption"
+    );
+    live.pop();
+    assert!(
+        check_window_access(
+            &function,
+            &types,
+            function.entry,
+            0,
+            &live,
+            &root,
+            &[],
+            Some(field),
+        )
+        .is_err(),
+        "carrier storage is not its referent"
+    );
+}
+
+#[test]
 fn record_store_geometry_rejects_non_affine_and_nested_permission_storage() {
     let (mut function, mut declarations, place) = record_carrier();
     let types = declarations.iter().map(|row| (row.id, row)).collect();

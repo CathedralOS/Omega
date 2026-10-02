@@ -104,6 +104,7 @@ mod registered_callback_lifetime;
 mod result_signature_borrowed_byte_view;
 mod retained_borrow_custody;
 mod retained_call_positions;
+mod returned_record_case_field_store;
 mod scalar_array_source;
 mod scalar_boundary_arguments;
 mod scalar_call_crash_substitution;
@@ -131,5 +132,5 @@ mod value_dispatch;
 
 mod view_arrival_producers;
 mod view_locals;
-
 mod unit_local_refinements;
+mod window_parameter_coordinates;

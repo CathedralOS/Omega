@@ -33,7 +33,9 @@
 //! either value's. Owned homes never open a root window; their whole value
 //! moves by ordinary transfer.
 
-use super::structural::operations::{canonical_field_path, structural_field_store_write_path};
+use super::structural::operations::{
+    canonical_field_path, canonical_mutable_record_referent_path, structural_field_store_write_path,
+};
 use super::structural::result_contracts::source_signature;
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, EdgeId, ModuleError,
@@ -77,10 +79,10 @@ fn argument_region(
     if path.last() == Some(&StructuralPathSegment::Referent) {
         path.pop();
     }
-    (
-        argument.place,
-        canonical_field_path(module, machine, argument.place, &path).unwrap_or_default(),
-    )
+    let region = canonical_mutable_record_referent_path(module, machine, argument.place, &path)
+        .or_else(|| canonical_field_path(module, machine, argument.place, &path))
+        .unwrap_or_default();
+    (argument.place, region)
 }
 
 /// Compute the block-parameter alias map for one machine: every borrowed
@@ -190,9 +192,15 @@ fn touched_regions(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
+    let canonical_region = |place: PlaceId, path: &[StructuralPathSegment]| {
+        canonical_mutable_record_referent_path(module, machine, place, path)
+            .or_else(|| canonical_field_path(module, machine, place, path))
+    };
     let field_region = |place: &PlaceId, path: &[StructuralPathSegment], field| {
-        let mut region = canonical_field_path(module, machine, *place, path).unwrap_or_default();
-        region.push(CanonicalStructuralPathSegment::Field(field));
+        let region = canonical_region(*place, path).map_or_else(Vec::new, |mut region| {
+            region.push(CanonicalStructuralPathSegment::Field(field));
+            region
+        });
         (*place, region)
     };
     // A primitive leaf's region is its canonical path; a runtime-selected
@@ -204,8 +212,7 @@ fn touched_regions(
             .unwrap_or(path.len());
         (
             *place,
-            canonical_field_path(module, machine, *place, &path[..static_prefix])
-                .unwrap_or_default(),
+            canonical_region(*place, &path[..static_prefix]).unwrap_or_default(),
         )
     };
     match &operation.kind {
@@ -279,10 +286,7 @@ fn touched_regions(
             place, path, field, ..
         } => vec![field_region(place, path, *field)],
         OperationKind::StructuralCaseMembership { source, path, .. } => {
-            vec![(
-                *source,
-                canonical_field_path(module, machine, *source, path).unwrap_or_default(),
-            )]
+            vec![(*source, canonical_region(*source, path).unwrap_or_default())]
         }
         // The carrier path is already canonical and excludes the read field,
         // so the observed region is that one scalar leaf: a counter beside an
@@ -437,7 +441,7 @@ pub(super) fn apply_operation(
     frontier: &mut super::frontier::StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
     match &operation.kind {
-        OperationKind::MoveStructuralField { source, .. } => {
+        OperationKind::MoveStructuralField { source, path, .. } => {
             let (root, hole) =
                 structural_field_store_write_path(walk.module, walk.machine, operation).ok_or(
                     ModuleError::InvalidBorrowedStorageWindow {
@@ -445,6 +449,14 @@ pub(super) fn apply_operation(
                         place: *source,
                     },
                 )?;
+            let reference_root = super::references::live_mutable_record_field_destination(
+                walk.module,
+                walk.machine,
+                &frontier.references,
+                *source,
+                path,
+            )?
+            .is_some();
             // A second extraction overlapping an open hole — the same field
             // again or a nested subtree beneath it — reads storage that is
             // already absent.
@@ -457,6 +469,13 @@ pub(super) fn apply_operation(
             // A live reference carrier or claim inside the moving subtree
             // would leave the loan pointing at relocated storage.
             let observed = frontier.references.iter().any(|reference| {
+                // This carrier is the authority for the move, not a child
+                // observer into the subtree. The exact parent and absence of
+                // live descendants were reconstructed immediately above.
+                if reference_root && reference.carrier == root && reference.carrier_path.is_empty()
+                {
+                    return false;
+                }
                 let slot = canonical_field_path(
                     walk.module,
                     walk.machine,
@@ -495,7 +514,10 @@ pub(super) fn apply_operation(
             Ok(())
         }
         OperationKind::StoreStructuralField {
-            destination, value, ..
+            destination,
+            path,
+            value,
+            ..
         } => {
             let (root, hole) =
                 structural_field_store_write_path(walk.module, walk.machine, operation).ok_or(
@@ -504,6 +526,13 @@ pub(super) fn apply_operation(
                         place: *destination,
                     },
                 )?;
+            super::references::live_mutable_record_field_destination(
+                walk.module,
+                walk.machine,
+                &frontier.references,
+                *destination,
+                path,
+            )?;
             // The repair value cannot carry live claim authority, and a
             // windowed place cannot serve as the replacement subtree.
             if frontier
@@ -573,7 +602,13 @@ fn declared_window_field_type(
         } => (*source, path, *field),
         _ => return None,
     };
-    let root_type = source_signature(machine, root)?.structural_type;
+    let (root_type, path) = super::references::mutable_record_field_destination(
+        module, machine, root, path,
+    )
+    .unwrap_or((
+        source_signature(machine, root)?.structural_type,
+        path.as_slice(),
+    ));
     let Some(field) = field else {
         return path.is_empty().then_some(root_type);
     };
@@ -665,7 +700,11 @@ fn borrowed_window_root(
     module: &TerminalModule,
     machine: &TerminalMachine,
     place: PlaceId,
+    path: &[StructuralPathSegment],
 ) -> Option<()> {
+    if super::references::mutable_record_field_destination(module, machine, place, path).is_some() {
+        return Some(());
+    }
     if direct_window_root(module, machine, place).is_some() {
         return Some(());
     }
@@ -698,7 +737,7 @@ fn is_root_window_loan(module: &TerminalModule, machine: &TerminalMachine, place
         .iter()
         .any(|parameter| parameter.place == place)
         || super::block_views::parameter(machine, place).is_some();
-    parameter && borrowed_window_root(module, machine, place).is_some()
+    parameter && borrowed_window_root(module, machine, place, &[]).is_some()
 }
 
 /// Static shape of a `MoveStructuralField`: a structural result on a fresh
@@ -710,7 +749,7 @@ pub(super) fn validate_move_static(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
-    let OperationKind::MoveStructuralField { source, .. } = &operation.kind else {
+    let OperationKind::MoveStructuralField { source, path, .. } = &operation.kind else {
         return Ok(());
     };
     let invalid = || ModuleError::InvalidBorrowedStorageWindow {
@@ -742,7 +781,7 @@ pub(super) fn validate_move_static(
     ) {
         return Err(invalid());
     }
-    if borrowed_window_root(module, machine, *source).is_none()
+    if borrowed_window_root(module, machine, *source, path).is_none()
         || declared_window_field_type(module, machine, operation) != Some(result.structural_type)
     {
         return Err(invalid());
@@ -768,7 +807,10 @@ pub(super) fn validate_store_static(
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
     let OperationKind::StoreStructuralField {
-        destination, value, ..
+        destination,
+        path,
+        value,
+        ..
     } = &operation.kind
     else {
         return Ok(());
@@ -780,7 +822,7 @@ pub(super) fn validate_store_static(
     let Some(field_type) = declared_window_field_type(module, machine, operation) else {
         return Err(invalid());
     };
-    if borrowed_window_root(module, machine, *destination).is_none()
+    if borrowed_window_root(module, machine, *destination, path).is_none()
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {

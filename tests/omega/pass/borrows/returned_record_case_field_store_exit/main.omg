@@ -1,0 +1,47 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Tag [copy] { case Empty; case Set; case Other; }
+data Flags { literal: Tag; copied: Tag; }
+data Holder { flags: Flags; sibling: u64; }
+data Bag { holders: [Holder; 3]; }
+data Main { console: Binding<Console>; bag: Bag; }
+
+machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
+    let holders: &mut [Holder] = bag.holders.as_mut_slice();
+    transition second {
+        true -> &mut holders[1]
+        false -> &mut holders[0]
+    }
+}
+
+machine fill(bag: &mut Bag, second: bool, value: Tag) {
+    let selected: &mut Holder = pick(bag, second);
+    selected.flags.literal = Tag::Set;
+    selected.flags.copied = value;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.holders[0].flags.literal = Tag::Other;
+    self.bag.holders[0].flags.copied = Tag::Set;
+    self.bag.holders[0].sibling = 17;
+    self.bag.holders[1].flags.literal = Tag::Empty;
+    self.bag.holders[1].flags.copied = Tag::Empty;
+    self.bag.holders[1].sibling = 29;
+    self.bag.holders[2].flags.literal = Tag::Other;
+    self.bag.holders[2].sibling = 37;
+    fill(&mut self.bag, true, Tag::Other);
+    fill(&mut self.bag, false, Tag::Empty);
+    transition self.bag.holders[1].flags.literal == Tag::Set
+        && self.bag.holders[1].flags.copied == Tag::Other
+        && self.bag.holders[1].sibling == 29
+        && self.bag.holders[0].flags.literal == Tag::Set
+        && self.bag.holders[0].flags.copied == Tag::Empty
+        && self.bag.holders[0].sibling == 17
+        && self.bag.holders[2].flags.literal == Tag::Other
+        && self.bag.holders[2].sibling == 37 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -20,6 +20,7 @@ pub(super) fn validate(
     optimized: &PsiOptimizationFunction,
     sources: &[(ValueId, Source)],
     plan: &AbstractOperationPlan,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::custody;
     match (target, abstracted) {
@@ -41,7 +42,7 @@ pub(super) fn validate(
             },
         ) => {
             let extent = scalar_graph_input::borrowed_windows::moved(
-                optimized, root, spelled, *field, result, plan,
+                optimized, root, spelled, *field, result, plan, custody,
             )?;
             if psi_operation != expected_operation
                 || *source != root.place()
@@ -83,6 +84,7 @@ pub(super) fn validate(
                 expected_path,
                 *expected_field,
                 plan,
+                custody,
             )?;
             if psi_operation != expected_operation
                 || destination != expected_destination

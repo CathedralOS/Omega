@@ -9,6 +9,7 @@ use super::{
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StoreAccessPolicy {
     MutableOnly,
@@ -276,9 +277,46 @@ pub(crate) fn lower_structural_field_path<'a>(
     ))
 }
 
-/// Walk a carrier path of record fields and fixed-array elements, literal or
-/// the assignment's runtime elements, in any order, to the record that
-/// declares `field_identity`.
+/// Normalize a storage root to its field-bearing declaration and retain any
+/// pointer crossing explicitly. All field-store kinds use this geometry;
+/// it cannot establish permission or select an address from possible origins.
+fn structural_field_root(
+    root_type: StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<(&StructuralTypeDeclaration, Vec<ProjectionStep>), LoweringError> {
+    let declaration = structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .ok_or(LoweringError::Unsupported(
+            "structural scalar store root type is absent",
+        ))?;
+    // A reference-rooted walk joins its referent: `cell.value = 7` through a
+    // `&mut Cell` local walks `Cell`'s members — the `ref-mut` shell is the
+    // loan custody, never the record that owns the field.
+    let field_owner = match &declaration.shape {
+        StructuralTypeShape::Reference { referent, .. } => structural_types
+            .iter()
+            .find(|candidate| candidate.id == *referent)
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar store referent type is absent",
+            ))?,
+        _ => declaration,
+    };
+    let mut steps = Vec::new();
+    // A record reference carries a pointer and its loan, not inline fields.
+    // Make that crossing explicit so downstream geometry cannot mistake the
+    // carrier's own home for the caller's record storage.
+    if matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+        && matches!(field_owner.shape, StructuralTypeShape::Record { .. })
+    {
+        steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
+    }
+    Ok((field_owner, steps))
+}
+
+/// Resolve field geometry from the same storage root used by restoration
+/// windows. The explicit reference crossing describes pointer geometry only;
+/// operation admission and independent replay establish mutation authority.
 pub(crate) fn lower_structural_field_steps<'a>(
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
@@ -291,33 +329,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
     ),
     LoweringError,
 > {
-    let declaration = structural_types
-        .iter()
-        .find(|declaration| declaration.id == root_type)
-        .ok_or(LoweringError::Unsupported(
-            "structural scalar store root type is absent",
-        ))?;
-    // A reference-rooted walk joins its referent: `cell.value = 7` through a
-    // `&mut Cell` local walks `Cell`'s members — the `ref-mut` shell is the
-    // loan custody, never the record that owns the field.
-    let mut field_owner = match &declaration.shape {
-        StructuralTypeShape::Reference { referent, .. } => structural_types
-            .iter()
-            .find(|candidate| candidate.id == *referent)
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar store referent type is absent",
-            ))?,
-        _ => declaration,
-    };
-    let mut steps = Vec::with_capacity(carrier_path.len());
-    // A record reference carries a pointer and its loan, not inline fields.
-    // Make that crossing explicit so downstream geometry cannot mistake the
-    // carrier's own home for the caller's record storage.
-    if matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        && matches!(field_owner.shape, StructuralTypeShape::Record { .. })
-    {
-        steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
-    }
+    let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
     for segment in carrier_path {
         let nested = match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
@@ -450,15 +462,8 @@ pub(crate) fn lower_window_path<'a>(
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>), LoweringError> {
-    let declaration = structural_types
-        .iter()
-        .find(|declaration| declaration.id == root_type)
-        .ok_or(LoweringError::Unsupported(
-            "structural window root type is absent",
-        ))?;
-    let mut field_owner = declaration;
+    let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
     let mut last_field = None;
-    let mut steps = Vec::with_capacity(path.len());
     let mut cursor = path;
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;

@@ -93,6 +93,20 @@ is not a choice of addresses for code generation. A released carrier cannot
 read, and the original parent remains suspended until release. Geometry and
 field-type validation remain separate from this permission check.
 
+Structural field replacement through a returned mutable record carrier uses
+the same extraction/restoration window as replacement through a parameter or
+owned home. Both operations retain the exact carrier and explicit `Referent`
+crossing; native execution loads its captured pointer before applying field
+offsets. The live, unsuspended parent permission authorizes the window, not
+ownership of the referent. Its descendants must have ended, and every possible
+ingress origin stays suspended until the carrier is released. Restoration debt
+names the carrier and complete referent-relative field path, so an overlapping
+access or repair at a possible origin cannot bypass the hole. This does not
+extend whole-root windows (`field: None`) beyond exclusive parameter loans.
+`borrows/returned_record_case_field_store_exit` exercises nested enum replacement
+through each of two selected record references while preserving their siblings
+and an untouched third record.
+
 Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit

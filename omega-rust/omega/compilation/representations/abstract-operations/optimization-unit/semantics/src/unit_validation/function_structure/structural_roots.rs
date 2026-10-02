@@ -597,12 +597,8 @@ pub(crate) fn validate_structural_root_operations(
                     // spelled path, and a fresh operation-result place of
                     // exactly that type under clean exact-once custody.
                     let valid = borrowed_window_root(function, source, &place_kinds)
-                        && window_field_type(
-                            structural_types,
-                            source.structural_type(),
-                            path,
-                            *field,
-                        ) == Some(result.structural_type)
+                        && window_field_type(function, structural_types, source, path, *field)
+                            == Some(result.structural_type)
                         && root_window_loan(source, *field)
                         && matches!(
                             result.multiplicity,
@@ -643,8 +639,9 @@ pub(crate) fn validate_structural_root_operations(
                         && value.access == terminal_psi::StructuralAccess::Owned
                         && value.path.is_empty()
                         && window_field_type(
+                            function,
                             structural_types,
-                            destination.structural_type(),
+                            destination,
                             path,
                             *field,
                         )
@@ -1145,26 +1142,23 @@ fn borrowed_window_root(
                 }
         }
         abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
-            // An owned completed local home: the retained producer names an
-            // operation in the home-completing set whose structural result
-            // row is exactly this one under clean transferable custody, and
-            // the place roster records it as that operation's result.
+            // Rejoin the exact producer through the shared storage contract.
+            // A structural result may expose a loan instead of owning its
+            // storage, so result identity alone does not establish authority.
             let producer_admits =
                 function
                     .blocks
                     .iter()
                     .flat_map(|block| &block.nodes)
                     .any(|node| {
-                        matches!(
-                            node.operation,
-                            O::EstablishRecord { .. }
-                                | O::EstablishZeroedStructural { .. }
-                                | O::CallStructural {
-                                    result: AbstractStructuralCallResult::Structural { .. },
-                                    ..
-                                }
-                                | O::StructuralLeafCopy { .. }
-                        ) && node.operation.psi_operation() == Some(*producer)
+                        node.operation.psi_operation() == Some(*producer)
+                            && crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                                &node.operation,
+                            )
+                            .is_some_and(|source| {
+                                source.access == terminal_psi::StructuralAccess::Owned
+                                    && source.operation_result() == Some(result)
+                            })
                     });
             producer_admits
                 && matches!(
@@ -1205,11 +1199,31 @@ fn root_window_loan(
 /// window names the whole referent with no path. `None` means the place does
 /// not host a structural field there.
 fn window_field_type(
+    function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    root: StructuralTypeId,
+    root: &abstract_operations::StructuralWindowRoot,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<StructuralTypeId> {
+    let (root, path) = if matches!(
+        path.first(),
+        Some(terminal_psi::StructuralPathSegment::Referent)
+    ) {
+        if !matches!(
+            root,
+            abstract_operations::StructuralWindowRoot::OwnedResult { .. }
+        ) {
+            return None;
+        }
+        crate::unit_validation::references::mutable_record_field_destination(
+            function,
+            structural_types,
+            root.place(),
+            path,
+        )?
+    } else {
+        (root.structural_type(), path)
+    };
     let Some(field) = field else {
         return path.is_empty().then_some(root);
     };
