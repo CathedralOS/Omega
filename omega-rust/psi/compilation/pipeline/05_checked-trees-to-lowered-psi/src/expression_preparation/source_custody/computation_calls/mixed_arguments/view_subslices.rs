@@ -1,4 +1,4 @@
-//! Computed view ranges retain a particular established view and borrow row.
+//! Computed view ranges retain exact array backing or a view and its borrow row.
 //! Range replay validates operator meaning and endpoint custody without running
 //! either endpoint. Descriptor production belongs to ordered call evaluation.
 use crate::lowering_error::{LoweringError, unsupported};
@@ -11,28 +11,27 @@ use checked_trees::{
 
 pub(super) fn captured_range(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: u32,
     expression: ExpressionHandle,
 ) -> Result<checked_trees::CapturedPlace, LoweringError> {
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
+    let operation = validation::shared_subslice_expression(&checked.typed, expression).ok_or(
+        LoweringError::Unsupported("computed subslice lost its shared range expression"),
+    )?;
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("computed subslice lost its indexed source");
     };
     let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
         return unsupported("computed subslice lost its range");
     };
-    let ExpressionNode::Name(name) = checked.expression_table.expression(indexed.collection) else {
-        return unsupported("computed subslice requires an established named view");
-    };
-    if range.end_inclusive
-        || !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || checked
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return unsupported("computed subslice changed its exclusive range or source name");
-    }
+    let source = crate::emission::call_source_custody::projected_receivers::source(
+        checked,
+        machine,
+        state,
+        statement as usize,
+        indexed.collection,
+    )?;
     // The borrow ledger canonicalizes closed constant bounds as a fixed
     // half-open range. An omitted end still observes the runtime view length,
     // so it retains the authored index identity rather than a guessed extent.
@@ -60,10 +59,9 @@ pub(super) fn captured_range(
             expression: indexed.index,
         },
     };
-    Ok(checked_trees::CapturedPlace {
-        root_symbol: name.symbol,
-        segments: vec![segment],
-    })
+    let mut captured = source.captured_place().clone();
+    captured.segments.push(segment);
+    Ok(captured)
 }
 
 pub(super) fn validate(
@@ -92,63 +90,64 @@ pub(super) fn validate(
         } => (*root, *expression, start, end, false),
         _ => return unsupported("computed subslice has no retained range"),
     };
-    if retained_expression != expression
-        || !argument.path.is_empty()
-        || argument.access != CheckedStructuralAccess::SharedBorrow
+    if retained_expression != expression || argument.access != CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("computed subslice changed its expression or view custody");
     }
-    let captured = captured_range(checked, expression)?;
-    let (symbol, reference) = match root {
+    let (caller, _) = super::super::authored_state(checked, state.symbol)?;
+    let operation = validation::shared_subslice_expression(&checked.typed, expression).ok_or(
+        LoweringError::Unsupported("computed subslice lost its shared range expression"),
+    )?;
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
+        return unsupported("computed subslice lost its indexed source");
+    };
+    let source = crate::emission::call_source_custody::projected_receivers::source(
+        checked,
+        caller.symbol,
+        state.symbol,
+        statement as usize,
+        indexed.collection,
+    )?;
+    if source.path != argument.path {
+        return unsupported("computed subslice substituted its projected path");
+    }
+    let captured = captured_range(checked, caller.symbol, state.symbol, statement, expression)?;
+    let parameters = checked.state_parameters(state);
+    let (symbol, reference, mutable_binding) = match root {
         CheckedStorageRoot::Parameter { index } => {
-            let parameter = checked
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| {
-                    !parameter.relevance.is_erased()
-                        && checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .nth(index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "computed subslice lost its source parameter",
-                ))?;
-            if parameter.is_const || parameter.is_mutable {
+            let parameter = super::super::structural_parameter_at(
+                checked,
+                parameters,
+                index,
+                "computed subslice lost its source parameter",
+            )?;
+            if parameter.is_const
+                || !super::super::parameter_binding_is_unique(checked, state, parameter.symbol)
+            {
                 return unsupported("computed subslice source parameter changed custody");
             }
-            (parameter.symbol, parameter.type_reference)
+            (
+                parameter.symbol,
+                parameter.type_reference,
+                parameter.is_mutable,
+            )
         }
-        CheckedStorageRoot::ViewLocal { symbol } => {
-            let mut locals = checked
-                .statement_table
-                .statements(state.statement_nodes)
+        CheckedStorageRoot::ViewLocal { symbol } | CheckedStorageRoot::OwnedLocal { symbol } => {
+            if parameters
                 .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    checked_trees::statement::StatementNode::LocalData(local)
-                        if local.symbol == symbol =>
-                    {
-                        Some((ordinal, local))
-                    }
-                    _ => None,
-                });
-            let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
-                "computed subslice lost its view local",
-            ))?;
-            if locals.next().is_some()
-                || ordinal >= statement as usize
-                || local.is_mutable
-                || !checked
-                    .expression_table
-                    .expression_is_valid(local.initial_value)
+                .any(|parameter| parameter.symbol == symbol)
             {
-                return unsupported("computed subslice has no exact prior view establishment");
+                return unsupported("computed subslice substituted its local owner");
             }
-            (local.symbol, local.type_reference)
-        }
-        CheckedStorageRoot::OwnedLocal { .. } => {
-            return unsupported("computed subslice cannot narrow owned storage");
+            let local = super::super::preceding_local(
+                checked,
+                state,
+                symbol,
+                statement as usize,
+                "computed subslice lost its source local",
+                "computed subslice has no exact prior storage establishment",
+            )?;
+            (local.symbol, local.type_reference, local.is_mutable)
         }
     };
     let view_type = |reference| {
@@ -170,18 +169,70 @@ pub(super) fn validate(
             TypeReferenceNode::Named { .. }
         ) && checked.primitive_type_reference(*element_type)
             == Some(checked_trees::types::PrimitiveType::U8);
-        Some((checked.normalized_type_identity(*referee), is_bytes))
+        Some((*referee, *element_type, is_bytes))
     };
-    let (identity, source_bytes) = view_type(reference).ok_or(LoweringError::Unsupported(
-        "computed subslice source is not a shared view",
-    ))?;
-    let (target_identity, target_bytes) = view_type(target.type_reference).ok_or(
+    let (target_slice, target_element, target_bytes) = view_type(target.type_reference).ok_or(
         LoweringError::Unsupported("computed subslice formal is not a shared view"),
     )?;
-    if symbol != captured.root_symbol
-        || identity != target_identity
-        || identity.as_str() != argument.type_identity
-        || source_bytes != bytes
+    let source_element = if let Some((_, element, _)) = view_type(reference) {
+        if mutable_binding
+            || !source.path.is_empty()
+            || matches!(root, CheckedStorageRoot::OwnedLocal { .. })
+        {
+            return unsupported("computed subslice has no immutable view descriptor");
+        }
+        element
+    } else {
+        if matches!(root, CheckedStorageRoot::ViewLocal { .. }) {
+            return unsupported("computed subslice view local lost its descriptor");
+        }
+        match validation::reference_shell(&checked.typed, reference) {
+            Some(shell)
+                if matches!(root, CheckedStorageRoot::Parameter { .. })
+                    && matches!(
+                        shell.access,
+                        language_core::ReferenceAccess::Shared
+                            | language_core::ReferenceAccess::Mutable
+                    ) => {}
+            Some(_) => return unsupported("computed subslice backing is not readable storage"),
+            None => {}
+        };
+        let mut projected = validation::declared_place_type_raw(
+            &checked.typed,
+            caller,
+            Some(state),
+            indexed.collection,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "computed subslice backing lost its declared type",
+        ))?;
+        // Parameter custody already lowered one root reference. A reference
+        // below a field needs a Referent crossing; it is not an array tip.
+        if source.path.is_empty()
+            && matches!(root, CheckedStorageRoot::Parameter { .. })
+            && let Some(shell) = validation::reference_shell(&checked.typed, projected)
+        {
+            projected = shell.referee;
+        }
+        let mut element = None;
+        for _ in 0..=checked.type_reference_table.type_reference_count() {
+            match checked.type_reference_table.type_reference(projected) {
+                TypeReferenceNode::Constrained { base_type, .. } => projected = *base_type,
+                TypeReferenceNode::FixedArray { element_type, .. } => {
+                    element = Some(*element_type);
+                    break;
+                }
+                _ => break,
+            }
+        }
+        element.ok_or(LoweringError::Unsupported(
+            "computed subslice backing is not a fixed array",
+        ))?
+    };
+    if symbol != source.root
+        || checked.normalized_type_identity(source_element)
+            != checked.normalized_type_identity(target_element)
+        || checked.normalized_type_identity(target_slice).as_str() != argument.type_identity
         || target_bytes != bytes
     {
         return unsupported("computed subslice substituted its root, type, or view family");
@@ -196,7 +247,7 @@ pub(super) fn validate(
             retained: Some((start, end)),
         },
         symbol,
-        &[],
+        &source.path,
     )?;
     super::borrow_rows::validate_shared_place_argument_at(checked, call, position, &captured)
 }
