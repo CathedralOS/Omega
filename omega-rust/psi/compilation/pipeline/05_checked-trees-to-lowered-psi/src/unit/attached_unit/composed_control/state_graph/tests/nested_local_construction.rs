@@ -81,4 +81,49 @@ fn nested_affine_local_construction_replays_conserved_provenance() {
             "{corruption} custody must reject source replay"
         );
     }
+    let (transfer, original) = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Transfer
+                && event.source == PermissionEventSource::Statement { statement_index: 1 }
+        })
+        .expect("constructor consumes its named child at the declaration");
+    for corruption in [
+        "missing child move",
+        "duplicate child move",
+        "displaced child move",
+        "disposed moved child",
+    ] {
+        let mut changed = checked.clone();
+        let permissions = &mut changed.facts.flow.ownership.permissions;
+        match corruption {
+            "missing child move" => {
+                permissions.get_mut(transfer).machine_symbol = Default::default()
+            }
+            "duplicate child move" => {
+                permissions.insert(original.clone());
+            }
+            "displaced child move" => {
+                permissions.get_mut(transfer).source =
+                    PermissionEventSource::Statement { statement_index: 0 }
+            }
+            "disposed moved child" => {
+                let mut disposal = original.clone();
+                disposal.kind = PermissionEventKind::AffineDrop;
+                disposal.source = PermissionEventSource::StateExit;
+                permissions.insert(disposal);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            admission::admit(&changed, plan).is_err(),
+            "{corruption} must reject exact operand retirement"
+        );
+    }
 }
