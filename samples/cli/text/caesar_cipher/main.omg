@@ -32,14 +32,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
-    self.text = "HELLO";
-    self.out = ".....";
-    self.i = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
+    main.text = "HELLO";
+    main.out = ".....";
+    main.i = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     state step(main: &mut Main) {

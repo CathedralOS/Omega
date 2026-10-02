@@ -275,34 +275,19 @@ execution and native exit/output. A moved refusal is still unfinished work.
   naming their subject.
 
 - **STATIC-ENTRY-PROOF-REACH.** (split-of:STATIC-MACHINE-MIGRATION)
-  Finish the remaining sample entries under the static-machine contract. The
-  byte-field and lockstep repairs now carry facts across named state parameters:
-  `print_number`, `print_squares` and `multiplication_table` run with their
-  authored output and native/interpreter exit 0 on macOS ARM64. The independent
-  `atomics_cross` storage-identity failure is also repaired; its named entry
-  runs with both engines at exit 70. Do not reopen those resolved mechanisms
-  from the earlier receiver-versus-static measurements.
-  Remaining measured customers, not yet rerun after those repairs:
-  `samples/cli/{games/dice_histogram,
-  rendering/bouncing_ball_2d,rendering/mandelbrot,rendering/mandelbrot_zoom,
-  text/caesar_cipher,algorithms/maze_flood,arithmetic/prime_sieve,simulation/calendar}`.
-  Their earlier static-entry attempts reached unavailable operation proofs or
+  Finish the named-entry migration for
+  `samples/cli/{rendering/bouncing_ball_2d,rendering/mandelbrot,
+  rendering/mandelbrot_zoom,algorithms/maze_flood,arithmetic/prime_sieve}`.
+  These five customers have not been rerun since the state-parameter proof
+  repairs; their earlier attempts reached unavailable operation proofs or
   private proof-search capacity limits. Reproduce each current boundary before
-  changing inference or budgets. `OMEGA_DUMP_OBLIGATIONS=1` exposes the actual
-  reconstructed goals and axioms; use exact storage bindings across states,
-  with independent all-arrival proof checks, rather than equating parameter
-  names globally. Acceptance: migrate the remaining entries, measure each
-  documented native output/exit and checked-interpreter agreement, and retain
-  rejection controls for substituted storage and invalid numeric bounds.
-  A separate divisor probe recorded the full invariant chain in both
-  spellings, with duplicated predecessor/successor facts in the static roster.
-  If a remaining customer still fails, inspect
-  `path_facts::bind_successor_structural_axioms` and
-  `root_selection/{alias,roster}.rs` for that duplication; preserve legitimate
-  aliases and all-arrival proofs. Reproduce it on current main before changing
-  roster replacement or search. Forcing `reconstruct_path_facts` and appending
-  invocation facts at every block did not resolve that probe.
-
+  changing inference or budgets. `OMEGA_DUMP_OBLIGATIONS=1` exposes reconstructed
+  goals and axioms. Preserve exact storage bindings across states and independent
+  all-arrival proof checks; parameter names do not establish storage identity.
+  Acceptance: migrate each entry under the static-machine contract without
+  changing its algorithm, verify its documented native output/exit and checked-
+  interpreter agreement, and retain rejection controls for substituted storage
+  and invalid numeric bounds.
 
 - **STATIC-JUMP-DATA-REBORROW.** (split-of:STATIC-MACHINE-MIGRATION)
   A state jump that supplies both the data record and a projection of it is

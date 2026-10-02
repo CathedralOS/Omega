@@ -4,7 +4,7 @@ Roll 60 deterministic xorshift32 dice, tally the six faces, and render their
 frequencies as a labeled bar chart. From the repository root:
 
 ```text
-mbx run -p omega -- run samples/cli/games/dice_histogram/main.omg
+mbx run -p omega -- run --both samples/cli/games/dice_histogram/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary
@@ -30,8 +30,11 @@ to preserve them:
 The banner is `dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart`.
 After the six rows, print `done: all 6 face frequencies charted (exit 0)`
 and `[press Enter to close]`, each on its own line. Native execution exits 0;
-the CLI reports `native exit 0` on stderr. A banner, a single `#`, or exit 0
+the checked interpreter also exits 0. The CLI reports `native exit 0` and
+`interp exit: 0` on stderr. A banner, a single `#`, or exit 0
 alone does not establish the chart's correctness.
 
-This complete oracle was verified on macOS ARM64. The other declared hosted
-targets still require matching-host execution.
+The entry receives an explicit `main: &mut Main` context and forwards it to
+the named states. The complete native stdout oracle and both engine exit codes
+were verified on macOS ARM64. The other declared hosted targets still require
+matching-host execution.

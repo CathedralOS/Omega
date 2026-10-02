@@ -3,6 +3,7 @@
 Render a 30-day month starting on Wednesday, then read Enter and exit 0.
 The program writes decimal digits into a 21-byte UTF-8 row using runtime
 indices, flushes each complete week, and prints the final partial week.
+The entry names its context parameter and forwards it through the states.
 The explicit `as i32` conversions erase the arithmetic policy after the
 wrapping digit additions; the existing narrowing calls still trap on an
 out-of-range value.
@@ -21,7 +22,7 @@ then resume the transaction:
 
 ```sh
 mbx run -p omega -- update --resume --project samples/cli/simulation/calendar
-mbx run -p omega -- run samples/cli/simulation/calendar/main.omg
+mbx run -p omega -- run --both samples/cli/simulation/calendar/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Enter closes the native program.
@@ -46,6 +47,7 @@ bytes, including the header's final space:
 The complete stdout is 277 bytes with LF line endings: the banner
 `calendar: render a 30-day month starting on Wednesday as a 7-column grid`,
 the six lines above, `done: all 30 dates laid out and flushed (exit 0)`, and
-`[press Enter to close]`, each followed by LF. Native execution exits 0;
-the CLI reports `native exit 0` on stderr. Acceptance requires all five
+`[press Enter to close]`, each followed by LF. Native and checked-interpreter
+execution both exit 0; the CLI reports `native exit 0` and `interp exit: 0`
+on stderr. Acceptance requires all five
 rows and the exact header, not merely output containing `30`.
