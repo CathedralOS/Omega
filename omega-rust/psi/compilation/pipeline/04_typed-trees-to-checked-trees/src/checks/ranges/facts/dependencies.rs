@@ -1,4 +1,9 @@
 //! Exact typed reads behind the range checker's legacy expression labels.
+//!
+//! Incoming guards measure predecessor storage. Record those reads in their
+//! evaluation scope, then transport exact parameter roots to the receiving
+//! state. Field/index paths survive that join; spelling alone cannot keep a
+//! stale predecessor parameter current or authorize an unrelated binding.
 
 mod captures;
 mod reads;
@@ -97,6 +102,12 @@ impl ReceiverLength {
     pub(in crate::checks::ranges) fn same_seed(&self, other: &Self) -> bool {
         self.same_extent(other) && self.label == other.label
     }
+}
+
+struct ExpressionDependencyScope<'scope> {
+    evaluation: &'scope State,
+    destination: &'scope State,
+    parameter_roots: &'scope [(SymbolHandle, SymbolHandle)],
 }
 
 impl<'field> RangeFacts<'field> {
@@ -331,77 +342,6 @@ impl<'field> RangeFacts<'field> {
         });
     }
 
-    /// Claim every sub-expression of a TRANSPORTED expression as already
-    /// recorded in this scope, so the seeding that follows does not derive a
-    /// dependency row for it.
-    ///
-    /// Re-deriving would reevaluate a source-state expression against the
-    /// destination scope and come back with an incomplete read set. A row
-    /// that disagrees about its reads makes its label a collision, which
-    /// withdraws the label from the preserved set -- retiring bounds that had
-    /// transported perfectly well before the transported guard arrived. The
-    /// caller supplies the exact reads through `seed_relation_reads` instead.
-    pub(in crate::checks::ranges) fn claim_transported_expression(
-        &mut self,
-        program: &TypedTrees,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        expression: ExpressionHandle,
-    ) {
-        if !expression.is_valid() {
-            return;
-        }
-        self.recorded_expressions
-            .insert((expression, machine, state));
-        let children: Vec<ExpressionHandle> = match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
-            ExpressionNode::Unary(unary) => vec![unary.operand],
-            ExpressionNode::Cast(cast) => vec![cast.value],
-            ExpressionNode::Borrow(borrow) => vec![borrow.target],
-            ExpressionNode::Member(member) => vec![member.receiver],
-            ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
-            _ => Vec::new(),
-        };
-        for child in children {
-            self.claim_transported_expression(program, machine, state, child);
-        }
-    }
-
-    /// Rebind a transported RELATION's read set to destination storage.
-    ///
-    /// Like `seed_storage_dependency`, but a relation over several leaves
-    /// reads all of them (`main.b * 20 + main.a` reads `main.b` and `main.a`),
-    /// so ordinary mutation retires it only when a write overlaps one of those
-    /// fields. Re-deriving the read set here instead would reevaluate a
-    /// SOURCE-state expression in the destination scope, come back incomplete,
-    /// and retire the fact on any write at all.
-    pub(in crate::checks::ranges) fn seed_relation_reads(
-        &mut self,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        expression: ExpressionHandle,
-        label: &str,
-        reads: Vec<CanonicalPlace>,
-    ) {
-        // REPLACE this label's rows in this scope rather than adding beside
-        // them. The seeding that just ran recorded the same label with an
-        // incomplete read set, and two rows that disagree about their reads
-        // make the label a collision, which withdraws BOTH from the
-        // preserved set -- so appending the precise row would leave the fact
-        // retired by any write, which is the state it was already in.
-        self.expression_dependencies
-            .retain(|row| !(row.label == label && row.machine == machine && row.state == state));
-        self.recorded_expressions
-            .insert((expression, machine, state));
-        self.expression_dependencies.push(ExpressionDependencies {
-            expression,
-            label: label.to_owned(),
-            machine,
-            state,
-            reads: Some(reads),
-        });
-    }
-
     pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
         &mut self,
         program: &TypedTrees,
@@ -468,17 +408,53 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         expression: ExpressionHandle,
     ) {
-        self.record_dependencies(program, machine, state, expression, 0);
+        self.record_dependencies(
+            program,
+            machine,
+            &ExpressionDependencyScope {
+                evaluation: state,
+                destination: state,
+                parameter_roots: &[],
+            },
+            expression,
+            0,
+        );
+    }
+
+    /// The caller supplies only parameter bindings already proved label-stable
+    /// by the incoming-edge analysis. Incomplete or unmapped reads remain
+    /// incomplete; they never become storage-free premises.
+    pub(in crate::checks::ranges) fn record_incoming_guard_dependencies(
+        &mut self,
+        program: &TypedTrees,
+        machine: &Machine,
+        evaluation: &State,
+        destination: &State,
+        parameter_roots: &[(SymbolHandle, SymbolHandle)],
+        expression: ExpressionHandle,
+    ) {
+        self.record_dependencies(
+            program,
+            machine,
+            &ExpressionDependencyScope {
+                evaluation,
+                destination,
+                parameter_roots,
+            },
+            expression,
+            0,
+        );
     }
 
     fn record_dependencies(
         &mut self,
         program: &TypedTrees,
         machine: &Machine,
-        state: &State,
+        scope: &ExpressionDependencyScope<'_>,
         expression: ExpressionHandle,
         depth: usize,
     ) {
+        let state = scope.destination;
         if depth >= EXPRESSION_WALK_DEPTH_BOUND
             || !program.expression_table.expression_is_valid(expression)
         {
@@ -497,17 +473,17 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let complete = validation::has_builtin_bound_expression_meaning(
+        let mut complete = validation::has_builtin_bound_expression_meaning(
             program,
             machine,
-            Some(state),
+            Some(scope.evaluation),
             expression,
         ) && {
             let bound_lookup = self.bound_lookup().clone();
             collect_reads(
                 program,
                 machine,
-                state,
+                scope.evaluation,
                 self.statement_index,
                 expression,
                 self.checked_calls,
@@ -517,6 +493,22 @@ impl<'field> RangeFacts<'field> {
                 &bound_lookup,
             )
         };
+        if complete && scope.evaluation.symbol != state.symbol {
+            for read in &mut reads {
+                if read.root == facts::PlaceRoot::Symbol(machine.symbol) {
+                    continue;
+                }
+                let Some((_, destination)) = scope
+                    .parameter_roots
+                    .iter()
+                    .find(|(source, _)| read.root == facts::PlaceRoot::Symbol(*source))
+                else {
+                    complete = false;
+                    break;
+                };
+                read.root = facts::PlaceRoot::Symbol(*destination);
+            }
+        }
         self.recorded_expressions
             .insert((expression, machine.symbol, state.symbol));
         self.expression_dependencies.push(ExpressionDependencies {
@@ -533,7 +525,7 @@ impl<'field> RangeFacts<'field> {
             _ => return,
         };
         for child in children {
-            self.record_dependencies(program, machine, state, child, depth + 1);
+            self.record_dependencies(program, machine, scope, child, depth + 1);
         }
     }
 

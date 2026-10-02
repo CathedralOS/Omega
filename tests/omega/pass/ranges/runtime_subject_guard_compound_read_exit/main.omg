@@ -1,0 +1,26 @@
+// A compound bound follows an explicit Main subject into its successor.
+// Reading element 2 of the stored array must produce process exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    row: i32 in Wrapping;
+    column: i32 in Wrapping;
+    values: [i32; 4];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.row = 1;
+    main.column = 0;
+    main.values = [11, 22, 70, 44];
+    transition main.row * 2 + main.column >= 0 && main.row * 2 + main.column < 4 {
+        true -> selected(main)
+        false -> failed(main)
+    }
+    state selected(main: &mut Main) {
+        let selected: i32 = main.values[main.row * 2 + main.column];
+        main.console.exit_process(selected);
+    }
+    state failed(main: &mut Main) { main.console.exit_process(1); }
+}

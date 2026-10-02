@@ -735,6 +735,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody built 403m
 pass/providers/token_machine_family_override_exit built 847ms exit:70 @2d8ed253669f+wt
 pass/range/runtime_funnel_guard_agreement_exit built 861ms exit:7 @2d8ed253669f+wt
 pass/range/runtime_guarded_runtime_index_increment_exit built 864ms exit:1 @2d8ed253669f+wt
+pass/ranges/runtime_subject_guard_compound_read_exit built 1175ms exit:70 @f64782b89114+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit built 858ms exit:70 @2d8ed253669f+wt
 pass/recast/nested_operand_view_compile checked 400ms @a3bac00e54bb
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 851ms @a3bac00e54bb

@@ -958,6 +958,8 @@ fail/ranges/index_signed_guard_below_zero rejected 327ms expected @c08960bee2b1+
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 296ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 4 in Main::main::body
+fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782b89114+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/ranges/sum_payload_non_case_guard_unproven rejected 725ms expected @2d8ed253669f
 	cannot prove requires contract for call use_v from Main::main: self.p::One.v in i32::Fifty
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
@@ -2058,6 +2060,7 @@ pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
 pass/range/data_parameter_counter_non_negative_exit checked 848ms @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
+pass/ranges/runtime_subject_guard_compound_read_exit checked 1234ms @f64782b89114+wt
 pass/ranges/subject_guard_compound_index_successor checked 126ms @34bff3b8a5fe
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt

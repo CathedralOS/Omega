@@ -133,3 +133,54 @@ fn nominal_float_len_field_retains_selected_ordering_without_builtin_bound_meani
         );
     }
 }
+
+fn transported_subject_source(write: &str, argument: &str) -> String {
+    format!(
+        "data Main {{ a: i32 in Wrapping; b: i32 in Wrapping;
+             sibling: i32 in Wrapping; grid: [i32; 200] in Wrapping; }}
+         machine touch(main: &mut Main) {{ main.sibling = 9; }}
+         machine Main::main(main: &mut Main, other: &mut Main) {{
+             transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {{
+                 true -> put({argument})
+                 false -> done(main)
+             }}
+             state put(main: &mut Main) {{ {write} main.grid[main.b * 20 + main.a] = 7; }}
+             state done(main: &mut Main) {{}}
+         }}"
+    )
+}
+
+#[test]
+fn transported_compound_guard_survives_disjoint_subject_field_writes() {
+    for write in ["main.sibling = 9;", "touch(main);"] {
+        let source = transported_subject_source(write, "main");
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn transported_compound_guard_retires_when_an_operand_field_changes() {
+    for write in ["main.a = 200;", "main.b = 200;"] {
+        let source = transported_subject_source(write, "main");
+        let diagnostics = checked_program_result(&source).expect_err("the old bound expired");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove index")),
+            "{source}\n{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn transported_compound_guard_requires_the_exact_subject_argument() {
+    let source = transported_subject_source("", "other");
+    let diagnostics = checked_program_result(&source).expect_err("a different record has no bound");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove index")),
+        "{source}\n{diagnostics:#?}"
+    );
+}
