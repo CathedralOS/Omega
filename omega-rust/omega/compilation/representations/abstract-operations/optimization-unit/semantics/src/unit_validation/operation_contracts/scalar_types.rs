@@ -53,7 +53,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
-        | O::ElementViewSubslice { .. } => element_views::types_match(operation, definitions),
+        | O::ElementViewSubslice { .. } => element_views::types_match(function, operation, definitions),
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine
                 && !parameter.trait_identity.is_empty()

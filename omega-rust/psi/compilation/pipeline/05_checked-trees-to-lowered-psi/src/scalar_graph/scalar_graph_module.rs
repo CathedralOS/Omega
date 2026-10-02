@@ -418,6 +418,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             .unwrap_or(&structural_parameters),
         scalar_source_block(identity_base, 0),
         &mut blocks,
+        views.structural_types,
     )?;
     // With every block emitted and every authored formal bound, carry each
     // state's exclusive record loan into the private blocks that read it.

@@ -358,7 +358,7 @@ fn guarded_window_empty_range_keeps_whole_backing_pinned() {
 }
 
 #[test]
-fn guarded_window_rejects_disposal_of_borrowed_descriptor() {
+fn guarded_window_rejects_duplicate_descriptor_disposal() {
     let mut unit = guarded_window_unit();
     let function = &mut unit.functions[0];
     let descriptor = function
@@ -389,6 +389,6 @@ fn guarded_window_rejects_disposal_of_borrowed_descriptor() {
             validate_address_join_ownership(&unit),
             Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
         ),
-        "a borrowed descriptor cannot grant owned backing disposal"
+        "an affine descriptor carrier must be disposed exactly once"
     );
 }

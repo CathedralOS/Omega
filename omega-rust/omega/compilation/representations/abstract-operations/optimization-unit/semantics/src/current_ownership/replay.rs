@@ -490,10 +490,9 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
-            // Multiplicity constrains uses; it does not make a borrowed
-            // descriptor own its backing. The common current result contract
-            // distinguishes storage loans from carriers which require disposal.
-            // Descriptor lifetime and parent interference replay independently.
+            // An affine descriptor carries disposal custody even when its backing
+            // is borrowed. Access permission is checked independently; recording
+            // its carrier here must not grant ownership of that backing.
             let result_contract =
                 crate::unit_validation::operation_contracts::structural_operation_result_contract(
                     function,
@@ -501,7 +500,6 @@ pub(super) fn validate_current_ownership_cfg(
                 );
             let structural_result = result_contract
                 .as_ref()
-                .filter(|contract| contract.access == StructuralAccess::Owned)
                 .and_then(|contract| contract.operation_result());
             if let Some(result) = structural_result {
                 insert_owned_result(

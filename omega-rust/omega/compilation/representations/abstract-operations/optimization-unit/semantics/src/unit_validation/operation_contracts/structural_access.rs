@@ -871,11 +871,11 @@ pub(crate) fn structural_operation_result_contract<'a>(
                     (result, terminal_psi::StructuralAccess::MutableBorrow)
                 }
                 O::ByteSequenceSubslice { result, .. } | O::ElementViewSubslice { result, .. } => {
-                    (result, subslice_access(caller, operation)?)
+                    (result, view_access(caller, operation)?)
                 }
                 // The view's source access IS the loan's access: a mutable
                 // establishment lends mutable, a shared one lends shared.
-                O::EstablishElementView { result, source, .. } => (result, source.access),
+                O::EstablishElementView { result, .. } => (result, view_access(caller, operation)?),
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
@@ -912,7 +912,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
 /// Rejoin every descriptor with its current declaration and producer. Multiplicity
 /// selects the requested loan; the exact source chain must supply it. The place
 /// count bounds malformed cycles without recursive queries or guessed authority.
-fn subslice_access(
+fn view_access(
     caller: &PsiOptimizationFunction,
     operation: &O,
 ) -> Option<terminal_psi::StructuralAccess> {
@@ -1024,6 +1024,7 @@ fn subslice_access(
                 {
                     return None;
                 }
+                requested.get_or_insert(source.access);
                 required = source.access;
                 expected_type = None;
                 place = source.place;

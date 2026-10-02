@@ -1,4 +1,5 @@
-//! Complete whole, claim-free affine parameter disposal in scalar graphs.
+//! Complete whole affine custody in scalar graphs: invocation owners enter at
+//! entry, while no-code borrowed descriptor carriers enter at their result birth.
 use super::super::{
     BlockId, StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction,
 };
@@ -18,6 +19,7 @@ pub(super) fn complete(
     parameters: &[StructuralParameterDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
+    types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
     let affine = parameters
         .iter()
@@ -28,18 +30,56 @@ pub(super) fn complete(
                 .then_some(parameter.place)
         })
         .collect::<Vec<_>>();
-    if affine.is_empty() {
+    // Existing statement emitters own every cleanup they already scheduled.
+    // Discover unhandled carrier results by declared storage semantics, never by
+    // the operation spelling which happened to create the descriptor.
+    let scheduled = blocks
+        .iter()
+        .flat_map(|block| scheduled_discards(&block.terminator))
+        .collect::<Vec<_>>();
+    let births = blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            let result = operation.result.structural()?;
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || scheduled.contains(&result.place)
+                || !result.claims.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+            {
+                return None;
+            }
+            let mut declarations = types
+                .iter()
+                .filter(|declaration| declaration.id == result.structural_type);
+            let declaration = declarations.next()?;
+            if declarations.next().is_some()
+                || !(matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                ) || declaration.shape.is_borrowed_byte_view())
+            {
+                return None;
+            }
+            Some((result.place, operation.id))
+        })
+        .collect::<Vec<_>>();
+    let mut managed = affine.clone();
+    managed.extend(births.iter().map(|(place, _)| *place));
+    if managed.is_empty() {
         return Ok(());
     }
-    if affine
+    if managed
         .iter()
         .enumerate()
-        .any(|(position, place)| affine[..position].contains(place))
+        .any(|(position, place)| managed[..position].contains(place))
     {
         return unsupported("scalar graph affine parameters have duplicate places");
     }
     let entry_position = block_position(blocks, entry)?;
-    let reentered = !blocks[entry_position].structural_parameters.is_empty();
+    let reentered = !affine.is_empty() && !blocks[entry_position].structural_parameters.is_empty();
     if reentered && blocks[entry_position].structural_parameters != parameters {
         return unsupported("owned loop entry differs from its allocated parameter frontier");
     }
@@ -53,7 +93,7 @@ pub(super) fn complete(
             && block
                 .structural_parameters
                 .iter()
-                .any(|parameter| affine.contains(&parameter.place))
+                .any(|parameter| managed.contains(&parameter.place))
         {
             return unsupported(
                 "scalar graph owned block parameters require exact forwarding custody",
@@ -69,7 +109,7 @@ pub(super) fn complete(
             } => {
                 if (structural_arguments
                     .iter()
-                    .any(|argument| affine.contains(&argument.place))
+                    .any(|argument| managed.contains(&argument.place))
                     && !(reentered && *target == entry))
                     || !residual_affine_discards.is_empty()
                     || trivial_affine_discards
@@ -95,7 +135,7 @@ pub(super) fn complete(
                 if [when_true, when_false].iter().any(|edge| {
                     edge.structural_arguments
                         .iter()
-                        .any(|argument| affine.contains(&argument.place))
+                        .any(|argument| managed.contains(&argument.place))
                         || edge
                             .trivial_affine_discards
                             .iter()
@@ -145,7 +185,14 @@ pub(super) fn complete(
     let mut visited = 0usize;
     while let Some(position) = ready.pop_front() {
         visited += 1;
-        let mut live = affine.clone();
+        let mut live = if position == entry_position {
+            affine.clone()
+        } else {
+            incoming[position]
+                .first()
+                .map(|predecessor| exits[*predecessor].clone())
+                .unwrap_or_default()
+        };
         for predecessor in &incoming[position] {
             live.retain(|place| exits[*predecessor].contains(place));
         }
@@ -153,7 +200,7 @@ pub(super) fn complete(
         for operation in &blocks[position].operations {
             let arguments = call_structural_arguments(&operation.kind);
             for argument in arguments.iter().filter(|argument| {
-                argument.access == StructuralAccess::Owned && affine.contains(&argument.place)
+                argument.access == StructuralAccess::Owned && managed.contains(&argument.place)
             }) {
                 if !argument.path.is_empty() {
                     return unsupported(
@@ -167,6 +214,14 @@ pub(super) fn complete(
                     );
                 };
                 live.remove(live_position);
+            }
+            if let Some(result) = operation.result.structural()
+                && births.iter().any(|(place, _)| *place == result.place)
+            {
+                if live.contains(&result.place) {
+                    return unsupported("scalar graph repeats a live descriptor birth");
+                }
+                live.insert(0, result.place);
             }
         }
         exits[position] = live;
@@ -189,6 +244,16 @@ pub(super) fn complete(
     // other paths dispose their surviving roots on their own selected edge.
     // A later read cannot revive a discarded owner; frontier verification
     // checks every operation against the reconciled entry.
+    let producers = blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            operation
+                .result
+                .structural()
+                .map(|result| (result.place, operation.id))
+        })
+        .collect::<Vec<_>>();
     for (position, block) in blocks.iter_mut().enumerate() {
         let discards = |target_position: usize| {
             exits[position]
@@ -227,9 +292,13 @@ pub(super) fn complete(
                             remaining.remove(position);
                         }
                     }
-                    trivial_affine_discards.extend(remaining);
+                    merge_discards(trivial_affine_discards, remaining, &producers);
                 } else {
-                    trivial_affine_discards.extend(discards(successors[position][0]));
+                    merge_discards(
+                        trivial_affine_discards,
+                        discards(successors[position][0]),
+                        &producers,
+                    );
                 }
             }
             Terminator::Conditional {
@@ -237,22 +306,32 @@ pub(super) fn complete(
                 when_false,
                 ..
             } => {
-                when_true
-                    .trivial_affine_discards
-                    .extend(discards(successors[position][0]));
-                when_false
-                    .trivial_affine_discards
-                    .extend(discards(successors[position][1]));
+                merge_discards(
+                    &mut when_true.trivial_affine_discards,
+                    discards(successors[position][0]),
+                    &producers,
+                );
+                merge_discards(
+                    &mut when_false.trivial_affine_discards,
+                    discards(successors[position][1]),
+                    &producers,
+                );
             }
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                cleanup_actions.extend(
-                    exits[position]
-                        .iter()
-                        .copied()
-                        .map(TerminalAffineCleanupAction::DiscardRoot),
-                );
+                let mut places = cleanup_actions
+                    .iter()
+                    .map(|action| match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+                        _ => unreachable!("cleanup shape checked above"),
+                    })
+                    .collect();
+                merge_discards(&mut places, exits[position].clone(), &producers);
+                *cleanup_actions = places
+                    .into_iter()
+                    .map(TerminalAffineCleanupAction::DiscardRoot)
+                    .collect();
             }
             _ => {}
         }
@@ -272,4 +351,79 @@ fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringEr
         return unsupported("owned scalar graph has duplicate block identities");
     }
     Ok(position)
+}
+
+/// Insert new result cleanup in reverse producer order without rearranging an
+/// already scheduled statement cleanup. Entry parameters follow local results.
+fn merge_discards(
+    existing: &mut Vec<semantic_vocabulary::PlaceId>,
+    additions: Vec<semantic_vocabulary::PlaceId>,
+    producers: &[(
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::OperationId,
+    )],
+) {
+    let producer = |place| {
+        producers
+            .iter()
+            .find_map(|(candidate, operation)| (*candidate == place).then_some(*operation))
+    };
+    for place in additions {
+        if let Some(birth) = producer(place) {
+            let position = existing
+                .iter()
+                .position(|current| {
+                    producer(*current).is_none_or(|current_birth| current_birth < birth)
+                })
+                .unwrap_or(existing.len());
+            existing.insert(position, place);
+        } else {
+            existing.push(place);
+        }
+    }
+}
+
+fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::PlaceId> {
+    match terminator {
+        Terminator::Jump {
+            trivial_affine_discards,
+            ..
+        }
+        | Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        }
+        | Terminator::ReturnUnitPartialAffine {
+            trivial_affine_discards,
+            ..
+        }
+        | Terminator::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } => trivial_affine_discards.clone(),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => when_true
+            .trivial_affine_discards
+            .iter()
+            .chain(&when_false.trivial_affine_discards)
+            .copied()
+            .collect(),
+        Terminator::Return {
+            cleanup_actions, ..
+        } => cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                _ => None,
+            })
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .flat_map(|edge| edge.trivial_affine_discards.iter().copied())
+            .collect(),
+        _ => Vec::new(),
+    }
 }

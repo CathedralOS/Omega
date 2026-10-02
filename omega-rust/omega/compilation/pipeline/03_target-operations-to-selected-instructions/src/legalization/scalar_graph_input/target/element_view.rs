@@ -216,8 +216,11 @@ impl Checker<'_> {
                             };
                             operation == psi_operation
                                 && result.place == source
-                                && result.multiplicity
-                                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                                && matches!(
+                                    (actual, result.multiplicity),
+                                    (Access::SharedBorrow, terminal_psi::StructuralMultiplicity::Unrestricted)
+                                        | (Access::MutableBorrow, terminal_psi::StructuralMultiplicity::Affine)
+                                )
                                 && result.qualifications.is_empty()
                                 && result.projected_qualifications.is_empty()
                                 && result.claims.is_empty()
