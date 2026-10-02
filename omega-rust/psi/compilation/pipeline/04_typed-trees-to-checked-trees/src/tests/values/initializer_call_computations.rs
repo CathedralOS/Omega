@@ -129,3 +129,169 @@ fn state_graph_initializers_retain_boundary_results_and_ordinary_helper_computat
         "a boundary operand without its checked computation cannot retain a composed plan"
     );
 }
+
+#[test]
+fn scalar_result_initializers_retain_each_inline_record_at_its_call() {
+    let checked = lower_typed_trees(
+        typed_program(
+            "data Payload { value: u32; } data Root {}
+             machine identity(payload: Payload) -> Payload { payload }
+             machine forward(payload: Payload, selected: bool) -> u32 {
+                 transition selected {
+                     true -> take(identity(payload))
+                     false -> take(Payload { value: 71 })
+                 }
+                 state take(payload: Payload) -> u32 { payload.value }
+             }
+             machine Root::enter() {
+                 let selected: u32 = forward(Payload { value: 70 }, true);
+                 let unselected: u32 = forward(Payload { value: 12 }, false);
+                 transition selected == 70 && unselected == 71 {
+                     true -> done()
+                     false -> done()
+                 }
+                 state done() {}
+             }",
+        ),
+        &CheckingRequest::settled(),
+    )
+    .unwrap();
+    let machine = caller(&checked);
+    let state = &checked.machine_states(machine)[0];
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == machine.symbol)
+        .expect("scalar result locals establish their inline structural operands");
+    let entry = plan
+        .states
+        .iter()
+        .find(|plan| plan.state == state.symbol)
+        .unwrap();
+    let forward = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let mut authored_operands = Vec::new();
+    for statement_index in 0..2 {
+        let StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[statement_index]
+        else {
+            panic!("scalar initializer");
+        };
+        let ExpressionNode::Call(authored) =
+            checked.expression_table.expression(local.initial_value)
+        else {
+            panic!("ordinary initializer call");
+        };
+        let operand = checked
+            .expression_table
+            .expression_handles(authored.arguments)[0];
+        authored_operands.push(operand);
+        let roots = &checked.facts.values.structural_values;
+        let root = roots
+            .root_for_expression(state.symbol, statement_index as u32, operand)
+            .unwrap();
+        let establishments = entry
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    value,
+                    operand_source,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                (result.statement_index == statement_index as u32).then_some((
+                    index,
+                    result,
+                    value,
+                    operand_source,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let [(establishment_index, result, value, source)] = establishments.as_slice() else {
+            panic!("one constructor establishment per authored initializer");
+        };
+        assert_eq!(**value, root.root);
+        assert_eq!(
+            **source,
+            Some(
+                checked_trees::CheckedArrayConstructionSource::CallArgument {
+                    call_ordinal: 0,
+                    parameter_position: 0
+                }
+            )
+        );
+        let calls = entry
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                operation
+                    .call()
+                    .filter(|call| {
+                        call.coordinate.statement_index == statement_index as u32
+                            && call.target.machine == forward.symbol
+                    })
+                    .map(|call| (index, call))
+            })
+            .collect::<Vec<_>>();
+        let [(call_index, call)] = calls.as_slice() else {
+            panic!("one outer invocation per authored initializer");
+        };
+        assert!(*establishment_index < *call_index);
+        assert_eq!(call.structural_arguments.len(), 1);
+        assert_eq!(
+            call.structural_arguments[0].source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal
+            }
+        );
+        assert!(call.scalar_result().is_some());
+        assert!(
+            !entry.operations.iter().any(|operation| matches!(operation,
+                CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                    if result.statement_index == statement_index as u32
+            )),
+            "the outer call has one scheduling owner"
+        );
+    }
+    for substitute in [false, true] {
+        let mut invalid = checked.clone();
+        invalid.facts.values.structural_values.roots = arena::Arena::new();
+        for (_, root) in checked.facts.values.structural_values.roots.iter() {
+            let mut root = root.clone();
+            if root.state == state.symbol && root.expression == authored_operands[0] {
+                if !substitute {
+                    continue;
+                }
+                root.expression = authored_operands[1];
+            }
+            invalid.facts.values.structural_values.roots.append(root);
+        }
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &invalid.typed,
+            &invalid.facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &invalid.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &invalid.facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            !rebuilt
+                .composed_machines
+                .iter()
+                .any(|plan| plan.machine == machine.symbol),
+            "missing or same-typed substituted constructor custody rejects: substitute={substitute}"
+        );
+    }
+}

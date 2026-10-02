@@ -24,6 +24,48 @@ pub(crate) fn validate(
     let operator = typed_trees::operator::resolve_named_expression_call(&checked.typed, authored)
         .filter(|operator| operator.is_boundary);
     let target = operator.map_or(authored.target_symbol, |operator| operator.symbol);
+    if operator.is_none() {
+        if !authored.carries_only_positional_arguments() || !authored.selects_only_nominal_route() {
+            return unsupported("captured call has no ordinary positional application");
+        }
+        let signature = super::authored::target_signature(checked, caller_machine, target)?;
+        if !signature
+            .parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+            && !service_receiver_matches(
+                checked,
+                caller_machine,
+                caller_state,
+                target,
+                authored.receiver,
+            )
+        {
+            let receiver = if authored.receiver.is_valid()
+                && checked
+                    .expression_table
+                    .expression_is_valid(authored.receiver)
+            {
+                let ExpressionNode::Name(path) =
+                    checked.expression_table.expression(authored.receiver)
+                else {
+                    return unsupported(
+                        "nonself call receiver is neither a namespace nor a service carrier",
+                    );
+                };
+                path.symbol
+            } else {
+                symbols::SymbolHandle::invalid()
+            };
+            super::authored::nested::validate_static_receiver(
+                checked,
+                caller_machine,
+                target,
+                receiver,
+                authored.receiver.is_valid(),
+            )?;
+        }
+    }
     let has_receiver = authored.receiver.is_valid()
         && operator.is_none_or(|operator| {
             checked.operator_parameters(operator).len()
@@ -95,4 +137,44 @@ pub(crate) fn validate(
         );
     }
     Ok(())
+}
+
+/// A routed service has receiver identity but no runtime self parameter.
+/// Its exact carrier/requirement relation distinguishes it from a namespace;
+/// the call operation still rejoins the Fused erasure and source-place custody.
+fn service_receiver_matches(
+    checked: &CheckedTrees,
+    caller_machine: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
+    target: symbols::SymbolHandle,
+    receiver: ExpressionHandle,
+) -> bool {
+    if !receiver.is_valid() || !checked.expression_table.expression_is_valid(receiver) {
+        return false;
+    }
+    let Ok((machine, state)) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)
+    else {
+        return false;
+    };
+    if machine.symbol != caller_machine {
+        return false;
+    }
+    let Some(reference) =
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), receiver)
+    else {
+        return false;
+    };
+    let Ok(Some(carrier)) =
+        typed_trees::service::classify_exact_service_parameter_carrier(&checked.typed, reference)
+    else {
+        return false;
+    };
+    checked.traits().iter().any(|definition| {
+        definition.symbol == carrier.carrier.requirement
+            && checked
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == target)
+    })
 }

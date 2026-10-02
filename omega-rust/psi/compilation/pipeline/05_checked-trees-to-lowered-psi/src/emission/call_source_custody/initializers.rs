@@ -387,25 +387,12 @@ pub(crate) fn validate(
         }
         _ => return unsupported("computed result operands have no authored value-producing call"),
     };
-    // A field store's or local's scalar boundary application tree has the
-    // same ordered operand custody: its nested applications are its computed
-    // operands.
-    let stored_application =
-        matches!(
-            statements.get(coordinate.statement_index as usize),
-            Some(StatementNode::Assignment(_) | StatementNode::LocalData(_))
-        ) && validation::nested_boundary_applications_compose(&checked.typed, expression);
-    if machine.symbol != caller_machine
-        || !(stored_application
-            || validation::result_initializer_call_is_supported(
-                &checked.typed,
-                machine,
-                expression,
-            ))
-    {
-        return unsupported(
-            "computed result operands disagree with their authored initializer route",
-        );
+    // Operand custody belongs to the authored call, independently of which
+    // destination owns its result. Result-route classification selects emission;
+    // replay instead rejoins the exact captured occurrence below. The operation
+    // validator separately checks the signature, result and each operand root.
+    if machine.symbol != caller_machine {
+        return unsupported("computed result operands belong to another authored machine");
     }
     super::occurrences::validate(
         checked,

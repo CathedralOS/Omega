@@ -374,13 +374,12 @@ pub(crate) fn build_checked_value_computation_plans(
                             program,
                             local.initial_value,
                         ));
-                    if (argument_roots || structural_destination)
-                        && let ExpressionNode::Call(call) =
-                            program.expression_table.expression(local.initial_value)
+                    if let ExpressionNode::Call(call) =
+                        program.expression_table.expression(local.initial_value)
                     {
-                        // Structural result operations need their argument roots
-                        // regardless of the enclosing state's return type. Keep
-                        // scalar whole-call ownership in argument_roots below;
+                        // Operands retain their own construction and evaluation
+                        // regardless of which operation owns the call's result.
+                        // Keep scalar whole-call ownership in argument_roots below;
                         // retaining operands does not establish a result operation.
                         builder.record_call_arguments(
                             pure,

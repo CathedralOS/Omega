@@ -556,7 +556,7 @@ pub(super) fn authored_occurrences(
 /// Calls may name an ordinary or bodyless machine, an exact
 /// boundary-trait requirement, or the caller's nominal requirement parameter.
 /// None of these routes evaluates a receiver.
-fn validate_static_receiver(
+pub(in crate::emission::call_source_custody) fn validate_static_receiver(
     checked: &CheckedTrees,
     caller: SymbolHandle,
     target: SymbolHandle,
