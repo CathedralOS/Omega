@@ -13,6 +13,87 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn scalar_method_preserves_carrier_reference_origins() {
+    let program = crate::front_end::typed_program(
+        "data Carrier { destination: &mut u64; count: u64; }
+         machine Carrier::set_count(&mut self) { self.count = 7; }
+         data Root { scratch: u64; }
+         machine Root::write(&mut self) {
+             let mut carrier: Carrier = Carrier { destination: &mut self.scratch, count: 0 };
+             carrier.set_count();
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::write")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["self.scratch".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn carrier_method_reference_replacement_keeps_origins_opaque() {
+    let program = crate::front_end::typed_program(
+        "data Carrier { destination: &mut u64; count: u64; }
+         machine Carrier::replace(&mut self, replacement: &mut u64) {
+             self.destination = replacement;
+         }
+         data Root { scratch: u64; other: u64; }
+         machine Root::write(&mut self) {
+             let mut carrier: Carrier = Carrier { destination: &mut self.scratch, count: 0 };
+             carrier.replace(&mut self.other);
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::write")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert!(
+        frames[0].complete_paths().is_none(),
+        "replaced slot cannot retain scratch origin"
+    );
+}
+
+#[test]
+fn signature_only_carrier_method_does_not_prove_binding_preservation() {
+    let program = crate::front_end::typed_program(
+        "pub data Carrier { destination: &mut u64; count: u64; }
+         boundary trait Host {}
+         boundary machine Carrier::replace(&mut self) reaches Host;
+         data Root { scratch: u64; }
+         machine Root::write(&mut self) reaches Host {
+             let mut carrier: Carrier = Carrier { destination: &mut self.scratch, count: 0 };
+             carrier.replace();
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::write")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert!(
+        frames[0].complete_paths().is_none(),
+        "unknown method may replace the stored reference"
+    );
+}
+
+#[test]
 fn statement_prefix_demand_stops_before_successor_effects() {
     for include_shared in [false, true] {
         let program = crate::front_end::typed_program(SUCCESSOR_WRITE);

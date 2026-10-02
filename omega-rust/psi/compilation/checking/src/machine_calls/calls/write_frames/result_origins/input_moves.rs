@@ -16,6 +16,8 @@ pub(super) fn validate_frozen_inputs(
     machine: &Machine,
     state: &State,
     include_shared: bool,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> Option<()> {
     let inputs = program
         .state_parameters(state)
@@ -52,6 +54,8 @@ pub(super) fn validate_frozen_inputs(
             statement,
             &inputs,
             &[],
+            symbols,
+            inference,
         ) {
             return None;
         }

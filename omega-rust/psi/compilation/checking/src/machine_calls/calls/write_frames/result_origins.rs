@@ -156,7 +156,14 @@ fn state_result_origins<'program>(
     if inference.active_states.contains(&state.symbol) {
         return None;
     }
-    input_moves::validate_frozen_inputs(program, machine, state, include_shared)?;
+    input_moves::validate_frozen_inputs(
+        program,
+        machine,
+        state,
+        include_shared,
+        symbols,
+        inference,
+    )?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
     // The shared transfer freezes local aliases and carrier leaves. Incoming

@@ -471,6 +471,8 @@ fn walk_state_write_prefix_inner(
                 statement,
                 &stored,
                 &local_alias_origins,
+                symbols,
+                inference,
             );
             let Some(record) = assignments.as_deref_mut() else {
                 if exposes_frozen_binding {
@@ -604,6 +606,8 @@ fn walk_state_write_prefix_inner(
                 statement,
                 &stored,
                 &local_alias_origins,
+                symbols,
+                inference,
             )
         {
             return None;
