@@ -546,7 +546,9 @@ fn build_cycle_frame_equation<'program>(
                             symbols,
                             &mut inference,
                         )
-                        .or_else(|| stored_origins::unresolved_origins(program, local, false))?;
+                        .or_else(|| {
+                            stored_origins::unresolved_origins(program, machine, local, false)
+                        })?;
                         inference.record_local(&origins);
                         stored.push(origins);
                     }

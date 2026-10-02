@@ -3,6 +3,11 @@
 //! Alias transfer belongs to validation. This adapter resolves its canonical
 //! names to existing typed symbols and retains only declared, builtin fixed
 //! coordinates from its captured structural origins.
+//! The inventory includes unknown reference sources. Demand a source only
+//! after selecting overlapping local storage; unrelated unknown leaves cannot
+//! erase a known effect. Alias invalidation conservatively retires unknown
+//! leaves on every write, without assigning them a referent. An exact-origin
+//! query must not discard unknown alternatives.
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
@@ -70,6 +75,18 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
         std::collections::HashMap::new();
     let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
     for origin in origins {
+        if origin.source.is_none() {
+            // This leaf can refer to any written storage. Retire its entire
+            // local footprint rather than dropping all alias expansion and
+            // losing even the current writer's known access route. This is
+            // may-write invalidation, never evidence of a particular referent.
+            let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
+            alias.segments.extend_from_slice(&origin.local_segments);
+            if seen.insert(alias.clone()) {
+                places.push(alias);
+            }
+            continue;
+        }
         let (source, exact) = origin_place(program, state, statement_index, &origin)?;
         let normalized_source_root = *normalized_roots
             .entry(source.root)

@@ -1007,8 +1007,8 @@ the complete product bar; focused successes below do not establish that baseline
 
   Current candidate application `74beda02c779`, with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
-  reaches six session-package borrow diagnostics on macOS ARM64 using compiler
-  `e18c952ea4b` plus the shared indexed-assignment transfer repair. Reproduction: `omega update --project
+  last completed review reached six session-package borrow diagnostics on macOS
+  ARM64 using compiler `b3cd8b5a318`. Reproduction: `omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
   `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
   ranges conflict with the mutable receiver's reported whole-`self` writes.
@@ -1022,15 +1022,24 @@ the complete product bar; focused successes below do not establish that baseline
   without widening to `self`. Ordinary and cyclic walks share assignment
   transfer; indexed writes discard overlapping origin evidence and rebuild the
   full declared reference inventory, including newly introduced enum cases.
-  The prior cycle-only replacement rejection is removed. All 103 focused frame
-  tests pass, including stale-origin and introduced-reference controls, but
-  unchanged application review still reports the six conflicts. Trace the
-  downstream flow mutation summary in
-  `04_typed-trees-to-checked-trees/src/flow/mutation/`: its local-origin adapter
-  asks for a complete roster before selecting overlapping fields, so unrelated
-  unknown leaves can still make disjoint metadata effects opaque. Preserve
-  unknown rows until the consumer's actual storage demand; do not omit them,
-  relax nested-reference storage guards, or add a source-shape exception.
+  The prior cycle-only replacement rejection is removed. The downstream
+  `04_typed-trees-to-checked-trees/src/flow/mutation/` adapter now retains
+  unknown reference rows and selects overlapping storage before requiring a
+  source. Unknown leaves conservatively lose their facts on writes, while
+  known aliases keep their full invalidation footprint; exact-origin queries
+  retain unknown alternatives and live-local identity checks remain required.
+  All 341 focused frame, borrow, range, declaration-index and service-binding
+  tests pass, including a complete checked metadata-call program and stale
+  value-evidence rejection. The 78-fixture borrow corpus has unchanged outcomes
+  from the prior checkpoint (including its attributed baseline failures).
+  The new unchanged-application package review remains pending after 16 minutes;
+  no successful package review or native run is established. Profiling found
+  repeated service declaration scans, now replaced by the existing index;
+  the same run also spends time scanning closed data declarations. Finish the
+  package-review reproduction before assigning its next semantic frontier.
+  The unchanged native carrier-store probe still stops at stage 04's
+  `structural field store: destination parameter`; do not remove the referent
+  store to turn that execution test green.
   The route retains
   candidate windows in external result entries, sorts disjoint `target_addresses`,
   and updates scalar metadata on the new result; no candidate-arena write was found. The owning

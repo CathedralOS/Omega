@@ -1242,8 +1242,12 @@ fn walk_state_write_prefix_inner(
                         // call substitution, including copies of this binding.
                         divergent_alias_origins.push((local.name.as_str().to_owned(), origins));
                     } else {
-                        let origins =
-                            stored_origins::unresolved_origins(program, local, include_shared)?;
+                        let origins = stored_origins::unresolved_origins(
+                            program,
+                            machine,
+                            local,
+                            include_shared,
+                        )?;
                         inference.record_local(&origins);
                         stored.push(origins);
                     }
