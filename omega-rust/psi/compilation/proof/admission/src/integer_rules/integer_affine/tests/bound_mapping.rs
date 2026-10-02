@@ -1478,3 +1478,160 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
         Ok(Proposition::LessOrEqual(literal(-3), widened)),
     );
 }
+
+#[test]
+fn saturating_endpoints_cover_every_byte_input_and_reject_plateau_strictness() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        let integer_type = IntegerType::new(sign, 8).unwrap();
+        let (minimum, maximum): (i128, i128) = match sign {
+            IntegerSign::Signed => (-128, 127),
+            IntegerSign::Unsigned => (0, 255),
+        };
+        let integer = |n: i128| match sign {
+            IntegerSign::Signed => literal(integer_type, n),
+            IntegerSign::Unsigned => unsigned_literal(integer_type, n as u128),
+        };
+        let root = value(1, integer_type);
+        let target = value(2, integer_type);
+        let context = PropositionContext::from_value_types(
+            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        // Include both carrier edges, signed negative literals, subtraction,
+        // and commuted addition. Check actual byte semantics independently of
+        // the certificate's endpoint implementation.
+        for amount in [minimum, 1, maximum] {
+            for operation in 0..3 {
+                let expression = match operation {
+                    0 => ScalarTerm::saturating_integer_add(
+                        integer_type,
+                        root.clone(),
+                        integer(amount),
+                    ),
+                    1 => ScalarTerm::saturating_integer_add(
+                        integer_type,
+                        integer(amount),
+                        root.clone(),
+                    ),
+                    _ => ScalarTerm::saturating_integer_subtract(
+                        integer_type,
+                        root.clone(),
+                        integer(amount),
+                    ),
+                }
+                .unwrap();
+                for inline in [false, true] {
+                    let axioms = if inline {
+                        vec![]
+                    } else {
+                        vec![Proposition::Equal(target.clone(), expression.clone())]
+                    };
+                    let result = if inline {
+                        expression.clone()
+                    } else {
+                        target.clone()
+                    };
+                    let witness = IntegerAffineWitness {
+                        root: root.clone(),
+                        target: result.clone(),
+                        definition_axioms: if inline { vec![] } else { vec![0] },
+                        literal_axioms: if inline { vec![] } else { vec![None] },
+                    };
+                    let checked =
+                        check_integer_affine_witness(&context, &axioms, &witness).unwrap();
+                    let execute = |input: i128| match (sign, operation) {
+                        (IntegerSign::Signed, 2) => {
+                            (input as i8).saturating_sub(amount as i8) as i128
+                        }
+                        (IntegerSign::Signed, _) => {
+                            (input as i8).saturating_add(amount as i8) as i128
+                        }
+                        (IntegerSign::Unsigned, 2) => {
+                            (input as u8).saturating_sub(amount as u8) as i128
+                        }
+                        (IntegerSign::Unsigned, _) => {
+                            (input as u8).saturating_add(amount as u8) as i128
+                        }
+                    };
+                    for bound in minimum..=maximum {
+                        for upper in [false, true] {
+                            let premise = if upper {
+                                Proposition::LessOrEqual(root.clone(), integer(bound))
+                            } else {
+                                Proposition::LessOrEqual(integer(bound), root.clone())
+                            };
+                            let endpoint = execute(bound);
+                            let conclusion = if upper {
+                                Proposition::LessOrEqual(result.clone(), integer(endpoint))
+                            } else {
+                                Proposition::LessOrEqual(integer(endpoint), result.clone())
+                            };
+                            assert_eq!(
+                                map_integer_affine_bound(&checked, &premise),
+                                Ok(conclusion.clone())
+                            );
+                            assert_eq!(
+                                check_integer_affine_bound_conversion(
+                                    &checked,
+                                    &premise,
+                                    &conclusion
+                                ),
+                                Ok(())
+                            );
+                            for input in minimum..=maximum {
+                                if upper && input <= bound {
+                                    assert!(execute(input) <= endpoint);
+                                }
+                                if !upper && bound <= input {
+                                    assert!(endpoint <= execute(input));
+                                }
+                            }
+                        }
+                    }
+                    assert_eq!(
+                        map_integer_affine_bound(
+                            &checked,
+                            &Proposition::LessThan(root.clone(), integer(maximum))
+                        ),
+                        Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation),
+                    );
+                    assert_eq!(
+                        integer_affine_truth_bounds(&checked),
+                        Ok(vec![
+                            Proposition::LessOrEqual(integer(execute(minimum)), result.clone()),
+                            Proposition::LessOrEqual(result.clone(), integer(execute(maximum))),
+                        ])
+                    );
+                    if !inline {
+                        // Saturation is many-to-one: reading this defining row
+                        // backwards must not recover an exact input bound.
+                        assert!(
+                            check_integer_affine_witness(
+                                &context,
+                                &axioms,
+                                &IntegerAffineWitness {
+                                    root: target.clone(),
+                                    target: root.clone(),
+                                    ..witness.clone()
+                                }
+                            )
+                            .is_err()
+                        );
+                        let changed = Proposition::Equal(
+                            target.clone(),
+                            ScalarTerm::saturating_integer_add(
+                                integer_type,
+                                value(3, integer_type),
+                                integer(amount),
+                            )
+                            .unwrap(),
+                        );
+                        assert!(
+                            check_integer_affine_witness(&context, &[changed], &witness).is_err()
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

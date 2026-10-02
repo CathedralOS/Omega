@@ -27,6 +27,10 @@ pub(crate) enum CheckedIntegerEndpointStep {
     Remainder(i128),
     ShiftLeft(u32),
     ShiftRight(u32),
+    /// Forward saturation is a monotone clamped translation. It maps
+    /// inclusive endpoints, but a plateau cannot preserve a strict bound or
+    /// be inverted as an ordinary translation.
+    SaturatingAdd(i128),
     /// `target = wrapping_add(operand, literal)` traversed toward the defined
     /// result. For a positive literal an upper mapped bound is unconditional
     /// because reduction modulo the width can only lower the result; a lower
@@ -311,7 +315,7 @@ pub fn check_integer_affine_witness(
         return Err(IntegerAffineWitnessError::TargetTypeMismatch);
     }
     if witness.definition_axioms.is_empty()
-        && apply_wrapping_expression_target(&witness.target, &witness.root, integer_type, 1, 0)
+        && apply_policy_expression_target(&witness.target, &witness.root, integer_type, 1, 0)
             .is_none()
     {
         return Err(IntegerAffineWitnessError::EmptyDefinitionChain);
@@ -451,7 +455,7 @@ pub fn check_integer_affine_witness(
         // value, spelled in place rather than defined by an SSA row: a
         // guarantee naming `self.length - 1`. The term is its own
         // definition, so the step is read from it and cites no axiom.
-        let (next_coefficient, next_offset, endpoint_step) = apply_wrapping_expression_target(
+        let (next_coefficient, next_offset, endpoint_step) = apply_policy_expression_target(
             &witness.target,
             &current,
             integer_type,
@@ -473,11 +477,28 @@ pub fn check_integer_affine_witness(
     })
 }
 
-/// Read `target` as one wrapping sum or difference of `current` and a direct
-/// literal of the chain's carrier: the same `WrappingAdd` step a defining
-/// row of that shape takes, with a subtracted literal negated. No landed
-/// sibling participates because no row is cited.
-fn apply_wrapping_expression_target(
+fn policy_add_step(
+    expression: &ScalarTerm,
+    operand: &ScalarTerm,
+    literal: i128,
+) -> CheckedIntegerEndpointStep {
+    if matches!(
+        expression,
+        ScalarTerm::SaturatingIntegerAdd { .. } | ScalarTerm::SaturatingIntegerSubtract { .. }
+    ) {
+        CheckedIntegerEndpointStep::SaturatingAdd(literal)
+    } else {
+        CheckedIntegerEndpointStep::WrappingAdd {
+            operand: operand.clone(),
+            literal,
+        }
+    }
+}
+
+/// Read an in-place policy sum or difference through the same step that a
+/// defining SSA row uses. Subtraction negates its literal; the selected
+/// policy still determines endpoint mapping and preservation of strictness.
+fn apply_policy_expression_target(
     target: &ScalarTerm,
     current: &ScalarTerm,
     integer_type: IntegerType,
@@ -489,6 +510,11 @@ fn apply_wrapping_expression_target(
             scalar_type,
             left,
             right,
+        }
+        | ScalarTerm::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
             (left, signed_literal(right, integer_type, None)?.0)
         }
@@ -496,10 +522,20 @@ fn apply_wrapping_expression_target(
             scalar_type,
             left,
             right,
+        }
+        | ScalarTerm::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
         } if *scalar_type == integer_type && right.as_ref() == current => {
             (right, signed_literal(left, integer_type, None)?.0)
         }
         ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerSubtract {
             scalar_type,
             left,
             right,
@@ -516,10 +552,7 @@ fn apply_wrapping_expression_target(
                 (
                     coefficient,
                     offset,
-                    CheckedIntegerEndpointStep::WrappingAdd {
-                        operand: operand.as_ref().clone(),
-                        literal,
-                    },
+                    policy_add_step(target, operand, literal),
                 )
             })
             .ok_or(IntegerAffineWitnessError::CoefficientOverflow),
@@ -1031,19 +1064,26 @@ fn apply_definition(
             scalar_type,
             left,
             right,
+        }
+        | ScalarTerm::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
             (
                 Some(coefficient),
                 offset.checked_add(literal),
                 used_landing,
-                CheckedIntegerEndpointStep::WrappingAdd {
-                    operand: left.as_ref().clone(),
-                    literal,
-                },
+                policy_add_step(expression, left, literal),
             )
         }
         ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerAdd {
             scalar_type,
             left,
             right,
@@ -1053,17 +1093,19 @@ fn apply_definition(
                 Some(coefficient),
                 offset.checked_add(literal),
                 used_landing,
-                CheckedIntegerEndpointStep::WrappingAdd {
-                    operand: right.as_ref().clone(),
-                    literal,
-                },
+                policy_add_step(expression, right, literal),
             )
         }
-        // Subtracting `c` modulo the width is adding `-c` modulo the width,
+        // Subtracting `c` uses the endpoint translation by `-c`,
         // on either carrier sign, so the step is the wrapping sum with the
         // negated literal: the side the difference faces still demands the
         // checked no-wrap evidence (`c <= operand` on an unsigned carrier).
         ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::SaturatingIntegerSubtract {
             scalar_type,
             left,
             right,
@@ -1073,10 +1115,7 @@ fn apply_definition(
                 Some(coefficient),
                 offset.checked_sub(literal),
                 used_landing,
-                CheckedIntegerEndpointStep::WrappingAdd {
-                    operand: left.as_ref().clone(),
-                    literal: literal.checked_neg()?,
-                },
+                policy_add_step(expression, left, literal.checked_neg()?),
             )
         }
         // Wrapping division is truncating division except at signed MIN/-1.

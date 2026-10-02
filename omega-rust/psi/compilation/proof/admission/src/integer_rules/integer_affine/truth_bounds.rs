@@ -6,11 +6,11 @@ use crate::integer_rules::integer_affine::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
 
-/// Derive the two carrier-tight endpoint relations for a checked word whose
-/// landed nonzero exact divide or remainder has a total full-carrier image,
-/// making its output range independent of the incoming root value. The caller
-/// still supplies and recursively checks a `Truth` child so ordinary
-/// proof-node custody remains explicit.
+/// Derive the two endpoint relations for a checked word with a total image
+/// over the root carrier: for example, a landed nonzero divide, remainder,
+/// or Saturating translation. Saturation clamps the full carrier's endpoints,
+/// so these inclusive bounds need no root premise. The caller still supplies
+/// and recursively checks a `Truth` child to preserve proof-node custody.
 pub fn integer_affine_truth_bounds(
     form: &CheckedIntegerAffineForm,
 ) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
@@ -30,6 +30,17 @@ pub fn integer_affine_truth_bounds(
                 maximum = maximum
                     .checked_add(*value)
                     .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+            }
+            CheckedIntegerEndpointStep::SaturatingAdd(value) => {
+                minimum = minimum
+                    .checked_add(*value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                    .clamp(carrier_minimum, carrier_maximum);
+                maximum = maximum
+                    .checked_add(*value)
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                    .clamp(carrier_minimum, carrier_maximum);
+                saw_total_image = true;
             }
             CheckedIntegerEndpointStep::Subtract(value) => {
                 minimum = minimum
@@ -166,7 +177,7 @@ fn scalar_integer_from_i128(
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
 }
 
-fn integer_value_to_i128(value: IntegerValue) -> Option<i128> {
+pub(super) fn integer_value_to_i128(value: IntegerValue) -> Option<i128> {
     match value {
         IntegerValue::Signed(value) => Some(value),
         IntegerValue::Unsigned(value) => i128::try_from(value).ok(),

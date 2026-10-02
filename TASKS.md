@@ -1800,12 +1800,20 @@ the complete product bar; focused successes below do not establish that baseline
     `contracts/ensures_named_parameter_arithmetic_exit` stores `start + 1`,
     passes both guarantees to `tick`, and exits 0 natively and interpreted on
     Linux x86-64 (package preparation and run commands are in its README).
-    Stale writes and wrapping counterexamples still reject. Remaining: stage
-    05 has no exit proof for a Wrapping guarantee over a constant store (`self.remaining = 5` with
-    `ensures self.remaining - 1 < 8`), a nonliteral wrapping operand or
-    Saturating field arithmetic (`OperationProofUnavailable`); and
-    `proofs/runtime_inductive_gauss_sum_exit`'s Wrapping result identity now
-    lowers but needs an inductive exit proof. Reuse
+    Stale writes and wrapping counterexamples still reject. Saturating field
+    addition and subtraction now carry inclusive bounds through the shared
+    affine certificate's clamped endpoints. On Linux x86-64,
+    `omega run --both tests/omega/pass/contracts/ensures_saturating_field_arithmetic_exit/main.omg`
+    exits 70 natively and interpreted after local package review (commands in
+    its README); `arm(4)` stores 5 and `tick` consumes the returned guarantees
+    and returns 4. Stage 05's `integer_selection/policy_translation.rs` assembles
+    those bounds and proof admission's `integer_affine` independently replays
+    them; strict plateau bounds and inverse saturation witnesses reject.
+    The earlier constant Wrapping-store probe (`remaining = 5`) also already
+    exits 70 on base `9782e38b64a`; it is not a remaining exit-proof gap.
+    Remaining: nonliteral wrapping operands; and
+    `proofs/runtime_inductive_gauss_sum_exit`'s Wrapping result identity, which
+    now lowers but needs an inductive exit proof. Reuse
     `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
     contracts and exact entry versions across joins.
   - Generalize entry-operand normalization in stage 04

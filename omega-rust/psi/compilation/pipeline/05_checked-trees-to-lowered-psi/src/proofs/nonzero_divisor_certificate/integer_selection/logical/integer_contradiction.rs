@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 
 use super::super::super::affine_custody::{self, DefinitionIndex};
 use super::super::super::integer_evidence::{integer_carrier_bound, projected_facts};
-use super::super::wrapping;
+use super::super::policy_translation;
 
 /// One checked `left </<= right` bound with its proof. Legs are built from
 /// citations or checked carrier bounds; a leg's proof is what the kernel
@@ -119,7 +119,7 @@ fn derived_legs(
             }
         }
     }
-    let mut roots = wrapping::rooted_bounds(context, assumptions, semantic_axioms);
+    let mut roots = policy_translation::rooted_bounds(context, assumptions, semantic_axioms);
     for value in value_terms(assumptions, semantic_axioms) {
         let ScalarType::Integer(integer_type) = value.scalar_type() else {
             continue;
@@ -151,7 +151,7 @@ fn derived_legs(
             {
                 legs.push(leg(left.clone(), right.clone(), false, proof.clone()));
             }
-            roots.push(wrapping::RootedBound {
+            roots.push(policy_translation::RootedBound {
                 proposition: bound,
                 proof,
                 root: value.clone(),
@@ -192,7 +192,7 @@ fn derived_legs(
                     return;
                 }
                 remaining_words -= 1;
-                let Some(mapped) = wrapping::map_derived_word(
+                let Some(mapped) = policy_translation::map_derived_word(
                     context,
                     assumptions,
                     semantic_axioms,

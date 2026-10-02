@@ -1,4 +1,10 @@
-//! Canonical bound transport through wrapping definitions.
+//! Canonical bound transport through fixed-integer policy translations.
+//!
+//! Saturating addition and subtraction map inclusive endpoints through the
+//! carrier clamp. Unlike modular arithmetic they are monotone everywhere, but
+//! a clamped plateau does not preserve strict order or permit inversion. The
+//! shared definition walk asks the kernel to replay that distinction for both
+//! SSA definitions and arithmetic written directly in a postcondition.
 //!
 //! `WrappingIntegerAdd`/`WrappingIntegerSubtract`/`WrappingIntegerDivide`
 //! rows are affine in shape but modular in semantics. Unsigned wrapping
@@ -35,12 +41,12 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    if let Some(proof) = definitions.cached_wrapping_proof(goal) {
+    if let Some(proof) = definitions.cached_policy_translation_proof(goal) {
         return proof;
     }
-    definitions.begin_wrapping_proof(goal);
+    definitions.begin_policy_translation_proof(goal);
     let proof = prove_uncached(context, goal, assumptions, semantic_axioms, definitions);
-    definitions.cache_wrapping_proof(goal, proof.clone());
+    definitions.cache_policy_translation_proof(goal, proof.clone());
     proof
 }
 
@@ -153,7 +159,7 @@ fn prove_uncached(
         return Some(proof);
     }
     // A goal can name a storage observation (`0 <= self.i`) whose stored value
-    // is the wrapping sum. Ask the same question of each value alias, then
+    // is the policy sum. Ask the same question of each value alias, then
     // substitute the observation back through the cited equality.
     let session = exact::session(context, assumptions, semantic_axioms);
     for (position, endpoint) in [(0usize, goal_left), (1, goal_right)] {
@@ -350,11 +356,13 @@ fn defining_inputs(expression: &ScalarTerm) -> impl Iterator<Item = &ScalarTerm>
     let inputs = match expression {
         ScalarTerm::ExactIntegerAdd { left, right, .. }
         | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
             [Some(left.as_ref()), Some(right.as_ref())]
         }
         ScalarTerm::ExactIntegerSubtract { left, .. }
         | ScalarTerm::WrappingIntegerSubtract { left, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, .. }
         | ScalarTerm::ExactIntegerDivide { left, .. }
         | ScalarTerm::WrappingIntegerDivide { left, .. } => [Some(left.as_ref()), None],
         _ => [None, None],
@@ -365,7 +373,7 @@ fn defining_inputs(expression: &ScalarTerm) -> impl Iterator<Item = &ScalarTerm>
         .filter(|input| matches!(input, ScalarTerm::Value { .. }))
 }
 
-/// A guarantee can name wrapping arithmetic over storage in place
+/// A guarantee can name policy arithmetic over storage in place
 /// (`self.length - 1 <= 3`) rather than through an SSA value. Stand the
 /// expression's operand on a value (itself, or a value a cited equality
 /// aliases it to), then map a root bound through the word to that value
@@ -386,7 +394,7 @@ fn prove_expression_goal(
     };
     let session = exact::session(context, assumptions, semantic_axioms);
     for (position, endpoint) in [(0usize, goal_left), (1, goal_right)] {
-        let Some(operand) = wrapping_expression_operand(endpoint) else {
+        let Some(operand) = policy_expression_operand(endpoint) else {
             continue;
         };
         let mut stands = Vec::new();
@@ -441,10 +449,11 @@ fn prove_expression_goal(
     None
 }
 
-/// The operand of a wrapping sum or difference with one literal side.
-fn wrapping_expression_operand(term: &ScalarTerm) -> Option<&ScalarTerm> {
+/// The operand of a policy sum or difference with one literal side.
+fn policy_expression_operand(term: &ScalarTerm) -> Option<&ScalarTerm> {
     match term {
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
             if right.integer_value().is_some() {
                 Some(left)
             } else if left.integer_value().is_some() {
@@ -453,7 +462,8 @@ fn wrapping_expression_operand(term: &ScalarTerm) -> Option<&ScalarTerm> {
                 None
             }
         }
-        ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
+        ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
             right.integer_value().is_some().then_some(left.as_ref())
         }
         _ => None,
@@ -464,20 +474,22 @@ fn wrapping_expression_operand(term: &ScalarTerm) -> Option<&ScalarTerm> {
 fn with_expression_operand(term: &ScalarTerm, value: &ScalarTerm) -> ScalarTerm {
     let mut rewritten = term.clone();
     match &mut rewritten {
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
             if right.integer_value().is_some() {
                 **left = value.clone();
             } else {
                 **right = value.clone();
             }
         }
-        ScalarTerm::WrappingIntegerSubtract { left, .. } => **left = value.clone(),
+        ScalarTerm::WrappingIntegerSubtract { left, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, .. } => **left = value.clone(),
         _ => {}
     }
     rewritten
 }
 
-/// Prove a goal on `target`, one wrapping step over `value`, from any root
+/// Prove a goal on `target`, one policy step over `value`, from any root
 /// bound whose word reaches `value`: a cited or synthesized root, the
 /// carrier interval of a value the chain reads, or a bound on `value`
 /// itself with the empty word.
@@ -610,7 +622,7 @@ fn shared_synthesized_operand_bounds(
 
 /// Bounds each definition target earns from its operation semantics alone:
 /// `x % 10` lands in `[0, 9]` without any cited relation. The transport
-/// treats these like cited roots so wrapping chains carry them onward.
+/// treats these like cited roots so policy chains carry them onward.
 fn synthesized_operand_bounds(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
@@ -697,13 +709,13 @@ pub(super) fn map_word(
             let Proposition::Equal(left, right) = &semantic_axioms[index] else {
                 return false;
             };
-            [left, right].iter().any(|term| is_wrapping_term(term))
+            [left, right].iter().any(|term| is_policy_term(term))
         })
     {
         // A bare non-strict relation is already the ordinary affine path's
         // root bound. This leg exists for strict roots and for the wrapping
         // evidence conjunction the ordinary path cannot construct. A word
-        // containing a wrapping definition has no affine coverage either:
+        // containing a policy definition has no affine coverage either:
         // its unconditional transports (an operand's derived range into the
         // target's upper bound) land only through this leg.
         return None;
@@ -892,11 +904,13 @@ fn map_checked_word_with(
     })
 }
 
-fn is_wrapping_term(term: &ScalarTerm) -> bool {
+fn is_policy_term(term: &ScalarTerm) -> bool {
     matches!(
         term,
         ScalarTerm::WrappingIntegerAdd { .. }
+            | ScalarTerm::SaturatingIntegerAdd { .. }
             | ScalarTerm::WrappingIntegerSubtract { .. }
+            | ScalarTerm::SaturatingIntegerSubtract { .. }
             | ScalarTerm::WrappingIntegerMultiply { .. }
             | ScalarTerm::WrappingIntegerDivide { .. }
             | ScalarTerm::WrappingIntegerRemainder { .. }

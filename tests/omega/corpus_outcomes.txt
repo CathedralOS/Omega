@@ -1515,6 +1515,7 @@ pass/constraints/selected_arithmetic_return_ensures checked 275ms @2d8ed253669f
 pass/contracts/ensures_borrowed_parameter_field_exit checked 1465ms @a5f40f5895bf+wt
 pass/contracts/ensures_fact_list_exit checked 1320ms @4e4bfed13aee+wt
 pass/contracts/ensures_named_parameter_arithmetic_exit checked 431ms @1fa864024c44+wt
+pass/contracts/ensures_saturating_field_arithmetic_exit checked 1347ms @c13c39a874dc+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1321ms @4e4bfed13aee+wt
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
