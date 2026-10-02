@@ -249,8 +249,21 @@ impl emission::Emission<'_, '_, '_> {
                                 | StructuralFieldType::PredicateByteSequence { .. }
                         ) && lookup_type_id(
                             self.type_ids,
+                            // View members register peeled — access binds on
+                            // the member, not on the shape — exactly as the
+                            // `&[u8]` arm above reads its unwrapped carrier.
                             self.checked
-                                .normalized_type_identity(field.type_reference)
+                                .normalized_type_identity(
+                                    validation::unwrapped_type_reference(
+                                        &self.checked.typed,
+                                        field.type_reference,
+                                    )
+                                    .ok_or(
+                                        LoweringError::Unsupported(
+                                            "view record member lost its carrier",
+                                        ),
+                                    )?,
+                                )
                                 .as_str(),
                         )? != child_type
                         {

@@ -397,6 +397,11 @@ pub(in crate::validation) fn validate_structural_argument(
                                         OperationKind::CallStructuralWithScalarArguments { .. }
                                             | OperationKind::BoundaryCall { .. }
                                     );
+                                    let view_descriptor = matches!(
+                                        operation.kind,
+                                        OperationKind::EstablishElementView { .. }
+                                            | OperationKind::EstablishReference { .. }
+                                    );
                                     let admitted_producer = match operation.kind {
                                         OperationKind::CallStructuralWithScalarArguments { .. }
                                         | OperationKind::BoundaryCall { .. } => {
@@ -417,14 +422,42 @@ pub(in crate::validation) fn validate_structural_argument(
                                         // leaf loans under that edge.
                                         OperationKind::EstablishRecord { .. }
                                         | OperationKind::EstablishStructuralCase { .. } => {
-                                            reference_result_call
+                                            (reference_result_call
                                                 && argument.access == StructuralAccess::Owned
                                                 && expected.access == argument.access
                                                 && expected.multiplicity
                                                     == StructuralMultiplicity::Affine
                                                 && !expected.is_self
                                                 && expected.qualifications.is_empty()
-                                                && expected.projected_qualifications.is_empty()
+                                                && expected.projected_qualifications.is_empty())
+                                                // A shared loan may observe a
+                                                // locally constructed record:
+                                                // its relocated descriptors are
+                                                // copies the callee reads but
+                                                // never moves.
+                                                || (matches!(
+                                                    operation.kind,
+                                                    OperationKind::EstablishRecord { .. }
+                                                ) && argument.access
+                                                    == StructuralAccess::SharedBorrow
+                                                    && expected.access == argument.access
+                                                    && expected.multiplicity
+                                                        == StructuralMultiplicity::Unrestricted
+                                                    && !expected.is_self)
+                                        }
+                                        // A view-establishment result names
+                                        // a relocated descriptor: a shared
+                                        // loan may hand the descriptor on by
+                                        // copy, so it keeps Unrestricted
+                                        // multiplicity rather than affine.
+                                        OperationKind::EstablishElementView { .. }
+                                        | OperationKind::EstablishReference { .. } => {
+                                            argument.access
+                                                == StructuralAccess::SharedBorrow
+                                                && expected.access == argument.access
+                                                && expected.multiplicity
+                                                    == StructuralMultiplicity::Unrestricted
+                                                && !expected.is_self
                                         }
                                         _ => false,
                                     };
@@ -435,8 +468,11 @@ pub(in crate::validation) fn validate_structural_argument(
                                             admitted_producer
                                                 && result.place == argument.place
                                                 && result.structural_type == structural_type
-                                                && result.multiplicity
+                                                && (result.multiplicity
                                                     == StructuralMultiplicity::Affine
+                                                    || (view_descriptor
+                                                        && result.multiplicity
+                                                            == StructuralMultiplicity::Unrestricted))
                                                 && (qualifications_allowed
                                                     || (result.qualifications.is_empty()
                                                         && result
@@ -448,17 +484,33 @@ pub(in crate::validation) fn validate_structural_argument(
                             producer_result.is_some()
                         } =>
                     {
-                        let result = caller
+                        let operation = caller
                             .blocks
                             .iter()
                             .flat_map(|block| &block.operations)
                             .find(|operation| operation.id == producer)
-                            .and_then(|operation| operation.result.structural())
+                            .expect("producer operation resolved above");
+                        let view_descriptor = matches!(
+                            operation.kind,
+                            OperationKind::EstablishElementView { .. }
+                                | OperationKind::EstablishReference { .. }
+                        );
+                        let result = operation
+                            .result
+                            .structural()
                             .expect("producer structural result resolved above");
                         Some((
                             structural_type,
-                            StructuralMultiplicity::Affine,
-                            StructuralAccess::Owned,
+                            if view_descriptor {
+                                StructuralMultiplicity::Unrestricted
+                            } else {
+                                StructuralMultiplicity::Affine
+                            },
+                            if view_descriptor {
+                                StructuralAccess::SharedBorrow
+                            } else {
+                                StructuralAccess::Owned
+                            },
                             result.qualifications.as_slice(),
                             result.projected_qualifications.as_slice(),
                         ))
@@ -757,6 +809,8 @@ pub(in crate::validation) fn validate_structural_argument(
         && actual_multiplicity == StructuralMultiplicity::Affine
         && (is_structural_call_result(caller, argument.place)
             || crate::validation::record::plain_return_source(module, caller, argument.place)
+            || crate::validation::record::constructed_source(module, caller, argument.place)
+                .is_some()
             || (crate::validation::scalar::case::plain_return_source(
                 module,
                 caller,

@@ -267,11 +267,21 @@ pub(crate) fn validate_structural_root_operations(
                                     candidate.id == *field && !candidate.relevance.is_erased()
                                     // A shared view field is observed through
                                     // its stored descriptor, like a whole view.
-                                    && matches!(candidate.field_type.byte_sequence_carrier(), Some(
+                                    // A `&[T]` member spells the same loan
+                                    // through its element-view type instead.
+                                    && (matches!(candidate.field_type.byte_sequence_carrier(), Some(
                                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                         | terminal_psi::ByteSequenceCarrier::BorrowedView {
                                             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                                        }))),
+                                        }))
+                                        || matches!(candidate.field_type,
+                                            terminal_psi::StructuralFieldType::Structural(child)
+                                                if structural_types.get(&child).is_some_and(|child| {
+                                                    matches!(child.shape,
+                                                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                                                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }))
+                                                })))),
                                 _ => false,
                             })
                         });

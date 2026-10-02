@@ -39,12 +39,14 @@ pub(super) fn validate(
                 || (!plain(parameter)
                     && !owner_loan(parameter, types)
                     && !qualified_owned_bytes(parameter, types)
-                    && !qualified_shared_view(parameter, types))
+                    && !qualified_shared_view(parameter, types)
+                    && !shared_view_carrier(parameter, types))
                 || !types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
                         parameter.access == StructuralAccess::Owned
                             || address_join(parameter, types)
+                            || shared_view_carrier(parameter, types)
                             || matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
@@ -92,7 +94,7 @@ pub(super) fn validate(
                 .iter()
                 .zip(&destination.structural_parameters)
             {
-                let source = source_contract(function, binding.argument.place);
+                let source = source_contract(function, binding.argument.place, types);
                 let exact_source = if qualified_shared_view(parameter, types) {
                     qualified_shared_view_source(function, &binding.argument, parameter)
                 } else if owner_loan(parameter, types) || qualified_owned_bytes(parameter, types) {
@@ -148,6 +150,18 @@ pub(super) fn validate(
                                 &binding.argument.path,
                             ) == Some(parameter.structural_type)
                     })
+                } else if shared_view_carrier(parameter, types) {
+                    // A shared loan over a view-carrying record observes the
+                    // carrier without moving it: the bound root stays with its
+                    // owner (a function value or a locally established record)
+                    // while the parameter reads the stored descriptors. An
+                    // address join never reaches here — it already bound its
+                    // member path; a carrier binds only a whole-record root.
+                    binding.argument.path.is_empty()
+                        && source.is_some_and(|(root_type, _, multiplicity)| {
+                            root_type == parameter.structural_type
+                                && multiplicity != StructuralMultiplicity::Linear
+                        })
                 } else {
                     binding.argument.path.is_empty()
                         && source
@@ -194,6 +208,19 @@ fn owner_loan(
     abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
         parameter,
         |identity| types.get(&identity).copied(),
+    )
+}
+
+/// A shared borrow of a record whose runtime members are plain storage or
+/// shared-view descriptors — the loan observes the carrier's stored views.
+fn shared_view_carrier(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
+        parameter,
+        |identity| types.get(&identity).copied(),
+        &types.values().map(|row| (*row).clone()).collect::<Vec<_>>(),
     )
 }
 
@@ -297,6 +324,7 @@ fn plain(parameter: &StructuralParameterDeclaration) -> bool {
 fn source_contract(
     function: &PsiOptimizationFunction,
     place: PlaceId,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Option<(StructuralTypeId, StructuralAccess, StructuralMultiplicity)> {
     if let Some(parameter) = function
         .structural_parameters
@@ -355,11 +383,23 @@ fn source_contract(
                 // are independently replayed by operation and frontier validation.
                 // Initialized arrays own backing just as zeroed aggregates do;
                 // lending that address does not transfer or copy their payload.
-                Some((
-                    result.structural_type,
-                    StructuralAccess::Owned,
-                    result.multiplicity,
-                ))
+                // A view-descriptor result (an `&[T]` member copy or a returned
+                // shared view) rides on its loan's shared access instead:
+                // relocating the descriptor never lends owned backing.
+                let access = types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { .. }
+                                | StructuralTypeShape::ByteSequence(
+                                    ByteSequenceCarrier::BorrowedView { .. },
+                                )
+                        )
+                    })
+                    .then_some(StructuralAccess::SharedBorrow)
+                    .unwrap_or(StructuralAccess::Owned);
+                Some((result.structural_type, access, result.multiplicity))
             }
             O::ByteSequenceSubslice { result, .. }
             | O::EstablishElementView { result, .. }

@@ -143,6 +143,107 @@ pub(super) fn field_shape(
             }
             super::scalar_call_abi::scalar_shape(kind.scalar_type()?)?
         }
+        (RecordFieldValue::Structural(argument), field_type)
+            if descriptor_shape(field_type, declarations).is_some() =>
+        {
+            // A shared view member stores its two-word descriptor: the
+            // initializer moves the descriptor value with owned access, the
+            // backing's custody stays with the source's loan. `Structural`
+            // members name their descriptor type; direct `&[u8]` members
+            // declare the canonical standalone one.
+            let expected = descriptor_shape(field_type, declarations)?;
+            if argument.access != terminal_psi::StructuralAccess::Owned
+                || !argument.path.is_empty()
+                || argument.place == parent.place
+            {
+                return None;
+            }
+            let signature = source.structural.as_ref()?;
+            let parameters = signature
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.semantic)
+                .chain(
+                    source
+                        .blocks
+                        .iter()
+                        .filter(|block| block.id != source.entry_block)
+                        .flat_map(|block| &block.structural_parameters),
+                );
+            let mut matches = parameters
+                .filter(|parameter| parameter.place == argument.place)
+                .map(|parameter| {
+                    (
+                        parameter.structural_type,
+                        parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty(),
+                    )
+                })
+                .chain(
+                    source
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.instructions)
+                        .filter_map(|row| {
+                            let result = match &row.kind {
+                                LegalizedScalarInstructionKind::EstablishRecord {
+                                    result, ..
+                                }
+                                | LegalizedScalarInstructionKind::EstablishElementView {
+                                    result,
+                                    ..
+                                }
+                                | LegalizedScalarInstructionKind::EstablishReference {
+                                    result,
+                                    ..
+                                }
+                                | LegalizedScalarInstructionKind::EstablishCase {
+                                    result, ..
+                                }
+                                | LegalizedScalarInstructionKind::EstablishZeroedStructural {
+                                    result,
+                                    ..
+                                }
+                                | LegalizedScalarInstructionKind::StructuralLeafCopy {
+                                    result,
+                                    ..
+                                } => result,
+                                LegalizedScalarInstructionKind::Call(call) => {
+                                    call.structural_result.as_ref()?
+                                }
+                                _ => return None,
+                            };
+                            (result.place == argument.place).then_some((
+                                result.structural_type,
+                                result.multiplicity != StructuralMultiplicity::Linear
+                                    && result.claims.is_empty()
+                                    && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty(),
+                            ))
+                        }),
+                );
+            let (child_type, readable) = matches.next()?;
+            if matches.next().is_some()
+                || (declarations
+                    .iter()
+                    .find(|declaration| declaration.id == child_type)
+                    .map(|declaration| &declaration.shape)
+                    != Some(&expected)
+                    && !descriptor_family(
+                        declarations
+                            .iter()
+                            .find(|declaration| declaration.id == child_type)
+                            .map(|declaration| &declaration.shape),
+                        &expected,
+                    ))
+                || !readable
+            {
+                return None;
+            }
+            crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
+        }
         (RecordFieldValue::Structural(argument), StructuralFieldType::Structural(nested)) => {
             // Owned aggregates copy their bytes; a reference child copies its
             // one address word, never the referent's storage or permission.
@@ -245,4 +346,57 @@ pub(super) fn field_shape(
         _ => return None,
     };
     Some(shape)
+}
+
+/// The descriptor shape a shared-view member stores: an `ElementView` or
+/// borrowed byte view through its `Structural` child type, or the canonical
+/// `&[u8]` spelling directly on the field.
+fn descriptor_shape(
+    field_type: &StructuralFieldType,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<StructuralTypeShape> {
+    match field_type {
+        StructuralFieldType::Structural(child) => declarations
+            .iter()
+            .find(|declaration| declaration.id == *child)
+            .map(|declaration| declaration.shape.clone())
+            .filter(|shape| {
+                matches!(
+                    shape,
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                        )
+                )
+            }),
+        StructuralFieldType::ByteSequence(
+            carrier @ terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+        )
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: carrier @ terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            ..
+        } => Some(StructuralTypeShape::ByteSequence(*carrier)),
+        _ => None,
+    }
+}
+
+/// Two descriptor shapes match when they carry the same view family: a
+/// member's `BorrowedView` spells its loan access while the standalone
+/// descriptor declaration keeps `access: None` — same layout, same family.
+fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &StructuralTypeShape) -> bool {
+    match (actual, expected) {
+        (
+            Some(StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            )),
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                ..
+            }),
+        )
+        | (
+            Some(StructuralTypeShape::ElementView { .. }),
+            StructuralTypeShape::ElementView { .. },
+        ) => true,
+        _ => false,
+    }
 }

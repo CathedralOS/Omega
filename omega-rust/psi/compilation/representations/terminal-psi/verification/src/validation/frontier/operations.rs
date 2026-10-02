@@ -175,6 +175,7 @@ pub(super) fn apply_operation(
         && super::super::byte_sequence::concatenation::owned_result(machine, result.place).is_none()
         && terminal_semantics::byte_owned_call_result(module, machine, result.place).is_none()
         && super::super::element_view::subslice::borrowed_result(machine, result.place).is_none()
+        && super::super::record::shared_view_member_source(module, machine, result.place).is_none()
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
         && !super::super::scalar::array::plain_return_source(module, machine, result.place)
         && !(result.multiplicity == StructuralMultiplicity::Unrestricted

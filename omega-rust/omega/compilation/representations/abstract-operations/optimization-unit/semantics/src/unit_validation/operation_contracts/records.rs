@@ -197,7 +197,7 @@ pub(crate) fn plain_owned_shape(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
-    record_type(types, root, false)
+    record_type(types, root, false, false)
 }
 
 pub(crate) fn field_initializers_match(
@@ -226,9 +226,15 @@ pub(crate) fn field_initializers_match(
                     else {
                         return false;
                     };
+                    // A view-descriptor member stores its descriptor with the
+                    // loan's own access, the element-view sibling of the
+                    // borrowed byte view arm below: the record relocates the
+                    // descriptor, the referent stays borrowed.
                     argument.access == StructuralAccess::Owned
                         && argument.path.is_empty()
-                        && source.access == StructuralAccess::Owned
+                        && (source.access == StructuralAccess::Owned
+                            || (source.access == StructuralAccess::SharedBorrow
+                                && shared_view_member(types, *expected)))
                         && source.structural_type == *expected
                         && source.is_unqualified()
                         && !source_has_claims(function, argument.place)
@@ -344,7 +350,7 @@ fn plain_record(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
-    record_type(types, root, false)
+    record_type(types, root, false, false)
 }
 
 /// Local construction can relocate checked reference carriers. Keep this
@@ -354,13 +360,31 @@ pub(crate) fn constructible_record(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
-    record_type(types, root, true)
+    record_type(types, root, true, true)
+}
+
+/// Whether a member's shape is a shared-view descriptor (`&[T]` element view
+/// or a borrowed byte view): the record stores a loan, not owned bytes.
+fn shared_view_member(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    child: StructuralTypeId,
+) -> bool {
+    types.get(&child).is_some_and(|declaration| {
+        matches!(
+            declaration.shape,
+            StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                )
+        )
+    })
 }
 
 fn record_type(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
     references: bool,
+    shared_view_members: bool,
 ) -> bool {
     let mut pending = vec![(root, false)];
     let mut active = BTreeSet::new();
@@ -419,12 +443,17 @@ fn record_type(
                     if references
                         && crate::unit_validation::references::referent(types, child).is_some() => {
                 }
+                // A shared-view member stores a relocated descriptor the same
+                // way a borrowed byte view does: the binding roster checks
+                // the loan source instead of owning referent cells.
+                StructuralFieldType::Structural(child)
+                    if shared_view_members && shared_view_member(types, child) => {}
                 // A borrowed view is a relocated descriptor, not owned leaf
                 // storage: records carrying one stay plain but may be locally
                 // constructed, where the binding roster checks the loan source.
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) if references => {}
+                ) if references || shared_view_members => {}
                 // Primitive arrays retain owned scalar storage as record fields.
                 // Replay the complete element chain, including below zero extents.
                 StructuralFieldType::Structural(child)

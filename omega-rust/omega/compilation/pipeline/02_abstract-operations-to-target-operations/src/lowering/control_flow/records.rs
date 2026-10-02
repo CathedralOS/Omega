@@ -109,6 +109,27 @@ pub(super) fn establish(
                                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                             )
                         });
+                // A `&[T]`/`&[u8]` member relocates its loan's descriptor into
+                // the record: the field owns the descriptor copy while the
+                // referent stays borrowed. Only shared loans reach here —
+                // upstream admission declines affine view members.
+                let descriptor_member = match &declaration.field_type {
+                    StructuralFieldType::Structural(child) => {
+                        types.get(child).is_some_and(|child| {
+                            matches!(
+                                child.shape,
+                                StructuralTypeShape::ElementView { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                                    )
+                            )
+                        })
+                    }
+                    StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+                    ) => *access == Some(StructuralAccess::SharedBorrow),
+                    _ => false,
+                };
                 let nested = match declaration.field_type {
                     StructuralFieldType::Structural(nested) => nested,
                     _ if byte_carrier.is_some() => {
@@ -127,6 +148,41 @@ pub(super) fn establish(
                         if !types.get(&nested).is_some_and(|declaration| {
                             Some(&declaration.shape)
                                 == byte_carrier.map(StructuralTypeShape::ByteSequence).as_ref()
+                        }) {
+                            return Err(invalid());
+                        }
+                        nested
+                    }
+                    // The declared `&[u8]` member spells its descriptor as a
+                    // standalone borrowed view; the source carries that shape.
+                    _ if descriptor_member => {
+                        let nested = live
+                            .views
+                            .get(&argument.place)
+                            .map(|(_, ty)| *ty)
+                            .or_else(|| {
+                                function
+                                    .structural_parameters
+                                    .iter()
+                                    .chain(
+                                        function
+                                            .block_entries
+                                            .iter()
+                                            .flat_map(|entry| &entry.structural_parameters),
+                                    )
+                                    .find(|parameter| parameter.place == argument.place)
+                                    .map(|parameter| parameter.structural_type)
+                            })
+                            .ok_or_else(invalid)?;
+                        if !types.get(&nested).is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None,
+                                    },
+                                )
+                            )
                         }) {
                             return Err(invalid());
                         }
@@ -151,6 +207,7 @@ pub(super) fn establish(
                             | StructuralTypeShape::FixedArray { .. }
                     )
                 ) && byte_carrier.is_none()
+                    && !descriptor_member
                     && !reference_bearing
                     && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)
                         .is_none()
@@ -165,7 +222,33 @@ pub(super) fn establish(
                         types.get(&nested).map(|declaration| &declaration.shape),
                         Some(StructuralTypeShape::Reference { .. })
                     );
-                let multiplicity = if bare_carrier {
+                let multiplicity = if descriptor_member {
+                    // Relocating a descriptor never moves the referent: the
+                    // source is the live view place (established or copied)
+                    // or the block's view parameter — both spell the member's
+                    // own type. Shared loans stay shared, so nothing consumes.
+                    let view_type =
+                        live.views
+                            .get(&argument.place)
+                            .map(|(_, ty)| *ty)
+                            .or_else(|| {
+                                live.block_views
+                                    .contains(&argument.place)
+                                    .then(|| {
+                                        function
+                                            .block_entries
+                                            .iter()
+                                            .flat_map(|entry| &entry.structural_parameters)
+                                            .find(|parameter| parameter.place == argument.place)
+                                            .map(|parameter| parameter.structural_type)
+                                    })
+                                    .flatten()
+                            });
+                    if view_type != Some(nested) {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    StructuralMultiplicity::Unrestricted
+                } else if bare_carrier {
                     live.references
                         .get(&(argument.place, Vec::new()))
                         .filter(|leaf| leaf.result.structural_type == nested)
@@ -209,7 +292,7 @@ pub(super) fn establish(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                if reference_bearing {
+                if reference_bearing && !descriptor_member {
                     super::references::record_field_leaves(
                         function,
                         types,

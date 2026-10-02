@@ -240,6 +240,14 @@ pub(super) fn lower(
                         parameter,
                         structural_types,
                     )
+                    && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
+                        parameter,
+                        |identity| structural_types.get(&identity).copied(),
+                        &structural_types
+                            .values()
+                            .map(|row| (*row).clone())
+                            .collect::<Vec<_>>(),
+                    )
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {

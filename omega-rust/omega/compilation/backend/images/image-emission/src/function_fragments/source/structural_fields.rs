@@ -1275,8 +1275,17 @@ fn read_access(
             // A block loan observes the original pointer retained by its
             // exact graph declaration, just as an owned arrival observes its
             // own home. Source/selection replay checks that pointer transport.
+            // A shared loan over a view-carrying record observes its member
+            // descriptors through the same pointer: the extent word of a
+            // stored `&[T]` field is the byte-length read it admits.
+            let shared_view_carrier =
+                abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+                    parameter,
+                    &target.graph.structural_types,
+                );
             if purpose == AccessPurpose::ByteOwnerReplacement
                 || !(parameter.access == StructuralAccess::Owned
+                    || shared_view_carrier
                     || abstract_operations::control_flow::address_joins::is_address_join_in(
                         parameter,
                         &target.graph.structural_types,

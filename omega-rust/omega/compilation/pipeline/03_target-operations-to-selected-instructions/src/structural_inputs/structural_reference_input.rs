@@ -1525,6 +1525,33 @@ fn scalar_field_geometry(
                         if Ok(integer) == semantic_vocabulary::IntegerType::new(
                             semantic_vocabulary::IntegerSign::Unsigned, 64))
                 }
+                StructuralFieldType::Structural(child)
+                    if declarations
+                        .iter()
+                        .find(|declaration| declaration.id == child)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ElementView { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: Some(
+                                                terminal_psi::StructuralAccess::SharedBorrow,
+                                            ),
+                                        },
+                                    )
+                            )
+                        }) =>
+                {
+                    // An element-view member spells its shared loan through
+                    // its structural type: same two-word descriptor, extent
+                    // word after the pointer.
+                    length_word = 8;
+                    observes_byte_length
+                        && matches!(scalar, ScalarType::Integer(integer)
+                        if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned, 64))
+                }
                 StructuralFieldType::Scalar(actual) => !observes_byte_length && actual == scalar,
                 StructuralFieldType::IeeeFloat(format) => {
                     !observes_byte_length && ScalarType::IeeeFloat(format) == scalar
@@ -1890,10 +1917,28 @@ fn byte_view_field_descriptor_for(
     let mut matching = fields.iter().filter(|candidate| candidate.id == field);
     let selected = matching.next()?;
     (matching.next().is_none()
-        && selected.field_type.byte_sequence_carrier()
+        && (selected.field_type.byte_sequence_carrier()
             == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
                 access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            }))
+            })
+            || matches!(
+                selected.field_type,
+                StructuralFieldType::Structural(child)
+                    if declarations.iter().any(|declaration| {
+                        declaration.id == child
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ElementView { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: Some(
+                                                terminal_psi::StructuralAccess::SharedBorrow,
+                                            ),
+                                        },
+                                    )
+                            )
+                    })
+            )))
     .then(|| length_word.checked_sub(8))
     .flatten()
 }

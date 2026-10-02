@@ -400,7 +400,23 @@ pub(super) fn source_plan_matches(
         .iter()
         .all(|parameter| parameter.symbol != symbol)
     {
-        return *plan == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
+        return match plan {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: plan_symbol,
+            } => *plan_symbol == symbol,
+            CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => {
+                match *root {
+                    checked_trees::CheckedStorageRoot::OwnedLocal {
+                        symbol: plan_symbol,
+                    }
+                    | checked_trees::CheckedStorageRoot::ViewLocal {
+                        symbol: plan_symbol,
+                    } => plan_symbol == symbol,
+                    checked_trees::CheckedStorageRoot::Parameter { .. } => false,
+                }
+            }
+            _ => false,
+        };
     }
     // `parameter_index` is the dense index into the machine's own structural
     // parameter roster (`structural_argument_plans.rs`), not an authored-order
@@ -441,6 +457,15 @@ pub(super) fn source_plan_matches(
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             Some(*parameter_index) == filtered
         }
+        CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => match *root {
+            checked_trees::CheckedStorageRoot::Parameter { index } => Some(index) == filtered,
+            checked_trees::CheckedStorageRoot::OwnedLocal {
+                symbol: plan_symbol,
+            }
+            | checked_trees::CheckedStorageRoot::ViewLocal {
+                symbol: plan_symbol,
+            } => plan_symbol == symbol,
+        },
         _ => false,
     }
 }
