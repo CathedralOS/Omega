@@ -12,21 +12,21 @@ data Main {
     entries: [Entry; 2];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.entries[0].value = 11;
-    self.entries[1].prefix = 123;
-    self.entries[1].value = 29;
-    self.entries[1].suffix = 456;
-    let entry_view: &[Entry] = self.entries.as_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    main.entries[0].value = 11;
+    main.entries[1].prefix = 123;
+    main.entries[1].value = 29;
+    main.entries[1].suffix = 456;
+    let entry_view: &[Entry] = main.entries.as_slice();
     let index: u64 = 1;
     transition entry_view[index].value == 29 {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
-    state good(&mut self) {
-        self.console.exit_process(61);
+    state good(main: &Main) {
+        main.console.exit_process(61);
     }
-    state bad(&mut self) {
-        self.console.exit_process(62);
+    state bad(main: &Main) {
+        main.console.exit_process(62);
     }
 }

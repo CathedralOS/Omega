@@ -6,20 +6,20 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> u64 {
-    let view: &[Entry] = self.entries.as_slice();
+machine Main::main(main: &mut Main) -> u64 {
+    let view: &[Entry] = main.entries.as_slice();
 
     transition {
-        _ -> self.walk(view)
+        _ -> Main::walk(main, view)
     }
 }
 
-machine Main::walk(&mut self, entries: &[Entry])
+machine Main::walk(main: &Main, entries: &[Entry])
 terminates by entries;
 -> u64
 {
     transition entries.len > 0 {
-        true -> walk(entries[1..])
+        true -> walk(main, entries[1..])
         false -> 0
     }
 }

@@ -10,28 +10,28 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.entries[0].value = 11;
-    self.entries[1].value = 29;
-    self.entries[2].value = 37;
+machine Main::main(main: &mut Main) reaches Console {
+    main.entries[0].value = 11;
+    main.entries[1].value = 29;
+    main.entries[2].value = 37;
 
-    let view: &[Entry] = self.entries.as_slice();
+    let view: &[Entry] = main.entries.as_slice();
     let tail: &[Entry] = view[1..];
 
-    transition { _ -> choose(tail, 1) }
+    transition { _ -> choose(main, tail, 1) }
 
-    state choose(&mut self, entries: &[Entry], index: u64) {
+    state choose(main: &Main, entries: &[Entry], index: u64) {
         transition entries[index].value == 37 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(207);
+    state good(main: &Main) {
+        main.console.exit_process(207);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(208);
+    state bad(main: &Main) {
+        main.console.exit_process(208);
     }
 }
