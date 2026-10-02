@@ -832,46 +832,19 @@ fn walk_state_write_prefix_inner(
                 let replaces_local_binding = representable_alias_rebinding
                     || (include_shared
                         && reference_subjects::replaces_binding(program, machine, statement)?);
-                let replaces_stored_binding = (!replaces_local_binding
-                    && (stored_origins::assignment_replaces_case_binding(
-                        program,
-                        assignment,
-                        &stored,
-                        &local_alias_origins,
-                    ) || (include_shared
-                        && stored_origins::assignment_replaces_reference_ancestor(
-                            program,
-                            assignment,
-                            &stored,
-                            &local_alias_origins,
-                        ))))
-                    || alias_bindings::assignment_replaces_untracked_reference(
-                        program,
-                        machine,
-                        state,
-                        assignment,
-                        &local_alias_origins,
-                    );
-                // A carrier replacement retires the binding's stored evidence,
-                // so the transfer installs the replacement's own proven rows
-                // under the same root. An unproven source keeps the walk
-                // opaque rather than reviving the overwritten rows.
-                let replacement = if replaces_stored_binding {
-                    Some(stored_origins::assigned_stored_origins(
-                        program,
-                        machine,
-                        state,
-                        statement,
-                        assignment,
-                        &local_alias_origins,
-                        &stored,
-                        symbols,
-                        inference,
-                        include_shared,
-                    )?)
-                } else {
-                    None
-                };
+                let replacement = stored_origins::assignment_origins(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    assignment,
+                    &local_alias_origins,
+                    &stored,
+                    symbols,
+                    inference,
+                    include_shared,
+                    replaces_local_binding,
+                )?;
                 let direct_target = coarse_place_path(program, assignment.target);
                 if let Some(relative) = direct_target.as_deref()
                     && rebind_stable_local_mutable_alias_origin(

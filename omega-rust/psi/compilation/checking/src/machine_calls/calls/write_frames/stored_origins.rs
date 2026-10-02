@@ -36,7 +36,7 @@ pub(super) fn has_aggregate_case_shape(
     type_origins::declares_cases(program, reference)
 }
 
-pub(super) use assignments::assigned_stored_origins;
+pub(super) use assignments::assignment_origins;
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
 pub(super) use frozen_bindings::assignment_replaces_reference_ancestor;
 pub(super) use frozen_bindings::binding_source;

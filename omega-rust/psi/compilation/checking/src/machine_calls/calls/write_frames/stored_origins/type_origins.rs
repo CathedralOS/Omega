@@ -213,17 +213,20 @@ fn walk_declared_origins(
                 });
             }
             TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Literal(0),
+                ..
+            } => {}
+            TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(length),
-            } => {
-                if *length != 0 {
-                    // This is only a may-write selector, never an actual index
-                    // expression or evidence authorizing an element access.
-                    let selector = PlaceSegment::Index {
-                        expression: Default::default(),
-                    };
-                    pending.push(walk.push(Some(step), *element_type, Some(selector))?);
-                }
+                length: FixedArrayLength::Literal(_),
+            }
+            | TypeReferenceNode::Slice { element_type } => {
+                // This is a storage inventory, not evidence that any element
+                // exists or that the caller may access one.
+                let selector = PlaceSegment::Index {
+                    expression: Default::default(),
+                };
+                pending.push(walk.push(Some(step), *element_type, Some(selector))?);
             }
             node if concrete_nominal_type(node).is_some() => {
                 let (symbol, _) = concrete_nominal_type(node)?;

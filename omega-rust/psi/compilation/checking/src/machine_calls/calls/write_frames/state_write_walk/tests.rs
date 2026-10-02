@@ -13,6 +13,126 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn borrowed_array_record_replacement_has_a_storage_write_frame() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         machine write(entries: &mut [Entry; 2], observed: &u64, position: u64)
+         requires position < 2;
+         {
+             entries[position] = Entry { observed: observed, value: 7 };
+         }",
+    );
+    let machine = &program.machines()[0];
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["$P0".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn borrowed_array_record_replacement_composes_through_a_named_cycle() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         machine write(entries: &mut [Entry; 2], observed: &u64) {
+             transition { _ -> fill(entries, observed, 0) }
+             state fill(entries: &mut [Entry; 2], observed: &u64, position: u64)
+             requires position < 2;
+             {
+                 entries[position] = Entry { observed: observed, value: 7 };
+                 transition position < 1 {
+                     true -> fill(entries, observed, position + 1)
+                     _ -> done(entries)
+                 }
+             }
+             state done(entries: &mut [Entry; 2]) {}
+         }",
+    );
+    let machine = &program.machines()[0];
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["$P0".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn borrowed_slice_record_replacement_has_a_storage_write_frame() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         machine write(entries: &mut [Entry], observed: &u64, position: u64)
+         requires position < entries.len;
+         {
+             entries[position] = Entry { observed: observed, value: 7 };
+         }",
+    );
+    let machine = &program.machines()[0];
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["$P0".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn indexed_replacement_cannot_preserve_stale_mutable_reference_origins() {
+    let program = crate::front_end::typed_program(
+        "data Entry { destination: &mut u64; }
+         machine write(entries: &mut [Entry; 2], replacement: &mut u64, position: u64)
+         requires position < 2;
+         {
+             entries[position] = Entry { destination: replacement };
+             entries[position].destination = 7;
+         }",
+    );
+    let machine = &program.machines()[0];
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    if let Some(paths) = frames[0].complete_paths() {
+        assert!(
+            paths.contains(&"$P1".to_owned()),
+            "lost replacement destination: {paths:?}"
+        );
+    }
+}
+
+#[test]
+fn indexed_replacement_retains_reference_slots_introduced_by_a_new_case() {
+    let program = crate::front_end::typed_program(
+        "data Entry { case Empty; case Live(destination: &mut u64); }
+         machine write(replacement: &mut u64) {
+             let mut entries: [Entry; 2] = [Entry::Empty, Entry::Empty];
+             entries[0] = Entry::Live { destination: replacement };
+             let observed: u64 = 7;
+         }",
+    );
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let prefixes = collect_state_write_prefixes(&program, machine, state, &symbols, false)
+        .expect("prefix collection");
+    let stored = &prefixes[2].as_ref().expect("post-assignment prefix").stored;
+    let entry = stored
+        .iter()
+        .find(|local| program.symbols.name(local.local_symbol) == "entries")
+        .expect("array frontier");
+    assert!(
+        !entry.references.is_empty(),
+        "new case must not lose its reference slot"
+    );
+    assert!(entry.references.iter().all(|leaf| leaf.origin.is_none()));
+}
+
+#[test]
 fn private_metadata_writes_do_not_require_unrelated_reference_origins() {
     let program = crate::front_end::typed_program(
         "data Entry { observed: &u64; value: u64; }

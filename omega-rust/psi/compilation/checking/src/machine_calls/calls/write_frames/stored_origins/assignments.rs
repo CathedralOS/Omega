@@ -1,9 +1,9 @@
 //! Assigned carriers transfer their exact origins into the binding's stored
 //! rows, the same whole-subtree ownership an instantiated move relies on.
-//! The target must resolve to one established local or parameter root, or to
-//! a plain field path beneath it; an index or case selector cannot retire
-//! sibling evidence. A reference-valued target is a rebinding, not carrier
-//! replacement, and stays with the alias paths.
+//! Exact subtrees replace their prior rows. Indexed storage writes retain the
+//! collection footprint and forget overlapping reference identities: a coarse
+//! write cannot establish which element was replaced. Neither operation grants
+//! access permission, and later reference demands still need proven origins.
 
 use super::super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
 use super::super::place_paths::append_place_suffix;
@@ -19,12 +19,56 @@ use symbols::SymbolKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment};
 
+/// Ordinary and cyclic effect walks use the same assignment-origin transfer.
+/// No replacement means the existing frontier survives; a failed required
+/// replacement must make the effect walk opaque.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    assignment: &TableAssignment,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+    replaces_alias: bool,
+) -> Option<Option<StoredLocalOrigins>> {
+    let replaces_stored = (!replaces_alias
+        && (super::assignment_replaces_case_binding(program, assignment, stored, aliases)
+            || (include_shared
+                && super::assignment_replaces_reference_ancestor(
+                    program, assignment, stored, aliases,
+                ))))
+        || super::super::alias_bindings::assignment_replaces_untracked_reference(
+            program, machine, state, assignment, aliases,
+        );
+    if !replaces_stored {
+        return Some(None);
+    }
+    assigned_stored_origins(
+        program,
+        machine,
+        state,
+        statement,
+        assignment,
+        aliases,
+        stored,
+        symbols,
+        inference,
+        include_shared,
+    )
+    .map(Some)
+}
+
 /// The complete stored record for the assignment target's root binding.
 /// Returns the spliced record so the caller can expand the write through the
 /// pre-state before installing the post-state. Any failure leaves the walk
 /// opaque rather than keeping stale declared rows beside observed ones.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
+fn assigned_stored_origins(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -73,7 +117,10 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
     if source.segments.iter().any(|segment| {
         !matches!(
             segment,
-            PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+            PlaceSegment::Field { .. }
+                | PlaceSegment::Case { .. }
+                | PlaceSegment::FixedIndex { .. }
+                | PlaceSegment::Index { .. }
         )
     }) {
         return None;
@@ -90,6 +137,64 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
         })
     }) {
         return None;
+    }
+    if let Some(collection_depth) = source.segments.iter().position(|segment| {
+        matches!(
+            segment,
+            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
+        )
+    }) {
+        let root_type = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == source.root)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| match statement {
+                        StatementNode::LocalData(local) if local.symbol == source.root => {
+                            Some(local.type_reference)
+                        }
+                        _ => None,
+                    })
+            })?;
+        let storage_type = reference_subjects::carrier_storage_type(program, root_type)?;
+        let inventory = super::declared_origins_for_query(
+            program,
+            source.root,
+            program.symbols.name(source.root),
+            storage_type,
+            include_shared,
+        )?;
+        let mut replaced = established.cloned().unwrap_or_else(|| inventory.clone());
+        // Frame paths deliberately forget element identity. Forget evidence for
+        // every element the same path may name. The full type inventory is
+        // necessary: the new value may introduce a reference-bearing case
+        // absent from the overwritten value's selected-case rows.
+        let collection = &source.segments[..collection_depth];
+        replaced
+            .references
+            .retain(|leaf| !prefix_matches(collection, &leaf.local_segments));
+        for mut leaf in inventory
+            .references
+            .into_iter()
+            .filter(|leaf| prefix_matches(collection, &leaf.local_segments))
+        {
+            leaf.origin = None;
+            replaced.references.push(leaf);
+        }
+        replaced
+            .cases
+            .retain(|case| !prefix_matches(collection, case));
+        replaced.moves.retain(|moved| {
+            !prefix_matches(collection, &moved.local_segments)
+                && !prefix_matches(&moved.local_segments, collection)
+        });
+        replaced.symbolic = false;
+        return Some(replaced);
     }
     let leaves = reference_leaves_with_origins(
         program,

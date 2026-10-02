@@ -1008,7 +1008,7 @@ the complete product bar; focused successes below do not establish that baseline
   Current candidate application `74beda02c779`, with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
   reaches six session-package borrow diagnostics on macOS ARM64 using compiler
-  `3a0034ccc27` plus the partial-origin transfer repair. Reproduction: `omega update --project
+  `e18c952ea4b` plus the shared indexed-assignment transfer repair. Reproduction: `omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
   `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
   ranges conflict with the mutable receiver's reported whole-`self` writes.
@@ -1016,17 +1016,22 @@ the complete product bar; focused successes below do not establish that baseline
   checkpointed but unpublished because the application remote denied writes;
   resolve publication before advancing the application gitlink.
 
-  Trace the remaining opaque effect in `assemble_results_view::build` after
-  partial-origin transfer. The `PointerScanResults::new` result contains a
-  mutable slice whose elements themselves hold shared references; plain path
-  substitution cannot establish that leaf's complete storage origin. The shared
-  transfer now retains unresolved leaves through local moves and helper results,
-  permitting disjoint metadata writes without exporting unknown origins or
-  dropping overlapping writes. Its local pure-tail-return exception is removed;
-  98 focused frame tests pass, including helper transport and a referent-write
-  control, but the unchanged application still reports the six conflicts.
-  Keep the shared transfer authoritative; do not relax nested-reference storage
-  guards or add a source-shape exception. The route retains
+  Shared frame inference now completes the entire `assemble_results_view`
+  cycle: `build` writes `self.target_addresses`, array filling writes
+  `level_candidates_view`, and the finite substitution solve propagates both
+  without widening to `self`. Ordinary and cyclic walks share assignment
+  transfer; indexed writes discard overlapping origin evidence and rebuild the
+  full declared reference inventory, including newly introduced enum cases.
+  The prior cycle-only replacement rejection is removed. All 103 focused frame
+  tests pass, including stale-origin and introduced-reference controls, but
+  unchanged application review still reports the six conflicts. Trace the
+  downstream flow mutation summary in
+  `04_typed-trees-to-checked-trees/src/flow/mutation/`: its local-origin adapter
+  asks for a complete roster before selecting overlapping fields, so unrelated
+  unknown leaves can still make disjoint metadata effects opaque. Preserve
+  unknown rows until the consumer's actual storage demand; do not omit them,
+  relax nested-reference storage guards, or add a source-shape exception.
+  The route retains
   candidate windows in external result entries, sorts disjoint `target_addresses`,
   and updates scalar metadata on the new result; no candidate-arena write was found. The owning
   paths are checking's receiver footprint/write-frame analysis and flow mutation
